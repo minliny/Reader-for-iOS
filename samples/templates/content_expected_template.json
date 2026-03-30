@@ -1,0 +1,21 @@
+{
+  "sampleId": "p0_non_js_content_001",
+  "flow": "content",
+  "request": {
+    "chapterUrl": "https://example.com/book/1/chapter/1"
+  },
+  "expected": {
+    "success": true,
+    "minContentLength": 20,
+    "requiredFields": [
+      "title",
+      "content"
+    ],
+    "cleanupRulesApplied": true
+  },
+  "degradeExpectation": {
+    "allowed": true,
+    "compatLevel": "B",
+    "failureType": "RULE_UNSUPPORTED"
+  }
+}

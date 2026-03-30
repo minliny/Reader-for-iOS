@@ -1,14 +1,48 @@
-version: "0.1"
+version: "0.1.0"
 generatedAt: "2026-03-30T00:00:00Z"
+scope: "ios-first-non-js-poc"
 summary:
-  totalSamples: 0
+  totalSamples: 3
   levelA: 0
-  levelB: 0
+  levelB: 3
   levelC: 0
   levelD: 0
-  passRate: 0
-  degradeRate: 0
-  failRate: 0
-  p0PassRate: 0
-  pocPassRate: 0
-samples: []
+  passRate: 0.0
+  degradeRate: 100.0
+  failRate: 0.0
+  p0PassRate: 0.0
+  pocPassRate: 0.0
+samples:
+  - sampleId: "p0_non_js_search_001"
+    stage: "p0_non_js"
+    flow: "search"
+    compatLevel: "B"
+    status: "degraded"
+    owner: "core-parser"
+    metadataPath: "samples/metadata/p0_non_js/p0_non_js_search_001.yml"
+    expectedPath: "samples/expected/search/p0_non_js_search_001.json"
+    sourcePath: "samples/booksources/p0_non_js/p0_non_js_search_001.json"
+    failureType: "RULE_UNSUPPORTED"
+    notes: "首版非 JS 路径保守降级，样本已在 matrix 预留映射。"
+  - sampleId: "p0_non_js_toc_001"
+    stage: "p0_non_js"
+    flow: "toc"
+    compatLevel: "B"
+    status: "degraded"
+    owner: "core-parser"
+    metadataPath: "samples/metadata/p0_non_js/p0_non_js_toc_001.yml"
+    expectedPath: "samples/expected/toc/p0_non_js_toc_001.json"
+    sourcePath: "samples/booksources/p0_non_js/p0_non_js_toc_001.json"
+    failureType: "RULE_UNSUPPORTED"
+    notes: "目录链路首版先确保主流程可回归。"
+  - sampleId: "p0_non_js_content_001"
+    stage: "p0_non_js"
+    flow: "content"
+    compatLevel: "B"
+    status: "degraded"
+    owner: "core-parser"
+    metadataPath: "samples/metadata/p0_non_js/p0_non_js_content_001.yml"
+    expectedPath: "samples/expected/content/p0_non_js_content_001.json"
+    sourcePath: "samples/booksources/p0_non_js/p0_non_js_content_001.json"
+    failureType: "RULE_UNSUPPORTED"
+    notes: "正文链路以非 JS 主路径优先闭环。"

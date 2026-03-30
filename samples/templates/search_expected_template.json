@@ -1,0 +1,22 @@
+{
+  "sampleId": "p0_non_js_search_001",
+  "flow": "search",
+  "request": {
+    "keyword": "测试关键词",
+    "method": "GET"
+  },
+  "expected": {
+    "success": true,
+    "minResultCount": 1,
+    "resultFieldsRequired": [
+      "bookName",
+      "bookUrl"
+    ],
+    "orderedBy": "relevance"
+  },
+  "degradeExpectation": {
+    "allowed": true,
+    "compatLevel": "B",
+    "failureType": "RULE_UNSUPPORTED"
+  }
+}
