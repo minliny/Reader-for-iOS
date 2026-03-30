@@ -1,0 +1,33 @@
+failureTypes:
+  - JSON_INVALID
+  - FIELD_MISSING
+  - RULE_INVALID
+  - RULE_UNSUPPORTED
+  - SEARCH_FAILED
+  - TOC_FAILED
+  - CONTENT_FAILED
+  - NETWORK_POLICY_MISMATCH
+  - COOKIE_REQUIRED
+  - LOGIN_REQUIRED
+  - JS_DEGRADED
+  - JS_UNSUPPORTED
+  - OUTPUT_MISMATCH
+  - CRASH
+
+RULE_INVALID:
+  - invalid_css_selector
+  - invalid_xpath_expression
+  - invalid_jsonpath_expression
+  - invalid_regex_expression
+
+NETWORK_POLICY_MISMATCH:
+  - missing_header
+  - missing_referer
+  - invalid_user_agent
+  - redirect_not_handled
+
+OUTPUT_MISMATCH:
+  - search_result_count_mismatch
+  - toc_order_mismatch
+  - content_missing_paragraph
+  - content_cleaning_mismatch

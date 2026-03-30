@@ -1,0 +1,14 @@
+version: "0.1"
+generatedAt: "2026-03-30T00:00:00Z"
+summary:
+  totalSamples: 0
+  levelA: 0
+  levelB: 0
+  levelC: 0
+  levelD: 0
+  passRate: 0
+  degradeRate: 0
+  failRate: 0
+  p0PassRate: 0
+  pocPassRate: 0
+samples: []
