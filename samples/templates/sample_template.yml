@@ -1,0 +1,28 @@
+sampleId: "p0_non_js_search_001"
+stage: "p0_non_js"
+flow: "search"
+enabled: true
+source:
+  path: "samples/booksources/p0_non_js/p0_non_js_search_001.json"
+  format: "legado_booksource_json"
+metadata:
+  path: "samples/metadata/p0_non_js/p0_non_js_search_001.yml"
+expected:
+  path: "samples/expected/search/p0_non_js_search_001.json"
+compat:
+  level: "B"
+  status: "degraded"
+  mappedInCompatMatrix: true
+  matrixKey: "p0_non_js_search_001"
+failure:
+  primaryType: "RULE_UNSUPPORTED"
+  secondaryReason: "unsupported_selector_feature"
+  notes: "首版非 JS 模式下允许降级。"
+regression:
+  required: true
+  tags:
+    - "p0"
+    - "non_js"
+    - "search"
+  owner: "core-parser"
+  runGroup: "poc"

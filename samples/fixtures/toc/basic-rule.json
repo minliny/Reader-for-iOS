@@ -1,0 +1,6 @@
+{
+  "chapterList": "css:#chapter-list",
+  "chapterName": "css:.chapter-title",
+  "chapterUrl": "css:.chapter-link|attr:href",
+  "nextTocUrl": "css:.next-page|attr:href"
+}

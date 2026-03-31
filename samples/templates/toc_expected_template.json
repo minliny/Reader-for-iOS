@@ -1,0 +1,21 @@
+{
+  "sampleId": "p0_non_js_toc_001",
+  "flow": "toc",
+  "request": {
+    "bookUrl": "https://example.com/book/1"
+  },
+  "expected": {
+    "success": true,
+    "minChapterCount": 1,
+    "chapterFieldsRequired": [
+      "chapterName",
+      "chapterUrl"
+    ],
+    "orderedBy": "source"
+  },
+  "degradeExpectation": {
+    "allowed": true,
+    "compatLevel": "B",
+    "failureType": "RULE_UNSUPPORTED"
+  }
+}

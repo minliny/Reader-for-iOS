@@ -1,0 +1,20 @@
+[
+  {
+    "chapterTitle": "第一章 测试标题",
+    "chapterURL": "https://example.com/chapter-1.html",
+    "chapterIndex": 0,
+    "isVip": false
+  },
+  {
+    "chapterTitle": "第二章 测试标题",
+    "chapterURL": "https://example.com/chapter-2.html",
+    "chapterIndex": 1,
+    "isVip": false
+  },
+  {
+    "chapterTitle": "VIP章节 第三章 测试标题",
+    "chapterURL": "https://example.com/chapter-3.html",
+    "chapterIndex": 2,
+    "isVip": true
+  }
+]

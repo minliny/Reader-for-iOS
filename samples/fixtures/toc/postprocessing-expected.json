@@ -1,0 +1,32 @@
+[
+  {
+    "chapterTitle": "第一章 测试标题",
+    "chapterURL": "#",
+    "chapterIndex": 0,
+    "isVip": false
+  },
+  {
+    "chapterTitle": "第二章 测试标题",
+    "chapterURL": "#",
+    "chapterIndex": 1,
+    "isVip": false
+  },
+  {
+    "chapterTitle": "第三章 测试标题",
+    "chapterURL": "#",
+    "chapterIndex": 2,
+    "isVip": false
+  },
+  {
+    "chapterTitle": "第四章 测试标题",
+    "chapterURL": "#",
+    "chapterIndex": 3,
+    "isVip": false
+  },
+  {
+    "chapterTitle": "第五章 测试标题",
+    "chapterURL": "#",
+    "chapterIndex": 4,
+    "isVip": false
+  }
+]
