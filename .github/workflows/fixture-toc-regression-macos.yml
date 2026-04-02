@@ -1,0 +1,94 @@
+name: Fixture TOC Regression (macOS)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/fixture-toc-regression-macos.yml"
+      - "Core/**"
+      - "samples/**"
+      - "tools/regression/**"
+      - "tools/validators/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/fixture-toc-regression-macos.yml"
+      - "Core/**"
+      - "samples/**"
+      - "tools/regression/**"
+      - "tools/validators/**"
+
+jobs:
+  fixture-toc-regression:
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Set up Swift
+        run: swift --version
+
+      - name: Set up PowerShell
+        shell: bash
+        run: pwsh --version
+
+      - name: Run Fixture TOC regression
+        id: regression
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $logDir = "samples/reports/latest"
+          New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+          $stdoutLog = Join-Path $logDir "fixture_toc_regression.stdout.log"
+          $stderrLog = Join-Path $logDir "fixture_toc_regression.stderr.log"
+          if (Test-Path $stdoutLog) { Remove-Item $stdoutLog -Force }
+          if (Test-Path $stderrLog) { Remove-Item $stderrLog -Force }
+
+          try {
+            & pwsh -NoProfile -File "tools/regression/run_fixture_toc_min_regression.ps1" -RepoRoot "." 2> $stderrLog | Tee-Object -FilePath $stdoutLog
+          } catch {
+            $_ | Out-String | Tee-Object -FilePath $stderrLog -Append | Out-Host
+            throw
+          }
+
+      - name: Assert executorVerified true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $summaryPath = "samples/reports/latest/fixture_toc_regression_summary.yml"
+          if (-not (Test-Path $summaryPath)) {
+            throw "Missing regression summary: $summaryPath"
+          }
+
+          if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
+            $summary = (Get-Content -Raw $summaryPath | ConvertFrom-Yaml)
+          } else {
+            $json = python -c "import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1],encoding='utf-8').read())))" $summaryPath
+            $summary = $json | ConvertFrom-Json -Depth 50
+          }
+
+          if (-not $summary.run.executorVerified) {
+            throw "executorVerified is false; expected true on macOS runner."
+          }
+
+      - name: Upload regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-toc-regression-macos
+          if-no-files-found: warn
+          path: |
+            samples/reports/latest/fixture_toc_regression_summary.yml
+            samples/reports/latest/fixture_toc_dry_run.json
+            samples/reports/latest/fixture_toc_execution_result.json
+            samples/reports/latest/fixture_toc_execution_manifest.json
+            samples/reports/latest/fixture_toc_regression.stdout.log
+            samples/reports/latest/fixture_toc_regression.stderr.log

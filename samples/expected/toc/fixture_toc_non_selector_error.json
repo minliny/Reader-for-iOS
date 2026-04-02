@@ -1,0 +1,13 @@
+{
+  "sampleId": "fixture_toc_non_selector_error",
+  "regressionSampleId": "fixture_toc_non_selector_error",
+  "flow": "toc",
+  "expected": {
+    "success": false,
+    "error": {
+      "type": "RULE_INVALID",
+      "reason": "invalid_css_selector",
+      "propagation": "rethrow"
+    }
+  }
+}

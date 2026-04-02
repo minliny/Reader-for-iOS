@@ -1,48 +1,63 @@
 version: "0.1.0"
-generatedAt: "2026-03-30T00:00:00Z"
-scope: "ios-first-non-js-poc"
+generatedAt: "2026-04-02T00:00:00Z"
+scope: "fixture-toc-min-regression"
 summary:
-  totalSamples: 3
-  levelA: 0
-  levelB: 3
+  totalSamples: 4
+  levelA: 4
+  levelB: 0
   levelC: 0
   levelD: 0
-  passRate: 0.0
-  degradeRate: 100.0
+  passRate: 100.0
+  degradeRate: 0.0
   failRate: 0.0
-  p0PassRate: 0.0
-  pocPassRate: 0.0
+  p0PassRate: 100.0
+  pocPassRate: 100.0
 samples:
-  - sampleId: "p0_non_js_search_001"
-    stage: "p0_non_js"
-    flow: "search"
-    compatLevel: "B"
-    status: "degraded"
-    owner: "core-parser"
-    metadataPath: "samples/metadata/p0_non_js/p0_non_js_search_001.yml"
-    expectedPath: "samples/expected/search/p0_non_js_search_001.json"
-    sourcePath: "samples/booksources/p0_non_js/p0_non_js_search_001.json"
-    failureType: "RULE_UNSUPPORTED"
-    notes: "首版非 JS 路径保守降级，样本已在 matrix 预留映射。"
-  - sampleId: "p0_non_js_toc_001"
+  - sampleId: "fixture_toc_title_rule_miss"
+    regressionSampleId: "fixture_toc_title_rule_miss"
     stage: "p0_non_js"
     flow: "toc"
-    compatLevel: "B"
-    status: "degraded"
+    compatLevel: "A"
+    status: "pass_expected"
     owner: "core-parser"
-    metadataPath: "samples/metadata/p0_non_js/p0_non_js_toc_001.yml"
-    expectedPath: "samples/expected/toc/p0_non_js_toc_001.json"
-    sourcePath: "samples/booksources/p0_non_js/p0_non_js_toc_001.json"
-    failureType: "RULE_UNSUPPORTED"
-    notes: "目录链路首版先确保主流程可回归。"
-  - sampleId: "p0_non_js_content_001"
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_title_rule_miss/metadata.yml"
+    expectedPath: "samples/expected/toc/fixture_toc_title_rule_miss.json"
+    fixturePath: "samples/fixtures/toc/fixture_toc_title_rule_miss/input.html"
+    failureType: "TOC_FAILED"
+    notes: "titleRule miss returns empty toc list."
+  - sampleId: "fixture_toc_url_rule_miss"
+    regressionSampleId: "fixture_toc_url_rule_miss"
     stage: "p0_non_js"
-    flow: "content"
-    compatLevel: "B"
-    status: "degraded"
+    flow: "toc"
+    compatLevel: "A"
+    status: "pass_expected"
     owner: "core-parser"
-    metadataPath: "samples/metadata/p0_non_js/p0_non_js_content_001.yml"
-    expectedPath: "samples/expected/content/p0_non_js_content_001.json"
-    sourcePath: "samples/booksources/p0_non_js/p0_non_js_content_001.json"
-    failureType: "RULE_UNSUPPORTED"
-    notes: "正文链路以非 JS 主路径优先闭环。"
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_url_rule_miss/metadata.yml"
+    expectedPath: "samples/expected/toc/fixture_toc_url_rule_miss.json"
+    fixturePath: "samples/fixtures/toc/fixture_toc_url_rule_miss/input.html"
+    failureType: "TOC_FAILED"
+    notes: "urlRule miss returns empty toc list."
+  - sampleId: "fixture_toc_count_mismatch"
+    regressionSampleId: "fixture_toc_count_mismatch"
+    stage: "p0_non_js"
+    flow: "toc"
+    compatLevel: "A"
+    status: "pass_expected"
+    owner: "core-parser"
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_count_mismatch/metadata.yml"
+    expectedPath: "samples/expected/toc/fixture_toc_count_mismatch.json"
+    fixturePath: "samples/fixtures/toc/fixture_toc_count_mismatch/input.html"
+    failureType: "OUTPUT_MISMATCH"
+    notes: "count mismatch returns empty toc list."
+  - sampleId: "fixture_toc_non_selector_error"
+    regressionSampleId: "fixture_toc_non_selector_error"
+    stage: "p0_non_js"
+    flow: "toc"
+    compatLevel: "A"
+    status: "pass_expected"
+    owner: "core-parser"
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_non_selector_error/metadata.yml"
+    expectedPath: "samples/expected/toc/fixture_toc_non_selector_error.json"
+    fixturePath: "samples/fixtures/toc/fixture_toc_non_selector_error/input.html"
+    failureType: "RULE_INVALID"
+    notes: "non-selector error must be rethrown."

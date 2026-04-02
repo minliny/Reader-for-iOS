@@ -13,7 +13,8 @@ let package = Package(
         .library(name: "ReaderCoreProtocols", targets: ["ReaderCoreProtocols"]),
         .library(name: "ReaderCoreParser", targets: ["ReaderCoreParser"]),
         .library(name: "ReaderCoreNetwork", targets: ["ReaderCoreNetwork"]),
-        .library(name: "ReaderCoreCache", targets: ["ReaderCoreCache"])
+        .library(name: "ReaderCoreCache", targets: ["ReaderCoreCache"]),
+        .executable(name: "FixtureTocRegressionCLI", targets: ["FixtureTocRegressionCLI"])
     ],
     targets: [
         .target(
@@ -39,6 +40,10 @@ let package = Package(
         .target(
             name: "ReaderCoreCache",
             dependencies: ["ReaderCoreModels", "ReaderCoreProtocols", "ReaderCoreFoundation"]
+        ),
+        .executableTarget(
+            name: "FixtureTocRegressionCLI",
+            dependencies: ["ReaderCoreParser"]
         ),
         .testTarget(
             name: "ReaderCoreModelsTests",

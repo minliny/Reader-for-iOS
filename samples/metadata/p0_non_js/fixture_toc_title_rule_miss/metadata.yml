@@ -1,0 +1,29 @@
+sampleId: "fixture_toc_title_rule_miss"
+regressionSampleId: "fixture_toc_title_rule_miss"
+stage: "p0_non_js"
+flow: "toc"
+enabled: true
+source:
+  kind: "fixture_html"
+  path: "samples/fixtures/toc/fixture_toc_title_rule_miss/input.html"
+rule:
+  path: "samples/fixtures/toc/fixture_toc_title_rule_miss/rule.json"
+expected:
+  path: "samples/expected/toc/fixture_toc_title_rule_miss.json"
+compat:
+  level: "A"
+  status: "pass_expected"
+  mappedInCompatMatrix: true
+  matrixKey: "fixture_toc_title_rule_miss"
+failure:
+  primaryType: "TOC_FAILED"
+  secondaryReason: "chapter_list_empty"
+  notes: "titleRule selector miss must return empty toc result."
+regression:
+  required: true
+  owner: "core-parser"
+  runGroup: "fixture_toc_contract"
+  tags:
+    - "fixture"
+    - "toc"
+    - "title_miss"

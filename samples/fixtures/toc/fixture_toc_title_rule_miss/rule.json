@@ -1,0 +1,6 @@
+{
+  "flow": "toc",
+  "titleRule": ".missing@text",
+  "urlRule": "a@href",
+  "baseURL": null
+}

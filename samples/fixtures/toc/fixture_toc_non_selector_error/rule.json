@@ -1,0 +1,11 @@
+{
+  "flow": "toc",
+  "titleRule": "a@text",
+  "urlRule": "a@href",
+  "baseURL": null,
+  "executorMode": "stub",
+  "stubError": {
+    "type": "invalidSelector",
+    "payload": "["
+  }
+}

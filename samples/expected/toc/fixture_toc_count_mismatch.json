@@ -1,0 +1,11 @@
+{
+  "sampleId": "fixture_toc_count_mismatch",
+  "regressionSampleId": "fixture_toc_count_mismatch",
+  "flow": "toc",
+  "expected": {
+    "success": true,
+    "resultType": "toc_list",
+    "chapterCount": 0,
+    "chapters": []
+  }
+}

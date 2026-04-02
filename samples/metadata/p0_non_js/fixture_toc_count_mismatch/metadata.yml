@@ -1,0 +1,29 @@
+sampleId: "fixture_toc_count_mismatch"
+regressionSampleId: "fixture_toc_count_mismatch"
+stage: "p0_non_js"
+flow: "toc"
+enabled: true
+source:
+  kind: "fixture_html"
+  path: "samples/fixtures/toc/fixture_toc_count_mismatch/input.html"
+rule:
+  path: "samples/fixtures/toc/fixture_toc_count_mismatch/rule.json"
+expected:
+  path: "samples/expected/toc/fixture_toc_count_mismatch.json"
+compat:
+  level: "A"
+  status: "pass_expected"
+  mappedInCompatMatrix: true
+  matrixKey: "fixture_toc_count_mismatch"
+failure:
+  primaryType: "OUTPUT_MISMATCH"
+  secondaryReason: "toc_order_mismatch"
+  notes: "title/url count mismatch must be treated as empty toc result."
+regression:
+  required: true
+  owner: "core-parser"
+  runGroup: "fixture_toc_contract"
+  tags:
+    - "fixture"
+    - "toc"
+    - "count_mismatch"
