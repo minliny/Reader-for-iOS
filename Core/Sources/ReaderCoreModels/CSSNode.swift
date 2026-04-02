@@ -25,8 +25,8 @@ public struct CSSNode: Sendable, Equatable {
     /// 子节点
     public let children: [CSSNode]
     
-    /// 父节点（可选，用于遍历）
-    public private(set) weak var parent: CSSNode?
+    /// 父节点（值类型节点不保留父引用，避免递归存储）
+    public var parent: CSSNode? { nil }
     
     /// 初始化方法
     public init(
@@ -42,16 +42,6 @@ public struct CSSNode: Sendable, Equatable {
         self.attributes = attributes
         self.children = children
         
-        var mutableChildren = children
-        for i in mutableChildren.indices {
-            mutableChildren[i].setParent(self)
-        }
-        self.children = mutableChildren
-    }
-    
-    /// 设置父节点（内部方法）
-    private mutating func setParent(_ parent: CSSNode?) {
-        self.parent = parent
     }
     
     /// 获取innerHTML
