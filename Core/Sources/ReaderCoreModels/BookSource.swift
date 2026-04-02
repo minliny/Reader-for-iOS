@@ -72,7 +72,9 @@ public struct BookSource: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let dynamic = try decoder.container(keyedBy: DynamicCodingKey.self)
-        let all = try dynamic.decode([String: JSONValue].self)
+        let all = try dynamic.allKeys.reduce(into: [String: JSONValue]()) { result, key in
+            result[key.stringValue] = try dynamic.decode(JSONValue.self, forKey: key)
+        }
 
         id = try dynamic.decodeIfPresent(String.self, forKey: DynamicCodingKey("bookSourceId"))
         bookSourceName = (try dynamic.decodeIfPresent(String.self, forKey: DynamicCodingKey("bookSourceName"))) ?? ""
