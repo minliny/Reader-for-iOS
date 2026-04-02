@@ -1,5 +1,4 @@
 import Foundation
-import ReaderCoreModels
 
 public struct StructuredErrorLog: Codable, Equatable, Sendable {
     public var id: String
