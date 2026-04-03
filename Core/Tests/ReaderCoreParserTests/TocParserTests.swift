@@ -33,7 +33,8 @@ final class TocParserTests: XCTestCase {
         """
         
         // 设置预期结果
-        mockScheduler.mockResults = ["第一章 测试标题", "第二章 测试标题"]
+        mockScheduler.titleRule = "css:.chapter-item"
+        mockScheduler.mockTitles = ["第一章 测试标题", "第二章 测试标题"]
         
         // 执行测试
         let titles = try parser.parseTitles(
@@ -58,10 +59,10 @@ final class TocParserTests: XCTestCase {
         """
         
         // 设置预期结果
-        mockScheduler.mockResults = [
-            "第一章 测试标题", "第二章 测试标题",
-            "/chapter1.html", "/chapter2.html"
-        ]
+        mockScheduler.titleRule = "css:.chapter-link"
+        mockScheduler.urlRule = "css:.chapter-link|attr:href"
+        mockScheduler.mockTitles = ["第一章 测试标题", "第二章 测试标题"]
+        mockScheduler.mockURLs = ["/chapter1.html", "/chapter2.html"]
         
         // 执行测试
         let items = try parser.parseTitlesAndURLs(
@@ -87,7 +88,10 @@ final class TocParserTests: XCTestCase {
         """
         
         // 设置预期结果
-        mockScheduler.mockResults = ["第一章 测试标题", "/chapter1.html"]
+        mockScheduler.titleRule = "css:.chapter-link"
+        mockScheduler.urlRule = "css:.chapter-link|attr:href"
+        mockScheduler.mockTitles = ["第一章 测试标题"]
+        mockScheduler.mockURLs = ["/chapter1.html"]
         
         // 执行测试
         let items = try parser.parseTitlesAndURLs(
@@ -111,7 +115,10 @@ final class TocParserTests: XCTestCase {
         let html = ""
         
         // 设置预期结果
-        mockScheduler.mockResults = []
+        mockScheduler.titleRule = "css:.chapter-link"
+        mockScheduler.urlRule = "css:.chapter-link|attr:href"
+        mockScheduler.mockTitles = []
+        mockScheduler.mockURLs = []
         
         // 执行测试
         let items = try parser.parseTitlesAndURLs(
@@ -135,7 +142,10 @@ final class TocParserTests: XCTestCase {
         """
         
         // 设置预期结果
-        mockScheduler.mockResults = []
+        mockScheduler.titleRule = "css:.chapter-link"
+        mockScheduler.urlRule = "css:.chapter-link|attr:href"
+        mockScheduler.mockTitles = []
+        mockScheduler.mockURLs = []
         
         // 执行测试
         let items = try parser.parseTitlesAndURLs(
@@ -160,10 +170,10 @@ final class TocParserTests: XCTestCase {
         """
         
         // 设置预期结果
-        mockScheduler.mockResults = [
-            "第一章 测试标题", "第二章 测试标题",
-            "/chapter1.html"
-        ]
+        mockScheduler.titleRule = "css:.chapter-item,css:.chapter-link"
+        mockScheduler.urlRule = "css:.chapter-link|attr:href"
+        mockScheduler.mockTitles = ["第一章 测试标题", "第二章 测试标题"]
+        mockScheduler.mockURLs = ["/chapter1.html"]
         
         // 执行测试
         let items = try parser.parseTitlesAndURLs(
@@ -188,7 +198,8 @@ final class TocParserTests: XCTestCase {
         """
         
         // 设置预期结果
-        mockScheduler.mockResults = [
+        mockScheduler.titleRule = "css:.chapter-item"
+        mockScheduler.mockTitles = [
             "正文卷.第一章 测试标题（求月票）",
             "VIP章节.第二章 测试标题【订阅】"
         ]
@@ -219,11 +230,14 @@ final class TocParserTests: XCTestCase {
         """
         
         // 设置预期结果
-        mockScheduler.mockResults = [
-            "<div class=\"chapter-item\">第一章 测试标题</div><div class=\"chapter-item\">第二章 测试标题</div>",
-            "第一章 测试标题",
-            "第二章 测试标题"
+        mockScheduler.chapterListRule = "css:#chapter-list"
+        mockScheduler.titleRule = "css:.chapter-item"
+        mockScheduler.urlRule = "css:.chapter-item|attr:href"
+        mockScheduler.mockContainers = [
+            "<div class=\"chapter-item\">第一章 测试标题</div><div class=\"chapter-item\">第二章 测试标题</div>"
         ]
+        mockScheduler.mockTitles = ["第一章 测试标题", "第二章 测试标题"]
+        mockScheduler.mockURLs = []
         
         // 创建规则
         let rule = TocRule(
@@ -287,7 +301,12 @@ final class TocParserTests: XCTestCase {
 // MARK: - Mock Rule Scheduler
 
 class MockRuleScheduler: RuleScheduler {
-    var mockResults: [String] = []
+    var titleRule: String?
+    var urlRule: String?
+    var chapterListRule: String?
+    var mockTitles: [String] = []
+    var mockURLs: [String] = []
+    var mockContainers: [String] = []
     var shouldThrowError = false
     var error: Error?
     var evaluateCallCount = 0
@@ -305,8 +324,17 @@ class MockRuleScheduler: RuleScheduler {
         if shouldThrowError {
             throw error ?? ParserError.ruleExecutionFailed("未知错误")
         }
-        
-        return mockResults
+
+        switch rule {
+        case chapterListRule:
+            return mockContainers
+        case titleRule:
+            return mockTitles
+        case urlRule:
+            return mockURLs
+        default:
+            return []
+        }
     }
 }
 
