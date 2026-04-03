@@ -82,9 +82,9 @@ public struct TocItem: Codable, Sendable, Equatable, Identifiable {
         }
         
         // 移除括号内的内容
-        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+        processed = processed.replacingOccurrences(of: "\\([^)]*\\)", with: "", options: .regularExpression)
         processed = processed.replacingOccurrences(of: "（[^）]*）", with: "", options: .regularExpression)
-        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+        processed = processed.replacingOccurrences(of: "\\[[^\\]]*\\]", with: "", options: .regularExpression)
         processed = processed.replacingOccurrences(of: "【[^】]*】", with: "", options: .regularExpression)
         
         // 去除多余空格
