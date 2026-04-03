@@ -70,6 +70,7 @@ public final class CSSExecutor: @unchecked Sendable {
         let parts = selector.components(separatedBy: ">").map { $0.trimmingCharacters(in: .whitespaces) }
         var currentNodes = [node]
         var iterationCount = 0
+        let activeSampleId = sampleId ?? "unknown"
         
         for (partIndex, part) in parts.enumerated() {
             if part.isEmpty { continue }
@@ -78,7 +79,7 @@ public final class CSSExecutor: @unchecked Sendable {
             debug("NODE_TRAVERSE depth=\(depth) current_nodes=\(currentNodes.count)")
 
             if depth > maxTraversalDepth {
-                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                debug("LOOP_GUARD_TRIGGERED sample=\(activeSampleId) location=CSSExecutor.select.depth")
                 throw CSSExecutorError.htmlParsingFailed
             }
 
@@ -92,7 +93,7 @@ public final class CSSExecutor: @unchecked Sendable {
                     debug("NODE_TRAVERSE start node=\(nodeLabel(currentNode))")
                 }
                 if iterationCount > maxLoopIterations {
-                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                    debug("LOOP_GUARD_TRIGGERED sample=\(activeSampleId) location=CSSExecutor.select.loop")
                     throw CSSExecutorError.htmlParsingFailed
                 }
                 let matches = applySelectorPart(part, to: currentNode)
