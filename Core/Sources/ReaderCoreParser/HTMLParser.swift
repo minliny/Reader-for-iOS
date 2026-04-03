@@ -111,7 +111,8 @@ public final class HTMLParser: Sendable {
             scanner.scanCharacter()
             
             if scanner.scanString("/") != nil {
-                if let closeTag = scanTagName(scanner), closeTag.lowercased() == tagName.lowercased() {
+                let closeTag = scanTagName(scanner)
+                if let closeTag, closeTag.lowercased() == tagName.lowercased() {
                     if !currentText.isEmpty {
                         children.append(createTextNode(currentText))
                         currentText = ""
