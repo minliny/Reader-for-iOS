@@ -33,6 +33,42 @@ jobs:
           set -o pipefail
           swift test --verbose 2>&1 | tee swift-test.log
 
+      - name: Emit swift test failure excerpt
+        if: failure()
+        working-directory: Core
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          log_path = Path("swift-test.log")
+          if not log_path.exists():
+              print("::error::swift-test.log not found")
+              raise SystemExit(0)
+
+          lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+          excerpt = lines[-80:]
+
+          print("===== swift test failure excerpt =====")
+          for line in excerpt:
+              print(line)
+
+          emitted = 0
+          markers = (" error: ", " failed - ", "Assertion failed", "XCTAssert", "Test Case '-[")
+          for line in lines:
+              if any(marker in line for marker in markers):
+                  safe = line.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::error::{safe}")
+                  emitted += 1
+                  if emitted >= 20:
+                      break
+
+          if emitted == 0:
+              for line in excerpt[-20:]:
+                  safe = line.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::error::{safe}")
+          PY
+
       - name: Upload swift test log
         if: always()
         uses: actions/upload-artifact@v4
