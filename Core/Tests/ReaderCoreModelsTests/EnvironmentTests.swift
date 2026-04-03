@@ -2,19 +2,19 @@ import XCTest
 @testable import ReaderCoreModels
 
 final class EnvironmentTests: XCTestCase {
-    private let originalEnvironment = ProcessInfo.processInfo.environment
+    private let trackedKeys = ["SITE_URL", "DEBUG", "TIMEOUT_INTERVAL"]
+    private var originalValues: [String: String?] = [:]
     
     override func setUp() {
         super.setUp()
-        // 保存原始环境变量
-        ProcessInfo.processInfo.environment["SITE_URL"] = nil
-        ProcessInfo.processInfo.environment["DEBUG"] = nil
-        ProcessInfo.processInfo.environment["TIMEOUT_INTERVAL"] = nil
+        originalValues = Dictionary(uniqueKeysWithValues: trackedKeys.map { key in
+            (key, ProcessInfo.processInfo.environment[key])
+        })
+        clearTrackedEnvironment()
     }
     
     override func tearDown() {
-        // 恢复原始环境变量
-        ProcessInfo.processInfo.environment = originalEnvironment
+        restoreTrackedEnvironment()
         super.tearDown()
     }
     
@@ -25,13 +25,13 @@ final class EnvironmentTests: XCTestCase {
     
     /// 测试自定义siteURL
     func testCustomSiteURL() {
-        ProcessInfo.processInfo.environment["SITE_URL"] = "https://blog.minliny.com"
+        setEnvironmentValue("https://blog.minliny.com", for: "SITE_URL")
         XCTAssertEqual(Environment.siteURL, "https://blog.minliny.com")
     }
     
     /// 测试带空格的siteURL
     func testSiteURLWithWhitespace() {
-        ProcessInfo.processInfo.environment["SITE_URL"] = "  https://blog.minliny.com  "
+        setEnvironmentValue("  https://blog.minliny.com  ", for: "SITE_URL")
         XCTAssertEqual(Environment.siteURL, "https://blog.minliny.com")
     }
     
@@ -42,13 +42,13 @@ final class EnvironmentTests: XCTestCase {
     
     /// 测试开启debug模式
     func testDebugModeEnabled() {
-        ProcessInfo.processInfo.environment["DEBUG"] = "true"
+        setEnvironmentValue("true", for: "DEBUG")
         XCTAssertTrue(Environment.isDebug)
     }
     
     /// 测试关闭debug模式
     func testDebugModeDisabled() {
-        ProcessInfo.processInfo.environment["DEBUG"] = "false"
+        setEnvironmentValue("false", for: "DEBUG")
         XCTAssertFalse(Environment.isDebug)
     }
     
@@ -59,13 +59,33 @@ final class EnvironmentTests: XCTestCase {
     
     /// 测试自定义超时时间
     func testCustomTimeoutInterval() {
-        ProcessInfo.processInfo.environment["TIMEOUT_INTERVAL"] = "60"
+        setEnvironmentValue("60", for: "TIMEOUT_INTERVAL")
         XCTAssertEqual(Environment.timeoutInterval, 60.0)
     }
     
     /// 测试无效超时时间
     func testInvalidTimeoutInterval() {
-        ProcessInfo.processInfo.environment["TIMEOUT_INTERVAL"] = "invalid"
+        setEnvironmentValue("invalid", for: "TIMEOUT_INTERVAL")
         XCTAssertEqual(Environment.timeoutInterval, 30.0)
+    }
+
+    private func clearTrackedEnvironment() {
+        for key in trackedKeys {
+            unsetenv(key)
+        }
+    }
+
+    private func restoreTrackedEnvironment() {
+        for key in trackedKeys {
+            if let original = originalValues[key] ?? nil {
+                setenv(key, original, 1)
+            } else {
+                unsetenv(key)
+            }
+        }
+    }
+
+    private func setEnvironmentValue(_ value: String, for key: String) {
+        setenv(key, value, 1)
     }
 }

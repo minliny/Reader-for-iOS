@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 @testable import ReaderCoreParser
 import ReaderCoreModels
+import ReaderCoreProtocols
 
 final class TocParserTests: XCTestCase {
     private var parser: TocParser!
@@ -290,7 +291,7 @@ class MockRuleScheduler: RuleScheduler {
     func evaluate(
         rule: String,
         data: Data,
-        flow: RuleFlow,
+        flow: ParseFlow,
         source: BookSource
     ) throws -> [String] {
         evaluateCallCount += 1
