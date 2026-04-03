@@ -26,6 +26,7 @@ struct FixtureTocRegressionCLI {
             manifest: manifest,
             sampleTimeout: 30,
             log: logToStderr,
+            tocLog: tocDebugToStderr,
             onUpdate: { snapshot in
                 writer.write(snapshot)
             }
@@ -37,6 +38,15 @@ struct FixtureTocRegressionCLI {
 
     private static func logToStderr(_ message: String) {
         let line = "[FixtureRunner] \(message)\n"
+        writeToStderr(line)
+    }
+
+    private static func tocDebugToStderr(_ message: String) {
+        let line = "[TOC_DEBUG] \(message)\n"
+        writeToStderr(line)
+    }
+
+    private static func writeToStderr(_ line: String) {
         guard let data = line.data(using: .utf8) else {
             return
         }

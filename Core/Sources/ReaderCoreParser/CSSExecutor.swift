@@ -3,14 +3,29 @@ import ReaderCoreModels
 import ReaderCoreProtocols
 
 /// CSS执行器，用于执行CSS选择器并提取内容
-public final class CSSExecutor: Sendable {
+public final class CSSExecutor: @unchecked Sendable {
     private let parser = HTMLParser()
+    private let sampleId: String?
+    private let debugLog: ((String) -> Void)?
+    private let maxLoopIterations: Int
+    private let maxTraversalDepth: Int
     
-    public init() {}
+    public init(
+        sampleId: String? = nil,
+        debugLog: ((String) -> Void)? = nil,
+        maxLoopIterations: Int = 100_000,
+        maxTraversalDepth: Int = 1_000
+    ) {
+        self.sampleId = sampleId
+        self.debugLog = debugLog
+        self.maxLoopIterations = maxLoopIterations
+        self.maxTraversalDepth = maxTraversalDepth
+    }
     
     /// 执行完整的CSS规则（包含选择器和属性提取）
     public func execute(_ rule: String, from html: String) throws -> [String] {
         let trimmed = rule.trimmingCharacters(in: .whitespacesAndNewlines)
+        debug("RULE_STEP name=execute_rule rule=\(sanitize(trimmed))")
         
         if trimmed.hasSuffix("@text") {
             let selector = String(trimmed.dropLast(5)).trimmingCharacters(in: .whitespaces)
@@ -34,18 +49,59 @@ public final class CSSExecutor: Sendable {
     
     /// 执行CSS选择器并返回匹配的节点
     public func select(_ selector: String, from html: String) throws -> [CSSNode] {
+        debug("SELECTOR_EXEC start selector=\(sanitize(selector))")
+        let parseStart = DispatchTime.now()
+        debug("RULE_STEP name=document_parse_start selector=\(sanitize(selector))")
         let document = try parser.parse(html)
+        let parseDurationMs = elapsedMilliseconds(since: parseStart)
+        debug("RULE_STEP name=document_parse_end selector=\(sanitize(selector)) duration_ms=\(parseDurationMs) root_children=\(document.children.count)")
+        let selectionStart = DispatchTime.now()
         return try select(selector, from: document)
+            .map { node in
+                node
+            }
+            .withSideEffect { nodes in
+                debug("SELECTOR_EXEC result_count=\(nodes.count) selector=\(sanitize(selector)) duration_ms=\(elapsedMilliseconds(since: selectionStart))")
+            }
     }
     
     /// 执行CSS选择器并返回匹配的节点（从指定节点开始）
     public func select(_ selector: String, from node: CSSNode) throws -> [CSSNode] {
         let parts = selector.components(separatedBy: ">").map { $0.trimmingCharacters(in: .whitespaces) }
         var currentNodes = [node]
+        var iterationCount = 0
         
-        for part in parts {
+        for (partIndex, part) in parts.enumerated() {
             if part.isEmpty { continue }
-            currentNodes = currentNodes.flatMap { applySelectorPart(part, to: $0) }
+            let depth = partIndex + 1
+            debug("RULE_STEP name=selector_part part=\(sanitize(part)) depth=\(depth)")
+            debug("NODE_TRAVERSE depth=\(depth) current_nodes=\(currentNodes.count)")
+
+            if depth > maxTraversalDepth {
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                throw CSSExecutorError.htmlParsingFailed
+            }
+
+            var nextNodes: [CSSNode] = []
+            nextNodes.reserveCapacity(currentNodes.count)
+
+            for currentNode in currentNodes {
+                iterationCount += 1
+                if shouldLogIteration(iterationCount) {
+                    debug("LOOP_ITERATION count=\(iterationCount)")
+                    debug("NODE_TRAVERSE start node=\(nodeLabel(currentNode))")
+                }
+                if iterationCount > maxLoopIterations {
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                    throw CSSExecutorError.htmlParsingFailed
+                }
+                let matches = applySelectorPart(part, to: currentNode)
+                nextNodes.append(contentsOf: matches)
+                if shouldLogIteration(iterationCount) {
+                    debug("NODE_TRAVERSE depth=\(depth) match_count=\(matches.count) child_count=\(currentNode.children.count)")
+                }
+            }
+            currentNodes = nextNodes
         }
         
         return currentNodes
@@ -101,5 +157,43 @@ public final class CSSExecutor: Sendable {
                 child.type == .element && child.tagName == tagName
             }
         }
+    }
+
+    private func debug(_ message: String) {
+        debugLog?(message)
+    }
+
+    private func sanitize(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+    }
+
+    private func elapsedMilliseconds(since start: DispatchTime) -> Int {
+        Int(DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds) / 1_000_000
+    }
+
+    private func shouldLogIteration(_ count: Int) -> Bool {
+        count <= 10 || count % 100 == 0
+    }
+
+    private func nodeLabel(_ node: CSSNode) -> String {
+        switch node.type {
+        case .element:
+            return node.tagName ?? "element"
+        case .text:
+            return "#text"
+        case .comment:
+            return "#comment"
+        case .document:
+            return "#document"
+        }
+    }
+}
+
+private extension Array {
+    func withSideEffect(_ body: ([Element]) -> Void) -> [Element] {
+        body(self)
+        return self
     }
 }

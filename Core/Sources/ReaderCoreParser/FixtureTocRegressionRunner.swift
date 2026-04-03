@@ -49,6 +49,7 @@ public enum FixtureTocRegressionRunner {
         manifest: FixtureTocRegressionManifest,
         sampleTimeout: TimeInterval = 30,
         log: @escaping (String) -> Void = { _ in },
+        tocLog: @escaping (String) -> Void = { _ in },
         onUpdate: @escaping (FixtureTocRegressionResult) -> Void = { _ in }
     ) throws -> FixtureTocRegressionResult {
         let recorder = ProgressRecorder(manifest: manifest, onUpdate: onUpdate)
@@ -62,7 +63,8 @@ public enum FixtureTocRegressionRunner {
             let result = runSampleWithTimeout(
                 sample,
                 timeout: sampleTimeout,
-                log: log
+                log: log,
+                tocLog: tocLog
             ) { stage in
                 recorder.record(runningResult(sample: sample, stage: stage))
             }
@@ -76,6 +78,7 @@ public enum FixtureTocRegressionRunner {
         _ sample: FixtureTocRegressionSample,
         timeout: TimeInterval,
         log: @escaping (String) -> Void,
+        tocLog: @escaping (String) -> Void,
         onStageUpdate: @escaping (String) -> Void
     ) -> FixtureTocSampleExecutionResult {
         let state = SampleExecutionState(initialStage: "search")
@@ -84,7 +87,19 @@ public enum FixtureTocRegressionRunner {
         let queue = DispatchQueue(label: "FixtureTocRegressionRunner.\(sample.sampleId)", qos: .userInitiated)
 
         queue.async {
-            let result = executeSample(sample, state: state, log: log, onStageUpdate: onStageUpdate)
+            let sampleTocLog: (String) -> Void = { message in
+                guard state.allowsLogging else {
+                    return
+                }
+                tocLog(message)
+            }
+            let result = executeSample(
+                sample,
+                state: state,
+                log: log,
+                tocLog: sampleTocLog,
+                onStageUpdate: onStageUpdate
+            )
             if state.markCompletedIfPending() {
                 logFinalResult(result, log: log)
                 completion.store(result)
@@ -119,6 +134,7 @@ public enum FixtureTocRegressionRunner {
         _ sample: FixtureTocRegressionSample,
         state: SampleExecutionState,
         log: @escaping (String) -> Void,
+        tocLog: @escaping (String) -> Void,
         onStageUpdate: @escaping (String) -> Void
     ) -> FixtureTocSampleExecutionResult {
         do {
@@ -132,12 +148,13 @@ public enum FixtureTocRegressionRunner {
 
             do {
                 updateStage("toc", sample: sample, state: state, log: log, onStageUpdate: onStageUpdate)
-                let parser = makeParser(for: rule)
+                let parser = makeParser(for: rule, sampleId: sample.sampleId, tocLog: tocLog)
                 let items = try parser.parse(
                     html: html,
                     titleRule: rule.titleRule,
                     urlRule: rule.urlRule,
-                    baseURL: rule.baseURL
+                    baseURL: rule.baseURL,
+                    sampleId: sample.sampleId
                 )
                 updateStage("content", sample: sample, state: state, log: log, onStageUpdate: onStageUpdate)
                 return compareSuccess(items: items, expected: expected, sample: sample)
@@ -164,11 +181,19 @@ public enum FixtureTocRegressionRunner {
         onStageUpdate(stage)
     }
 
-    private static func makeParser(for rule: FixtureTocRuleFile) -> FixtureTocParser {
+    private static func makeParser(
+        for rule: FixtureTocRuleFile,
+        sampleId: String,
+        tocLog: @escaping (String) -> Void
+    ) -> FixtureTocParser {
         guard rule.executorMode == "stub", let stubError = rule.stubError else {
-            return FixtureTocParser()
+            return FixtureTocParser(sampleId: sampleId, tocLog: tocLog)
         }
-        return FixtureTocParser(cssExecutor: FixtureTocStubRuleExecutor(stubError: stubError))
+        return FixtureTocParser(
+            cssExecutor: FixtureTocStubRuleExecutor(stubError: stubError),
+            sampleId: sampleId,
+            tocLog: tocLog
+        )
     }
 
     private static func compareSuccess(
@@ -472,6 +497,13 @@ public enum FixtureTocRegressionRunner {
             let value = stage
             lock.unlock()
             return value
+        }
+
+        var allowsLogging: Bool {
+            lock.lock()
+            let allowed = !timedOut
+            lock.unlock()
+            return allowed
         }
 
         func updateStageIfPending(_ nextStage: String) -> Bool {
