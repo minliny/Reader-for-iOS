@@ -37,18 +37,29 @@ public struct Cookie: Sendable, Equatable {
         let normalizedDomain = domain.lowercased()
         let normalizedTarget = targetDomain.lowercased()
 
+        let domainMatches: Bool
         if normalizedDomain.hasPrefix(".") {
-            return normalizedTarget.hasSuffix(normalizedDomain) || normalizedTarget == String(normalizedDomain.dropFirst())
+            domainMatches = normalizedTarget.hasSuffix(normalizedDomain) || normalizedTarget == String(normalizedDomain.dropFirst())
         } else {
-            return normalizedTarget == normalizedDomain
+            domainMatches = normalizedTarget == normalizedDomain
         }
+
+        guard domainMatches else { return false }
+        return matches(path: targetPath)
     }
 
     public func matches(path targetPath: String) -> Bool {
         if path == "/" {
             return true
         }
-        return targetPath.hasPrefix(path)
+        guard targetPath.hasPrefix(path) else {
+            return false
+        }
+        if targetPath == path || path.hasSuffix("/") {
+            return true
+        }
+        let boundaryIndex = targetPath.index(targetPath.startIndex, offsetBy: path.count)
+        return boundaryIndex < targetPath.endIndex && targetPath[boundaryIndex] == "/"
     }
 }
 
