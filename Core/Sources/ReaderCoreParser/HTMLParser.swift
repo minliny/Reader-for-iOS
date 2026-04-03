@@ -3,6 +3,8 @@ import ReaderCoreModels
 
 /// HTML解析器，用于将HTML字符串解析为CSSNode树
 public final class HTMLParser: Sendable {
+    private let maxNestingDepth = 1000
+
     public init() {}
     
     /// 解析HTML字符串为CSSNode树
@@ -14,6 +16,8 @@ public final class HTMLParser: Sendable {
         var currentText = ""
         
         while !scanner.isAtEnd {
+            let loopStartIndex = scanner.currentIndex
+
             if let text = scanUpToLessThan(scanner) {
                 currentText += text
             }
@@ -47,6 +51,10 @@ public final class HTMLParser: Sendable {
                     nodes.append(element)
                 }
             }
+
+            if !didScannerAdvance(scanner, since: loopStartIndex) {
+                break
+            }
         }
         
         if !currentText.isEmpty {
@@ -79,7 +87,7 @@ public final class HTMLParser: Sendable {
         _ = scanner.scanCharacter()
     }
     
-    private func scanElement(_ scanner: Scanner) -> CSSNode? {
+    private func scanElement(_ scanner: Scanner, depth: Int = 0) -> CSSNode? {
         guard let tagName = scanTagName(scanner) else {
             return nil
         }
@@ -93,13 +101,31 @@ public final class HTMLParser: Sendable {
                 attributes: attributes
             )
         }
-        
-        scanner.scanString(">")
+
+        if depth >= maxNestingDepth {
+            _ = scanner.scanUpToString(">")
+            _ = scanner.scanString(">")
+            return CSSNode(
+                type: .element,
+                tagName: tagName.lowercased(),
+                attributes: attributes
+            )
+        }
+
+        guard scanner.scanString(">") != nil else {
+            return CSSNode(
+                type: .element,
+                tagName: tagName.lowercased(),
+                attributes: attributes
+            )
+        }
         
         var children: [CSSNode] = []
         var currentText = ""
         
         while !scanner.isAtEnd {
+            let loopStartIndex = scanner.currentIndex
+
             if let text = scanUpToLessThan(scanner) {
                 currentText += text
             }
@@ -130,10 +156,13 @@ public final class HTMLParser: Sendable {
                     children.append(createTextNode(currentText))
                     currentText = ""
                 }
-                scanner.currentIndex = scanner.string.index(before: scanner.currentIndex)
-                if let nested = scanElement(scanner) {
+                if let nested = scanElement(scanner, depth: depth + 1) {
                     children.append(nested)
                 }
+            }
+
+            if !didScannerAdvance(scanner, since: loopStartIndex) {
+                break
             }
         }
         
@@ -158,6 +187,7 @@ public final class HTMLParser: Sendable {
         var attributes: [String: String] = [:]
         
         while !scanner.isAtEnd {
+            let loopStartIndex = scanner.currentIndex
             scanner.scanCharacters(from: .whitespacesAndNewlines)
             
             if scanner.scanString(">") != nil || scanner.scanString("/>") != nil {
@@ -178,6 +208,10 @@ public final class HTMLParser: Sendable {
             }
             
             attributes[name.lowercased()] = value
+
+            if !didScannerAdvance(scanner, since: loopStartIndex) {
+                break
+            }
         }
         
         return attributes
@@ -202,5 +236,9 @@ public final class HTMLParser: Sendable {
             type: .text,
             textContent: text
         )
+    }
+
+    private func didScannerAdvance(_ scanner: Scanner, since startIndex: String.Index) -> Bool {
+        scanner.currentIndex != startIndex
     }
 }
