@@ -67,7 +67,8 @@ final class TocParserTests: XCTestCase {
         let items = try parser.parseTitlesAndURLs(
             html: html,
             titleRule: "css:.chapter-link",
-            urlRule: "css:.chapter-link|attr:href"
+            urlRule: "css:.chapter-link|attr:href",
+            baseURL: nil
         )
         
         // 验证结果
@@ -116,7 +117,8 @@ final class TocParserTests: XCTestCase {
         let items = try parser.parseTitlesAndURLs(
             html: html,
             titleRule: "css:.chapter-link",
-            urlRule: "css:.chapter-link|attr:href"
+            urlRule: "css:.chapter-link|attr:href",
+            baseURL: nil
         )
         
         // 验证结果
@@ -139,7 +141,8 @@ final class TocParserTests: XCTestCase {
         let items = try parser.parseTitlesAndURLs(
             html: html,
             titleRule: "css:.chapter-link",
-            urlRule: "css:.chapter-link|attr:href"
+            urlRule: "css:.chapter-link|attr:href",
+            baseURL: nil
         )
         
         // 验证结果
@@ -166,7 +169,8 @@ final class TocParserTests: XCTestCase {
         let items = try parser.parseTitlesAndURLs(
             html: html,
             titleRule: "css:.chapter-item,css:.chapter-link",
-            urlRule: "css:.chapter-link|attr:href"
+            urlRule: "css:.chapter-link|attr:href",
+            baseURL: nil
         )
         
         // 验证结果
@@ -231,7 +235,8 @@ final class TocParserTests: XCTestCase {
         // 执行测试
         let items = try parser.parse(
             html: html,
-            rule: rule
+            rule: rule,
+            baseURL: nil
         )
         
         // 验证结果
