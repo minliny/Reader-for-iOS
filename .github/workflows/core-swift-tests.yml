@@ -1,0 +1,31 @@
+name: Reader Core Swift Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/core-swift-tests.yml"
+      - "Core/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/core-swift-tests.yml"
+      - "Core/**"
+
+jobs:
+  core-swift-tests:
+    name: Swift test (Core)
+    runs-on: macos-14
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Swift
+        run: swift --version
+
+      - name: Run ReaderCoreParser tests
+        working-directory: Core
+        run: swift test
