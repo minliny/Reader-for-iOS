@@ -9,7 +9,7 @@ public final class BookSourceRequestBuilder: RequestBuilder {
         guard let searchUrlTemplate = source.searchUrl, !searchUrlTemplate.isEmpty else {
             throw ReaderError.config(
                 failureType: .MISSING_REQUIRED_RULE,
-                stage: .REQUEST_BUILD,
+                stage: Stage.REQUEST_BUILD.rawValue,
                 ruleField: "searchUrl",
                 message: "searchUrl is required",
                 underlyingError: nil
@@ -60,7 +60,7 @@ public final class BookSourceRequestBuilder: RequestBuilder {
         guard !detailURL.isEmpty else {
             throw ReaderError.config(
                 failureType: .INVALID_URL,
-                stage: .REQUEST_BUILD,
+                stage: Stage.REQUEST_BUILD.rawValue,
                 message: "detailURL is empty",
                 underlyingError: nil
             )
@@ -88,7 +88,7 @@ public final class BookSourceRequestBuilder: RequestBuilder {
         guard !chapterURL.isEmpty else {
             throw ReaderError.config(
                 failureType: .INVALID_URL,
-                stage: .REQUEST_BUILD,
+                stage: Stage.REQUEST_BUILD.rawValue,
                 message: "chapterURL is empty",
                 underlyingError: nil
             )

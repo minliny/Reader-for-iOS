@@ -23,7 +23,7 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
         guard let url = URL(string: request.url) else {
             throw ReaderError.network(
                 failureType: .INVALID_URL,
-                stage: .NETWORK,
+                stage: Stage.NETWORK.rawValue,
                 message: "Invalid URL: \(request.url)",
                 underlyingError: nil
             )
@@ -55,7 +55,7 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ReaderError.network(
                     failureType: .NETWORK_ERROR,
-                    stage: .NETWORK,
+                    stage: Stage.NETWORK.rawValue,
                     message: "Non-HTTP response received",
                     underlyingError: nil
                 )
@@ -97,14 +97,14 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
             }
             throw ReaderError.network(
                 failureType: failureType,
-                stage: .NETWORK,
+                stage: Stage.NETWORK.rawValue,
                 message: "Network error: \(error.localizedDescription)",
                 underlyingError: error
             )
         } catch {
             throw ReaderError.network(
                 failureType: .NETWORK_ERROR,
-                stage: .NETWORK,
+                stage: Stage.NETWORK.rawValue,
                 message: "Request failed: \(error.localizedDescription)",
                 underlyingError: error
             )
