@@ -28,4 +28,15 @@ jobs:
 
       - name: Run ReaderCoreParser tests
         working-directory: Core
-        run: swift test
+        shell: bash
+        run: |
+          set -o pipefail
+          swift test --verbose 2>&1 | tee swift-test.log
+
+      - name: Upload swift test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-swift-test-log
+          if-no-files-found: error
+          path: Core/swift-test.log
