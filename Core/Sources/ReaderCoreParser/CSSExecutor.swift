@@ -33,7 +33,7 @@ public final class CSSExecutor: @unchecked Sendable {
         let trimmed = rule.trimmingCharacters(in: .whitespacesAndNewlines)
         debug("RULE_STEP name=execute_rule rule=\(sanitize(trimmed))")
 
-        let (selector, extractor) = splitRule(trimmed)
+        let (selector, extractor) = try splitRule(trimmed)
 
         switch extractor {
         case .text:
@@ -169,7 +169,7 @@ public final class CSSExecutor: @unchecked Sendable {
         }
     }
 
-    private func splitRule(_ rule: String) -> (selector: String, extractor: ExtractionMode) {
+    private func splitRule(_ rule: String) throws -> (selector: String, extractor: ExtractionMode) {
         guard let atIndex = rule.lastIndex(of: "@") else {
             return (rule, .text)
         }
@@ -185,7 +185,8 @@ public final class CSSExecutor: @unchecked Sendable {
         case "href", "alt", "src":
             return (selector, .attribute(extractor))
         default:
-            return (rule, .text)
+            // Unknown extractors are an explicit DSL boundary, not a silent selector fallback.
+            throw CSSExecutorError.unsupportedSelectorSyntax("@\(extractor)")
         }
     }
 

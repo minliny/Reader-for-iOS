@@ -1,0 +1,44 @@
+sampleId: "css_executor_selector_semantics_contract"
+sampleFile: "Core/Tests/ReaderCoreParserTests/CSSExecutorTests.swift"
+priority: p0
+category: non_js
+sourceType: unit_contract
+sourceOfTruth: unit_test
+testBinding:
+  testFile: "Core/Tests/ReaderCoreParserTests/CSSExecutorTests.swift"
+  testCase: "testExecuteDefaultIsText"
+  relatedCases:
+    - "testExecuteWithAtHref"
+    - "testExecuteWithAtAlt"
+    - "testExecuteWithAtHTML"
+title: "CSSExecutor selector semantics contract"
+siteTag: "core_parser_contract"
+featureTags:
+  - "css_executor"
+  - "default_text"
+  - "attr_href"
+  - "attr_alt"
+  - "attr_src"
+  - "attr_html"
+  - "selector_semantics"
+  - "unknown_extractor_explicit_boundary"
+ruleTypes:
+  - CSS
+expectedLevel: A
+mustPassStage: poc
+blocking: true
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "Core/Tests/ReaderCoreParserTests/CSSExecutorTests.swift"
+  - "Core/Tests/ReaderCoreParserTests/Fixtures/HTMLFixtures.swift"
+expectedOutput:
+  search: null
+  toc: "samples/expected/toc/css_executor_unknown_extractor_contract.json"
+  content: null
+degradeExpectation: null
+knownFailureType: "RULE_UNSUPPORTED"
+owner: "core-parser"
+notes: "Covers testExecuteDefaultIsText, testExecuteWithAtHref, testExecuteWithAtAlt, testExecuteWithAtHTML, and the explicit contract that only @text/@html/@href/@src/@alt are supported; unknown @extractor is a deterministic unsupported syntax error instead of a silent selector fallback."
