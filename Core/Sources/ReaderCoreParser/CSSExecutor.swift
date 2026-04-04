@@ -4,6 +4,12 @@ import ReaderCoreProtocols
 
 /// CSS执行器，用于执行CSS选择器并提取内容
 public final class CSSExecutor: @unchecked Sendable {
+    private enum ExtractionMode {
+        case text
+        case html
+        case attribute(String)
+    }
+
     private let parser = HTMLParser()
     private let sampleId: String?
     private let debugLog: ((String) -> Void)?
@@ -26,25 +32,17 @@ public final class CSSExecutor: @unchecked Sendable {
     public func execute(_ rule: String, from html: String) throws -> [String] {
         let trimmed = rule.trimmingCharacters(in: .whitespacesAndNewlines)
         debug("RULE_STEP name=execute_rule rule=\(sanitize(trimmed))")
-        
-        if trimmed.hasSuffix("@text") {
-            let selector = String(trimmed.dropLast(5)).trimmingCharacters(in: .whitespaces)
+
+        let (selector, extractor) = splitRule(trimmed)
+
+        switch extractor {
+        case .text:
             return try extractText(selector, from: html)
-        } else if trimmed.hasSuffix("@html") {
-            let selector = String(trimmed.dropLast(5)).trimmingCharacters(in: .whitespaces)
+        case .html:
             return try extractHTML(selector, from: html)
-        } else if trimmed.hasSuffix("@href") {
-            let selector = String(trimmed.dropLast(5)).trimmingCharacters(in: .whitespaces)
-            return try extractHref(selector, from: html)
-        } else if trimmed.hasSuffix("@src") {
-            let selector = String(trimmed.dropLast(4)).trimmingCharacters(in: .whitespaces)
-            return try extractSrc(selector, from: html)
-        } else if trimmed.hasSuffix("@alt") {
-            let selector = String(trimmed.dropLast(4)).trimmingCharacters(in: .whitespaces)
-            return try extractAlt(selector, from: html)
+        case .attribute(let attribute):
+            return try extractAttribute(attribute, from: selector, html: html)
         }
-        
-        return try extractText(trimmed, from: html)
     }
     
     /// 执行CSS选择器并返回匹配的节点
@@ -67,10 +65,21 @@ public final class CSSExecutor: @unchecked Sendable {
     
     /// 执行CSS选择器并返回匹配的节点（从指定节点开始）
     public func select(_ selector: String, from node: CSSNode) throws -> [CSSNode] {
-        let parts = selector.components(separatedBy: ">").map { $0.trimmingCharacters(in: .whitespaces) }
+        let trimmedSelector = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = trimmedSelector.components(separatedBy: ">").map { $0.trimmingCharacters(in: .whitespaces) }
         var currentNodes = [node]
         var iterationCount = 0
         let activeSampleId = sampleId ?? "unknown"
+
+        if parts.count == 1, let part = parts.first, !part.isEmpty {
+            return try collectDescendantMatches(
+                part,
+                from: node,
+                depth: 1,
+                iterationCount: &iterationCount,
+                activeSampleId: activeSampleId
+            )
+        }
         
         for (partIndex, part) in parts.enumerated() {
             if part.isEmpty { continue }
@@ -158,6 +167,74 @@ public final class CSSExecutor: @unchecked Sendable {
                 child.type == .element && child.tagName == tagName
             }
         }
+    }
+
+    private func splitRule(_ rule: String) -> (selector: String, extractor: ExtractionMode) {
+        guard let atIndex = rule.lastIndex(of: "@") else {
+            return (rule, .text)
+        }
+
+        let selector = String(rule[..<atIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let extractor = String(rule[rule.index(after: atIndex)...]).lowercased()
+
+        switch extractor {
+        case "text":
+            return (selector, .text)
+        case "html":
+            return (selector, .html)
+        case "href", "alt", "src":
+            return (selector, .attribute(extractor))
+        default:
+            return (rule, .text)
+        }
+    }
+
+    private func collectDescendantMatches(
+        _ part: String,
+        from root: CSSNode,
+        depth: Int,
+        iterationCount: inout Int,
+        activeSampleId: String
+    ) throws -> [CSSNode] {
+        debug("RULE_STEP name=selector_part part=\(sanitize(part)) depth=\(depth)")
+        debug("NODE_TRAVERSE depth=\(depth) current_nodes=1")
+
+        var matches: [CSSNode] = []
+        var queue: [(node: CSSNode, depth: Int)] = [(root, depth)]
+
+        while !queue.isEmpty {
+            iterationCount += 1
+            if shouldLogIteration(iterationCount) {
+                debug("LOOP_ITERATION count=\(iterationCount)")
+            }
+            if iterationCount > maxLoopIterations {
+                debug("LOOP_GUARD_TRIGGERED sample=\(activeSampleId) location=CSSExecutor.select.loop")
+                throw CSSExecutorError.htmlParsingFailed
+            }
+
+            let current = queue.removeFirst()
+            if current.depth > maxTraversalDepth {
+                debug("LOOP_GUARD_TRIGGERED sample=\(activeSampleId) location=CSSExecutor.select.depth")
+                throw CSSExecutorError.htmlParsingFailed
+            }
+
+            if shouldLogIteration(iterationCount) {
+                debug("NODE_TRAVERSE start node=\(nodeLabel(current.node))")
+            }
+
+            let directMatches = applySelectorPart(part, to: current.node)
+            matches.append(contentsOf: directMatches)
+
+            if shouldLogIteration(iterationCount) {
+                debug("NODE_TRAVERSE depth=\(current.depth) match_count=\(directMatches.count) child_count=\(current.node.children.count)")
+            }
+
+            for child in current.node.children where child.type == .element || child.type == .document {
+                queue.append((child, current.depth + 1))
+            }
+        }
+
+        return matches
     }
 
     private func debug(_ message: String) {
