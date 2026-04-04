@@ -1,4 +1,5 @@
 import Foundation
+import ReaderCoreFoundation
 import ReaderCoreModels
 
 /// TOC章节项结构体
