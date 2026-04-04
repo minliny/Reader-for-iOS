@@ -4,12 +4,6 @@ import ReaderCoreProtocols
 
 /// CSS执行器，用于执行CSS选择器并提取内容
 public final class CSSExecutor: @unchecked Sendable {
-    private enum ExtractionMode {
-        case text
-        case html
-        case attribute(String)
-    }
-
     private let parser = HTMLParser()
     private let sampleId: String?
     private let debugLog: ((String) -> Void)?
@@ -33,15 +27,15 @@ public final class CSSExecutor: @unchecked Sendable {
         let trimmed = rule.trimmingCharacters(in: .whitespacesAndNewlines)
         debug("RULE_STEP name=execute_rule rule=\(sanitize(trimmed))")
 
-        let (selector, extractor) = try splitRule(trimmed)
+        let parsedRule = try RuleParser.parse(trimmed)
 
-        switch extractor {
+        switch parsedRule.extractionMode {
         case .text:
-            return try extractText(selector, from: html)
+            return try extractText(parsedRule.selector, from: html)
         case .html:
-            return try extractHTML(selector, from: html)
+            return try extractHTML(parsedRule.selector, from: html)
         case .attribute(let attribute):
-            return try extractAttribute(attribute, from: selector, html: html)
+            return try extractAttribute(attribute, from: parsedRule.selector, html: html)
         }
     }
     
@@ -166,27 +160,6 @@ public final class CSSExecutor: @unchecked Sendable {
             return node.children.filter { child in
                 child.type == .element && child.tagName == tagName
             }
-        }
-    }
-
-    private func splitRule(_ rule: String) throws -> (selector: String, extractor: ExtractionMode) {
-        guard let atIndex = rule.lastIndex(of: "@") else {
-            return (rule, .text)
-        }
-
-        let selector = String(rule[..<atIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let extractor = String(rule[rule.index(after: atIndex)...]).lowercased()
-
-        switch extractor {
-        case "text":
-            return (selector, .text)
-        case "html":
-            return (selector, .html)
-        case "href", "alt", "src":
-            return (selector, .attribute(extractor))
-        default:
-            // Unknown extractors are an explicit DSL boundary, not a silent selector fallback.
-            throw CSSExecutorError.unsupportedSelectorSyntax("@\(extractor)")
         }
     }
 
