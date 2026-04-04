@@ -8,6 +8,7 @@ protocol FixtureTocRuleExecuting: Sendable {
 extension CSSExecutor: FixtureTocRuleExecuting {}
 
 public final class FixtureTocParser: Sendable {
+    private let minimumChapterCount = 2
     private let cssExecutor: any FixtureTocRuleExecuting
     private let sampleId: String?
     private let tocLog: ((String) -> Void)?
@@ -50,8 +51,13 @@ public final class FixtureTocParser: Sendable {
         debug("RULE_STEP name=url_rule_execute sample=\(activeSampleId)")
         let urls = try executeFixtureRule(urlRule, from: html)
         
-        // Fixture contract is result-driven: any empty side or count mismatch is treated as miss.
-        guard !titles.isEmpty, !urls.isEmpty, titles.count == urls.count else {
+        // Fixture contract is result-driven: any empty side, count mismatch,
+        // or incidental singleton match is treated as miss instead of a TOC.
+        guard !titles.isEmpty,
+              !urls.isEmpty,
+              titles.count == urls.count,
+              titles.count >= minimumChapterCount
+        else {
             return []
         }
         
