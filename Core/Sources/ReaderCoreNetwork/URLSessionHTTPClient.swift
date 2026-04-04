@@ -20,7 +20,7 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
     }
 
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
-        guard let url = URL(string: request.url) else {
+        guard let url = validatedURL(from: request.url) else {
             throw ReaderError.network(
                 failureType: .INVALID_URL,
                 stage: Stage.NETWORK.rawValue,
@@ -86,6 +86,8 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
         } catch let error as URLError {
             let failureType: FailureType
             switch error.code {
+            case .badURL, .unsupportedURL:
+                failureType = .INVALID_URL
             case .timedOut:
                 failureType = .NETWORK_TIMEOUT
             case .cannotConnectToHost, .cannotFindHost:
@@ -109,5 +111,19 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
                 underlyingError: error
             )
         }
+    }
+
+    private func validatedURL(from rawURL: String) -> URL? {
+        guard let url = URL(string: rawURL),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host,
+              !host.isEmpty,
+              scheme == "http" || scheme == "https"
+        else {
+            return nil
+        }
+
+        return url
     }
 }
