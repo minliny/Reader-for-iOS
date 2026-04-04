@@ -1,5 +1,4 @@
 import Foundation
-import ReaderCoreFoundation
 import ReaderCoreModels
 
 /// TOC章节项结构体
@@ -51,9 +50,12 @@ public struct TocItem: Codable, Sendable, Equatable, Identifiable {
     
     /// 相对URL转换为绝对URL
     public func absoluteURL(baseURL: String? = nil) -> TocItem {
-        let urlString = baseURL ?? Environment.siteURL
-        
-        guard let base = URL(string: urlString),
+        let trimmedURL = chapterURL.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Only explicit relative paths should be resolved against a provided base URL.
+        guard let baseURL,
+              shouldResolveRelativeURL(trimmedURL),
+              let base = URL(string: baseURL),
               let relativeURL = URL(string: chapterURL, relativeTo: base),
               let absoluteURL = relativeURL.absoluteString.removingPercentEncoding
         else {
@@ -67,6 +69,24 @@ public struct TocItem: Codable, Sendable, Equatable, Identifiable {
             isVip: isVip,
             unknownFields: unknownFields
         )
+    }
+
+    private func shouldResolveRelativeURL(_ rawURL: String) -> Bool {
+        guard !rawURL.isEmpty, rawURL != "#" else {
+            return false
+        }
+
+        if let components = URLComponents(string: rawURL),
+           components.scheme != nil || components.host != nil {
+            return false
+        }
+
+        return rawURL.hasPrefix("/") ||
+            rawURL.hasPrefix("./") ||
+            rawURL.hasPrefix("../") ||
+            rawURL.hasPrefix("?") ||
+            rawURL.contains("/") ||
+            rawURL.contains(".")
     }
     
     /// 标题后处理
