@@ -67,6 +67,20 @@ enum SelectorEngine {
         return currentNodes
     }
 
+    // MARK: - 选择器支持范围（显式契约）
+    //
+    // 当前只支持以下三种 simple selector：
+    //   - tag 选择器（如 "div"、"a"、"li"）
+    //   - .class 选择器（如 ".chapter"）
+    //   - #id 选择器（如 "#content"）
+    //
+    // 以下选择器当前 **不支持**，且不会抛出错误，而是静默返回空数组：
+    //   - compound selector（如 "div.foo"、"a.active"）
+    //   - attribute selector（如 "a[href]"、"input[type=text]"）
+    //   - pseudo-class（如 "li:nth-child(2)"、"a:first-child"）
+    //   - 组合选择器（如 "div, span"）
+    //
+    // 这是当前阶段的有意边界，不是临时遗漏。
     private static func applySelectorPart(_ part: String, to node: CSSNode) -> [CSSNode] {
         if part.hasPrefix(".") {
             let className = String(part.dropFirst())
