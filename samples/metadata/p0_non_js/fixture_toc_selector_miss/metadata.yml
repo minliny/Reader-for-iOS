@@ -1,0 +1,36 @@
+sampleId: "fixture_toc_selector_miss"
+sampleFile: "Core/Tests/ReaderCoreParserTests/Fixtures/TocFixtures.swift"
+priority: p0
+category: non_js
+sourceType: unit_contract
+sourceOfTruth: unit_test
+testBinding:
+  testFile: "Core/Tests/ReaderCoreParserTests/FixtureTocParserTests.swift"
+  testCase: "testSelectorMiss"
+title: "Fixture TOC selector miss contract"
+siteTag: "fixture_toc"
+featureTags:
+  - "fixture"
+  - "toc"
+  - "selector_miss"
+  - "singleton_guard"
+ruleTypes:
+  - CSS
+expectedLevel: A
+mustPassStage: poc
+blocking: true
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "Core/Tests/ReaderCoreParserTests/Fixtures/TocFixtures.swift"
+  - "Core/Tests/ReaderCoreParserTests/FixtureTocParserTests.swift"
+expectedOutput:
+  search: null
+  toc: "samples/expected/toc/fixture_toc_selector_miss.json"
+  content: null
+degradeExpectation: null
+knownFailureType: "TOC_FAILED"
+owner: "core-parser"
+notes: "Selector miss with an incidental singleton anchor must still return 0 chapters; validated by FixtureTocParserTests.testSelectorMiss and green CI."

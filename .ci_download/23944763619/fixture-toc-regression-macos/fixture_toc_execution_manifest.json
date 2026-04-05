@@ -1,0 +1,34 @@
+{
+  "runId": "fixture_toc_exec_9ac52ebf897f4af8aefce68d7aff7b55",
+  "generatedAt": "2026-04-03T11:33:05.1988140Z",
+  "samples": [
+    {
+      "sampleId": "fixture_toc_title_rule_miss",
+      "regressionSampleId": "fixture_toc_title_rule_miss",
+      "inputHTMLPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_title_rule_miss/input.html",
+      "rulePath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_title_rule_miss/rule.json",
+      "expectedPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/expected/toc/fixture_toc_title_rule_miss.json"
+    },
+    {
+      "sampleId": "fixture_toc_url_rule_miss",
+      "regressionSampleId": "fixture_toc_url_rule_miss",
+      "inputHTMLPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_url_rule_miss/input.html",
+      "rulePath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_url_rule_miss/rule.json",
+      "expectedPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/expected/toc/fixture_toc_url_rule_miss.json"
+    },
+    {
+      "sampleId": "fixture_toc_count_mismatch",
+      "regressionSampleId": "fixture_toc_count_mismatch",
+      "inputHTMLPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_count_mismatch/input.html",
+      "rulePath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_count_mismatch/rule.json",
+      "expectedPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/expected/toc/fixture_toc_count_mismatch.json"
+    },
+    {
+      "sampleId": "fixture_toc_non_selector_error",
+      "regressionSampleId": "fixture_toc_non_selector_error",
+      "inputHTMLPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_non_selector_error/input.html",
+      "rulePath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/fixtures/toc/fixture_toc_non_selector_error/rule.json",
+      "expectedPath": "/Users/runner/work/Reader-for-iOS/Reader-for-iOS/samples/expected/toc/fixture_toc_non_selector_error.json"
+    }
+  ]
+}

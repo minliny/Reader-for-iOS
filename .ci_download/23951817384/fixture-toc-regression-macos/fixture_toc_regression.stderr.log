@@ -1,0 +1,308 @@
+Building for debugging...
+[0/10] Write sources
+[5/10] Write FixtureTocRegressionCLI-entitlement.plist
+[6/10] Write swift-version-76B232A4806BA581.txt
+[8/12] Emitting module ReaderCoreFoundation
+[9/12] Compiling ReaderCoreFoundation JSONValue.swift
+[10/19] Emitting module ReaderCoreModels
+[11/21] Compiling ReaderCoreModels Environment.swift
+[12/21] Compiling ReaderCoreModels Failure.swift
+[13/21] Compiling ReaderCoreModels ReaderError.swift
+[14/21] Compiling ReaderCoreModels BookSource.swift
+[15/21] Compiling ReaderCoreModels CSSNode.swift
+[16/21] Compiling ReaderCoreModels Compatibility.swift
+[17/21] Compiling ReaderCoreModels ReadingFlowModels.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:75:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:85:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:95:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+[18/21] Compiling ReaderCoreModels StructuredErrorLog.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:75:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:85:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:95:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+[19/26] Compiling ReaderCoreProtocols Contracts.swift
+[20/26] Compiling ReaderCoreProtocols NetworkProtocols.swift
+[21/27] Emitting module ReaderCoreProtocols
+[22/27] Compiling ReaderCoreProtocols CSSExecutorError.swift
+[23/27] Compiling ReaderCoreProtocols CacheProtocols.swift
+[24/27] Compiling ReaderCoreProtocols ParserProtocols.swift
+error: emit-module command failed with exit code 1 (use -v to see invocation)
+[25/35] Emitting module ReaderCoreParser
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: warning: stored property 'tocLog' of 'Sendable'-conforming class 'FixtureTocParser' has non-sendable type '((String) -> Void)?'
+    private let tocLog: ((String) -> Void)?
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: note: a function type must be marked '@Sendable' to conform to 'Sendable'
+    private let tocLog: ((String) -> Void)?
+                ^
+[26/38] Compiling ReaderCoreParser HTMLParser.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:120:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:161:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:172:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:176:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:194:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[27/38] Compiling ReaderCoreParser NonJSParserEngine.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:120:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:161:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:172:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:176:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:194:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[28/38] Compiling ReaderCoreParser NonJSRuleScheduler.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:120:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:161:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:172:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:176:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:194:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[29/38] Compiling ReaderCoreParser TocItem.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+[30/38] Compiling ReaderCoreParser TocParser.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+[31/38] Compiling ReaderCoreParser TocRule.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+[32/38] Compiling ReaderCoreParser CSSExecutor.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:82:40: error: missing argument for parameter #1 in call
+                throw CSSExecutorError.htmlParsingFailed
+                                       ^
+                                       <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:96:44: error: missing argument for parameter #1 in call
+                    throw CSSExecutorError.htmlParsingFailed
+                                           ^
+                                           <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: warning: stored property 'tocLog' of 'Sendable'-conforming class 'FixtureTocParser' has non-sendable type '((String) -> Void)?'
+    private let tocLog: ((String) -> Void)?
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: note: a function type must be marked '@Sendable' to conform to 'Sendable'
+    private let tocLog: ((String) -> Void)?
+                ^
+[33/38] Compiling ReaderCoreParser FixtureTocItem.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:82:40: error: missing argument for parameter #1 in call
+                throw CSSExecutorError.htmlParsingFailed
+                                       ^
+                                       <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:96:44: error: missing argument for parameter #1 in call
+                    throw CSSExecutorError.htmlParsingFailed
+                                           ^
+                                           <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: warning: stored property 'tocLog' of 'Sendable'-conforming class 'FixtureTocParser' has non-sendable type '((String) -> Void)?'
+    private let tocLog: ((String) -> Void)?
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: note: a function type must be marked '@Sendable' to conform to 'Sendable'
+    private let tocLog: ((String) -> Void)?
+                ^
+[34/38] Compiling ReaderCoreParser FixtureTocParser.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:82:40: error: missing argument for parameter #1 in call
+                throw CSSExecutorError.htmlParsingFailed
+                                       ^
+                                       <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:96:44: error: missing argument for parameter #1 in call
+                    throw CSSExecutorError.htmlParsingFailed
+                                           ^
+                                           <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: warning: stored property 'tocLog' of 'Sendable'-conforming class 'FixtureTocParser' has non-sendable type '((String) -> Void)?'
+    private let tocLog: ((String) -> Void)?
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: note: a function type must be marked '@Sendable' to conform to 'Sendable'
+    private let tocLog: ((String) -> Void)?
+                ^
+[35/38] Compiling ReaderCoreParser FixtureTocRegressionRunner.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:81:23: error: unterminated string literal
+                debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.depth")
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:95:27: error: unterminated string literal
+                    debug("LOOP_GUARD_TRIGGERED sample=\(sampleId ?? \"unknown\") location=CSSExecutor.select.loop")
+                          ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:82:40: error: missing argument for parameter #1 in call
+                throw CSSExecutorError.htmlParsingFailed
+                                       ^
+                                       <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:96:44: error: missing argument for parameter #1 in call
+                    throw CSSExecutorError.htmlParsingFailed
+                                           ^
+                                           <#String#>
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/CSSExecutor.swift:162:18: note: 'debug' declared here
+    private func debug(_ message: String) {
+                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: warning: stored property 'tocLog' of 'Sendable'-conforming class 'FixtureTocParser' has non-sendable type '((String) -> Void)?'
+    private let tocLog: ((String) -> Void)?
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/FixtureTocParser.swift:13:17: note: a function type must be marked '@Sendable' to conform to 'Sendable'
+    private let tocLog: ((String) -> Void)?
+                ^
+error: fatalError
+Exception: /Users/runner/work/Reader-for-iOS/Reader-for-iOS/tools/regression/run_fixture_toc_min_regression.ps1:162
+Line |
+ 162 |    throw "swift regression execution failed"
+     |    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | swift regression execution failed

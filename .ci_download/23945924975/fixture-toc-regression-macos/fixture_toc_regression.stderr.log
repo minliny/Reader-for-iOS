@@ -1,0 +1,155 @@
+Building for debugging...
+[0/10] Write sources
+[5/10] Write FixtureTocRegressionCLI-entitlement.plist
+[6/10] Write swift-version-76B232A4806BA581.txt
+[8/12] Emitting module ReaderCoreFoundation
+[9/12] Compiling ReaderCoreFoundation JSONValue.swift
+[10/19] Compiling ReaderCoreModels Environment.swift
+[11/19] Compiling ReaderCoreModels Failure.swift
+[12/19] Compiling ReaderCoreModels ReaderError.swift
+[13/21] Emitting module ReaderCoreModels
+[14/21] Compiling ReaderCoreModels BookSource.swift
+[15/21] Compiling ReaderCoreModels CSSNode.swift
+[16/21] Compiling ReaderCoreModels Compatibility.swift
+[17/21] Compiling ReaderCoreModels ReadingFlowModels.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:75:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:85:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:95:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+[18/21] Compiling ReaderCoreModels StructuredErrorLog.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:75:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:85:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:95:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+[19/26] Emitting module ReaderCoreProtocols
+[20/26] Compiling ReaderCoreProtocols Contracts.swift
+[21/26] Compiling ReaderCoreProtocols NetworkProtocols.swift
+[22/26] Compiling ReaderCoreProtocols CSSExecutorError.swift
+[23/26] Compiling ReaderCoreProtocols CacheProtocols.swift
+[24/27] Compiling ReaderCoreProtocols ParserProtocols.swift
+[25/35] Emitting module ReaderCoreParser
+[26/38] Compiling ReaderCoreParser HTMLParser.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:120:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:161:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:172:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:176:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:194:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[27/38] Compiling ReaderCoreParser NonJSParserEngine.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:120:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:161:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:172:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:176:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:194:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[28/38] Compiling ReaderCoreParser NonJSRuleScheduler.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:120:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:161:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:172:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:176:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:194:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[29/38] Compiling ReaderCoreParser TocItem.swift
+[30/38] Compiling ReaderCoreParser TocParser.swift
+[31/38] Compiling ReaderCoreParser TocRule.swift
+[32/38] Compiling ReaderCoreParser CSSExecutor.swift
+[33/38] Compiling ReaderCoreParser FixtureTocItem.swift
+[34/38] Compiling ReaderCoreParser FixtureTocParser.swift
+[35/38] Compiling ReaderCoreParser FixtureTocRegressionRunner.swift
+[36/40] Emitting module FixtureTocRegressionCLI
+[37/40] Compiling FixtureTocRegressionCLI main.swift
+[37/40] Write Objects.LinkFileList
+[38/40] Linking FixtureTocRegressionCLI
+[39/40] Applying FixtureTocRegressionCLI
+Build complete! (7.76s)

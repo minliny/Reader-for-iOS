@@ -1,0 +1,43 @@
+{
+  "executorVerified" : true,
+  "generatedAt" : "2026-04-03T15:50:59Z",
+  "mode" : "executor_run",
+  "runId" : "fixture_toc_exec_30d2b70b22924072abad0183ec2cd536",
+  "sampleResults" : [
+    {
+      "currentStage" : "content",
+      "passed" : true,
+      "regressionSampleId" : "fixture_toc_title_rule_miss",
+      "sampleId" : "fixture_toc_title_rule_miss",
+      "status" : "passed"
+    },
+    {
+      "currentStage" : "content",
+      "passed" : true,
+      "regressionSampleId" : "fixture_toc_url_rule_miss",
+      "sampleId" : "fixture_toc_url_rule_miss",
+      "status" : "passed"
+    },
+    {
+      "currentStage" : "content",
+      "passed" : true,
+      "regressionSampleId" : "fixture_toc_count_mismatch",
+      "sampleId" : "fixture_toc_count_mismatch",
+      "status" : "passed"
+    },
+    {
+      "currentStage" : "content",
+      "passed" : true,
+      "regressionSampleId" : "fixture_toc_non_selector_error",
+      "sampleId" : "fixture_toc_non_selector_error",
+      "status" : "passed"
+    }
+  ],
+  "summary" : {
+    "failed" : 0,
+    "passed" : 4,
+    "running" : 0,
+    "skipped" : 0,
+    "totalSamples" : 4
+  }
+}

@@ -1,9 +1,9 @@
-version: "0.1.0"
-generatedAt: "2026-04-02T00:00:00Z"
-scope: "fixture-toc-min-regression"
+version: "0.2.0"
+generatedAt: "2026-04-04T08:58:16Z"
+scope: "recent-core-fix-regression"
 summary:
-  totalSamples: 4
-  levelA: 4
+  totalSamples: 8
+  levelA: 8
   levelB: 0
   levelC: 0
   levelD: 0
@@ -13,51 +13,138 @@ summary:
   p0PassRate: 100.0
   pocPassRate: 100.0
 samples:
+  - sampleId: "css_executor_selector_semantics_contract"
+    source: "unit_contract"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
+    metadataPath: "samples/metadata/p0_non_js/css_executor_selector_semantics_contract/metadata.yml"
+    expectedPath: null
+    notes: "Default text extraction plus @href/@alt/@html and selector semantics are aligned with current parser contract."
+  - sampleId: "fixture_toc_selector_miss"
+    source: "unit_contract"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_selector_miss/metadata.yml"
+    expectedPath: "samples/expected/toc/fixture_toc_selector_miss.json"
+    notes: "Selector miss with incidental singleton anchor now returns an empty toc list instead of forging one chapter."
   - sampleId: "fixture_toc_title_rule_miss"
-    regressionSampleId: "fixture_toc_title_rule_miss"
-    stage: "p0_non_js"
-    flow: "toc"
-    compatLevel: "A"
-    status: "pass_expected"
-    owner: "core-parser"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
     metadataPath: "samples/metadata/p0_non_js/fixture_toc_title_rule_miss/metadata.yml"
     expectedPath: "samples/expected/toc/fixture_toc_title_rule_miss.json"
-    fixturePath: "samples/fixtures/toc/fixture_toc_title_rule_miss/input.html"
-    failureType: "TOC_FAILED"
-    notes: "titleRule miss returns empty toc list."
+    notes: "title rule miss returns 0 chapters."
   - sampleId: "fixture_toc_url_rule_miss"
-    regressionSampleId: "fixture_toc_url_rule_miss"
-    stage: "p0_non_js"
-    flow: "toc"
-    compatLevel: "A"
-    status: "pass_expected"
-    owner: "core-parser"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
     metadataPath: "samples/metadata/p0_non_js/fixture_toc_url_rule_miss/metadata.yml"
     expectedPath: "samples/expected/toc/fixture_toc_url_rule_miss.json"
-    fixturePath: "samples/fixtures/toc/fixture_toc_url_rule_miss/input.html"
-    failureType: "TOC_FAILED"
-    notes: "urlRule miss returns empty toc list."
+    notes: "url rule miss returns 0 chapters."
   - sampleId: "fixture_toc_count_mismatch"
-    regressionSampleId: "fixture_toc_count_mismatch"
-    stage: "p0_non_js"
-    flow: "toc"
-    compatLevel: "A"
-    status: "pass_expected"
-    owner: "core-parser"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
     metadataPath: "samples/metadata/p0_non_js/fixture_toc_count_mismatch/metadata.yml"
     expectedPath: "samples/expected/toc/fixture_toc_count_mismatch.json"
-    fixturePath: "samples/fixtures/toc/fixture_toc_count_mismatch/input.html"
-    failureType: "OUTPUT_MISMATCH"
-    notes: "count mismatch returns empty toc list."
+    notes: "title/url count mismatch returns 0 chapters."
   - sampleId: "fixture_toc_non_selector_error"
-    regressionSampleId: "fixture_toc_non_selector_error"
-    stage: "p0_non_js"
-    flow: "toc"
-    compatLevel: "A"
-    status: "pass_expected"
-    owner: "core-parser"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
     metadataPath: "samples/metadata/p0_non_js/fixture_toc_non_selector_error/metadata.yml"
     expectedPath: "samples/expected/toc/fixture_toc_non_selector_error.json"
-    fixturePath: "samples/fixtures/toc/fixture_toc_non_selector_error/input.html"
-    failureType: "RULE_INVALID"
-    notes: "non-selector error must be rethrown."
+    notes: "Invalid non-selector errors are rethrown instead of being normalized into empty toc output."
+  - sampleId: "toc_item_invalid_url_contract"
+    source: "unit_contract"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
+    metadataPath: "samples/metadata/p0_non_js/toc_item_invalid_url_contract/metadata.yml"
+    expectedPath: "samples/expected/toc/toc_item_invalid_url_contract.json"
+    notes: "Invalid toc URLs keep the raw value and only explicit baseURL plus clear relative paths are absolutized."
+  - sampleId: "http_client_invalid_url_contract"
+    source: "unit_contract"
+    priority: "p0"
+    category: "non_js"
+    ruleTypes: []
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
+    metadataPath: "samples/metadata/p0_non_js/http_client_invalid_url_contract/metadata.yml"
+    expectedPath: null
+    notes: "Invalid request URLs are classified before request dispatch and stay mapped to FailureType.INVALID_URL."

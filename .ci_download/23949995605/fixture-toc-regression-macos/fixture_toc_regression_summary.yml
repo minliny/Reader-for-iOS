@@ -1,0 +1,36 @@
+reportId: "fixture_toc_min_regression_v1"
+generatedAt: "2026-04-03T14:39:55Z"
+scope: "fixture_toc_parser_contract"
+run:
+  runId: "fixture_toc_exec_a2667d6070e9468a812cd815b85bb336"
+  mode: "executor_run"
+  executorVerified: true
+  note: "FixtureTocParser executor run completed from Swift regression entry."
+summary:
+  totalSamples: 4
+  passed: 1
+  failed: 3
+  skipped: 0
+sampleResults:
+  - regressionSampleId: "fixture_toc_title_rule_miss"
+    sampleId: "fixture_toc_title_rule_miss"
+    status: "timeout"
+    passed: false
+    errorType: "TIMEOUT"
+    diffReason: "sample exceeded 30s during toc stage"
+  - regressionSampleId: "fixture_toc_url_rule_miss"
+    sampleId: "fixture_toc_url_rule_miss"
+    status: "timeout"
+    passed: false
+    errorType: "TIMEOUT"
+    diffReason: "sample exceeded 30s during toc stage"
+  - regressionSampleId: "fixture_toc_count_mismatch"
+    sampleId: "fixture_toc_count_mismatch"
+    status: "timeout"
+    passed: false
+    errorType: "TIMEOUT"
+    diffReason: "sample exceeded 30s during toc stage"
+  - regressionSampleId: "fixture_toc_non_selector_error"
+    sampleId: "fixture_toc_non_selector_error"
+    status: "passed"
+    passed: true

@@ -1,0 +1,11 @@
+{
+  "sampleId": "fixture_toc_selector_miss",
+  "regressionSampleId": "fixture_toc_selector_miss",
+  "flow": "toc",
+  "expected": {
+    "success": true,
+    "resultType": "toc_list",
+    "chapterCount": 0,
+    "chapters": []
+  }
+}

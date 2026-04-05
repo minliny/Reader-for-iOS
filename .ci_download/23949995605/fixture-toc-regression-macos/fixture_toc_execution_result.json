@@ -1,0 +1,52 @@
+{
+  "executorVerified" : true,
+  "generatedAt" : "2026-04-03T14:39:55Z",
+  "mode" : "executor_run",
+  "runId" : "fixture_toc_exec_a2667d6070e9468a812cd815b85bb336",
+  "sampleResults" : [
+    {
+      "currentStage" : "toc",
+      "diffReason" : "sample exceeded 30s during toc stage",
+      "error" : "sample exceeded 30s during toc stage",
+      "errorType" : "TIMEOUT",
+      "passed" : false,
+      "regressionSampleId" : "fixture_toc_title_rule_miss",
+      "sampleId" : "fixture_toc_title_rule_miss",
+      "status" : "timeout"
+    },
+    {
+      "currentStage" : "toc",
+      "diffReason" : "sample exceeded 30s during toc stage",
+      "error" : "sample exceeded 30s during toc stage",
+      "errorType" : "TIMEOUT",
+      "passed" : false,
+      "regressionSampleId" : "fixture_toc_url_rule_miss",
+      "sampleId" : "fixture_toc_url_rule_miss",
+      "status" : "timeout"
+    },
+    {
+      "currentStage" : "toc",
+      "diffReason" : "sample exceeded 30s during toc stage",
+      "error" : "sample exceeded 30s during toc stage",
+      "errorType" : "TIMEOUT",
+      "passed" : false,
+      "regressionSampleId" : "fixture_toc_count_mismatch",
+      "sampleId" : "fixture_toc_count_mismatch",
+      "status" : "timeout"
+    },
+    {
+      "currentStage" : "content",
+      "passed" : true,
+      "regressionSampleId" : "fixture_toc_non_selector_error",
+      "sampleId" : "fixture_toc_non_selector_error",
+      "status" : "passed"
+    }
+  ],
+  "summary" : {
+    "failed" : 3,
+    "passed" : 1,
+    "running" : 0,
+    "skipped" : 0,
+    "totalSamples" : 4
+  }
+}

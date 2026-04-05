@@ -1,0 +1,99 @@
+project:
+  name: Reader-for-iOS
+  scope: core_swift_tests_and_fixture_regression
+  mode: non_js_main_path
+  saved_at: "2026-04-04 Asia/Shanghai"
+
+current_stage:
+  description: "fixture regression 已确认恢复通过，core-swift-tests 已接入并进入真实运行期失败修复与结果确认阶段"
+  fixture_regression_executor_verified: true
+  core_swift_tests_latest_result_confirmed: false
+
+last_confirmed_runs:
+  fixture_toc_regression:
+    run_id: "23954971197"
+    conclusion: "success"
+    head_sha: "c4e91283313afddee0cca88a4a8fc4aaa0af2731"
+    evidence:
+      workflow_url: "https://github.com/minliny/Reader-for-iOS/actions/runs/23954971197"
+      note: "该 run 为最新已确认成功的 fixture regression；后续由 33ba80a 触发的 run 尚未因 rate limit 完成确认"
+  core_swift_tests:
+    run_id: "23955197782"
+    conclusion: "failure"
+    head_sha: "57093d28db727c3f0b49134fa4e27944a6f0f190"
+    first_real_failure:
+      test_case: "ReaderCoreNetworkTests.BasicCookieJarTests.testPathMatch"
+      file: "Core/Tests/ReaderCoreNetworkTests/BasicCookieJarTests.swift"
+      line: 75
+      assertion: "XCTAssertEqual failed: (\"1\") is not equal to (\"0\")"
+      actual: "1"
+      expected: "0"
+    evidence:
+      workflow_url: "https://github.com/minliny/Reader-for-iOS/actions/runs/23955197782"
+      source: "GitHub Actions annotations"
+
+confirmed_progress:
+  completed_fixes:
+    - id: fix_001
+      description: "fixture regression workflow 已补 Python/PyYAML 依赖，真实回归链路打通"
+    - id: fix_002
+      description: "HTMLParser 非收敛问题已修复，fixture_toc regression 已恢复 4/4 passed"
+    - id: fix_003
+      description: "core-swift-tests workflow 已接入 GitHub Actions，Core 测试开始被真实执行"
+    - id: fix_004
+      description: "ReaderCoreNetwork 编译阻断已清除，swift test 已推进到 test target 编译/运行阶段"
+    - id: fix_005
+      description: "EnvironmentTests 已对齐只读 Environment API"
+    - id: fix_006
+      description: "TocParserTests 已补显式 baseURL 参数并对齐 MockRuleScheduler 语义"
+    - id: fix_007
+      description: "core-swift-tests 已增强为输出 verbose 日志、失败摘录 annotations，并上传 swift-test.log artifact"
+    - id: fix_008
+      description: "BasicCookieJar path match bug 已按 testPathMatch 暴露的问题做最小修复"
+
+current_blocker:
+  type: "result_observation_blocker"
+  system: "GitHub Actions API"
+  error: "HTTP 403: API rate limit exceeded"
+  impact:
+    - "无法确认 core-swift-tests run 23955363891 是否已清除 testPathMatch failure"
+    - "无法确认 fixture regression run 23955363880 是否继续保持 success"
+  known_non_blockers:
+    - "不是 workflow 接入问题"
+    - "不是日志可见性问题"
+    - "不是当前已确认的 testPathMatch 根因分析问题"
+
+pending_verification:
+  latest_code_change:
+    commit_sha: "33ba80af73ef218ca5ef1d314448eaf947d39f0b"
+    commit_message: "fix: enforce cookie path matching"
+  triggered_runs:
+    core_swift_tests:
+      run_id: "23955363891"
+      workflow: "Reader Core Swift Tests"
+    fixture_toc_regression:
+      run_id: "23955363880"
+      workflow: "Fixture TOC Regression (macOS)"
+  verification_status: "pending_due_rate_limit"
+
+next_action:
+  type: "result_check_only"
+  description: "GitHub rate limit 恢复后，只读取最新 run 结果，不做任何代码修改"
+  commands:
+    - "gh run view 23955363891 --repo minliny/Reader-for-iOS --json databaseId,status,conclusion,url,createdAt,headSha,jobs"
+    - "gh run view 23955363880 --repo minliny/Reader-for-iOS --json databaseId,status,conclusion,url,createdAt,headSha,jobs"
+    - "若 core-swift-tests 仍失败，则优先读取 annotations 或 artifact，确认新的第一真实 failure"
+
+rules:
+  - "在确认 23955363891 结果前，不继续修改任何测试或生产代码"
+  - "若 23955363891 通过，则当前阶段完成"
+  - "若 23955363891 失败，只处理新的第一真实 failure"
+  - "不得基于 rate limit 下的不可见结果做猜测性修复"
+
+resume_instruction:
+  steps:
+    - "读取本文件"
+    - "先重试 gh run view 23955363891 与 23955363880"
+    - "若 rate limit 已恢复，确认 core-swift-tests 是否通过"
+    - "若出现新的 failure，记录 test case、文件、行号、assertion、actual/expected"
+    - "只有在确认新 failure 后，才进入下一轮最小修复"

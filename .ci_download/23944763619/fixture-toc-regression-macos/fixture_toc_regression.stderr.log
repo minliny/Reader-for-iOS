@@ -1,0 +1,678 @@
+Building for debugging...
+[0/10] Write sources
+[0/10] Write FixtureTocRegressionCLI-entitlement.plist
+[6/10] Write swift-version-76B232A4806BA581.txt
+[8/12] Emitting module ReaderCoreFoundation
+[9/12] Compiling ReaderCoreFoundation JSONValue.swift
+[10/19] Compiling ReaderCoreModels Environment.swift
+[11/19] Compiling ReaderCoreModels Failure.swift
+[12/19] Compiling ReaderCoreModels ReaderError.swift
+[13/21] Emitting module ReaderCoreModels
+[14/21] Compiling ReaderCoreModels BookSource.swift
+[15/21] Compiling ReaderCoreModels CSSNode.swift
+[16/21] Compiling ReaderCoreModels Compatibility.swift
+[17/21] Compiling ReaderCoreModels ReadingFlowModels.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:75:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:85:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:95:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+[18/21] Compiling ReaderCoreModels StructuredErrorLog.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:75:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:85:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreModels/StructuredErrorLog.swift:95:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in Swift 6
+        lock.lock()
+             ^
+Foundation.NSLock:11:15: note: 'lock()' declared here
+    open func lock()
+              ^
+[19/26] Compiling ReaderCoreProtocols Contracts.swift
+[20/26] Compiling ReaderCoreProtocols NetworkProtocols.swift
+[21/27] Emitting module ReaderCoreProtocols
+[22/27] Compiling ReaderCoreProtocols CSSExecutorError.swift
+[23/27] Compiling ReaderCoreProtocols CacheProtocols.swift
+[24/27] Compiling ReaderCoreProtocols ParserProtocols.swift
+error: emit-module command failed with exit code 1 (use -v to see invocation)
+[25/35] Emitting module ReaderCoreParser
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:40: error: cannot find type 'JSONValue' in scope
+    public let unknownFields: [String: JSONValue]
+                                       ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Decodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Decodable:2:5: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+    init(from decoder: any Decoder) throws
+    ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Decodable' because '[String : JSONValue]' does not conform to 'Decodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:29:33: error: cannot find type 'JSONValue' in scope
+        unknownFields: [String: JSONValue] = [:]
+                                ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: warning: stored property 'unknownFields' of 'Sendable'-conforming struct 'TocItem' has non-sendable type '<<error type>>'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Encodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Encodable:2:10: note: protocol requires function 'encode(to:)' with type 'Encodable'
+    func encode(to encoder: any Encoder) throws
+         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Encodable' because '[String : JSONValue]' does not conform to 'Encodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Equatable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: stored property type '<<error type>>' does not conform to protocol 'Equatable', preventing synthesized conformance of 'TocItem' to 'Equatable'
+    public let unknownFields: [String: JSONValue]
+               ^
+Swift.==:1:24: note: candidate would match if 'TocItem' conformed to 'RawRepresentable'
+@inlinable public func == <T>(lhs: T, rhs: T) -> Bool where T : RawRepresentable, T.RawValue : Equatable
+                       ^
+Swift.FloatingPoint:2:24: note: candidate would match if 'TocItem' conformed to 'FloatingPoint'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift.BinaryInteger:2:24: note: candidate would match if 'TocItem' conformed to 'BinaryInteger'
+    public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : BinaryInteger
+                       ^
+Swift._Pointer:2:24: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift._Pointer:3:35: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    @inlinable public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : _Pointer
+                                  ^
+Swift.Strideable:3:35: note: candidate would match if 'TocItem' conformed to 'Strideable'
+    @inlinable public static func == (x: Self, y: Self) -> Bool
+                                  ^
+Swift.StringProtocol:2:35: note: candidate would match if 'TocItem' conformed to 'StringProtocol'
+    @inlinable public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : StringProtocol
+                                  ^
+Swift.SIMD:4:24: note: candidate would match if 'TocItem' conformed to 'SIMD'
+    public static func == (a: Self, b: Self) -> Bool
+                       ^
+Foundation.AttributedStringProtocol:3:24: note: candidate would match if 'TocItem' conformed to 'AttributedStringProtocol'
+    public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : AttributedStringProtocol
+                       ^
+Foundation._BridgedStoredNSError:4:24: note: candidate would match if 'TocItem' conformed to '_BridgedStoredNSError'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+CoreFoundation._CFObject:4:24: note: candidate would match if 'TocItem' conformed to '_CFObject'
+    public static func == (left: Self, right: Self) -> Bool
+                       ^
+Swift.Equatable:2:17: note: protocol requires function '==' with type '(TocItem, TocItem) -> Bool'
+    static func == (lhs: Self, rhs: Self) -> Bool
+                ^
+[26/38] Compiling ReaderCoreParser HTMLParser.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:119:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:123:39: error: cannot find 'closeTag' in scope
+                    if let closeTag = closeTag {
+                                      ^~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:160:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:171:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:175:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:193:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[27/38] Compiling ReaderCoreParser NonJSParserEngine.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:119:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:123:39: error: cannot find 'closeTag' in scope
+                    if let closeTag = closeTag {
+                                      ^~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:160:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:171:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:175:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:193:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[28/38] Compiling ReaderCoreParser NonJSRuleScheduler.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:25:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:70:17: warning: result of call to 'scanString' is unused
+        scanner.scanString("-->")
+                ^         ~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:97:17: warning: result of call to 'scanString' is unused
+        scanner.scanString(">")
+                ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:111:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:119:29: warning: result of call to 'scanString' is unused
+                    scanner.scanString(">")
+                            ^         ~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:123:39: error: cannot find 'closeTag' in scope
+                    if let closeTag = closeTag {
+                                      ^~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:160:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:171:21: warning: result of call to 'scanCharacters(from:)' is unused
+            scanner.scanCharacters(from: .whitespacesAndNewlines)
+                    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:175:25: warning: result of call to 'scanCharacters(from:)' is unused
+                scanner.scanCharacters(from: .whitespacesAndNewlines)
+                        ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/HTMLParser.swift:193:21: warning: result of call to 'scanCharacter()' is unused
+            scanner.scanCharacter()
+                    ^            ~~
+[29/38] Compiling ReaderCoreParser CSSExecutor.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+[30/38] Compiling ReaderCoreParser FixtureTocItem.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+[31/38] Compiling ReaderCoreParser FixtureTocParser.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+[32/38] Compiling ReaderCoreParser FixtureTocRegressionRunner.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+[33/38] Compiling ReaderCoreParser TocItem.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:40: error: cannot find type 'JSONValue' in scope
+    public let unknownFields: [String: JSONValue]
+                                       ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Decodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Decodable:2:5: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+    init(from decoder: any Decoder) throws
+    ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Decodable' because '[String : JSONValue]' does not conform to 'Decodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:29:33: error: cannot find type 'JSONValue' in scope
+        unknownFields: [String: JSONValue] = [:]
+                                ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: warning: stored property 'unknownFields' of 'Sendable'-conforming struct 'TocItem' has non-sendable type '<<error type>>'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Encodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Encodable:2:10: note: protocol requires function 'encode(to:)' with type 'Encodable'
+    func encode(to encoder: any Encoder) throws
+         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Encodable' because '[String : JSONValue]' does not conform to 'Encodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Equatable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: stored property type '<<error type>>' does not conform to protocol 'Equatable', preventing synthesized conformance of 'TocItem' to 'Equatable'
+    public let unknownFields: [String: JSONValue]
+               ^
+Swift.==:1:24: note: candidate would match if 'TocItem' conformed to 'RawRepresentable'
+@inlinable public func == <T>(lhs: T, rhs: T) -> Bool where T : RawRepresentable, T.RawValue : Equatable
+                       ^
+Swift.FloatingPoint:2:24: note: candidate would match if 'TocItem' conformed to 'FloatingPoint'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift.BinaryInteger:2:24: note: candidate would match if 'TocItem' conformed to 'BinaryInteger'
+    public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : BinaryInteger
+                       ^
+Swift._Pointer:2:24: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift._Pointer:3:35: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    @inlinable public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : _Pointer
+                                  ^
+Swift.Strideable:3:35: note: candidate would match if 'TocItem' conformed to 'Strideable'
+    @inlinable public static func == (x: Self, y: Self) -> Bool
+                                  ^
+Swift.StringProtocol:2:35: note: candidate would match if 'TocItem' conformed to 'StringProtocol'
+    @inlinable public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : StringProtocol
+                                  ^
+Swift.SIMD:4:24: note: candidate would match if 'TocItem' conformed to 'SIMD'
+    public static func == (a: Self, b: Self) -> Bool
+                       ^
+Foundation.AttributedStringProtocol:3:24: note: candidate would match if 'TocItem' conformed to 'AttributedStringProtocol'
+    public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : AttributedStringProtocol
+                       ^
+Foundation._BridgedStoredNSError:4:24: note: candidate would match if 'TocItem' conformed to '_BridgedStoredNSError'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+CoreFoundation._CFObject:4:24: note: candidate would match if 'TocItem' conformed to '_CFObject'
+    public static func == (left: Self, right: Self) -> Bool
+                       ^
+Swift.Equatable:2:17: note: protocol requires function '==' with type '(TocItem, TocItem) -> Bool'
+    static func == (lhs: Self, rhs: Self) -> Bool
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Decodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Decodable:2:5: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+    init(from decoder: any Decoder) throws
+    ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Decodable' because '[String : JSONValue]' does not conform to 'Decodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:62:23: error: extra arguments at positions #1, #2, #3, #4, #5 in call
+        return TocItem(
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:39:12: note: 'init(title:url:index:)' declared here
+    public init(
+           ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:62:23: error: missing arguments for parameters 'title', 'url', 'index' in call
+        return TocItem(
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:39:12: note: 'init(title:url:index:)' declared here
+    public init(
+           ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:69: error: missing argument for parameter 'of' in call
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                    ^
+                                                                    of: <#_#>, 
+Foundation.StringProtocol:35:17: note: 'replacingOccurrences(of:with:options:range:)' declared here
+    public func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = [], range searchRange: Range<Self.Index>? = nil) -> String where Target : StringProtocol, Replacement : StringProtocol
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:70: error: missing argument for parameter 'of' in call
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                     ^
+                                                                     of: <#_#>, 
+Foundation.StringProtocol:35:17: note: 'replacingOccurrences(of:with:options:range:)' declared here
+    public func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = [], range searchRange: Range<Self.Index>? = nil) -> String where Target : StringProtocol, Replacement : StringProtocol
+                ^
+[34/38] Compiling ReaderCoreParser TocParser.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:40: error: cannot find type 'JSONValue' in scope
+    public let unknownFields: [String: JSONValue]
+                                       ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Decodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Decodable:2:5: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+    init(from decoder: any Decoder) throws
+    ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Decodable' because '[String : JSONValue]' does not conform to 'Decodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:29:33: error: cannot find type 'JSONValue' in scope
+        unknownFields: [String: JSONValue] = [:]
+                                ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: warning: stored property 'unknownFields' of 'Sendable'-conforming struct 'TocItem' has non-sendable type '<<error type>>'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Encodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Encodable:2:10: note: protocol requires function 'encode(to:)' with type 'Encodable'
+    func encode(to encoder: any Encoder) throws
+         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Encodable' because '[String : JSONValue]' does not conform to 'Encodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Equatable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: stored property type '<<error type>>' does not conform to protocol 'Equatable', preventing synthesized conformance of 'TocItem' to 'Equatable'
+    public let unknownFields: [String: JSONValue]
+               ^
+Swift.==:1:24: note: candidate would match if 'TocItem' conformed to 'RawRepresentable'
+@inlinable public func == <T>(lhs: T, rhs: T) -> Bool where T : RawRepresentable, T.RawValue : Equatable
+                       ^
+Swift.FloatingPoint:2:24: note: candidate would match if 'TocItem' conformed to 'FloatingPoint'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift.BinaryInteger:2:24: note: candidate would match if 'TocItem' conformed to 'BinaryInteger'
+    public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : BinaryInteger
+                       ^
+Swift._Pointer:2:24: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift._Pointer:3:35: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    @inlinable public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : _Pointer
+                                  ^
+Swift.Strideable:3:35: note: candidate would match if 'TocItem' conformed to 'Strideable'
+    @inlinable public static func == (x: Self, y: Self) -> Bool
+                                  ^
+Swift.StringProtocol:2:35: note: candidate would match if 'TocItem' conformed to 'StringProtocol'
+    @inlinable public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : StringProtocol
+                                  ^
+Swift.SIMD:4:24: note: candidate would match if 'TocItem' conformed to 'SIMD'
+    public static func == (a: Self, b: Self) -> Bool
+                       ^
+Foundation.AttributedStringProtocol:3:24: note: candidate would match if 'TocItem' conformed to 'AttributedStringProtocol'
+    public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : AttributedStringProtocol
+                       ^
+Foundation._BridgedStoredNSError:4:24: note: candidate would match if 'TocItem' conformed to '_BridgedStoredNSError'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+CoreFoundation._CFObject:4:24: note: candidate would match if 'TocItem' conformed to '_CFObject'
+    public static func == (left: Self, right: Self) -> Bool
+                       ^
+Swift.Equatable:2:17: note: protocol requires function '==' with type '(TocItem, TocItem) -> Bool'
+    static func == (lhs: Self, rhs: Self) -> Bool
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Decodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Decodable:2:5: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+    init(from decoder: any Decoder) throws
+    ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Decodable' because '[String : JSONValue]' does not conform to 'Decodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:62:23: error: extra arguments at positions #1, #2, #3, #4, #5 in call
+        return TocItem(
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:39:12: note: 'init(title:url:index:)' declared here
+    public init(
+           ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:62:23: error: missing arguments for parameters 'title', 'url', 'index' in call
+        return TocItem(
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:39:12: note: 'init(title:url:index:)' declared here
+    public init(
+           ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:69: error: missing argument for parameter 'of' in call
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                    ^
+                                                                    of: <#_#>, 
+Foundation.StringProtocol:35:17: note: 'replacingOccurrences(of:with:options:range:)' declared here
+    public func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = [], range searchRange: Range<Self.Index>? = nil) -> String where Target : StringProtocol, Replacement : StringProtocol
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:70: error: missing argument for parameter 'of' in call
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                     ^
+                                                                     of: <#_#>, 
+Foundation.StringProtocol:35:17: note: 'replacingOccurrences(of:with:options:range:)' declared here
+    public func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = [], range searchRange: Range<Self.Index>? = nil) -> String where Target : StringProtocol, Replacement : StringProtocol
+                ^
+[35/38] Compiling ReaderCoreParser TocRule.swift
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:58: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:62: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                             ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:66: error: invalid escape sequence in literal
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                 ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:40: error: cannot find type 'JSONValue' in scope
+    public let unknownFields: [String: JSONValue]
+                                       ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Decodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Decodable:2:5: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+    init(from decoder: any Decoder) throws
+    ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Decodable' because '[String : JSONValue]' does not conform to 'Decodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:29:33: error: cannot find type 'JSONValue' in scope
+        unknownFields: [String: JSONValue] = [:]
+                                ^~~~~~~~~
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: warning: stored property 'unknownFields' of 'Sendable'-conforming struct 'TocItem' has non-sendable type '<<error type>>'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Encodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Encodable:2:10: note: protocol requires function 'encode(to:)' with type 'Encodable'
+    func encode(to encoder: any Encoder) throws
+         ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Encodable' because '[String : JSONValue]' does not conform to 'Encodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Equatable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: stored property type '<<error type>>' does not conform to protocol 'Equatable', preventing synthesized conformance of 'TocItem' to 'Equatable'
+    public let unknownFields: [String: JSONValue]
+               ^
+Swift.==:1:24: note: candidate would match if 'TocItem' conformed to 'RawRepresentable'
+@inlinable public func == <T>(lhs: T, rhs: T) -> Bool where T : RawRepresentable, T.RawValue : Equatable
+                       ^
+Swift.FloatingPoint:2:24: note: candidate would match if 'TocItem' conformed to 'FloatingPoint'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift.BinaryInteger:2:24: note: candidate would match if 'TocItem' conformed to 'BinaryInteger'
+    public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : BinaryInteger
+                       ^
+Swift._Pointer:2:24: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+Swift._Pointer:3:35: note: candidate would match if 'TocItem' conformed to '_Pointer'
+    @inlinable public static func == <Other>(lhs: Self, rhs: Other) -> Bool where Other : _Pointer
+                                  ^
+Swift.Strideable:3:35: note: candidate would match if 'TocItem' conformed to 'Strideable'
+    @inlinable public static func == (x: Self, y: Self) -> Bool
+                                  ^
+Swift.StringProtocol:2:35: note: candidate would match if 'TocItem' conformed to 'StringProtocol'
+    @inlinable public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : StringProtocol
+                                  ^
+Swift.SIMD:4:24: note: candidate would match if 'TocItem' conformed to 'SIMD'
+    public static func == (a: Self, b: Self) -> Bool
+                       ^
+Foundation.AttributedStringProtocol:3:24: note: candidate would match if 'TocItem' conformed to 'AttributedStringProtocol'
+    public static func == <RHS>(lhs: Self, rhs: RHS) -> Bool where RHS : AttributedStringProtocol
+                       ^
+Foundation._BridgedStoredNSError:4:24: note: candidate would match if 'TocItem' conformed to '_BridgedStoredNSError'
+    public static func == (lhs: Self, rhs: Self) -> Bool
+                       ^
+CoreFoundation._CFObject:4:24: note: candidate would match if 'TocItem' conformed to '_CFObject'
+    public static func == (left: Self, right: Self) -> Bool
+                       ^
+Swift.Equatable:2:17: note: protocol requires function '==' with type '(TocItem, TocItem) -> Bool'
+    static func == (lhs: Self, rhs: Self) -> Bool
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:5:15: error: type 'TocItem' does not conform to protocol 'Decodable'
+public struct TocItem: Codable, Sendable, Equatable, Identifiable {
+              ^
+Swift.Decodable:2:5: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+    init(from decoder: any Decoder) throws
+    ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:22:16: note: cannot automatically synthesize 'Decodable' because '[String : JSONValue]' does not conform to 'Decodable'
+    public let unknownFields: [String: JSONValue]
+               ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:62:23: error: extra arguments at positions #1, #2, #3, #4, #5 in call
+        return TocItem(
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:39:12: note: 'init(title:url:index:)' declared here
+    public init(
+           ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:62:23: error: missing arguments for parameters 'title', 'url', 'index' in call
+        return TocItem(
+                      ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:39:12: note: 'init(title:url:index:)' declared here
+    public init(
+           ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:85:69: error: missing argument for parameter 'of' in call
+        processed = processed.replacingOccurrences(of: "\([^)]*\)", with: "", options: .regularExpression)
+                                                                    ^
+                                                                    of: <#_#>, 
+Foundation.StringProtocol:35:17: note: 'replacingOccurrences(of:with:options:range:)' declared here
+    public func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = [], range searchRange: Range<Self.Index>? = nil) -> String where Target : StringProtocol, Replacement : StringProtocol
+                ^
+/Users/runner/work/Reader-for-iOS/Reader-for-iOS/Core/Sources/ReaderCoreParser/TocItem.swift:87:70: error: missing argument for parameter 'of' in call
+        processed = processed.replacingOccurrences(of: "\[[^\]]*\]", with: "", options: .regularExpression)
+                                                                     ^
+                                                                     of: <#_#>, 
+Foundation.StringProtocol:35:17: note: 'replacingOccurrences(of:with:options:range:)' declared here
+    public func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = [], range searchRange: Range<Self.Index>? = nil) -> String where Target : StringProtocol, Replacement : StringProtocol
+                ^
+error: fatalError
+Exception: /Users/runner/work/Reader-for-iOS/Reader-for-iOS/tools/regression/run_fixture_toc_min_regression.ps1:162
+Line |
+ 162 |    throw "swift regression execution failed"
+     |    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | swift regression execution failed
