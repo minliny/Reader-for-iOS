@@ -17,6 +17,8 @@ jobs:
     name: smoke sample_001 nonjs
     runs-on: macos-14
     timeout-minutes: 15
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
