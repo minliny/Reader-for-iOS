@@ -1,0 +1,18 @@
+{
+  "sampleId": "sample_001",
+  "flow": "search",
+  "expected": {
+    "success": true,
+    "resultCount": 2,
+    "items": [
+      {
+        "title": "书剑恩仇录",
+        "detailURL": "http://fixture.local/book/1.html"
+      },
+      {
+        "title": "天龙八部",
+        "detailURL": "http://fixture.local/book/2.html"
+      }
+    ]
+  }
+}

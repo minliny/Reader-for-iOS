@@ -1,0 +1,25 @@
+{
+  "sampleId": "sample_001",
+  "flow": "toc",
+  "expected": {
+    "success": true,
+    "chapterCount": 3,
+    "chapters": [
+      {
+        "chapterTitle": "第一章 初出茅庐",
+        "chapterURL": "http://fixture.local/chapter/1.html",
+        "chapterIndex": 0
+      },
+      {
+        "chapterTitle": "第二章 江湖再见",
+        "chapterURL": "http://fixture.local/chapter/2.html",
+        "chapterIndex": 1
+      },
+      {
+        "chapterTitle": "第三章 恩仇了断",
+        "chapterURL": "http://fixture.local/chapter/3.html",
+        "chapterIndex": 2
+      }
+    ]
+  }
+}

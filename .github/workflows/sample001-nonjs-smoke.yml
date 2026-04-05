@@ -1,0 +1,63 @@
+name: Sample-001 Non-JS Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/fervent-goldstine
+    paths:
+      - ".github/workflows/sample001-nonjs-smoke.yml"
+      - "Core/Package.swift"
+      - "Core/Sources/**"
+      - "tools/smoke/**"
+      - "samples/**"
+
+jobs:
+  smoke-sample-001:
+    name: Run sample_001 non-JS smoke
+    runs-on: macos-14
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Swift
+        run: swift --version
+
+      - name: Build Sample001NonJSSmokeRunner
+        working-directory: Core
+        shell: bash
+        run: swift build --product Sample001NonJSSmokeRunner 2>&1
+
+      - name: Run smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift run Sample001NonJSSmokeRunner --package-path Core -- "$GITHUB_WORKSPACE" 2>&1
+          echo "--- report ---"
+          cat samples/reports/latest/sample_001_nonjs_smoke_result.yml
+
+      - name: Commit updated smoke report
+        shell: bash
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add samples/reports/latest/sample_001_nonjs_smoke_result.yml
+          if git diff --cached --quiet; then
+            echo "No change in report — already up to date."
+          else
+            git commit -m "ci: update sample_001 non-JS smoke report (real run)
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+            git push
+          fi
+
+      - name: Upload smoke report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample001-nonjs-smoke-report
+          path: samples/reports/latest/sample_001_nonjs_smoke_result.yml

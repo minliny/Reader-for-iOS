@@ -1,0 +1,14 @@
+{
+  "bookSourceName": "Sample-001-Fixture",
+  "bookSourceUrl": "http://fixture.local",
+  "bookSourceGroup": "p0_non_js",
+  "bookSourceType": 0,
+  "searchUrl": "http://fixture.local/search?q={{key}}",
+  "ruleSearch": "css:.item",
+  "ruleToc": "css:.chapter",
+  "ruleContent": "css:.content",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": false,
+  "header": {}
+}
