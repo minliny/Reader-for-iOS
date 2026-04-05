@@ -48,8 +48,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "Sample001NonJSSmokeRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreParser"],
-            path: "../tools/smoke"
+            dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
         ),
         .testTarget(
             name: "ReaderCoreModelsTests",
