@@ -1,4 +1,4 @@
-name: Sample-001 Non-JS Smoke Test
+name: Sample-001 NonJS Smoke
 
 on:
   workflow_dispatch:
@@ -13,49 +13,41 @@ on:
       - "samples/**"
 
 jobs:
-  smoke-sample-001:
-    name: Run sample_001 non-JS smoke
+  smoke:
+    name: smoke sample_001 nonjs
     runs-on: macos-14
     timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Swift
+      - name: Swift version
         run: swift --version
 
-      - name: Build Sample001NonJSSmokeRunner
+      - name: Build
         working-directory: Core
-        shell: bash
-        run: swift build --product Sample001NonJSSmokeRunner 2>&1
+        run: swift build --product Sample001NonJSSmokeRunner
 
-      - name: Run smoke test
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift run Sample001NonJSSmokeRunner --package-path Core -- "$GITHUB_WORKSPACE" 2>&1
-          echo "--- report ---"
-          cat samples/reports/latest/sample_001_nonjs_smoke_result.yml
+      - name: Run smoke
+        run: swift run Sample001NonJSSmokeRunner --package-path Core -- "$GITHUB_WORKSPACE"
 
-      - name: Commit updated smoke report
-        shell: bash
+      - name: Print report
+        run: cat samples/reports/latest/sample_001_nonjs_smoke_result.yml
+
+      - name: Commit real report
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add samples/reports/latest/sample_001_nonjs_smoke_result.yml
           if git diff --cached --quiet; then
-            echo "No change in report — already up to date."
+            echo "report unchanged"
           else
-            git commit -m "ci: update sample_001 non-JS smoke report (real run)
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+            git commit -m "ci: sample_001 nonjs smoke real report"
             git push
           fi
 
-      - name: Upload smoke report artifact
+      - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
