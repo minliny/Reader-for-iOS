@@ -29,8 +29,11 @@
 | cp_D4_20260406 | 2026-04-06T00:00:00Z | D | D4 | completed | D5 |
 | cp_D5_20260406 | 2026-04-06T00:00:00Z | D | D5 | completed | D6 |
 
-**lastCompletedStep:** D5
-**nextStep:** D6 (CI smoke for sample_004 + sample_005 — requires push to trigger)
+| cp_D6_20260405 | 2026-04-05T20:33:32Z | D | D6 | completed | D7 |
+| cp_F1_20260405 | 2026-04-05T20:33:32Z | F | F1 | completed | D7 |
+
+**lastCompletedStep:** F1
+**nextStep:** D7 — SampleCookie002FetchRunner + SampleCookie002IsolationRunner creation and CI execution
 
 ---
 
