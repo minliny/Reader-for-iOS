@@ -58,9 +58,11 @@ struct Sample001NonJSSmokeRunner {
 
     static func main() throws {
         let args = CommandLine.arguments
-        let repoRoot = args.count > 1
-            ? args[1]
-            : FileManager.default.currentDirectoryPath
+        // swift run passes the literal "--" separator as an element of
+        // CommandLine.arguments; skip it so args[1] == "--" doesn't become repoRoot.
+        let positional = args.dropFirst().filter { $0 != "--" }
+        let repoRoot = positional.first
+            ?? FileManager.default.currentDirectoryPath
 
         func rp(_ rel: String) -> String {
             URL(fileURLWithPath: repoRoot).appendingPathComponent(rel).path
