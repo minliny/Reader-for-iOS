@@ -37,7 +37,7 @@ enum SelectorEngine {
             configuration.debug("NODE_TRAVERSE depth=\(depth) current_nodes=\(currentNodes.count)")
 
             if depth > configuration.maxTraversalDepth {
-                configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=CSSExecutor.select.depth")
+                configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=SelectorEngine.select.depth")
                 throw CSSExecutorError.htmlParsingFailed
             }
 
@@ -51,7 +51,7 @@ enum SelectorEngine {
                     configuration.debug("NODE_TRAVERSE start node=\(nodeLabel(currentNode))")
                 }
                 if iterationCount > configuration.maxLoopIterations {
-                    configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=CSSExecutor.select.loop")
+                    configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=SelectorEngine.select.loop")
                     throw CSSExecutorError.htmlParsingFailed
                 }
 
@@ -105,13 +105,13 @@ enum SelectorEngine {
                 configuration.debug("LOOP_ITERATION count=\(iterationCount)")
             }
             if iterationCount > configuration.maxLoopIterations {
-                configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=CSSExecutor.select.loop")
+                configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=SelectorEngine.select.loop")
                 throw CSSExecutorError.htmlParsingFailed
             }
 
             let current = queue.removeFirst()
             if current.depth > configuration.maxTraversalDepth {
-                configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=CSSExecutor.select.depth")
+                configuration.debug("LOOP_GUARD_TRIGGERED sample=\(configuration.activeSampleId) location=SelectorEngine.select.depth")
                 throw CSSExecutorError.htmlParsingFailed
             }
 
