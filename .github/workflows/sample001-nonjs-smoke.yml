@@ -30,7 +30,7 @@ jobs:
         run: swift build --product Sample001NonJSSmokeRunner
 
       - name: Run smoke
-        run: swift run Sample001NonJSSmokeRunner --package-path Core -- "$GITHUB_WORKSPACE"
+        run: swift run --package-path Core Sample001NonJSSmokeRunner -- "$GITHUB_WORKSPACE"
 
       - name: Print report
         run: cat samples/reports/latest/sample_001_nonjs_smoke_result.yml
