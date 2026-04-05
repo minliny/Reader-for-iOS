@@ -17,7 +17,9 @@ let package = Package(
         .executable(name: "FixtureTocRegressionCLI", targets: ["FixtureTocRegressionCLI"]),
         .executable(name: "Sample001NonJSSmokeRunner", targets: ["Sample001NonJSSmokeRunner"]),
         .executable(name: "Sample002NonJSSmokeRunner", targets: ["Sample002NonJSSmokeRunner"]),
-        .executable(name: "Sample003NonJSSmokeRunner", targets: ["Sample003NonJSSmokeRunner"])
+        .executable(name: "Sample003NonJSSmokeRunner", targets: ["Sample003NonJSSmokeRunner"]),
+        .executable(name: "SampleCookie001FetchRunner", targets: ["SampleCookie001FetchRunner"]),
+        .executable(name: "SampleCookie001IsolationRunner", targets: ["SampleCookie001IsolationRunner"])
     ],
     targets: [
         .target(
@@ -59,6 +61,14 @@ let package = Package(
         .executableTarget(
             name: "Sample003NonJSSmokeRunner",
             dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
+        ),
+        .executableTarget(
+            name: "SampleCookie001FetchRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols"]
+        ),
+        .executableTarget(
+            name: "SampleCookie001IsolationRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols"]
         ),
         .testTarget(
             name: "ReaderCoreModelsTests",
