@@ -1,17 +1,18 @@
-version: "0.2.0"
-generatedAt: "2026-04-04T08:58:16Z"
-scope: "recent-core-fix-regression"
+version: "0.3.0"
+generatedAt: "2026-04-05T20:11:13Z"
+scope: "p1_cookie_isolation_sample_cookie_001"
 summary:
-  totalSamples: 8
+  totalSamples: 9
   levelA: 8
   levelB: 0
   levelC: 0
-  levelD: 0
-  passRate: 100.0
+  levelD: 1
+  passRate: 88.9
   degradeRate: 0.0
-  failRate: 0.0
+  failRate: 11.1
   p0PassRate: 100.0
   pocPassRate: 100.0
+  p1PassRate: 0.0
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -148,3 +149,25 @@ samples:
     metadataPath: "samples/metadata/p0_non_js/http_client_invalid_url_contract/metadata.yml"
     expectedPath: null
     notes: "Invalid request URLs are classified before request dispatch and stay mapped to FailureType.INVALID_URL."
+  - sampleId: "sample_cookie_001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "cookie"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "js_challenge_observed"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/sample_cookie_001.yml"
+    expectedPath: null
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_cookie_001.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_cookie_001.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_001.yml"
+    notes: "wenku8.net returns HTTP 403 with JS challenge (Cloudflare) across all 8 isolation steps including cookie_jar and login. No isolation step resolved access. Site requires browser-level JS execution; curl/URLSession cannot pass the challenge. Level D: requires JS rendering capability."
