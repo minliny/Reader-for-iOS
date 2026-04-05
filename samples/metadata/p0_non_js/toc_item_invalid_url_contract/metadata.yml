@@ -1,0 +1,35 @@
+sampleId: "toc_item_invalid_url_contract"
+sampleFile: "Core/Tests/ReaderCoreParserTests/TocParserTests.swift"
+priority: p0
+category: non_js
+sourceType: unit_contract
+sourceOfTruth: unit_test
+testBinding:
+  testFile: "Core/Tests/ReaderCoreParserTests/TocParserTests.swift"
+  testCase: "testInvalidURLConversion"
+title: "TocItem invalid URL passthrough contract"
+siteTag: "core_parser_contract"
+featureTags:
+  - "toc"
+  - "url_normalization"
+  - "invalid_url"
+  - "base_url"
+ruleTypes:
+  - CSS
+expectedLevel: A
+mustPassStage: poc
+blocking: true
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "Core/Tests/ReaderCoreParserTests/TocParserTests.swift"
+expectedOutput:
+  search: null
+  toc: "samples/expected/toc/toc_item_invalid_url_contract.json"
+  content: null
+degradeExpectation: null
+knownFailureType: "OUTPUT_MISMATCH"
+owner: "core-parser"
+notes: "invalid-url must remain unchanged, and absolutize is only allowed when explicit baseURL meets a clear relative path."

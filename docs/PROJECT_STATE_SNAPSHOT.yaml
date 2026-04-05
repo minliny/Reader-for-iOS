@@ -1,0 +1,150 @@
+project:
+  name: Reader-for-iOS
+  architecture: "Core + multi-shell"
+  phase: p0_non_js_core_stable
+  current_focus: execution_layer_structural_split
+  branch: main
+  head_commit: "9f4e44bdcf4ed270f9a7ceaf1f9606870e02a31c"
+
+ci_status:
+  reader_core_swift_tests:
+    run_id: 23979783880
+    status: success
+    workflow: "Reader Core Swift Tests"
+    head_sha: "9f4e44bdcf4ed270f9a7ceaf1f9606870e02a31c"
+  fixture_toc_regression:
+    run_id: 23979783875
+    status: success
+    workflow: "Fixture TOC Regression (macOS)"
+    head_sha: "9f4e44bdcf4ed270f9a7ceaf1f9606870e02a31c"
+
+core_modules:
+  rule_parser:
+    status: stable
+    responsibilities:
+      - rule_string_parsing
+      - selector_extractor_split
+      - unknown_extractor_fail_fast
+  selector_engine:
+    status: stable
+    capabilities:
+      - selector_semantics
+      - descendant_matching
+      - child_chain
+      - tag_class_id_matching
+  css_executor:
+    status: stable
+    responsibilities:
+      - orchestration
+      - html_document_parse_entry
+      - extraction_dispatch
+    capabilities:
+      - selector_semantics
+      - text/html/href/src/alt extraction
+      - unknown_extractor_fail_fast
+  fixture_toc_parser:
+    status: stable
+    guarantees:
+      - selector_miss_returns_empty
+      - title_miss_returns_empty
+      - url_miss_returns_empty
+      - count_mismatch_returns_empty
+      - singleton_rejected
+  toc_item:
+    status: stable
+    guarantees:
+      - invalid_url_kept_raw
+      - relative_url_requires_explicit_base
+      - title_postprocessing_stable
+  http_client:
+    status: stable
+    guarantees:
+      - invalid_url_maps_to_invalid_url
+
+recent_refactors:
+  - RuleParser_extracted
+  - CSSExecutor_unknown_extractor_fail_fast
+  - SelectorEngine_extracted
+
+current_structure:
+  rule_parsing:
+    file: "Core/Sources/ReaderCoreParser/RuleParser.swift"
+    status: decoupled
+  selector_execution:
+    file: "Core/Sources/ReaderCoreParser/SelectorEngine.swift"
+    status: decoupled
+  extraction:
+    file: "Core/Sources/ReaderCoreParser/CSSExecutor.swift"
+    status: coupled
+  orchestration:
+    file: "Core/Sources/ReaderCoreParser/CSSExecutor.swift"
+    status: coupled
+
+contracts:
+  css_executor_selector_semantics:
+    behavior: stable
+    sample_id: css_executor_selector_semantics_contract
+    coverage:
+      - tag_class_id
+      - child_chain
+      - descendant_single_segment
+      - text_extraction
+      - html_extraction
+      - href_src_alt_extraction
+  css_executor_unknown_extractor:
+    behavior: fail_fast
+    failure_type: RULE_UNSUPPORTED
+    sample_id: css_executor_selector_semantics_contract
+    expected: "samples/expected/toc/css_executor_unknown_extractor_contract.json"
+  fixture_toc_parser_contract:
+    behavior: stable
+    sample_ids:
+      - fixture_toc_selector_miss
+      - fixture_toc_title_rule_miss
+      - fixture_toc_url_rule_miss
+      - fixture_toc_count_mismatch
+      - fixture_toc_non_selector_error
+  toc_item_invalid_url_contract:
+    behavior: stable
+    sample_id: toc_item_invalid_url_contract
+  http_client_invalid_url_contract:
+    behavior: stable
+    sample_id: http_client_invalid_url_contract
+
+assets:
+  metadata: complete
+  expected: complete
+  compat_matrix: complete
+  regression_summary: complete
+  key_files:
+    - "samples/matrix/compat_matrix.yml"
+    - "samples/reports/latest/core_regression_summary.yml"
+    - "samples/expected/toc/css_executor_unknown_extractor_contract.json"
+    - "samples/metadata/p0_non_js/css_executor_selector_semantics_contract/metadata.yml"
+
+next_target:
+  module: extraction_layer
+  action: split_from_css_executor
+  constraints:
+    - no_behavior_change
+    - no_dsl_extension
+    - ci_must_remain_green
+    - no_test_modification
+    - no_failure_type_addition
+
+workspace:
+  has_uncommitted_local_assets: true
+  note: "工作区存在未提交的 samples/docs 资产文件；继续开发时不要误回退这些本地状态。"
+
+rules:
+  clean_room: true
+  no_gpl_code: true
+  no_test_modification: true
+  no_failure_type_addition: true
+  no_js_login_cookie_expansion: true
+
+validation:
+  state_recoverable: true
+  no_context_missing: true
+  machine_readable: true
+  agent_ready: true

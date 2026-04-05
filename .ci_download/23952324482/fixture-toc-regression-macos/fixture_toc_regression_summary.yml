@@ -1,0 +1,30 @@
+reportId: "fixture_toc_min_regression_v1"
+generatedAt: "2026-04-03T15:50:59Z"
+scope: "fixture_toc_parser_contract"
+run:
+  runId: "fixture_toc_exec_30d2b70b22924072abad0183ec2cd536"
+  mode: "executor_run"
+  executorVerified: true
+  note: "FixtureTocParser executor run completed from Swift regression entry."
+summary:
+  totalSamples: 4
+  passed: 4
+  failed: 0
+  skipped: 0
+sampleResults:
+  - regressionSampleId: "fixture_toc_title_rule_miss"
+    sampleId: "fixture_toc_title_rule_miss"
+    status: "passed"
+    passed: true
+  - regressionSampleId: "fixture_toc_url_rule_miss"
+    sampleId: "fixture_toc_url_rule_miss"
+    status: "passed"
+    passed: true
+  - regressionSampleId: "fixture_toc_count_mismatch"
+    sampleId: "fixture_toc_count_mismatch"
+    status: "passed"
+    passed: true
+  - regressionSampleId: "fixture_toc_non_selector_error"
+    sampleId: "fixture_toc_non_selector_error"
+    status: "passed"
+    passed: true

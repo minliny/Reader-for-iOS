@@ -1,0 +1,65 @@
+project:
+  name: Reader-for-iOS
+  scope: fixture_toc_parser_contract
+  mode: non_js_main_path
+
+current_stage:
+  description: "已进入真实 Swift 编译阶段，正在逐步清除编译阻断"
+  executorVerified: false
+
+last_ci_run:
+  run_id: "23910871842"
+  conclusion: "failure"
+  first_failed_step: "Run Fixture TOC regression"
+  entered_execution: true
+  execution_result_generated: false
+  evidence:
+    workflow_url: "https://github.com/minliny/Reader-for-iOS/actions/runs/23910871842"
+    artifact_summary: ".ci_download/23910871842/fixture-toc-regression-macos/fixture_toc_regression_summary.yml"
+    artifact_stderr: ".ci_download/23910871842/fixture-toc-regression-macos/fixture_toc_regression.stderr.log"
+    artifact_manifest: ".ci_download/23910871842/fixture-toc-regression-macos/fixture_toc_execution_manifest.json"
+
+progress:
+  completed_fixes:
+    - id: fix_001
+      description: "CI 缺少 PyYAML，已补 workflow 安装"
+    - id: fix_002
+      description: "移除 StructuredErrorLog 的反向模块依赖"
+    - id: fix_003
+      description: "修复 CSSNode 非法 weak / 递归 struct 定义"
+    - id: fix_004
+      description: "修复 BookSource unknownFields 的 KeyedDecodingContainer 调用错误"
+
+current_blocker:
+  file: "Core/Sources/ReaderCoreParser/TocItem.swift"
+  error: "invalid escape sequence in literal"
+  code_snippet: "processed = processed.replacingOccurrences(of: \"\\([^)]*\\)\", with: \"\", options: .regularExpression)"
+  category: "Swift string literal escaping"
+  severity: "build_blocker"
+  evidence:
+    run_id: "23910871842"
+    first_error: "Core/Sources/ReaderCoreParser/TocItem.swift:85:65: error: invalid escape sequence in literal"
+
+next_action:
+  type: "minimal_fix"
+  target: "TocItem.swift"
+  description: "修复 TocItem 中正则字符串的非法转义，使 Swift 编译可继续越过当前首个阻断点"
+  constraints:
+    - "不改 schema"
+    - "不改 parser 行为"
+    - "不扩展字段处理逻辑"
+    - "不跨文件扩散修改"
+
+rules:
+  - "只修当前第一失败点"
+  - "每次修改必须触发 CI 验证"
+  - "不得跨文件扩散修改"
+  - "不得提前优化或重构"
+
+resume_instruction:
+  steps:
+    - "读取本文件"
+    - "定位 current_blocker"
+    - "执行 next_action"
+    - "提交并触发 CI"
+    - "重新定位新的第一阻断点"

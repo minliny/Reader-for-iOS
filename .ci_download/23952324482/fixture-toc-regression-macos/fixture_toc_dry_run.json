@@ -1,0 +1,50 @@
+{
+  "mode": "dry_run",
+  "generatedAt": "2026-04-02T12:21:00.3517761Z",
+  "executorVerified": false,
+  "execution": {
+    "performed": false,
+    "reason": "swift-missing; dry-run only"
+  },
+  "validation": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0
+  },
+  "matrix": {
+    "scope": "fixture-toc-min-regression",
+    "totalSamples": 4
+  },
+  "summary": {
+    "totalSamples": 4,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 4
+  },
+  "sampleResults": [
+    {
+      "regressionSampleId": "fixture_toc_title_rule_miss",
+      "sampleId": "fixture_toc_title_rule_miss",
+      "status": "pending",
+      "expectedPath": "samples/expected/toc/fixture_toc_title_rule_miss.json"
+    },
+    {
+      "regressionSampleId": "fixture_toc_url_rule_miss",
+      "sampleId": "fixture_toc_url_rule_miss",
+      "status": "pending",
+      "expectedPath": "samples/expected/toc/fixture_toc_url_rule_miss.json"
+    },
+    {
+      "regressionSampleId": "fixture_toc_count_mismatch",
+      "sampleId": "fixture_toc_count_mismatch",
+      "status": "pending",
+      "expectedPath": "samples/expected/toc/fixture_toc_count_mismatch.json"
+    },
+    {
+      "regressionSampleId": "fixture_toc_non_selector_error",
+      "sampleId": "fixture_toc_non_selector_error",
+      "status": "pending",
+      "expectedPath": "samples/expected/toc/fixture_toc_non_selector_error.json"
+    }
+  ]
+}

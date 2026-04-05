@@ -1,0 +1,17 @@
+{
+  "sampleId": "toc_item_invalid_url_contract",
+  "flow": "toc",
+  "expected": {
+    "success": true,
+    "resultType": "toc_list",
+    "chapterCount": 1,
+    "chapters": [
+      {
+        "chapterTitle": "第一章 测试标题",
+        "chapterURL": "invalid-url",
+        "chapterIndex": 0,
+        "isVip": false
+      }
+    ]
+  }
+}
