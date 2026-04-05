@@ -14,7 +14,7 @@ on:
 
 jobs:
   smoke:
-    name: smoke sample_001 sample_002 sample_003
+    name: smoke sample_001 through sample_005
     runs-on: macos-14
     timeout-minutes: 20
     permissions:
@@ -33,6 +33,8 @@ jobs:
           swift build --product Sample001NonJSSmokeRunner
           swift build --product Sample002NonJSSmokeRunner
           swift build --product Sample003NonJSSmokeRunner
+          swift build --product Sample004NonJSSmokeRunner
+          swift build --product Sample005NonJSSmokeRunner
 
       - name: Run sample_001 smoke
         run: swift run --package-path Core Sample001NonJSSmokeRunner -- "$GITHUB_WORKSPACE"
@@ -43,11 +45,19 @@ jobs:
       - name: Run sample_003 smoke
         run: swift run --package-path Core Sample003NonJSSmokeRunner -- "$GITHUB_WORKSPACE"
 
+      - name: Run sample_004 smoke
+        run: swift run --package-path Core Sample004NonJSSmokeRunner -- "$GITHUB_WORKSPACE"
+
+      - name: Run sample_005 smoke
+        run: swift run --package-path Core Sample005NonJSSmokeRunner -- "$GITHUB_WORKSPACE"
+
       - name: Print reports
         run: |
           echo "=== sample_001 ===" && cat samples/reports/latest/sample_001_nonjs_smoke_result.yml
           echo "=== sample_002 ===" && cat samples/reports/latest/sample_002_nonjs_smoke_result.yml
           echo "=== sample_003 ===" && cat samples/reports/latest/sample_003_nonjs_smoke_result.yml
+          echo "=== sample_004 ===" && cat samples/reports/latest/sample_004_nonjs_smoke_result.yml
+          echo "=== sample_005 ===" && cat samples/reports/latest/sample_005_nonjs_smoke_result.yml
 
       - name: Commit real reports
         run: |
@@ -56,10 +66,13 @@ jobs:
           git add samples/reports/latest/sample_001_nonjs_smoke_result.yml
           git add samples/reports/latest/sample_002_nonjs_smoke_result.yml
           git add samples/reports/latest/sample_003_nonjs_smoke_result.yml
+          git add samples/reports/latest/sample_004_nonjs_smoke_result.yml
+          git add samples/reports/latest/sample_005_nonjs_smoke_result.yml
           if git diff --cached --quiet; then
             echo "reports unchanged"
           else
-            git commit -m "ci: nonjs smoke real reports sample_001 sample_002 sample_003"
+            git commit -m "ci: nonjs smoke real reports sample_001 through sample_005"
+            git pull --rebase origin claude/fervent-goldstine
             git push
           fi
 

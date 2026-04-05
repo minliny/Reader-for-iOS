@@ -18,8 +18,11 @@ let package = Package(
         .executable(name: "Sample001NonJSSmokeRunner", targets: ["Sample001NonJSSmokeRunner"]),
         .executable(name: "Sample002NonJSSmokeRunner", targets: ["Sample002NonJSSmokeRunner"]),
         .executable(name: "Sample003NonJSSmokeRunner", targets: ["Sample003NonJSSmokeRunner"]),
+        .executable(name: "Sample004NonJSSmokeRunner", targets: ["Sample004NonJSSmokeRunner"]),
+        .executable(name: "Sample005NonJSSmokeRunner", targets: ["Sample005NonJSSmokeRunner"]),
         .executable(name: "SampleCookie001FetchRunner", targets: ["SampleCookie001FetchRunner"]),
-        .executable(name: "SampleCookie001IsolationRunner", targets: ["SampleCookie001IsolationRunner"])
+        .executable(name: "SampleCookie001IsolationRunner", targets: ["SampleCookie001IsolationRunner"]),
+        .library(name: "ReaderCoreJSRenderer", targets: ["ReaderCoreJSRenderer"])
     ],
     targets: [
         .target(
@@ -63,12 +66,24 @@ let package = Package(
             dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
         ),
         .executableTarget(
+            name: "Sample004NonJSSmokeRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
+        ),
+        .executableTarget(
+            name: "Sample005NonJSSmokeRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
+        ),
+        .executableTarget(
             name: "SampleCookie001FetchRunner",
             dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols"]
         ),
         .executableTarget(
             name: "SampleCookie001IsolationRunner",
             dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols"]
+        ),
+        .target(
+            name: "ReaderCoreJSRenderer",
+            dependencies: []
         ),
         .testTarget(
             name: "ReaderCoreModelsTests",

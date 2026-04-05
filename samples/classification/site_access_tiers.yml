@@ -1,0 +1,59 @@
+version: "1.0.0"
+createdAt: "2026-04-05T20:11:13Z"
+description: "Site access tier classification for booksource samples"
+
+tiers:
+  A:
+    name: "non_js_accessible"
+    description: "Site returns parseable content with plain HTTP GET. No JS, no special auth, no bot protection."
+    requirements:
+      - "HTTP 200 on search URL with no headers"
+      - "CSS/XPath rule extracts content"
+      - "No Set-Cookie required for access"
+    clientCapability: "URLSession ephemeral — no headers, no cookies"
+    testApproach: "NonJS smoke runner — fixture or real"
+    levelExpectation: "A"
+
+  B:
+    name: "policy_controlled_accessible"
+    description: >
+      Site requires specific HTTP policy (headers, cookies, login) to return content,
+      but does NOT require JS execution. Can be accessed with correct URLSession configuration.
+    subcategories:
+      B1_header_required: "Needs specific User-Agent or Referer"
+      B2_cookie_required: "Needs valid session cookie from prior GET"
+      B3_login_required: "Needs authenticated session (username/password or token)"
+    requirements:
+      - "Site eventually returns 200 + parseable HTML with correct config"
+      - "No JS challenge gate"
+    clientCapability: "URLSession with CookieJar / custom headers / login flow"
+    testApproach: "p1 isolation runner — vary one variable at a time"
+    levelExpectation: "A after correct config; D if blocked"
+
+  C:
+    name: "js_gate_required"
+    description: >
+      Site cannot be accessed without executing JavaScript. Typically protected by
+      Cloudflare Browser Integrity Check, hCaptcha, or similar bot-detection that
+      requires a real browser runtime.
+    indicators:
+      - "HTTP 403 with JS challenge page"
+      - "All isolation steps (headers, cookies, login) fail identically"
+      - "jsChallengeObserved=true in isolation report"
+    requirements:
+      - "Requires WKWebView or headless browser capable of executing JS"
+    clientCapability: "ReaderCoreJSRenderer (not yet implemented)"
+    testApproach: "JS isolation runner — pending PoC"
+    levelExpectation: "D until JS rendering available"
+    blocked_until: "ReaderCoreJSRenderer PoC complete"
+
+classificationRules:
+  - "If baseline 200 + content found → tier A"
+  - "If baseline fails but isolation step finds content without JS → tier B"
+  - "If jsChallengeObserved=true AND winningStep=null after all 8 steps → tier C"
+  - "If no isolation step resolves AND no JS challenge → re-examine, may be IP block or geo-block"
+
+doNotMix:
+  - "Tier C sites must not be in active p1 testing queue"
+  - "Tier C sites must not be retried with header/cookie changes"
+  - "Tier A sites must not use CookieJar unnecessarily"

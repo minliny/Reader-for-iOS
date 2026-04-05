@@ -1,0 +1,18 @@
+{
+  "sampleId": "sample_005",
+  "flow": "search",
+  "expected": {
+    "success": true,
+    "resultCount": 2,
+    "items": [
+      {
+        "title": "失落的地平线",
+        "detailURL": "http://fixture5.local/book/1.html"
+      },
+      {
+        "title": "茶馆",
+        "detailURL": "http://fixture5.local/book/2.html"
+      }
+    ]
+  }
+}

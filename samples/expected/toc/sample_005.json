@@ -1,0 +1,25 @@
+{
+  "sampleId": "sample_005",
+  "flow": "toc",
+  "expected": {
+    "success": true,
+    "chapterCount": 3,
+    "chapters": [
+      {
+        "chapterTitle": "第一幕 开场",
+        "chapterURL": "http://fixture5.local/ch/1.html",
+        "chapterIndex": 0
+      },
+      {
+        "chapterTitle": "第二幕 冲突",
+        "chapterURL": "http://fixture5.local/ch/2.html",
+        "chapterIndex": 1
+      },
+      {
+        "chapterTitle": "第三幕 结局",
+        "chapterURL": "http://fixture5.local/ch/3.html",
+        "chapterIndex": 2
+      }
+    ]
+  }
+}

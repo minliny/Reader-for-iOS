@@ -1,0 +1,12 @@
+{
+  "bookSourceName": "Sample-004-Fixture",
+  "bookSourceUrl": "http://fixture4.local",
+  "searchUrl": "http://fixture4.local/search?q={{key}}",
+  "ruleSearch": "css:.entry",
+  "ruleToc": "css:.ep",
+  "ruleContent": "css:#story",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": false,
+  "header": {}
+}

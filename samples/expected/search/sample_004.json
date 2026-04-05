@@ -1,0 +1,22 @@
+{
+  "sampleId": "sample_004",
+  "flow": "search",
+  "expected": {
+    "success": true,
+    "resultCount": 3,
+    "items": [
+      {
+        "title": "三体",
+        "detailURL": "http://fixture4.local/book/1.html"
+      },
+      {
+        "title": "斗破苍穹",
+        "detailURL": "http://fixture4.local/book/2.html"
+      },
+      {
+        "title": "完美世界",
+        "detailURL": "http://fixture4.local/book/3.html"
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+sampleId: "sample_cookie_002"
+priority: "p1"
+category: "cookie"
+phase: "p1_cookie"
+accessTier: "B2 (expected)"
+capability:
+  - fetch
+  - search
+requiresCookieJar: true
+requiresLogin: false
+requiresJs: false
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "B2"
+  note: "qidian.com expected to require cookies/UA but not JS gate. Needs real isolation run to confirm."
+status: "pending_isolation_run"

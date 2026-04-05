@@ -1,23 +1,24 @@
-version: "0.3.0"
-generatedAt: "2026-04-05T20:11:13Z"
-scope: "p1_cookie_isolation_sample_cookie_001"
+version: "0.4.0"
+generatedAt: "2026-04-06T00:00:00Z"
+scope: "sample_004_005_plus_tier_classification_and_stubs"
 summary:
-  totalSamples: 9
+  totalSamples: 13
   levelA: 8
   levelB: 0
   levelC: 0
   levelD: 1
-  passRate: 88.9
-  degradeRate: 0.0
-  failRate: 11.1
+  pendingSmoke: 2
+  pendingIsolation: 2
+  classifiedOnly: 1
   p0PassRate: 100.0
-  pocPassRate: 100.0
   p1PassRate: 0.0
+  note: "sample_004/005 smoke pending CI; sample_cookie_002/login_001 pending isolation; sample_js_001 classified only"
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -35,6 +36,7 @@ samples:
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -52,6 +54,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -69,6 +72,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -86,6 +90,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -103,6 +108,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -120,6 +126,7 @@ samples:
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -137,6 +144,7 @@ samples:
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes: []
     requiresLogin: false
     requiresCookieJar: false
@@ -153,6 +161,7 @@ samples:
     source: "real_booksource"
     priority: "p1"
     category: "cookie"
+    accessTier: "C"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -171,3 +180,89 @@ samples:
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_cookie_001.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_001.yml"
     notes: "wenku8.net returns HTTP 403 with JS challenge (Cloudflare) across all 8 isolation steps including cookie_jar and login. No isolation step resolved access. Site requires browser-level JS execution; curl/URLSession cannot pass the challenge. Level D: requires JS rendering capability."
+  - sampleId: "sample_004"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "pending"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p0_non_js/sample_004.yml"
+    notes: "Class (.entry, .ep) + ID (#story) selectors. Smoke pending CI execution."
+  - sampleId: "sample_005"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "pending"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p0_non_js/sample_005.yml"
+    notes: "Tag selectors (article, section) + class (.text-block). Smoke pending CI execution."
+  - sampleId: "sample_cookie_002"
+    source: "real_booksource"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "B2 (expected)"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "pending"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/sample_cookie_002.yml"
+    notes: "qidian.com. Expected non-JS-gate cookie site. Isolation run pending."
+  - sampleId: "sample_login_001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "login"
+    accessTier: "B3 (expected)"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: true
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "pending"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_login/sample_login_001.yml"
+    notes: "biquge.com.cn. Expected login-required but no JS gate. Isolation run pending."
+  - sampleId: "sample_js_001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "js"
+    accessTier: "C"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresJs: true
+    expectedLevel: "A"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "js_challenge_observed"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_js/sample_js_001.yml"
+    notes: "wenku8.net classified as tier C by sample_cookie_001 isolation. Awaiting ReaderCoreJSRenderer PoC."

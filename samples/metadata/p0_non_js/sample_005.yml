@@ -1,0 +1,16 @@
+sampleId: "sample_005"
+phase: "p0_non_js"
+accessTier: "A"
+capability:
+  - search
+  - toc
+  - content
+selectorVariant: "tag selectors (article, section) + class (.text-block)"
+expected:
+  searchCount: 2
+  tocCount: 3
+  contentNonEmpty: true
+expectedOutput:
+  search: "samples/expected/search/sample_005.json"
+  toc: "samples/expected/toc/sample_005.json"
+  content: "samples/expected/content/sample_005.json"

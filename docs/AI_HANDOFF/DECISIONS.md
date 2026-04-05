@@ -15,6 +15,18 @@
 
 ---
 
+## p1_cookie JS Gate 最终决策（2026-04-05）
+
+| 站点 | sampleId | 结论 | 理由 | 禁止操作 |
+|------|----------|------|------|----------|
+| wenku8.net | sample_cookie_001 | **DO NOT RETRY** | HTTP 403 + Cloudflare JS challenge，8 步 isolation 全失败 | 禁止重新用 header/cookie 调参 |
+
+**决策依据：** CI run 24009514545，真实执行，非预生成。
+**结论文件：** `docs/decisions/js_gate_cloudflare_classification.yml`
+**行动：** 移入 tier C（js_gate_required），blocked_until = ReaderCoreJSRenderer PoC complete
+
+---
+
 ## 已否决的方案
 
 | 方案 | 否决原因 | 否决时间 |

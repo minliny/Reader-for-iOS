@@ -1,0 +1,27 @@
+sampleId: "sample_js_001"
+priority: "p1"
+category: "js"
+phase: "p1_js"
+accessTier: "C"
+capability:
+  - fetch
+requiresCookieJar: true
+requiresLogin: false
+requiresJs: true
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: false
+  expectedTier: "C"
+  note: >
+    wenku8.net confirmed tier C by sample_cookie_001 isolation (CI run 24009514545).
+    HTTP 403 + Cloudflare JS challenge across all 8 isolation steps.
+    This sample is classified only — do NOT run URLSession-based isolation.
+    Awaiting ReaderCoreJSRenderer PoC for actual execution.
+status: "classified_only"
+blockedUntil: "ReaderCoreJSRenderer PoC complete"
+decisionDoc: "docs/decisions/js_gate_cloudflare_classification.yml"
+doNotRetry:
+  - "header modifications"
+  - "cookie jar"
+  - "login prefetch"
+  - "retry logic"
