@@ -1,0 +1,40 @@
+reportId: "fixture_fetch_result_v1"
+generatedAt: "2026-04-05T15:02:00+08:00"
+phase: "p0_non_js_core_stable"
+
+results:
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    fetchStatus: failed
+    fetchPolicy:
+      single_request: true
+      no_header: true
+      no_cookie: true
+      no_login: true
+      no_js: true
+      no_retry: true
+    conclusion: "Fetch failed under controlled policy constraints."
+    limitation: "Actual failure cause cannot be determined."
+
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    fetchStatus: failed
+    fetchPolicy:
+      single_request: true
+      no_header: true
+      no_cookie: true
+      no_login: true
+      no_js: true
+      no_retry: true
+    conclusion: "Fetch failed under controlled policy constraints."
+    limitation: "Actual failure cause cannot be determined."
+
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    fetchStatus: failed
+    fetchPolicy:
+      single_request: true
+      no_header: true
+      no_cookie: true
+      no_login: true
+      no_js: true
+      no_retry: true
+    conclusion: "Fetch failed under controlled policy constraints."
+    limitation: "Actual failure cause cannot be determined."

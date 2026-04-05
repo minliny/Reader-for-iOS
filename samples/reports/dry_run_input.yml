@@ -1,0 +1,32 @@
+dryRunId: "dry_run_p1_cookie_booksource_v1"
+generatedAt: "2026-04-05T13:15:00+08:00"
+phase: "p0_non_js_core_stable"
+scope: "p1_cookie_frozen_booksource_samples_only"
+
+samples:
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    metadataPath: "samples/metadata/p1_cookie/p1_cookie_xiangshu_search_toc_content_001.yml"
+    booksourcePath: "samples/booksources/p1_cookie/p1_cookie_xiangshu_search_toc_content_001.json"
+    fixturePath: "samples/fixtures/html/xiangshu_search.html"
+    expectedPaths:
+      search: "samples/expected/search/xiangshu_search_expected.json"
+      toc: "samples/expected/toc/xiangshu_toc_expected.json"
+      content: "samples/expected/content/xiangshu_content_expected.json"
+
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    metadataPath: "samples/metadata/p1_cookie/p1_cookie_wensang_search_toc_content_001.yml"
+    booksourcePath: "samples/booksources/p1_cookie/p1_cookie_wensang_search_toc_content_001.json"
+    fixturePath: "samples/fixtures/html/wensang_search.html"
+    expectedPaths:
+      search: "samples/expected/search/wensang_search_expected.json"
+      toc: "samples/expected/toc/wensang_toc_expected.json"
+      content: "samples/expected/content/wensang_content_expected.json"
+
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    metadataPath: "samples/metadata/p1_cookie/p1_cookie_xuanyge_search_toc_content_001.yml"
+    booksourcePath: "samples/booksources/p1_cookie/p1_cookie_xuanyge_search_toc_content_001.json"
+    fixturePath: "samples/fixtures/html/xuanyge_search.html"
+    expectedPaths:
+      search: "samples/expected/search/xuanyge_search_expected.json"
+      toc: "samples/expected/toc/xuanyge_toc_expected.json"
+      content: "samples/expected/content/xuanyge_content_expected.json"

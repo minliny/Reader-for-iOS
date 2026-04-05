@@ -1,0 +1,34 @@
+sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+sampleFile: "samples/booksources/p1_cookie/p1_cookie_xiangshu_search_toc_content_001.json"
+priority: p1
+category: cookie
+sourceType: real
+title: "香书小说 Cookie 样本"
+siteTag: "xiangshu"
+featureTags:
+  - "search"
+  - "toc"
+  - "content"
+  - "html"
+ruleTypes:
+  - "CSS"
+  - "Regex"
+  - "Replace"
+  - "Cookie"
+expectedLevel: B
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: true
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/html/xiangshu_search.html"
+expectedOutput:
+  search: "samples/expected/search/xiangshu_search_expected.json"
+  toc: "samples/expected/toc/xiangshu_toc_expected.json"
+  content: "samples/expected/content/xiangshu_content_expected.json"
+degradeExpectation: null
+knownFailureType: null
+owner: core-parser
+notes: "Real source extracted from the specified collection. Main search/toc/content path is HTML-based and requires cookie jar support; fixture capture is still pending."

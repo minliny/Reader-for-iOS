@@ -1,0 +1,34 @@
+reportId: "fixture_fetch_failure_analysis_v1"
+generatedAt: "2026-04-05T14:45:00+08:00"
+phase: "p0_non_js_core_stable"
+
+results:
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    failureType: "UNKNOWN"
+    evidence:
+      - "bookSourceUrl: http://www.xbiqugu.la"
+      - "searchUrl: /modules/article/waps.php?searchkey={{key}}"
+      - "Request shape: GET."
+      - "JS fact: no @js marker appears in searchUrl or ruleSearch."
+      - "enabledCookieJar: true indicates capability, not requirement."
+      - "No network request executed; failure cause cannot be determined."
+
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    failureType: "UNKNOWN"
+    evidence:
+      - "bookSourceUrl: http://www.wensang.net"
+      - "searchUrl: /home/search?type=action&q={{key}}"
+      - "Request shape: GET."
+      - "JS fact: no @js marker appears in searchUrl or ruleSearch."
+      - "enabledCookieJar: true indicates capability, not requirement."
+      - "No network request executed; failure cause cannot be determined."
+
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    failureType: "UNKNOWN"
+    evidence:
+      - "bookSourceUrl: http://www.xuanyge.org"
+      - "searchUrl: /modules/article/search.php?s={{key}}&searchtype=articlename"
+      - "Request shape: GET."
+      - "JS fact: ruleBookInfo.intro contains @js, but searchUrl and ruleSearch do not contain @js."
+      - "enabledCookieJar: true indicates capability, not requirement."
+      - "No network request executed; failure cause cannot be determined."

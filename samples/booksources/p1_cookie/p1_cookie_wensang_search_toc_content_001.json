@@ -1,0 +1,49 @@
+{
+  "bookSourceGroup": "💠 综合",
+  "bookSourceName": "💠 文桑小说",
+  "bookSourceType": 0,
+  "bookSourceUrl": "http://www.wensang.net",
+  "customOrder": 58,
+  "enabled": true,
+  "enabledCookieJar": true,
+  "enabledExplore": true,
+  "exploreUrl": "奇幻玄幻::/xuanhuan/page_{{page}}.html\n武侠仙侠::/xiuzhen/page_{{page}}.html\n都市言情::/dushi/page_{{page}}.html\n历史军事::/lishi/page_{{page}}.html\n网游竞技::/wangyou/page_{{page}}.html\n科幻悬疑::/kehuan/page_{{page}}.html\n女生小说::/nvpin/page_{{page}}.html\n青春校园::/qingchun/page_{{page}}.html\n耽美同人::/bl/page_{{page}}.html\n乡村小说::/xiangcun/page_{{page}}.html\n其它小说::/qita/page_{{page}}.html\n文桑视界::/wensang/page_{{page}}.html",
+  "lastUpdateTime": 1751008959392,
+  "respondTime": 8143,
+  "ruleBookInfo": {
+    "author": ".field@a.0@text",
+    "coverUrl": "id.bookCover@img@src",
+    "intro": ".desc-short@text##(^|[。！？]+[”」）】]?)##$1<br>",
+    "kind": ".field@span.1:2:5@text##.*：|\\s..:.*",
+    "lastChapter": ".logs@a.1@text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "name": ".infos@h1@text"
+  },
+  "ruleContent": {
+    "content": "id.BookText@textNodes"
+  },
+  "ruleExplore": {
+    "author": ".d1@ownText",
+    "bookList": ".filter-ret@li",
+    "bookUrl": "a.1@href",
+    "coverUrl": "img@src",
+    "intro": ".d2@text",
+    "lastChapter": "a.2@text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "name": "a.1@text"
+  },
+  "ruleSearch": {
+    "author": "span.1@text",
+    "bookList": "id.sitebox@dl",
+    "bookUrl": "a.1@href",
+    "coverUrl": "img@src",
+    "kind": "span.3:2:0@text##\\s.*",
+    "lastChapter": "a.4@text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "name": "a.1@text"
+  },
+  "ruleToc": {
+    "chapterList": ".chapter@li@a",
+    "chapterName": "text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "chapterUrl": "href"
+  },
+  "searchUrl": "/home/search?type=action&q={{key}}",
+  "weight": 0
+}

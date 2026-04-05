@@ -1,0 +1,50 @@
+{
+  "bookSourceGroup": "🎉 精选",
+  "bookSourceName": "🎉 香书小说",
+  "bookSourceType": 0,
+  "bookSourceUrl": "http://www.xbiqugu.la",
+  "customOrder": 33,
+  "enabled": true,
+  "enabledCookieJar": true,
+  "enabledExplore": true,
+  "exploreUrl": "玄幻::/fenlei/1_{{page}}.html\n修真::/fenlei/2_{{page}}.html\n都市::/fenlei/3_{{page}}.html\n穿越::/fenlei/4_{{page}}.html\n网游::/fenlei/5_{{page}}.html\n科幻::/fenlei/6_{{page}}.html\n其他::/fenlei/7_{{page}}.html",
+  "lastUpdateTime": 1751014905388,
+  "respondTime": 7849,
+  "ruleBookInfo": {
+    "author": "id.info@p.0@text",
+    "coverUrl": "id.fmimg@img@src",
+    "intro": "id.intro@p!0@text##(^|[。！？]+[”」）】]?)##$1<br>",
+    "kind": ".con_top@a.-1@text&&id.info@p.2@text##小说|.*：|\\s..:.*",
+    "lastChapter": "id.info@a.-1@text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "name": "id.info@h1@text"
+  },
+  "ruleContent": {
+    "content": "id.content@textNodes"
+  },
+  "ruleExplore": {
+    "author": ".s5@text",
+    "bookList": ".l@li",
+    "bookUrl": "a.0@href",
+    "coverUrl": "a.0@href##.+\\D((\\d+)\\d{3})\\D##/files/article/image/$2/$1/$1s.jpg###",
+    "kind": ".s3@textNodes##\\(|\\)",
+    "lastChapter": "a.1@text",
+    "name": "a.0@text"
+  },
+  "ruleSearch": {
+    "author": "td.2@text",
+    "bookList": "tbody@tr!0",
+    "bookUrl": "a.0@href",
+    "checkKeyWord": "长生",
+    "coverUrl": "a.0@href##.+\\D((\\d+)\\d{3})\\D##/files/article/image/$2/$1/$1s.jpg###",
+    "kind": "td.3@text",
+    "lastChapter": "a.1@text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "name": "a.0@text"
+  },
+  "ruleToc": {
+    "chapterList": "id.list@dd@a",
+    "chapterName": "text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "chapterUrl": "href"
+  },
+  "searchUrl": "/modules/article/waps.php?searchkey={{key}}",
+  "weight": 0
+}

@@ -1,0 +1,577 @@
+reportId: "fetch_isolation_step_records_v1"
+generatedAt: "2026-04-05T15:20:00+08:00"
+phase: "p0_non_js_core_stable"
+
+records:
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    steps:
+      - stepId: "BASELINE-000"
+        changedVariable: "none"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "baseline_controlled_fetch_failed"
+        decision: "continue"
+      - stepId: "TEST-001"
+        changedVariable: "header.user_agent"
+        requestPolicy:
+          no_header: false
+          header_profile:
+            user_agent: "browser_minimal"
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-002"
+        changedVariable: "header.referer"
+        requestPolicy:
+          no_header: false
+          header_profile:
+            user_agent: null
+            referer: "origin_search"
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-003"
+        changedVariable: "cookie_jar"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: false
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-004"
+        changedVariable: "retry"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: false
+          retry_policy:
+            max_attempts: 2
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-005"
+        changedVariable: "redirect_handling"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: true
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-006"
+        changedVariable: "login"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: false
+          login_mode: "authenticated"
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-007"
+        changedVariable: "js_mark_only"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+          js_mark_only: true
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    steps:
+      - stepId: "BASELINE-000"
+        changedVariable: "none"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "baseline_controlled_fetch_failed"
+        decision: "continue"
+      - stepId: "TEST-001"
+        changedVariable: "header.user_agent"
+        requestPolicy:
+          no_header: false
+          header_profile:
+            user_agent: "browser_minimal"
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-002"
+        changedVariable: "header.referer"
+        requestPolicy:
+          no_header: false
+          header_profile:
+            user_agent: null
+            referer: "origin_search"
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-003"
+        changedVariable: "cookie_jar"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: false
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-004"
+        changedVariable: "retry"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: false
+          retry_policy:
+            max_attempts: 2
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-005"
+        changedVariable: "redirect_handling"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: true
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-006"
+        changedVariable: "login"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: false
+          login_mode: "authenticated"
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-007"
+        changedVariable: "js_mark_only"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+          js_mark_only: true
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    steps:
+      - stepId: "BASELINE-000"
+        changedVariable: "none"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "baseline_controlled_fetch_failed"
+        decision: "continue"
+      - stepId: "TEST-001"
+        changedVariable: "header.user_agent"
+        requestPolicy:
+          no_header: false
+          header_profile:
+            user_agent: "browser_minimal"
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-002"
+        changedVariable: "header.referer"
+        requestPolicy:
+          no_header: false
+          header_profile:
+            user_agent: null
+            referer: "origin_search"
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-003"
+        changedVariable: "cookie_jar"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: false
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-004"
+        changedVariable: "retry"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: false
+          retry_policy:
+            max_attempts: 2
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-005"
+        changedVariable: "redirect_handling"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: true
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-006"
+        changedVariable: "login"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: false
+          login_mode: "authenticated"
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"
+      - stepId: "TEST-007"
+        changedVariable: "js_mark_only"
+        requestPolicy:
+          no_header: true
+          header_profile:
+            user_agent: null
+            referer: null
+          no_cookie: true
+          no_login: true
+          no_js: true
+          no_retry: true
+          redirect_handling: false
+          js_mark_only: true
+        httpStatus: 0
+        contentType: "placeholder"
+        finalUrl: "placeholder"
+        responseClass: "unknown"
+        setCookieObserved: false
+        loginMarkerObserved: false
+        jsChallengeObserved: false
+        searchResultMarkerObserved: false
+        candidateFailureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "placeholder"
+        decision: "unresolved"

@@ -1,0 +1,78 @@
+reportId: "dry_run_report_p1_cookie_booksource_v1"
+generatedAt: "2026-04-05T14:38:31+08:00"
+phase: "p0_non_js_core_stable"
+scope: "frozen_booksource_samples_only"
+sampleIds:
+  - "SAMPLE-P1-COOKIE-XIANGSHU-001"
+  - "SAMPLE-P1-COOKIE-WENSANG-001"
+  - "SAMPLE-P1-COOKIE-XUANYGE-001"
+summary:
+  totalSamples: 3
+  executed: 3
+results:
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    pathStatus:
+      metadata: "ok"
+      booksource: "ok"
+      fixture: "ok"
+      expected:
+        search: "ok"
+        toc: "ok"
+        content: "ok"
+    metadataStatus:
+      parse: "ok"
+      requiredFields: "ok"
+    booksourceStatus:
+      parse: "ok"
+      coreFields: "ok"
+    fixtureStatus:
+      exists: true
+      isPlaceholder: true
+    expectedStatus:
+      search: "ok"
+      toc: "ok"
+      content: "ok"
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    pathStatus:
+      metadata: "ok"
+      booksource: "ok"
+      fixture: "ok"
+      expected:
+        search: "ok"
+        toc: "ok"
+        content: "ok"
+    metadataStatus:
+      parse: "ok"
+      requiredFields: "ok"
+    booksourceStatus:
+      parse: "ok"
+      coreFields: "ok"
+    fixtureStatus:
+      exists: true
+      isPlaceholder: true
+    expectedStatus:
+      search: "ok"
+      toc: "ok"
+      content: "ok"
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    pathStatus:
+      metadata: "ok"
+      booksource: "ok"
+      fixture: "ok"
+      expected:
+        search: "ok"
+        toc: "ok"
+        content: "ok"
+    metadataStatus:
+      parse: "ok"
+      requiredFields: "ok"
+    booksourceStatus:
+      parse: "ok"
+      coreFields: "ok"
+    fixtureStatus:
+      exists: true
+      isPlaceholder: true
+    expectedStatus:
+      search: "ok"
+      toc: "ok"
+      content: "ok"

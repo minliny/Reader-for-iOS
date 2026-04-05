@@ -1,0 +1,44 @@
+{
+  "bookSourceGroup": "💠 综合",
+  "bookSourceName": "💠 玄幻阁网",
+  "bookSourceType": 0,
+  "bookSourceUrl": "http://www.xuanyge.org",
+  "customOrder": 60,
+  "enabled": true,
+  "enabledCookieJar": true,
+  "enabledExplore": true,
+  "exploreUrl": "玄幻::/sort1/{{page}}/\n武侠::/sort2/{{page}}/\n都市::/sort3/{{page}}/\n历史::/sort4/{{page}}/\n言情::/sort5/{{page}}/\n穿越::/sort6/{{page}}/\n科幻::/sort7/{{page}}/\n恐怖::/sort8/{{page}}/\n校园::/sort9/{{page}}/\n异界::/sort10/{{page}}/\n全本::/quanben/{{page}}/",
+  "lastUpdateTime": 1734432800549,
+  "respondTime": 7851,
+  "ruleBookInfo": {
+    "author": "id.count@span.0@text",
+    "coverUrl": "id.bookimg@img@src",
+    "intro": "id.bookintro@p.0@text##(^|[。！？]+[”」）】]?)##$1<br>@js:result.replace(/最新.*关于：/g,\"\")",
+    "kind": "id.count@span.1:2:3@text##\\s..:.*",
+    "lastChapter": ".new@a.0@text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "name": ".booktitle@h1@text"
+  },
+  "ruleContent": {
+    "content": "id.content@textNodes",
+    "replaceRegex": "##随机推荐.*|.*精华书阁.*|为您提供.*好书签.|.*免费阅读.|.*最快更新.*|\\(本章未完.*\\)"
+  },
+  "ruleExplore": {},
+  "ruleSearch": {
+    "author": "span.1@text",
+    "bookList": "id.sitebox@dl",
+    "bookUrl": "a.1@href",
+    "coverUrl": "img@src",
+    "intro": "dd.3@text",
+    "kind": "span.2:0@text",
+    "lastChapter": "a.2@text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "name": "a.1@text",
+    "wordCount": "span.3@text"
+  },
+  "ruleToc": {
+    "chapterList": "id.readerlist@li@a",
+    "chapterName": "text##正文卷.|正文.|VIP卷.|默认卷.|卷_|VIP章节.|免费章节.|章节目录.|最新章节.|[\\(（【].*?[求更票谢乐发订合补加架字修Kk].*?[】）\\)]",
+    "chapterUrl": "href"
+  },
+  "searchUrl": "/modules/article/search.php?s={{key}}&searchtype=articlename",
+  "weight": 0
+}

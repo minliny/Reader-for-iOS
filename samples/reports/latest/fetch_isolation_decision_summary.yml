@@ -1,0 +1,42 @@
+reportId: "fetch_isolation_decision_summary_v1"
+generatedAt: "2026-04-05T15:20:00+08:00"
+phase: "p0_non_js_core_stable"
+
+summary:
+  totalSamples: 3
+  resolvedSamples: 0
+  unresolvedSamples: 3
+
+samples:
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    baselineFailureType: "NETWORK_POLICY_MISMATCH"
+    finalPrimaryFailureType: "NETWORK_POLICY_MISMATCH"
+    finalSecondaryReason: "undetermined_after_isolation"
+    winningStep: null
+    actualLevel: "D"
+    matrixUpdate:
+      update: false
+      failureType: "NETWORK_POLICY_MISMATCH"
+      secondaryReason: "undetermined_after_isolation"
+
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    baselineFailureType: "NETWORK_POLICY_MISMATCH"
+    finalPrimaryFailureType: "NETWORK_POLICY_MISMATCH"
+    finalSecondaryReason: "undetermined_after_isolation"
+    winningStep: null
+    actualLevel: "D"
+    matrixUpdate:
+      update: false
+      failureType: "NETWORK_POLICY_MISMATCH"
+      secondaryReason: "undetermined_after_isolation"
+
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    baselineFailureType: "NETWORK_POLICY_MISMATCH"
+    finalPrimaryFailureType: "NETWORK_POLICY_MISMATCH"
+    finalSecondaryReason: "undetermined_after_isolation"
+    winningStep: null
+    actualLevel: "D"
+    matrixUpdate:
+      update: false
+      failureType: "NETWORK_POLICY_MISMATCH"
+      secondaryReason: "undetermined_after_isolation"

@@ -1,0 +1,35 @@
+sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+sampleFile: "samples/booksources/p1_cookie/p1_cookie_xuanyge_search_toc_content_001.json"
+priority: p1
+category: cookie
+sourceType: real
+title: "玄幻阁网 Cookie 样本"
+siteTag: "xuanyge"
+featureTags:
+  - "search"
+  - "toc"
+  - "content"
+  - "html"
+ruleTypes:
+  - "CSS"
+  - "Regex"
+  - "Replace"
+  - "Cookie"
+  - "JS"
+expectedLevel: B
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: true
+requiresCustomHeader: false
+requiresJs: true
+fixtureFiles:
+  - "samples/fixtures/html/xuanyge_search.html"
+expectedOutput:
+  search: "samples/expected/search/xuanyge_search_expected.json"
+  toc: "samples/expected/toc/xuanyge_toc_expected.json"
+  content: "samples/expected/content/xuanyge_content_expected.json"
+degradeExpectation: null
+knownFailureType: null
+owner: core-parser
+notes: "Contains @js in ruleBookInfo.intro. Marked requiresJs=true and should be tracked as a mixed cookie+js sample outside the current non-JS baseline."
