@@ -1,0 +1,44 @@
+sampleId: "sample_001"
+sampleFile: "samples/booksources/p0_non_js/sample_001.json"
+priority: p0
+category: non_js
+sourceType: synthetic
+phase: p0_non_js
+title: "Sample-001 全链路 fixture（search / toc / content）"
+siteTag: "fixture_local"
+featureTags:
+  - "search"
+  - "toc"
+  - "content"
+  - "css_simple_selector"
+  - "full_chain"
+ruleTypes:
+  - CSS
+expectedLevel: A
+mustPassStage: poc
+blocking: true
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+capability:
+  - search
+  - toc
+  - content
+fixtureFiles:
+  - "samples/booksources/p0_non_js/sample_001.json"
+  - "samples/fixtures/html/sample_001_search.html"
+  - "samples/fixtures/html/sample_001_toc.html"
+  - "samples/fixtures/html/sample_001_content.html"
+expectedOutput:
+  search: "samples/expected/search/sample_001.json"
+  toc: "samples/expected/toc/sample_001.json"
+  content: "samples/expected/content/sample_001.json"
+expected:
+  searchCount: 2
+  tocCount: 3
+  contentNonEmpty: true
+degradeExpectation: null
+knownFailureType: null
+owner: "core-parser"
+notes: "最小合成 fixture，用于打通 NonJSParserEngine search→toc→content 全链路。规则格式 css:.class，HTML 文本含 title|url 格式。sourceType=synthetic，后续由真实书源样本替换。"

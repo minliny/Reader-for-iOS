@@ -1,0 +1,109 @@
+dryRunId: "dry_run_p0_non_js_v1"
+generatedAt: "2026-04-05T12:00:00Z"
+phase: "p0_non_js_core_stable"
+scope: "all_compat_matrix_samples"
+matrixVersion: "0.2.0"
+
+samples:
+  - sampleId: "css_executor_selector_semantics_contract"
+    source: "unit_contract"
+    hasFixture: false
+    hasExpected: false
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/css_executor_selector_semantics_contract/metadata.yml"
+    fixturePath: null
+    expectedPath: null
+    ruleTypes:
+      - "CSS"
+    canExecute: false
+    skipReason: "unit_contract — validated by Swift tests, no fixture input"
+
+  - sampleId: "fixture_toc_selector_miss"
+    source: "unit_contract"
+    hasFixture: false
+    hasExpected: true
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_selector_miss/metadata.yml"
+    fixturePath: null
+    expectedPath: "samples/expected/toc/fixture_toc_selector_miss.json"
+    ruleTypes:
+      - "CSS"
+    canExecute: false
+    skipReason: "unit_contract — validated by Swift tests, no fixture directory"
+
+  - sampleId: "fixture_toc_title_rule_miss"
+    source: "fixture"
+    hasFixture: true
+    hasExpected: true
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_title_rule_miss/metadata.yml"
+    fixturePath: "samples/fixtures/toc/fixture_toc_title_rule_miss"
+    expectedPath: "samples/expected/toc/fixture_toc_title_rule_miss.json"
+    ruleTypes:
+      - "CSS"
+    canExecute: true
+    skipReason: null
+
+  - sampleId: "fixture_toc_url_rule_miss"
+    source: "fixture"
+    hasFixture: true
+    hasExpected: true
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_url_rule_miss/metadata.yml"
+    fixturePath: "samples/fixtures/toc/fixture_toc_url_rule_miss"
+    expectedPath: "samples/expected/toc/fixture_toc_url_rule_miss.json"
+    ruleTypes:
+      - "CSS"
+    canExecute: true
+    skipReason: null
+
+  - sampleId: "fixture_toc_count_mismatch"
+    source: "fixture"
+    hasFixture: true
+    hasExpected: true
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_count_mismatch/metadata.yml"
+    fixturePath: "samples/fixtures/toc/fixture_toc_count_mismatch"
+    expectedPath: "samples/expected/toc/fixture_toc_count_mismatch.json"
+    ruleTypes:
+      - "CSS"
+    canExecute: true
+    skipReason: null
+
+  - sampleId: "fixture_toc_non_selector_error"
+    source: "fixture"
+    hasFixture: true
+    hasExpected: true
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/fixture_toc_non_selector_error/metadata.yml"
+    fixturePath: "samples/fixtures/toc/fixture_toc_non_selector_error"
+    expectedPath: "samples/expected/toc/fixture_toc_non_selector_error.json"
+    ruleTypes:
+      - "CSS"
+    canExecute: true
+    skipReason: null
+
+  - sampleId: "toc_item_invalid_url_contract"
+    source: "unit_contract"
+    hasFixture: false
+    hasExpected: true
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/toc_item_invalid_url_contract/metadata.yml"
+    fixturePath: null
+    expectedPath: "samples/expected/toc/toc_item_invalid_url_contract.json"
+    ruleTypes:
+      - "CSS"
+    canExecute: false
+    skipReason: "unit_contract — validated by Swift tests, no fixture input"
+
+  - sampleId: "http_client_invalid_url_contract"
+    source: "unit_contract"
+    hasFixture: false
+    hasExpected: false
+    hasMetadata: true
+    metadataPath: "samples/metadata/p0_non_js/http_client_invalid_url_contract/metadata.yml"
+    fixturePath: null
+    expectedPath: null
+    ruleTypes: []
+    canExecute: false
+    skipReason: "unit_contract — validated by Swift tests, no fixture input"

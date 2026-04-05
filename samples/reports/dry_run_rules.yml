@@ -1,0 +1,95 @@
+dryRunId: "dry_run_p0_non_js_v1"
+generatedAt: "2026-04-05T12:00:00Z"
+scope: "executable_fixture_samples_only"
+
+rules:
+  - sampleId: "fixture_toc_title_rule_miss"
+    flow: "toc"
+    titleRule: ".missing@text"
+    urlRule: "a@href"
+    baseURL: null
+    executorMode: "real"
+    rulePath: "samples/fixtures/toc/fixture_toc_title_rule_miss/rule.json"
+    inputPath: "samples/fixtures/toc/fixture_toc_title_rule_miss/input.html"
+    ruleCapabilities:
+      css: true
+      xpath: false
+      jsonpath: false
+      regex: false
+      replace: false
+      js: false
+    selectorComplexity:
+      titleRule_type: "simple_class"
+      urlRule_type: "simple_tag"
+      compound_selector_used: false
+      attribute_selector_used: false
+      pseudo_class_used: false
+
+  - sampleId: "fixture_toc_url_rule_miss"
+    flow: "toc"
+    titleRule: "a@text"
+    urlRule: ".missing@href"
+    baseURL: null
+    executorMode: "real"
+    rulePath: "samples/fixtures/toc/fixture_toc_url_rule_miss/rule.json"
+    inputPath: "samples/fixtures/toc/fixture_toc_url_rule_miss/input.html"
+    ruleCapabilities:
+      css: true
+      xpath: false
+      jsonpath: false
+      regex: false
+      replace: false
+      js: false
+    selectorComplexity:
+      titleRule_type: "simple_tag"
+      urlRule_type: "simple_class"
+      compound_selector_used: false
+      attribute_selector_used: false
+      pseudo_class_used: false
+
+  - sampleId: "fixture_toc_count_mismatch"
+    flow: "toc"
+    titleRule: "ul@text"
+    urlRule: "a@href"
+    baseURL: null
+    executorMode: "real"
+    rulePath: "samples/fixtures/toc/fixture_toc_count_mismatch/rule.json"
+    inputPath: "samples/fixtures/toc/fixture_toc_count_mismatch/input.html"
+    ruleCapabilities:
+      css: true
+      xpath: false
+      jsonpath: false
+      regex: false
+      replace: false
+      js: false
+    selectorComplexity:
+      titleRule_type: "simple_tag"
+      urlRule_type: "simple_tag"
+      compound_selector_used: false
+      attribute_selector_used: false
+      pseudo_class_used: false
+
+  - sampleId: "fixture_toc_non_selector_error"
+    flow: "toc"
+    titleRule: "a@text"
+    urlRule: "a@href"
+    baseURL: null
+    executorMode: "stub"
+    stubError:
+      type: "invalidSelector"
+      payload: "["
+    rulePath: "samples/fixtures/toc/fixture_toc_non_selector_error/rule.json"
+    inputPath: "samples/fixtures/toc/fixture_toc_non_selector_error/input.html"
+    ruleCapabilities:
+      css: true
+      xpath: false
+      jsonpath: false
+      regex: false
+      replace: false
+      js: false
+    selectorComplexity:
+      titleRule_type: "simple_tag"
+      urlRule_type: "simple_tag"
+      compound_selector_used: false
+      attribute_selector_used: false
+      pseudo_class_used: false

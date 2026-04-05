@@ -1,0 +1,90 @@
+reportId: "dry_run_p0_non_js_v1"
+generatedAt: "2026-04-05T12:00:00Z"
+phase: "p0_non_js_core_stable"
+matrixVersion: "0.2.0"
+mode: "dry_run"
+
+summary:
+  totalSamples: 8
+  executable: 4
+  skipped: 4
+  skipReasons:
+    unit_contract_no_fixture: 4
+
+executableSamples:
+  - sampleId: "fixture_toc_title_rule_miss"
+    flow: "toc"
+    assetsComplete: true
+    hasInput: true
+    hasRule: true
+    hasExpected: true
+    hasMetadata: true
+    inCompatMatrix: true
+    expectedLevel: "A"
+    dryRunStatus: "ready"
+
+  - sampleId: "fixture_toc_url_rule_miss"
+    flow: "toc"
+    assetsComplete: true
+    hasInput: true
+    hasRule: true
+    hasExpected: true
+    hasMetadata: true
+    inCompatMatrix: true
+    expectedLevel: "A"
+    dryRunStatus: "ready"
+
+  - sampleId: "fixture_toc_count_mismatch"
+    flow: "toc"
+    assetsComplete: true
+    hasInput: true
+    hasRule: true
+    hasExpected: true
+    hasMetadata: true
+    inCompatMatrix: true
+    expectedLevel: "A"
+    dryRunStatus: "ready"
+
+  - sampleId: "fixture_toc_non_selector_error"
+    flow: "toc"
+    assetsComplete: true
+    hasInput: true
+    hasRule: true
+    hasExpected: true
+    hasMetadata: true
+    inCompatMatrix: true
+    expectedLevel: "A"
+    dryRunStatus: "ready"
+
+skippedSamples:
+  - sampleId: "css_executor_selector_semantics_contract"
+    reason: "unit_contract — no fixture input, covered by Swift tests"
+    inCompatMatrix: true
+
+  - sampleId: "fixture_toc_selector_miss"
+    reason: "unit_contract — no fixture directory, covered by Swift tests"
+    inCompatMatrix: true
+
+  - sampleId: "toc_item_invalid_url_contract"
+    reason: "unit_contract — no fixture input, covered by Swift tests"
+    inCompatMatrix: true
+
+  - sampleId: "http_client_invalid_url_contract"
+    reason: "unit_contract — no fixture input, covered by Swift tests"
+    inCompatMatrix: true
+
+ruleCapabilitySummary:
+  allSamplesUseCSSOnly: true
+  compoundSelectorUsed: false
+  attributeSelectorUsed: false
+  pseudoClassUsed: false
+  jsRequired: false
+  loginRequired: false
+  cookieRequired: false
+  withinCurrentBoundary: true
+
+conclusion:
+  allExecutableSamplesReady: true
+  noBlockingGaps: true
+  canProceedToRealRun: true
+  realRunPrerequisite: "CI fixture_toc_regression workflow (already green)"

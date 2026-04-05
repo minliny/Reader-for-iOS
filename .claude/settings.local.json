@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr:*)",
+      "Bash(gh run:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(pwsh -NoProfile -File tools/validators/validate_fixture_toc_min_samples.ps1 -RepoRoot .)",
+      "Bash(gh workflow:*)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/Administrator/Documents/Reader-for-iOS/.claude/worktrees/fervent-goldstine/**)",
+      "Bash(done)",
+      "Bash(grep -r \"retry\\\\|Retry\\\\|fetchReport\\\\|fetch_report\\\\|stepRunner\\\\|StepRunner\\\\|isolat\\\\|validationPlan\\\\|decisionTree\\\\|step_record\" C:UsersAdministratorDocumentsReader-for-iOS.claudeworktreesfervent-goldstineCore --include=*.swift)",
+      "Bash(dir /s /b C:UsersAdministratorDocumentsReader-for-iOS.claudeworktreesfervent-goldstineCoreSources)",
+      "Bash(swift run:*)",
+      "Bash(xcrun --find swift)",
+      "Read(//usr/**)",
+      "Bash(ls /Applications/Xcode*.app/Contents/Developer/Toolchains/*/usr/bin/swift)",
+      "Bash(find /usr -name swift -type f)",
+      "Bash(where swift:*)",
+      "Bash(dir \"C:\\\\Program Files\\\\Swift\")",
+      "Bash(dir \"C:\\\\Swift\")",
+      "Bash(powershell -Command \"Get-Command swift -ErrorAction SilentlyContinue | Select-Object Source; Get-ChildItem ''C:\\\\'' -Filter ''swift*'' -ErrorAction SilentlyContinue | Select-Object FullName\")",
+      "Bash(powershell -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\'' -Depth 2 -Filter ''swift.exe'' -ErrorAction SilentlyContinue | Select-Object FullName\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh api:*)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(w[''''id''''], w[''''name''''], w[''''state''''], w.get\\(''''path'''',''''''''\\)\\) for w in data[''''workflows'''']]\")",
+      "Bash(git pull:*)",
+      "Bash(ls /c/Users/Administrator/Documents/Reader-for-iOS/.claude/worktrees/fervent-goldstine/samples/fixtures/html/sample_00*)"
+    ]
+  }
+}
