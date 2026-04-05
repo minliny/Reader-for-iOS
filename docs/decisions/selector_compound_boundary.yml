@@ -1,0 +1,46 @@
+decisionId: DECISION-SELECTOR-COMPOUND-001
+phase: p0_non_js_core_stable
+status: accepted
+date: "2026-04-05"
+
+context:
+  selector_engine_scope:
+    supported:
+      - tag
+      - class
+      - id
+    unsupported:
+      - compound_selector
+      - attribute_selector
+      - pseudo_class
+      - pseudo_element
+      - wildcard
+
+current_behavior:
+  input: "div.foo"
+  actual_behavior: treated_as_tag
+  result: empty_array
+  error: none
+
+rationale:
+  - no_real_booksource_sample
+  - no_fixture_coverage
+  - no_compat_matrix_impact
+  - phase_focus_non_js_main_path
+
+decision:
+  support_now: false
+  boundary_type: intentional
+
+future_trigger:
+  required:
+    - real_sample
+    - reproducible_failure
+    - metadata_expected_matrix_ready
+
+impact:
+  code_change: none
+  test_change: none
+  regression_risk: none
+
+owner: core-parser
