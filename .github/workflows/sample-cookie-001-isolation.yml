@@ -57,6 +57,7 @@ jobs:
             echo "reports unchanged"
           else
             git commit -m "ci: p1_cookie real reports sample_cookie_001 fetch+isolation"
+            git pull --rebase origin claude/fervent-goldstine
             git push
           fi
 
