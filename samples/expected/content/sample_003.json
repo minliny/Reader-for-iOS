@@ -1,0 +1,9 @@
+{
+  "sampleId": "sample_003",
+  "flow": "content",
+  "expected": {
+    "success": true,
+    "contentNonEmpty": true,
+    "content": "黄土高原的沟壑纵横，贫瘠的土地孕育了无数坚韧的生命。孙少平站在村口，望着远方的山峦，心中充满了对未来的渴望。"
+  }
+}

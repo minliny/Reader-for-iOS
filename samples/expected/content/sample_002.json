@@ -1,0 +1,9 @@
+{
+  "sampleId": "sample_002",
+  "flow": "content",
+  "expected": {
+    "success": true,
+    "contentNonEmpty": true,
+    "content": "话说东京开封府，有个大汉姓宋名江，自幼读书，颇知礼义。乱世之中，英雄辈出，且看梁山好汉如何替天行道。"
+  }
+}

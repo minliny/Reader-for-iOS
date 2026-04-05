@@ -1,0 +1,12 @@
+sampleId: "sample_003"
+phase: "p0_non_js"
+capability:
+  - search
+  - toc
+  - content
+expected:
+  searchCount: 2
+  tocCount: 3
+  contentNonEmpty: true
+expectedOutput:
+  toc: "samples/expected/toc/sample_003.json"

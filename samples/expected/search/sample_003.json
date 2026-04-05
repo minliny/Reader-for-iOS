@@ -1,0 +1,18 @@
+{
+  "sampleId": "sample_003",
+  "flow": "search",
+  "expected": {
+    "success": true,
+    "resultCount": 2,
+    "items": [
+      {
+        "title": "平凡的世界",
+        "detailURL": "http://fixture3.local/book/1.html"
+      },
+      {
+        "title": "活着",
+        "detailURL": "http://fixture3.local/book/2.html"
+      }
+    ]
+  }
+}

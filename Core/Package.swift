@@ -15,7 +15,9 @@ let package = Package(
         .library(name: "ReaderCoreNetwork", targets: ["ReaderCoreNetwork"]),
         .library(name: "ReaderCoreCache", targets: ["ReaderCoreCache"]),
         .executable(name: "FixtureTocRegressionCLI", targets: ["FixtureTocRegressionCLI"]),
-        .executable(name: "Sample001NonJSSmokeRunner", targets: ["Sample001NonJSSmokeRunner"])
+        .executable(name: "Sample001NonJSSmokeRunner", targets: ["Sample001NonJSSmokeRunner"]),
+        .executable(name: "Sample002NonJSSmokeRunner", targets: ["Sample002NonJSSmokeRunner"]),
+        .executable(name: "Sample003NonJSSmokeRunner", targets: ["Sample003NonJSSmokeRunner"])
     ],
     targets: [
         .target(
@@ -48,6 +50,14 @@ let package = Package(
         ),
         .executableTarget(
             name: "Sample001NonJSSmokeRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
+        ),
+        .executableTarget(
+            name: "Sample002NonJSSmokeRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
+        ),
+        .executableTarget(
+            name: "Sample003NonJSSmokeRunner",
             dependencies: ["ReaderCoreModels", "ReaderCoreParser"]
         ),
         .testTarget(
