@@ -1,0 +1,31 @@
+sampleId: "sample_js_runtime_001"
+priority: "p1"
+category: "js"
+phase: "p1_js"
+sourceType: "synthetic"
+accessTier: "C"
+capability:
+  - execute
+requiresCookieJar: false
+requiresLogin: false
+requiresJs: true
+fixtureFiles:
+  - "samples/fixtures/html/sample_js_runtime_001_input.html"
+expected:
+  outputHTMLMatchesInput: true
+  timeoutFallbackReturnsOriginalHTML: true
+  maxTimeoutMilliseconds: 1500
+  note: >
+    JSRuntime remains a minimal JavaScriptCore PoC. This contract verifies only the
+    timeout downgrade path: if execution exceeds the runtime limit, execute(html:)
+    must return the original HTML and must not crash.
+expectedOutput:
+  content: "samples/expected/content/sample_js_runtime_001.json"
+status: "active_contract"
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+notes: >
+  Synthetic timeout fallback sample for ReaderCoreJSRenderer. This sample does not
+  expand DOM capability and does not permit network access.

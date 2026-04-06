@@ -1,0 +1,57 @@
+version: "1.0.0"
+generatedAt: "2026-04-06T07:03:48Z"
+sampleCategories:
+  non_js_stable:
+    include:
+      - "sample_001"
+      - "sample_002"
+      - "sample_003"
+      - "sample_004"
+      - "sample_005"
+    action:
+      routeTo: "direct_non_js_pipeline"
+      continueExpanding: false
+      retryPolicy: "regression_only"
+      automationPool: "stable_direct_pipeline"
+      note: "p0_non_js smoke set is stable, non-blocking, and should not keep consuming investigation time."
+
+  login_required_verified:
+    include:
+      - "sample_login_003"
+    action:
+      routeTo: "login_pipeline_reusable"
+      continueExpanding: true
+      retryPolicy: "reuse_login_template_before_new_strategy"
+      automationPool: "login_template_reuse_pool"
+      note: "Use the-internet.herokuapp.com as the reusable login-gated template for future p1_login expansion."
+
+  js_gate_required:
+    include:
+      - "sample_cookie_001"
+    action:
+      routeTo: "defer_to_js_renderer_poc"
+      continueExpanding: false
+      retryPolicy: "stop_retry_under_urlsession"
+      automationPool: "js_renderer_poc_input_pool"
+      note: "wenku8.net is confirmed JS/browser challenge input and should enter the tier-C JS renderer PoC pool."
+
+  shell_render_or_policy_blocked:
+    include:
+      - "sample_cookie_002"
+    action:
+      routeTo: "shell_render_policy_blocked_pipeline"
+      continueExpanding: false
+      retryPolicy: "do_not_retry_same_strategy"
+      automationPool: "shell_render_backlog"
+      note: "qidian.com stays out of repeated non-JS isolation until a JS-capable or higher-layer rendering path exists."
+
+  unresolved_pending:
+    include:
+      - "accessTier:B1"
+      - "failureType:COOKIE_REQUIRED"
+    action:
+      routeTo: "pending_real_evidence_queue"
+      continueExpanding: true
+      retryPolicy: "no_default_retry_policy"
+      automationPool: "pending_real_evidence_pool"
+      note: "Only collect more real samples here; do not mark as converged or auto-route into a capability pipeline yet."

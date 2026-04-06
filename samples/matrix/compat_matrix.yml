@@ -1,18 +1,19 @@
-version: "0.10.0"
-generatedAt: "2026-04-06T06:46:28Z"
-scope: "sample_login_003_real_isolation_complete"
+version: "0.11.0"
+generatedAt: "2026-04-06T08:00:00Z"
+scope: "js_runtime_contract_added"
 summary:
-  totalSamples: 15
+  totalSamples: 17
   levelA: 12
   levelB: 0
   levelC: 0
   levelD: 4
+  levelPending: 2
   pendingIsolation: 0
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
   p1PassRate: 33.3
-  note: "D10 completed real macOS login isolation for sample_login_003. Baseline anonymous /secure access fell back to login markers, and only TEST-006 real form login reached the secure markers. sample_login_003 is the first real LOGIN_REQUIRED sample."
+  note: "D11 adds sample_js_runtime_001 and sample_js_runtime_002 as pending unit-test-backed entries. CI will update actualLevel to A once Swift XCTest runs pass on macOS-14."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -325,3 +326,43 @@ samples:
     blocking: false
     metadataPath: "samples/metadata/p1_js/sample_js_001.yml"
     notes: "wenku8.net classified as tier C by sample_cookie_001 isolation. Awaiting ReaderCoreJSRenderer PoC."
+  - sampleId: "sample_js_runtime_001"
+    source: "unit_test"
+    priority: "p1"
+    category: "js_runtime"
+    accessTier: "A"
+    ruleTypes:
+      - "JS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: true
+    expectedLevel: "A"
+    actualLevel: "pending"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: null
+    reportPaths:
+      regressionReport: "samples/reports/latest/js_runtime_timeout_regression.yml"
+      testSnapshot: "samples/reports/latest/swift_test_snapshot.json"
+    notes: "JSRuntime timeout downgrade contract: when JS execution times out, JSRuntime must return the original HTML unchanged. Backed by XCTest JSRuntimeTests.testExecuteReturnsOriginalHTMLWhenExecutionTimesOut on macOS-14 CI. actualLevel set by CI after each run."
+  - sampleId: "sample_js_runtime_002"
+    source: "unit_test"
+    priority: "p1"
+    category: "js_runtime"
+    accessTier: "A"
+    ruleTypes:
+      - "JS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: true
+    expectedLevel: "A"
+    actualLevel: "pending"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: null
+    reportPaths:
+      regressionReport: "samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"
+      testSnapshot: "samples/reports/latest/swift_test_snapshot.json"
+    notes: "JSRuntime querySelector unsupported boundary: when querySelector API is unavailable, JSRuntime must return the original HTML unchanged. Backed by XCTest JSRuntimeUnsupportedBoundaryTests.testExecuteReturnsOriginalHTMLWhenQuerySelectorIsUnavailable on macOS-14 CI. actualLevel set by CI after each run."

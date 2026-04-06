@@ -1,0 +1,12 @@
+{
+  "sampleId": "sample_js_runtime_002",
+  "flow": "execute",
+  "expected": {
+    "success": true,
+    "failureType": "JS_UNSUPPORTED",
+    "unsupportedOperation": "document.querySelector",
+    "fallbackReturnsOriginalHTML": true,
+    "processDoesNotCrash": true,
+    "inputHTMLPath": "samples/fixtures/html/sample_js_runtime_002_input.html"
+  }
+}

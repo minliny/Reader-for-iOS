@@ -1,0 +1,71 @@
+checkpointId: "cp_E3_20260406"
+timestamp: "2026-04-06T07:03:48Z"
+currentPhase: "E3"
+completedSteps:
+  - A1
+  - A2
+  - A3
+  - E1
+  - E2
+  - B1
+  - B2
+  - B3
+  - C1
+  - C2
+  - D1
+  - D2
+  - D3
+  - D4
+  - D5
+  - D6
+  - F1
+  - D7
+  - D8
+  - D9
+  - D10
+  - E3
+modifiedFiles:
+  - docs/decision_engine/strategy_mapping.yml
+  - docs/decision_engine/failure_taxonomy_converged.yml
+  - docs/decision_engine/decision_engine_rules.yml
+  - docs/decision_engine/sample_processing_policy.yml
+  - docs/DEV_CHECKPOINT.md
+  - tools/checkpoints/cp_E3_20260406.yml
+  - samples/matrix/compat_matrix.yml
+  - docs/AI_HANDOFF/PROJECT_STATUS.md
+commandsRun:
+  - "Get-Content samples\\matrix\\compat_matrix.yml"
+  - "Get-Content samples\\matrix\\failure_taxonomy.yml"
+  - "Get-Content docs\\DEV_CHECKPOINT.md"
+  - "Get-Content tools\\checkpoints\\cp_D9_20260406.yml"
+  - "Get-Content docs\\AI_HANDOFF\\PROJECT_STATUS.md"
+  - "Get-Content samples\\classification\\site_access_tiers.yml"
+  - "Get-Content samples\\classification\\sample_tier_mapping.yml"
+  - "Get-Content samples\\metadata\\p0_non_js\\sample_001.yml"
+  - "Get-Content samples\\metadata\\p0_non_js\\sample_002.yml"
+  - "Get-Content samples\\metadata\\p0_non_js\\sample_003.yml"
+  - "Get-Date -Format o"
+generatedReports:
+  - docs/decision_engine/strategy_mapping.yml
+  - docs/decision_engine/failure_taxonomy_converged.yml
+  - docs/decision_engine/decision_engine_rules.yml
+  - docs/decision_engine/sample_processing_policy.yml
+  - docs/DEV_CHECKPOINT.md
+  - samples/matrix/compat_matrix.yml
+  - docs/AI_HANDOFF/PROJECT_STATUS.md
+decisionOutputs:
+  - "sample_cookie_001 -> accessTier C -> do_not_retry_under_urlsession -> defer_to_js_renderer_poc"
+  - "sample_cookie_002 -> accessTier B2 -> do_not_retry_same_strategy -> wait_for_js_capable_or_higher_layer_rendering_poc"
+  - "sample_login_003 -> accessTier B3 -> login_pipeline_reusable -> reuse_login_isolation_template"
+  - "sample_001~sample_005 -> accessTier A -> direct_non_js_pipeline -> regression_only"
+  - "COOKIE_REQUIRED -> pending_real_evidence"
+currentRisks:
+  - "COOKIE_REQUIRED still has no real sample, so the failure taxonomy subset remains intentionally incomplete."
+  - "sample_cookie_002 is blocked in B2 and still waits for a JS-capable or higher-layer rendering path."
+  - "F2 can only consume tier C inputs; it will not resolve B2 shell-render cases by itself."
+nextStep: "F2"
+rollbackHint: >
+  Revert docs/decision_engine/, docs/DEV_CHECKPOINT.md,
+  tools/checkpoints/cp_E3_20260406.yml, docs/AI_HANDOFF/PROJECT_STATUS.md,
+  and the decision-field additions in samples/matrix/compat_matrix.yml
+  if the E3 routing policy needs to be rolled back.
