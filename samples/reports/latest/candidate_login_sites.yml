@@ -1,0 +1,104 @@
+version: "1.0.0"
+generatedAt: "2026-04-06T05:41:18Z"
+phase: "D9"
+objective: "Replace sample_login_001 with a CI-reachable login-gated site"
+selectionCriteria:
+  candidateSiteMust:
+    - "GitHub Actions macOS runner likely reachable via public HTTPS"
+    - "no Cloudflare or browser challenge"
+    - "returns server-rendered HTML for login and secure pages"
+    - "anonymous access is restricted and authenticated access is documented"
+    - "login flow can be expressed as deterministic form submission"
+  rejectIf:
+    - "CI reachability uncertain due geo/network policy"
+    - "JS-required shell or anti-bot challenge"
+    - "credential flow undocumented for CI"
+    - "captcha, MFA, or other interactive verification required"
+candidates:
+  - candidateId: "login_candidate_001"
+    site: "practice.expandtesting.com"
+    category: "demo_login_site"
+    loginUrl: "https://practice.expandtesting.com/login"
+    protectedUrl: "https://practice.expandtesting.com/secure"
+    loginActionUrl: "https://practice.expandtesting.com/authenticate"
+    publicCredentials:
+      username: "practice"
+      password: "SuperSecretPassword!"
+    jsChallengeObserved: false
+    htmlMode: "server_rendered"
+    anonymousAccess: "login page accessible; secure resource documented as protected"
+    authenticatedExpectation: "successful login redirects to /secure and shows success flash + Logout"
+    fitAssessment: "accepted_primary"
+    reason: "Best D9 fit: public deterministic credentials, documented secure area, no JS dependency signal."
+    evidence:
+      - "Official login page documents credentials and success path to /secure."
+      - "Third-party automation examples reference /authenticate and validate the secure page flash message."
+
+  - candidateId: "login_candidate_002"
+    site: "the-internet.herokuapp.com"
+    category: "demo_login_site"
+    loginUrl: "https://the-internet.herokuapp.com/login"
+    protectedUrl: "https://the-internet.herokuapp.com/secure"
+    loginActionUrl: "https://the-internet.herokuapp.com/authenticate"
+    publicCredentials:
+      username: "tomsmith"
+      password: "SuperSecretPassword!"
+    jsChallengeObserved: false
+    htmlMode: "server_rendered"
+    anonymousAccess: "login page accessible; secure area explicitly referenced by the site"
+    authenticatedExpectation: "successful login lands on /secure with success flash"
+    fitAssessment: "accepted_fallback"
+    reason: "Strong fallback: canonical form-login demo with public credentials and stable HTML."
+    evidence:
+      - "Official login page documents exact credentials."
+      - "Automation examples consistently verify secure-area flash after login."
+
+  - candidateId: "login_candidate_003"
+    site: "quotes.toscrape.com"
+    category: "scraping_demo"
+    loginUrl: "https://quotes.toscrape.com/login"
+    protectedUrl: null
+    loginActionUrl: null
+    publicCredentials: null
+    jsChallengeObserved: false
+    htmlMode: "server_rendered"
+    anonymousAccess: "login page accessible"
+    authenticatedExpectation: "undocumented"
+    fitAssessment: "rejected_no_protected_target"
+    reason: "Good reachability, but D9 needs a clearly protected target and reproducible login success path."
+
+  - candidateId: "login_candidate_004"
+    site: "www.scribblehub.com"
+    category: "real_book_site"
+    loginUrl: "https://www.scribblehub.com/login/"
+    protectedUrl: "https://www.scribblehub.com/user/account/"
+    loginActionUrl: null
+    publicCredentials: null
+    jsChallengeObserved: "not_observed_in_source_review"
+    htmlMode: "likely_server_rendered"
+    anonymousAccess: "login-gated account area exists"
+    authenticatedExpectation: "requires real account state"
+    fitAssessment: "rejected_no_ci_credentials"
+    reason: "Useful book-site reference, but no public deterministic credentials for CI validation."
+
+  - candidateId: "login_candidate_005"
+    site: "www.royalroad.com"
+    category: "real_book_site"
+    loginUrl: "https://www.royalroad.com/account/login"
+    protectedUrl: "https://www.royalroad.com/my/follows"
+    loginActionUrl: null
+    publicCredentials: null
+    jsChallengeObserved: "possible_app_gate_risk"
+    htmlMode: "mixed"
+    anonymousAccess: "login route exists"
+    authenticatedExpectation: "requires real account state"
+    fitAssessment: "rejected_credentials_and_js_risk"
+    reason: "Readable as a future manual sample, but not suitable for first CI-verifiable LOGIN_REQUIRED case."
+
+recommendation:
+  chosenCandidateId: "login_candidate_001"
+  chosenSampleId: "sample_login_002"
+  why:
+    - "Public credentials remove the need for secrets management."
+    - "Success criteria are explicit: /secure + success flash + Logout."
+    - "Flow is classic form auth, ideal for proving LOGIN_REQUIRED without JS."

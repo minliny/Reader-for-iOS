@@ -42,6 +42,15 @@ samples:
       - "login prefetch"
       - "retry logic"
 
+  - sampleId: "sample_login_001"
+    phase: "p1_login"
+    site: "https://www.biquge.com.cn"
+    tier: "B3 (design intent)"
+    tierReason: "Original login candidate is unreachable from CI and retained only as network-unreachable reference."
+    smokeStatus: "level_D_reference_only"
+    lastVerified: "2026-04-06T04:20:43Z"
+    blockedUntil: "replace_with_accessible_login_site"
+
 planned:
   - sampleId: "sample_004"
     phase: "p0_non_js"
@@ -62,7 +71,13 @@ planned:
   - sampleId: "sample_login_001"
     phase: "p1_login"
     tier: "B3 (expected)"
-    status: "pending_creation"
+    status: "reference_only_do_not_retry"
+
+  - sampleId: "sample_login_002"
+    phase: "p1_login"
+    tier: "B3 (expected)"
+    status: "candidate_selected_pending_real_login_run"
+    criteria: "Must prove anonymous denial and post-login success on a non-JS HTML flow"
 
   - sampleId: "sample_js_001"
     phase: "p1_js"

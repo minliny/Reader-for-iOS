@@ -1,0 +1,22 @@
+sampleId: "sample_login_002"
+priority: "p1"
+category: "login"
+phase: "p1_login"
+accessTier: "B3 (expected)"
+capability:
+  - fetch
+  - search
+requiresCookieJar: true
+requiresLogin: true
+requiresJs: false
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "B3"
+  note: "practice.expandtesting.com/secure should deny anonymous access and become distinguishable after documented form login."
+status: "candidate_selected_pending_real_login_run"
+sampleRole: "primary_login_required_validation"
+cleanRoom:
+  externalReferenceUsed: true
+  referenceType: "public site behavior + public test docs"
+  gplCodeImported: false

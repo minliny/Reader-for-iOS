@@ -1,0 +1,18 @@
+{
+  "sampleId": "sample_login_002",
+  "flow": "search",
+  "expected": {
+    "success": true,
+    "resultCount": 1,
+    "items": [
+      {
+        "title": "You logged into a secure area!",
+        "detailURL": "https://practice.expandtesting.com/secure"
+      }
+    ],
+    "markers": [
+      "You logged into a secure area!",
+      "Logout"
+    ]
+  }
+}

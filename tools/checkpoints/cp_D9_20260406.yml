@@ -1,0 +1,55 @@
+checkpointId: "cp_D9_20260406"
+timestamp: "2026-04-06T05:41:18Z"
+currentPhase: "D"
+currentStep: "D9"
+completedSteps:
+  - A1
+  - A2
+  - A3
+  - E1
+  - E2
+  - B1
+  - B2
+  - B3
+  - C1
+  - C2
+  - D1
+  - D2
+  - D3
+  - D4
+  - D5
+  - D6
+  - F1
+  - D7
+  - D8
+  - D9
+modifiedFiles:
+  - docs/DEV_CHECKPOINT.md
+  - samples/reports/latest/candidate_login_sites.yml
+  - samples/reports/latest/reachability_probe_report.yml
+  - samples/booksources/p1_login/sample_login_002.json
+  - samples/metadata/p1_login/sample_login_002.yml
+  - samples/expected/search/sample_login_002.json
+  - samples/matrix/compat_matrix.yml
+  - samples/classification/sample_tier_mapping.yml
+generatedArtifacts:
+  - samples/reports/latest/candidate_login_sites.yml
+  - samples/reports/latest/reachability_probe_report.yml
+  - samples/booksources/p1_login/sample_login_002.json
+  - samples/metadata/p1_login/sample_login_002.yml
+  - samples/expected/search/sample_login_002.json
+commandsRun:
+  - "Get-ChildItem -Path samples -Recurse -File"
+  - "Get-ChildItem -Path . -Recurse -File | Select-String -Pattern sample_login_001|LOGIN_REQUIRED|compat_matrix|failure_taxonomy|checkpoint"
+  - "Get-Content samples/booksources/p1_login/sample_login_001.json"
+  - "Get-Content samples/metadata/p1_login/sample_login_001.yml"
+  - "Get-Content samples/matrix/compat_matrix.yml"
+currentRisks:
+  - "sample_login_002 is selected but not yet verified on GitHub Actions macOS runner"
+  - "Current workstation could not perform direct HTTPS probe because local TLS stack is unreliable"
+  - "LOGIN_REQUIRED still lacks a committed real CI report until D9-5/D9-6 land"
+nextStep: "D9-5 — implement sample_login_002 fetch/isolation runners and GitHub Actions workflow"
+rollbackHint: >
+  Revert sample_login_002 files plus compat_matrix, sample_tier_mapping,
+  docs/DEV_CHECKPOINT.md, and this checkpoint if the candidate site proves unstable.
+blockers: []

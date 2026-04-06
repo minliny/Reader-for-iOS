@@ -33,15 +33,17 @@
 | cp_F1_20260405 | 2026-04-05T20:33:32Z | F | F1 | completed | D7 |
 | cp_D7_20260406 | 2026-04-06T04:12:28Z | D | D7 | completed | D8 |
 | cp_D8_20260406 | 2026-04-06T04:20:43Z | D | D8 | completed | E3/D9 |
+| cp_D9_20260406 | 2026-04-06T05:41:18Z | D | D9 | completed | D9-5 |
 
-**lastCompletedStep:** D8
-**nextStep:** E3 (taxonomy convergence) or D9 (find accessible B3 replacement site)
+**lastCompletedStep:** D9
+**nextStep:** D9-5 (implement sample_login_002 fetch/isolation runners and run CI)
 
 ---
 
 ## Current Risks
 - sample_cookie_002 (qidian.com) confirmed level D — HTTP 202 shell, JS rendering required (not Cloudflare)
-- sample_login_001 (biquge.com.cn) domain unreachable from CI — LOGIN_REQUIRED hypothesis unconfirmed, need replacement site
+- sample_login_001 (biquge.com.cn) domain unreachable from CI — retained as reference only
+- sample_login_002 selected, but LOGIN_REQUIRED still lacks committed CI execution reports
 - All 3 real p1 samples ended at level D — no B-tier success case confirmed yet
 - JS rendering PoC (C3+) deferred — WKWebView CI headless needs XCTest host bundle
 - CI concurrent push race: mitigated with git pull --rebase
@@ -76,3 +78,13 @@
 - Core/Sources/ReaderCoreJSRenderer/ (new skeleton)
 - Core/Package.swift (updated)
 - .github/workflows/sample001-nonjs-smoke.yml (updated)
+
+## D9 Outcome
+- `sample_login_001` is formally demoted to a `NETWORK_POLICY_MISMATCH` reference case.
+- `sample_login_002` is defined on `practice.expandtesting.com` as the new primary B3 validation sample.
+- Candidate selection assets now exist:
+  - `samples/reports/latest/candidate_login_sites.yml`
+  - `samples/reports/latest/reachability_probe_report.yml`
+  - `samples/booksources/p1_login/sample_login_002.json`
+  - `samples/metadata/p1_login/sample_login_002.yml`
+  - `samples/expected/search/sample_login_002.json`

@@ -1,0 +1,92 @@
+reportId: "d9_reachability_probe_20260406"
+generatedAt: "2026-04-06T05:41:18Z"
+phase: "D9"
+probeMethod:
+  primary: "web-access open/search verification"
+  fallbackNotes:
+    - "Local PowerShell TLS stack failed during direct HTTPS probing on this workstation."
+    - "Selection therefore uses externally reachable page fetches plus documented login-flow evidence."
+environmentTarget: "GitHub Actions macOS runner (inference pending workflow execution)"
+results:
+  - candidateId: "login_candidate_001"
+    site: "practice.expandtesting.com"
+    loginPageReachable: true
+    protectedFlowDocumented: true
+    publicCredentialsAvailable: true
+    jsChallengeObserved: false
+    serverRenderedHtmlObserved: true
+    baselineAnonymousOutcome: "expected_redirect_or_denial_on_/secure"
+    loginStepOutcome: "documented_redirect_to_/secure_with_success_flash"
+    ciReachabilityConfidence: "medium"
+    decision: "selected_for_sample_login_002"
+    evidenceSummary:
+      - "Official page loads and exposes credentials in plain HTML."
+      - "Official test cases define successful redirect to /secure plus visible Logout."
+
+  - candidateId: "login_candidate_002"
+    site: "the-internet.herokuapp.com"
+    loginPageReachable: true
+    protectedFlowDocumented: true
+    publicCredentialsAvailable: true
+    jsChallengeObserved: false
+    serverRenderedHtmlObserved: true
+    baselineAnonymousOutcome: "expected_login_gate_before_secure_area"
+    loginStepOutcome: "documented_secure_area_success_flash"
+    ciReachabilityConfidence: "medium"
+    decision: "keep_as_fallback"
+    evidenceSummary:
+      - "Official page loads and exposes credentials in plain HTML."
+      - "Multiple automation references validate secure-area success after login."
+
+  - candidateId: "login_candidate_003"
+    site: "quotes.toscrape.com"
+    loginPageReachable: true
+    protectedFlowDocumented: false
+    publicCredentialsAvailable: false
+    jsChallengeObserved: false
+    serverRenderedHtmlObserved: true
+    baselineAnonymousOutcome: "undetermined"
+    loginStepOutcome: "undetermined"
+    ciReachabilityConfidence: "low"
+    decision: "rejected"
+    evidenceSummary:
+      - "Reachable HTML login page exists."
+      - "No deterministic protected target or public credential path found."
+
+  - candidateId: "login_candidate_004"
+    site: "www.scribblehub.com"
+    loginPageReachable: "search_verified_only"
+    protectedFlowDocumented: true
+    publicCredentialsAvailable: false
+    jsChallengeObserved: "not_confirmed"
+    serverRenderedHtmlObserved: "likely"
+    baselineAnonymousOutcome: "account_area_requires_login"
+    loginStepOutcome: "real_account_needed"
+    ciReachabilityConfidence: "low"
+    decision: "rejected"
+    evidenceSummary:
+      - "Looks like a real reading-site login gate."
+      - "Cannot produce deterministic CI auth without publishing account credentials."
+
+  - candidateId: "login_candidate_005"
+    site: "www.royalroad.com"
+    loginPageReachable: "search_verified_only"
+    protectedFlowDocumented: true
+    publicCredentialsAvailable: false
+    jsChallengeObserved: "possible"
+    serverRenderedHtmlObserved: "mixed"
+    baselineAnonymousOutcome: "login gate exists"
+    loginStepOutcome: "real_account_needed"
+    ciReachabilityConfidence: "low"
+    decision: "rejected"
+    evidenceSummary:
+      - "Has genuine member-only routes."
+      - "Public CI login path is unsuitable due credential and app-gate risk."
+
+summary:
+  acceptedCount: 2
+  rejectedCount: 3
+  selectedCandidateId: "login_candidate_001"
+  selectedReason: "Highest-quality deterministic login flow with public credentials and non-JS secure page."
+  limitations:
+    - "GitHub Actions macOS run is still required to convert inference into confirmed CI reachability."
