@@ -1,5 +1,5 @@
-version: "1.0.0"
-updatedAt: "2026-04-05T20:11:13Z"
+version: "1.1.0"
+updatedAt: "2026-04-06T06:09:30Z"
 description: "Mapping of all booksource samples to site access tiers"
 
 samples:
@@ -51,6 +51,18 @@ samples:
     lastVerified: "2026-04-06T04:20:43Z"
     blockedUntil: "replace_with_accessible_login_site"
 
+  - sampleId: "sample_login_002"
+    phase: "p1_login"
+    site: "https://practice.expandtesting.com/secure"
+    tier: "A"
+    tierReason: "GitHub Actions macOS run showed baseline anonymous fetch already reached secure markers and Logout. Site is not login-gated."
+    smokeStatus: "candidate_rejected_not_login_required"
+    lastVerified: "2026-04-06T06:09:30Z"
+    reports:
+      fetch: "samples/reports/latest/fetch_result_sample_login_002.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml"
+
 planned:
   - sampleId: "sample_004"
     phase: "p0_non_js"
@@ -73,11 +85,11 @@ planned:
     tier: "B3 (expected)"
     status: "reference_only_do_not_retry"
 
-  - sampleId: "sample_login_002"
+  - sampleId: "sample_login_003"
     phase: "p1_login"
     tier: "B3 (expected)"
-    status: "candidate_selected_pending_real_login_run"
-    criteria: "Must prove anonymous denial and post-login success on a non-JS HTML flow"
+    status: "pending_backup_site_execution"
+    criteria: "Switch to the-internet.herokuapp.com and require anonymous denial plus TEST-006-only success"
 
   - sampleId: "sample_js_001"
     phase: "p1_js"

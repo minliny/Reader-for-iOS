@@ -1,5 +1,5 @@
 checkpointId: "cp_D9_20260406"
-timestamp: "2026-04-06T05:41:18Z"
+timestamp: "2026-04-06T06:09:30Z"
 currentPhase: "D"
 currentStep: "D9"
 completedSteps:
@@ -24,6 +24,10 @@ completedSteps:
   - D8
   - D9
 modifiedFiles:
+  - Core/Package.swift
+  - Core/Sources/SampleLogin002FetchRunner/main.swift
+  - Core/Sources/SampleLogin002IsolationRunner/main.swift
+  - .github/workflows/sample-login-002-isolation.yml
   - docs/DEV_CHECKPOINT.md
   - samples/reports/latest/candidate_login_sites.yml
   - samples/reports/latest/reachability_probe_report.yml
@@ -33,6 +37,9 @@ modifiedFiles:
   - samples/matrix/compat_matrix.yml
   - samples/classification/sample_tier_mapping.yml
 generatedArtifacts:
+  - samples/reports/latest/fetch_result_sample_login_002.yml
+  - samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml
+  - samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml
   - samples/reports/latest/candidate_login_sites.yml
   - samples/reports/latest/reachability_probe_report.yml
   - samples/booksources/p1_login/sample_login_002.json
@@ -44,12 +51,18 @@ commandsRun:
   - "Get-Content samples/booksources/p1_login/sample_login_001.json"
   - "Get-Content samples/metadata/p1_login/sample_login_001.yml"
   - "Get-Content samples/matrix/compat_matrix.yml"
+  - "gh api repos/minliny/Reader-for-iOS/git/trees --method POST"
+  - "gh api repos/minliny/Reader-for-iOS/git/commits --method POST"
+  - "gh api repos/minliny/Reader-for-iOS/git/refs/heads/claude/fervent-goldstine --method PATCH"
+  - "gh run watch 24021028584 --repo minliny/Reader-for-iOS"
 currentRisks:
-  - "sample_login_002 is selected but not yet verified on GitHub Actions macOS runner"
   - "Current workstation could not perform direct HTTPS probe because local TLS stack is unreliable"
-  - "LOGIN_REQUIRED still lacks a committed real CI report until D9-5/D9-6 land"
-nextStep: "D9-5 — implement sample_login_002 fetch/isolation runners and GitHub Actions workflow"
+  - "sample_login_002 proved to be tier A and cannot validate LOGIN_REQUIRED"
+  - "LOGIN_REQUIRED still lacks a committed real CI report"
+  - "Fallback execution on the-internet.herokuapp.com is now required"
+nextStep: "D10 — switch to the-internet.herokuapp.com and rerun real login isolation"
 rollbackHint: >
-  Revert sample_login_002 files plus compat_matrix, sample_tier_mapping,
-  docs/DEV_CHECKPOINT.md, and this checkpoint if the candidate site proves unstable.
+  Revert sample_login_002 runner/workflow/report additions plus compat_matrix,
+  sample_tier_mapping, docs/DEV_CHECKPOINT.md, and this checkpoint if D10 replaces
+  the candidate set entirely.
 blockers: []

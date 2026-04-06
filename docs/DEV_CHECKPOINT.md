@@ -33,18 +33,19 @@
 | cp_F1_20260405 | 2026-04-05T20:33:32Z | F | F1 | completed | D7 |
 | cp_D7_20260406 | 2026-04-06T04:12:28Z | D | D7 | completed | D8 |
 | cp_D8_20260406 | 2026-04-06T04:20:43Z | D | D8 | completed | E3/D9 |
-| cp_D9_20260406 | 2026-04-06T05:41:18Z | D | D9 | completed | D9-5 |
+| cp_D9_20260406 | 2026-04-06T06:09:30Z | D | D9 | completed | D10 |
 
 **lastCompletedStep:** D9
-**nextStep:** D9-5 (implement sample_login_002 fetch/isolation runners and run CI)
+**nextStep:** D10 (switch p1 login validation to the-internet.herokuapp.com and rerun real isolation)
 
 ---
 
 ## Current Risks
 - sample_cookie_002 (qidian.com) confirmed level D — HTTP 202 shell, JS rendering required (not Cloudflare)
 - sample_login_001 (biquge.com.cn) domain unreachable from CI — retained as reference only
-- sample_login_002 selected, but LOGIN_REQUIRED still lacks committed CI execution reports
-- All 3 real p1 samples ended at level D — no B-tier success case confirmed yet
+- sample_login_002 real CI run proved the site is anonymously reachable — invalid as LOGIN_REQUIRED sample
+- Only the login candidate reached level A, but it was invalidated because the site is anonymous tier A rather than login-gated
+- LOGIN_REQUIRED still has no confirmed real sample; fallback site execution is still required
 - JS rendering PoC (C3+) deferred — WKWebView CI headless needs XCTest host bundle
 - CI concurrent push race: mitigated with git pull --rebase
 
@@ -81,10 +82,15 @@
 
 ## D9 Outcome
 - `sample_login_001` is formally demoted to a `NETWORK_POLICY_MISMATCH` reference case.
-- `sample_login_002` is defined on `practice.expandtesting.com` as the new primary B3 validation sample.
+- `sample_login_002` completed real GitHub Actions execution in run `24021028584`.
+- `practice.expandtesting.com/secure` is anonymously reachable and therefore not a valid B3 sample.
+- `sample_login_002` is retained as a negative reference showing why it must not be used for LOGIN_REQUIRED validation.
 - Candidate selection assets now exist:
   - `samples/reports/latest/candidate_login_sites.yml`
   - `samples/reports/latest/reachability_probe_report.yml`
   - `samples/booksources/p1_login/sample_login_002.json`
   - `samples/metadata/p1_login/sample_login_002.yml`
   - `samples/expected/search/sample_login_002.json`
+  - `samples/reports/latest/fetch_result_sample_login_002.yml`
+  - `samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml`
+  - `samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml`
