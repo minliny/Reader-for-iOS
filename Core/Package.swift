@@ -24,6 +24,8 @@ let package = Package(
         .executable(name: "SampleCookie001IsolationRunner", targets: ["SampleCookie001IsolationRunner"]),
         .executable(name: "SampleCookie002FetchRunner", targets: ["SampleCookie002FetchRunner"]),
         .executable(name: "SampleCookie002IsolationRunner", targets: ["SampleCookie002IsolationRunner"]),
+        .executable(name: "SampleLogin001FetchRunner", targets: ["SampleLogin001FetchRunner"]),
+        .executable(name: "SampleLogin001IsolationRunner", targets: ["SampleLogin001IsolationRunner"]),
         .executable(name: "AutoSampleExtractorRunner", targets: ["AutoSampleExtractorRunner"]),
         .library(name: "ReaderCoreJSRenderer", targets: ["ReaderCoreJSRenderer"])
     ],
@@ -90,6 +92,14 @@ let package = Package(
         ),
         .executableTarget(
             name: "SampleCookie002IsolationRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols"]
+        ),
+        .executableTarget(
+            name: "SampleLogin001FetchRunner",
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols"]
+        ),
+        .executableTarget(
+            name: "SampleLogin001IsolationRunner",
             dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols"]
         ),
         .executableTarget(

@@ -1,0 +1,68 @@
+name: P1 Login Isolation sample_login_001
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/fervent-goldstine
+    paths:
+      - ".github/workflows/sample-login-001-isolation.yml"
+      - "Core/Package.swift"
+      - "Core/Sources/SampleLogin001FetchRunner/**"
+      - "Core/Sources/SampleLogin001IsolationRunner/**"
+      - "samples/booksources/p1_login/sample_login_001.json"
+
+jobs:
+  login-isolation:
+    name: login isolation sample_login_001
+    runs-on: macos-14
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build login_001 runners
+        working-directory: Core
+        run: |
+          swift build --product SampleLogin001FetchRunner
+          swift build --product SampleLogin001IsolationRunner
+
+      - name: Run baseline fetch
+        run: swift run --package-path Core SampleLogin001FetchRunner -- "$GITHUB_WORKSPACE"
+
+      - name: Run isolation suite
+        run: swift run --package-path Core SampleLogin001IsolationRunner -- "$GITHUB_WORKSPACE"
+
+      - name: Print reports
+        run: |
+          echo "=== fetch_result ===" && cat samples/reports/latest/fetch_result_sample_login_001.yml
+          echo "=== isolation_steps ===" && cat samples/reports/latest/fetch_isolation_step_records_sample_login_001.yml
+          echo "=== decision_summary ===" && cat samples/reports/latest/fetch_isolation_decision_summary_sample_login_001.yml
+
+      - name: Commit real reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add samples/reports/latest/fetch_result_sample_login_001.yml
+          git add samples/reports/latest/fetch_isolation_step_records_sample_login_001.yml
+          git add samples/reports/latest/fetch_isolation_decision_summary_sample_login_001.yml
+          if git diff --cached --quiet; then
+            echo "reports unchanged"
+          else
+            git commit -m "ci: p1_login real reports sample_login_001 fetch+isolation"
+            git pull --rebase origin claude/fervent-goldstine
+            git push
+          fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: login-001-reports
+          path: samples/reports/latest/*sample_login_001*.yml
