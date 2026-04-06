@@ -1,0 +1,16 @@
+reportId: "probe_auto_93786395_1775482411"
+generatedAt: "2026-04-06T13:33:31Z"
+sampleId: "auto_93786395"
+probeUrl: "https://www.81xzw.com/home/search,{
+  \"method\": \"POST\",
+  \"body\": \"action=search&q=test\"
+}"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 2391
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

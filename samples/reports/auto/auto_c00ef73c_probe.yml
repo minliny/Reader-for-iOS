@@ -1,0 +1,13 @@
+reportId: "probe_auto_c00ef73c_1775482401"
+generatedAt: "2026-04-06T13:33:21Z"
+sampleId: "auto_c00ef73c"
+probeUrl: "http://m.65dm.com/statics/search.aspx?key=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

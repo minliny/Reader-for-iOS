@@ -1,0 +1,13 @@
+reportId: "probe_auto_39d402f2_1775482356"
+generatedAt: "2026-04-06T13:32:36Z"
+sampleId: "auto_39d402f2"
+probeUrl: "http://m.quanxiaoshuo.org/s_test/1/"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 4307
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

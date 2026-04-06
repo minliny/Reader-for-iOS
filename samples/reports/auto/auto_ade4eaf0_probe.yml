@@ -1,0 +1,13 @@
+reportId: "probe_auto_ade4eaf0_1775482407"
+generatedAt: "2026-04-06T13:33:27Z"
+sampleId: "auto_ade4eaf0"
+probeUrl: "https://www.dushu.com/search.aspx?wd=test&f=0&r=3&t=0&p=1"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 11902
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

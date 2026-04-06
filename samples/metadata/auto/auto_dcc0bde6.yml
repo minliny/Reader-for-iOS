@@ -1,0 +1,15 @@
+sampleId: "auto_dcc0bde6"
+generatedAt: "2026-04-06T13:33:11Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎉 七猫小说"
+bookSourceUrl: "https://www.qimao.com"
+accessTier: "B"
+extractedSearchSelector: "css:.qm-pic-txt"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

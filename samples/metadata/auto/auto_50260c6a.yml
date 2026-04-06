@@ -1,0 +1,15 @@
+sampleId: "auto_50260c6a"
+generatedAt: "2026-04-06T13:33:26Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "ノクターンノベルズ"
+bookSourceUrl: "https://noc.syosetu.com/top/top/"
+accessTier: "A"
+extractedSearchSelector: "css:class.searchkekka_box"
+probeHttpStatus: 200
+probeHtmlLength: 3547
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

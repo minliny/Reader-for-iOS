@@ -1,0 +1,16 @@
+sampleId: "auto_be4512f1"
+generatedAt: "2026-04-06T13:33:11Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎨YY漫画"
+bookSourceUrl: "https://www.yymanhua.com"
+accessTier: "B"
+extractedSearchSelector: "css:_0x75633d=Date[_0x2e6a('0x2')]();while(Date[_0x2e6a('0x2')]()-_0x75633d<0x3a98){java[_0x2e6a('0x1')](_0x4aa3fc);Packages[_0x2e6a('0x16')][_0x2e6a('0x3')][_0x2e6a('0x6')][_0x2e6a('0x1c')](0x7d0);}}res;
+</js>"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

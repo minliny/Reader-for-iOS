@@ -1,0 +1,15 @@
+sampleId: "auto_e9cf3461"
+generatedAt: "2026-04-06T13:33:27Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "夜伴书屋◎GEd520◎"
+bookSourceUrl: "http://www.ybsws.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.table"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

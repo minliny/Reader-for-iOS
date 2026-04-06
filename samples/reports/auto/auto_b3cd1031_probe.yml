@@ -1,0 +1,15 @@
+reportId: "probe_auto_b3cd1031_1775482405"
+generatedAt: "2026-04-06T13:33:25Z"
+sampleId: "auto_b3cd1031"
+probeUrl: "https://www.muxtoo.com/s?q=test,{
+  \"webView\": true
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 4713
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

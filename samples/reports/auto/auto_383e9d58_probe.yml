@@ -1,0 +1,17 @@
+reportId: "probe_auto_383e9d58_1775482368"
+generatedAt: "2026-04-06T13:32:48Z"
+sampleId: "auto_383e9d58"
+probeUrl: "http://m.xslou.com/s.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"s=test&type=articlename\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

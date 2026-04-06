@@ -1,0 +1,15 @@
+sampleId: "auto_6dea1e82"
+generatedAt: "2026-04-06T13:32:49Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "💵 书香云集"
+bookSourceUrl: "http://www.sxyj.net"
+accessTier: "B"
+extractedSearchSelector: "css:class.right"
+probeHttpStatus: 200
+probeHtmlLength: 21
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

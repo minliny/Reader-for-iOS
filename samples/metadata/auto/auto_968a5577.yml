@@ -1,0 +1,15 @@
+sampleId: "auto_968a5577"
+generatedAt: "2026-04-06T13:33:24Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "太极书网（优）"
+bookSourceUrl: "https://www.69haoshu.net"
+accessTier: "B"
+extractedSearchSelector: "css:.item"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

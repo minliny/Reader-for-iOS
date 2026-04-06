@@ -1,0 +1,15 @@
+sampleId: "auto_b3cd1031"
+generatedAt: "2026-04-06T13:33:25Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔趣阁"
+bookSourceUrl: "https://www.muxtoo.com"
+accessTier: "A"
+extractedSearchSelector: "css:.bookbox"
+probeHttpStatus: 200
+probeHtmlLength: 4713
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

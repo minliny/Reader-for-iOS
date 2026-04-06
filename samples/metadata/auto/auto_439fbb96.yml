@@ -1,0 +1,15 @@
+sampleId: "auto_439fbb96"
+generatedAt: "2026-04-06T13:33:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "帅逼小说"
+bookSourceUrl: "https://m.sdhear.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.search[*]"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

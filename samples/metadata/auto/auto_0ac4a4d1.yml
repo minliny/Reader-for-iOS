@@ -1,0 +1,15 @@
+sampleId: "auto_0ac4a4d1"
+generatedAt: "2026-04-06T13:33:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔趣阁①"
+bookSourceUrl: "https://www.52bqg.net/"
+accessTier: "B"
+extractedSearchSelector: "css:class.list-item||tag.html"
+probeHttpStatus: 403
+probeHtmlLength: 406
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

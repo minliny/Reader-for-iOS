@@ -1,0 +1,13 @@
+reportId: "probe_auto_50260c6a_1775482406"
+generatedAt: "2026-04-06T13:33:26Z"
+sampleId: "auto_50260c6a"
+probeUrl: "https://noc.syosetu.com/search/search/search.php?word=test&notword=&type=&mintime=&maxtime=&minlen=&maxlen=&min_globalpoint=&max_globalpoint=&minlastup=&maxlastup=&minfirstup=&maxfirstup=&order=new"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 3547
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

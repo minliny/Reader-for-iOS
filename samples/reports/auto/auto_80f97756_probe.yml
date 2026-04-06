@@ -1,0 +1,15 @@
+reportId: "probe_auto_80f97756_1775482402"
+generatedAt: "2026-04-06T13:33:22Z"
+sampleId: "auto_80f97756"
+probeUrl: "http://m.qshuk.com/search.php?searchkey=test,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: 403
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 407
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

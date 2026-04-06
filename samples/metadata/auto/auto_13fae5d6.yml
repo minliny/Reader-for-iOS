@@ -1,0 +1,15 @@
+sampleId: "auto_13fae5d6"
+generatedAt: "2026-04-06T13:33:28Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "看书神app"
+bookSourceUrl: "https://apitt.kanshushenapp.com/"
+accessTier: "B"
+extractedSearchSelector: "css:$.result_rows||$.[*]"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

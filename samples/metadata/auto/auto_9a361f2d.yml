@@ -1,0 +1,15 @@
+sampleId: "auto_9a361f2d"
+generatedAt: "2026-04-06T13:33:25Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🧐冰雷中文"
+bookSourceUrl: "https://www.bookbl.com/"
+accessTier: "C"
+extractedSearchSelector: "css:table-hover"
+probeHttpStatus: 200
+probeHtmlLength: 6700
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

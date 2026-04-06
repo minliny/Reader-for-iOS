@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "ノクターンノベルズ",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/noc.syosetu.com\/top\/top\/",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:id.novel_honbun",
+  "ruleSearch" : "css:class.searchkekka_box",
+  "ruleToc" : "css:class.novel_sublist2",
+  "searchUrl" : "https:\/\/noc.syosetu.com\/search\/search\/search.php?word={{key}}&notword=&type=&mintime=&maxtime=&minlen=&maxlen=&min_globalpoint=&max_globalpoint=&minlastup=&maxlastup=&minfirstup=&maxfirstup=&order=new"
+}

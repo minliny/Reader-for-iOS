@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "纵横中文网💯",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/www.zongheng.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:\"\"\n}",
+  "ruleSearch" : "css:\"tag.h2",
+  "ruleToc" : "css:{}",
+  "searchUrl" : "http:\/\/search.zongheng.com\/s?keyword={{key}}"
+}
