@@ -2,6 +2,30 @@ import Foundation
 import ReaderCoreProtocols
 import ReaderCoreModels
 
+private final class RedirectCaptureDelegate: NSObject, URLSessionTaskDelegate {
+    private let lock = NSLock()
+    private var capturedResponses: [HTTPURLResponse] = []
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        lock.lock()
+        capturedResponses.append(response)
+        lock.unlock()
+        completionHandler(request)
+    }
+
+    var redirectResponses: [HTTPURLResponse] {
+        lock.lock()
+        defer { lock.unlock() }
+        return capturedResponses
+    }
+}
+
 public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
     private let session: URLSession
     private let cookieJar: CookieJar?
@@ -50,7 +74,8 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
         }
 
         do {
-            let (data, response) = try await session.data(for: urlRequest)
+            let redirectDelegate = RedirectCaptureDelegate()
+            let (data, response) = try await session.data(for: urlRequest, delegate: redirectDelegate)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ReaderError.network(
@@ -69,13 +94,10 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
             }
 
             if request.useCookieJar, let jar = cookieJar {
-                if let setCookieHeaders = httpResponse.allHeaderFields["Set-Cookie"] as? String {
-                    await jar.setCookies(from: setCookieHeaders, domain: url.host ?? "")
-                } else if let setCookieHeaders = httpResponse.allHeaderFields["Set-Cookie"] as? [String] {
-                    for header in setCookieHeaders {
-                        await jar.setCookies(from: header, domain: url.host ?? "")
-                    }
+                for redirectResponse in redirectDelegate.redirectResponses {
+                    await storeCookies(from: redirectResponse, jar: jar, fallbackHost: redirectResponse.url?.host ?? url.host ?? "")
                 }
+                await storeCookies(from: httpResponse, jar: jar, fallbackHost: httpResponse.url?.host ?? url.host ?? "")
             }
 
             return HTTPResponse(
@@ -110,6 +132,16 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
                 message: "Request failed: \(error.localizedDescription)",
                 underlyingError: error
             )
+        }
+    }
+
+    private func storeCookies(from response: HTTPURLResponse, jar: CookieJar, fallbackHost: String) async {
+        if let setCookieHeaders = response.allHeaderFields["Set-Cookie"] as? String {
+            await jar.setCookies(from: setCookieHeaders, domain: fallbackHost)
+        } else if let setCookieHeaders = response.allHeaderFields["Set-Cookie"] as? [String] {
+            for header in setCookieHeaders {
+                await jar.setCookies(from: header, domain: fallbackHost)
+            }
         }
     }
 
