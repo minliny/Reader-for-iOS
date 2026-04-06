@@ -7,7 +7,7 @@ public final class JSRuntime: @unchecked Sendable {
     private let preExecutionDelayMilliseconds: Int
     private let additionalEvaluationScripts: [String]
 
-    public init(timeoutMilliseconds: Int = 1500) {
+    public convenience init(timeoutMilliseconds: Int = 1500) {
         self.init(
             timeoutMilliseconds: timeoutMilliseconds,
             preExecutionDelayMilliseconds: 0,
