@@ -1,0 +1,13 @@
+reportId: "probe_auto_4019d143_1775449248"
+generatedAt: "2026-04-06T04:20:48Z"
+sampleId: "auto_4019d143"
+probeUrl: "http://m.suixkan.com/api/book/search?keyword=test&page=1&_=1733231979405"
+
+result:
+  httpStatus: 200
+  contentType: "application/json; charset=utf-8"
+  htmlLength: 67
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

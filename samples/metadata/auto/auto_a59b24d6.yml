@@ -1,0 +1,15 @@
+sampleId: "auto_a59b24d6"
+generatedAt: "2026-04-06T04:21:32Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "小说精品屋"
+bookSourceUrl: "https://miwen.net"
+accessTier: "B"
+extractedSearchSelector: "css:.list[*]"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

@@ -1,0 +1,15 @@
+reportId: "probe_auto_cc3a308b_1775449262"
+generatedAt: "2026-04-06T04:21:02Z"
+sampleId: "auto_cc3a308b"
+probeUrl: "https://m.dayuzc.com/sdfgsdyugfsdugf.html?ie=gbk&s=5256649918672294880&q=test,{
+\"charset\":\"utf-8\"
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 2883
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

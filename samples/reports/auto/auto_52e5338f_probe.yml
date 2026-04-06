@@ -1,0 +1,15 @@
+reportId: "probe_auto_52e5338f_1775449247"
+generatedAt: "2026-04-06T04:20:47Z"
+sampleId: "auto_52e5338f"
+probeUrl: "http://www.dushuzu.com/modules/article/search.php?searchkey=test&page=1,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

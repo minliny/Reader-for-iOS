@@ -1,0 +1,29 @@
+reportId: "probe_auto_fa32835b_1775449258"
+generatedAt: "2026-04-06T04:20:58Z"
+sampleId: "auto_fa32835b"
+probeUrl: "@js:
+
+var url=source.getKey();
+
+var html = java.ajax(url+\",\"+JSON.stringify({
+  \"webView\": true
+}));
+
+so = org.jsoup.Jsoup.parse(html).select('#sform').attr('action');
+
+cookie.removeCookie(url)
+
+url+so+\"?ie=gbk&q=test,\"+JSON.stringify({
+  \"method\": \"GET\"
+})
+
+"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

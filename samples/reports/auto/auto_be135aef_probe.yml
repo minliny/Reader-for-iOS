@@ -1,0 +1,13 @@
+reportId: "probe_auto_be135aef_1775449270"
+generatedAt: "2026-04-06T04:21:10Z"
+sampleId: "auto_be135aef"
+probeUrl: "https://www.biqugu.cc/search.php?keyword=test"
+
+result:
+  httpStatus: 403
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 4825
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

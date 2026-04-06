@@ -1,0 +1,16 @@
+reportId: "probe_auto_e71b1fe2_1775449246"
+generatedAt: "2026-04-06T04:20:46Z"
+sampleId: "auto_e71b1fe2"
+probeUrl: "https://www.mht.tw/case.php?m=search,{
+  \"method\": \"POST\",
+  \"body\": \"key=test\"
+}"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 139
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

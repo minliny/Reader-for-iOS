@@ -1,0 +1,15 @@
+sampleId: "auto_2a29cc78"
+generatedAt: "2026-04-06T04:20:58Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "九桃小说🎃"
+bookSourceUrl: "http://00txs.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.main"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

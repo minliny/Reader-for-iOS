@@ -1,0 +1,15 @@
+sampleId: "auto_55047469"
+generatedAt: "2026-04-06T04:21:05Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "爱奇艺"
+bookSourceUrl: "https://m.iqiyi.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.stacksList"
+probeHttpStatus: 200
+probeHtmlLength: 1690
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

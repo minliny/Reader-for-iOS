@@ -1,0 +1,17 @@
+reportId: "probe_auto_3008fef8_1775449268"
+generatedAt: "2026-04-06T04:21:08Z"
+sampleId: "auto_3008fef8"
+probeUrl: "https://us-m.webtoons.com/zh-hant/search,{
+  \"headers\": \"{Cookie:\\\"locale=zh_TW;\\\",Referer:\\\"https://us-m.webtoons.com/zh-hant/search\\\"}\",
+  \"method\": \"POST\",
+  \"body\": \"searchType=ALL&keyword=test\"
+}"
+
+result:
+  httpStatus: 400
+  contentType: "text/html;charset=utf-8"
+  htmlLength: 431
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

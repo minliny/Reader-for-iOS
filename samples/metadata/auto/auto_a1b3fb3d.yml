@@ -1,0 +1,15 @@
+sampleId: "auto_a1b3fb3d"
+generatedAt: "2026-04-06T04:21:30Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "✾.Ⓐ 四零二零② #未月十八1001"
+bookSourceUrl: "http://www.wrlwx.com"
+accessTier: "B"
+extractedSearchSelector: "css:tbody"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

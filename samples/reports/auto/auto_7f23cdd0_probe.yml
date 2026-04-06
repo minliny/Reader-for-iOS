@@ -1,0 +1,16 @@
+reportId: "probe_auto_7f23cdd0_1775449246"
+generatedAt: "2026-04-06T04:20:46Z"
+sampleId: "auto_7f23cdd0"
+probeUrl: "https://www.jieqi.pw/search.html,{
+'method': 'POST',
+'body': 'searchkey=test&action=login&submit='
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

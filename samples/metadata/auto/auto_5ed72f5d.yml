@@ -1,0 +1,15 @@
+sampleId: "auto_5ed72f5d"
+generatedAt: "2026-04-06T04:21:08Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "PO18文学⑩"
+bookSourceUrl: "https://www.po18m.vip/"
+accessTier: "B"
+extractedSearchSelector: "css:id.nr"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

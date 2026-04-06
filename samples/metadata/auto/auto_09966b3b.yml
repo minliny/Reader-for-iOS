@@ -1,0 +1,15 @@
+sampleId: "auto_09966b3b"
+generatedAt: "2026-04-06T04:20:58Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "📚天涯书库[tian]"
+bookSourceUrl: "https://www.tianyabooks.com/"
+accessTier: "A"
+extractedSearchSelector: "css:class.leftbox"
+probeHttpStatus: 200
+probeHtmlLength: 14583
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

@@ -1,0 +1,15 @@
+reportId: "probe_auto_6e97cdba_1775449263"
+generatedAt: "2026-04-06T04:21:03Z"
+sampleId: "auto_6e97cdba"
+probeUrl: "/modules/article/search.php?searchkey=test&submit=%CB%D1%CB%F7,{
+\"charset\": \"gbk\"
+	}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

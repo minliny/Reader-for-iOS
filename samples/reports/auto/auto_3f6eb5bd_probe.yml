@@ -1,0 +1,18 @@
+reportId: "probe_auto_3f6eb5bd_1775449242"
+generatedAt: "2026-04-06T04:20:42Z"
+sampleId: "auto_3f6eb5bd"
+probeUrl: "http://www.60ks.info/modules/article/search.php,{
+  \"body\": \"searchkey=test&searchtype=articlename\",
+  \"charset\": \"GBK\",
+  \"method\": \"POST\",
+  \"webView\": true
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 93318
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"
