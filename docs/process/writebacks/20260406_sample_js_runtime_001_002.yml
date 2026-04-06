@@ -212,5 +212,5 @@ layer3Decision:
 reviewConclusion:
   approved: "yes"
   blockers: "none"
-  prNumber: "PENDING — commit in progress on branch claude/fervent-goldstine"
-  commitSha: "PENDING — fill after commit"
+  prNumber: "branch: claude/fervent-goldstine (no PR opened; direct branch commit)"
+  commitSha: "5d677f8"
