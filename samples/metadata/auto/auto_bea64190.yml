@@ -1,0 +1,15 @@
+sampleId: "auto_bea64190"
+generatedAt: "2026-04-06T14:16:42Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "37小说"
+bookSourceUrl: "https://www.37xs.com"
+accessTier: "B"
+extractedSearchSelector: "css:\"tag.h3"
+probeHttpStatus: 200
+probeHtmlLength: 172
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

@@ -1,0 +1,15 @@
+sampleId: "auto_3996730c"
+generatedAt: "2026-04-06T14:16:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "起舞中文网"
+bookSourceUrl: "https://m.75zwz.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.list"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

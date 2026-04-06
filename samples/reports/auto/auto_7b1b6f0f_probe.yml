@@ -1,0 +1,15 @@
+reportId: "probe_auto_7b1b6f0f_1775485025"
+generatedAt: "2026-04-06T14:17:05Z"
+sampleId: "auto_7b1b6f0f"
+probeUrl: "https://www.5200.tv/sodu.php?ie=gbk&q=test,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: 404
+  contentType: "text/plain; charset=utf-8"
+  htmlLength: 9
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

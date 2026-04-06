@@ -1,0 +1,15 @@
+sampleId: "auto_b2dd897f"
+generatedAt: "2026-04-06T14:17:05Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔰 方宗小说"
+bookSourceUrl: "https://www.fangzongxs.com"
+accessTier: "B"
+extractedSearchSelector: "css:a[0:4]"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

@@ -1,0 +1,15 @@
+sampleId: "auto_6cb65d1c"
+generatedAt: "2026-04-06T14:16:43Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🍉 抖音小说"
+bookSourceUrl: "https://www.douyinxs.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.novelslist2"
+probeHttpStatus: 404
+probeHtmlLength: 608
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

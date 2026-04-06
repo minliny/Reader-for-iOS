@@ -1,0 +1,15 @@
+sampleId: "auto_d939ffc4"
+generatedAt: "2026-04-06T14:17:16Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔰 花呗小说"
+bookSourceUrl: "http://m.lianxinw.com"
+accessTier: "B"
+extractedSearchSelector: "css:id.sitebox"
+probeHttpStatus: 404
+probeHtmlLength: 139
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

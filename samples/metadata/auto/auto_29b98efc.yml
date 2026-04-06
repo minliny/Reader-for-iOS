@@ -1,0 +1,19 @@
+sampleId: "auto_29b98efc"
+generatedAt: "2026-04-06T14:17:05Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "二八看书（优++）"
+bookSourceUrl: "https://www.28lu.net/"
+accessTier: "B"
+extractedSearchSelector: "css:java.ajax(url)
+}
+result
+</js>
+.item"
+probeHttpStatus: 200
+probeHtmlLength: 1751
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

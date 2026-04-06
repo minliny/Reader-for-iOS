@@ -1,0 +1,18 @@
+reportId: "probe_auto_87fa7aca_1775485024"
+generatedAt: "2026-04-06T14:17:04Z"
+sampleId: "auto_87fa7aca"
+probeUrl: "搜索内容不好，想出现在搜索里面就删除这句话
+https://m.xyushu5.vip/s.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"s=test&type=articlename\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Invalid probe URL"

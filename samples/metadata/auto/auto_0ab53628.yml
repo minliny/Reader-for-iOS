@@ -1,0 +1,15 @@
+sampleId: "auto_0ab53628"
+generatedAt: "2026-04-06T14:16:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🚬 第一版主（可替换，带字数）💎"
+bookSourceUrl: "http://www.diyibanzhu33.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.column-2"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

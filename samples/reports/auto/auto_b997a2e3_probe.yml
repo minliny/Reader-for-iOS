@@ -1,0 +1,20 @@
+reportId: "probe_auto_b997a2e3_1775484991"
+generatedAt: "2026-04-06T14:16:31Z"
+sampleId: "auto_b997a2e3"
+probeUrl: "@js:
+burl=source.getKey().match(/([^#]*)/)[1];
+url = burl+\"/search.html\";
+body = \"searchkey=\"+key;
+head = {\"cookie\":\"/\",\"referer\":burl};
+$ = java.post(url,body,head).headers();
+uri = $.Location||$.location;
+String(uri).replace('1.html','1.html');"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

@@ -1,0 +1,16 @@
+reportId: "probe_auto_f3dfb18a_1775485004"
+generatedAt: "2026-04-06T14:16:44Z"
+sampleId: "auto_f3dfb18a"
+probeUrl: "http://m.fenghuaju.com/search/,{
+'charset': 'utf-8',
+'method': 'POST',
+'body': 'searchkey=test'}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

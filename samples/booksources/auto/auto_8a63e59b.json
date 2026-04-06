@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "殿行说",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/m.dianwxw.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:class.con",
+  "ruleSearch" : "css:class.item",
+  "ruleToc" : "css:class.chapter-list",
+  "searchUrl" : "https:\/\/m.dianwxw.com\/index\/sou?searchkey={{key}}"
+}

@@ -1,0 +1,15 @@
+sampleId: "auto_336fd226"
+generatedAt: "2026-04-06T14:16:41Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🌕胖子小说"
+bookSourceUrl: "https://m.pzshen.com"
+accessTier: "B"
+extractedSearchSelector: "css:.item"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

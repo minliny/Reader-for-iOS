@@ -1,0 +1,13 @@
+reportId: "probe_auto_69ba254e_1775484991"
+generatedAt: "2026-04-06T14:16:31Z"
+sampleId: "auto_69ba254e"
+probeUrl: "http://api.17k.com/book/search/list?fuzzySearchType=1&page=1&num=20&keyword=test&youthModel=0&_filterData=1&appKey=4037465544&clientType=1&merchant=17KH5&height=2166&cpsSource=0&platform=2&device_id=efde9b5c7749a0f7&brand=HONOR&_versions=1240"
+
+result:
+  httpStatus: 200
+  contentType: "application/json; charset=UTF-8"
+  htmlLength: 259
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

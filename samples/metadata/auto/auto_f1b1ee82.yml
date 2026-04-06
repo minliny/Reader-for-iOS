@@ -1,0 +1,15 @@
+sampleId: "auto_f1b1ee82"
+generatedAt: "2026-04-06T14:16:44Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "PO脸红心跳③"
+bookSourceUrl: "https://m.mpo18.com/#🚀"
+accessTier: "B"
+extractedSearchSelector: "css:class.searchresult"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

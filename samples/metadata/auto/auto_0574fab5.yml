@@ -1,0 +1,15 @@
+sampleId: "auto_0574fab5"
+generatedAt: "2026-04-06T14:16:43Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔰 八一中文"
+bookSourceUrl: "https://m.81zw.org"
+accessTier: "B"
+extractedSearchSelector: "css:class.bookbox"
+probeHttpStatus: 404
+probeHtmlLength: 9
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

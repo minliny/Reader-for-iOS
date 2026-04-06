@@ -1,0 +1,13 @@
+reportId: "probe_auto_e13d1e98_1775485047"
+generatedAt: "2026-04-06T14:17:27Z"
+sampleId: "auto_e13d1e98"
+probeUrl: "http://m.cxbz958.org/s.php?submit=&q=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

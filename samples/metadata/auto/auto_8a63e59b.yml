@@ -1,0 +1,15 @@
+sampleId: "auto_8a63e59b"
+generatedAt: "2026-04-06T14:16:44Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "殿行说"
+bookSourceUrl: "https://m.dianwxw.com"
+accessTier: "A"
+extractedSearchSelector: "css:class.item"
+probeHttpStatus: 200
+probeHtmlLength: 4697
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

@@ -1,0 +1,15 @@
+sampleId: "auto_44d9b835"
+generatedAt: "2026-04-06T14:17:05Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "小强小说"
+bookSourceUrl: "http://xiaoqiangla.net/"
+accessTier: "B"
+extractedSearchSelector: "css:id.alistbox"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

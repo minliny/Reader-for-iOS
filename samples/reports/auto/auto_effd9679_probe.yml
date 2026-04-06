@@ -1,0 +1,13 @@
+reportId: "probe_auto_effd9679_1775485014"
+generatedAt: "2026-04-06T14:16:54Z"
+sampleId: "auto_effd9679"
+probeUrl: "https://www.zaiduu.cc/searchbook.php?keyword=test&page=1"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

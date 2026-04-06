@@ -1,0 +1,15 @@
+sampleId: "auto_29d40bbe"
+generatedAt: "2026-04-06T14:16:42Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🍺 ABC小说"
+bookSourceUrl: "http://www.abcxs.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.p10||id.maininfo"
+probeHttpStatus: 500
+probeHtmlLength: 97
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

@@ -1,0 +1,17 @@
+reportId: "probe_auto_16d38941_1775484989"
+generatedAt: "2026-04-06T14:16:29Z"
+sampleId: "auto_16d38941"
+probeUrl: "s.php,{
+  \"body\": \"keyword=test&t=1&submit=搜索\",
+  \"charset\": \"GBK\",
+  \"method\": \"POST\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Invalid probe URL"

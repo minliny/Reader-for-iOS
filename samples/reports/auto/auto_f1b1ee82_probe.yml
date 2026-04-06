@@ -1,0 +1,17 @@
+reportId: "probe_auto_f1b1ee82_1775485004"
+generatedAt: "2026-04-06T14:16:44Z"
+sampleId: "auto_f1b1ee82"
+probeUrl: "/s.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"s=test&submit=&type=articlename\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

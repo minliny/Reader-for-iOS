@@ -1,0 +1,15 @@
+sampleId: "auto_6c5a66b4"
+generatedAt: "2026-04-06T14:17:40Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "竹电子书"
+bookSourceUrl: "https://m.151txt.com"
+accessTier: "B"
+extractedSearchSelector: "css:tbody"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

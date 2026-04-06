@@ -1,0 +1,15 @@
+sampleId: "auto_f62adf82"
+generatedAt: "2026-04-06T14:17:28Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔰后宫小说"
+bookSourceUrl: "https://www.hougongxs.com/"
+accessTier: "B"
+extractedSearchSelector: "css:id.sitembox"
+probeHttpStatus: 404
+probeHtmlLength: 139
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

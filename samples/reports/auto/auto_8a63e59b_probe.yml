@@ -1,0 +1,13 @@
+reportId: "probe_auto_8a63e59b_1775485004"
+generatedAt: "2026-04-06T14:16:44Z"
+sampleId: "auto_8a63e59b"
+probeUrl: "https://m.dianwxw.com/index/sou?searchkey=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 4697
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"
