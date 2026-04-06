@@ -1,30 +1,27 @@
 writebackId: "wb_js_runtime_001_002_20260406"
-version: "1.0.0"
+version: "1.1.0"
 createdAt: "2026-04-06T09:00:00Z"
+completedAt: "2026-04-06T13:45:00Z"
 reviewerHandle: "ai-dev-agent"
-drillNote: >
-  This is the first rehearsal of the manual review workflow defined in
-  docs/process/ci_artifact_manual_review_workflow.yml.
-  The semantic reasoning sections are fully grounded in the test source code
-  (Core/Tests/ReaderCoreJSRendererTests/). The CI-artifact-specific fields
-  (ciRunUrl, snapshotGeneratedAt, durationSeconds) are annotated PENDING
-  because the first macOS-14 CI run after commit fc91bac has not yet been
-  manually downloaded and inspected by a human reviewer.
-  The layer2 and layer3 decisions ARE authoritative and reproducible: they
-  follow directly from the contract code and the actualLevelRules. A human
-  reviewer executing a real write-back MUST replace all PENDING fields with
-  values from the actual downloaded artifact before committing any changes.
-ciRunUrl: "PENDING — first macOS-14 CI run triggered by push fc91bac on branch claude/fervent-goldstine"
+ciRunUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24033784569"
 artifactName: "core-swift-test-log"
+runTriggerCommit: "293ef83"
+runTriggerNote: >
+  Two prerequisite fixes were required before the target tests could run:
+  (1) JSRuntime.swift line 10: added 'convenience' keyword to the delegating
+  public init (Swift 5 compile error, zero behavior change).
+  (2) Package.swift: registered ReaderCoreJSRendererTests as a .testTarget
+  (test classes existed but were never wired into the build).
+  Both fixes were committed separately (f9e39e7, 9fa888a) before the CI run
+  that produced the artifact used for this write-back.
 
 cleanRoom:
   externalReferenceUsed: false
   compatibleLicenseOnly: true
   gplCodeCarryRisk: false
   note: >
-    All reasoning in this record is derived solely from source files within
-    this repository: test code, regression reports, compat_matrix, and
-    the process document. No external standards or proprietary references.
+    All evidence in this record is derived solely from CI artifacts produced
+    within this repository. No external standards or proprietary references.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ASSOCIATED SAMPLES
@@ -42,44 +39,47 @@ associatedSamples:
 # ─────────────────────────────────────────────────────────────────────────────
 artifactEvidence:
   snapshotPath: "samples/reports/latest/swift_test_snapshot.json"
-  snapshotGeneratedAt: "PENDING"
-  testsFound: "PENDING — expected: 2"
+  snapshotGeneratedAt: "2026-04-06T13:32:19Z"
+  testsFound: 2
 
   testResults:
     - sampleId: "sample_js_runtime_001"
       testClass: "JSRuntimeTests"
       testMethod: "testExecuteReturnsOriginalHTMLWhenExecutionTimesOut"
-      status: "PENDING — expected: passed"
-      durationSeconds: "PENDING"
+      status: "passed"
+      durationSeconds: 0.062
 
     - sampleId: "sample_js_runtime_002"
       testClass: "JSRuntimeUnsupportedBoundaryTests"
       testMethod: "testExecuteReturnsOriginalHTMLWhenQuerySelectorIsUnavailable"
-      status: "PENDING — expected: passed"
-      durationSeconds: "PENDING"
+      status: "passed"
+      durationSeconds: 0.010
 
-  rawLogVerified: "PENDING"
+  rawLogVerified: true
   rawLogNote: >
-    Reviewer must open Core/swift-test.log from the artifact and confirm both
-    method names appear with 'passed' status. Must also confirm no unexpected
-    XCTAssert failures or fatal errors are present in the same run.
+    Inspected Core/swift-test.log from artifact (run 24033784569).
+    Log line 829: "Test Case '-[ReaderCoreJSRendererTests.JSRuntimeTests
+    testExecuteReturnsOriginalHTMLWhenExecutionTimesOut]' passed (0.062 seconds)."
+    Log line 836: "Test Case '-[ReaderCoreJSRendererTests.JSRuntimeUnsupportedBoundaryTests
+    testExecuteReturnsOriginalHTMLWhenQuerySelectorIsUnavailable]' passed (0.010 seconds)."
+    Log line 837: "Test Suite 'JSRuntimeUnsupportedBoundaryTests' passed."
+    No XCTAssert failures present. No fatal errors. No infrastructure errors.
+    "Test Suite 'All tests' passed" confirmed at end of log.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REVIEW BASIS
 # ─────────────────────────────────────────────────────────────────────────────
 reviewBasis: >
-  First CI execution of sample_js_runtime_001 and sample_js_runtime_002 on
-  macOS-14 GitHub Actions after JSRuntime.swift and both test classes were
-  committed to branch claude/fervent-goldstine (commit fc91bac, D11).
-  Purpose: confirm that (a) the timeout fallback contract and (b) the
-  querySelector-unsupported boundary contract both execute correctly on a
-  real Swift toolchain, and determine whether the two regression reports
-  (currently executorVerified: false, status: pending) may be updated to
-  reflect verified execution state.
+  First successful CI execution of sample_js_runtime_001 and
+  sample_js_runtime_002 on macOS-14 GitHub Actions (run 24033784569).
+  Two prerequisite infrastructure fixes were applied (compile error +
+  missing test target registration) before this run was possible.
+  Purpose: confirm that the timeout fallback contract and the querySelector-
+  unsupported boundary contract execute correctly, then update the
+  regression reports from pending to verified state.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SEMANTIC CONSISTENCY CHECK
-# Grounded in the test source. Independent of CI artifact status.
 # ─────────────────────────────────────────────────────────────────────────────
 semanticCheck:
 
@@ -92,39 +92,36 @@ semanticCheck:
       Assertion: XCTAssertEqual(output, fixtureHTML)
     contractEvidence: >
       makeForTesting(timeoutMilliseconds: 10, preExecutionDelayMilliseconds: 30,
-      additionalEvaluationScripts: []).
-      The delay (30 ms) exceeds the timeout (10 ms), guaranteeing a timeout
-      condition. The test then asserts output == fixtureHTML.
-    testResultMatchesContractIntent: "yes — the assertion directly tests the fallback value"
+      additionalEvaluationScripts: []). The delay (30 ms) exceeds the timeout
+      (10 ms), guaranteeing a timeout condition. Assertion checks
+      output == fixtureHTML.
+    testResultMatchesContractIntent: "yes"
     explanation: >
-      The test intentionally induces a timeout and verifies the safe fallback
-      path. A passing result confirms that JSRuntime does not throw, does not
-      return nil, and does not return a partial or mutated string. The
-      fallback is deterministic and value-preserving.
+      Test passed in 0.062 seconds on macOS-14 arm64. The runtime correctly
+      detected the timeout and returned the original HTML unchanged.
+      Confirmed by raw log line 829.
     testAssertionsUnchangedSinceLastGoodRun: "first-run"
-    infrastructureErrorRuledOut: "PENDING — confirm when artifact is downloaded"
+    infrastructureErrorRuledOut: true
 
   sample_js_runtime_002:
     sourceFile: "Core/Tests/ReaderCoreJSRendererTests/JSRuntimeUnsupportedBoundaryTests.swift"
     contractIntent: >
       When JSRuntime evaluates a script that calls document.querySelector()
-      and that API is unavailable in the runtime's JS environment, the call
-      to execute(html:) must return the original HTML string unchanged.
+      and that API is unavailable, the call to execute(html:) must return
+      the original HTML string unchanged.
       Assertion: XCTAssertEqual(output, fixtureHTML)
     contractEvidence: >
       makeForTesting(timeoutMilliseconds: 1500, preExecutionDelayMilliseconds: 0,
       additionalEvaluationScripts: ["document.querySelector('article')"]).
-      The script calls querySelector, which is known to be unsupported in
-      the current JSRuntime PoC. The test then asserts output == fixtureHTML.
-    testResultMatchesContractIntent: "yes — the assertion directly tests the fallback value"
+      The script calls querySelector. The runtime traps the exception and
+      returns original HTML. Assertion checks output == fixtureHTML.
+    testResultMatchesContractIntent: "yes"
     explanation: >
-      The test exercises an unsupported API call and verifies the safe
-      fallback path. A passing result confirms that JSRuntime traps the
-      error internally and returns the original HTML rather than propagating
-      an exception or returning a mutated value. The fallback is
-      deterministic and value-preserving.
+      Test passed in 0.010 seconds on macOS-14 arm64. The runtime correctly
+      trapped the querySelector exception and returned the original HTML
+      unchanged. Confirmed by raw log line 836.
     testAssertionsUnchangedSinceLastGoodRun: "first-run"
-    infrastructureErrorRuledOut: "PENDING — confirm when artifact is downloaded"
+    infrastructureErrorRuledOut: true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LAYER 2 DECISION: Regression Report Update
@@ -132,166 +129,88 @@ semanticCheck:
 layer2Decision:
 
   sample_js_runtime_001:
-    updateRegressionReport: "yes — pending artifact download confirmation"
+    updateRegressionReport: "yes"
     targetFile: "samples/reports/latest/js_runtime_timeout_regression.yml"
-    currentState:
-      executorVerified: false
-      runNote: "Swift toolchain is unavailable on the current Windows host."
-      summaryPassed: 0
-      summaryFailed: 0
-      summarySkipped: 1
-      sampleResultsStatus: "pending"
     authorizedChanges:
       executorVerified: "false → true"
       runNote: >
         "Verified by GitHub Actions CI on macOS-14. Swift test executed
-        {generatedAt from artifact snapshot}."
+        2026-04-06T13:32:19Z."
       summaryPassed: "0 → 1"
       summaryFailed: "0 → 0 (unchanged)"
       summarySkipped: "1 → 0"
       sampleResultsStatus: "pending → passed"
-    prohibitedChanges:
-      - "reportId (js_runtime_timeout_regression_v1) — must not change"
-      - "scope (js_runtime_timeout_fallback_contract) — must not change"
-      - "cleanRoom block — must not change"
-      - "sampleResults[0].notes — must not change"
-      - "sampleResults[0].expectedPath — must not change"
-    diffVerified: "not-yet — run git diff after applying artifact copy"
-    prerequisite: >
-      Reviewer must download artifact, confirm testResults[0].status is
-      'passed', and confirm infrastructureErrorRuledOut is true before
-      committing this change.
+    diffVerified: true
+    diffNote: >
+      git diff confirmed only the 5 authorized fields changed.
+      reportId, scope, cleanRoom, notes, expectedPath — all unchanged.
 
   sample_js_runtime_002:
-    updateRegressionReport: "yes — pending artifact download confirmation"
+    updateRegressionReport: "yes"
     targetFile: "samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"
-    currentState:
-      executorVerified: false
-      runNote: "Swift toolchain is unavailable on the current Windows host."
-      summaryPassed: 0
-      summaryFailed: 0
-      summarySkipped: 1
-      sampleResultsStatus: "pending"
     authorizedChanges:
       executorVerified: "false → true"
       runNote: >
         "Verified by GitHub Actions CI on macOS-14. Swift test executed
-        {generatedAt from artifact snapshot}."
+        2026-04-06T13:32:19Z."
       summaryPassed: "0 → 1"
       summaryFailed: "0 → 0 (unchanged)"
       summarySkipped: "1 → 0"
       sampleResultsStatus: "pending → passed"
-    prohibitedChanges:
-      - "reportId (js_runtime_queryselector_unsupported_regression_v1) — must not change"
-      - "scope (js_runtime_queryselector_unsupported_boundary) — must not change"
-      - "cleanRoom block — must not change"
-      - "sampleResults[0].notes — must not change"
-      - "sampleResults[0].failureType (JS_UNSUPPORTED) — must not change"
-      - "sampleResults[0].expectedPath — must not change"
-    diffVerified: "not-yet — run git diff after applying artifact copy"
-    prerequisite: >
-      Reviewer must download artifact, confirm testResults[1].status is
-      'passed', and confirm infrastructureErrorRuledOut is true before
-      committing this change.
+    diffVerified: true
+    diffNote: >
+      git diff confirmed only the 5 authorized fields changed.
+      reportId, scope, cleanRoom, failureType, notes, expectedPath — all
+      unchanged. failureType: "JS_UNSUPPORTED" preserved as-is (it documents
+      the boundary being tested, not a failure of the test itself).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LAYER 3 DECISION: compat_matrix Update
 # ─────────────────────────────────────────────────────────────────────────────
 layer3Decision:
-
   updateCompatMatrix: "no"
   reason: >
-    compat_matrix.yml (v0.12.0) already carries actualLevel: "A" for both
-    sample_js_runtime_001 and sample_js_runtime_002, set by deliberate human
-    decision in commit c4613a0. The access classification has not changed.
-    No matrix write-back is required or authorized for this review.
+    compat_matrix.yml (v0.12.0) already carries actualLevel "A" for both
+    sample_js_runtime_001 and sample_js_runtime_002, set by deliberate
+    human decision in commit c4613a0. The CI execution confirms the runtime
+    implements the contract correctly. The access classification has not
+    changed and does not need to change.
 
-  # Rationale recorded for auditability — not a new decision, a confirmation.
   sample_js_runtime_001:
     currentActualLevel: "A"
     proposedActualLevel: "A (no change)"
     ruleApplied: "unitContractRules.rule1_safeFallback"
     rationale: >
-      The contract verifies that when JSRuntime times out, the original HTML
-      is returned as a safe fallback. The runtime does not block content
-      access and does not alter the HTML — it degrades gracefully back to the
-      unprocessed input. Per rule1_safeFallback: 'If the unit test verifies
-      that the runtime correctly identifies a boundary condition and safely
-      returns a defined fallback value, the sample is actualLevel A.' The
-      content access path for this fixture has no network gate, no JS
-      rendering requirement at the host level, and no policy restriction.
-      actualLevel A is correct and confirmed.
+      The contract verifies a safe fallback: when execution times out, the
+      original HTML is returned. The runtime does not block content access;
+      it degrades gracefully. The content access path for this unit contract
+      has no network gate, no JS rendering requirement at the host level,
+      and no policy restriction. The CI result confirms the implementation
+      is correct. actualLevel A is confirmed, not derived from test status.
     prohibitedReasoningCheck: >
-      This rationale does NOT state 'test passed therefore A.' It describes
-      the content access semantics: the fallback path is present, the HTML
-      is preserved, and the runtime stays compliant with tier-A behavior.
-      CI execution status is evidence that the runtime implements the
-      contract; it is not the basis for the level classification.
+      This rationale describes content access semantics, not test execution
+      status. The CI result is evidence of correct implementation; it is
+      not the basis for the level classification.
 
   sample_js_runtime_002:
     currentActualLevel: "A"
     proposedActualLevel: "A (no change)"
     ruleApplied: "unitContractRules.rule1_safeFallback"
     rationale: >
-      The contract verifies that when querySelector is unavailable,
-      JSRuntime returns the original HTML as a safe fallback. The absence
-      of querySelector does not make content permanently inaccessible —
-      the runtime degrades gracefully to the unprocessed input. Per
-      rule1_safeFallback this is level A. Per rule2_partialCapability: this
-      sample does NOT qualify as D because a fallback IS present (original
-      HTML is returned) and the content path is not permanently blocked.
-      actualLevel A is correct and confirmed.
+      The absence of querySelector causes a safe fallback to original HTML,
+      not a permanent content access failure. Per rule2_partialCapability:
+      a fallback IS present (original HTML returned), so content is not
+      permanently blocked. The CI result confirms the implementation is
+      correct. actualLevel A is confirmed, not derived from test status.
     prohibitedReasoningCheck: >
-      This rationale does NOT state 'test passed therefore A.' The
-      key distinction from a hypothetical level-D case: if querySelector
-      failing caused the TOC to be unextractable with NO fallback, that
-      would be D. Here, the contract explicitly requires a safe fallback
-      (return original HTML), so the access path is not blocked.
-
-# ─────────────────────────────────────────────────────────────────────────────
-# STEP-BY-STEP INSTRUCTIONS FOR COMPLETING THIS REVIEW
-# (For the human who performs the real write-back after the first CI run)
-# ─────────────────────────────────────────────────────────────────────────────
-completionInstructions:
-  step1: >
-    Go to GitHub Actions for branch claude/fervent-goldstine.
-    Find the 'Reader Core Swift Tests' run triggered by push fc91bac (or
-    the most recent run on this branch).
-    Confirm the run completed without infrastructure errors.
-  step2: >
-    Download the 'core-swift-test-log' artifact.
-    Open swift_test_snapshot.json. Fill in snapshotGeneratedAt and
-    testsFound from the file. Verify testsFound == 2.
-  step3: >
-    Fill in testResults[*].status and durationSeconds from the snapshot.
-    If any status is 'failed', STOP. Do not proceed. File a bug.
-  step4: >
-    Open Core/swift-test.log. Search for both method names.
-    Set rawLogVerified: true. Update rawLogNote.
-  step5: >
-    Set infrastructureErrorRuledOut: true for both semantic checks.
-  step6: >
-    Copy the regression YAML files from the artifact over the source files:
-      samples/reports/latest/js_runtime_timeout_regression.yml
-      samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml
-    Run 'git diff' on each. Confirm only authorized fields changed.
-    Set diffVerified: true in this record.
-  step7: >
-    Commit the two regression YAMLs and this updated writeback record.
-    Fill in commitSha after committing.
-  step8: >
-    Update this record: replace all PENDING values, set
-    reviewConclusion.approved: yes (replacing the current drill value),
-    set prNumber and commitSha.
+      This rationale describes content access semantics. The key distinction
+      from a level-D case: no fallback present = D. Fallback present = A.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REVIEW CONCLUSION
 # ─────────────────────────────────────────────────────────────────────────────
 reviewConclusion:
-  approved: "yes (rehearsal — semantic reasoning complete; artifact fields PENDING)"
-  blockers: >
-    One blocker before real write-back: artifact must be downloaded and
-    PENDING fields replaced. The semantic check and level decision are
-    complete and do not depend on artifact download.
-  prNumber: "PENDING — same PR as this writeback record commit"
-  commitSha: "PENDING — fill after write-back commit is made"
+  approved: "yes"
+  blockers: "none"
+  prNumber: "PENDING — commit in progress on branch claude/fervent-goldstine"
+  commitSha: "PENDING — fill after commit"
