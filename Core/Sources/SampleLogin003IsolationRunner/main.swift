@@ -142,7 +142,9 @@ private func applyDecisionRules(_ records: [StepRecord]) -> DecisionSummary {
     }
 }
 private func formEncodedBody(flow: LoginFlowConfig) -> Data? {
-    func encode(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value }
+    var allowed = CharacterSet.alphanumerics
+    allowed.insert(charactersIn: "-._~")
+    func encode(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value }
     return ["\(flow.usernameField)=\(encode(flow.usernameValue))","\(flow.passwordField)=\(encode(flow.passwordValue))"].joined(separator: "&").data(using: .utf8)
 }
 
@@ -176,14 +178,20 @@ Task {
             configuration.httpCookieAcceptPolicy = .never
             return URLSessionHTTPClient(configuration: configuration, cookieJar: cookieJar)
         }
+        func noRedirectClient(cookieJar: CookieJar? = nil) -> URLSessionHTTPClient {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.httpShouldSetCookies = false
+            configuration.httpCookieAcceptPolicy = .never
+            return URLSessionHTTPClient(configuration: configuration, cookieJar: cookieJar, followRedirects: false)
+        }
         func send(_ request: HTTPRequest, client: URLSessionHTTPClient) async -> HTTPResponse? { try? await client.send(request) }
         func secureRequest(headers: [String: String], useCookieJar: Bool) -> HTTPRequest {
             HTTPRequest(url: builtSearchRequest.url, method: builtSearchRequest.method, headers: headers, body: builtSearchRequest.body, timeout: 20, useCookieJar: useCookieJar)
         }
-        func performLogin(client: URLSessionHTTPClient) async -> HTTPResponse? {
-            _ = await send(HTTPRequest(url: source.loginUrl ?? homeURL, method: "GET", headers: ["Referer": referer], body: nil, timeout: 20, useCookieJar: true), client: client)
-            _ = await send(HTTPRequest(url: loginFlow.actionURL, method: loginFlow.method, headers: ["Content-Type": loginFlow.contentType, "Referer": source.loginUrl ?? referer], body: formEncodedBody(flow: loginFlow), timeout: 20, useCookieJar: true), client: client)
-            return await send(HTTPRequest(url: loginFlow.successURL, method: "GET", headers: ["Referer": source.loginUrl ?? referer], body: nil, timeout: 20, useCookieJar: true), client: client)
+        func performLogin(prefetchClient: URLSessionHTTPClient, submitClient: URLSessionHTTPClient, secureClient: URLSessionHTTPClient) async -> HTTPResponse? {
+            _ = await send(HTTPRequest(url: source.loginUrl ?? homeURL, method: "GET", headers: ["Referer": referer], body: nil, timeout: 20, useCookieJar: true), client: prefetchClient)
+            _ = await send(HTTPRequest(url: loginFlow.actionURL, method: loginFlow.method, headers: ["Content-Type": loginFlow.contentType, "Referer": source.loginUrl ?? referer], body: formEncodedBody(flow: loginFlow), timeout: 20, useCookieJar: true), client: submitClient)
+            return await send(HTTPRequest(url: loginFlow.successURL, method: "GET", headers: ["Referer": source.loginUrl ?? referer], body: nil, timeout: 20, useCookieJar: true), client: secureClient)
         }
 
         var records: [StepRecord] = []
@@ -210,8 +218,8 @@ Task {
         records.append(makeRecord(stepId: "TEST-004", changedVar: "retry", policy: ["user_agent": false, "referer": false, "cookie_jar": false, "retry": true, "redirect_handling": false, "login": false], response: retryResponse, finalURL: builtSearchRequest.url, loginFlow: loginFlow))
         let redirectResponse = await send(secureRequest(headers: [:], useCookieJar: false), client: redirectClient())
         records.append(makeRecord(stepId: "TEST-005", changedVar: "redirect_handling", policy: ["user_agent": false, "referer": false, "cookie_jar": false, "retry": false, "redirect_handling": true, "login": false], response: redirectResponse, finalURL: builtSearchRequest.url, loginFlow: loginFlow))
-        let loginClient = redirectClient(cookieJar: BasicCookieJar())
-        let loginResponse = await performLogin(client: loginClient)
+        let loginJar = BasicCookieJar()
+        let loginResponse = await performLogin(prefetchClient: redirectClient(cookieJar: loginJar), submitClient: noRedirectClient(cookieJar: loginJar), secureClient: redirectClient(cookieJar: loginJar))
         records.append(makeRecord(stepId: "TEST-006", changedVar: "login", policy: ["user_agent": false, "referer": false, "cookie_jar": false, "retry": false, "redirect_handling": false, "login": true], response: loginResponse, finalURL: loginFlow.successURL, loginFlow: loginFlow))
         let jsResponse = await send(secureRequest(headers: [:], useCookieJar: false), client: ephemeralClient())
         records.append(makeRecord(stepId: "TEST-007", changedVar: "js_mark_only", policy: ["user_agent": false, "referer": false, "cookie_jar": false, "retry": false, "redirect_handling": false, "login": false], response: jsResponse, finalURL: builtSearchRequest.url, loginFlow: loginFlow))

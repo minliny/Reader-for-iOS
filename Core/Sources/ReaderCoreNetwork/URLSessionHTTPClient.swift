@@ -3,8 +3,13 @@ import ReaderCoreProtocols
 import ReaderCoreModels
 
 private final class RedirectCaptureDelegate: NSObject, URLSessionTaskDelegate {
+    private let followRedirects: Bool
     private let lock = NSLock()
     private var capturedResponses: [HTTPURLResponse] = []
+
+    init(followRedirects: Bool) {
+        self.followRedirects = followRedirects
+    }
 
     func urlSession(
         _ session: URLSession,
@@ -16,7 +21,7 @@ private final class RedirectCaptureDelegate: NSObject, URLSessionTaskDelegate {
         lock.lock()
         capturedResponses.append(response)
         lock.unlock()
-        completionHandler(request)
+        completionHandler(followRedirects ? request : nil)
     }
 
     var redirectResponses: [HTTPURLResponse] {
@@ -30,17 +35,20 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
     private let session: URLSession
     private let cookieJar: CookieJar?
     private let defaultHeaders: [String: String]
+    private let followRedirects: Bool
 
     public init(
         configuration: URLSessionConfiguration = .default,
         cookieJar: CookieJar? = nil,
-        defaultHeaders: [String: String] = [:]
+        defaultHeaders: [String: String] = [:],
+        followRedirects: Bool = true
     ) {
         configuration.httpShouldSetCookies = false
         configuration.httpCookieAcceptPolicy = .never
         self.session = URLSession(configuration: configuration)
         self.cookieJar = cookieJar
         self.defaultHeaders = defaultHeaders
+        self.followRedirects = followRedirects
     }
 
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
@@ -74,7 +82,7 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
         }
 
         do {
-            let redirectDelegate = RedirectCaptureDelegate()
+            let redirectDelegate = RedirectCaptureDelegate(followRedirects: followRedirects)
             let (data, response) = try await session.data(for: urlRequest, delegate: redirectDelegate)
 
             guard let httpResponse = response as? HTTPURLResponse else {
