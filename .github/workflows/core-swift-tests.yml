@@ -38,6 +38,12 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
+          # clean-room: no external dependencies; uses only Python stdlib.
+          # Purpose: parse XCTest log → write swift_test_snapshot.json (artifact only,
+          # never committed automatically) and update regression report YAMLs in the
+          # CI workspace (execution state only; does NOT write to compat_matrix).
+          # compat_matrix actualLevel is maintained manually via human review of
+          # artifacts; CI never mutates it.
           import re, json, datetime, pathlib, sys
 
           now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -75,7 +81,7 @@ jobs:
                       "durationSeconds": float(m.group("duration")),
                   }
 
-          # Write swift_test_snapshot.json
+          # Write swift_test_snapshot.json (CI artifact; not committed to repo)
           snapshot = {
               "generatedAt": now,
               "logFile": "Core/swift-test.log",
@@ -87,7 +93,10 @@ jobs:
           snap_path.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False) + "\n")
           print(f"Wrote {snap_path} ({len(results)} mapped test(s))")
 
-          # Update regression YAMLs via targeted text substitution
+          # Update regression YAMLs in CI workspace: execution state only.
+          # Fields updated: executorVerified, run.note, summary counts, sampleResults[].status.
+          # These files are uploaded as artifacts; a human decides when to commit them.
+          # compat_matrix is NOT touched here — actualLevel (A/B/C/D) is set by humans.
           REGRESSION_FILES = {
               "sample_js_runtime_001": pathlib.Path("samples/reports/latest/js_runtime_timeout_regression.yml"),
               "sample_js_runtime_002": pathlib.Path("samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"),
@@ -98,9 +107,9 @@ jobs:
                   continue
               text = reg_path.read_text(encoding="utf-8")
               r = results.get(sample_id)
-              status = r["status"] if r else "unknown"
-              passed = 1 if status == "passed" else 0
-              failed = 1 if status == "failed" else 0
+              exec_status = r["status"] if r else "unknown"
+              passed = 1 if exec_status == "passed" else 0
+              failed = 1 if exec_status == "failed" else 0
 
               text = re.sub(r'executorVerified: false', 'executorVerified: true', text)
               text = re.sub(
@@ -111,45 +120,9 @@ jobs:
               text = re.sub(r'\bpassed: 0\b', f'passed: {passed}', text)
               text = re.sub(r'\bfailed: 0\b', f'failed: {failed}', text)
               text = re.sub(r'\bskipped: 1\b', 'skipped: 0', text)
-              text = re.sub(r'status: "pending"', f'status: "{status}"', text)
+              text = re.sub(r'status: "pending"', f'status: "{exec_status}"', text)
               reg_path.write_text(text, encoding="utf-8")
-              print(f"Updated {reg_path} (status={status}, passed={passed}, failed={failed})")
-
-          # Update compat_matrix.yml via targeted text substitution
-          matrix_path = pathlib.Path("samples/matrix/compat_matrix.yml")
-          if not matrix_path.exists():
-              print(f"::warning::{matrix_path} not found")
-              sys.exit(0)
-
-          text = matrix_path.read_text(encoding="utf-8")
-          changed = False
-          for sample_id, r in results.items():
-              new_level = "A" if r["status"] == "passed" else "F"
-              # Match sampleId block and replace its actualLevel: "pending"
-              block_pat = re.compile(
-                  rf'(sampleId: "{re.escape(sample_id)}"(?:(?!sampleId:).)*?)actualLevel: "pending"',
-                  re.DOTALL
-              )
-              new_text = block_pat.sub(
-                  lambda m, lv=new_level: m.group(1) + f'actualLevel: "{lv}"',
-                  text
-              )
-              if new_text != text:
-                  text = new_text
-                  changed = True
-                  print(f"Set {sample_id} actualLevel → {new_level}")
-
-          if changed:
-              def bump_version(m):
-                  parts = m.group(1).split(".")
-                  parts[-1] = str(int(parts[-1]) + 1)
-                  return f'version: "{".".join(parts)}"'
-              text = re.sub(r'version: "(\d+\.\d+\.\d+)"', bump_version, text, count=1)
-              text = re.sub(r'generatedAt: "[^"]*"', f'generatedAt: "{now}"', text, count=1)
-              matrix_path.write_text(text, encoding="utf-8")
-              print(f"Updated {matrix_path}")
-          else:
-              print("compat_matrix: no pending entries matched (already up to date or tests not found)")
+              print(f"Updated {reg_path} in CI workspace (executorVerified=true, status={exec_status})")
           PY
 
       - name: Emit swift test failure excerpt
@@ -188,29 +161,14 @@ jobs:
                   print(f"::error::{safe}")
           PY
 
-      - name: Upload swift test log
+      - name: Upload swift test log and reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: core-swift-test-log
           if-no-files-found: error
-          path: Core/swift-test.log
-
-      - name: Commit CI results
-        if: always()
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add \
-            samples/reports/latest/swift_test_snapshot.json \
-            samples/reports/latest/js_runtime_timeout_regression.yml \
-            samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml \
-            samples/matrix/compat_matrix.yml
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "ci: update swift test snapshot and compat_matrix [skip ci]"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
+          path: |
+            Core/swift-test.log
+            samples/reports/latest/swift_test_snapshot.json
+            samples/reports/latest/js_runtime_timeout_regression.yml
+            samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml
