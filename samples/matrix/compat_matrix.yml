@@ -1,18 +1,18 @@
-version: "0.8.0"
-generatedAt: "2026-04-06T06:09:30Z"
-scope: "sample_login_002_real_isolation_complete"
+version: "0.9.0"
+generatedAt: "2026-04-06T06:20:00Z"
+scope: "sample_login_003_pending_real_isolation"
 summary:
-  totalSamples: 14
+  totalSamples: 15
   levelA: 11
   levelB: 0
   levelC: 0
   levelD: 3
-  pendingIsolation: 0
+  pendingIsolation: 1
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
   p1PassRate: 25.0
-  note: "sample_login_002 real isolation completed on GitHub Actions macOS-14, but the candidate was rejected because baseline anonymous access already reached the secure markers. LOGIN_REQUIRED still has no confirmed real sample."
+  note: "D10 prepared sample_login_003 on the-internet.herokuapp.com as the new primary LOGIN_REQUIRED validation candidate. Awaiting real macOS isolation execution."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -283,6 +283,25 @@ samples:
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml"
     notes: "GitHub Actions macOS-14 run 24021028584 showed baseline anonymous fetch already reached \"You logged into a secure area!\" and \"Logout\". All 8 isolation steps matched the same secure markers. practice.expandtesting.com is tier A for this path, so sample_login_002 does not establish LOGIN_REQUIRED and must be retired as a negative candidate."
+  - sampleId: "sample_login_003"
+    source: "real_site_demo"
+    priority: "p1"
+    category: "login"
+    accessTier: "B3"
+    ruleTypes:
+      - "CSS"
+      - "FORM"
+    requiresLogin: true
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "classified_only"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_login/sample_login_003.yml"
+    expectedPath: "samples/expected/search/sample_login_003.json"
+    notes: "D10 candidate on the-internet.herokuapp.com. Expected baseline redirect/login page and TEST-006-only success using public demo credentials."
   - sampleId: "sample_js_001"
     source: "real_booksource"
     priority: "p1"

@@ -1,0 +1,22 @@
+sampleId: "sample_login_003"
+priority: "p1"
+category: "login"
+phase: "p1_login"
+accessTier: "B3 (expected)"
+capability:
+  - fetch
+  - search
+requiresCookieJar: true
+requiresLogin: true
+requiresJs: false
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "B3"
+  note: "the-internet.herokuapp.com/secure should redirect or fall back to login before auth and only expose secure markers after TEST-006 form login."
+status: "pending_real_login_run"
+sampleRole: "primary_login_required_validation"
+cleanRoom:
+  externalReferenceUsed: true
+  referenceType: "public site behavior + public test docs"
+  gplCodeImported: false

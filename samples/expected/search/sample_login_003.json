@@ -1,0 +1,18 @@
+{
+  "sampleId": "sample_login_003",
+  "flow": "search",
+  "expected": {
+    "success": true,
+    "resultCount": 1,
+    "items": [
+      {
+        "title": "You logged into a secure area!",
+        "detailURL": "https://the-internet.herokuapp.com/secure"
+      }
+    ],
+    "markers": [
+      "You logged into a secure area!",
+      "Logout"
+    ]
+  }
+}

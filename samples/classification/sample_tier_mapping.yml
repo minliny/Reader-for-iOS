@@ -63,6 +63,14 @@ samples:
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml"
 
+  - sampleId: "sample_login_003"
+    phase: "p1_login"
+    site: "https://the-internet.herokuapp.com/secure"
+    tier: "B3 (expected)"
+    tierReason: "Primary D10 candidate. Expected anonymous denial and TEST-006-only success using public demo credentials."
+    smokeStatus: "pending_real_login_run"
+    lastVerified: null
+
 planned:
   - sampleId: "sample_004"
     phase: "p0_non_js"
