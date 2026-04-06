@@ -1,18 +1,18 @@
-version: "0.5.0"
-generatedAt: "2026-04-06T04:12:28Z"
-scope: "sample_cookie_002_isolation_complete"
+version: "0.6.0"
+generatedAt: "2026-04-06T04:20:43Z"
+scope: "sample_login_001_isolation_complete"
 summary:
   totalSamples: 13
   levelA: 10
   levelB: 0
   levelC: 0
-  levelD: 2
-  pendingIsolation: 1
+  levelD: 3
+  pendingIsolation: 0
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
   p1PassRate: 0.0
-  note: "sample_cookie_002 isolation complete (tier B2, level D, undetermined). sample_login_001 pending isolation. sample_js_001 classified only."
+  note: "sample_login_001 isolation complete (tier B3 expected, level D — domain unreachable from CI). All p1 phases now have isolation data."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -242,19 +242,24 @@ samples:
     source: "real_booksource"
     priority: "p1"
     category: "login"
-    accessTier: "B3 (expected)"
+    accessTier: "B3"
     ruleTypes:
       - "CSS"
     requiresLogin: true
     requiresCookieJar: true
     requiresJs: false
     expectedLevel: "A"
-    actualLevel: "pending"
-    failureType: null
-    errorCode: null
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "undetermined_after_isolation"
+    errorCode: "network_error"
     blocking: false
     metadataPath: "samples/metadata/p1_login/sample_login_001.yml"
-    notes: "biquge.com.cn. Expected login-required but no JS gate. Isolation run pending."
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_login_001.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_001.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_001.yml"
+    notes: "biquge.com.cn unreachable from GitHub Actions macOS-14 (all 8 steps: network_error). Domain likely geofenced from US CI or defunct. LOGIN_REQUIRED hypothesis unconfirmable. accessTier B3 held from sample design. Replace with accessible login-required site to confirm tier B3 behavior."
   - sampleId: "sample_js_001"
     source: "real_booksource"
     priority: "p1"

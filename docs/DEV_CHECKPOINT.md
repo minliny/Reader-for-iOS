@@ -32,15 +32,17 @@
 | cp_D6_20260405 | 2026-04-05T20:33:32Z | D | D6 | completed | D7 |
 | cp_F1_20260405 | 2026-04-05T20:33:32Z | F | F1 | completed | D7 |
 | cp_D7_20260406 | 2026-04-06T04:12:28Z | D | D7 | completed | D8 |
+| cp_D8_20260406 | 2026-04-06T04:20:43Z | D | D8 | completed | E3/D9 |
 
-**lastCompletedStep:** D7
-**nextStep:** D8 — SampleLogin001FetchRunner + SampleLogin001IsolationRunner creation and CI execution
+**lastCompletedStep:** D8
+**nextStep:** E3 (taxonomy convergence) or D9 (find accessible B3 replacement site)
 
 ---
 
 ## Current Risks
 - sample_cookie_002 (qidian.com) confirmed level D — HTTP 202 shell, JS rendering required (not Cloudflare)
-- sample_login_001 (biquge.com.cn) domain availability uncertain
+- sample_login_001 (biquge.com.cn) domain unreachable from CI — LOGIN_REQUIRED hypothesis unconfirmed, need replacement site
+- All 3 real p1 samples ended at level D — no B-tier success case confirmed yet
 - JS rendering PoC (C3+) deferred — WKWebView CI headless needs XCTest host bundle
 - CI concurrent push race: mitigated with git pull --rebase
 
