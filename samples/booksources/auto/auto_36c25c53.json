@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "喜马拉雅",
+  "bookSourceType" : 1,
+  "bookSourceUrl" : "http:\/\/search.ximalaya.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:body",
+  "ruleSearch" : "css:$.response.docs",
+  "ruleToc" : "css:data.list",
+  "searchUrl" : "http:\/\/search.ximalaya.com\/speed\/album\/v1\/list?condition=relation&core=album&device=android&fq=categoryId:3&kw={{key}}&page={{page}}&rows=20&spellchecker=true"
+}

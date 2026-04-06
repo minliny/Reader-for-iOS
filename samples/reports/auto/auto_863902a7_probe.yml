@@ -1,0 +1,16 @@
+reportId: "probe_auto_863902a7_1775455773"
+generatedAt: "2026-04-06T06:09:33Z"
+sampleId: "auto_863902a7"
+probeUrl: "http://www.shunong.com/e/search/index.php,{
+  \"method\": \"POST\",
+  \"body\": \"show=title&tempid=1&keyboard=test\"
+}"
+
+result:
+  httpStatus: 403
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 5292
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

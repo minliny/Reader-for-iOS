@@ -1,0 +1,15 @@
+reportId: "probe_auto_7ac8117f_1775455777"
+generatedAt: "2026-04-06T06:09:37Z"
+sampleId: "auto_7ac8117f"
+probeUrl: "http://www.xibiquge.com/modules/article/search.php?searchkey=test&searchtype=articlename&page=1,{
+\"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 139
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

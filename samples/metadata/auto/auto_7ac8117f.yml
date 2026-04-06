@@ -1,0 +1,15 @@
+sampleId: "auto_7ac8117f"
+generatedAt: "2026-04-06T06:09:37Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔趣阁⑨"
+bookSourceUrl: "http://www.xibiquge.com/"
+accessTier: "B"
+extractedSearchSelector: "css:class.grid"
+probeHttpStatus: 404
+probeHtmlLength: 139
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

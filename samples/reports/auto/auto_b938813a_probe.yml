@@ -1,0 +1,13 @@
+reportId: "probe_auto_b938813a_1775455777"
+generatedAt: "2026-04-06T06:09:37Z"
+sampleId: "auto_b938813a"
+probeUrl: "https://miph.aixdzs.com/bsearch?q=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The certificate for this server is invalid. You might be connecting to a server that is pretending to be “miph.aixdzs.com” which could put your confidential information at risk."

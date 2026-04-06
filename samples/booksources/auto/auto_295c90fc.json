@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "QQ浏览器",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/so.html5.qq.com\/",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:$.data.Content[*].Content[*]",
+  "ruleSearch" : "css:$.data.state[?(",
+  "ruleToc" : "css:$.rows",
+  "searchUrl" : "https:\/\/so.html5.qq.com\/ajax\/real\/search_result?tabId=360&q={{key}}"
+}

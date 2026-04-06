@@ -1,0 +1,15 @@
+reportId: "probe_auto_a489eb70_1775455788"
+generatedAt: "2026-04-06T06:09:48Z"
+sampleId: "auto_a489eb70"
+probeUrl: "http://www.cngdwx.com/plus/search.php?kwtype=0&searchtype=&q=test,{
+  \"charset\": \"utf-8\"
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 2829
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

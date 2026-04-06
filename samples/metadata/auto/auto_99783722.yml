@@ -1,0 +1,15 @@
+sampleId: "auto_99783722"
+generatedAt: "2026-04-06T06:09:47Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🌐 笔趣阁网"
+bookSourceUrl: "http://www.kshuwx.com/"
+accessTier: "B"
+extractedSearchSelector: "css:class.grid"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

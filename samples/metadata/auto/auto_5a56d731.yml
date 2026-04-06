@@ -1,0 +1,15 @@
+sampleId: "auto_5a56d731"
+generatedAt: "2026-04-06T06:09:47Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "全本小说网①"
+bookSourceUrl: "http://www.ybdu.com"
+accessTier: "B"
+extractedSearchSelector: "css:\"tag.h2"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

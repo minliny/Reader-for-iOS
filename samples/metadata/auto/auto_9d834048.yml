@@ -1,0 +1,15 @@
+sampleId: "auto_9d834048"
+generatedAt: "2026-04-06T06:09:20Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "腐小书🎃"
+bookSourceUrl: "https://s.fuxs2.cc#🎃"
+accessTier: "C"
+extractedSearchSelector: "css:class.list_article"
+probeHttpStatus: 200
+probeHtmlLength: 3266
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

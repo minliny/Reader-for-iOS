@@ -1,0 +1,15 @@
+sampleId: "auto_203937c3"
+generatedAt: "2026-04-06T06:09:37Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: " 统御文学"
+bookSourceUrl: "https://wufangdao.com/"
+accessTier: "C"
+extractedSearchSelector: "css:id.bookcase_list"
+probeHttpStatus: 403
+probeHtmlLength: 5363
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

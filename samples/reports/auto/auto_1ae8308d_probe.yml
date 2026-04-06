@@ -1,0 +1,17 @@
+reportId: "probe_auto_1ae8308d_1775455774"
+generatedAt: "2026-04-06T06:09:34Z"
+sampleId: "auto_1ae8308d"
+probeUrl: "{{String(java.connect(`https://www.tushumi.org/search.html,{
+  \"body\": \"searchkey=${key}&searchtype=all&Submit=\",
+  \"charset\": \"UTF-8\",
+  \"method\": \"POST\"
+}`).raw().request().url()).replace(/1(?=\\.html)/, `${page}`)}}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Invalid probe URL"

@@ -1,0 +1,18 @@
+reportId: "probe_auto_c9f56472_1775455777"
+generatedAt: "2026-04-06T06:09:37Z"
+sampleId: "auto_c9f56472"
+probeUrl: "/search/,{
+  \"body\": \"keyword=test\",
+  \"charset\": \"utf-8\",
+  \"method\": \"POST\",
+  \"webView\": true
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

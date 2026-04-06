@@ -1,0 +1,15 @@
+sampleId: "auto_503e292e"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "轻小说文库"
+bookSourceUrl: "http://www.8wenku.com"
+accessTier: "B"
+extractedSearchSelector: "css:\"tag.p.0"
+probeHttpStatus: 521
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

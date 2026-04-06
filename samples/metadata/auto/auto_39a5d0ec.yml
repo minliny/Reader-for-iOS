@@ -1,0 +1,15 @@
+sampleId: "auto_39a5d0ec"
+generatedAt: "2026-04-06T06:09:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "💊 起舞中文②"
+bookSourceUrl: "https://www.75zworg.com"
+accessTier: "B"
+extractedSearchSelector: "css:id.sitembox"
+probeHttpStatus: 404
+probeHtmlLength: 138
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

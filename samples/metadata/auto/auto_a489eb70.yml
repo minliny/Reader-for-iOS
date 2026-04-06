@@ -1,0 +1,15 @@
+sampleId: "auto_a489eb70"
+generatedAt: "2026-04-06T06:09:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "古典文学📖"
+bookSourceUrl: "http://www.cngdwx.com"
+accessTier: "B"
+extractedSearchSelector: "css:\"class.title1"
+probeHttpStatus: 200
+probeHtmlLength: 2829
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

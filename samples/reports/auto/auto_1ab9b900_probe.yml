@@ -1,0 +1,13 @@
+reportId: "probe_auto_1ab9b900_1775455777"
+generatedAt: "2026-04-06T06:09:37Z"
+sampleId: "auto_1ab9b900"
+probeUrl: "/module/novel/search.php?pt=wap&type=1&key=test&page=1"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

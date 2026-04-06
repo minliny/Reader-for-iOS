@@ -1,0 +1,15 @@
+sampleId: "auto_506a2753"
+generatedAt: "2026-04-06T06:09:36Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "炫书网站"
+bookSourceUrl: "http://www.ixuanquge.com/"
+accessTier: "B"
+extractedSearchSelector: "css:class.searchTopic"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

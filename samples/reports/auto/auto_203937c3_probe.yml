@@ -1,0 +1,16 @@
+reportId: "probe_auto_203937c3_1775455777"
+generatedAt: "2026-04-06T06:09:37Z"
+sampleId: "auto_203937c3"
+probeUrl: "https://www.31xs.com/search.php,{
+  \"method\": \"POST\",
+  \"body\": \"keyword=test\"
+}"
+
+result:
+  httpStatus: 403
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 5363
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

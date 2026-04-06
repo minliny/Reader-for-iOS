@@ -1,0 +1,15 @@
+sampleId: "auto_11018692"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "骑士文学网19909.cc"
+bookSourceUrl: "http://19909.cc"
+accessTier: "B"
+extractedSearchSelector: "css:class.gengxin"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

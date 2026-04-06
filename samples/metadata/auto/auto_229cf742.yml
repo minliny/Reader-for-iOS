@@ -1,0 +1,15 @@
+sampleId: "auto_229cf742"
+generatedAt: "2026-04-06T06:09:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "如书屋"
+bookSourceUrl: "http://www.rushuwu.net"
+accessTier: "B"
+extractedSearchSelector: "css:\"tag.td.0"
+probeHttpStatus: 200
+probeHtmlLength: 1408
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

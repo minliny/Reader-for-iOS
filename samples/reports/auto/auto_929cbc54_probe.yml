@@ -1,0 +1,17 @@
+reportId: "probe_auto_929cbc54_1775455788"
+generatedAt: "2026-04-06T06:09:48Z"
+sampleId: "auto_929cbc54"
+probeUrl: "/e/search/index.php,{
+  \"body\": \"show=title&classid=0&keyboard=test&Submit22=搜索\",
+  \"charset\": \"GB2312\",
+  \"method\": \"POST\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

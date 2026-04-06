@@ -1,0 +1,15 @@
+sampleId: "auto_d47019fe"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "请看小说网"
+bookSourceUrl: "http://www.qingkan5.com"
+accessTier: "B"
+extractedSearchSelector: "css:tag.tbody"
+probeHttpStatus: 404
+probeHtmlLength: 9
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

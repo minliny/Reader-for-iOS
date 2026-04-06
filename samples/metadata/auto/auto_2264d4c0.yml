@@ -1,0 +1,15 @@
+sampleId: "auto_2264d4c0"
+generatedAt: "2026-04-06T06:09:32Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "吧书荒慌"
+bookSourceUrl: "http://m.shuhuanghuang.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.block"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

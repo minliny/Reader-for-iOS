@@ -1,0 +1,15 @@
+sampleId: "auto_c42f41bf"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔥 吾爱耽美🈲"
+bookSourceUrl: "http://m.52dmshu.com"
+accessTier: "B"
+extractedSearchSelector: "css:li"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

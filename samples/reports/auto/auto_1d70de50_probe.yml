@@ -1,0 +1,13 @@
+reportId: "probe_auto_1d70de50_1775455773"
+generatedAt: "2026-04-06T06:09:33Z"
+sampleId: "auto_1d70de50"
+probeUrl: "https://www.sososhu.com/?q=test&site=wanglisong&Submit=%E6%90%9C%E7%B4%A2"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 1751
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

@@ -1,0 +1,17 @@
+reportId: "probe_auto_c0af4883_1775455759"
+generatedAt: "2026-04-06T06:09:19Z"
+sampleId: "auto_c0af4883"
+probeUrl: "https://www.yqhy.org/s.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"s=test&type=articlename\"
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 10788
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

@@ -1,0 +1,15 @@
+sampleId: "auto_82c696e2"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔞奇怪小说2"
+bookSourceUrl: "https://www.aaqqcc.com"
+accessTier: "B"
+extractedSearchSelector: "css:.grid-item"
+probeHttpStatus: 200
+probeHtmlLength: 1349
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

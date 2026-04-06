@@ -1,0 +1,13 @@
+reportId: "probe_auto_9d834048_1775455760"
+generatedAt: "2026-04-06T06:09:20Z"
+sampleId: "auto_9d834048"
+probeUrl: "https://s.fuxs2.cc/plus/hsearch.php?q=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 3266
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

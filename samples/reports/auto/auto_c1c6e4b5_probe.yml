@@ -1,0 +1,18 @@
+reportId: "probe_auto_c1c6e4b5_1775455787"
+generatedAt: "2026-04-06T06:09:47Z"
+sampleId: "auto_c1c6e4b5"
+probeUrl: "modules/article/search.php,{
+\"charset\": \"utf-8\",
+\"method\": \"POST\",
+\"body\": \"searchtype=all&searchkey=test\",
+\"headers\": \"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.25 Safari/537.36 Core/1.70.3732.400 QQBrowser/10.5.3819.400\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

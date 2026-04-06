@@ -1,0 +1,15 @@
+sampleId: "auto_1d70de50"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "顶点文学🎃"
+bookSourceUrl: "https://www.wanglisong.com"
+accessTier: "B"
+extractedSearchSelector: "css:.item:nth-child(n+1)"
+probeHttpStatus: 200
+probeHtmlLength: 1751
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

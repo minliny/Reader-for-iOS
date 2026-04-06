@@ -1,0 +1,15 @@
+sampleId: "auto_648235bb"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "新御书屋①"
+bookSourceUrl: "https://m.ayushuwu.com/"
+accessTier: "B"
+extractedSearchSelector: "css:id.sitebox"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

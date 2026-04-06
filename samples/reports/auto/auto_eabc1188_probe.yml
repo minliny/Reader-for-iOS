@@ -1,0 +1,13 @@
+reportId: "probe_auto_eabc1188_1775455760"
+generatedAt: "2026-04-06T06:09:20Z"
+sampleId: "auto_eabc1188"
+probeUrl: "/search/?keyword=test&t=0&page=1"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"
