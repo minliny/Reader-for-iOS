@@ -31,15 +31,15 @@
 
 | cp_D6_20260405 | 2026-04-05T20:33:32Z | D | D6 | completed | D7 |
 | cp_F1_20260405 | 2026-04-05T20:33:32Z | F | F1 | completed | D7 |
+| cp_D7_20260406 | 2026-04-06T04:12:28Z | D | D7 | completed | D8 |
 
-**lastCompletedStep:** F1
-**nextStep:** D7 — SampleCookie002FetchRunner + SampleCookie002IsolationRunner creation and CI execution
+**lastCompletedStep:** D7
+**nextStep:** D8 — SampleLogin001FetchRunner + SampleLogin001IsolationRunner creation and CI execution
 
 ---
 
 ## Current Risks
-- sample_004/005 smoke not yet CI-verified (pushed, awaiting run)
-- sample_cookie_002 (qidian.com) may also have JS gate — needs real isolation run to confirm
+- sample_cookie_002 (qidian.com) confirmed level D — HTTP 202 shell, JS rendering required (not Cloudflare)
 - sample_login_001 (biquge.com.cn) domain availability uncertain
 - JS rendering PoC (C3+) deferred — WKWebView CI headless needs XCTest host bundle
 - CI concurrent push race: mitigated with git pull --rebase

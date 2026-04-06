@@ -1,18 +1,18 @@
-version: "0.4.1"
-generatedAt: "2026-04-05T20:33:32Z"
-scope: "sample_004_005_smoke_verified"
+version: "0.5.0"
+generatedAt: "2026-04-06T04:12:28Z"
+scope: "sample_cookie_002_isolation_complete"
 summary:
   totalSamples: 13
   levelA: 10
   levelB: 0
   levelC: 0
-  levelD: 1
-  pendingIsolation: 2
+  levelD: 2
+  pendingIsolation: 1
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
   p1PassRate: 0.0
-  note: "sample_004/005 CI-verified passing. sample_cookie_002/login_001 pending isolation. sample_js_001 classified only."
+  note: "sample_cookie_002 isolation complete (tier B2, level D, undetermined). sample_login_001 pending isolation. sample_js_001 classified only."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -220,19 +220,24 @@ samples:
     source: "real_booksource"
     priority: "p1"
     category: "cookie"
-    accessTier: "B2 (expected)"
+    accessTier: "B2"
     ruleTypes:
       - "CSS"
     requiresLogin: false
     requiresCookieJar: true
     requiresJs: false
     expectedLevel: "A"
-    actualLevel: "pending"
-    failureType: null
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "undetermined_after_isolation"
     errorCode: null
     blocking: false
     metadataPath: "samples/metadata/p1_cookie/sample_cookie_002.yml"
-    notes: "qidian.com. Expected non-JS-gate cookie site. Isolation run pending."
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_cookie_002.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_cookie_002.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_002.yml"
+    notes: "qidian.com returns HTTP 202 with Set-Cookie across all 8 isolation steps. No JS challenge markers detected. No search results returned in any step. Site likely uses client-side JS rendering to populate search results (content absent in URLSession response). No single variable resolved access. Confirmed tier B2 (policy-controlled, no Cloudflare JS gate), actualLevel D (URLSession cannot obtain search results). Root cause: dynamic content rendering requires JS execution."
   - sampleId: "sample_login_001"
     source: "real_booksource"
     priority: "p1"
