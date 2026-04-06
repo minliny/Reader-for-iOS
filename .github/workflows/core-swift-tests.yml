@@ -61,6 +61,9 @@ jobs:
               "NonJSSample004RegressionTests.testSearchParsesThreeItemsFromFixture": "nonjs_sample_004_search",
               "NonJSSample004RegressionTests.testTOCParsesFourChaptersFromFixture": "nonjs_sample_004_toc",
               "NonJSSample004RegressionTests.testContentParsesExpectedTextFromFixture": "nonjs_sample_004_content",
+              "NonJSSample005RegressionTests.testSearchParsesTwoItemsFromFixture": "nonjs_sample_005_search",
+              "NonJSSample005RegressionTests.testTOCParsesThreeChaptersFromFixture": "nonjs_sample_005_toc",
+              "NonJSSample005RegressionTests.testContentParsesExpectedTextFromFixture": "nonjs_sample_005_content",
           }
 
           pattern = re.compile(
@@ -106,6 +109,9 @@ jobs:
               "nonjs_sample_004_search":  pathlib.Path("samples/reports/latest/nonjs_sample_004_search_regression.yml"),
               "nonjs_sample_004_toc":     pathlib.Path("samples/reports/latest/nonjs_sample_004_toc_regression.yml"),
               "nonjs_sample_004_content": pathlib.Path("samples/reports/latest/nonjs_sample_004_content_regression.yml"),
+              "nonjs_sample_005_search":  pathlib.Path("samples/reports/latest/nonjs_sample_005_search_regression.yml"),
+              "nonjs_sample_005_toc":     pathlib.Path("samples/reports/latest/nonjs_sample_005_toc_regression.yml"),
+              "nonjs_sample_005_content": pathlib.Path("samples/reports/latest/nonjs_sample_005_content_regression.yml"),
           }
           for sample_id, reg_path in REGRESSION_FILES.items():
               if not reg_path.exists():
@@ -181,3 +187,6 @@ jobs:
             samples/reports/latest/nonjs_sample_004_search_regression.yml
             samples/reports/latest/nonjs_sample_004_toc_regression.yml
             samples/reports/latest/nonjs_sample_004_content_regression.yml
+            samples/reports/latest/nonjs_sample_005_search_regression.yml
+            samples/reports/latest/nonjs_sample_005_toc_regression.yml
+            samples/reports/latest/nonjs_sample_005_content_regression.yml
