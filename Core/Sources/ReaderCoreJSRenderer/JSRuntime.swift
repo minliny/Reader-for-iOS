@@ -9,14 +9,14 @@ public final class JSRuntime: @unchecked Sendable {
 
     public convenience init(timeoutMilliseconds: Int = 1500) {
         self.init(
-            timeoutMilliseconds: timeoutMilliseconds,
+            configuredTimeoutMilliseconds: timeoutMilliseconds,
             preExecutionDelayMilliseconds: 0,
             additionalEvaluationScripts: []
         )
     }
 
     private init(
-        timeoutMilliseconds: Int = 1500,
+        configuredTimeoutMilliseconds timeoutMilliseconds: Int,
         preExecutionDelayMilliseconds: Int,
         additionalEvaluationScripts: [String]
     ) {
@@ -32,7 +32,7 @@ public final class JSRuntime: @unchecked Sendable {
         additionalEvaluationScripts: [String] = []
     ) -> JSRuntime {
         JSRuntime(
-            timeoutMilliseconds: timeoutMilliseconds,
+            configuredTimeoutMilliseconds: timeoutMilliseconds,
             preExecutionDelayMilliseconds: preExecutionDelayMilliseconds,
             additionalEvaluationScripts: additionalEvaluationScripts
         )

@@ -204,7 +204,7 @@ guard let repoRoot = positional.first else {
     fputs("Usage: AutoSampleExtractorRunner -- <repo_root>\n", stderr)
     exit(1)
 }
-func rp(_ rel: String) -> String {
+@Sendable func rp(_ rel: String) -> String {
     URL(fileURLWithPath: repoRoot).appendingPathComponent(rel).path
 }
 
