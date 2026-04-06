@@ -1,0 +1,15 @@
+sampleId: "auto_31aa30ed"
+generatedAt: "2026-04-06T06:36:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "漫蛙"
+bookSourceUrl: "https://mwcomic9.online"
+accessTier: "B"
+extractedSearchSelector: "css:class.book-list"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

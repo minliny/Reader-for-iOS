@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "跑车小说网",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/www.pc7043.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:p",
+  "ruleSearch" : "css:.bookbox",
+  "ruleToc" : "css:a",
+  "searchUrl" : "http:\/\/www.pc7043.com\/search\/,{\n  \"body\": \"searchkey={{key}}\",\n  \"method\": \"POST\"\n}"
+}

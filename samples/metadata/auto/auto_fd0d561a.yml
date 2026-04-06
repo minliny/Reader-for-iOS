@@ -1,0 +1,15 @@
+sampleId: "auto_fd0d561a"
+generatedAt: "2026-04-06T06:36:19Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "国学書库（优+）"
+bookSourceUrl: "https://book.mywebos.cn"
+accessTier: "B"
+extractedSearchSelector: "css:data[*].dataJson||data"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

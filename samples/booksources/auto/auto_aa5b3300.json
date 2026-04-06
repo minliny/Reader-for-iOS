@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "启皓网™",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/www.qihaoqihao.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:www.qihaoqihao.com】一秒记住，更新快，无弹窗，免费读！",
+  "ruleSearch" : "css:list-top",
+  "ruleToc" : "css:panel-chapterlist.1",
+  "searchUrl" : "https:\/\/www.qihaoqihao.com\/s.php,{\n  \"charset\": \"gbk\",\n  \"method\": \"POST\",\n  \"body\": \"s={{key}}&type=articlename\"\n}"
+}

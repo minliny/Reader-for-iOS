@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "👍 笔趣谷",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/m.biqugu.net",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:\"class.n-chapter",
+  "ruleSearch" : "css:\"tag.span",
+  "ruleToc" : "css:\"text.下一页",
+  "searchUrl" : "http:\/\/m.biqugu.net\/s_{{key}}"
+}

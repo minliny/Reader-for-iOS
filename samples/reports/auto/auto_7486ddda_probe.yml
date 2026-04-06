@@ -1,0 +1,28 @@
+reportId: "probe_auto_7486ddda_1775457421"
+generatedAt: "2026-04-06T06:37:01Z"
+sampleId: "auto_7486ddda"
+probeUrl: "@js: 
+cookie.removeCookie(source.key);
+var searchul = `${source.key}/s?q=${java.encodeURI(key)}`
+var header = {
+	\"accept\": \"application/json\",
+	\"Referer\": String(searchul)
+};
+var hmurl = `${source.key}/user/hm.html?q=${java.encodeURI(key)}`;
+//java.log(JSON.stringify(head));
+var hmkey = java.get(hmurl,header).cookie(\"hm\");
+var hm = hmkey ? \"hm=\" + hmkey : \"\";
+ java.log(hm);
+var result = `${source.key}/user/search.html?q=${key}` + \",\" + JSON.stringify({
+	\"headers\": {\"Cookie\": hm}
+});
+result;"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

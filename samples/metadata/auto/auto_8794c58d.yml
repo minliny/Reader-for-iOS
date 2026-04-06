@@ -1,0 +1,15 @@
+sampleId: "auto_8794c58d"
+generatedAt: "2026-04-06T06:37:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "言情小说🎃"
+bookSourceUrl: "http://m.cpxpsp.com.cn"
+accessTier: "B"
+extractedSearchSelector: "css:id.sitebox"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Invalid probe URL"

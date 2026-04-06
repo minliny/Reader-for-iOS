@@ -1,0 +1,16 @@
+reportId: "probe_auto_ff253abf_1775457377"
+generatedAt: "2026-04-06T06:36:17Z"
+sampleId: "auto_ff253abf"
+probeUrl: "s.php,{
+  \"method\": \"POST\",
+  \"body\": \"type=articlename&s=test\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Invalid probe URL"

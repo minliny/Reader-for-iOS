@@ -1,0 +1,15 @@
+sampleId: "auto_df05242b"
+generatedAt: "2026-04-06T06:36:34Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "新笔趣阁"
+bookSourceUrl: "https://www.biquxs.cc"
+accessTier: "B"
+extractedSearchSelector: "css:class.grid"
+probeHttpStatus: 404
+probeHtmlLength: 787
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

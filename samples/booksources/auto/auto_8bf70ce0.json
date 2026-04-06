@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "书林文学①",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/www.shu111.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:id.htmlContent",
+  "ruleSearch" : "css:tag.article",
+  "ruleToc" : "css:id.list-chapterAll",
+  "searchUrl" : "https:\/\/3g.baidu.com\/from=1013843h\/s?word={{key}} site:www.shu111.com"
+}

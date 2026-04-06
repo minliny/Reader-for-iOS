@@ -1,0 +1,13 @@
+reportId: "probe_auto_9c9a423f_1775457393"
+generatedAt: "2026-04-06T06:36:33Z"
+sampleId: "auto_9c9a423f"
+probeUrl: "http://sou.run/search.html?searchtype=novelname&searchkey=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 16306
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

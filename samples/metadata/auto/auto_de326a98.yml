@@ -1,0 +1,15 @@
+sampleId: "auto_de326a98"
+generatedAt: "2026-04-06T06:36:36Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "夜伴书屋"
+bookSourceUrl: "https://www.ybsww.com"
+accessTier: "B"
+extractedSearchSelector: "css:tr"
+probeHttpStatus: 403
+probeHtmlLength: 4546
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

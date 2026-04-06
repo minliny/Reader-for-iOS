@@ -1,0 +1,15 @@
+sampleId: "auto_cc39c55f"
+generatedAt: "2026-04-06T06:36:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "📔 免费小说网"
+bookSourceUrl: "http://www.freexiaoshuo.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.softpl_bds"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

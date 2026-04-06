@@ -1,0 +1,16 @@
+reportId: "probe_auto_5d8bc1de_1775457409"
+generatedAt: "2026-04-06T06:36:49Z"
+sampleId: "auto_5d8bc1de"
+probeUrl: "https://www.uuks.org/search.php,{
+'method': 'POST',
+'body': 'keyword=test'
+}"
+
+result:
+  httpStatus: 403
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 5236
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

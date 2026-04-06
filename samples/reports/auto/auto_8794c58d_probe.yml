@@ -1,0 +1,26 @@
+reportId: "probe_auto_8794c58d_1775457421"
+generatedAt: "2026-04-06T06:37:01Z"
+sampleId: "auto_8794c58d"
+probeUrl: "<js>
+uri=\"http://m.cpxpsp.com.cn/author/\";
+url=\"https://m.baidu.com/s?from=1012852q&word=\"+key;
+authors=java.ajax(url);
+u=\"\";
+try{
+	author=authors.match(/作者[：:]([^<]+)</)[1];
+	u=uri+author+'/';
+	}catch(e){
+		//java.log(e);
+		u=uri+key+'/';
+	}
+u+','+JSON.stringify({\"charset\": \"gbk\"})
+</js>"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Invalid probe URL"

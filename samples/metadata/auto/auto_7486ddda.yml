@@ -1,0 +1,20 @@
+sampleId: "auto_7486ddda"
+generatedAt: "2026-04-06T06:37:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔趣阁ai"
+bookSourceUrl: "https://m.biquai.cc"
+accessTier: "B"
+extractedSearchSelector: "css:{
+	java.toast('没有结果');
+}
+src;
+</js>
+$.[*]"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

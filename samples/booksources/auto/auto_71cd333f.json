@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "爱推书君",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/pre-api.tuishujun.com\/",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:parseComments(data.data.data);\n<\/js>",
+  "ruleSearch" : "css:data.data",
+  "ruleToc" : "css:'&pageSize=10&sort_field=create_time&sort_value=desc'};\n}\nlist;\n<\/js>",
+  "searchUrl" : "https:\/\/pre-api.tuishujun.com\/api\/searchBook?search_value={{key}}&sort_field=hot_value&page={{page}}&pageSize=50"
+}

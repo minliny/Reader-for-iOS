@@ -1,0 +1,13 @@
+reportId: "probe_auto_4a55e583_1775457391"
+generatedAt: "2026-04-06T06:36:31Z"
+sampleId: "auto_4a55e583"
+probeUrl: "/v2/book/search?app_key=4037465544&sort_type=0&page=1&class=0&key=test&_versions=971&client_type=1&_filter_data=1&channel=2&merchant=17KH5&_access_version=2&cps=0"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

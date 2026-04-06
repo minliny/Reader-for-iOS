@@ -1,0 +1,15 @@
+sampleId: "auto_9c9a423f"
+generatedAt: "2026-04-06T06:36:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "搜读"
+bookSourceUrl: "http://sou.run"
+accessTier: "A"
+extractedSearchSelector: "css:\"class.novelname.0"
+probeHttpStatus: 200
+probeHtmlLength: 16306
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

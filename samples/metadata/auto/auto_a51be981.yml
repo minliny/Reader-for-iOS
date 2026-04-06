@@ -1,0 +1,15 @@
+sampleId: "auto_a51be981"
+generatedAt: "2026-04-06T06:36:19Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "猪猪下载"
+bookSourceUrl: "http://wap.zzs5.info"
+accessTier: "B"
+extractedSearchSelector: "css:class.block"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

@@ -1,0 +1,15 @@
+sampleId: "auto_5a456b6f"
+generatedAt: "2026-04-06T06:36:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "👍 人人阅读"
+bookSourceUrl: "https://m.rrtxt.com"
+accessTier: "B"
+extractedSearchSelector: "css:\".book_title"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: A server with the specified hostname could not be found."

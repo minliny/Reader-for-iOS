@@ -1,0 +1,15 @@
+sampleId: "auto_fba3c01c"
+generatedAt: "2026-04-06T06:37:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "📖 创世中文"
+bookSourceUrl: "http://chuangshi.qq.com/"
+accessTier: "B"
+extractedSearchSelector: "css:id.searchResultList"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

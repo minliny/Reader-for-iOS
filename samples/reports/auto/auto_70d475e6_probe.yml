@@ -1,0 +1,17 @@
+reportId: "probe_auto_70d475e6_1775457390"
+generatedAt: "2026-04-06T06:36:30Z"
+sampleId: "auto_70d475e6"
+probeUrl: "https://m.dalaodu.com/modules/article/search.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"searchkey=test&searchtype=all\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

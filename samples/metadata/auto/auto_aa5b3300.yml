@@ -1,0 +1,15 @@
+sampleId: "auto_aa5b3300"
+generatedAt: "2026-04-06T06:36:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "启皓网™"
+bookSourceUrl: "https://www.qihaoqihao.com"
+accessTier: "A"
+extractedSearchSelector: "css:list-top"
+probeHttpStatus: 200
+probeHtmlLength: 10779
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

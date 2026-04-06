@@ -1,0 +1,13 @@
+reportId: "probe_auto_9e6b1d4b_1775457421"
+generatedAt: "2026-04-06T06:37:01Z"
+sampleId: "auto_9e6b1d4b"
+probeUrl: "https://www.gofeiyanqing.com/search/test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 1113
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

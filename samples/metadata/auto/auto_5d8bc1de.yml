@@ -1,0 +1,15 @@
+sampleId: "auto_5d8bc1de"
+generatedAt: "2026-04-06T06:36:49Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎉 UU看书"
+bookSourceUrl: "https://www.uuks.org"
+accessTier: "C"
+extractedSearchSelector: "css:class.search-list"
+probeHttpStatus: 403
+probeHtmlLength: 5236
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

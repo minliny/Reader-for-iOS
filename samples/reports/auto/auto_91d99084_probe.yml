@@ -1,0 +1,13 @@
+reportId: "probe_auto_91d99084_1775457393"
+generatedAt: "2026-04-06T06:36:33Z"
+sampleId: "auto_91d99084"
+probeUrl: "http://api.xiaoshuoyun.cn/appapi/sc/2.7.0.016/mfxschuawei/commonpage/listtype%253Dv5.getbooksearchresult%2526keyword%253D{{encodeURIComponent(encodeURIComponent(key))}}%2526ranktype%253Dbuy%2526pageindex%253D1%2526pagesize%253D10"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 138
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"
