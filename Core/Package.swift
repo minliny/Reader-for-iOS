@@ -145,6 +145,10 @@ let package = Package(
         .testTarget(
             name: "ReaderCoreCacheTests",
             dependencies: ["ReaderCoreCache", "ReaderCoreModels", "ReaderCoreProtocols"]
+        ),
+        .testTarget(
+            name: "ReaderCoreJSRendererTests",
+            dependencies: ["ReaderCoreJSRenderer"]
         )
     ]
 )
