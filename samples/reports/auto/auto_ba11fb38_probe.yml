@@ -1,0 +1,13 @@
+reportId: "probe_auto_ba11fb38_1775447941"
+generatedAt: "2026-04-06T03:59:01Z"
+sampleId: "auto_ba11fb38"
+probeUrl: "/sou?wd=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

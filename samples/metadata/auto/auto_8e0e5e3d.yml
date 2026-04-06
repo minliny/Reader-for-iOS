@@ -1,0 +1,15 @@
+sampleId: "auto_8e0e5e3d"
+generatedAt: "2026-04-06T03:59:03Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "小原小说"
+bookSourceUrl: "https://m.s1wl.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.book-item"
+probeHttpStatus: 403
+probeHtmlLength: 23636
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

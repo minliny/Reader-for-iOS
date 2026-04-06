@@ -1,0 +1,13 @@
+reportId: "probe_auto_986e80c5_1775447931"
+generatedAt: "2026-04-06T03:58:51Z"
+sampleId: "auto_986e80c5"
+probeUrl: "https://crxs.me/fictions/keyword-test/sort-read/1.html"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 34533
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

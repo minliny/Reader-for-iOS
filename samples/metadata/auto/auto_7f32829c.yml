@@ -1,0 +1,15 @@
+sampleId: "auto_7f32829c"
+generatedAt: "2026-04-06T03:59:04Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🌈爱去小说"
+bookSourceUrl: "https://www.aqxsw555.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.search-card"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

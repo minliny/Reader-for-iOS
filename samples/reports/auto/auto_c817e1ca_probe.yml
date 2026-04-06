@@ -1,0 +1,13 @@
+reportId: "probe_auto_c817e1ca_1775447942"
+generatedAt: "2026-04-06T03:59:02Z"
+sampleId: "auto_c817e1ca"
+probeUrl: "https://m.laimanhua.org/index.php/search?key=test<,/1>"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 4200
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

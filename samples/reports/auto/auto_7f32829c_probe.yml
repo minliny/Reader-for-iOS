@@ -1,0 +1,13 @@
+reportId: "probe_auto_7f32829c_1775447944"
+generatedAt: "2026-04-06T03:59:04Z"
+sampleId: "auto_7f32829c"
+probeUrl: "/search.asp?word=test,{\"charset\":\"gb2312\"}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "来漫画",
+  "bookSourceType" : 2,
+  "bookSourceUrl" : "https:\/\/m.laimanhua.org\/",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:src=\"https:\/\/img1.baipiaoguai.org\/${x}\">`).join('\\n');\n<\/js>",
+  "ruleSearch" : "css:.MTagBookList_tagBookBox",
+  "ruleToc" : "css:.CatalogList_content",
+  "searchUrl" : "https:\/\/m.laimanhua.org\/index.php\/search?key={{key}}<,\/{{page}}>"
+}

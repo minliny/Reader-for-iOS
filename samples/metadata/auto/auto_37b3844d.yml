@@ -1,0 +1,15 @@
+sampleId: "auto_37b3844d"
+generatedAt: "2026-04-06T03:59:04Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "南瓜小说"
+bookSourceUrl: "http://m.nanguawx.com"
+accessTier: "B"
+extractedSearchSelector: "css:li"
+probeHttpStatus: 404
+probeHtmlLength: 1134
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

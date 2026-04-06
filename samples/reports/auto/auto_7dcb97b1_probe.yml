@@ -1,0 +1,13 @@
+reportId: "probe_auto_7dcb97b1_1775447945"
+generatedAt: "2026-04-06T03:59:05Z"
+sampleId: "auto_7dcb97b1"
+probeUrl: "https://www.lcmhx.asia/mcsearch/-------/?wd=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 50577
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

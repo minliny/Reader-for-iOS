@@ -1,0 +1,15 @@
+sampleId: "auto_997f4a49"
+generatedAt: "2026-04-06T03:59:04Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "📖海淘者"
+bookSourceUrl: "http://www.haitaozhe.com"
+accessTier: "A"
+extractedSearchSelector: "css:li.searchresult"
+probeHttpStatus: 200
+probeHtmlLength: 8045
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

@@ -1,0 +1,15 @@
+sampleId: "auto_129c8bdb"
+generatedAt: "2026-04-06T03:59:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "不良小说"
+bookSourceUrl: "https://blxsw1.com"
+accessTier: "B"
+extractedSearchSelector: "css:.searchresult"
+probeHttpStatus: 404
+probeHtmlLength: 139
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

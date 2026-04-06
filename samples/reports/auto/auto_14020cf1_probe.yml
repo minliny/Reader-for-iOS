@@ -1,0 +1,13 @@
+reportId: "probe_auto_14020cf1_1775447942"
+generatedAt: "2026-04-06T03:59:02Z"
+sampleId: "auto_14020cf1"
+probeUrl: "https://www.sudugu.org/i/sor.aspx?key=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 2075
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

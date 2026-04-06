@@ -1,0 +1,15 @@
+sampleId: "auto_7dcb97b1"
+generatedAt: "2026-04-06T03:59:05Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "乐乐"
+bookSourceUrl: "https://www.lcmhx.asia"
+accessTier: "A"
+extractedSearchSelector: "css:a"
+probeHttpStatus: 200
+probeHtmlLength: 50577
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

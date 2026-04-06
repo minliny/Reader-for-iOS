@@ -1,0 +1,13 @@
+reportId: "probe_auto_37b3844d_1775447944"
+generatedAt: "2026-04-06T03:59:04Z"
+sampleId: "auto_37b3844d"
+probeUrl: "http://m.nanguawx.com/search.html?keyword=test"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 1134
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

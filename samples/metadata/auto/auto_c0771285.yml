@@ -1,0 +1,15 @@
+sampleId: "auto_c0771285"
+generatedAt: "2026-04-06T03:59:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "小说之家"
+bookSourceUrl: "http://www.itxtbook.net"
+accessTier: "B"
+extractedSearchSelector: "css:.row"
+probeHttpStatus: 200
+probeHtmlLength: 2509
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

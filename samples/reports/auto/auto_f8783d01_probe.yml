@@ -1,0 +1,13 @@
+reportId: "probe_auto_f8783d01_1775447942"
+generatedAt: "2026-04-06T03:59:02Z"
+sampleId: "auto_f8783d01"
+probeUrl: "https://www.aqxsw888.com/search.asp?word=test,{\"charset\":\"gb2312\"}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 109
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

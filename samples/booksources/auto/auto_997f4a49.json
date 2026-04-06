@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "📖海淘者",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/www.haitaozhe.com",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:#content",
+  "ruleSearch" : "css:li.searchresult",
+  "ruleToc" : "css:a",
+  "searchUrl" : "http:\/\/www.haitaozhe.com\/search\/{{key}}.html"
+}

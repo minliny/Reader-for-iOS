@@ -1,0 +1,13 @@
+reportId: "probe_auto_997f4a49_1775447944"
+generatedAt: "2026-04-06T03:59:04Z"
+sampleId: "auto_997f4a49"
+probeUrl: "http://www.haitaozhe.com/search/test.html"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 8045
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

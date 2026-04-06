@@ -1,0 +1,15 @@
+sampleId: "auto_b5ba77ca"
+generatedAt: "2026-04-06T03:59:03Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "小原"
+bookSourceUrl: "https://m.min-yuan.com"
+accessTier: "B"
+extractedSearchSelector: "css:.book-item"
+probeHttpStatus: 404
+probeHtmlLength: 58296
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"
