@@ -9,18 +9,18 @@ cleanRoom:
   note: "Regression asset derived only from in-repo NonJSParserEngine behavior and sample_004 fixture HTML."
 run:
   mode: "asset_bound_contract"
-  executorVerified: false
-  note: "Swift toolchain is unavailable in the current environment. Pending CI verification."
+  executorVerified: true
+  note: "Verified by GitHub Actions CI on macOS-14. Swift test executed 2026-04-06T14:33:15Z."
 summary:
   totalSamples: 1
-  passed: 0
+  passed: 1
   failed: 0
-  skipped: 1
+  skipped: 0
 sampleResults:
   - regressionSampleId: "nonjs_sample_004_content"
     sampleId: "sample_004"
     flow: "content"
-    status: "pending"
+    status: "passed"
     expectedPath: "samples/expected/content/sample_004.json"
     notes:
       - "CSS selector css:#story applied to sample_004_content.html must return exact content string."
