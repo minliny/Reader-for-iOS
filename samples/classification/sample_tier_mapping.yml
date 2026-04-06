@@ -1,5 +1,5 @@
-version: "1.1.0"
-updatedAt: "2026-04-06T06:09:30Z"
+version: "1.2.0"
+updatedAt: "2026-04-06T06:46:28Z"
 description: "Mapping of all booksource samples to site access tiers"
 
 samples:
@@ -66,10 +66,14 @@ samples:
   - sampleId: "sample_login_003"
     phase: "p1_login"
     site: "https://the-internet.herokuapp.com/secure"
-    tier: "B3 (expected)"
-    tierReason: "Primary D10 candidate. Expected anonymous denial and TEST-006-only success using public demo credentials."
-    smokeStatus: "pending_real_login_run"
-    lastVerified: null
+    tier: "B3"
+    tierReason: "Real macOS isolation run 24021997708 showed baseline anonymous /secure access falling back to login markers, and only TEST-006 form login with public demo credentials reached secure markers."
+    smokeStatus: "real_login_required_verified"
+    lastVerified: "2026-04-06T06:46:28Z"
+    reports:
+      fetch: "samples/reports/latest/fetch_result_sample_login_003.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_003.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml"
 
 planned:
   - sampleId: "sample_004"
@@ -92,12 +96,6 @@ planned:
     phase: "p1_login"
     tier: "B3 (expected)"
     status: "reference_only_do_not_retry"
-
-  - sampleId: "sample_login_003"
-    phase: "p1_login"
-    tier: "B3 (expected)"
-    status: "pending_backup_site_execution"
-    criteria: "Switch to the-internet.herokuapp.com and require anonymous denial plus TEST-006-only success"
 
   - sampleId: "sample_js_001"
     phase: "p1_js"

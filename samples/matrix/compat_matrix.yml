@@ -1,18 +1,18 @@
-version: "0.9.0"
-generatedAt: "2026-04-06T06:20:00Z"
-scope: "sample_login_003_pending_real_isolation"
+version: "0.10.0"
+generatedAt: "2026-04-06T06:46:28Z"
+scope: "sample_login_003_real_isolation_complete"
 summary:
   totalSamples: 15
-  levelA: 11
+  levelA: 12
   levelB: 0
   levelC: 0
-  levelD: 3
-  pendingIsolation: 1
+  levelD: 4
+  pendingIsolation: 0
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
-  p1PassRate: 25.0
-  note: "D10 prepared sample_login_003 on the-internet.herokuapp.com as the new primary LOGIN_REQUIRED validation candidate. Awaiting real macOS isolation execution."
+  p1PassRate: 33.3
+  note: "D10 completed real macOS login isolation for sample_login_003. Baseline anonymous /secure access fell back to login markers, and only TEST-006 real form login reached the secure markers. sample_login_003 is the first real LOGIN_REQUIRED sample."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -295,13 +295,18 @@ samples:
     requiresCookieJar: true
     requiresJs: false
     expectedLevel: "A"
-    actualLevel: "classified_only"
-    failureType: null
+    actualLevel: "A"
+    failureType: "LOGIN_REQUIRED"
+    secondaryReason: "login_state_absent"
     errorCode: null
     blocking: false
     metadataPath: "samples/metadata/p1_login/sample_login_003.yml"
     expectedPath: "samples/expected/search/sample_login_003.json"
-    notes: "D10 candidate on the-internet.herokuapp.com. Expected baseline redirect/login page and TEST-006-only success using public demo credentials."
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_login_003.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_003.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml"
+    notes: "GitHub Actions run 24021997708 produced a real 8-step isolation result. Baseline /secure access stayed on login markers, while TEST-006 form login with public demo credentials reached both secure markers and Logout. This is the first real LOGIN_REQUIRED sample."
   - sampleId: "sample_js_001"
     source: "real_booksource"
     priority: "p1"

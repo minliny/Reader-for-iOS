@@ -34,9 +34,10 @@
 | cp_D7_20260406 | 2026-04-06T04:12:28Z | D | D7 | completed | D8 |
 | cp_D8_20260406 | 2026-04-06T04:20:43Z | D | D8 | completed | E3/D9 |
 | cp_D9_20260406 | 2026-04-06T06:09:30Z | D | D9 | completed | D10 |
+| cp_D10_20260406 | 2026-04-06T06:46:28Z | D | D10 | completed | E3 |
 
-**lastCompletedStep:** D9
-**nextStep:** D10 (switch p1 login validation to the-internet.herokuapp.com and rerun real isolation)
+**lastCompletedStep:** D10
+**nextStep:** E3 (resume failure taxonomy convergence with a real LOGIN_REQUIRED sample)
 
 ---
 
@@ -44,8 +45,7 @@
 - sample_cookie_002 (qidian.com) confirmed level D — HTTP 202 shell, JS rendering required (not Cloudflare)
 - sample_login_001 (biquge.com.cn) domain unreachable from CI — retained as reference only
 - sample_login_002 real CI run proved the site is anonymously reachable — invalid as LOGIN_REQUIRED sample
-- Only the login candidate reached level A, but it was invalidated because the site is anonymous tier A rather than login-gated
-- LOGIN_REQUIRED still has no confirmed real sample; fallback site execution is still required
+- sample_login_003 verified LOGIN_REQUIRED on the-internet.herokuapp.com, but one workflow rerun (`24021997708`) failed only at the report auto-push step because of a rebase conflict on generated report files
 - JS rendering PoC (C3+) deferred — WKWebView CI headless needs XCTest host bundle
 - CI concurrent push race: mitigated with git pull --rebase
 
@@ -94,3 +94,14 @@
   - `samples/reports/latest/fetch_result_sample_login_002.yml`
   - `samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml`
   - `samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml`
+
+## D10 Outcome
+- `sample_login_003` completed real isolation on `the-internet.herokuapp.com` with public demo credentials.
+- Baseline anonymous `/secure` access returned login markers and no secure markers.
+- `TEST-006` real form login reached both `You logged into a secure area!` and `Logout`.
+- Decision summary is `LOGIN_REQUIRED / login_state_absent / actualLevel A / accessTier B3`.
+- Real execution evidence:
+  - GitHub Actions workflow run `24021997708`
+  - `samples/reports/latest/fetch_result_sample_login_003.yml`
+  - `samples/reports/latest/fetch_isolation_step_records_sample_login_003.yml`
+  - `samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml`
