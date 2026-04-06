@@ -1,0 +1,65 @@
+name: Auto Sample Extractor
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/fervent-goldstine
+    paths:
+      - ".github/workflows/auto-sample-extractor.yml"
+      - "Core/Package.swift"
+      - "Core/Sources/AutoSampleExtractorRunner/**"
+      - "tools/checkpoints/auto_checkpoint.yml"
+
+jobs:
+  extract:
+    name: auto sample extraction
+    runs-on: macos-14
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build AutoSampleExtractorRunner
+        working-directory: Core
+        run: swift build --product AutoSampleExtractorRunner
+
+      - name: Run extractor
+        run: swift run --package-path Core AutoSampleExtractorRunner -- "$GITHUB_WORKSPACE"
+
+      - name: Print checkpoint
+        run: |
+          echo "=== auto_checkpoint ===" && cat tools/checkpoints/auto_checkpoint.yml
+
+      - name: Commit generated samples and checkpoint
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tools/checkpoints/auto_checkpoint.yml
+          git add samples/booksources/auto/ || true
+          git add samples/metadata/auto/ || true
+          git add samples/reports/auto/ || true
+          if git diff --cached --quiet; then
+            echo "no new samples"
+          else
+            git commit -m "ci: auto sample extraction run"
+            git pull --rebase origin claude/fervent-goldstine
+            git push
+          fi
+
+      - name: Upload auto samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-samples
+          path: |
+            samples/booksources/auto/
+            samples/metadata/auto/
+            samples/reports/auto/
+            tools/checkpoints/auto_checkpoint.yml
