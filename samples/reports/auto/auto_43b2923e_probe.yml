@@ -1,0 +1,16 @@
+reportId: "probe_auto_43b2923e_1775448762"
+generatedAt: "2026-04-06T04:12:42Z"
+sampleId: "auto_43b2923e"
+probeUrl: "/search/,{
+  \"method\": \"POST\",
+  \"body\": \"searchtype=articlesearch&searchkey=test\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

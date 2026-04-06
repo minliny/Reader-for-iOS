@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "🎉书迷楼⑥①",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/www.mlls.net\/",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:id.content",
+  "ruleSearch" : "css:id.content",
+  "ruleToc" : "css:id.list",
+  "searchUrl" : "http:\/\/www.mlls.net\/Search\/{{key}}"
+}

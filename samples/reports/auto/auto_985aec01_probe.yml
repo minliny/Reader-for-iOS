@@ -1,0 +1,15 @@
+reportId: "probe_auto_985aec01_1775448759"
+generatedAt: "2026-04-06T04:12:39Z"
+sampleId: "auto_985aec01"
+probeUrl: "http://www.87sk.com/modules/article/search.php?searchkey=test&searchtype=articlename&page=1,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The network connection was lost."

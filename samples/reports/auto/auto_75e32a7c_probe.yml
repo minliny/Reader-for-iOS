@@ -1,0 +1,28 @@
+reportId: "probe_auto_75e32a7c_1775448749"
+generatedAt: "2026-04-06T04:12:29Z"
+sampleId: "auto_75e32a7c"
+probeUrl: "@js:
+let url = `https://m.cndfzw.com/user/search.html?q=${key}`
+let html = String(java.ajax(url));
+
+let script = html.matchAll(/>(var.*?;)</g);
+let code = Array.from(script, m => m[1]).join(\"\");
+eval(code)
+
+url = 'https://m.cndfzw.com/api/search,'; 
+let params = {'q':key,'vw':vw,'abw':abw,'ru':ru,'jrt':jrt,'van':van,'fw':fw,'cwl':cwl,'gpr':gpr,'uyoo':uyoo,'tz':tz,'euu':euu,'tsn':tsn,'eju':eju,'um':um,'fp':fp,'dvm':dvm,'jpk':jpk,'deblkx':deblkx,'ht':ht,'azy':azy,'sna':sna,'wqx':wqx,'fpp':fpp,'rup':rup,'jwj':jwj,'bgt':bgt,'qp':qp,'yf':yf,'cw':cw,'wq':wq,'sign':sign};
+let body = Object.entries(params).map(para=>para.join(\"=\")).join(\"&\");
+
+url + JSON.stringify({
+  body,
+  \"method\": \"POST\"
+})"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"
