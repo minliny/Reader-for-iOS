@@ -1,5 +1,5 @@
-reportId: "isolation_login_003_1775457759_steps"
-generatedAt: "2026-04-06T06:42:39Z"
+reportId: "isolation_login_003_1775457972_steps"
+generatedAt: "2026-04-06T06:46:12Z"
 phase: "p1_login"
 sampleId: "sample_login_003"
 
@@ -144,13 +144,13 @@ records:
     finalUrl: "https://the-internet.herokuapp.com/secure"
     responseClass: "success_2xx"
     setCookieObserved: true
-    loginMarkerObserved: true
+    loginMarkerObserved: false
     jsChallengeObserved: false
-    searchResultMarkerObserved: false
-    candidateFailureType: "NETWORK_POLICY_MISMATCH"
-    secondaryReason: "baseline_controlled_fetch_failed"
-    decision: "continue_isolation"
-    notes: "Login markers observed and secure markers absent."
+    searchResultMarkerObserved: true
+    candidateFailureType: "LOGIN_REQUIRED"
+    secondaryReason: "login_state_absent"
+    decision: "match_found:LOGIN_REQUIRED"
+    notes: "Success markers seen: You logged into a secure area!, Logout"
   - stepId: "TEST-007"
     changedVariable: "js_mark_only"
     requestPolicy:
