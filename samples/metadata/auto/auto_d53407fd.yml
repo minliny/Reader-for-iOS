@@ -1,0 +1,15 @@
+sampleId: "auto_d53407fd"
+generatedAt: "2026-04-06T14:16:42Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "求书帮吧"
+bookSourceUrl: "https://www.qiushubang.com/"
+accessTier: "B"
+extractedSearchSelector: "css:class.item"
+probeHttpStatus: 200
+probeHtmlLength: 1751
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

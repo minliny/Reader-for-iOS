@@ -1,0 +1,15 @@
+sampleId: "auto_863902a7"
+generatedAt: "2026-04-06T06:09:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "书农文学"
+bookSourceUrl: "http://www.shunong.com"
+accessTier: "C"
+extractedSearchSelector: "css:class.bk"
+probeHttpStatus: 403
+probeHtmlLength: 5292
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

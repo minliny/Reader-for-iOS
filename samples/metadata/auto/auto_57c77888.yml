@@ -1,0 +1,15 @@
+sampleId: "auto_57c77888"
+generatedAt: "2026-04-06T14:16:29Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🧐牧归小说♨️"
+bookSourceUrl: "http://www.muguixs.com"
+accessTier: "B"
+extractedSearchSelector: "css:dl"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

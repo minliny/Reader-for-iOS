@@ -1,0 +1,13 @@
+reportId: "probe_auto_9d847f47_1775457395"
+generatedAt: "2026-04-06T06:36:35Z"
+sampleId: "auto_9d847f47"
+probeUrl: "http://m.biqugu.net/s_test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 4329
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

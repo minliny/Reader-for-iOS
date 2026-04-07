@@ -1,0 +1,15 @@
+sampleId: "auto_87e40963"
+generatedAt: "2026-04-06T06:09:22Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "COMICO™💰"
+bookSourceUrl: "http://www.comico.com.tw"
+accessTier: "B"
+extractedSearchSelector: "css:\"tag.p.0"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: A server with the specified hostname could not be found."

@@ -1,0 +1,21 @@
+sampleId: "auto_af003d98"
+generatedAt: "2026-04-06T13:33:24Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "📚 神凑文库"
+bookSourceUrl: "http://www.shencou.com/"
+accessTier: "B"
+extractedSearchSelector: "css:x=java.get(\"url\")
+	java.startBrowserAwait(x,\"验证\")
+	result=java.ajax(x)
+}
+result
+</js>
+id.content"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

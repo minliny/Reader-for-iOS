@@ -1,0 +1,15 @@
+sampleId: "auto_8bd98d27"
+generatedAt: "2026-04-06T14:16:44Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔趣阁quge"
+bookSourceUrl: "https://m.quge.cc"
+accessTier: "B"
+extractedSearchSelector: "css:.item"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

@@ -1,0 +1,15 @@
+sampleId: "auto_b5cb8bda"
+generatedAt: "2026-04-06T04:21:06Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "八零电子书"
+bookSourceUrl: "http://www.80txt.com"
+accessTier: "B"
+extractedSearchSelector: "css:result-game-item"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: A server with the specified hostname could not be found."

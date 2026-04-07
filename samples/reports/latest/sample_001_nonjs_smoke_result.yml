@@ -1,0 +1,36 @@
+reportId: "smoke_sample_001_nonjs_1775489884"
+generatedAt: "2026-04-06T15:38:04Z"
+phase: "p0_non_js_core_stable"
+sampleId: "sample_001"
+
+results:
+  search:
+    status: "passed"
+    actualCount: 2
+    expectedCount: 2
+    items:
+      - name: "书剑恩仇录"
+        url: "http://fixture.local/book/1.html"
+      - name: "天龙八部"
+        url: "http://fixture.local/book/2.html"
+  toc:
+    status: "passed"
+    actualCount: 3
+    expectedCount: 3
+    chapters:
+      - title: "第一章 初出茅庐"
+        url: "http://fixture.local/chapter/1.html"
+      - title: "第二章 江湖再见"
+        url: "http://fixture.local/chapter/2.html"
+      - title: "第三章 恩仇了断"
+        url: "http://fixture.local/chapter/3.html"
+  content:
+    status: "passed"
+    contentNonEmpty: true
+    expectedNonEmpty: true
+    contentPreview: "话说天下大势，分久必合，合久必分。此乃亘古不变之理。且听老夫细细道来。"
+
+final:
+  overall: "passed"
+  failureType: null
+  notes: "sample_001 full chain smoke: search -> toc -> content"

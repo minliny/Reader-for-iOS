@@ -1,0 +1,15 @@
+sampleId: "auto_91d99084"
+generatedAt: "2026-04-06T06:36:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "小说云吧"
+bookSourceUrl: "http://api.xiaoshuoyun.cn/"
+accessTier: "B"
+extractedSearchSelector: "css:data.booklist"
+probeHttpStatus: 404
+probeHtmlLength: 138
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

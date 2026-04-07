@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "乐乐",
+  "bookSourceType" : 2,
+  "bookSourceUrl" : "https:\/\/www.lcmhx.asia",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:.general_center",
+  "ruleSearch" : "css:a",
+  "ruleToc" : "css:a",
+  "searchUrl" : "https:\/\/www.lcmhx.asia\/mcsearch\/-------\/?wd={{key}}"
+}

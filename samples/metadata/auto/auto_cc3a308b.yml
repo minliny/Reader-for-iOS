@@ -1,0 +1,15 @@
+sampleId: "auto_cc3a308b"
+generatedAt: "2026-04-06T04:21:02Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "💠 下书网"
+bookSourceUrl: "https://m.dayuzc.com"
+accessTier: "B"
+extractedSearchSelector: "css:div.bookbox"
+probeHttpStatus: 200
+probeHtmlLength: 2883
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

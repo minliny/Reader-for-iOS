@@ -1,0 +1,36 @@
+{
+  "bookSourceName": "The Internet Login Demo",
+  "bookSourceUrl": "https://the-internet.herokuapp.com",
+  "bookSourceGroup": "p1_login_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://the-internet.herokuapp.com/secure",
+  "ruleSearch": "css:.flash",
+  "ruleToc": "css:.example a",
+  "ruleContent": "css:#content,css:.example",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "loginUrl": "https://the-internet.herokuapp.com/login",
+  "header": {
+    "Referer": "https://the-internet.herokuapp.com/login"
+  },
+  "xReaderLoginFlow": {
+    "enabled": true,
+    "method": "POST",
+    "contentType": "application/x-www-form-urlencoded",
+    "actionUrl": "https://the-internet.herokuapp.com/authenticate",
+    "usernameField": "username",
+    "passwordField": "password",
+    "usernameValue": "tomsmith",
+    "passwordValue": "SuperSecretPassword!",
+    "successUrl": "https://the-internet.herokuapp.com/secure",
+    "successMarkers": [
+      "You logged into a secure area!",
+      "Logout"
+    ],
+    "failureMarkers": [
+      "Your username is invalid!",
+      "Your password is invalid!"
+    ]
+  }
+}

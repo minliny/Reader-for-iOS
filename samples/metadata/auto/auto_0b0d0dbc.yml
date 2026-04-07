@@ -1,0 +1,22 @@
+sampleId: "auto_0b0d0dbc"
+generatedAt: "2026-04-06T06:09:19Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "番茄小说123"
+bookSourceUrl: "https://m.fqxs123.com/"
+accessTier: "B"
+extractedSearchSelector: "css:m
+}
+//当前url包含json为发现，直接返回结果
+m=/json/.test(baseUrl)?result:loading();
+//不包含json为搜索，进行搜索加载
+m
+</js>
+$.*"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

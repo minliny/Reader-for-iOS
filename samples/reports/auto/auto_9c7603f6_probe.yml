@@ -1,0 +1,18 @@
+reportId: "probe_auto_9c7603f6_1775455775"
+generatedAt: "2026-04-06T06:09:35Z"
+sampleId: "auto_9c7603f6"
+probeUrl: "{{url=source.getKey();cookie.removeCookie(url)}}
+/search/index.php,{
+  \"body\": \"add%5Bkeyboard%5D=test&add%5Bshow%5D=0&searchnow=%CB%D1%CB%F7&add%5Bsearchtype%5D=1&sear=1\",
+  \"charset\": \"GBK\",
+  \"method\": \"POST\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

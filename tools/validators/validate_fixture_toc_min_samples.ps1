@@ -92,7 +92,8 @@ foreach ($id in $expectedIds) {
   }
 
   $metaSampleId = [string]$meta.sampleId
-  $metaRegressionId = [string]$meta.regressionSampleId
+  # regressionSampleId may live at root (v1) or be absent and equal to sampleId (v2)
+  $metaRegressionId = if ($null -ne $meta.regressionSampleId) { [string]$meta.regressionSampleId } else { $metaSampleId }
   if ($metaSampleId -ne $id) {
     Add-Issue -Issues ([ref]$errors) -Code "SAMPLE_ID_MISMATCH" -Message "metadata sampleId mismatch" -Path $metaAbs -SampleId $id
   }
@@ -100,7 +101,14 @@ foreach ($id in $expectedIds) {
     Add-Issue -Issues ([ref]$errors) -Code "REGRESSION_ID_MISMATCH" -Message "metadata regressionSampleId mismatch" -Path $metaAbs -SampleId $id
   }
 
-  $expectedRelPath = [string]$meta.expected.path
+  # expected path: v1 uses expected.path, v2 uses expectedOutput.toc
+  $expectedRelPath = if ($null -ne $meta.expected -and $null -ne $meta.expected.path) {
+    [string]$meta.expected.path
+  } elseif ($null -ne $meta.expectedOutput -and $null -ne $meta.expectedOutput.toc) {
+    [string]$meta.expectedOutput.toc
+  } else {
+    ""
+  }
   $expectedFromMetaAbs = Resolve-NormalizedPath -Base $repoRootAbs -Path $expectedRelPath
   if ($expectedFromMetaAbs -ne $expectedAbs) {
     Add-Issue -Issues ([ref]$errors) -Code "EXPECTED_PATH_MISMATCH" -Message "metadata expected.path does not match canonical expected file" -Path $metaAbs -SampleId $id
@@ -143,7 +151,9 @@ if (-not (Test-Path -LiteralPath $compatMatrixAbs)) {
       Add-Issue -Issues ([ref]$errors) -Code "MATRIX_SAMPLE_DUPLICATED" -Message "duplicate sampleId in compat_matrix" -Path $compatMatrixAbs -SampleId $id
     }
     $m = $matches[0]
-    if ([string]$m.regressionSampleId -ne $id) {
+    # regressionSampleId may be present (v1) or absent and equal to sampleId (v2)
+    $matrixRegId = if ($null -ne $m.regressionSampleId) { [string]$m.regressionSampleId } else { [string]$m.sampleId }
+    if ($matrixRegId -ne $id) {
       Add-Issue -Issues ([ref]$errors) -Code "MATRIX_REGRESSION_ID_MISMATCH" -Message "matrix regressionSampleId mismatch" -Path $compatMatrixAbs -SampleId $id
     }
   }

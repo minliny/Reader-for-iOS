@@ -1,0 +1,40 @@
+reportId: "smoke_sample_004_nonjs_1775489886"
+generatedAt: "2026-04-06T15:38:06Z"
+phase: "p0_non_js_core_stable"
+sampleId: "sample_004"
+
+results:
+  search:
+    status: "passed"
+    actualCount: 3
+    expectedCount: 3
+    items:
+      - name: "三体"
+        url: "http://fixture4.local/book/1.html"
+      - name: "斗破苍穹"
+        url: "http://fixture4.local/book/2.html"
+      - name: "完美世界"
+        url: "http://fixture4.local/book/3.html"
+  toc:
+    status: "passed"
+    actualCount: 4
+    expectedCount: 4
+    chapters:
+      - title: "第一章 科学边界"
+        url: "http://fixture4.local/ch/1.html"
+      - title: "第二章 黑暗森林"
+        url: "http://fixture4.local/ch/2.html"
+      - title: "第三章 死亡终章"
+        url: "http://fixture4.local/ch/3.html"
+      - title: "第四章 星际远征"
+        url: "http://fixture4.local/ch/4.html"
+  content:
+    status: "passed"
+    contentNonEmpty: true
+    expectedNonEmpty: true
+    contentPreview: "宇宙中有无数文明，地球只是其中微不足道的一粒尘埃。叶文洁仰望星空，心中充满了对宇宙真相的渴望与恐惧。"
+
+final:
+  overall: "passed"
+  failureType: null
+  notes: "sample_004 full chain smoke: search -> toc -> content (class+id selectors)"

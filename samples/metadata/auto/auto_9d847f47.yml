@@ -1,0 +1,15 @@
+sampleId: "auto_9d847f47"
+generatedAt: "2026-04-06T06:36:35Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "👍 笔趣谷"
+bookSourceUrl: "http://m.biqugu.net"
+accessTier: "A"
+extractedSearchSelector: "css:\"tag.span"
+probeHttpStatus: 200
+probeHtmlLength: 4329
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

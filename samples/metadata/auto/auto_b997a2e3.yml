@@ -1,0 +1,15 @@
+sampleId: "auto_b997a2e3"
+generatedAt: "2026-04-06T14:16:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "白中文网（发现）"
+bookSourceUrl: "https://m.25zhongwen.com/"
+accessTier: "B"
+extractedSearchSelector: "css:ul"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

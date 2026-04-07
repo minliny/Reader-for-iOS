@@ -1,0 +1,64 @@
+decisionId: "js_gate_cloudflare_classification"
+createdAt: "2026-04-05T20:11:13Z"
+decidedBy: "ai_agent_isolation_execution"
+status: "final"
+sourceEvidence:
+  runId: "24009514545"
+  sampleId: "sample_cookie_001"
+  site: "https://www.wenku8.net"
+  executedAt: "2026-04-05T20:11:13Z"
+
+conclusion:
+  classification: "js_gate_required"
+  tier: "C"
+  primaryFailureType: "NETWORK_POLICY_MISMATCH"
+  secondaryReason: "js_challenge_observed"
+  level: "D"
+
+evidence:
+  baselineFetch:
+    httpStatus: 403
+    loginMarkerObserved: true
+    jsChallengeObserved: true
+    setCookieObserved: false
+    searchResultMarkerObserved: false
+  isolationSteps:
+    totalSteps: 8
+    stepsWithJsChallenge: 8
+    winningStep: null
+    stepsAttempted:
+      - BASELINE-000
+      - TEST-001  # +user_agent: no change
+      - TEST-002  # +referer: no change
+      - TEST-003  # +cookie_jar: no change
+      - TEST-004  # +retry: no change
+      - TEST-005  # +redirect_handling: no change
+      - TEST-006  # +login: no change
+      - TEST-007  # js_mark observation: confirmed js_challenge_observed
+
+technicalAnalysis:
+  gateType: "Cloudflare Browser Integrity Check"
+  mechanism: "403 + JS challenge page served before any content"
+  bypassAttempts: "headers, cookies, login prefetch — all ineffective"
+  rootCause: "Site requires browser-level JS execution to obtain session token"
+  clientCapability: "URLSession / ReaderCoreNetwork — cannot execute JS"
+  resolution: "Requires JS-capable rendering layer (WKWebView or equivalent)"
+
+doNotRetry:
+  - description: "Adding/modifying HTTP headers"
+  - description: "Cookie jar pre-fetch strategies"
+  - description: "Retry logic"
+  - description: "Redirect following"
+  - description: "Login URL pre-fetch without JS execution"
+  reason: "None of the above can satisfy a Cloudflare JS gate. All 8 isolation steps confirmed."
+
+actionable:
+  moveToTier: "C"
+  removeFrom: "p1_cookie active testing queue"
+  addTo: "js_gate_required backlog — awaiting JS rendering PoC"
+  compat_matrix_entry:
+    sampleId: "sample_cookie_001"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "js_challenge_observed"
+    blocked_until: "ReaderCoreJSRenderer PoC complete"

@@ -1,0 +1,28 @@
+reportId: "nonjs_sample_004_toc_regression_v1"
+generatedAt: "2026-04-06T14:30:00Z"
+phase: "p0_non_js"
+scope: "nonjs_sample_004_toc_css_contract"
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: "Regression asset derived only from in-repo NonJSParserEngine behavior and sample_004 fixture HTML."
+run:
+  mode: "asset_bound_contract"
+  executorVerified: true
+  note: "Verified by GitHub Actions CI on macOS-14. Swift test executed 2026-04-06T14:33:15Z."
+summary:
+  totalSamples: 1
+  passed: 1
+  failed: 0
+  skipped: 0
+sampleResults:
+  - regressionSampleId: "nonjs_sample_004_toc"
+    sampleId: "sample_004"
+    flow: "toc"
+    status: "passed"
+    expectedPath: "samples/expected/toc/sample_004.json"
+    notes:
+      - "CSS selector css:.ep applied to sample_004_toc.html must return 4 chapters."
+      - "Chapter titles and URLs must match samples/expected/toc/sample_004.json exactly."
+      - "BookSource: samples/booksources/p0_non_js/sample_004.json (ruleToc: css:.ep)."

@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "搜读",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/sou.run",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:\"id.chaptercontent",
+  "ruleSearch" : "css:\"class.novelname.0",
+  "ruleToc" : "css:\"tag.a",
+  "searchUrl" : "http:\/\/sou.run\/search.html?searchtype=novelname&searchkey={{key}}"
+}

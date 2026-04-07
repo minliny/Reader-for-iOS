@@ -1,0 +1,15 @@
+sampleId: "auto_295c90fc"
+generatedAt: "2026-04-06T06:09:34Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "QQ浏览器"
+bookSourceUrl: "https://so.html5.qq.com/"
+accessTier: "A"
+extractedSearchSelector: "css:$.data.state[?("
+probeHttpStatus: 200
+probeHtmlLength: 6293
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

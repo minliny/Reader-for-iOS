@@ -1,0 +1,15 @@
+sampleId: "auto_6c4e06e5"
+generatedAt: "2026-04-06T06:36:49Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔞 青青书屋"
+bookSourceUrl: "https://www.qqbook.co"
+accessTier: "B"
+extractedSearchSelector: "css:class.list"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

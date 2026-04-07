@@ -1,0 +1,13 @@
+reportId: "probe_auto_6c5a66b4_1775485060"
+generatedAt: "2026-04-06T14:17:40Z"
+sampleId: "auto_6c5a66b4"
+probeUrl: "https://m.151txt.com/search/?submit=&searchkey=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

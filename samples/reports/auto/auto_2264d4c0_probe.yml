@@ -1,0 +1,13 @@
+reportId: "probe_auto_2264d4c0_1775455772"
+generatedAt: "2026-04-06T06:09:32Z"
+sampleId: "auto_2264d4c0"
+probeUrl: "http://m.shuhuanghuang.com/search/?keywords=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

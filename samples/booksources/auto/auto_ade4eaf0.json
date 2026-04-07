@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "读书网吧（极）",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/www.dushu.com\/",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:class.content_txt",
+  "ruleSearch" : "css:class.searchlist",
+  "ruleToc" : "css:class.booklist-table",
+  "searchUrl" : "https:\/\/www.dushu.com\/search.aspx?wd={{key}}&f=0&r=3&t=0&p={{page}}"
+}

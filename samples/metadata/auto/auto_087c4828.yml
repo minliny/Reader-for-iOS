@@ -1,0 +1,15 @@
+sampleId: "auto_087c4828"
+generatedAt: "2026-04-06T06:36:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "一七小说"
+bookSourceUrl: "https://www.1qxs.com"
+accessTier: "B"
+extractedSearchSelector: "css:li"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

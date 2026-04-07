@@ -1,0 +1,15 @@
+reportId: "probe_auto_c0ac8216_1775485060"
+generatedAt: "2026-04-06T14:17:40Z"
+sampleId: "auto_c0ac8216"
+probeUrl: "http://www.16sy.com/modules/article/search.php?searchkey=test,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: 404
+  contentType: "text/plain; charset=utf-8"
+  htmlLength: 9
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

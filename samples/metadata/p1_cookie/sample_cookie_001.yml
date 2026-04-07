@@ -1,0 +1,13 @@
+sampleId: "sample_cookie_001"
+priority: "p1"
+category: "cookie"
+phase: "p1_cookie"
+capability:
+  - fetch
+  - search
+requiresCookieJar: true
+requiresLogin: false
+requiresJs: false
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true

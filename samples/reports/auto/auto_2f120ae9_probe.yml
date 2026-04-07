@@ -1,0 +1,13 @@
+reportId: "probe_auto_2f120ae9_1775485025"
+generatedAt: "2026-04-06T14:17:05Z"
+sampleId: "auto_2f120ae9"
+probeUrl: "https://www.mht99.com/cases.php?m=search,{\"charset\":\"UTF-8\",\"method\":\"post\",\"body\":\"key=test\",\"headers\":{\"User-Agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\",\"Referer\":\"https://www.mht99.com/\"},\"webView\":true}"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 139
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

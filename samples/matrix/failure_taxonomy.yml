@@ -1,5 +1,5 @@
-version: "0.1.0"
-updatedAt: "2026-03-30T00:00:00Z"
+version: "0.2.0"
+updatedAt: "2026-04-05T20:11:13Z"
 classificationConstraints:
   level1Policy:
     - "一级 failureType 只能使用 failureTypes 列表中的既有值。"
@@ -53,6 +53,9 @@ examples:
     - missing_referer
     - invalid_user_agent
     - redirect_not_handled
+    - js_challenge_observed
+    - cloudflare_bot_check
+    - baseline_controlled_fetch_failed
   COOKIE_REQUIRED:
     - missing_required_cookie
     - cookie_expired

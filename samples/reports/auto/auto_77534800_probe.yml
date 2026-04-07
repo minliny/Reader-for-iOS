@@ -1,0 +1,17 @@
+reportId: "probe_auto_77534800_1775449245"
+generatedAt: "2026-04-06T04:20:45Z"
+sampleId: "auto_77534800"
+probeUrl: "https://m.agxsw.com/s.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"type=articlename&s=test\"
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 44248
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

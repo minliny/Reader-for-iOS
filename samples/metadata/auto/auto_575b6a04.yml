@@ -1,0 +1,15 @@
+sampleId: "auto_575b6a04"
+generatedAt: "2026-04-06T14:17:40Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎋免费小说网🎋"
+bookSourceUrl: "https://www.mnv6.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.pr!0"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

@@ -1,0 +1,60 @@
+version: "1.0.0"
+generatedAt: "2026-04-06T07:03:48Z"
+cleanRoomStatus:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: "Derived only from repository samples, reports, and documented input/output behavior."
+accessTier:
+  A:
+    meaning: "non_js_accessible"
+    currentCapability: "ReaderCoreNetwork + NonJS parser path is stable and reusable without JS, login, or special cookie policy."
+    nextAction: "keep_on_direct_non_js_pipeline_and_limit_work_to_regression"
+    pipeline: "direct_non_js_pipeline"
+    retryPolicy: "regression_only"
+    realEvidenceSamples:
+      - "sample_001"
+      - "sample_002"
+      - "sample_003"
+      - "sample_004"
+      - "sample_005"
+    automationPool: "stable_direct_pipeline"
+
+  B1:
+    meaning: "header_or_referer_sensitive_but_non_js_accessible"
+    currentCapability: "No real sample has verified this tier yet in the current evidence set."
+    nextAction: "keep_pending_until_real_header_gated_sample_exists"
+    pipeline: "collect_more_real_samples"
+    retryPolicy: "no_automation_without_real_evidence"
+    realEvidenceSamples: []
+    automationPool: "pending_real_evidence_pool"
+
+  B2:
+    meaning: "policy_blocked_or_shell_rendered_non_js_impossible_by_current_fetch_without_js_challenge"
+    currentCapability: "Current non-JS URLSession fetch cannot extract usable content; repeated isolation with the same strategy is not productive."
+    nextAction: "mark_as_shell_or_policy_case_and_wait_for_js_capable_or_higher_layer_rendering_poc"
+    pipeline: "shell_render_policy_blocked_pipeline"
+    retryPolicy: "do_not_retry_same_strategy"
+    realEvidenceSamples:
+      - "sample_cookie_002"
+    automationPool: "shell_render_backlog"
+
+  B3:
+    meaning: "login_gated_or_auth_gated"
+    currentCapability: "Login-required behavior is now proven and reusable through form-login isolation."
+    nextAction: "reuse_verified_login_template_before_searching_for_new_login_flow_variants"
+    pipeline: "login_pipeline_reusable"
+    retryPolicy: "reuse_template_first"
+    realEvidenceSamples:
+      - "sample_login_003"
+    automationPool: "login_template_reuse_pool"
+
+  C:
+    meaning: "js_gate_required_browser_challenge"
+    currentCapability: "ReaderCoreNetwork under URLSession cannot pass the observed JS/browser challenge."
+    nextAction: "stop_urlsession_retries_and_defer_to_js_renderer_poc"
+    pipeline: "defer_to_js_renderer_poc"
+    retryPolicy: "do_not_retry_under_urlsession"
+    realEvidenceSamples:
+      - "sample_cookie_001"
+    automationPool: "js_renderer_poc_input_pool"

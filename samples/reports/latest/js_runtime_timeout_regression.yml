@@ -1,0 +1,27 @@
+reportId: "js_runtime_timeout_regression_v1"
+generatedAt: "2026-04-06T07:20:00Z"
+phase: "p1_js"
+scope: "js_runtime_timeout_fallback_contract"
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: "Regression asset derived only from in-repo JSRuntime behavior and synthetic fixture HTML."
+run:
+  mode: "asset_bound_contract"
+  executorVerified: true
+  note: "Verified by GitHub Actions CI on macOS-14. Swift test executed 2026-04-06T13:32:19Z."
+summary:
+  totalSamples: 1
+  passed: 1
+  failed: 0
+  skipped: 0
+sampleResults:
+  - regressionSampleId: "sample_js_runtime_001"
+    sampleId: "sample_js_runtime_001"
+    status: "passed"
+    expectedPath: "samples/expected/content/sample_js_runtime_001.json"
+    notes:
+      - "Timeout downgrade must return the original HTML."
+      - "No DOM expansion is covered by this contract."
+      - "Network access remains disabled for JSRuntime."

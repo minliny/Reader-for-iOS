@@ -1,0 +1,17 @@
+{
+  "bookSourceName": "笔趣阁(登录版)",
+  "bookSourceUrl": "https://www.biquge.com.cn",
+  "bookSourceGroup": "p1_login_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://www.biquge.com.cn/search/?keyword={{key}}",
+  "ruleSearch": "css:#main .result-list .res-book-item h4 a",
+  "ruleToc": "css:#list dl dd a",
+  "ruleContent": "css:#content",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "loginUrl": "https://www.biquge.com.cn/user/login/",
+  "header": {
+    "Referer": "https://www.biquge.com.cn/"
+  }
+}

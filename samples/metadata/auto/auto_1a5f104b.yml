@@ -1,0 +1,15 @@
+sampleId: "auto_1a5f104b"
+generatedAt: "2026-04-06T06:09:34Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "    追梦"
+bookSourceUrl: "https://danmei.in"
+accessTier: "B"
+extractedSearchSelector: "css:\"class.article-title.0"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

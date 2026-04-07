@@ -1,0 +1,15 @@
+reportId: "probe_auto_7d73bc6d_1775455774"
+generatedAt: "2026-04-06T06:09:34Z"
+sampleId: "auto_7d73bc6d"
+probeUrl: "https://sou.xanbhx.com/search?siteid=23uscc&t=m&q=test&page=1,{
+  \"charset\": \"utf-8\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

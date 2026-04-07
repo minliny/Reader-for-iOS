@@ -1,0 +1,18 @@
+reportId: "probe_auto_afd81217_1775455777"
+generatedAt: "2026-04-06T06:09:37Z"
+sampleId: "auto_afd81217"
+probeUrl: "{{url=source.getKey();
+cookie.removeCookie(url)}}/search/,{
+  \"body\": \"searchkey=test\",
+  \"charset\": \"UTF-8\",
+  \"method\": \"POST\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

@@ -1,0 +1,15 @@
+sampleId: "auto_3008fef8"
+generatedAt: "2026-04-06T04:21:08Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "webtoon📱💡"
+bookSourceUrl: "https://us-m.webtoons.com"
+accessTier: "B"
+extractedSearchSelector: "css:li"
+probeHttpStatus: 400
+probeHtmlLength: 431
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

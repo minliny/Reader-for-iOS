@@ -1,0 +1,15 @@
+sampleId: "auto_7b1b6f0f"
+generatedAt: "2026-04-06T14:17:05Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "5200小说"
+bookSourceUrl: "https://www.5200.tv"
+accessTier: "B"
+extractedSearchSelector: "css:bd"
+probeHttpStatus: 404
+probeHtmlLength: 9
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

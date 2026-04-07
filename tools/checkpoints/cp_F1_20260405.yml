@@ -1,0 +1,96 @@
+checkpointId: "cp_F1_20260405"
+timestamp: "2026-04-05T20:33:32Z"
+currentPhase: "F"
+currentStep: "F1"
+completedSteps:
+  - A1
+  - A2
+  - A3
+  - E1
+  - E2
+  - B1
+  - B2
+  - B3
+  - C1
+  - C2
+  - D1
+  - D2
+  - D3
+  - D4
+  - D5
+  - D6
+  - F1
+
+modifiedFiles:
+  - docs/decisions/js_gate_cloudflare_classification.yml
+  - docs/AI_HANDOFF/DECISIONS.md
+  - docs/AI_HANDOFF/PROJECT_STATUS.md
+  - docs/DEV_CHECKPOINT.md
+  - docs/design/js_rendering_poc_plan.md
+  - samples/classification/site_access_tiers.yml
+  - samples/classification/sample_tier_mapping.yml
+  - samples/matrix/failure_taxonomy.yml
+  - samples/matrix/compat_matrix.yml
+  - samples/booksources/p0_non_js/sample_004.json
+  - samples/booksources/p0_non_js/sample_005.json
+  - samples/booksources/p1_cookie/sample_cookie_002.json
+  - samples/booksources/p1_login/sample_login_001.json
+  - samples/booksources/p1_js/sample_js_001.json
+  - samples/fixtures/html/sample_004_search.html
+  - samples/fixtures/html/sample_004_toc.html
+  - samples/fixtures/html/sample_004_content.html
+  - samples/fixtures/html/sample_005_search.html
+  - samples/fixtures/html/sample_005_toc.html
+  - samples/fixtures/html/sample_005_content.html
+  - samples/expected/search/sample_004.json
+  - samples/expected/toc/sample_004.json
+  - samples/expected/content/sample_004.json
+  - samples/expected/search/sample_005.json
+  - samples/expected/toc/sample_005.json
+  - samples/expected/content/sample_005.json
+  - samples/metadata/p0_non_js/sample_004.yml
+  - samples/metadata/p0_non_js/sample_005.yml
+  - samples/metadata/p1_cookie/sample_cookie_002.yml
+  - samples/metadata/p1_login/sample_login_001.yml
+  - samples/metadata/p1_js/sample_js_001.yml
+  - Core/Package.swift
+  - Core/Sources/Sample004NonJSSmokeRunner/run_sample_004_nonjs_smoke.swift
+  - Core/Sources/Sample005NonJSSmokeRunner/run_sample_005_nonjs_smoke.swift
+  - Core/Sources/ReaderCoreJSRenderer/JSRenderClient.swift
+  - Core/Sources/ReaderCoreJSRenderer/UnavailableRenderClient.swift
+  - .github/workflows/sample001-nonjs-smoke.yml
+  - tools/checkpoints/checkpoint_schema.yml
+
+generatedArtifacts:
+  - samples/reports/latest/sample_004_nonjs_smoke_result.yml
+  - samples/reports/latest/sample_005_nonjs_smoke_result.yml
+
+commandsRun:
+  - "swift build --product Sample004NonJSSmokeRunner"
+  - "swift build --product Sample005NonJSSmokeRunner"
+  - "swift run --package-path Core Sample004NonJSSmokeRunner -- $GITHUB_WORKSPACE"
+  - "swift run --package-path Core Sample005NonJSSmokeRunner -- $GITHUB_WORKSPACE"
+  - "git push origin HEAD (CI run 24009902218)"
+
+ciRuns:
+  - runId: "24009902218"
+    workflow: "NonJS Smoke Suite"
+    result: "success"
+    samples: [sample_001, sample_002, sample_003, sample_004, sample_005]
+    allPassed: true
+
+currentRisks:
+  - "sample_cookie_002 (qidian.com) may be tier C — needs real isolation to confirm"
+  - "sample_login_001 (biquge.com.cn) domain availability uncertain"
+  - "ReaderCoreJSRenderer PoC (C3+) still deferred — WKWebView needs CI headless workaround"
+
+nextStep: "D7 — Create SampleCookie002FetchRunner + SampleCookie002IsolationRunner, run via CI"
+
+rollbackHint: >
+  All changes are in commit range HEAD~2..HEAD on claude/fervent-goldstine.
+  If sample_004/005 fixture changes cause regressions, revert
+  Core/Sources/Sample004NonJSSmokeRunner/ and Core/Sources/Sample005NonJSSmokeRunner/
+  and their Package.swift entries.
+  sample_cookie_001 reports are stable and independently committed.
+
+blockers: []

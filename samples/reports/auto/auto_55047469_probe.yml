@@ -1,0 +1,13 @@
+reportId: "probe_auto_55047469_1775449265"
+generatedAt: "2026-04-06T04:21:05Z"
+sampleId: "auto_55047469"
+probeUrl: "https://www.iqiyi.com/manhua/search-keyword=test_1"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 1690
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

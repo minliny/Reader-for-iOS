@@ -1,0 +1,15 @@
+sampleId: "auto_219b2980"
+generatedAt: "2026-04-06T14:16:30Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "千帆小说"
+bookSourceUrl: "https://www.qianfanxs.com/"
+accessTier: "A"
+extractedSearchSelector: "css:li!0"
+probeHttpStatus: 200
+probeHtmlLength: 6630
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

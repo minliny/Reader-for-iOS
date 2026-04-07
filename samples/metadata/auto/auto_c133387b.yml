@@ -1,0 +1,15 @@
+sampleId: "auto_c133387b"
+generatedAt: "2026-04-06T06:09:47Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "恋上你看书②"
+bookSourceUrl: "https://www.630book.org/"
+accessTier: "B"
+extractedSearchSelector: "css:class.list-item||tag.body"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: A server with the specified hostname could not be found."

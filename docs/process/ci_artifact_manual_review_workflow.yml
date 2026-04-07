@@ -1,0 +1,296 @@
+processId: "ci_artifact_manual_review_workflow"
+version: "1.0.0"
+createdAt: "2026-04-06"
+scope: "swift_ci_regression_loop"
+linkedSamples:
+  - "sample_js_runtime_001"
+  - "sample_js_runtime_002"
+
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: >
+    This process document is derived solely from the project's own CI
+    configuration, regression report structure, and compat_matrix schema.
+    No external frameworks, third-party tooling, or proprietary references
+    are included.
+
+purpose: >
+  Fix the gap between "CI generates artifacts" and "artifacts become project
+  assets." This workflow defines what a reviewer must check, what they may
+  commit, and what level authority is required for each layer.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LAYER DEFINITIONS
+# Three layers. Each layer has a distinct owner, update trigger, and legal
+# value domain. Layers must not bleed into each other.
+# ─────────────────────────────────────────────────────────────────────────────
+layers:
+
+  layer1_execution:
+    name: "Execution State"
+    files:
+      - "Core/swift-test.log"
+      - "samples/reports/latest/swift_test_snapshot.json"
+    owner: "CI (automated)"
+    updateTrigger: "Every CI run"
+    legalValues:
+      - "passed"
+      - "failed"
+      - "skipped"
+      - "unknown"
+    neverCommittedAutomatically: true
+    note: >
+      These files are generated fresh on every run and uploaded as CI
+      artifacts. They are ephemeral: they describe what happened in one
+      specific run. They are NOT committed to the repository by CI.
+      swift_test_snapshot.json is the machine-readable form of layer 1.
+
+  layer2_regression_report:
+    name: "Regression Record"
+    files:
+      - "samples/reports/latest/js_runtime_timeout_regression.yml"
+      - "samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"
+      - "samples/reports/latest/*_regression.yml"
+    owner: "Human (after artifact review)"
+    updateTrigger: "When a reviewer has confirmed execution results against contract"
+    legalFields:
+      executorVerified: "true | false"
+      status: "passed | failed | skipped | pending"
+      passed: "integer (count)"
+      failed: "integer (count)"
+      skipped: "integer (count)"
+    neverAutoCommitted: true
+    note: >
+      Regression reports record the *verified execution state* of a sample's
+      contract. A reviewer downloads the CI artifact, checks whether the
+      test output matches the contract intent, and THEN updates the source
+      file in the repository. The source file must not be updated solely on
+      the basis of CI passing — the reviewer must read the artifact and
+      confirm the behavior is semantically correct.
+
+  layer3_compat_matrix:
+    name: "Compatibility Level Ledger"
+    files:
+      - "samples/matrix/compat_matrix.yml"
+    owner: "Human (deliberate decision)"
+    updateTrigger: >
+      Only when a reviewer determines that the sample's access classification
+      has changed, based on evidence from layer1 + layer2.
+    legalValues:
+      actualLevel:
+        - "A"
+        - "B"
+        - "C"
+        - "D"
+    illegalValues:
+      - "F"
+      - "pending"
+      - "unknown"
+      - "true"
+      - "false"
+      - any CI execution status string
+    neverAutoCommitted: true
+    note: >
+      compat_matrix is the single source of truth for content access
+      compatibility levels. It is maintained by human decision, not by CI.
+      CI never writes to it. Execution state (passed/failed) is NOT a valid
+      actualLevel. A sample that fails its unit test still carries its last
+      valid actualLevel; the failure is a regression signal, not a
+      reclassification trigger.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CI ARTIFACT INVENTORY
+# What the core-swift-tests workflow produces and where to find it.
+# ─────────────────────────────────────────────────────────────────────────────
+ciArtifacts:
+  artifactName: "core-swift-test-log"
+  uploadedBy: "Upload swift test log and reports"
+  contents:
+    - path: "Core/swift-test.log"
+      description: "Raw XCTest output. Use to verify test names, failure messages, timing."
+    - path: "samples/reports/latest/swift_test_snapshot.json"
+      description: >
+        Machine-readable parse of the log. Fields: generatedAt, logFile,
+        testsFound, tests[]{sampleId, testClass, testMethod, status,
+        durationSeconds}. Generated in CI workspace; never committed
+        automatically.
+    - path: "samples/reports/latest/js_runtime_timeout_regression.yml"
+      description: >
+        CI-workspace copy with executorVerified updated to true and
+        status/counts updated to reflect this run. NOT the source file.
+        Reviewer compares this artifact to the repo source before committing.
+    - path: "samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"
+      description: "Same as above for sample_js_runtime_002."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HUMAN REVIEW CHECKLIST
+# What to verify before any layer-2 or layer-3 update.
+# ─────────────────────────────────────────────────────────────────────────────
+reviewChecklist:
+
+  step1_downloadArtifact:
+    action: "Download 'core-swift-test-log' artifact from the CI run."
+    verify: "All four files are present."
+
+  step2_readSnapshot:
+    action: "Open swift_test_snapshot.json."
+    verify:
+      - "testsFound is 2 (both sample_js_runtime_001 and _002 appear)."
+      - "Each test entry has status: passed or failed."
+      - "generatedAt timestamp matches the CI run time."
+    failIf: "testsFound is 0 or a sample is missing — indicates log parse failure; do not proceed."
+
+  step3_readRawLog:
+    action: "Open Core/swift-test.log and search for the two test method names."
+    verify:
+      - "testExecuteReturnsOriginalHTMLWhenExecutionTimesOut appears and shows 'passed'."
+      - "testExecuteReturnsOriginalHTMLWhenQuerySelectorIsUnavailable appears and shows 'passed'."
+      - "No unexpected assertion failures or fatal errors are present."
+    note: >
+      The raw log is the ground truth. The snapshot is a convenience parse.
+      If they disagree, trust the raw log.
+
+  step4_compareRegressionArtifact:
+    action: "Open the regression YAML artifact and compare to the source file in the repo."
+    verify:
+      - "executorVerified changed from false to true."
+      - "status changed from 'pending' to 'passed'."
+      - "passed count is 1, failed is 0, skipped is 0."
+      - "All other fields (reportId, scope, cleanRoom, sampleResults notes) are unchanged."
+    note: >
+      Only the execution-state fields should differ. If the artifact shows
+      structural changes to other fields, investigate before committing.
+
+  step5_semanticCheck:
+    action: "Confirm the test result is semantically consistent with the sample contract."
+    verify:
+      - >
+        sample_js_runtime_001 contract: JSRuntime returns original HTML when
+        execution times out. Test passing means the fallback path is exercised
+        and the correct value is returned. This confirms the actualLevel A
+        judgment (safe fallback = no content access gate).
+      - >
+        sample_js_runtime_002 contract: JSRuntime returns original HTML when
+        querySelector is unavailable. Same reasoning applies.
+    failIf: >
+      The test passes but the test body was changed (check git blame for
+      Core/Tests/ReaderCoreJSRendererTests/). If assertions were weakened to
+      force a pass, do not update regression reports or compat_matrix.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WRITE-BACK AUTHORIZATION RULES
+# Conditions that must ALL be satisfied before writing to each layer.
+# ─────────────────────────────────────────────────────────────────────────────
+writeBackRules:
+
+  layer2_regressionReport:
+    requiredConditions:
+      - "Steps 1-5 of reviewChecklist all pass."
+      - "The CI run completed without infrastructure errors (not a flaky timeout)."
+      - "The test assertions in source have not been weakened since the last known-good run."
+    authorizedChanges:
+      - "executorVerified: false → true"
+      - "run.note: update to reference this CI run date"
+      - "summary.passed / failed / skipped: set to verified counts"
+      - "sampleResults[].status: pending → passed (or failed if test failed)"
+    prohibitedChanges:
+      - "reportId, scope, cleanRoom, sampleResults[].notes — must not change"
+      - "Do not add new sampleResults entries"
+      - "Do not change expectedPath or regressionSampleId"
+    procedure: >
+      Copy the artifact regression YAML over the source file, then open a
+      diff (git diff) and confirm only authorized fields changed before
+      committing.
+
+  layer3_compatMatrix:
+    requiredConditions:
+      - "Layer 2 write-back is complete (regression report is already updated)."
+      - "The sample's access classification has semantically changed, OR this is the first time a human is ratifying the initial actualLevel assignment."
+      - "The reviewer can articulate a rationale using the actualLevel rules below."
+    authorizedChanges:
+      - "actualLevel (only to A / B / C / D)"
+      - "notes (factual updates referencing the evidence)"
+      - "version (bump patch)"
+      - "generatedAt"
+      - "summary counts (if levelA/B/C/D counts change)"
+    prohibitedChanges:
+      - "Do not add new legalValues to actualLevel"
+      - "Do not set actualLevel based solely on CI pass/fail"
+      - "Do not change sampleId, source, category"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ACTUALLEVEL DETERMINATION RULES
+# How to decide A / B / C / D. Covers unit_test and unit_contract samples
+# explicitly, since their classification differs from real-site samples.
+# ─────────────────────────────────────────────────────────────────────────────
+actualLevelRules:
+
+  definitions:
+    A: >
+      Content is accessible to URLSession without JS rendering, no policy gate,
+      no login required, no cookie jar required. For unit contracts: the runtime
+      implements the contract correctly and the content access path is unobstructed.
+    B: >
+      Content is accessible only when specific access conditions are met
+      (e.g., correct User-Agent, cookie jar, or similar policy-level variable).
+      Multiple sub-tiers (B1/B2/B3) may apply. For unit contracts: not typical;
+      use only if the contract explicitly validates a conditional-access path.
+    C: >
+      Content is only accessible via JS rendering (browser-level execution
+      required). No URLSession path can obtain the content. For unit contracts:
+      not typical; use only if the contract validates a JS-rendering-required path.
+    D: >
+      Content is not accessible regardless of access conditions tried.
+      URLSession cannot obtain the content. Includes network errors, JS
+      challenges that cannot be passed, and login walls that cannot be
+      programmatically satisfied. For unit contracts: use if the contract
+      documents a permanent failure mode with no recovery path.
+
+  unitContractRules:
+    rule1_safeFallback: >
+      If the unit test verifies that the runtime correctly identifies a boundary
+      condition (timeout, unsupported API, invalid input) and safely returns a
+      defined fallback value (original HTML, empty result, error code), the
+      sample is actualLevel A. Rationale: the runtime does not block content
+      access; it degrades gracefully. The content access path remains at tier A.
+    rule2_partialCapability: >
+      If the unit test verifies that a capability is absent and the absence
+      causes content to be permanently unavailable (not just degraded), use D.
+      Example: if querySelector being unavailable meant the TOC could never be
+      extracted and there was no fallback, that would be D. Note: sample_js_runtime_002
+      does NOT fall into this category because the contract specifies that
+      original HTML is returned — a safe fallback is present, so it remains A.
+    rule3_testStatusIsNotLevel: >
+      If the unit test FAILS in CI, do not change actualLevel. A test failure
+      means there is a regression; it does not mean the sample was mis-classified.
+      The actualLevel reflects the intended contract behavior when correctly
+      implemented, not the current CI execution state.
+    rule4_noNewLevels: >
+      Do not invent new actualLevel values (F, pending, error, unknown) under
+      any circumstances. If no existing A/B/C/D fits, escalate to a human
+      architectural decision before adding any entry to the matrix.
+
+  antiPatterns:
+    - pattern: "actualLevel set to 'passed' because CI passed"
+      correction: "Set actualLevel to A/B/C/D based on access semantics."
+    - pattern: "actualLevel set to 'F' because CI failed"
+      correction: "Test failure is a regression signal. Keep last valid level, file a bug."
+    - pattern: "actualLevel set to 'pending' as a placeholder"
+      correction: "Do not add a matrix entry until the level can be determined. Use a branch or draft."
+    - pattern: "actualLevel changed to D because the test covers a fallback path"
+      correction: "A fallback path that returns a defined value is still level A behavior."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CADENCE
+# When to run this process.
+# ─────────────────────────────────────────────────────────────────────────────
+cadence:
+  trigger: "After any CI run on a branch carrying js_runtime test changes."
+  mandatoryBefore: >
+    Any commit that changes executorVerified, status, or actualLevel for
+    sample_js_runtime_001 or sample_js_runtime_002.
+  optional: >
+    After unrelated Swift test runs, a reviewer may optionally check the
+    snapshot to confirm no unexpected regressions appear.

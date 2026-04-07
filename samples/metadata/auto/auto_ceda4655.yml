@@ -1,0 +1,15 @@
+sampleId: "auto_ceda4655"
+generatedAt: "2026-04-06T04:12:42Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎉书迷楼⑥①"
+bookSourceUrl: "http://www.mlls.net/"
+accessTier: "A"
+extractedSearchSelector: "css:id.content"
+probeHttpStatus: 200
+probeHtmlLength: 46345
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

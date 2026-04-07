@@ -1,0 +1,69 @@
+name: P1 Cookie Isolation sample_cookie_001
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/fervent-goldstine
+    paths:
+      - ".github/workflows/sample-cookie-001-isolation.yml"
+      - "Core/Package.swift"
+      - "Core/Sources/SampleCookie001FetchRunner/**"
+      - "Core/Sources/SampleCookie001IsolationRunner/**"
+      - "samples/booksources/p1_cookie/**"
+      - "samples/metadata/p1_cookie/**"
+
+jobs:
+  cookie-isolation:
+    name: cookie isolation sample_cookie_001
+    runs-on: macos-14
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build cookie runners
+        working-directory: Core
+        run: |
+          swift build --product SampleCookie001FetchRunner
+          swift build --product SampleCookie001IsolationRunner
+
+      - name: Run baseline fetch
+        run: swift run --package-path Core SampleCookie001FetchRunner -- "$GITHUB_WORKSPACE"
+
+      - name: Run isolation suite
+        run: swift run --package-path Core SampleCookie001IsolationRunner -- "$GITHUB_WORKSPACE"
+
+      - name: Print reports
+        run: |
+          echo "=== fetch_result ===" && cat samples/reports/latest/fetch_result_sample_cookie_001.yml
+          echo "=== isolation_steps ===" && cat samples/reports/latest/fetch_isolation_step_records_sample_cookie_001.yml
+          echo "=== decision_summary ===" && cat samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_001.yml
+
+      - name: Commit real reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add samples/reports/latest/fetch_result_sample_cookie_001.yml
+          git add samples/reports/latest/fetch_isolation_step_records_sample_cookie_001.yml
+          git add samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_001.yml
+          if git diff --cached --quiet; then
+            echo "reports unchanged"
+          else
+            git commit -m "ci: p1_cookie real reports sample_cookie_001 fetch+isolation"
+            git pull --rebase origin claude/fervent-goldstine
+            git push
+          fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cookie-001-reports
+          path: samples/reports/latest/*sample_cookie_001*.yml

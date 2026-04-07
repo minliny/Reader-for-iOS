@@ -1,0 +1,13 @@
+reportId: "probe_auto_71cd333f_1775457421"
+generatedAt: "2026-04-06T06:37:01Z"
+sampleId: "auto_71cd333f"
+probeUrl: "https://pre-api.tuishujun.com/api/searchBook?search_value=test&sort_field=hot_value&page=1&pageSize=50"
+
+result:
+  httpStatus: 200
+  contentType: "application/json"
+  htmlLength: 8435
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

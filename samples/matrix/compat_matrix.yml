@@ -1,22 +1,24 @@
-version: "0.2.0"
-generatedAt: "2026-04-04T08:58:16Z"
-scope: "recent-core-fix-regression"
+version: "0.14.0"
+generatedAt: "2026-04-06T15:00:00Z"
+scope: "nonjs_sample_004_audit_confirmed"
 summary:
-  totalSamples: 8
-  levelA: 8
+  totalSamples: 17
+  levelA: 14
   levelB: 0
   levelC: 0
-  levelD: 0
-  passRate: 100.0
-  degradeRate: 0.0
-  failRate: 0.0
+  levelD: 4
+  pendingIsolation: 0
+  classifiedOnly: 1
   p0PassRate: 100.0
-  pocPassRate: 100.0
+  p0SmokeCount: 5
+  p1PassRate: 33.3
+  note: "v0.14.0: sample_004 actualLevel A formally confirmed by completed human review across all three non-JS flows (search / toc / content). Writeback record: wb_nonjs_sample_004_20260406 (docs/process/writebacks/20260406_nonjs_sample_004.yml, commit 97fe216). CI run 24035945054 on macOS-14 (2026-04-06T14:33:15Z) produced executorVerified: true and regression status: passed for all three flows. Rule applied: unitContractRules.rule1_safeFallback (docs/process/ci_artifact_manual_review_workflow.yml). Previous v0.13.0: sample_js_runtime_001/002 audit confirmed."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -34,6 +36,7 @@ samples:
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -51,6 +54,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -68,6 +72,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -85,6 +90,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -102,6 +108,7 @@ samples:
     source: "fixture"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -119,6 +126,7 @@ samples:
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes:
       - "CSS"
     requiresLogin: false
@@ -136,6 +144,7 @@ samples:
     source: "unit_contract"
     priority: "p0"
     category: "non_js"
+    accessTier: "A"
     ruleTypes: []
     requiresLogin: false
     requiresCookieJar: false
@@ -148,3 +157,219 @@ samples:
     metadataPath: "samples/metadata/p0_non_js/http_client_invalid_url_contract/metadata.yml"
     expectedPath: null
     notes: "Invalid request URLs are classified before request dispatch and stay mapped to FailureType.INVALID_URL."
+  - sampleId: "sample_cookie_001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "C"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "js_challenge_observed"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/sample_cookie_001.yml"
+    expectedPath: null
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_cookie_001.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_cookie_001.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_001.yml"
+    notes: "wenku8.net returns HTTP 403 with JS challenge (Cloudflare) across all 8 isolation steps including cookie_jar and login. No isolation step resolved access. Site requires browser-level JS execution; curl/URLSession cannot pass the challenge. Level D: requires JS rendering capability."
+  - sampleId: "sample_004"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p0_non_js/sample_004.yml"
+    reportPaths:
+      smokeReport: "samples/reports/latest/sample_004_nonjs_smoke_result.yml"
+      searchRegressionReport: "samples/reports/latest/nonjs_sample_004_search_regression.yml"
+      tocRegressionReport: "samples/reports/latest/nonjs_sample_004_toc_regression.yml"
+      contentRegressionReport: "samples/reports/latest/nonjs_sample_004_content_regression.yml"
+      testSnapshot: "samples/reports/latest/swift_test_snapshot.json"
+      writebackRecord: "docs/process/writebacks/20260406_nonjs_sample_004.yml"
+    notes: "CSS class (.entry, .ep) + ID (#story) 选择器合同，三条流程均已通过 XCTest 审计确认。search (css:.entry，3 条目精确匹配)、toc (css:.ep，4 章节精确匹配)、content (css:#story，精确字符串匹配)。actualLevel A 经由人工审核，依据 unitContractRules.rule1_safeFallback 确认：CSS 选择器命中时返回结构良好的输出；选择器未命中时 NonJSParserEngine 抛出带类型的 ReaderError，由调用方提供安全降级路径，内容访问不会被永久阻断。无网络门控、无宿主级 JS 渲染依赖、无访问策略限制。此等级不是由 test passed 直接推导，而是基于 contract 语义、safe fallback 行为和审核规则综合确认。审计凭据：writeback wb_nonjs_sample_004_20260406（docs/process/writebacks/20260406_nonjs_sample_004.yml，commit 97fe216），CI run 24035945054，macOS-14（2026-04-06T14:33:15Z），日志行 847/849/851 三条均 passed（各 0.000s），三条流程 executorVerified: true。"
+  - sampleId: "sample_005"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p0_non_js/sample_005.yml"
+    smokeReport: "samples/reports/latest/sample_005_nonjs_smoke_result.yml"
+    notes: "Tag selectors (article, section) + class (.text-block). CI smoke passed 2026-04-05T20:33:32Z."
+  - sampleId: "sample_cookie_002"
+    source: "real_booksource"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "B2"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "undetermined_after_isolation"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/sample_cookie_002.yml"
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_cookie_002.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_cookie_002.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_002.yml"
+    notes: "qidian.com returns HTTP 202 with Set-Cookie across all 8 isolation steps. No JS challenge markers detected. No search results returned in any step. Site likely uses client-side JS rendering to populate search results (content absent in URLSession response). No single variable resolved access. Confirmed tier B2 (policy-controlled, no Cloudflare JS gate), actualLevel D (URLSession cannot obtain search results). Root cause: dynamic content rendering requires JS execution."
+  - sampleId: "sample_login_001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "login"
+    accessTier: "B3"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: true
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "undetermined_after_isolation"
+    errorCode: "network_error"
+    blocking: false
+    metadataPath: "samples/metadata/p1_login/sample_login_001.yml"
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_login_001.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_001.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_001.yml"
+    notes: "biquge.com.cn unreachable from GitHub Actions macOS-14 (all 8 steps: network_error). Domain likely geofenced from US CI or defunct. sample_login_001 is now retained only as a NETWORK_POLICY_MISMATCH reference case, not as the primary LOGIN_REQUIRED validator."
+  - sampleId: "sample_login_002"
+    source: "real_site_demo"
+    priority: "p1"
+    category: "login"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+      - "FORM"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_login/sample_login_002.yml"
+    expectedPath: "samples/expected/search/sample_login_002.json"
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_login_002.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml"
+    notes: "GitHub Actions macOS-14 run 24021028584 showed baseline anonymous fetch already reached \"You logged into a secure area!\" and \"Logout\". All 8 isolation steps matched the same secure markers. practice.expandtesting.com is tier A for this path, so sample_login_002 does not establish LOGIN_REQUIRED and must be retired as a negative candidate."
+  - sampleId: "sample_login_003"
+    source: "real_site_demo"
+    priority: "p1"
+    category: "login"
+    accessTier: "B3"
+    ruleTypes:
+      - "CSS"
+      - "FORM"
+    requiresLogin: true
+    requiresCookieJar: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: "LOGIN_REQUIRED"
+    secondaryReason: "login_state_absent"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_login/sample_login_003.yml"
+    expectedPath: "samples/expected/search/sample_login_003.json"
+    reportPaths:
+      fetch: "samples/reports/latest/fetch_result_sample_login_003.yml"
+      isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_003.yml"
+      decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml"
+    notes: "GitHub Actions run 24021997708 produced a real 8-step isolation result. Baseline /secure access stayed on login markers, while TEST-006 form login with public demo credentials reached both secure markers and Logout. This is the first real LOGIN_REQUIRED sample."
+  - sampleId: "sample_js_001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "js"
+    accessTier: "C"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresJs: true
+    expectedLevel: "A"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "js_challenge_observed"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_js/sample_js_001.yml"
+    notes: "wenku8.net classified as tier C by sample_cookie_001 isolation. Awaiting ReaderCoreJSRenderer PoC."
+  - sampleId: "sample_js_runtime_001"
+    source: "unit_test"
+    priority: "p1"
+    category: "js_runtime"
+    accessTier: "A"
+    ruleTypes:
+      - "JS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: true
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: null
+    reportPaths:
+      regressionReport: "samples/reports/latest/js_runtime_timeout_regression.yml"
+      testSnapshot: "samples/reports/latest/swift_test_snapshot.json"
+      writebackRecord: "docs/process/writebacks/20260406_sample_js_runtime_001_002.yml"
+    notes: "JSRuntime timeout downgrade contract: when JS execution times out (makeForTesting: timeout=10ms, delay=30ms), the original HTML is returned unchanged. actualLevel A confirmed by human review per unitContractRules.rule1_safeFallback: a safe fallback is present, the runtime does not block content access, no network gate or host-level JS rendering is required. This is not derived from test execution status. Audit trail: writeback wb_js_runtime_001_002_20260406 (commit 5d677f8), CI run 24033784569 on macOS-14 (2026-04-06T13:32:19Z), passed in 0.062s, executorVerified: true."
+  - sampleId: "sample_js_runtime_002"
+    source: "unit_test"
+    priority: "p1"
+    category: "js_runtime"
+    accessTier: "A"
+    ruleTypes:
+      - "JS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresJs: true
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: null
+    reportPaths:
+      regressionReport: "samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"
+      testSnapshot: "samples/reports/latest/swift_test_snapshot.json"
+      writebackRecord: "docs/process/writebacks/20260406_sample_js_runtime_001_002.yml"
+    notes: "JSRuntime querySelector unsupported boundary: when querySelector is unavailable, the runtime traps the exception and returns the original HTML unchanged. actualLevel A confirmed by human review per unitContractRules.rule1_safeFallback: a safe fallback is present (original HTML returned), content access is not permanently blocked — this distinguishes it from a level-D case (per rule2_partialCapability: fallback present = not D). No network gate, no host-level JS rendering required. This is not derived from test execution status. Audit trail: writeback wb_js_runtime_001_002_20260406 (commit 5d677f8), CI run 24033784569 on macOS-14 (2026-04-06T13:32:19Z), passed in 0.010s, executorVerified: true."

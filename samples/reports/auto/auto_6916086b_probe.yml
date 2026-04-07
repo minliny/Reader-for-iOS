@@ -1,0 +1,13 @@
+reportId: "probe_auto_6916086b_1775457407"
+generatedAt: "2026-04-06T06:36:47Z"
+sampleId: "auto_6916086b"
+probeUrl: "http://www.ddxsku.com/search/?searchkey=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

@@ -1,0 +1,15 @@
+sampleId: "auto_e3620ee2"
+generatedAt: "2026-04-06T04:12:29Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎉 八零小说"
+bookSourceUrl: "http://www.80zw.la"
+accessTier: "B"
+extractedSearchSelector: "css:.storelistbt5"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

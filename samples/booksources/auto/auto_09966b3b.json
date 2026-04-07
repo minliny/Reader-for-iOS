@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "📚天涯书库[tian]",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/www.tianyabooks.com\/",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:id.main",
+  "ruleSearch" : "css:class.leftbox",
+  "ruleToc" : "css:class.book",
+  "searchUrl" : "https:\/\/www.tianyabooks.com"
+}

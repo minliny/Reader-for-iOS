@@ -1,0 +1,15 @@
+sampleId: "auto_c0af4883"
+generatedAt: "2026-04-06T06:09:19Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🍒 言情花园"
+bookSourceUrl: "https://www.yqhy.org"
+accessTier: "A"
+extractedSearchSelector: "css:tag.p"
+probeHttpStatus: 200
+probeHtmlLength: 10788
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

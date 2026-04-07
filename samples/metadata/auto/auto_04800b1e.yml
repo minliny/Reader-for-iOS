@@ -1,0 +1,15 @@
+sampleId: "auto_04800b1e"
+generatedAt: "2026-04-06T14:17:28Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🌸 八戒中文"
+bookSourceUrl: "http://m.biquka.com"
+accessTier: "B"
+extractedSearchSelector: "css:result-game-item"
+probeHttpStatus: 200
+probeHtmlLength: 1651
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

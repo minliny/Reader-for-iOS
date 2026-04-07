@@ -1,0 +1,15 @@
+sampleId: "auto_3bc0a5e5"
+generatedAt: "2026-04-06T14:16:29Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "大爱小说"
+bookSourceUrl: "https://www.daai99.com"
+accessTier: "B"
+extractedSearchSelector: "css:\"class.info"
+probeHttpStatus: 403
+probeHtmlLength: 4546
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

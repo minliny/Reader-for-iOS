@@ -1,0 +1,17 @@
+reportId: "probe_auto_df05242b_1775457394"
+generatedAt: "2026-04-06T06:36:34Z"
+sampleId: "auto_df05242b"
+probeUrl: "https://www.biquxs.cc/modules/article/search.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"searchkey=test&searchtype=articlename&page={{page-1}}\"
+}"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 787
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

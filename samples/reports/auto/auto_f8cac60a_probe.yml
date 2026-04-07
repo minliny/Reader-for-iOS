@@ -1,0 +1,13 @@
+reportId: "probe_auto_f8cac60a_1775484991"
+generatedAt: "2026-04-06T14:16:31Z"
+sampleId: "auto_f8cac60a"
+probeUrl: "/search/test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

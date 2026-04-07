@@ -1,0 +1,13 @@
+reportId: "probe_auto_b7d0df13_1775455775"
+generatedAt: "2026-04-06T06:09:35Z"
+sampleId: "auto_b7d0df13"
+probeUrl: "https://163.bilibili.com/search/book/key.do?key=test&page=1"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 2632
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

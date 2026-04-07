@@ -1,0 +1,216 @@
+writebackId: "wb_js_runtime_001_002_20260406"
+version: "1.1.0"
+createdAt: "2026-04-06T09:00:00Z"
+completedAt: "2026-04-06T13:45:00Z"
+reviewerHandle: "ai-dev-agent"
+ciRunUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24033784569"
+artifactName: "core-swift-test-log"
+runTriggerCommit: "293ef83"
+runTriggerNote: >
+  Two prerequisite fixes were required before the target tests could run:
+  (1) JSRuntime.swift line 10: added 'convenience' keyword to the delegating
+  public init (Swift 5 compile error, zero behavior change).
+  (2) Package.swift: registered ReaderCoreJSRendererTests as a .testTarget
+  (test classes existed but were never wired into the build).
+  Both fixes were committed separately (f9e39e7, 9fa888a) before the CI run
+  that produced the artifact used for this write-back.
+
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: >
+    All evidence in this record is derived solely from CI artifacts produced
+    within this repository. No external standards or proprietary references.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ASSOCIATED SAMPLES
+# ─────────────────────────────────────────────────────────────────────────────
+associatedSamples:
+  - sampleId: "sample_js_runtime_001"
+    category: "js_runtime"
+    source: "unit_test"
+  - sampleId: "sample_js_runtime_002"
+    category: "js_runtime"
+    source: "unit_test"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ARTIFACT REVIEW EVIDENCE
+# ─────────────────────────────────────────────────────────────────────────────
+artifactEvidence:
+  snapshotPath: "samples/reports/latest/swift_test_snapshot.json"
+  snapshotGeneratedAt: "2026-04-06T13:32:19Z"
+  testsFound: 2
+
+  testResults:
+    - sampleId: "sample_js_runtime_001"
+      testClass: "JSRuntimeTests"
+      testMethod: "testExecuteReturnsOriginalHTMLWhenExecutionTimesOut"
+      status: "passed"
+      durationSeconds: 0.062
+
+    - sampleId: "sample_js_runtime_002"
+      testClass: "JSRuntimeUnsupportedBoundaryTests"
+      testMethod: "testExecuteReturnsOriginalHTMLWhenQuerySelectorIsUnavailable"
+      status: "passed"
+      durationSeconds: 0.010
+
+  rawLogVerified: true
+  rawLogNote: >
+    Inspected Core/swift-test.log from artifact (run 24033784569).
+    Log line 829: "Test Case '-[ReaderCoreJSRendererTests.JSRuntimeTests
+    testExecuteReturnsOriginalHTMLWhenExecutionTimesOut]' passed (0.062 seconds)."
+    Log line 836: "Test Case '-[ReaderCoreJSRendererTests.JSRuntimeUnsupportedBoundaryTests
+    testExecuteReturnsOriginalHTMLWhenQuerySelectorIsUnavailable]' passed (0.010 seconds)."
+    Log line 837: "Test Suite 'JSRuntimeUnsupportedBoundaryTests' passed."
+    No XCTAssert failures present. No fatal errors. No infrastructure errors.
+    "Test Suite 'All tests' passed" confirmed at end of log.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REVIEW BASIS
+# ─────────────────────────────────────────────────────────────────────────────
+reviewBasis: >
+  First successful CI execution of sample_js_runtime_001 and
+  sample_js_runtime_002 on macOS-14 GitHub Actions (run 24033784569).
+  Two prerequisite infrastructure fixes were applied (compile error +
+  missing test target registration) before this run was possible.
+  Purpose: confirm that the timeout fallback contract and the querySelector-
+  unsupported boundary contract execute correctly, then update the
+  regression reports from pending to verified state.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEMANTIC CONSISTENCY CHECK
+# ─────────────────────────────────────────────────────────────────────────────
+semanticCheck:
+
+  sample_js_runtime_001:
+    sourceFile: "Core/Tests/ReaderCoreJSRendererTests/JSRuntimeTests.swift"
+    contractIntent: >
+      When JSRuntime is configured with a 10 ms timeout and a 30 ms
+      pre-execution delay (forcing a timeout), the call to execute(html:)
+      must return the original HTML string unchanged.
+      Assertion: XCTAssertEqual(output, fixtureHTML)
+    contractEvidence: >
+      makeForTesting(timeoutMilliseconds: 10, preExecutionDelayMilliseconds: 30,
+      additionalEvaluationScripts: []). The delay (30 ms) exceeds the timeout
+      (10 ms), guaranteeing a timeout condition. Assertion checks
+      output == fixtureHTML.
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      Test passed in 0.062 seconds on macOS-14 arm64. The runtime correctly
+      detected the timeout and returned the original HTML unchanged.
+      Confirmed by raw log line 829.
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+  sample_js_runtime_002:
+    sourceFile: "Core/Tests/ReaderCoreJSRendererTests/JSRuntimeUnsupportedBoundaryTests.swift"
+    contractIntent: >
+      When JSRuntime evaluates a script that calls document.querySelector()
+      and that API is unavailable, the call to execute(html:) must return
+      the original HTML string unchanged.
+      Assertion: XCTAssertEqual(output, fixtureHTML)
+    contractEvidence: >
+      makeForTesting(timeoutMilliseconds: 1500, preExecutionDelayMilliseconds: 0,
+      additionalEvaluationScripts: ["document.querySelector('article')"]).
+      The script calls querySelector. The runtime traps the exception and
+      returns original HTML. Assertion checks output == fixtureHTML.
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      Test passed in 0.010 seconds on macOS-14 arm64. The runtime correctly
+      trapped the querySelector exception and returned the original HTML
+      unchanged. Confirmed by raw log line 836.
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LAYER 2 DECISION: Regression Report Update
+# ─────────────────────────────────────────────────────────────────────────────
+layer2Decision:
+
+  sample_js_runtime_001:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/js_runtime_timeout_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T13:32:19Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0 (unchanged)"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: >
+      git diff confirmed only the 5 authorized fields changed.
+      reportId, scope, cleanRoom, notes, expectedPath — all unchanged.
+
+  sample_js_runtime_002:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T13:32:19Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0 (unchanged)"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: >
+      git diff confirmed only the 5 authorized fields changed.
+      reportId, scope, cleanRoom, failureType, notes, expectedPath — all
+      unchanged. failureType: "JS_UNSUPPORTED" preserved as-is (it documents
+      the boundary being tested, not a failure of the test itself).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LAYER 3 DECISION: compat_matrix Update
+# ─────────────────────────────────────────────────────────────────────────────
+layer3Decision:
+  updateCompatMatrix: "no"
+  reason: >
+    compat_matrix.yml (v0.12.0) already carries actualLevel "A" for both
+    sample_js_runtime_001 and sample_js_runtime_002, set by deliberate
+    human decision in commit c4613a0. The CI execution confirms the runtime
+    implements the contract correctly. The access classification has not
+    changed and does not need to change.
+
+  sample_js_runtime_001:
+    currentActualLevel: "A"
+    proposedActualLevel: "A (no change)"
+    ruleApplied: "unitContractRules.rule1_safeFallback"
+    rationale: >
+      The contract verifies a safe fallback: when execution times out, the
+      original HTML is returned. The runtime does not block content access;
+      it degrades gracefully. The content access path for this unit contract
+      has no network gate, no JS rendering requirement at the host level,
+      and no policy restriction. The CI result confirms the implementation
+      is correct. actualLevel A is confirmed, not derived from test status.
+    prohibitedReasoningCheck: >
+      This rationale describes content access semantics, not test execution
+      status. The CI result is evidence of correct implementation; it is
+      not the basis for the level classification.
+
+  sample_js_runtime_002:
+    currentActualLevel: "A"
+    proposedActualLevel: "A (no change)"
+    ruleApplied: "unitContractRules.rule1_safeFallback"
+    rationale: >
+      The absence of querySelector causes a safe fallback to original HTML,
+      not a permanent content access failure. Per rule2_partialCapability:
+      a fallback IS present (original HTML returned), so content is not
+      permanently blocked. The CI result confirms the implementation is
+      correct. actualLevel A is confirmed, not derived from test status.
+    prohibitedReasoningCheck: >
+      This rationale describes content access semantics. The key distinction
+      from a level-D case: no fallback present = D. Fallback present = A.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REVIEW CONCLUSION
+# ─────────────────────────────────────────────────────────────────────────────
+reviewConclusion:
+  approved: "yes"
+  blockers: "none"
+  prNumber: "branch: claude/fervent-goldstine (no PR opened; direct branch commit)"
+  commitSha: "5d677f8"

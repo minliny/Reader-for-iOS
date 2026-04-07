@@ -1,0 +1,11 @@
+{
+  "sampleId": "sample_js_runtime_001",
+  "flow": "execute",
+  "expected": {
+    "success": true,
+    "outputHTMLMatchesInput": true,
+    "timeoutFallbackReturnsOriginalHTML": true,
+    "maxTimeoutMilliseconds": 1500,
+    "inputHTMLPath": "samples/fixtures/html/sample_js_runtime_001_input.html"
+  }
+}

@@ -1,0 +1,15 @@
+sampleId: "auto_93786395"
+generatedAt: "2026-04-06T13:33:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "八一新中文™"
+bookSourceUrl: "https://www.81xzw.com"
+accessTier: "B"
+extractedSearchSelector: "css:cf"
+probeHttpStatus: 404
+probeHtmlLength: 2391
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

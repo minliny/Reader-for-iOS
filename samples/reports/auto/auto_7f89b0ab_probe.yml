@@ -1,0 +1,16 @@
+reportId: "probe_auto_7f89b0ab_1775448757"
+generatedAt: "2026-04-06T04:12:37Z"
+sampleId: "auto_7f89b0ab"
+probeUrl: "https://www.jingdianbook.com/search/?keywords=test,{
+  \"charset\": \"UTF-8\",
+  \"method\": \"GET\"
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 1653
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

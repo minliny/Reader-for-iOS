@@ -1,0 +1,15 @@
+sampleId: "auto_1b9a7d27"
+generatedAt: "2026-04-06T04:21:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎴 四库书屋 (Bing)"
+bookSourceUrl: "http://www.4ksw.com##Bing接口"
+accessTier: "A"
+extractedSearchSelector: "css:li.b_algo"
+probeHttpStatus: 200
+probeHtmlLength: 42911
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

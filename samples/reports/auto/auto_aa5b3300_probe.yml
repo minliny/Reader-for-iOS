@@ -1,0 +1,17 @@
+reportId: "probe_auto_aa5b3300_1775457408"
+generatedAt: "2026-04-06T06:36:48Z"
+sampleId: "auto_aa5b3300"
+probeUrl: "https://www.qihaoqihao.com/s.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"s=test&type=articlename\"
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 10779
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

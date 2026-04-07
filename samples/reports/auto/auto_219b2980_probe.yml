@@ -1,0 +1,13 @@
+reportId: "probe_auto_219b2980_1775484990"
+generatedAt: "2026-04-06T14:16:30Z"
+sampleId: "auto_219b2980"
+probeUrl: "https://www.qianfanxs.com/so/?searchtype=novelname&searchkey=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 6630
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

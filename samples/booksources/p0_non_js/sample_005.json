@@ -1,0 +1,12 @@
+{
+  "bookSourceName": "Sample-005-Fixture",
+  "bookSourceUrl": "http://fixture5.local",
+  "searchUrl": "http://fixture5.local/search?q={{key}}",
+  "ruleSearch": "css:article",
+  "ruleToc": "css:section",
+  "ruleContent": "css:.text-block",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": false,
+  "header": {}
+}

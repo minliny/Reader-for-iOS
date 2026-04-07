@@ -1,0 +1,15 @@
+sampleId: "auto_8d6947cf"
+generatedAt: "2026-04-06T14:16:44Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "书客吧"
+bookSourceUrl: "https://www.shuke8.cc"
+accessTier: "B"
+extractedSearchSelector: "css:.flex"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

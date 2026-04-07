@@ -1,0 +1,28 @@
+reportId: "nonjs_sample_004_content_regression_v1"
+generatedAt: "2026-04-06T14:30:00Z"
+phase: "p0_non_js"
+scope: "nonjs_sample_004_content_css_contract"
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: "Regression asset derived only from in-repo NonJSParserEngine behavior and sample_004 fixture HTML."
+run:
+  mode: "asset_bound_contract"
+  executorVerified: true
+  note: "Verified by GitHub Actions CI on macOS-14. Swift test executed 2026-04-06T14:33:15Z."
+summary:
+  totalSamples: 1
+  passed: 1
+  failed: 0
+  skipped: 0
+sampleResults:
+  - regressionSampleId: "nonjs_sample_004_content"
+    sampleId: "sample_004"
+    flow: "content"
+    status: "passed"
+    expectedPath: "samples/expected/content/sample_004.json"
+    notes:
+      - "CSS selector css:#story applied to sample_004_content.html must return exact content string."
+      - "Content must equal the string in samples/expected/content/sample_004.json."
+      - "BookSource: samples/booksources/p0_non_js/sample_004.json (ruleContent: css:#story)."

@@ -1,0 +1,15 @@
+sampleId: "auto_6d8dae4f"
+generatedAt: "2026-04-06T06:09:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "无错小说"
+bookSourceUrl: "http://www.wucuoxs.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.novelslist2"
+probeHttpStatus: 403
+probeHtmlLength: 139
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

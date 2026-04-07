@@ -1,0 +1,15 @@
+sampleId: "auto_fdbc0ecd"
+generatedAt: "2026-04-06T06:37:00Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "虫虫书屋<0794r>"
+bookSourceUrl: "http://www.0794r.com"
+accessTier: "B"
+extractedSearchSelector: "css:.bookbox"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

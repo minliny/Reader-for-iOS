@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "海棠看书",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/www.bookhaitang.com\/",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:class.RBGsectionThree-content",
+  "ruleSearch" : "css:class.SHsectionThree-middle",
+  "ruleToc" : "css:class.BCsectionTwo-top",
+  "searchUrl" : "https:\/\/www.bookhaitang.com\/search\/{{key}}<,\/{{page}}.html>"
+}

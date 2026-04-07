@@ -1,0 +1,13 @@
+reportId: "probe_auto_6676abbb_1775482401"
+generatedAt: "2026-04-06T13:33:21Z"
+sampleId: "auto_6676abbb"
+probeUrl: "http://www.99lib.net/book/search.php?s=13139900387823019677&type=%E7%AB%99%E5%86%85&q=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

@@ -1,0 +1,13 @@
+reportId: "probe_auto_ceda4655_1775448762"
+generatedAt: "2026-04-06T04:12:42Z"
+sampleId: "auto_ceda4655"
+probeUrl: "http://www.mlls.net/Search/test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 46345
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

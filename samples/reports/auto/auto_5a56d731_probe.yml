@@ -1,0 +1,15 @@
+reportId: "probe_auto_5a56d731_1775455787"
+generatedAt: "2026-04-06T06:09:47Z"
+sampleId: "auto_5a56d731"
+probeUrl: "https://www.ybdu.com/modules/article/search.php?searchtype=keywords&entry=1&searchkey=test,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

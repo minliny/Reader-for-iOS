@@ -1,0 +1,15 @@
+sampleId: "auto_f9fc8a33"
+generatedAt: "2026-04-06T13:33:24Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "评书吧"
+bookSourceUrl: "http://www.pingshu8.com"
+accessTier: "B"
+extractedSearchSelector: "css::<tr>(?:[^\"]*\"){7}\\.\\.([^\"]*)\">([^<]*)(?:[^>]*>){5}([^<]*)"
+probeHttpStatus: 200
+probeHtmlLength: 900
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

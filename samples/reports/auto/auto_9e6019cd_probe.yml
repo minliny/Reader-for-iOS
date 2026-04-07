@@ -1,0 +1,18 @@
+reportId: "probe_auto_9e6019cd_1775457379"
+generatedAt: "2026-04-06T06:36:19Z"
+sampleId: "auto_9e6019cd"
+probeUrl: "/search/,
+{
+  \"body\": \"searchkey=test&Submit=搜索\",
+  \"charset\": \"UTF-8\",
+  \"method\": \"POST\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

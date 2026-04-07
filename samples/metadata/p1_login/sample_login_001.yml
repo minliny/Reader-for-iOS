@@ -1,0 +1,17 @@
+sampleId: "sample_login_001"
+priority: "p1"
+category: "login"
+phase: "p1_login"
+accessTier: "B3 (expected)"
+capability:
+  - fetch
+  - search
+requiresCookieJar: true
+requiresLogin: true
+requiresJs: false
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "B3"
+  note: "biquge.com.cn expected to require login session for full access but no JS gate. Needs real isolation run."
+status: "pending_isolation_run"

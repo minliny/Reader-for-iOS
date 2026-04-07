@@ -1,0 +1,174 @@
+reportId: "isolation_login_003_1775482354_steps"
+generatedAt: "2026-04-06T13:32:34Z"
+phase: "p1_login"
+sampleId: "sample_login_003"
+
+records:
+  - stepId: "BASELINE-000"
+    changedVariable: "none"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: true
+    loginMarkerObserved: true
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+    notes: "Login markers observed and secure markers absent."
+  - stepId: "TEST-001"
+    changedVariable: "header.user_agent"
+    requestPolicy:
+      user_agent: true
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: true
+    loginMarkerObserved: true
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+    notes: "Login markers observed and secure markers absent."
+  - stepId: "TEST-002"
+    changedVariable: "header.referer"
+    requestPolicy:
+      user_agent: false
+      referer: true
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: true
+    loginMarkerObserved: true
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+    notes: "Login markers observed and secure markers absent."
+  - stepId: "TEST-003"
+    changedVariable: "cookie_jar"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: true
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: false
+    loginMarkerObserved: true
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+    notes: "Login markers observed and secure markers absent."
+  - stepId: "TEST-004"
+    changedVariable: "retry"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: true
+      redirect_handling: false
+      login: false
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: true
+    loginMarkerObserved: true
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+    notes: "Login markers observed and secure markers absent."
+  - stepId: "TEST-005"
+    changedVariable: "redirect_handling"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: true
+      login: false
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: true
+    loginMarkerObserved: true
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+    notes: "Login markers observed and secure markers absent."
+  - stepId: "TEST-006"
+    changedVariable: "login"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: true
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: true
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: true
+    candidateFailureType: "LOGIN_REQUIRED"
+    secondaryReason: "login_state_absent"
+    decision: "match_found:LOGIN_REQUIRED"
+    notes: "Success markers seen: You logged into a secure area!, Logout"
+  - stepId: "TEST-007"
+    changedVariable: "js_mark_only"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: 200
+    contentType: "text/html;charset=utf-8"
+    finalUrl: "https://the-internet.herokuapp.com/secure"
+    responseClass: "success_2xx"
+    setCookieObserved: true
+    loginMarkerObserved: true
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "stop_undetermined"
+    notes: "Login markers observed and secure markers absent."

@@ -1,0 +1,9 @@
+{
+  "sampleId": "sample_004",
+  "flow": "content",
+  "expected": {
+    "success": true,
+    "contentNonEmpty": true,
+    "content": "宇宙中有无数文明，地球只是其中微不足道的一粒尘埃。叶文洁仰望星空，心中充满了对宇宙真相的渴望与恐惧。"
+  }
+}

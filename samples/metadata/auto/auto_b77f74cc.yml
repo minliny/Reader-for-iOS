@@ -1,0 +1,15 @@
+sampleId: "auto_b77f74cc"
+generatedAt: "2026-04-06T14:17:29Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔下文学[qiang]"
+bookSourceUrl: "http://www.qiangkezu.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.txt-list"
+probeHttpStatus: 200
+probeHtmlLength: 1666
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

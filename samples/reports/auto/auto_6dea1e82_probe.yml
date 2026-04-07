@@ -1,0 +1,13 @@
+reportId: "probe_auto_6dea1e82_1775482369"
+generatedAt: "2026-04-06T13:32:49Z"
+sampleId: "auto_6dea1e82"
+probeUrl: "http://www.sxyj.net/Book_Search.html?keyword=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html"
+  htmlLength: 21
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

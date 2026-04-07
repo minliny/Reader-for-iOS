@@ -1,0 +1,17 @@
+reportId: "probe_auto_26ae09c7_1775485004"
+generatedAt: "2026-04-06T14:16:44Z"
+sampleId: "auto_26ae09c7"
+probeUrl: "{{cookie.removeCookie(source.getKey())}}
+/search07.html,{
+  \"method\": \"post\",
+  \"body\": \"searchkey=test\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

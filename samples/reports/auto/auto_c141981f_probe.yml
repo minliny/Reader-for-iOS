@@ -1,0 +1,17 @@
+reportId: "probe_auto_c141981f_1775455774"
+generatedAt: "2026-04-06T06:09:34Z"
+sampleId: "auto_c141981f"
+probeUrl: "http://www.sksxsw.com/user/s.php,{
+ \"charset\":\"gbk\",
+ \"method\":\"POST\",
+ \"body\":\"s=test&type=articlename\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

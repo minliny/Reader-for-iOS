@@ -1,0 +1,15 @@
+sampleId: "auto_6d1f7501"
+generatedAt: "2026-04-06T04:12:37Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎋天地中文网🎋"
+bookSourceUrl: "http://m.tiandizw.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.book_lists"
+probeHttpStatus: 404
+probeHtmlLength: 16
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

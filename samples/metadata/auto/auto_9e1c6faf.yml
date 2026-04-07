@@ -1,0 +1,15 @@
+sampleId: "auto_9e1c6faf"
+generatedAt: "2026-04-06T04:21:20Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔下文学（字体替换）"
+bookSourceUrl: "https://www.bxwx.tw"
+accessTier: "B"
+extractedSearchSelector: "css:.item"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

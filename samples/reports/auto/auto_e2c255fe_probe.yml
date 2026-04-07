@@ -1,0 +1,13 @@
+reportId: "probe_auto_e2c255fe_1775455776"
+generatedAt: "2026-04-06T06:09:36Z"
+sampleId: "auto_e2c255fe"
+probeUrl: "https://so.itingwa.com/?c=index&m=index&k=test&t=1"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 11059
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

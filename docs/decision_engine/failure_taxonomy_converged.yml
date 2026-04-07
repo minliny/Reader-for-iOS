@@ -1,0 +1,41 @@
+version: "1.0.0"
+generatedAt: "2026-04-06T07:03:48Z"
+cleanRoomStatus:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: "Converged only from real execution evidence already stored in this repository."
+convergedFailureTypes:
+  - failureType: "NETWORK_POLICY_MISMATCH"
+    status: "converged_with_real_evidence"
+    supportedByRealSamples: true
+    samples:
+      - "sample_cookie_001"
+      - "sample_cookie_002"
+    meaning: "Fetch policy and current runtime capability cannot obtain usable content; actual handling depends on accessTier and secondary evidence."
+    currentHandling:
+      C__js_challenge_observed: "stop_retry_under_urlsession_and_defer_to_js_renderer_poc"
+      B2__undetermined_after_isolation: "mark_as_shell_or_policy_case_and_do_not_retry_same_strategy"
+    nextStep:
+      C__js_challenge_observed: "F2_js_renderer_poc_for_tier_C_only"
+      B2__undetermined_after_isolation: "wait_for_js_capable_or_higher_layer_rendering_poc"
+
+  - failureType: "LOGIN_REQUIRED"
+    status: "converged_with_real_evidence"
+    supportedByRealSamples: true
+    samples:
+      - "sample_login_003"
+    meaning: "Anonymous fetch reaches login markers, and a verified login step unlocks the expected protected content."
+    currentHandling:
+      B3__login_state_absent: "reuse_login_isolation_template"
+    nextStep:
+      B3__login_state_absent: "expand_p1_login_with_verified_template_before_new_strategy_design"
+
+pendingFailureTypes:
+  - failureType: "COOKIE_REQUIRED"
+    status: "pending_real_evidence"
+    supportedByRealSamples: false
+    samples: []
+    meaning: "No real sample has yet proven a cookie-only recovery path without JS or login."
+    currentHandling: "keep_out_of_converged_subset_and_do_not_promote_to_default_decision_rule"
+    nextStep: "D11_collect_real_cookie_required_sample"

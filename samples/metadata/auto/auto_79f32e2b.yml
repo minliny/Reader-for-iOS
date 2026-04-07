@@ -1,0 +1,15 @@
+sampleId: "auto_79f32e2b"
+generatedAt: "2026-04-06T13:32:38Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎉倚天中文网"
+bookSourceUrl: "http://www.ytzww.com/"
+accessTier: "B"
+extractedSearchSelector: "css:class.txt-list"
+probeHttpStatus: 200
+probeHtmlLength: 138
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

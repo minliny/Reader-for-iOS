@@ -1,0 +1,15 @@
+reportId: "probe_auto_229cf742_1775455788"
+generatedAt: "2026-04-06T06:09:48Z"
+sampleId: "auto_229cf742"
+probeUrl: "http://www.rushuwu.net/modules/article/search.php?searchtype=articlename&searchkey=test&page=1,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 1408
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

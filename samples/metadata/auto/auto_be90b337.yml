@@ -1,0 +1,15 @@
+sampleId: "auto_be90b337"
+generatedAt: "2026-04-06T13:33:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🍊虫虫书屋"
+bookSourceUrl: "http://www.51menu.com"
+accessTier: "B"
+extractedSearchSelector: "css:.bookbox"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

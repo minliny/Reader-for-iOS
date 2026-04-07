@@ -1,0 +1,30 @@
+sampleId: "sample_login_003"
+priority: "p1"
+category: "login"
+phase: "p1_login"
+accessTier: "B3"
+capability:
+  - fetch
+  - search
+requiresCookieJar: true
+requiresLogin: true
+requiresJs: false
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "B3"
+  note: "the-internet.herokuapp.com/secure should redirect or fall back to login before auth and only expose secure markers after TEST-006 form login."
+status: "real_login_required_verified"
+sampleRole: "primary_login_required_validation"
+cleanRoom:
+  externalReferenceUsed: true
+  referenceType: "public site behavior + public test docs"
+  gplCodeImported: false
+reports:
+  fetch: "samples/reports/latest/fetch_result_sample_login_003.yml"
+  isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_003.yml"
+  decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml"
+verification:
+  ciRunId: 24021997708
+  generatedAt: "2026-04-06T06:46:28Z"
+  conclusion: "LOGIN_REQUIRED verified on real macOS runner"

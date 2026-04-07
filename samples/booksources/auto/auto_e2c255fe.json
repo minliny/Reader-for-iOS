@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "听蛙音乐（优+）",
+  "bookSourceType" : 1,
+  "bookSourceUrl" : "https:\/\/so.itingwa.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:class.jp-jplayer",
+  "ruleSearch" : "css:class.music_list",
+  "ruleToc" : "css:class.frame1||class.left",
+  "searchUrl" : "https:\/\/so.itingwa.com\/?c=index&m=index&k={{key}}&t=1"
+}

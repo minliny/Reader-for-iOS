@@ -1,0 +1,15 @@
+sampleId: "auto_0cfbe2ea"
+generatedAt: "2026-04-06T04:12:30Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "书豪小说网"
+bookSourceUrl: "https://www.shuhaoxs.com"
+accessTier: "B"
+extractedSearchSelector: "css:li"
+probeHttpStatus: 404
+probeHtmlLength: 1248
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

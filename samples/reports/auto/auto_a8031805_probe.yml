@@ -1,0 +1,17 @@
+reportId: "probe_auto_a8031805_1775448756"
+generatedAt: "2026-04-06T04:12:36Z"
+sampleId: "auto_a8031805"
+probeUrl: "https://www.qiufengshuwu.com/s.html,{
+  \"body\": \"s=test&type=articlename\",
+  \"charset\": \"GBK\",
+  \"method\": \"POST\"
+}"
+
+result:
+  httpStatus: 404
+  contentType: "text/html"
+  htmlLength: 2765
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

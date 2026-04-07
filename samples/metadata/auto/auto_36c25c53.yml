@@ -1,0 +1,15 @@
+sampleId: "auto_36c25c53"
+generatedAt: "2026-04-06T06:09:22Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "喜马拉雅"
+bookSourceUrl: "http://search.ximalaya.com"
+accessTier: "A"
+extractedSearchSelector: "css:$.response.docs"
+probeHttpStatus: 200
+probeHtmlLength: 12308
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

@@ -1,0 +1,70 @@
+version: "1.0.0"
+generatedAt: "2026-04-06T07:03:48Z"
+rules:
+  - ruleId: "R1"
+    when:
+      accessTier: "A"
+      realEvidenceRequired: true
+    then: "direct_non_js_pipeline"
+    action:
+      routeTo: "direct_non_js_pipeline"
+      retryPolicy: "regression_only"
+      addToPool: "stable_direct_pipeline"
+      addToStopRetryList: false
+    stopCondition: "stop_after_direct_pipeline_result_is_recorded"
+    nextPipeline: "direct_non_js_pipeline"
+
+  - ruleId: "R2"
+    when:
+      accessTier: "B2"
+      finalPrimaryFailureType: "NETWORK_POLICY_MISMATCH"
+    then: "mark_as_shell_or_policy_case"
+    action:
+      routeTo: "shell_render_policy_blocked_pipeline"
+      retryPolicy: "do_not_retry_same_strategy"
+      addToPool: "shell_render_backlog"
+      addToStopRetryList: true
+      decisionLabel: "wait_for_js_capable_or_higher_layer_rendering_poc"
+    stopCondition: "stop_after_current_non_js_fetch_and_isolation_strategy_is_exhausted_once"
+    nextPipeline: "do_not_retry_same_strategy"
+
+  - ruleId: "R3"
+    when:
+      accessTier: "B3"
+      finalPrimaryFailureType: "LOGIN_REQUIRED"
+    then: "login_pipeline_reusable"
+    action:
+      routeTo: "login_pipeline_reusable"
+      retryPolicy: "reuse_template_first"
+      addToPool: "login_template_reuse_pool"
+      addToStopRetryList: false
+      decisionLabel: "reuse_verified_login_template"
+    stopCondition: "stop_after_login_template_is_selected_for_reuse"
+    nextPipeline: "reuse_login_isolation_template"
+
+  - ruleId: "R4"
+    when:
+      accessTier: "C"
+      secondaryReason: "js_challenge_observed"
+    then: "do_not_retry_under_urlsession"
+    action:
+      routeTo: "defer_to_js_renderer_poc"
+      retryPolicy: "do_not_retry_under_urlsession"
+      addToPool: "js_renderer_poc_input_pool"
+      addToStopRetryList: true
+      decisionLabel: "browser_runtime_required"
+    stopCondition: "stop_immediately_after_js_challenge_is_confirmed"
+    nextPipeline: "defer_to_js_renderer_poc"
+
+  - ruleId: "R5"
+    when:
+      realEvidenceAvailable: false
+    then: "keep_pending"
+    action:
+      routeTo: "pending_real_evidence_queue"
+      retryPolicy: "no_default_retry_policy"
+      addToPool: "pending_real_evidence_pool"
+      addToStopRetryList: false
+      decisionLabel: "collect_more_real_samples"
+    stopCondition: "stop_before_promoting_the_case_to_converged_handling"
+    nextPipeline: "collect_more_real_samples"

@@ -1,0 +1,15 @@
+sampleId: "auto_40e503d2"
+generatedAt: "2026-04-06T13:32:38Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "👍全书书阁"
+bookSourceUrl: "https://7book.cc"
+accessTier: "B"
+extractedSearchSelector: "css:.searchresult"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

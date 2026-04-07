@@ -1,0 +1,27 @@
+reportId: "fetch_login_002_1775482361"
+generatedAt: "2026-04-06T13:32:41Z"
+phase: "p1_login"
+sampleId: "sample_login_002"
+
+baseline:
+  requestPolicy:
+    no_header: true
+    no_cookie: true
+    no_login: true
+    no_js: true
+    no_retry: true
+    redirect_handling: false
+
+result:
+  fetchStatus: "passed"
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  finalUrl: "https://practice.expandtesting.com/secure"
+  responseClass: "success_2xx"
+  setCookieObserved: true
+  loginMarkerObserved: true
+  jsChallengeObserved: true
+  searchResultMarkerObserved: true
+  primaryFailureType: "NETWORK_POLICY_MISMATCH"
+  secondaryReason: "baseline_controlled_fetch_succeeded"
+  notes: "Anonymous request unexpectedly reached the secure markers without login."

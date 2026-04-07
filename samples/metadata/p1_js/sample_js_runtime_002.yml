@@ -1,0 +1,32 @@
+sampleId: "sample_js_runtime_002"
+priority: "p1"
+category: "js"
+phase: "p1_js"
+sourceType: "synthetic"
+accessTier: "C"
+capability:
+  - execute
+requiresCookieJar: false
+requiresLogin: false
+requiresJs: true
+fixtureFiles:
+  - "samples/fixtures/html/sample_js_runtime_002_input.html"
+expected:
+  failureType: "JS_UNSUPPORTED"
+  unsupportedOperation: "document.querySelector"
+  fallbackReturnsOriginalHTML: true
+  processDoesNotCrash: true
+  note: >
+    JSRuntime only exposes document.documentElement.outerHTML in the current P1 PoC.
+    querySelector is intentionally unsupported and must be recognized as a JS_UNSUPPORTED
+    boundary while degrading back to the original HTML.
+expectedOutput:
+  content: "samples/expected/content/sample_js_runtime_002.json"
+status: "active_contract"
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+notes: >
+  Synthetic JS_UNSUPPORTED boundary sample. This contract must not expand DOM
+  capability and must not modify JSRuntime behavior beyond graceful degradation.

@@ -1,0 +1,28 @@
+reportId: "nonjs_sample_005_search_regression_v1"
+generatedAt: "2026-04-06T16:00:00Z"
+phase: "p0_non_js"
+scope: "nonjs_sample_005_search_css_contract"
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: "Regression asset derived only from in-repo NonJSParserEngine behavior and sample_005 fixture HTML."
+run:
+  mode: "asset_bound_contract"
+  executorVerified: true
+  note: "Verified by GitHub Actions CI on macOS-14. Swift test executed 2026-04-06T15:38:19Z."
+summary:
+  totalSamples: 1
+  passed: 1
+  failed: 0
+  skipped: 0
+sampleResults:
+  - regressionSampleId: "nonjs_sample_005_search"
+    sampleId: "sample_005"
+    flow: "search"
+    status: "passed"
+    expectedPath: "samples/expected/search/sample_005.json"
+    notes:
+      - "CSS tag selector css:article applied to sample_005_search.html must return 2 items."
+      - "Item titles and detailURLs must match samples/expected/search/sample_005.json exactly."
+      - "BookSource: samples/booksources/p0_non_js/sample_005.json (ruleSearch: css:article)."

@@ -1,0 +1,234 @@
+writebackId: "wb_nonjs_sample_005_20260406"
+version: "1.0.0"
+createdAt: "2026-04-06T16:00:00Z"
+completedAt: "2026-04-06T16:00:00Z"
+reviewerHandle: "ai-dev-agent"
+ciRunUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24038332034"
+artifactName: "core-swift-test-log"
+runTriggerCommit: "0e839d2"
+runTriggerNote: >
+  sample_005 非 JS 回归测试在 commit 0e839d2 中接入：
+  NonJSSample005RegressionTests（search / toc / content）纳入
+  ReaderCoreParserTests 测试目标。CI run 24038332034 是三条测试方法
+  在 macOS-14 arm64 上的首次成功执行。
+
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: >
+    本记录中的所有证据均来自本仓库内部 CI artifact，
+    无外部标准或专有参考引用。
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 关联样本
+# ─────────────────────────────────────────────────────────────────────────────
+associatedSamples:
+  - sampleId: "nonjs_sample_005_search"
+    category: "nonjs_parser"
+    source: "unit_test"
+  - sampleId: "nonjs_sample_005_toc"
+    category: "nonjs_parser"
+    source: "unit_test"
+  - sampleId: "nonjs_sample_005_content"
+    category: "nonjs_parser"
+    source: "unit_test"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ARTIFACT 审核证据
+# ─────────────────────────────────────────────────────────────────────────────
+artifactEvidence:
+  snapshotPath: "samples/reports/latest/swift_test_snapshot.json"
+  snapshotGeneratedAt: "2026-04-06T15:38:19Z"
+  testsFound: 8
+
+  testResults:
+    - sampleId: "nonjs_sample_005_search"
+      testClass: "NonJSSample005RegressionTests"
+      testMethod: "testSearchParsesTwoItemsFromFixture"
+      status: "passed"
+      durationSeconds: 0.0
+
+    - sampleId: "nonjs_sample_005_toc"
+      testClass: "NonJSSample005RegressionTests"
+      testMethod: "testTOCParsesThreeChaptersFromFixture"
+      status: "passed"
+      durationSeconds: 0.0
+
+    - sampleId: "nonjs_sample_005_content"
+      testClass: "NonJSSample005RegressionTests"
+      testMethod: "testContentParsesExpectedTextFromFixture"
+      status: "passed"
+      durationSeconds: 0.0
+
+  rawLogVerified: true
+  rawLogNote: >
+    已核查 CI run 24038332034 artifact 中的 Core/swift-test.log。
+    日志行 861: "Test Suite 'NonJSSample005RegressionTests' started at 2026-04-06 15:38:18.592."
+    日志行 863: "Test Case '-[ReaderCoreParserTests.NonJSSample005RegressionTests
+    testContentParsesExpectedTextFromFixture]' passed (0.000 seconds)."
+    日志行 865: "Test Case '-[ReaderCoreParserTests.NonJSSample005RegressionTests
+    testSearchParsesTwoItemsFromFixture]' passed (0.000 seconds)."
+    日志行 867: "Test Case '-[ReaderCoreParserTests.NonJSSample005RegressionTests
+    testTOCParsesThreeChaptersFromFixture]' passed (0.000 seconds)."
+    日志行 868: "Test Suite 'NonJSSample005RegressionTests' passed."
+    日志行 946: "Test Suite 'All tests' passed at 2026-04-06 15:38:18.612."
+    无 XCTAssert 失败。无 fatal error。无基础设施错误。
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 审核依据
+# ─────────────────────────────────────────────────────────────────────────────
+reviewBasis: >
+  sample_005 非 JS 解析器的 search / toc / content 三条流程在
+  CI run 24038332034（macOS-14，commit 0e839d2）上首次成功执行。
+  这是本项目中 HTML tag 选择器路径（article / section）和
+  CSS class 选择器（.text-block）的首次 XCTest 覆盖。
+  目的：确认 NonJSParserEngine 对 tag 选择器和 class 选择器的处理
+  与 sample_005 fixture HTML 及 expected JSON 完全一致，
+  并将三份 regression YAML 从 pending 状态升级为已验证状态。
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 语义一致性检查
+# ─────────────────────────────────────────────────────────────────────────────
+semanticCheck:
+
+  nonjs_sample_005_search:
+    sourceFile: "Core/Tests/ReaderCoreParserTests/NonJSSample005RegressionTests.swift"
+    contractIntent: >
+      NonJSParserEngine 对 sample_005_search.html 应用 ruleSearch "css:article"，
+      必须返回恰好 2 个 SearchResultItem，title 和 detailURL 与
+      samples/expected/search/sample_005.json 完全匹配。
+      断言：XCTAssertEqual(result.count, 2) + 4 个字段等值检查，共 5 个断言。
+    contractEvidence: >
+      fixture HTML 含 2 个 <article> 元素，每个文本内容为"title|url"格式。
+      NonJSParserEngine.parseSearchResponse 应用 css:article →
+      extractBySimpleCSS（tag 选择器路径）→ 按"|"分割得到 title/detailURL。
+      全部 5 个断言经日志行 865 确认。
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      测试在 macOS-14 arm64 上以 0.000 秒通过。解析器正确提取 2 条记录，
+      title 和 detailURL 值完全准确。经原始日志行 865 确认。
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+  nonjs_sample_005_toc:
+    sourceFile: "Core/Tests/ReaderCoreParserTests/NonJSSample005RegressionTests.swift"
+    contractIntent: >
+      NonJSParserEngine 对 sample_005_toc.html 应用 ruleToc "css:section"，
+      必须返回恰好 3 个 TOCItem，chapterTitle 和 chapterURL 与
+      samples/expected/toc/sample_005.json 完全匹配。
+      断言：XCTAssertEqual(result.count, 3) + 6 个字段等值检查，共 7 个断言。
+    contractEvidence: >
+      fixture HTML 含 3 个 <section> 元素，每个文本内容为"title|url"格式。
+      NonJSParserEngine.parseTOCResponse 应用 css:section →
+      extractBySimpleCSS（tag 选择器路径）→ 按"|"分割。
+      全部 7 个断言经日志行 867 确认。
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      测试在 macOS-14 arm64 上以 0.000 秒通过。解析器正确提取 3 章，
+      title 和 URL 值完全准确。经原始日志行 867 确认。
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+  nonjs_sample_005_content:
+    sourceFile: "Core/Tests/ReaderCoreParserTests/NonJSSample005RegressionTests.swift"
+    contractIntent: >
+      NonJSParserEngine 对 sample_005_content.html 应用 ruleContent "css:.text-block"，
+      必须返回 ContentPage，其 content 字段与
+      samples/expected/content/sample_005.json 中字符串完全相等：
+      "老舍先生以茶馆为舞台，展现了三个时代的社会变迁与人情冷暖。王利发在时代的洪流中挣扎求存，茶馆见证了历史。"
+      断言：XCTAssertFalse(page.content.isEmpty) + XCTAssertEqual（精确字符串），共 2 个断言。
+    contractEvidence: >
+      fixture HTML 含 <div class="text-block">content text</div>。
+      NonJSParserEngine.parseContentResponse 应用 css:.text-block →
+      extractBySimpleCSS（class 选择器路径）→ stripHTMLTags → trim。
+      两个断言经日志行 863 确认。
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      测试在 macOS-14 arm64 上以 0.000 秒通过。解析器精确提取字符串，
+      逐字节与 expected 完全一致。经原始日志行 863 确认。
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 2 决策：Regression Report 更新
+# ─────────────────────────────────────────────────────────────────────────────
+layer2Decision:
+
+  nonjs_sample_005_search:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/nonjs_sample_005_search_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T15:38:19Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0（不变）"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: "git diff 确认仅 5 个授权字段变更，其余字段不变。"
+
+  nonjs_sample_005_toc:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/nonjs_sample_005_toc_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T15:38:19Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0（不变）"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: "git diff 确认仅 5 个授权字段变更，其余字段不变。"
+
+  nonjs_sample_005_content:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/nonjs_sample_005_content_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T15:38:19Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0（不变）"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: "git diff 确认仅 5 个授权字段变更，其余字段不变。"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 3 决策：compat_matrix 更新
+# ─────────────────────────────────────────────────────────────────────────────
+layer3Decision:
+  updateCompatMatrix: "no"
+  reason: >
+    compat_matrix.yml（v0.14.0）中 sample_005 的 actualLevel 已为"A"，
+    由人工决策设定。本次 CI 执行确认了非 JS 解析器对 tag 选择器合同的
+    正确实现。访问等级分类未发生变化，三份 regression 记录是执行状态资产，
+    不影响 compat_matrix 条目。
+
+  sample_005:
+    currentActualLevel: "A"
+    proposedActualLevel: "A（不变）"
+    ruleApplied: "unitContractRules.rule1_safeFallback"
+    rationale: >
+      search / toc / content 三条流程在选择器命中时均返回结构良好的输出。
+      选择器未命中时 NonJSParserEngine 抛出带类型的 ReaderError，
+      由调用方提供安全降级路径，内容访问不会被永久阻断。
+      无网络门控、无宿主级 JS 渲染依赖、无访问策略限制。
+      CI 执行结果确认了实现正确性，不是等级分类的依据。
+    prohibitedReasoningCheck: >
+      本理由描述的是内容访问语义，不是测试执行状态。
+      CI 结果是实现正确性的证据，不是等级分类的基础。
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 审核结论
+# ─────────────────────────────────────────────────────────────────────────────
+reviewConclusion:
+  approved: "yes"
+  blockers: "none"
+  commitSha: "e98e058"

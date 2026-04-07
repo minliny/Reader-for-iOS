@@ -1,0 +1,16 @@
+sampleId: "sample_004"
+phase: "p0_non_js"
+accessTier: "A"
+capability:
+  - search
+  - toc
+  - content
+selectorVariant: "class (.entry, .ep) + id (#story)"
+expected:
+  searchCount: 3
+  tocCount: 4
+  contentNonEmpty: true
+expectedOutput:
+  search: "samples/expected/search/sample_004.json"
+  toc: "samples/expected/toc/sample_004.json"
+  content: "samples/expected/content/sample_004.json"

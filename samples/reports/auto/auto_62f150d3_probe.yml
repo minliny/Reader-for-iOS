@@ -1,0 +1,16 @@
+reportId: "probe_auto_62f150d3_1775455762"
+generatedAt: "2026-04-06T06:09:22Z"
+sampleId: "auto_62f150d3"
+probeUrl: "https://www.xs177.com/search.html,{
+  \"method\": \"POST\",
+  \"body\": \"searchtype=all&searchkey=test\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The network connection was lost."

@@ -1,0 +1,17 @@
+reportId: "probe_auto_997fc344_1775485002"
+generatedAt: "2026-04-06T14:16:42Z"
+sampleId: "auto_997fc344"
+probeUrl: "{{source.getKey().match(/([^\\#]+)\\#/)[1]}}e/search/index.php,{
+  \"charset\": \"gb2312\",
+  \"method\": \"POST\",
+  \"body\": \"keyboard=test&show=title&classid=\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

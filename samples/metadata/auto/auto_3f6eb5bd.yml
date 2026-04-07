@@ -1,0 +1,15 @@
+sampleId: "auto_3f6eb5bd"
+generatedAt: "2026-04-06T04:20:42Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "60"
+bookSourceUrl: "http://www.60ks.info"
+accessTier: "C"
+extractedSearchSelector: "css:#nr"
+probeHttpStatus: 200
+probeHtmlLength: 93318
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

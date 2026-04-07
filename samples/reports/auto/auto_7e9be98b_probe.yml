@@ -1,0 +1,13 @@
+reportId: "probe_auto_7e9be98b_1775448756"
+generatedAt: "2026-04-06T04:12:36Z"
+sampleId: "auto_7e9be98b"
+probeUrl: "https://www.qqxsqqxs.com/search.php?keyword=test&page=1"
+
+result:
+  httpStatus: 403
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 4870
+  jsChallengeObserved: true
+  loginMarkerObserved: false
+  classifiedTier: "C"
+  notes: "JS challenge detected"

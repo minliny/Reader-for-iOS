@@ -1,0 +1,17 @@
+{
+  "bookSourceName": "起点中文网",
+  "bookSourceUrl": "https://www.qidian.com",
+  "bookSourceGroup": "p1_cookie_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://www.qidian.com/search?kw={{key}}",
+  "ruleSearch": "css:.res-book-item .book-mid-info h4 a",
+  "ruleToc": "css:.volume-wrap .chapter-item a",
+  "ruleContent": "css:#readContent",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "header": {
+    "Referer": "https://www.qidian.com/",
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  }
+}

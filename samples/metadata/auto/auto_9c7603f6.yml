@@ -1,0 +1,15 @@
+sampleId: "auto_9c7603f6"
+generatedAt: "2026-04-06T06:09:35Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "言情小说大全🎃"
+bookSourceUrl: "https://www.xs99.org"
+accessTier: "B"
+extractedSearchSelector: "css:.nr6:nth-child(n+2)"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

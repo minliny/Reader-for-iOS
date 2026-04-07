@@ -1,0 +1,13 @@
+reportId: "probe_auto_98ac1080_1775484989"
+generatedAt: "2026-04-06T14:16:29Z"
+sampleId: "auto_98ac1080"
+probeUrl: "/hhllist/test_1.html"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

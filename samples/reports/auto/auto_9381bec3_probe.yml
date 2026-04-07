@@ -1,0 +1,17 @@
+reportId: "probe_auto_9381bec3_1775482410"
+generatedAt: "2026-04-06T13:33:30Z"
+sampleId: "auto_9381bec3"
+probeUrl: "{{url=source.getKey();
+cookie.removeCookie(url)}}/search/,{
+  \"body\": \"searchkey=test&searchtype=all&t_btnsearch=搜索\",
+  \"method\": \"POST\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

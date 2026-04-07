@@ -1,0 +1,15 @@
+sampleId: "auto_986e80c5"
+generatedAt: "2026-04-06T03:58:51Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "成人小说网"
+bookSourceUrl: "https://crxs.me"
+accessTier: "C"
+extractedSearchSelector: "css:.item.fiction"
+probeHttpStatus: 200
+probeHtmlLength: 34533
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

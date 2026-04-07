@@ -1,0 +1,17 @@
+reportId: "probe_auto_347e01de_1775457392"
+generatedAt: "2026-04-06T06:36:32Z"
+sampleId: "auto_347e01de"
+probeUrl: "http://www.23hh.la/modules/article/search.php,{
+  \"charset\": \"gbk\",
+  \"method\": \"POST\",
+  \"body\": \"searchkey=test&action=login\"
+}"
+
+result:
+  httpStatus: 400
+  contentType: "text/html; charset=us-ascii"
+  htmlLength: 318
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

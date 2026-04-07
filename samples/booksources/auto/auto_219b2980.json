@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "千帆小说",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/www.qianfanxs.com\/",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:p",
+  "ruleSearch" : "css:li!0",
+  "ruleToc" : "css:a",
+  "searchUrl" : "https:\/\/www.qianfanxs.com\/so\/?searchtype=novelname&searchkey={{key}}"
+}

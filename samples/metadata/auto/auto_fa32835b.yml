@@ -1,0 +1,15 @@
+sampleId: "auto_fa32835b"
+generatedAt: "2026-04-06T04:20:58Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "爱搜书吧"
+bookSourceUrl: "http://www.soshu8.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.bookinfo"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

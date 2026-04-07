@@ -1,0 +1,13 @@
+reportId: "probe_auto_937fc2fd_1775457377"
+generatedAt: "2026-04-06T06:36:17Z"
+sampleId: "auto_937fc2fd"
+probeUrl: "https://www.1biquge.com/searchbook.php?keyword=test&page=1"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 2606
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

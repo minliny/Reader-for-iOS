@@ -1,0 +1,36 @@
+{
+  "bookSourceName": "ExpandTesting Login Demo",
+  "bookSourceUrl": "https://practice.expandtesting.com",
+  "bookSourceGroup": "p1_login_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://practice.expandtesting.com/secure",
+  "ruleSearch": "css:.flash",
+  "ruleToc": "css:.container a",
+  "ruleContent": "css:.example,css:.container",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "loginUrl": "https://practice.expandtesting.com/login",
+  "header": {
+    "Referer": "https://practice.expandtesting.com/login"
+  },
+  "xReaderLoginFlow": {
+    "enabled": true,
+    "method": "POST",
+    "contentType": "application/x-www-form-urlencoded",
+    "actionUrl": "https://practice.expandtesting.com/authenticate",
+    "usernameField": "username",
+    "passwordField": "password",
+    "usernameValue": "practice",
+    "passwordValue": "SuperSecretPassword!",
+    "successUrl": "https://practice.expandtesting.com/secure",
+    "successMarkers": [
+      "You logged into a secure area!",
+      "Logout"
+    ],
+    "failureMarkers": [
+      "Invalid username.",
+      "Invalid password."
+    ]
+  }
+}

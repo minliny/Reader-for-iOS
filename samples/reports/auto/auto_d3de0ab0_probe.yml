@@ -1,0 +1,13 @@
+reportId: "probe_auto_d3de0ab0_1775448763"
+generatedAt: "2026-04-06T04:12:43Z"
+sampleId: "auto_d3de0ab0"
+probeUrl: "https://www.lw77.cc/search/?wd=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 1089
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

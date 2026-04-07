@@ -1,0 +1,78 @@
+checkpointId: "cp_D7_20260406"
+timestamp: "2026-04-06T04:12:28Z"
+currentPhase: "D"
+currentStep: "D7"
+completedSteps:
+  - A1
+  - A2
+  - A3
+  - E1
+  - E2
+  - B1
+  - B2
+  - B3
+  - C1
+  - C2
+  - D1
+  - D2
+  - D3
+  - D4
+  - D5
+  - D6
+  - F1
+  - D7
+
+modifiedFiles:
+  - Core/Package.swift
+  - Core/Sources/SampleCookie002FetchRunner/main.swift
+  - Core/Sources/SampleCookie002IsolationRunner/main.swift
+  - .github/workflows/sample-cookie-002-isolation.yml
+  - samples/matrix/compat_matrix.yml
+
+generatedArtifacts:
+  - samples/reports/latest/fetch_result_sample_cookie_002.yml
+  - samples/reports/latest/fetch_isolation_step_records_sample_cookie_002.yml
+  - samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_002.yml
+
+commandsRun:
+  - "swift build --product SampleCookie002FetchRunner"
+  - "swift build --product SampleCookie002IsolationRunner"
+  - "swift run --package-path Core SampleCookie002FetchRunner -- $GITHUB_WORKSPACE"
+  - "swift run --package-path Core SampleCookie002IsolationRunner -- $GITHUB_WORKSPACE"
+  - "git push origin HEAD (CI run 24018335876)"
+
+ciRuns:
+  - runId: "24018335876"
+    workflow: "P1 Cookie Isolation sample_cookie_002"
+    result: "success"
+    samples: [sample_cookie_002]
+    allPassed: true
+
+tierDecision:
+  sampleId: "sample_cookie_002"
+  site: "qidian.com"
+  accessTier: "B2"
+  actualLevel: "D"
+  finalPrimaryFailureType: "NETWORK_POLICY_MISMATCH"
+  finalSecondaryReason: "undetermined_after_isolation"
+  winningStep: null
+  keyObservation: >
+    All 8 isolation steps returned HTTP 202 with Set-Cookie and text/html.
+    No JS challenge markers detected (not Cloudflare). No search results found
+    in any step. Site uses client-side JS rendering; URLSession receives an empty
+    HTML shell. Single-variable isolation cannot resolve this class of failure.
+
+currentRisks:
+  - "sample_login_001 (biquge.com.cn) domain availability uncertain"
+  - "ReaderCoreJSRenderer PoC (C3+) still deferred — WKWebView needs CI headless workaround"
+  - "qidian.com (cookie_002) confirmed level D — requires JS rendering to reach search content"
+
+nextStep: "D8 — Create SampleLogin001FetchRunner + SampleLogin001IsolationRunner, run via CI"
+
+rollbackHint: >
+  D7 changes are in commit a214d38..e4cc8d0 on claude/fervent-goldstine.
+  Real reports committed by CI. To rollback: revert
+  Core/Sources/SampleCookie002FetchRunner/, Core/Sources/SampleCookie002IsolationRunner/,
+  and their Package.swift entries. compat_matrix entry for sample_cookie_002 reverts to pending.
+
+blockers: []

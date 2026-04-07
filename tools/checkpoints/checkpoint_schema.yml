@@ -1,0 +1,23 @@
+schemaVersion: "1.0.0"
+description: "Schema for unattended execution recovery checkpoints"
+
+fields:
+  checkpointId: "string — unique ID, format: cp_<phaseId>_<stepId>_<yyyyMMdd>"
+  timestamp: "ISO8601 UTC"
+  currentPhase: "string — phaseId from masterPlan"
+  currentStep: "string — stepId just completed"
+  completedSteps: "list of stepIds"
+  modifiedFiles: "list of relative file paths"
+  commandsRun: "list of shell commands executed"
+  generatedArtifacts: "list of new files created"
+  currentRisks: "list of known risks at this point"
+  nextStep: "string — stepId to execute next"
+  rollbackHint: "string — how to undo if needed"
+  blockers: "list — if any, execution stops until resolved"
+
+recoveryInstructions:
+  - "1. Read docs/DEV_CHECKPOINT.md"
+  - "2. Find lastCompletedStep"
+  - "3. Read checkpoint file for that step from tools/checkpoints/"
+  - "4. Resume from nextStep"
+  - "5. If blockers non-empty, resolve before continuing"

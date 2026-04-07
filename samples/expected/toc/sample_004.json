@@ -1,0 +1,30 @@
+{
+  "sampleId": "sample_004",
+  "flow": "toc",
+  "expected": {
+    "success": true,
+    "chapterCount": 4,
+    "chapters": [
+      {
+        "chapterTitle": "第一章 科学边界",
+        "chapterURL": "http://fixture4.local/ch/1.html",
+        "chapterIndex": 0
+      },
+      {
+        "chapterTitle": "第二章 黑暗森林",
+        "chapterURL": "http://fixture4.local/ch/2.html",
+        "chapterIndex": 1
+      },
+      {
+        "chapterTitle": "第三章 死亡终章",
+        "chapterURL": "http://fixture4.local/ch/3.html",
+        "chapterIndex": 2
+      },
+      {
+        "chapterTitle": "第四章 星际远征",
+        "chapterURL": "http://fixture4.local/ch/4.html",
+        "chapterIndex": 3
+      }
+    ]
+  }
+}

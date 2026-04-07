@@ -1,0 +1,15 @@
+sampleId: "auto_6fed4ccc"
+generatedAt: "2026-04-06T06:36:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "神书网pi12345[修复]"
+bookSourceUrl: "http://www.pi12345.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.CGsectionTwo-right-content-unit"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

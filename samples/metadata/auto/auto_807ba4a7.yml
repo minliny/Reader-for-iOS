@@ -1,0 +1,15 @@
+sampleId: "auto_807ba4a7"
+generatedAt: "2026-04-06T06:09:19Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "久久小说下载网②"
+bookSourceUrl: "http://www.txt99.co"
+accessTier: "B"
+extractedSearchSelector: "css:\"tag.a.0"
+probeHttpStatus: 404
+probeHtmlLength: 547
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

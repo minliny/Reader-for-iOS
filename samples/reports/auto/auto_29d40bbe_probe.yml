@@ -1,0 +1,15 @@
+reportId: "probe_auto_29d40bbe_1775485002"
+generatedAt: "2026-04-06T14:16:42Z"
+sampleId: "auto_29d40bbe"
+probeUrl: "http://www.abcxs.com/s111.php?ie=gbk&q=test,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: 500
+  contentType: "text/html"
+  htmlLength: 97
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

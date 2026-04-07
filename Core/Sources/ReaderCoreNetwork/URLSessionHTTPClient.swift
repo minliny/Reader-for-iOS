@@ -2,21 +2,53 @@ import Foundation
 import ReaderCoreProtocols
 import ReaderCoreModels
 
+private final class RedirectCaptureDelegate: NSObject, URLSessionTaskDelegate {
+    private let followRedirects: Bool
+    private let lock = NSLock()
+    private var capturedResponses: [HTTPURLResponse] = []
+
+    init(followRedirects: Bool) {
+        self.followRedirects = followRedirects
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        lock.lock()
+        capturedResponses.append(response)
+        lock.unlock()
+        completionHandler(followRedirects ? request : nil)
+    }
+
+    var redirectResponses: [HTTPURLResponse] {
+        lock.lock()
+        defer { lock.unlock() }
+        return capturedResponses
+    }
+}
+
 public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
     private let session: URLSession
     private let cookieJar: CookieJar?
     private let defaultHeaders: [String: String]
+    private let followRedirects: Bool
 
     public init(
         configuration: URLSessionConfiguration = .default,
         cookieJar: CookieJar? = nil,
-        defaultHeaders: [String: String] = [:]
+        defaultHeaders: [String: String] = [:],
+        followRedirects: Bool = true
     ) {
         configuration.httpShouldSetCookies = false
         configuration.httpCookieAcceptPolicy = .never
         self.session = URLSession(configuration: configuration)
         self.cookieJar = cookieJar
         self.defaultHeaders = defaultHeaders
+        self.followRedirects = followRedirects
     }
 
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
@@ -50,7 +82,8 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
         }
 
         do {
-            let (data, response) = try await session.data(for: urlRequest)
+            let redirectDelegate = RedirectCaptureDelegate(followRedirects: followRedirects)
+            let (data, response) = try await session.data(for: urlRequest, delegate: redirectDelegate)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ReaderError.network(
@@ -69,13 +102,10 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
             }
 
             if request.useCookieJar, let jar = cookieJar {
-                if let setCookieHeaders = httpResponse.allHeaderFields["Set-Cookie"] as? String {
-                    await jar.setCookies(from: setCookieHeaders, domain: url.host ?? "")
-                } else if let setCookieHeaders = httpResponse.allHeaderFields["Set-Cookie"] as? [String] {
-                    for header in setCookieHeaders {
-                        await jar.setCookies(from: header, domain: url.host ?? "")
-                    }
+                for redirectResponse in redirectDelegate.redirectResponses {
+                    await storeCookies(from: redirectResponse, jar: jar, fallbackHost: redirectResponse.url?.host ?? url.host ?? "")
                 }
+                await storeCookies(from: httpResponse, jar: jar, fallbackHost: httpResponse.url?.host ?? url.host ?? "")
             }
 
             return HTTPResponse(
@@ -110,6 +140,16 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
                 message: "Request failed: \(error.localizedDescription)",
                 underlyingError: error
             )
+        }
+    }
+
+    private func storeCookies(from response: HTTPURLResponse, jar: CookieJar, fallbackHost: String) async {
+        if let setCookieHeaders = response.allHeaderFields["Set-Cookie"] as? String {
+            await jar.setCookies(from: setCookieHeaders, domain: fallbackHost)
+        } else if let setCookieHeaders = response.allHeaderFields["Set-Cookie"] as? [String] {
+            for header in setCookieHeaders {
+                await jar.setCookies(from: header, domain: fallbackHost)
+            }
         }
     }
 

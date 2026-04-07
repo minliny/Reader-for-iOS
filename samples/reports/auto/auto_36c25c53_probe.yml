@@ -1,0 +1,13 @@
+reportId: "probe_auto_36c25c53_1775455762"
+generatedAt: "2026-04-06T06:09:22Z"
+sampleId: "auto_36c25c53"
+probeUrl: "http://search.ximalaya.com/speed/album/v1/list?condition=relation&core=album&device=android&fq=categoryId:3&kw=test&page=1&rows=20&spellchecker=true"
+
+result:
+  httpStatus: 200
+  contentType: "text/plain;charset=UTF-8"
+  htmlLength: 12308
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

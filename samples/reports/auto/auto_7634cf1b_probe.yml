@@ -1,0 +1,15 @@
+reportId: "probe_auto_7634cf1b_1775485001"
+generatedAt: "2026-04-06T14:16:41Z"
+sampleId: "auto_7634cf1b"
+probeUrl: "https://www.zhijiandoukou.net/modules/article/search.php?searchkey=test&page=1,{
+\"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

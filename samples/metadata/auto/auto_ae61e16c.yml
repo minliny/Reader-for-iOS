@@ -1,0 +1,15 @@
+sampleId: "auto_ae61e16c"
+generatedAt: "2026-04-06T04:12:42Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎉69书吧⑤"
+bookSourceUrl: "https://www.69shuba.com/"
+accessTier: "B"
+extractedSearchSelector: "css:class.sk_box"
+probeHttpStatus: 404
+probeHtmlLength: 12552
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

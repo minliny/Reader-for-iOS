@@ -1,0 +1,16 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "🎴 四库书屋 (Bing)",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/www.4ksw.com##Bing接口",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "header" : {
+    "User-Agent" : "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/114.0.0.0 Safari\/537.36"
+  },
+  "ruleContent" : "css:#content",
+  "ruleSearch" : "css:li.b_algo",
+  "ruleToc" : "css:li",
+  "searchUrl" : "https:\/\/cn.bing.com\/search?q=site%3Awww.4ksw.com+{{key}}"
+}

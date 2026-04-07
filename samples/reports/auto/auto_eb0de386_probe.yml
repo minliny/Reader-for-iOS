@@ -1,0 +1,29 @@
+reportId: "probe_auto_eb0de386_1775449247"
+generatedAt: "2026-04-06T04:20:47Z"
+sampleId: "auto_eb0de386"
+probeUrl: "/search/,{
+	\"charset\":\"UTF-8\",
+	\"method\":\"POST\",
+	\"body\":\"searchkey=test&Submit=\",
+	\"headers\":{
+			\"Host\":\"zerifeisheng.com\",
+			\"Upgrade-Insecure-Requests\":\"1\",
+			\"Origin\":\"https://zerifeisheng.com\",
+		\"Accept\":\"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9\",
+		\"Sec-Fetch-Site\":\"same-origin\",
+		\"Sec-Fetch-Mode\":\"navigate\",
+		\"Sec-Fetch-User\":\"?1\",
+		\"Sec-Fetch-Dest\":\"document\",
+		\"Referer\":\"https://zerifeisheng.com/\",
+		\"Accept-Language\":\"zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7\"
+			}
+	}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

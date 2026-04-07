@@ -1,0 +1,15 @@
+reportId: "probe_auto_cc39c55f_1775457393"
+generatedAt: "2026-04-06T06:36:33Z"
+sampleId: "auto_cc39c55f"
+probeUrl: "/plus/search.php?keyword=test&searchtype=titlekeyword&channeltype=0&orderby=&kwtype=0&pagesize=50&typeid=0&TotalResult=314&PageNo=1,{
+  \"charset\": \"GB18030\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

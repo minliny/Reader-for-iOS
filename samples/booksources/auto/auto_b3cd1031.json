@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "笔趣阁",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/www.muxtoo.com",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:id.chaptercontent",
+  "ruleSearch" : "css:.bookbox",
+  "ruleToc" : "css:dd[!10]",
+  "searchUrl" : "https:\/\/www.muxtoo.com\/s?q={{key}},{\n  \"webView\": true\n}"
+}

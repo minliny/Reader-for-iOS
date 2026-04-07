@@ -1,0 +1,15 @@
+sampleId: "auto_11c00206"
+generatedAt: "2026-04-06T06:36:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "何以笙箫默"
+bookSourceUrl: "http://www.yetianlian.com/"
+accessTier: "B"
+extractedSearchSelector: "css:class.bookbox"
+probeHttpStatus: 200
+probeHtmlLength: 1936
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

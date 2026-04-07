@@ -1,0 +1,13 @@
+reportId: "probe_auto_d452a6a6_1775482410"
+generatedAt: "2026-04-06T13:33:30Z"
+sampleId: "auto_d452a6a6"
+probeUrl: "http://search.zongheng.com/s?keyword=test"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 55682
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

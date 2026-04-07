@@ -1,0 +1,17 @@
+reportId: "probe_auto_908460e4_1775482404"
+generatedAt: "2026-04-06T13:33:24Z"
+sampleId: "auto_908460e4"
+probeUrl: "/s.php,{
+\"charset\": \"utf-8\",
+\"method\": \"POST\",
+\"body\": \"keyword=test&t=1\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

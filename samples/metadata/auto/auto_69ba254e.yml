@@ -1,0 +1,15 @@
+sampleId: "auto_69ba254e"
+generatedAt: "2026-04-06T14:16:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "17K小说"
+bookSourceUrl: "https://api.17k.com/"
+accessTier: "B"
+extractedSearchSelector: "css:$.data.lists[*]"
+probeHttpStatus: 200
+probeHtmlLength: 259
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

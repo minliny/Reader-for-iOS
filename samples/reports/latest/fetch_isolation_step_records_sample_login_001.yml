@@ -1,0 +1,166 @@
+reportId: "isolation_login_001_1775482330_steps"
+generatedAt: "2026-04-06T13:32:10Z"
+phase: "p1_login"
+sampleId: "sample_login_001"
+
+records:
+  - stepId: "BASELINE-000"
+    changedVariable: "none"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+  - stepId: "TEST-001"
+    changedVariable: "header.user_agent"
+    requestPolicy:
+      user_agent: true
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+  - stepId: "TEST-002"
+    changedVariable: "header.referer"
+    requestPolicy:
+      user_agent: false
+      referer: true
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+  - stepId: "TEST-003"
+    changedVariable: "cookie_jar"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: true
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+  - stepId: "TEST-004"
+    changedVariable: "retry"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: true
+      redirect_handling: false
+      login: false
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+  - stepId: "TEST-005"
+    changedVariable: "redirect_handling"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: true
+      login: false
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+  - stepId: "TEST-006"
+    changedVariable: "login"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: true
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "continue_isolation"
+  - stepId: "TEST-007"
+    changedVariable: "js_mark_only"
+    requestPolicy:
+      user_agent: false
+      referer: false
+      cookie_jar: false
+      retry: false
+      redirect_handling: false
+      login: false
+    httpStatus: null
+    contentType: null
+    finalUrl: "https://www.biquge.com.cn/search/?keyword=test"
+    responseClass: "network_error"
+    setCookieObserved: false
+    loginMarkerObserved: false
+    jsChallengeObserved: false
+    searchResultMarkerObserved: false
+    candidateFailureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "baseline_controlled_fetch_failed"
+    decision: "stop_undetermined"

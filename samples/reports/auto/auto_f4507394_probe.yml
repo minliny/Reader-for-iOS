@@ -1,0 +1,13 @@
+reportId: "probe_auto_f4507394_1775447942"
+generatedAt: "2026-04-06T03:59:02Z"
+sampleId: "auto_f4507394"
+probeUrl: "/home/search,{\"method\": \"POST\", \"body\": \"action=search&q=test\"}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

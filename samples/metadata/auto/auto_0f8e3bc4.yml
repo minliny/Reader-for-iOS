@@ -1,0 +1,15 @@
+sampleId: "auto_0f8e3bc4"
+generatedAt: "2026-04-06T06:09:34Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🚬 谜语书屋"
+bookSourceUrl: "https://h5.miyushu.com/index.shtml"
+accessTier: "B"
+extractedSearchSelector: "css:class.norli"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

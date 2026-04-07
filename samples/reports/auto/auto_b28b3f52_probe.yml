@@ -1,0 +1,13 @@
+reportId: "probe_auto_b28b3f52_1775484991"
+generatedAt: "2026-04-06T14:16:31Z"
+sampleId: "auto_b28b3f52"
+probeUrl: "https://www.shenmh.top/search/index?keywords=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

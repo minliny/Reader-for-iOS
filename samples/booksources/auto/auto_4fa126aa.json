@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "落秋中文",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/m.luoqiuzw.com",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:id.chaptercontent",
+  "ruleSearch" : "css:tag.article",
+  "ruleToc" : "css:id.chapterlist",
+  "searchUrl" : "https:\/\/m.baidu.com\/s?word={{key}} site:m.luoqiuzw.com"
+}

@@ -1,0 +1,17 @@
+reportId: "probe_auto_654650c5_1775449238"
+generatedAt: "2026-04-06T04:20:38Z"
+sampleId: "auto_654650c5"
+probeUrl: "https://www.7w7y.com/modules/article/search.php,{
+\"charset\": \"gbk\",
+\"method\": \"POST\",
+\"body\": \"searchtype=articlename&searchkey=test\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: A server with the specified hostname could not be found."

@@ -1,0 +1,25 @@
+{
+  "sampleId": "sample_003",
+  "flow": "toc",
+  "expected": {
+    "success": true,
+    "chapterCount": 3,
+    "chapters": [
+      {
+        "chapterTitle": "第一章 苦难的起点",
+        "chapterURL": "http://fixture3.local/chapter/1.html",
+        "chapterIndex": 0
+      },
+      {
+        "chapterTitle": "第二章 生活的重量",
+        "chapterURL": "http://fixture3.local/chapter/2.html",
+        "chapterIndex": 1
+      },
+      {
+        "chapterTitle": "第三章 命运的转折",
+        "chapterURL": "http://fixture3.local/chapter/3.html",
+        "chapterIndex": 2
+      }
+    ]
+  }
+}

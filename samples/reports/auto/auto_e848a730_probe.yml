@@ -1,0 +1,14 @@
+reportId: "probe_auto_e848a730_1775457391"
+generatedAt: "2026-04-06T06:36:31Z"
+sampleId: "auto_e848a730"
+probeUrl: "https://www.sososhu.com/?site=2cyxswnet&q=test,{
+  headers: { \"User-Agent\": \"Mozilla/5.0 (Linux; Android 12; PACM00 Build/QP1A.190711.020) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.79 Mobile Safari/537.36\" }}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 1751
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

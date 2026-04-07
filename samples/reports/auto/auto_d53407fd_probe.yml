@@ -1,0 +1,13 @@
+reportId: "probe_auto_d53407fd_1775485002"
+generatedAt: "2026-04-06T14:16:42Z"
+sampleId: "auto_d53407fd"
+probeUrl: "https://www.sososhu.com/?q=test&site=qiushubang&Submit=%E6%90%9C%E7%B4%A2,{\"webView\": true}"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 1751
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

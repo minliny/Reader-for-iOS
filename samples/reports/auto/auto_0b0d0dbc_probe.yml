@@ -1,0 +1,13 @@
+reportId: "probe_auto_0b0d0dbc_1775455759"
+generatedAt: "2026-04-06T06:09:19Z"
+sampleId: "auto_0b0d0dbc"
+probeUrl: "{{source.getKey()}}/s?q={{java.put(\"sk\",key)}}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

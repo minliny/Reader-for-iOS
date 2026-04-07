@@ -1,0 +1,15 @@
+sampleId: "auto_c0ac8216"
+generatedAt: "2026-04-06T14:17:40Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "松语文学网"
+bookSourceUrl: "http://www.16sy.com"
+accessTier: "B"
+extractedSearchSelector: "css:rec_rullist"
+probeHttpStatus: 404
+probeHtmlLength: 9
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

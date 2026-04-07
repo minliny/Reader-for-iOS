@@ -1,0 +1,15 @@
+sampleId: "auto_c817e1ca"
+generatedAt: "2026-04-06T03:59:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "来漫画"
+bookSourceUrl: "https://m.laimanhua.org/"
+accessTier: "A"
+extractedSearchSelector: "css:.MTagBookList_tagBookBox"
+probeHttpStatus: 200
+probeHtmlLength: 4200
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

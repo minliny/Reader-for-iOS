@@ -1,0 +1,15 @@
+sampleId: "auto_59158f72"
+generatedAt: "2026-04-06T06:36:37Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "15文学网"
+bookSourceUrl: "http://m.15wx.com"
+accessTier: "B"
+extractedSearchSelector: "css:tag.tbody"
+probeHttpStatus: 503
+probeHtmlLength: 55
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

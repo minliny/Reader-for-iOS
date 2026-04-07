@@ -1,0 +1,15 @@
+sampleId: "auto_e848a730"
+generatedAt: "2026-04-06T06:36:31Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "二次元小说网patch"
+bookSourceUrl: "https://www.erciyan.com/"
+accessTier: "B"
+extractedSearchSelector: "css:.item"
+probeHttpStatus: 200
+probeHtmlLength: 1751
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

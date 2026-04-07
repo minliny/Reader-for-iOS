@@ -1,0 +1,13 @@
+reportId: "probe_auto_12f663de_1775448756"
+generatedAt: "2026-04-06T04:12:36Z"
+sampleId: "auto_12f663de"
+probeUrl: "http://www.yesexs.com/"
+
+result:
+  httpStatus: 200
+  contentType: "text/html; charset=UTF-8"
+  htmlLength: 805
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

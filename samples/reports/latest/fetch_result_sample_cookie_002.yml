@@ -1,0 +1,27 @@
+reportId: "fetch_cookie_002_1775482330"
+generatedAt: "2026-04-06T13:32:10Z"
+phase: "p1_cookie"
+sampleId: "sample_cookie_002"
+
+baseline:
+  requestPolicy:
+    no_header: true
+    no_cookie: true
+    no_login: true
+    no_js: true
+    no_retry: true
+    redirect_handling: false
+
+result:
+  fetchStatus: "failed"
+  httpStatus: 202
+  contentType: "text/html; charset=utf-8"
+  finalUrl: "https://www.qidian.com/search?kw=test"
+  responseClass: "success_2xx"
+  setCookieObserved: true
+  loginMarkerObserved: false
+  jsChallengeObserved: false
+  searchResultMarkerObserved: false
+  primaryFailureType: "NETWORK_POLICY_MISMATCH"
+  secondaryReason: "baseline_controlled_fetch_failed"
+  notes: "Set-Cookie observed; search result absent; isolation required"

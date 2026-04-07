@@ -1,0 +1,15 @@
+reportId: "probe_auto_15949ea8_1775482401"
+generatedAt: "2026-04-06T13:33:21Z"
+sampleId: "auto_15949ea8"
+probeUrl: "https://m.yushuge.com/modules/article/search.php?searchtype=articlename&searchkey=test&t_btnsearch=,{
+\"charset\":\"gbk\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The network connection was lost."

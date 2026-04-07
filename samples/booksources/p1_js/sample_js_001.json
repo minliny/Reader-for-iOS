@@ -1,0 +1,16 @@
+{
+  "bookSourceName": "轻小说文库(JS确认)",
+  "bookSourceUrl": "https://www.wenku8.net",
+  "bookSourceGroup": "p1_js_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://www.wenku8.net/modules/article/search.php?searchkey={{key}}&searchtype=articlename",
+  "ruleSearch": "css:.grid dl dd.title a",
+  "ruleToc": "css:#maincontent .vcss td a",
+  "ruleContent": "css:#content",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "header": {
+    "Referer": "https://www.wenku8.net/"
+  }
+}

@@ -1,0 +1,15 @@
+reportId: "probe_auto_0ac4a4d1_1775482413"
+generatedAt: "2026-04-06T13:33:33Z"
+sampleId: "auto_0ac4a4d1"
+probeUrl: "https://m.52bqg.net/modules/article/search.php?searchtype=articlename&searchkey=test&t_btnsearch=,{
+  \"charset\": \"gbk\"
+}"
+
+result:
+  httpStatus: 403
+  contentType: "text/html; charset=utf-8"
+  htmlLength: 406
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "probe OK"

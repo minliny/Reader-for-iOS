@@ -1,0 +1,13 @@
+reportId: "probe_auto_8bf70ce0_1775457379"
+generatedAt: "2026-04-06T06:36:19Z"
+sampleId: "auto_8bf70ce0"
+probeUrl: "https://3g.baidu.com/from=1013843h/s?word=test site:www.shu111.com"
+
+result:
+  httpStatus: 200
+  contentType: "text/html;charset=utf-8"
+  htmlLength: 1511994
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

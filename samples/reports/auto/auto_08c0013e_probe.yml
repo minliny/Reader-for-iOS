@@ -1,0 +1,13 @@
+reportId: "probe_auto_08c0013e_1775449291"
+generatedAt: "2026-04-06T04:21:31Z"
+sampleId: "auto_08c0013e"
+probeUrl: "/book/search?query=test"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

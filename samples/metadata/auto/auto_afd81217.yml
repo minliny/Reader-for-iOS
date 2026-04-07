@@ -1,0 +1,15 @@
+sampleId: "auto_afd81217"
+generatedAt: "2026-04-06T06:09:37Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "豌豆文学"
+bookSourceUrl: "http://www.wandouwx.com"
+accessTier: "B"
+extractedSearchSelector: "css:id.sitebox"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

@@ -1,0 +1,36 @@
+reportId: "smoke_sample_002_nonjs_1775489884"
+generatedAt: "2026-04-06T15:38:04Z"
+phase: "p0_non_js_core_stable"
+sampleId: "sample_002"
+
+results:
+  search:
+    status: "passed"
+    actualCount: 2
+    expectedCount: 2
+    items:
+      - name: "水浒传"
+        url: "http://fixture2.local/book/1.html"
+      - name: "西游记"
+        url: "http://fixture2.local/book/2.html"
+  toc:
+    status: "passed"
+    actualCount: 3
+    expectedCount: 3
+    chapters:
+      - title: "第一回 张天师祈禳瘟疫"
+        url: "http://fixture2.local/chapter/1.html"
+      - title: "第二回 王教头私走延安府"
+        url: "http://fixture2.local/chapter/2.html"
+      - title: "第三回 史大郎夜走华阴县"
+        url: "http://fixture2.local/chapter/3.html"
+  content:
+    status: "passed"
+    contentNonEmpty: true
+    expectedNonEmpty: true
+    contentPreview: "话说东京开封府，有个大汉姓宋名江，自幼读书，颇知礼义。乱世之中，英雄辈出，且看梁山好汉如何替天行道。"
+
+final:
+  overall: "passed"
+  failureType: null
+  notes: "sample_002 full chain smoke: search -> toc -> content"

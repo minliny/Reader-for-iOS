@@ -1,0 +1,15 @@
+sampleId: "auto_39d402f2"
+generatedAt: "2026-04-06T13:32:36Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🎉 全小说"
+bookSourceUrl: "http://m.quanxiaoshuo.org"
+accessTier: "A"
+extractedSearchSelector: "css:.list"
+probeHttpStatus: 200
+probeHtmlLength: 4307
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

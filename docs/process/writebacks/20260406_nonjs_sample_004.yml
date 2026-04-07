@@ -1,0 +1,251 @@
+writebackId: "wb_nonjs_sample_004_20260406"
+version: "1.0.0"
+createdAt: "2026-04-06T14:45:00Z"
+completedAt: "2026-04-06T14:45:00Z"
+reviewerHandle: "ai-dev-agent"
+ciRunUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24035945054"
+artifactName: "core-swift-test-log"
+runTriggerCommit: "4f74fa4"
+runTriggerNote: >
+  sample_004 non-JS regression tests added in commit 4f74fa4:
+  NonJSSample004RegressionTests (search / toc / content) wired into
+  ReaderCoreParserTests test target. CI run 24035945054 is the first
+  successful execution of all three test methods on macOS-14 arm64.
+
+cleanRoom:
+  externalReferenceUsed: false
+  compatibleLicenseOnly: true
+  gplCodeCarryRisk: false
+  note: >
+    All evidence in this record is derived solely from CI artifacts produced
+    within this repository. No external standards or proprietary references.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ASSOCIATED SAMPLES
+# ─────────────────────────────────────────────────────────────────────────────
+associatedSamples:
+  - sampleId: "nonjs_sample_004_search"
+    category: "nonjs_parser"
+    source: "unit_test"
+  - sampleId: "nonjs_sample_004_toc"
+    category: "nonjs_parser"
+    source: "unit_test"
+  - sampleId: "nonjs_sample_004_content"
+    category: "nonjs_parser"
+    source: "unit_test"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ARTIFACT REVIEW EVIDENCE
+# ─────────────────────────────────────────────────────────────────────────────
+artifactEvidence:
+  snapshotPath: "samples/reports/latest/swift_test_snapshot.json"
+  snapshotGeneratedAt: "2026-04-06T14:33:15Z"
+  testsFound: 5
+
+  testResults:
+    - sampleId: "nonjs_sample_004_search"
+      testClass: "NonJSSample004RegressionTests"
+      testMethod: "testSearchParsesThreeItemsFromFixture"
+      status: "passed"
+      durationSeconds: 0.0
+
+    - sampleId: "nonjs_sample_004_toc"
+      testClass: "NonJSSample004RegressionTests"
+      testMethod: "testTOCParsesFourChaptersFromFixture"
+      status: "passed"
+      durationSeconds: 0.0
+
+    - sampleId: "nonjs_sample_004_content"
+      testClass: "NonJSSample004RegressionTests"
+      testMethod: "testContentParsesExpectedTextFromFixture"
+      status: "passed"
+      durationSeconds: 0.0
+
+  rawLogVerified: true
+  rawLogNote: >
+    Inspected Core/swift-test.log from artifact (run 24035945054).
+    Log line 845: "Test Suite 'NonJSSample004RegressionTests' started at 2026-04-06 14:33:15.070."
+    Log line 847: "Test Case '-[ReaderCoreParserTests.NonJSSample004RegressionTests
+    testContentParsesExpectedTextFromFixture]' passed (0.000 seconds)."
+    Log line 849: "Test Case '-[ReaderCoreParserTests.NonJSSample004RegressionTests
+    testSearchParsesThreeItemsFromFixture]' passed (0.000 seconds)."
+    Log line 851: "Test Case '-[ReaderCoreParserTests.NonJSSample004RegressionTests
+    testTOCParsesFourChaptersFromFixture]' passed (0.000 seconds)."
+    Log line 852: "Test Suite 'NonJSSample004RegressionTests' passed."
+    Log line 930: "Test Suite 'All tests' passed at 2026-04-06 14:33:15.078."
+    No XCTAssert failures present. No fatal errors. No infrastructure errors.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REVIEW BASIS
+# ─────────────────────────────────────────────────────────────────────────────
+reviewBasis: >
+  First successful CI execution of nonjs_sample_004_search,
+  nonjs_sample_004_toc, and nonjs_sample_004_content on macOS-14 GitHub
+  Actions (run 24035945054). These are the first XCTest-backed regression
+  tests for any non-JS parser flow in this project. Purpose: confirm that
+  NonJSParserEngine correctly handles CSS class selectors (.entry, .ep) and
+  CSS id selector (#story) against sample_004 fixture HTML, then update the
+  three regression reports from pending to verified state.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEMANTIC CONSISTENCY CHECK
+# ─────────────────────────────────────────────────────────────────────────────
+semanticCheck:
+
+  nonjs_sample_004_search:
+    sourceFile: "Core/Tests/ReaderCoreParserTests/NonJSSample004RegressionTests.swift"
+    contractIntent: >
+      When NonJSParserEngine applies ruleSearch "css:.entry" to
+      sample_004_search.html, it must return exactly 3 SearchResultItems
+      with titles [三体, 斗破苍穹, 完美世界] and detailURLs matching
+      samples/expected/search/sample_004.json.
+      Assertion: XCTAssertEqual(result.count, 3) + 6 field equality checks.
+    contractEvidence: >
+      Fixture HTML contains 3 <div class="entry"> elements, each with
+      text content "title|url". NonJSParserEngine.parseSearchResponse
+      applies css:.entry → extractBySimpleCSS → splits on "|" to obtain
+      title/detailURL pairs. All 6 field assertions verified by log line 849.
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      Test passed in 0.000 seconds on macOS-14 arm64. The parser correctly
+      extracted 3 items with exact title and detailURL values. Confirmed by
+      raw log line 849.
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+  nonjs_sample_004_toc:
+    sourceFile: "Core/Tests/ReaderCoreParserTests/NonJSSample004RegressionTests.swift"
+    contractIntent: >
+      When NonJSParserEngine applies ruleToc "css:.ep" to
+      sample_004_toc.html, it must return exactly 4 TOCItems with
+      chapterTitles and chapterURLs matching
+      samples/expected/toc/sample_004.json.
+      Assertion: XCTAssertEqual(result.count, 4) + 8 field equality checks.
+    contractEvidence: >
+      Fixture HTML contains 4 <div class="ep"> elements, each with
+      text content "chapterTitle|chapterURL". NonJSParserEngine.parseTOCResponse
+      applies css:.ep → extractBySimpleCSS → splits on "|". All 8 field
+      assertions verified by log line 851.
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      Test passed in 0.000 seconds on macOS-14 arm64. The parser correctly
+      extracted 4 chapters with exact title and URL values. Confirmed by
+      raw log line 851.
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+  nonjs_sample_004_content:
+    sourceFile: "Core/Tests/ReaderCoreParserTests/NonJSSample004RegressionTests.swift"
+    contractIntent: >
+      When NonJSParserEngine applies ruleContent "css:#story" to
+      sample_004_content.html, it must return a ContentPage whose content
+      field equals exactly the string in samples/expected/content/sample_004.json:
+      "宇宙中有无数文明，地球只是其中微不足道的一粒尘埃。叶文洁仰望星空，心中充满了对宇宙真相的渴望与恐惧。"
+      Assertions: XCTAssertFalse(page.content.isEmpty) + XCTAssertEqual(exact string).
+    contractEvidence: >
+      Fixture HTML contains <div id="story">content text</div>.
+      NonJSParserEngine.parseContentResponse applies css:#story →
+      extractBySimpleCSS id-selector → stripHTMLTags → trims whitespace.
+      Both assertions verified by log line 847.
+    testResultMatchesContractIntent: "yes"
+    explanation: >
+      Test passed in 0.000 seconds on macOS-14 arm64. The parser correctly
+      extracted the exact content string byte-for-byte. Confirmed by raw
+      log line 847.
+    testAssertionsUnchangedSinceLastGoodRun: "first-run"
+    infrastructureErrorRuledOut: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LAYER 2 DECISION: Regression Report Update
+# ─────────────────────────────────────────────────────────────────────────────
+layer2Decision:
+
+  nonjs_sample_004_search:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/nonjs_sample_004_search_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T14:33:15Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0 (unchanged)"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: >
+      git diff confirmed only the 5 authorized fields changed.
+      reportId, scope, cleanRoom, notes, expectedPath — all unchanged.
+
+  nonjs_sample_004_toc:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/nonjs_sample_004_toc_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T14:33:15Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0 (unchanged)"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: >
+      git diff confirmed only the 5 authorized fields changed.
+      reportId, scope, cleanRoom, notes, expectedPath — all unchanged.
+
+  nonjs_sample_004_content:
+    updateRegressionReport: "yes"
+    targetFile: "samples/reports/latest/nonjs_sample_004_content_regression.yml"
+    authorizedChanges:
+      executorVerified: "false → true"
+      runNote: >
+        "Verified by GitHub Actions CI on macOS-14. Swift test executed
+        2026-04-06T14:33:15Z."
+      summaryPassed: "0 → 1"
+      summaryFailed: "0 → 0 (unchanged)"
+      summarySkipped: "1 → 0"
+      sampleResultsStatus: "pending → passed"
+    diffVerified: true
+    diffNote: >
+      git diff confirmed only the 5 authorized fields changed.
+      reportId, scope, cleanRoom, notes, expectedPath — all unchanged.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LAYER 3 DECISION: compat_matrix Update
+# ─────────────────────────────────────────────────────────────────────────────
+layer3Decision:
+  updateCompatMatrix: "no"
+  reason: >
+    compat_matrix.yml (v0.13.0) already carries actualLevel "A" for
+    sample_004, set by deliberate human decision. The CI execution confirms
+    the non-JS parser implements the CSS selector contracts correctly.
+    The access classification has not changed and does not need to change.
+    The three regression records (search / toc / content) are execution-state
+    assets; they do not affect the compat_matrix entry.
+
+  sample_004:
+    currentActualLevel: "A"
+    proposedActualLevel: "A (no change)"
+    ruleApplied: "unitContractRules.rule1_safeFallback"
+    rationale: >
+      All three flows (search / toc / content) return well-formed output
+      when CSS selectors match. On selector failure the engine throws a
+      typed ReaderError with a safe fallback path in the caller. The
+      content access path for these unit contracts has no network gate,
+      no JS rendering requirement at the host level, and no policy
+      restriction. The CI result confirms the implementation is correct.
+      actualLevel A is confirmed, not derived from test execution status.
+    prohibitedReasoningCheck: >
+      This rationale describes content access semantics, not test execution
+      status. The CI result is evidence of correct implementation; it is
+      not the basis for the level classification.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REVIEW CONCLUSION
+# ─────────────────────────────────────────────────────────────────────────────
+reviewConclusion:
+  approved: "yes"
+  blockers: "none"
+  prNumber: "branch: claude/fervent-goldstine (no PR opened; direct branch commit)"
+  commitSha: "f794565"

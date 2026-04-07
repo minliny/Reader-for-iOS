@@ -1,0 +1,13 @@
+reportId: "probe_auto_7ad59ddc_1775447941"
+generatedAt: "2026-04-06T03:59:01Z"
+sampleId: "auto_7ad59ddc"
+probeUrl: "https://www.xsuuu.cc/search.php?q=test&p=1"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: The request timed out."

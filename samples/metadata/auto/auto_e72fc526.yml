@@ -1,0 +1,15 @@
+sampleId: "auto_e72fc526"
+generatedAt: "2026-04-06T04:20:43Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🔥 256文学[分页丨下载]"
+bookSourceUrl: "https://www.256wenku.com"
+accessTier: "B"
+extractedSearchSelector: "css:li"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

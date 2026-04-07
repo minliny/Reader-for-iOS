@@ -1,0 +1,15 @@
+sampleId: "auto_f289d889"
+generatedAt: "2026-04-06T04:21:09Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "🍊耽美小说"
+bookSourceUrl: "https://m.dmxso.com"
+accessTier: "B"
+extractedSearchSelector: "css:li"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The network connection was lost."

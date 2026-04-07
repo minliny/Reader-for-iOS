@@ -1,0 +1,15 @@
+sampleId: "auto_fab5c8c0"
+generatedAt: "2026-04-06T04:12:29Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "龙头小说"
+bookSourceUrl: "http://m.ltxs.la/"
+accessTier: "C"
+extractedSearchSelector: "css:class.txt-list-row5"
+probeHttpStatus: 403
+probeHtmlLength: 4830
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

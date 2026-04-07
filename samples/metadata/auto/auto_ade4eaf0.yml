@@ -1,0 +1,15 @@
+sampleId: "auto_ade4eaf0"
+generatedAt: "2026-04-06T13:33:27Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "读书网吧（极）"
+bookSourceUrl: "https://www.dushu.com/"
+accessTier: "A"
+extractedSearchSelector: "css:class.searchlist"
+probeHttpStatus: 200
+probeHtmlLength: 11902
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

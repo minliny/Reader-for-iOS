@@ -1,0 +1,36 @@
+reportId: "smoke_sample_003_nonjs_1775489885"
+generatedAt: "2026-04-06T15:38:05Z"
+phase: "p0_non_js_core_stable"
+sampleId: "sample_003"
+
+results:
+  search:
+    status: "passed"
+    actualCount: 2
+    expectedCount: 2
+    items:
+      - name: "平凡的世界"
+        url: "http://fixture3.local/book/1.html"
+      - name: "活着"
+        url: "http://fixture3.local/book/2.html"
+  toc:
+    status: "passed"
+    actualCount: 3
+    expectedCount: 3
+    chapters:
+      - title: "第一章 苦难的起点"
+        url: "http://fixture3.local/chapter/1.html"
+      - title: "第二章 生活的重量"
+        url: "http://fixture3.local/chapter/2.html"
+      - title: "第三章 命运的转折"
+        url: "http://fixture3.local/chapter/3.html"
+  content:
+    status: "passed"
+    contentNonEmpty: true
+    expectedNonEmpty: true
+    contentPreview: "黄土高原的沟壑纵横，贫瘠的土地孕育了无数坚韧的生命。孙少平站在村口，望着远方的山峦，心中充满了对未来的渴望。"
+
+final:
+  overall: "passed"
+  failureType: null
+  notes: "sample_003 full chain smoke: search -> toc -> content"

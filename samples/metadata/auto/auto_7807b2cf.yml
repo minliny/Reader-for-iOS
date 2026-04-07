@@ -1,0 +1,15 @@
+sampleId: "auto_7807b2cf"
+generatedAt: "2026-04-06T06:36:33Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "看书室"
+bookSourceUrl: "https://wap.kanshushi.com/"
+accessTier: "B"
+extractedSearchSelector: "css:list1"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

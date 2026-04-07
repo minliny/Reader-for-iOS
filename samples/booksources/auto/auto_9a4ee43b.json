@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "小原文学",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/min-yuan.com\/",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:#booktxt",
+  "ruleSearch" : "css:.b_algo",
+  "ruleToc" : "css:#newlist",
+  "searchUrl" : "https:\/\/cn.bing.com\/search?q=site:min-yuan.com+{{key}}&first={{(page-1)*10}}"
+}

@@ -1,0 +1,17 @@
+reportId: "isolation_login_003_1775482354_summary"
+generatedAt: "2026-04-06T13:32:34Z"
+phase: "p1_login"
+sampleId: "sample_login_003"
+
+decision:
+  baselineFailureType: "NETWORK_POLICY_MISMATCH"
+  finalPrimaryFailureType: "LOGIN_REQUIRED"
+  finalSecondaryReason: "login_state_absent"
+  winningStep: "TEST-006"
+  actualLevel: "A"
+  accessTier: "B3"
+  matrixUpdate:
+    update: true
+    failureType: "LOGIN_REQUIRED"
+    secondaryReason: "login_state_absent"
+  notes: "Baseline stayed outside the secure markers and only the real form-login step reached the secure page."

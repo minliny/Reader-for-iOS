@@ -1,0 +1,13 @@
+reportId: "probe_auto_295c90fc_1775455774"
+generatedAt: "2026-04-06T06:09:34Z"
+sampleId: "auto_295c90fc"
+probeUrl: "https://so.html5.qq.com/ajax/real/search_result?tabId=360&q=test"
+
+result:
+  httpStatus: 200
+  contentType: "application/json; charset=utf-8"
+  htmlLength: 6293
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "A"
+  notes: "probe OK"

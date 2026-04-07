@@ -1,0 +1,15 @@
+sampleId: "auto_71cd333f"
+generatedAt: "2026-04-06T06:37:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "爱推书君"
+bookSourceUrl: "https://pre-api.tuishujun.com/"
+accessTier: "A"
+extractedSearchSelector: "css:data.data"
+probeHttpStatus: 200
+probeHtmlLength: 8435
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

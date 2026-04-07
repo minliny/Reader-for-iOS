@@ -1,0 +1,15 @@
+sampleId: "auto_383e9d58"
+generatedAt: "2026-04-06T13:32:48Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "小说楼"
+bookSourceUrl: "http://m.xslou.com"
+accessTier: "B"
+extractedSearchSelector: "css:class.fk"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

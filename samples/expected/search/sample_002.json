@@ -1,0 +1,18 @@
+{
+  "sampleId": "sample_002",
+  "flow": "search",
+  "expected": {
+    "success": true,
+    "resultCount": 2,
+    "items": [
+      {
+        "title": "水浒传",
+        "detailURL": "http://fixture2.local/book/1.html"
+      },
+      {
+        "title": "西游记",
+        "detailURL": "http://fixture2.local/book/2.html"
+      }
+    ]
+  }
+}

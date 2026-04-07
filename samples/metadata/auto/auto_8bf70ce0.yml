@@ -1,0 +1,15 @@
+sampleId: "auto_8bf70ce0"
+generatedAt: "2026-04-06T06:36:19Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "书林文学①"
+bookSourceUrl: "http://www.shu111.com"
+accessTier: "A"
+extractedSearchSelector: "css:tag.article"
+probeHttpStatus: 200
+probeHtmlLength: 1511994
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "probe OK"

@@ -1,0 +1,15 @@
+sampleId: "auto_d6062b51"
+generatedAt: "2026-04-06T04:12:32Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "四五小说🎃"
+bookSourceUrl: "http://www.45xsxs.com"
+accessTier: "B"
+extractedSearchSelector: "css:.item"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

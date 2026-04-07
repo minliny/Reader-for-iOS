@@ -1,0 +1,15 @@
+sampleId: "auto_f00c43bc"
+generatedAt: "2026-04-06T14:17:17Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "零点看书jsshsc"
+bookSourceUrl: "https://www.jsshsc.com"
+accessTier: "B"
+extractedSearchSelector: "css:#sitebox"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

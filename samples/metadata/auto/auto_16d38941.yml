@@ -1,0 +1,15 @@
+sampleId: "auto_16d38941"
+generatedAt: "2026-04-06T14:16:29Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "新暖才文学网"
+bookSourceUrl: "http://54.39.102.42/"
+accessTier: "B"
+extractedSearchSelector: "css:.hot_sale"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Invalid probe URL"

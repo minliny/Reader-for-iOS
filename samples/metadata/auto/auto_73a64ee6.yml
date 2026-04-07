@@ -1,0 +1,15 @@
+sampleId: "auto_73a64ee6"
+generatedAt: "2026-04-06T13:33:30Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "完本小说"
+bookSourceUrl: "https://www.wbxs.org"
+accessTier: "B"
+extractedSearchSelector: "css:tbody>tr!0"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: unsupported URL"

@@ -1,0 +1,17 @@
+reportId: "probe_auto_2899f123_1775448762"
+generatedAt: "2026-04-06T04:12:42Z"
+sampleId: "auto_2899f123"
+probeUrl: "/search.html,{
+  \"headers\": \"{Referer:'https://www.75zhongwen.com/search.html',Cookie:'waf_sc=;sex=boy'}\",
+  \"method\": \"POST\",
+  \"body\": \"searchtype=all&searchkey=test\"
+}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

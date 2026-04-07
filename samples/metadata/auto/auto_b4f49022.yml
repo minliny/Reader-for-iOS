@@ -1,0 +1,15 @@
+sampleId: "auto_b4f49022"
+generatedAt: "2026-04-06T06:37:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: " 乐读窝"
+bookSourceUrl: "https://www.leduwo8.com"
+accessTier: "B"
+extractedSearchSelector: "css:\"tag.a.0"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: A server with the specified hostname could not be found."

@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "🎉 全小说",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "http:\/\/m.quanxiaoshuo.org",
+  "enabled" : true,
+  "enabledCookieJar" : true,
+  "enabledExplore" : false,
+  "ruleContent" : "css:#content",
+  "ruleSearch" : "css:.list",
+  "ruleToc" : "css:.chapter!0:1:2:3:4:5",
+  "searchUrl" : "http:\/\/m.quanxiaoshuo.org\/s_{{key}}\/{{page}}\/"
+}

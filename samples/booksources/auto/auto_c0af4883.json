@@ -1,0 +1,13 @@
+{
+  "bookSourceGroup" : "auto_extracted",
+  "bookSourceName" : "🍒 言情花园",
+  "bookSourceType" : 0,
+  "bookSourceUrl" : "https:\/\/www.yqhy.org",
+  "enabled" : true,
+  "enabledCookieJar" : false,
+  "enabledExplore" : false,
+  "ruleContent" : "css:id.content",
+  "ruleSearch" : "css:tag.p",
+  "ruleToc" : "css:class.article-list",
+  "searchUrl" : "https:\/\/www.yqhy.org\/s.php,{\n  \"charset\": \"gbk\",\n  \"method\": \"POST\",\n  \"body\": \"s={{key}}&type=articlename\"\n}"
+}

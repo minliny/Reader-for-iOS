@@ -1,0 +1,36 @@
+reportId: "probe_auto_af003d98_1775482404"
+generatedAt: "2026-04-06T13:33:24Z"
+sampleId: "auto_af003d98"
+probeUrl: "@js:
+// var ua = \"Mozilla/5.0 (Android 12; Mobile; rv:108.0) Gecko/108.0 Firefox/108.0\";
+
+var ua = \"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0\";
+
+var headers = {\"User-Agent\": ua};
+    
+var body = \"searchtype=articlename+selected&t_btnsearch=搜索&searchkey=\" + key ;
+
+var path = \"modules/article/search.php,\";
+
+var option = {
+    	
+	\"method\": \"POST\",
+	
+	\"charset\": \"gbk\",
+        
+	\"body\": String(body),
+        
+	\"headers\": headers,
+        
+};
+
+java.put(\"url\",String(source.bookSourceUrl + path + JSON.stringify(option)))"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

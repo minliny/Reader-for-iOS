@@ -1,0 +1,62 @@
+checkpointId: "cp_D9_20260406"
+timestamp: "2026-04-06T06:46:28Z"
+currentPhase: "D"
+currentStep: "D10"
+completedSteps:
+  - A1
+  - A2
+  - A3
+  - E1
+  - E2
+  - B1
+  - B2
+  - B3
+  - C1
+  - C2
+  - D1
+  - D2
+  - D3
+  - D4
+  - D5
+  - D6
+  - F1
+  - D7
+  - D8
+  - D9
+  - D10
+modifiedFiles:
+  - Core/Package.swift
+  - Core/Sources/ReaderCoreNetwork/URLSessionHTTPClient.swift
+  - Core/Sources/SampleLogin003FetchRunner/main.swift
+  - Core/Sources/SampleLogin003IsolationRunner/main.swift
+  - .github/workflows/sample-login-003-isolation.yml
+  - docs/DEV_CHECKPOINT.md
+  - samples/booksources/p1_login/sample_login_003.json
+  - samples/metadata/p1_login/sample_login_003.yml
+  - samples/expected/search/sample_login_003.json
+  - samples/matrix/compat_matrix.yml
+  - samples/classification/sample_tier_mapping.yml
+generatedArtifacts:
+  - samples/reports/latest/fetch_result_sample_login_003.yml
+  - samples/reports/latest/fetch_isolation_step_records_sample_login_003.yml
+  - samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml
+  - samples/booksources/p1_login/sample_login_003.json
+  - samples/metadata/p1_login/sample_login_003.yml
+  - samples/expected/search/sample_login_003.json
+commandsRun:
+  - "gh workflow run sample-login-003-isolation.yml --repo minliny/Reader-for-iOS --ref claude/fervent-goldstine"
+  - "gh run watch 24021997708 --repo minliny/Reader-for-iOS"
+  - "gh run download 24021997708 --repo minliny/Reader-for-iOS --dir .ci_artifacts/24021997708"
+  - "gh api repos/minliny/Reader-for-iOS/git/trees --method POST"
+  - "gh api repos/minliny/Reader-for-iOS/git/commits --method POST"
+  - "gh api repos/minliny/Reader-for-iOS/git/refs/heads/claude/fervent-goldstine --method PATCH"
+currentRisks:
+  - "Current workstation cannot rely on local TLS probing and still depends on GitHub Actions for real HTTPS verification"
+  - "Workflow run 24021997708 produced valid reports but failed at the auto-push step because generated report files rebased with conflicts"
+  - "E3 failure taxonomy convergence should now use sample_login_003 as the first real LOGIN_REQUIRED sample"
+nextStep: "E3 — resume failure taxonomy convergence with real LOGIN_REQUIRED evidence"
+rollbackHint: >
+  Revert sample_login_003 runner/workflow/report additions plus compat_matrix,
+  sample_tier_mapping, docs/DEV_CHECKPOINT.md, and this checkpoint if the D10
+  verification result is later invalidated.
+blockers: []

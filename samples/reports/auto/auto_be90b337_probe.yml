@@ -1,0 +1,13 @@
+reportId: "probe_auto_be90b337_1775482413"
+generatedAt: "2026-04-06T13:33:33Z"
+sampleId: "auto_be90b337"
+probeUrl: "{{String(source.getKey().match(/([^\\#]+)\\#/)[1]).replace(/\\/\\/www/,'//m')}}/sdfgsdyugfsdugf.html?ie=gbk&s=5256649918672294880&q={{JSON.parse(java.post(u=source.getKey().match(/([^\\#]+)\\#/)[1]+\"/pinyin.html\",\"s=\"+key+\"&act=hztopy\",{}).body()).data}}"
+
+result:
+  httpStatus: null
+  contentType: null
+  htmlLength: 0
+  jsChallengeObserved: false
+  loginMarkerObserved: false
+  classifiedTier: "B"
+  notes: "Network error: unsupported URL"

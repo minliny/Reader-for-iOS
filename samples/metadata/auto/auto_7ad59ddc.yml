@@ -1,0 +1,15 @@
+sampleId: "auto_7ad59ddc"
+generatedAt: "2026-04-06T03:59:01Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "风雨小说"
+bookSourceUrl: "https://www.xsuuu.cc"
+accessTier: "B"
+extractedSearchSelector: "css:dl"
+probeHttpStatus: null
+probeHtmlLength: 0
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "Network error: The request timed out."

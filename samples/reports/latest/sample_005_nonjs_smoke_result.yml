@@ -1,0 +1,36 @@
+reportId: "smoke_sample_005_nonjs_1775489886"
+generatedAt: "2026-04-06T15:38:06Z"
+phase: "p0_non_js_core_stable"
+sampleId: "sample_005"
+
+results:
+  search:
+    status: "passed"
+    actualCount: 2
+    expectedCount: 2
+    items:
+      - name: "失落的地平线"
+        url: "http://fixture5.local/book/1.html"
+      - name: "茶馆"
+        url: "http://fixture5.local/book/2.html"
+  toc:
+    status: "passed"
+    actualCount: 3
+    expectedCount: 3
+    chapters:
+      - title: "第一幕 开场"
+        url: "http://fixture5.local/ch/1.html"
+      - title: "第二幕 冲突"
+        url: "http://fixture5.local/ch/2.html"
+      - title: "第三幕 结局"
+        url: "http://fixture5.local/ch/3.html"
+  content:
+    status: "passed"
+    contentNonEmpty: true
+    expectedNonEmpty: true
+    contentPreview: "老舍先生以茶馆为舞台，展现了三个时代的社会变迁与人情冷暖。王利发在时代的洪流中挣扎求存，茶馆见证了历史。"
+
+final:
+  overall: "passed"
+  failureType: null
+  notes: "sample_005 full chain smoke: search -> toc -> content (tag selectors)"

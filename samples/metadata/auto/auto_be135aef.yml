@@ -1,0 +1,15 @@
+sampleId: "auto_be135aef"
+generatedAt: "2026-04-06T04:21:10Z"
+source: "auto_extracted"
+priority: "p1"
+category: "non_js"
+bookSourceName: "笔趣阁🎃#36"
+bookSourceUrl: "https://www.biqugu.cc"
+accessTier: "C"
+extractedSearchSelector: "css:class.novelslist2"
+probeHttpStatus: 403
+probeHtmlLength: 4825
+requiresLogin: false
+requiresCookieJar: false
+requiresJs: false
+notes: "JS challenge detected"

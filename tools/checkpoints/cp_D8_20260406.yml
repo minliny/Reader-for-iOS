@@ -1,0 +1,90 @@
+checkpointId: "cp_D8_20260406"
+timestamp: "2026-04-06T04:20:43Z"
+currentPhase: "D"
+currentStep: "D8"
+completedSteps:
+  - A1
+  - A2
+  - A3
+  - E1
+  - E2
+  - B1
+  - B2
+  - B3
+  - C1
+  - C2
+  - D1
+  - D2
+  - D3
+  - D4
+  - D5
+  - D6
+  - F1
+  - D7
+  - D8
+
+modifiedFiles:
+  - Core/Package.swift
+  - Core/Sources/SampleLogin001FetchRunner/main.swift
+  - Core/Sources/SampleLogin001IsolationRunner/main.swift
+  - .github/workflows/sample-login-001-isolation.yml
+  - samples/matrix/compat_matrix.yml
+
+generatedArtifacts:
+  - samples/reports/latest/fetch_result_sample_login_001.yml
+  - samples/reports/latest/fetch_isolation_step_records_sample_login_001.yml
+  - samples/reports/latest/fetch_isolation_decision_summary_sample_login_001.yml
+
+ciRuns:
+  - runId: "24018503946"
+    workflow: "P1 Login Isolation sample_login_001"
+    result: "success"
+    duration: "37s"
+
+tierDecision:
+  sampleId: "sample_login_001"
+  site: "biquge.com.cn"
+  accessTier: "B3"
+  actualLevel: "D"
+  finalPrimaryFailureType: "NETWORK_POLICY_MISMATCH"
+  finalSecondaryReason: "undetermined_after_isolation"
+  winningStep: null
+  keyObservation: >
+    All 8 isolation steps returned network_error (httpStatus null).
+    biquge.com.cn is unreachable from GitHub Actions macOS-14.
+    Domain is likely geofenced from US-hosted CI or has gone defunct.
+    Isolation protocol executed correctly. LOGIN_REQUIRED hypothesis
+    cannot be confirmed or denied. B3 tier held from sample design intent.
+
+p1CoverageSummary:
+  p1_cookie:
+    sample_cookie_001:
+      tier: "C"
+      level: "D"
+      reason: "Cloudflare JS challenge (all 8 steps HTTP 403)"
+    sample_cookie_002:
+      tier: "B2"
+      level: "D"
+      reason: "HTTP 202 shell, client-side JS rendering, no JS challenge"
+  p1_login:
+    sample_login_001:
+      tier: "B3"
+      level: "D"
+      reason: "Domain unreachable from CI (network_error all 8 steps)"
+  p1_js:
+    sample_js_001:
+      tier: "C"
+      level: "classified_only"
+      reason: "Same as cookie_001 (wenku8.net)"
+
+currentRisks:
+  - "LOGIN_REQUIRED failureType has NO confirmed real sample (biquge.com.cn unreachable)"
+  - "All p1 real samples are level D — no B-tier success case yet"
+  - "JS renderer PoC (C3+) still deferred"
+
+nextStep: "E3 — failure taxonomy convergence review OR D9 — find accessible B2/B3 replacement site"
+
+rollbackHint: >
+  D8 changes in commit 2e93682 on claude/fervent-goldstine.
+  To rollback: revert Core/Sources/SampleLogin001FetchRunner/,
+  SampleLogin001IsolationRunner/, Package.swift entries, workflow.
