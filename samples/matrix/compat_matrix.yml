@@ -1,18 +1,18 @@
-version: "0.14.0"
-generatedAt: "2026-04-06T15:00:00Z"
-scope: "nonjs_sample_004_audit_confirmed"
+version: "0.15.0"
+generatedAt: "2026-04-07T00:00:00Z"
+scope: "p1_header_samples_added"
 summary:
-  totalSamples: 17
+  totalSamples: 20
   levelA: 14
   levelB: 0
-  levelC: 0
+  levelC: 1
   levelD: 4
-  pendingIsolation: 0
+  pendingIsolation: 3
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
   p1PassRate: 33.3
-  note: "v0.14.0: sample_004 actualLevel A formally confirmed by completed human review across all three non-JS flows (search / toc / content). Writeback record: wb_nonjs_sample_004_20260406 (docs/process/writebacks/20260406_nonjs_sample_004.yml, commit 97fe216). CI run 24035945054 on macOS-14 (2026-04-06T14:33:15Z) produced executorVerified: true and regression status: passed for all three flows. Rule applied: unitContractRules.rule1_safeFallback (docs/process/ci_artifact_manual_review_workflow.yml). Previous v0.13.0: sample_js_runtime_001/002 audit confirmed."
+  note: "v0.15.0: added Header capability samples (sample_header_001/002/003) as sample-driven tasks. All three are fixture-based, pending real isolation run. sample_header_001 (basic header, B1) and sample_header_002 (Referer/UA, B2) are expectedLevel A / actualLevel C pending Header implementation. sample_header_003 (anti-crawl rotating token, tier C) is expectedLevel A / actualLevel C — requires browser-level request fabrication beyond URLSession. failureType: NETWORK_POLICY_MISMATCH for all three. Previous v0.14.0: sample_004 actualLevel A confirmed."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -373,3 +373,69 @@ samples:
       testSnapshot: "samples/reports/latest/swift_test_snapshot.json"
       writebackRecord: "docs/process/writebacks/20260406_sample_js_runtime_001_002.yml"
     notes: "JSRuntime querySelector unsupported boundary: when querySelector is unavailable, the runtime traps the exception and returns the original HTML unchanged. actualLevel A confirmed by human review per unitContractRules.rule1_safeFallback: a safe fallback is present (original HTML returned), content access is not permanently blocked — this distinguishes it from a level-D case (per rule2_partialCapability: fallback present = not D). No network gate, no host-level JS rendering required. This is not derived from test execution status. Audit trail: writeback wb_js_runtime_001_002_20260406 (commit 5d677f8), CI run 24033784569 on macOS-14 (2026-04-06T13:32:19Z), passed in 0.010s, executorVerified: true."
+  - sampleId: "sample_header_001"
+    source: "fixture"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "B1"
+    ruleTypes:
+      - "Header"
+    requiresCustomHeader: true
+    requiresCookieJar: false
+    requiresLogin: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "missing_header"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/sample_header_001.yml"
+    expectedPath: "samples/expected/search/sample_header_001.json"
+    fixturePaths:
+      search: "samples/fixtures/html/sample_header_001_search.html"
+    notes: "Basic header enforcement — site gates access on X-Requested-With and Accept headers. Baseline URLSession fetch without required headers returns HTTP 403. Fixture provides success response for parser contract testing. actualLevel C: Header capability not yet implemented; parser cannot inject custom headers. expectedLevel A once Header capability is in place."
+  - sampleId: "sample_header_002"
+    source: "fixture"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "B2"
+    ruleTypes:
+      - "Header"
+    requiresCustomHeader: true
+    requiresCookieJar: false
+    requiresLogin: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "missing_referer"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/sample_header_002.yml"
+    expectedPath: "samples/expected/search/sample_header_002.json"
+    fixturePaths:
+      search: "samples/fixtures/html/sample_header_002_search.html"
+    notes: "Referer + User-Agent policy — site rejects default URLSession UA and missing/wrong Referer with HTTP 403. Requires browser-like UA string and correct Referer to match site domain. Fixture provides success response. actualLevel C: Header capability not yet implemented. expectedLevel A once Referer/UA injection is supported."
+  - sampleId: "sample_header_003"
+    source: "fixture"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "C"
+    ruleTypes:
+      - "Header"
+    requiresCustomHeader: true
+    requiresCookieJar: true
+    requiresLogin: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    secondaryReason: "cloudflare_bot_check"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/sample_header_003.yml"
+    expectedPath: "samples/expected/search/sample_header_003.json"
+    fixturePaths:
+      search: "samples/fixtures/html/sample_header_003_search.html"
+    notes: "Anti-crawl rotating token strategy — site enforces dynamic X-Trace-Id rotation, TLS fingerprint matching, and rate limiting. Static header injection alone is insufficient; requires browser-level request fabrication. Fixture provides theoretical success response. actualLevel C: even with Header capability, rotating token generation and TLS fingerprint spoofing are out of scope for URLSession-based client. This sample establishes the upper bound of the Header capability gap."

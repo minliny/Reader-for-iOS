@@ -1,0 +1,29 @@
+sampleId: "sample_header_001"
+priority: "p1"
+category: "cookie"
+phase: "p1_cookie"
+accessTier: "B1 (expected)"
+capability:
+  - fetch
+  - search
+ruleTypes:
+  - Header
+requiresCustomHeader: true
+requiresCookieJar: false
+requiresLogin: false
+requiresJs: false
+knownFailureType: NETWORK_POLICY_MISMATCH
+secondaryReason: missing_header
+headerPolicy:
+  note: "Site enforces presence of a custom X-Requested-With or Accept header. Baseline fetch without headers returns HTTP 403 or empty body."
+  requiredHeaders:
+    - name: "X-Requested-With"
+      value: "XMLHttpRequest"
+    - name: "Accept"
+      value: "text/html,application/xhtml+xml"
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "B1"
+  note: "Basic header enforcement — site gates access on presence of standard request headers. No JS challenge, no cookie jar required."
+status: "fixture_pending_real_run"

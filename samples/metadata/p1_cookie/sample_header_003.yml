@@ -1,0 +1,40 @@
+sampleId: "sample_header_003"
+priority: "p1"
+category: "cookie"
+phase: "p1_cookie"
+accessTier: "C (expected)"
+capability:
+  - fetch
+  - search
+ruleTypes:
+  - Header
+requiresCustomHeader: true
+requiresCookieJar: true
+requiresLogin: false
+requiresJs: false
+knownFailureType: NETWORK_POLICY_MISMATCH
+secondaryReason: cloudflare_bot_check
+headerPolicy:
+  note: >
+    Site uses layered anti-crawl strategy: rotating fingerprint tokens in headers,
+    rate-limiting by IP, and bot-detection heuristics (TLS fingerprint, header order,
+    timing). Static header injection alone is insufficient — token rotation and
+    dynamic ordering are required.
+  requiredHeaders:
+    - name: "X-Trace-Id"
+      value: "<dynamic: per-request rotating token>"
+    - name: "User-Agent"
+      value: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+    - name: "Accept-Language"
+      value: "zh-CN,zh;q=0.9"
+  tokenStrategy: "rotating_per_request"
+  tlsFingerprintSensitive: true
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "C"
+  note: >
+    Anti-crawl strategy sample — dynamic rotating header tokens and TLS fingerprint
+    checks block static injection. URLSession cannot satisfy the full policy.
+    Requires JS rendering or browser-level request fabrication.
+status: "fixture_pending_real_run"

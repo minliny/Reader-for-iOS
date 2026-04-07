@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<!-- HEADER_REQUIRED: X-Trace-Id: <rotating>, User-Agent: Mozilla/5.0 (iPhone ...), Accept-Language: zh-CN -->
+<!-- ANTI_CRAWL: rotating token + TLS fingerprint check — static header injection is insufficient -->
+<!-- This fixture represents the SUCCESS response only reachable with full browser-level request fabrication. -->
+<!-- Real site enforces: (1) rotating X-Trace-Id, (2) TLS fingerprint match, (3) rate limiting. -->
+<html>
+<head><meta charset="UTF-8"><title>Header Sample 003 — Anti-Crawl Search</title></head>
+<body>
+<ul id="results">
+<li class="item">红楼梦|http://fixture.header003.local/book/1.html</li>
+<li class="item">聊斋志异|http://fixture.header003.local/book/2.html</li>
+</ul>
+</body>
+</html>

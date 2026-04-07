@@ -1,0 +1,19 @@
+{
+  "sampleId": "sample_header_003",
+  "flow": "search",
+  "note": "Theoretical expected output if anti-crawl policy were fully satisfied. In practice URLSession cannot satisfy rotating token + TLS fingerprint requirements. This fixture represents the target state only reachable with browser-level request fabrication.",
+  "expected": {
+    "success": true,
+    "resultCount": 2,
+    "items": [
+      {
+        "title": "红楼梦",
+        "detailURL": "http://fixture.header003.local/book/1.html"
+      },
+      {
+        "title": "聊斋志异",
+        "detailURL": "http://fixture.header003.local/book/2.html"
+      }
+    ]
+  }
+}

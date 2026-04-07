@@ -1,0 +1,19 @@
+{
+  "sampleId": "sample_header_001",
+  "flow": "search",
+  "note": "Expected output when required headers (X-Requested-With, Accept) are present. Baseline fetch without headers should fail with NETWORK_POLICY_MISMATCH.",
+  "expected": {
+    "success": true,
+    "resultCount": 2,
+    "items": [
+      {
+        "title": "铁道游击队",
+        "detailURL": "http://fixture.header001.local/book/1.html"
+      },
+      {
+        "title": "平原枪声",
+        "detailURL": "http://fixture.header001.local/book/2.html"
+      }
+    ]
+  }
+}

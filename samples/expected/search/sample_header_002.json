@@ -1,0 +1,23 @@
+{
+  "sampleId": "sample_header_002",
+  "flow": "search",
+  "note": "Expected output when Referer and User-Agent headers are correctly set. Baseline fetch with default URLSession UA should fail with NETWORK_POLICY_MISMATCH.",
+  "expected": {
+    "success": true,
+    "resultCount": 3,
+    "items": [
+      {
+        "title": "三国演义",
+        "detailURL": "http://fixture.header002.local/book/1.html"
+      },
+      {
+        "title": "水浒传",
+        "detailURL": "http://fixture.header002.local/book/2.html"
+      },
+      {
+        "title": "西游记",
+        "detailURL": "http://fixture.header002.local/book/3.html"
+      }
+    ]
+  }
+}

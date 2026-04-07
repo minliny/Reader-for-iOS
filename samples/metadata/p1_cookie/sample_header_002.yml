@@ -1,0 +1,29 @@
+sampleId: "sample_header_002"
+priority: "p1"
+category: "cookie"
+phase: "p1_cookie"
+accessTier: "B2 (expected)"
+capability:
+  - fetch
+  - search
+ruleTypes:
+  - Header
+requiresCustomHeader: true
+requiresCookieJar: false
+requiresLogin: false
+requiresJs: false
+knownFailureType: NETWORK_POLICY_MISMATCH
+secondaryReason: missing_referer
+headerPolicy:
+  note: "Site validates Referer and User-Agent. Missing or default URLSession UA triggers HTTP 403. Referer must match the site's own domain."
+  requiredHeaders:
+    - name: "Referer"
+      value: "https://fixture.header002.local/"
+    - name: "User-Agent"
+      value: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+expected:
+  fetchBaselineShouldFail: true
+  isolationRequired: true
+  expectedTier: "B2"
+  note: "Referer + UA policy — site rejects requests from non-browser UA or missing Referer. No JS challenge, no cookie required."
+status: "fixture_pending_real_run"

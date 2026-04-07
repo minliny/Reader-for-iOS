@@ -1,0 +1,112 @@
+# Header Capability Regression Report Template
+# Usage: copy this file and fill in actual values after running isolation steps.
+# One report per sample per run. Store completed reports under samples/reports/latest/.
+
+reportType: "header_capability_regression"
+templateVersion: "1.0.0"
+generatedAt: "<ISO8601 timestamp>"
+triggeredBy: "<ci_run_id | manual>"
+runEnvironment: "<macOS-14 | local>"
+
+sampleId: "<sample_header_001 | sample_header_002 | sample_header_003>"
+category: "cookie"
+ruleTypes:
+  - Header
+requiresCustomHeader: true
+knownFailureType: NETWORK_POLICY_MISMATCH
+
+# --- Baseline fetch (no custom headers) ---
+baselineFetch:
+  httpStatus: "<403 | 200 | other>"
+  bodyEmpty: "<true | false>"
+  jsChallenge: "<true | false>"
+  outcome: "<FAILED_AS_EXPECTED | UNEXPECTED_SUCCESS | UNEXPECTED_ERROR>"
+  notes: ""
+
+# --- Isolation steps ---
+# Each step adds one header variable and re-fetches. Record the delta.
+isolationSteps:
+  - stepId: "TEST-001"
+    description: "Baseline — no custom headers"
+    headersAdded: []
+    httpStatus: "<int>"
+    parserOutcome: "<search_empty | search_results | parse_error>"
+    matchExpected: "<true | false>"
+    notes: ""
+
+  - stepId: "TEST-002"
+    description: "Add X-Requested-With: XMLHttpRequest"
+    headersAdded:
+      - name: "X-Requested-With"
+        value: "XMLHttpRequest"
+    httpStatus: "<int>"
+    parserOutcome: "<search_empty | search_results | parse_error>"
+    matchExpected: "<true | false>"
+    notes: ""
+
+  - stepId: "TEST-003"
+    description: "Add Accept header"
+    headersAdded:
+      - name: "Accept"
+        value: "text/html,application/xhtml+xml"
+    httpStatus: "<int>"
+    parserOutcome: "<search_empty | search_results | parse_error>"
+    matchExpected: "<true | false>"
+    notes: ""
+
+  - stepId: "TEST-004"
+    description: "Add browser User-Agent"
+    headersAdded:
+      - name: "User-Agent"
+        value: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+    httpStatus: "<int>"
+    parserOutcome: "<search_empty | search_results | parse_error>"
+    matchExpected: "<true | false>"
+    notes: ""
+
+  - stepId: "TEST-005"
+    description: "Add Referer matching site domain"
+    headersAdded:
+      - name: "Referer"
+        value: "<site base URL>"
+    httpStatus: "<int>"
+    parserOutcome: "<search_empty | search_results | parse_error>"
+    matchExpected: "<true | false>"
+    notes: ""
+
+  - stepId: "TEST-006"
+    description: "All required headers combined"
+    headersAdded:
+      - name: "X-Requested-With"
+        value: "XMLHttpRequest"
+      - name: "Accept"
+        value: "text/html,application/xhtml+xml"
+      - name: "User-Agent"
+        value: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+      - name: "Referer"
+        value: "<site base URL>"
+    httpStatus: "<int>"
+    parserOutcome: "<search_empty | search_results | parse_error>"
+    matchExpected: "<true | false>"
+    notes: ""
+
+# --- Decision summary ---
+decisionSummary:
+  resolvedByIsolation: "<true | false>"
+  resolvingStep: "<TEST-00X | null>"
+  confirmedFailureType: "<NETWORK_POLICY_MISMATCH | COOKIE_REQUIRED | LOGIN_REQUIRED | other>"
+  confirmedSecondaryReason: "<missing_header | missing_referer | invalid_user_agent | cloudflare_bot_check | other>"
+  accessTierConfirmed: "<A | B1 | B2 | C | D>"
+  actualLevelRecommendation: "<A | B | C | D>"
+  executorVerified: "<true | false>"
+  reviewedBy: "<human | automated>"
+  reviewNotes: ""
+
+# --- Regression verdict ---
+regressionVerdict:
+  status: "<passed | failed | pending>"
+  comparedAgainst: "samples/expected/search/<sampleId>.json"
+  delta: "<none | result_count_mismatch | item_mismatch | parse_error>"
+  blocksRelease: "<true | false>"
+  writebackRequired: "<true | false>"
+  writebackPath: "docs/process/writebacks/<date>_<sampleId>.yml"
