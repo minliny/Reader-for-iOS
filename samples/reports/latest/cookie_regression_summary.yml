@@ -1,0 +1,72 @@
+reportId: "cookie_regression_summary"
+executionMode: "local_minimal_cookie_contract_regression"
+cookieContract:
+  cookieJar:
+    scope:
+      - per host
+    storage:
+      - in-memory
+    fields:
+      - name
+      - value
+      - domain
+      - path
+  extraction:
+    - from Set-Cookie response header
+  injection:
+    - into request Cookie header
+  persistence:
+    - session only
+  loginSupport:
+    - minimal (single-step)
+samples:
+  - sampleId: "SAMPLE-P1-COOKIE-001"
+    actualLevelBefore: "C"
+    actualLevelAfter: "A"
+    failureTypeBefore: "COOKIE_REQUIRED"
+    failureTypeAfter: null
+    result: "Set-Cookie from first request is stored in memory and injected into the second same-session request."
+  - sampleId: "SAMPLE-P1-COOKIE-002"
+    actualLevelBefore: "C"
+    actualLevelAfter: "A"
+    failureTypeBefore: "LOGIN_REQUIRED"
+    failureTypeAfter: null
+    result: "Single-step loginUrl response stores login_session cookie; later search and toc requests inject it."
+  - sampleId: "SAMPLE-P1-COOKIE-003"
+    actualLevelBefore: "C"
+    actualLevelAfter: "C"
+    failureTypeBefore: "NETWORK_POLICY_MISMATCH"
+    failureTypeAfter: "NETWORK_POLICY_MISMATCH"
+    result: "Cookie is injected, but anti-bot/session-binding boundary remains unresolved by design."
+summary:
+  totalSamples: 3
+  levelA: 2
+  levelB: 0
+  levelC: 1
+  levelD: 0
+testExecution:
+  environment: "macos_ci"
+  workflowName: "Reader Core Swift Tests"
+  runId: 24091662666
+  branch: "codex-cache-ci-evidence-2407"
+  headSha: "55a7ab2ef997c54f5a667c2b319f43ed80e4d263"
+  swiftAvailable: true
+  swiftVersion: "Apple Swift version 5.10 (swiftlang-5.10.0.13 clang-1500.3.9.4)"
+  command: "swift test --verbose"
+  result: "pass"
+  totalTests: 103
+  failedTests: []
+  cookieContractTests:
+    totalTests: 3
+    failedTests: []
+    tests:
+      - "URLSessionHTTPClientTests.testCookieSample001StoresSetCookieAndInjectsOnSecondRequest"
+      - "URLSessionHTTPClientTests.testCookieSample002SingleStepLoginCookieEnablesSearchAndToc"
+      - "URLSessionHTTPClientTests.testCookieSample003KeepsAntiBotBoundaryFailureWithCookiePresent"
+closureDecision:
+  capability: "Cookie"
+  status: "CLOSED"
+  rationale: "Current Cookie closure requires SAMPLE-P1-COOKIE-001 and SAMPLE-P1-COOKIE-002 at A. SAMPLE-P1-COOKIE-003 remains an upper-bound NETWORK_POLICY_MISMATCH case and is not a cookie core defect."
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

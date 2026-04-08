@@ -1,0 +1,41 @@
+sampleId: "SAMPLE-P1-CACHE-003"
+sampleFile: "samples/booksources/p1_cache/SAMPLE-P1-CACHE-003.json"
+priority: p1
+category: extended
+sourceType: synthetic
+title: "Cache stale boundary 样本"
+siteTag: cachelab
+featureTags:
+  - cache
+ruleTypes:
+  - Replace
+  - Regex
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+requiresCache: true
+fixtureFiles:
+  - "samples/fixtures/text/cache_content_first.txt"
+  - "samples/fixtures/text/cache_content_second_changed.txt"
+expectedOutput:
+  search: null
+  toc: null
+  content: "samples/expected/content/cache_content_expected.json"
+degradeExpectation:
+  actualLevel: B
+  failureType: null
+  reason: "最小 Cache contract 允许当前阶段同请求 stale 命中；refresh 尚未实现。"
+knownFailureType: null
+regressionResult:
+  actualLevel: B
+  failureType: null
+  reportPath: "samples/reports/latest/cache_regression_summary.yml"
+owner: core-cache
+notes:
+  - "cache stale boundary sample, not parser defect"
+  - "failureType=OUTPUT_MISMATCH was a placeholder for cache contract not implemented"
+  - "minimal cache lifecycle contract allows stale for same request; refresh remains not implemented"

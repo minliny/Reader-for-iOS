@@ -73,8 +73,8 @@ fixedItems:
       tests:
         - "testInvalidURLThrows"
     fixedBehavior:
-      - "invalid URL maps to FailureType.INVALID_URL"
-      - "invalid URL is no longer collapsed into FailureType.NETWORK_ERROR"
+      - "invalid URL maps into existing FailureType.RULE_INVALID"
+      - "no extra invalid-url failureType is retained outside failure_taxonomy.yml"
 currentStatus:
   mainlineBlocked: false
   coreSwiftTests: "green"

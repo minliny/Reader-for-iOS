@@ -1,0 +1,39 @@
+sampleId: "SAMPLE-P1-POLICY-002"
+sampleFile: "samples/booksources/p1_policy/SAMPLE-P1-POLICY-002.json"
+priority: p1
+category: policy
+sourceType: synthetic
+title: "minimal cookie store policy sample"
+siteTag: policylab
+featureTags:
+  - network_policy
+  - cookie
+ruleTypes:
+  - Cookie
+  - Header
+  - Regex
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: true
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/text/policy_cookie_bootstrap.txt"
+  - "samples/fixtures/text/policy_cookie_search.txt"
+expectedOutput:
+  search: "samples/expected/search/policy_cookie_search_expected.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: C
+  failureType: COOKIE_REQUIRED
+  reason: "未建立 session cookie 时，后续请求无法通过最小策略校验。"
+regressionResult:
+  actualLevel: B
+  failureType: null
+  reportPath: "samples/reports/latest/policy_regression_summary.yml"
+knownFailureType: COOKIE_REQUIRED
+owner: core-network-policy
+notes: "static-only: minimal cookie store uses BasicCookieJar in-memory only; first bootstrap response stores Set-Cookie and second search request injects Cookie."

@@ -1,0 +1,44 @@
+adapterHardening:
+  platform: macOS
+  adapterUsed: MinimalHTTPAdapter
+  executionMode: multi_sample_validation
+  samples:
+    - sampleId: SAMPLE-P1-HEADER-001
+      category: Header
+      result: pass
+      deviations: []
+      notes: "Custom headers passed through adapter; search response parsed to expected output."
+    - sampleId: SAMPLE-P1-COOKIE-001
+      category: Cookie
+      result: pass
+      deviations: []
+      notes: "Upstream Cookie header preserved by adapter; adapter did not absorb cookieJar responsibilities."
+    - sampleId: SAMPLE-P1-ERROR-001
+      category: ErrorMapping
+      result: pass
+      deviations: []
+      notes: "Historical adapter evidence remains transport-only; under the converged taxonomy the same 404 path should map to CONTENT_FAILED."
+  summary:
+    total: 3
+    passed: 3
+    failed: 0
+  regression:
+    environment: macos_ci
+    command: "swift test --verbose"
+    executionResult: pass
+    runId: 24140115780
+    runUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24140115780"
+    totalTests: 112
+    adapterTests:
+      executed: 4
+      failures: 0
+      tests:
+        - "MinimalHTTPAdapterTests.testSample004SearchChainThroughMinimalHTTPAdapter"
+        - "MinimalHTTPAdapterTests.testAdapterHardeningHeaderSample001PassesCustomHeadersAndMatchesExpected"
+        - "MinimalHTTPAdapterTests.testAdapterHardeningCookieSample001PreservesCookieHeaderAndMatchesExpected"
+        - "MinimalHTTPAdapterTests.testAdapterHardeningErrorSample001Maps404WithoutParserDeviation"
+    failedTests: []
+  cleanRoom:
+    noExternalGplCode: true
+    noLegadoAndroidImplementationReference: true
+    statement: "本次仅复用现有 MinimalHTTPAdapter 做多样本验证，不新增 adapter 功能、不实现 UI、不回改 Core 逻辑。"

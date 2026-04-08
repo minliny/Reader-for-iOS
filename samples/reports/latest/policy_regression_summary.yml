@@ -1,0 +1,39 @@
+reportId: "policy_regression_summary"
+generatedAt: "2026-04-08T16:20:00+08:00"
+phase: "p0_policy_convergence"
+samples:
+  - sampleId: "SAMPLE-P1-POLICY-001"
+    actualLevel: "B"
+    verification:
+      status: "NOT_VERIFIED"
+      type: "static_only"
+  - sampleId: "SAMPLE-P1-POLICY-002"
+    actualLevel: "B"
+    verification:
+      status: "NOT_VERIFIED"
+      type: "static_only"
+  - sampleId: "SAMPLE-P1-POLICY-003"
+    actualLevel: "C"
+    failureType: "CONTENT_FAILED"
+    verification:
+      status: "NOT_VERIFIED"
+      type: "static_only"
+summary:
+  totalSamples: 3
+  levelA: 0
+  levelB: 2
+  levelC: 1
+  levelD: 0
+testExecution:
+  environment: "local_windows_workspace"
+  swiftAvailable: false
+  testsRun: false
+  result: "not_run"
+  verificationStatus: "NOT_VERIFIED"
+  notes:
+    - "static-only validation"
+    - "executable verification pending"
+closureDecision:
+  capability: "Network policy layer"
+  status: "OPEN"
+  reason: "Executable regression pending"

@@ -1,0 +1,46 @@
+testExecution:
+  environment: macos_ci
+  runner:
+    workflowName: "Reader Core Swift Tests"
+    workflowFile: ".github/workflows/core-swift-tests.yml"
+    runId: 24090153962
+    runUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24090153962"
+    branch: "codex-cache-ci-evidence-2407"
+    headSha: "40bdd1d236be6e8c51f7866667661248afaa5fed"
+    os: "macOS 14.8.5"
+    image: "macos-14-arm64"
+  swiftAvailable: true
+  swiftVersion: "Apple Swift version 5.10 (swiftlang-5.10.0.13 clang-1500.3.9.4)"
+  testsRun: true
+  command: "swift test --verbose"
+  result: pass
+  failedTests: []
+  totals:
+    executed: 100
+    failures: 0
+    unexpectedFailures: 0
+  cacheTestEvidence:
+    testSuite: "MinimalCacheHTTPClientTests"
+    executed: 4
+    failures: 0
+    tests:
+      - "testContentSample003AllowsStaleForSameRequest"
+      - "testDifferentSelectedHeadersDoNotShareCacheEntry"
+      - "testSearchSample001ReturnsFirstResponseForRepeatedIdenticalRequest"
+      - "testTocSample002ReturnsFirstResponseForRepeatedIdenticalRequest"
+  stderr:
+    captureMode: "merged_into_stdout_by_workflow_2>&1"
+    hasEntries: true
+    excerpts:
+      - "warning: 'core': swift package manifest/build emitted compiler warning output"
+      - "StructuredErrorLog.swift: warning: instance method 'lock' is unavailable from asynchronous contexts; this is an error in Swift 6"
+      - "HTMLParser.swift: warning: result of call to scanner API is unused"
+      - "DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future Python version"
+      - "Node.js 20 actions are deprecated for actions/checkout@v4 and actions/upload-artifact@v4"
+  closureImpact:
+    cacheStatus: "CLOSED"
+    reason: "CI macOS swift test passed; Cache implementation evidence is now attached."
+    coreLogicModifiedInThisStep: false
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

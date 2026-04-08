@@ -1,0 +1,9 @@
+{
+  "bookSourceId": "SAMPLE-P1-ERROR-001",
+  "bookSourceName": "Error Mapping HTTP 404 Sample",
+  "bookSourceUrl": "https://fixture.local/errorlab",
+  "bookSourceGroup": "p1_error",
+  "searchUrl": "fixture://error/http-404",
+  "ruleSearch": ".missing-result",
+  "enabled": true
+}

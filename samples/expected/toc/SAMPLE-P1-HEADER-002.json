@@ -1,0 +1,12 @@
+{
+  "chapters": [
+    {
+      "title": "第一章 Referer 与 UA",
+      "url": "/book/header-referer-ua/chapter-1"
+    },
+    {
+      "title": "第二章 Header 透传",
+      "url": "/book/header-referer-ua/chapter-2"
+    }
+  ]
+}

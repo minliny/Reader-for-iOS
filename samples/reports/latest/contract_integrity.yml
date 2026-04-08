@@ -1,0 +1,40 @@
+reportId: "contract_integrity"
+executionMode: "static_audit"
+generatedAt: "2026-04-07T16:45:00Z"
+contracts:
+  HTTPClient:
+    status: "pass"
+    role: "HTTPRequest -> HTTPResponse / ReaderError boundary."
+    dependencies:
+      - "ReaderCoreProtocols"
+      - "ReaderCoreModels"
+  Cache:
+    status: "pass"
+    role: "Identical request in-memory cache wrapper; no persistence, TTL, eviction, or policy engine."
+    dependencies:
+      - "ReaderCoreProtocols"
+      - "ReaderCoreModels"
+  Cookie:
+    status: "pass"
+    role: "Per-host in-memory cookie jar; Set-Cookie extraction and Cookie injection; session only."
+    dependencies:
+      - "ReaderCoreProtocols"
+      - "ReaderCoreModels"
+  ErrorMapping:
+    status: "pass"
+    role: "ErrorMappingInput -> failureType/errorCode/message mapping only."
+    dependencies:
+      - "ReaderCoreModels"
+composition:
+  composable: true
+  conflicts: []
+  circularDependencies: []
+  notes:
+    - "ErrorMapping lives in ReaderCoreModels and does not depend on Header, Cache, Cookie, Network, or Parser implementations."
+    - "Cache wraps HTTP behavior but does not own error mapping."
+    - "Cookie augments HTTP requests but does not own Header or anti-bot policy."
+    - "Header propagation remains request-level behavior and does not own Cookie or ErrorMapping."
+result: "pass"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

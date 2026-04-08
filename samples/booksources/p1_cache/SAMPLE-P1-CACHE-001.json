@@ -1,0 +1,12 @@
+{
+  "bookSourceName": "Cache Search Fixture",
+  "bookSourceUrl": "https://fixture.local/cache-search",
+  "bookSourceGroup": "p1_cache_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://fixture.local/cache-search?q={{key}}",
+  "ruleSearch": "css:.book;name@css:.title;author@css:.author;detailUrl@css:a@href##/changed$",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": false,
+  "requiresCache": true
+}

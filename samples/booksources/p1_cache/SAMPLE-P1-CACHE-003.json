@@ -1,0 +1,12 @@
+{
+  "bookSourceName": "Cache Content Stale Boundary Fixture",
+  "bookSourceUrl": "https://fixture.local/cache-content",
+  "bookSourceGroup": "p1_cache_test",
+  "bookSourceType": 0,
+  "contentUrl": "https://fixture.local/book/cache-book/ch1",
+  "ruleContent": "regex:(Cached content body|Changed origin content body)##Changed origin content body##Cached content body",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": false,
+  "requiresCache": true
+}

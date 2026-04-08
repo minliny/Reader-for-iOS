@@ -1,0 +1,38 @@
+sampleId: "SAMPLE-P1-COOKIE-001"
+sampleFile: "samples/booksources/p1_cookie/SAMPLE-P1-COOKIE-001.json"
+priority: p1
+category: cookie
+sourceType: synthetic
+title: "基础 session cookie jar 样本"
+siteTag: cookielab
+featureTags:
+  - cookie
+ruleTypes:
+  - Cookie
+  - Header
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: true
+requiresCustomHeader: true
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/html/cookie_session_first_set_cookie.html"
+  - "samples/fixtures/html/cookie_session_without_cookie.html"
+  - "samples/fixtures/html/cookie_session_with_cookie_success.html"
+expectedOutput:
+  search: "samples/expected/search/cookie_session_search_expected.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: A
+  failureType: null
+  reason: "最小 Cookie contract 已覆盖 Set-Cookie 提取、内存 cookieJar 存储与后续 Cookie header 注入。"
+knownFailureType: null
+regressionResult:
+  actualLevel: A
+  failureType: null
+  reportPath: "samples/reports/latest/cookie_regression_summary.yml"
+owner: core-cookie
+notes: "basic session cookie jar sample closed by minimal Cookie contract; first response establishes Set-Cookie and second request injects Cookie"

@@ -4,7 +4,7 @@
 
 ## 关联样本
 
-<!-- 必填：sampleId 或样本路径 -->
+<!-- 必填：sampleId 或样本路径；若本次仅改治理文档，写 none -->
 - sampleId:
 - metadata:
 - expected:
@@ -31,11 +31,22 @@
 
 ## 回归摘要
 
-<!-- 必填：列出执行结果 -->
+<!-- 必填：列出执行结果；若本次无样本结构变更，必须显式写明 -->
 - 样本回归:
 - 兼容矩阵校验:
 - 失败分类校验:
 - iOS 构建校验:
+
+## 状态同步检查
+
+<!-- 必填：任何开发步骤完成后都必须同步以下文件 -->
+- [ ] 已更新 `docs/PROJECT_STATE_SNAPSHOT.yaml`
+- [ ] 已更新 `docs/AI_HANDOFF/PROJECT_STATUS.md`
+- [ ] 已更新 `docs/AI_HANDOFF/OPEN_TASKS.md`
+- [ ] 三份状态文件已保持一致
+- [ ] 已闭环样本列表无遗漏
+- [ ] `OPEN_TASKS.md` 中无已完成任务残留
+- [ ] 已写明当前是否允许进入 iOS 阶段
 
 ## 风险评估
 
@@ -53,16 +64,16 @@
 
 ## Clean-Room 与许可证检查
 
+- [ ] 本次仅依据仓库内部状态、样本、回归结果或仓库文档实施
 - [ ] 未复制、翻译、改写 Legado Android 源码
 - [ ] 本次改动无 GPL 代码搬运风险
 - [ ] 外部依赖许可证与项目分发要求兼容
 
 ## 门禁清单
 
-- [ ] 已绑定样本与 expected/degradeExpectation
+- [ ] 已绑定样本与 expected/degradeExpectation，或明确说明本次为治理文档改动
 - [ ] 未修改 A/B/C/D 兼容等级定义
 - [ ] 未新增 failure taxonomy（若新增，已同步更新配置）
-- [ ] 单元测试通过
-- [ ] 回归测试通过
+- [ ] 单元测试通过，或说明为何无需执行
+- [ ] 回归测试通过，或说明为何无需执行
 - [ ] Reviewer 无未处理 P0 问题
-

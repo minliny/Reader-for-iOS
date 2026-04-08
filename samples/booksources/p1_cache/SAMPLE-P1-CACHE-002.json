@@ -1,0 +1,12 @@
+{
+  "bookSourceName": "Cache Toc Fixture",
+  "bookSourceUrl": "https://fixture.local/cache-toc",
+  "bookSourceGroup": "p1_cache_test",
+  "bookSourceType": 0,
+  "tocUrl": "https://fixture.local/book/cache-book",
+  "ruleToc": "css:.chapter",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": false,
+  "requiresCache": true
+}

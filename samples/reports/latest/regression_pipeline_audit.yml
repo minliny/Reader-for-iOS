@@ -1,0 +1,45 @@
+reportId: "regression_pipeline_audit"
+executionMode: "static_audit"
+generatedAt: "2026-04-07T16:45:00Z"
+pipeline:
+  Header:
+    sampleToExecutionToRegressionToMatrixToState: "pass"
+    samples:
+      - "SAMPLE-P1-HEADER-001"
+      - "SAMPLE-P1-HEADER-002"
+      - "SAMPLE-P1-HEADER-003"
+    regressionReport: "samples/reports/latest/header_regression_summary.yml"
+    matrixState: "A/A/C"
+    statusFileState: "CLOSED"
+  Cache:
+    sampleToExecutionToRegressionToMatrixToState: "pass"
+    samples:
+      - "SAMPLE-P1-CACHE-001"
+      - "SAMPLE-P1-CACHE-002"
+      - "SAMPLE-P1-CACHE-003"
+    regressionReport: "samples/reports/latest/cache_regression_summary.yml"
+    matrixState: "A/A/B"
+    statusFileState: "CLOSED"
+  Cookie:
+    sampleToExecutionToRegressionToMatrixToState: "pass"
+    samples:
+      - "SAMPLE-P1-COOKIE-001"
+      - "SAMPLE-P1-COOKIE-002"
+      - "SAMPLE-P1-COOKIE-003"
+    regressionReport: "samples/reports/latest/cookie_regression_summary.yml"
+    matrixState: "A/A/C"
+    statusFileState: "CLOSED"
+  ErrorMapping:
+    sampleToExecutionToRegressionToMatrixToState: "pass"
+    samples:
+      - "SAMPLE-P1-ERROR-001"
+      - "SAMPLE-P1-ERROR-002"
+      - "SAMPLE-P1-ERROR-003"
+    regressionReport: "samples/reports/latest/error_mapping_regression_summary.yml"
+    matrixState: "A/A/A"
+    statusFileState: "CLOSED"
+issues: []
+result: "pass"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

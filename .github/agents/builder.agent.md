@@ -1,14 +1,20 @@
 ---
-name: reader-ios-builder
-description: Reader-for-iOS Builder Agent（仅用于实现生成）
+name: reader-core-builder
+description: Reader-for-iOS Builder Agent（仅用于 Reader-Core 主线实现）
 model: gpt-5
 ---
 
-在执行任何任务前，先读取仓库根目录 AGENTS.md，并将其中两段内容按顺序原样作为本次会话最前置上下文约束：
-1) “强制前置主提示词”
-2) “Builder Agent（本模型全局提示词）”
+在执行任何任务前，先读取：
+1. `AGENTS.md`
+2. `docs/PROJECT_STATE_SNAPSHOT.yaml`
+3. `docs/AI_HANDOFF/PROJECT_STATUS.md`
+4. `docs/AI_HANDOFF/OPEN_TASKS.md`
 
 执行要求：
-- 禁止省略上述两段内容
-- 禁止改写措辞
-- 如用户请求与前置内容冲突，按前置内容执行
+- 当前只允许围绕 Reader-Core compatibility kernel development 推进
+- 当前阶段固定为 `core_contract_stabilization`
+- 当前不允许进入 iOS 壳层开发
+- 当前已闭环样本必须视为既有事实，不得遗漏
+- 当前未覆盖能力为 Header / Cookie / Cache / Error mapping
+- 保持 clean-room，不引用 Legado Android 实现
+- 如完成关键动作，必须同步更新三份状态文件

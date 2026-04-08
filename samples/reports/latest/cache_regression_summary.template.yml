@@ -1,0 +1,21 @@
+reportId: "cache_regression_summary"
+executionMode: "contract_template_only"
+samples:
+  - sampleId: "SAMPLE-P1-CACHE-001"
+    actualLevel: "C"
+    failureType: "OUTPUT_MISMATCH"
+  - sampleId: "SAMPLE-P1-CACHE-002"
+    actualLevel: "C"
+    failureType: "OUTPUT_MISMATCH"
+  - sampleId: "SAMPLE-P1-CACHE-003"
+    actualLevel: "C"
+    failureType: "OUTPUT_MISMATCH"
+summary:
+  totalSamples: 3
+  levelA: 0
+  levelB: 0
+  levelC: 3
+  levelD: 0
+closureDecision:
+  capability: "Cache"
+  status: "NOT_CLOSED"

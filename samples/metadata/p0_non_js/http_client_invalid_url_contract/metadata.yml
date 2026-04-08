@@ -31,4 +31,4 @@ expectedOutput:
 degradeExpectation: null
 knownFailureType: null
 owner: "core-network"
-notes: "Invalid request URLs must map to FailureType.INVALID_URL instead of collapsing into NETWORK_ERROR."
+notes: "Invalid request URLs now converge into RULE_INVALID; no extra failureType is allowed."

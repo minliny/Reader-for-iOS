@@ -15,10 +15,6 @@ public enum FailureType: String, Codable, CaseIterable, Sendable {
     case JS_UNSUPPORTED
     case OUTPUT_MISMATCH
     case CRASH
-    case INVALID_URL
-    case NETWORK_ERROR
-    case NETWORK_TIMEOUT
-    case MISSING_REQUIRED_RULE
 }
 
 public enum Stage: String, Codable, Sendable {

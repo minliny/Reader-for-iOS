@@ -1,0 +1,5 @@
+{
+  "failureType": "RULE_INVALID",
+  "errorCode": "parsingFailed",
+  "message": "Selector did not match: .missing-book-title."
+}

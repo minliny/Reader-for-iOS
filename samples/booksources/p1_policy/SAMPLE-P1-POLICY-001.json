@@ -1,0 +1,14 @@
+{
+  "bookSourceId": "SAMPLE-P1-POLICY-001",
+  "bookSourceName": "Policy Header Search Sample",
+  "bookSourceUrl": "https://fixture.local/policy/header",
+  "bookSourceGroup": "p1_policy",
+  "searchUrl": "https://fixture.local/policy/header/search?q={{key}}",
+  "ruleSearch": "regex:(.+)",
+  "enabled": true,
+  "enabledCookieJar": false,
+  "header": {
+    "Accept": "text/plain",
+    "X-Policy-Token": "policy-header-001"
+  }
+}

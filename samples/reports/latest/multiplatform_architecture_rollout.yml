@@ -1,0 +1,27 @@
+reportId: "multiplatform_architecture_rollout"
+executionMode: "architecture_skeleton_only"
+generatedAt: "2026-04-08T00:00:00+08:00"
+decisionDoc: "docs/architecture/multiplatform_architecture_rollout.yml"
+directoryTreeDoc: "docs/architecture/multiplatform_directory_tree.md"
+status:
+  Header: "CLOSED"
+  Cache: "CLOSED"
+  Cookie: "CLOSED"
+  ErrorMapping: "CLOSED"
+  coreStabilizationAudit: "PASS"
+  ready_for_multiplatform: true
+rolloutState: "ARCHITECTURE_SKELETON_ONLY"
+platformImplementationDone: false
+oneCodebaseForAllPlatforms:
+  allowed: false
+  reason: "Shared Core is the single source of truth, but platform adapters and shells must remain explicit and platform-specific."
+next_best_task: "Multiplatform architecture rollout"
+constraints:
+  noPlatformUiImplemented: true
+  noPlatformFeatureImplemented: true
+  noCapabilitySemanticChange: true
+  failureTaxonomyModified: false
+  harmonyOsNotTreatedAsAndroid: true
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

@@ -1,0 +1,15 @@
+{
+  "bookSourceName": "Cookie Anti Bot Boundary Fixture",
+  "bookSourceUrl": "https://fixture.local/cookie-antibot",
+  "bookSourceGroup": "p1_cookie_test",
+  "bookSourceType": 0,
+  "contentUrl": "https://fixture.local/cookie-antibot/book/boundary/ch1",
+  "ruleContent": "css:#content",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "header": {
+    "Accept": "text/html",
+    "User-Agent": "ReaderCoreFixture/1.0"
+  }
+}

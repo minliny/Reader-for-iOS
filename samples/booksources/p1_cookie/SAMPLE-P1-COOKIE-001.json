@@ -1,0 +1,14 @@
+{
+  "bookSourceName": "Cookie Session Fixture",
+  "bookSourceUrl": "https://fixture.local/cookie-session",
+  "bookSourceGroup": "p1_cookie_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://fixture.local/cookie-session/search?q={{key}}",
+  "ruleSearch": "css:.book;name@css:.title;author@css:.author;detailUrl@css:a@href",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "header": {
+    "Accept": "text/html"
+  }
+}

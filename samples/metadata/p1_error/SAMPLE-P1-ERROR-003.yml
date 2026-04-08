@@ -1,0 +1,36 @@
+sampleId: "SAMPLE-P1-ERROR-003"
+sampleFile: "samples/booksources/p1_error/SAMPLE-P1-ERROR-003.json"
+priority: p1
+category: error_mapping
+sourceType: synthetic
+title: "Selector miss error mapping sample"
+siteTag: errorlab
+featureTags:
+  - error_mapping
+ruleTypes:
+  - ErrorMapping
+  - CSS
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/html/error_selector_miss.html"
+expectedOutput:
+  search: "samples/expected/error/error_selector_miss_expected.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: C
+  failureType: RULE_INVALID
+  reason: "Error mapping contract 尚未吸收时，selector miss 无法稳定归类为 RULE_INVALID。"
+regressionResult:
+  actualLevel: A
+  failureType: RULE_INVALID
+  reportPath: "samples/reports/latest/error_mapping_regression_summary.yml"
+knownFailureType: RULE_INVALID
+owner: core-error-mapping
+notes: "selector miss maps to RULE_INVALID; this does not change parser extraction behavior."

@@ -1,18 +1,18 @@
-version: "0.15.0"
-generatedAt: "2026-04-07T00:00:00Z"
-scope: "p1_header_samples_added"
+version: "0.20.2"
+generatedAt: "2026-04-08T16:20:00+08:00"
+scope: "p0-policy-layer-convergence"
 summary:
-  totalSamples: 20
-  levelA: 14
-  levelB: 0
-  levelC: 1
+  totalSamples: 36
+  levelA: 25
+  levelB: 3
+  levelC: 4
   levelD: 4
-  pendingIsolation: 3
+  pendingIsolation: 0
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
-  p1PassRate: 33.3
-  note: "v0.15.0: added Header capability samples (sample_header_001/002/003) as sample-driven tasks. All three are fixture-based, pending real isolation run. sample_header_001 (basic header, B1) and sample_header_002 (Referer/UA, B2) are expectedLevel A / actualLevel C pending Header implementation. sample_header_003 (anti-crawl rotating token, tier C) is expectedLevel A / actualLevel C — requires browser-level request fabrication beyond URLSession. failureType: NETWORK_POLICY_MISMATCH for all three. Previous v0.14.0: sample_004 actualLevel A confirmed."
+  p1PassRate: 69.2
+  note: "v0.20.2: policy samples remain static-only and OPEN until executable verification runs."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -156,7 +156,7 @@ samples:
     blocking: true
     metadataPath: "samples/metadata/p0_non_js/http_client_invalid_url_contract/metadata.yml"
     expectedPath: null
-    notes: "Invalid request URLs are classified before request dispatch and stay mapped to FailureType.INVALID_URL."
+    notes: "Invalid request URLs are classified before request dispatch and converge into existing RULE_INVALID without introducing a new failureType."
   - sampleId: "sample_cookie_001"
     source: "real_booksource"
     priority: "p1"
@@ -385,16 +385,16 @@ samples:
     requiresLogin: false
     requiresJs: false
     expectedLevel: "A"
-    actualLevel: "C"
-    failureType: "NETWORK_POLICY_MISMATCH"
-    secondaryReason: "missing_header"
+    actualLevel: "A"
+    failureType: null
+    secondaryReason: null
     errorCode: null
     blocking: false
     metadataPath: "samples/metadata/p1_cookie/sample_header_001.yml"
     expectedPath: "samples/expected/search/sample_header_001.json"
     fixturePaths:
       search: "samples/fixtures/html/sample_header_001_search.html"
-    notes: "Basic header enforcement — site gates access on X-Requested-With and Accept headers. Baseline URLSession fetch without required headers returns HTTP 403. Fixture provides success response for parser contract testing. actualLevel C: Header capability not yet implemented; parser cannot inject custom headers. expectedLevel A once Header capability is in place."
+    notes: "Basic header enforcement — local static contract regression confirmed existing Core can透传静态自定义 Header，fixture/expected 对齐，actualLevel A。"
   - sampleId: "sample_header_002"
     source: "fixture"
     priority: "p1"
@@ -407,16 +407,16 @@ samples:
     requiresLogin: false
     requiresJs: false
     expectedLevel: "A"
-    actualLevel: "C"
-    failureType: "NETWORK_POLICY_MISMATCH"
-    secondaryReason: "missing_referer"
+    actualLevel: "A"
+    failureType: null
+    secondaryReason: null
     errorCode: null
     blocking: false
     metadataPath: "samples/metadata/p1_cookie/sample_header_002.yml"
     expectedPath: "samples/expected/search/sample_header_002.json"
     fixturePaths:
       search: "samples/fixtures/html/sample_header_002_search.html"
-    notes: "Referer + User-Agent policy — site rejects default URLSession UA and missing/wrong Referer with HTTP 403. Requires browser-like UA string and correct Referer to match site domain. Fixture provides success response. actualLevel C: Header capability not yet implemented. expectedLevel A once Referer/UA injection is supported."
+    notes: "Referer + User-Agent policy — local static contract regression confirmed existing Core can透传 Referer/UA，fixture/expected 对齐，actualLevel A。"
   - sampleId: "sample_header_003"
     source: "fixture"
     priority: "p1"
@@ -438,4 +438,346 @@ samples:
     expectedPath: "samples/expected/search/sample_header_003.json"
     fixturePaths:
       search: "samples/fixtures/html/sample_header_003_search.html"
-    notes: "Anti-crawl rotating token strategy — site enforces dynamic X-Trace-Id rotation, TLS fingerprint matching, and rate limiting. Static header injection alone is insufficient; requires browser-level request fabrication. Fixture provides theoretical success response. actualLevel C: even with Header capability, rotating token generation and TLS fingerprint spoofing are out of scope for URLSession-based client. This sample establishes the upper bound of the Header capability gap."
+    notes: "Anti-crawl rotating token strategy — site enforces dynamic X-Trace-Id rotation, TLS fingerprint matching, and rate limiting. Static header injection alone is insufficient; requires browser-level request fabrication. Fixture provides theoretical success response. actualLevel C remains explainable because rotating token generation and TLS fingerprint spoofing are out of scope for URLSession-based client."
+  - sampleId: "SAMPLE-P1-HEADER-001"
+    source: "fixture"
+    priority: "p1"
+    category: "non_js"
+    ruleTypes:
+      - "Header"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-001.yml"
+    expectedPath: "samples/expected/search/SAMPLE-P1-HEADER-001.json"
+    notes: "基础 Header 样本通过本地 static contract regression 吸收为 A；现有 Core 已支持静态自定义 Header 透传。"
+  - sampleId: "SAMPLE-P1-HEADER-002"
+    source: "fixture"
+    priority: "p1"
+    category: "non_js"
+    ruleTypes:
+      - "Header"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-002.yml"
+    expectedPath: "samples/expected/toc/SAMPLE-P1-HEADER-002.json"
+    notes: "Referer/User-Agent Header 样本通过本地 static contract regression 吸收为 A；现有 Core 已支持 Referer/UA 透传。"
+  - sampleId: "SAMPLE-P1-HEADER-003"
+    source: "fixture"
+    priority: "p1"
+    category: "cookie"
+    ruleTypes:
+      - "Header"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresCustomHeader: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-003.yml"
+    expectedPath: "samples/expected/content/SAMPLE-P1-HEADER-003.json"
+    notes: "anti-bot boundary sample, not header defect"
+  - sampleId: "SAMPLE-P1-CACHE-001"
+    source: "synthetic"
+    priority: "p1"
+    category: "extended"
+    ruleTypes:
+      - "CSS"
+      - "Regex"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: false
+    requiresJs: false
+    requiresCache: true
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cache/SAMPLE-P1-CACHE-001.yml"
+    expectedPath: "samples/expected/search/cache_search_expected.json"
+    fixturePaths:
+      searchFirst: "samples/fixtures/html/cache_search_first.html"
+      searchSecondChanged: "samples/fixtures/html/cache_search_second_changed.html"
+    notes:
+      - "basic search cache contract sample; second identical request may use cached first response once Cache closes"
+      - "OUTPUT_MISMATCH was temporary classification; actual issue was cache lifecycle"
+      - "minimal cache lifecycle contract now covers identical search request hit"
+  - sampleId: "SAMPLE-P1-CACHE-002"
+    source: "synthetic"
+    priority: "p1"
+    category: "extended"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: false
+    requiresJs: false
+    requiresCache: true
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cache/SAMPLE-P1-CACHE-002.yml"
+    expectedPath: "samples/expected/toc/cache_toc_expected.json"
+    fixturePaths:
+      tocFirst: "samples/fixtures/html/cache_toc_first.html"
+      tocSecondChanged: "samples/fixtures/html/cache_toc_second_changed.html"
+    notes:
+      - "toc cache contract sample; repeated toc fetch may use cached first successful chapter list once Cache closes"
+      - "OUTPUT_MISMATCH was temporary classification; actual issue was cache lifecycle"
+      - "minimal cache lifecycle contract now covers identical toc request hit"
+  - sampleId: "SAMPLE-P1-CACHE-003"
+    source: "synthetic"
+    priority: "p1"
+    category: "extended"
+    ruleTypes:
+      - "Replace"
+      - "Regex"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: false
+    requiresJs: false
+    requiresCache: true
+    expectedLevel: "A"
+    actualLevel: "B"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cache/SAMPLE-P1-CACHE-003.yml"
+    expectedPath: "samples/expected/content/cache_content_expected.json"
+    fixturePaths:
+      contentFirst: "samples/fixtures/text/cache_content_first.txt"
+      contentSecondChanged: "samples/fixtures/text/cache_content_second_changed.txt"
+    notes:
+      - "cache stale boundary sample, not parser defect"
+      - "OUTPUT_MISMATCH was temporary classification; actual issue was cache lifecycle"
+      - "minimal cache lifecycle contract allows stale for same request; refresh remains not implemented"
+  - sampleId: "SAMPLE-P1-COOKIE-001"
+    source: "synthetic"
+    priority: "p1"
+    category: "cookie"
+    ruleTypes:
+      - "Cookie"
+      - "Header"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresCustomHeader: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-COOKIE-001.yml"
+    expectedPath: "samples/expected/search/cookie_session_search_expected.json"
+    fixturePaths:
+      firstSetCookie: "samples/fixtures/html/cookie_session_first_set_cookie.html"
+      missingCookie: "samples/fixtures/html/cookie_session_without_cookie.html"
+      withCookieSuccess: "samples/fixtures/html/cookie_session_with_cookie_success.html"
+    notes: "basic session cookie jar sample is tracked in current contract baseline; first response sets reader_session and second same-session request injects Cookie"
+  - sampleId: "SAMPLE-P1-COOKIE-002"
+    source: "synthetic"
+    priority: "p1"
+    category: "login"
+    ruleTypes:
+      - "Cookie"
+      - "Header"
+    requiresLogin: true
+    requiresCookieJar: true
+    requiresCustomHeader: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-COOKIE-002.yml"
+    expectedPath: "samples/expected/search/cookie_login_search_expected.json"
+    expectedPaths:
+      search: "samples/expected/search/cookie_login_search_expected.json"
+      toc: "samples/expected/toc/cookie_login_toc_expected.json"
+    fixturePaths:
+      loginRequired: "samples/fixtures/html/cookie_login_required.html"
+      loginSuccessSetCookie: "samples/fixtures/html/cookie_login_success_set_cookie.html"
+      searchSuccess: "samples/fixtures/html/cookie_login_search_success.html"
+    notes: "login boundary sample is tracked for minimal single-step cookie establishment; full UI login flow remains out of scope"
+  - sampleId: "SAMPLE-P1-COOKIE-003"
+    source: "synthetic"
+    priority: "p1"
+    category: "cookie"
+    ruleTypes:
+      - "Cookie"
+      - "Header"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresCustomHeader: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-COOKIE-003.yml"
+    expectedPath: "samples/expected/content/cookie_antibot_content_expected.json"
+    fixturePaths:
+      sessionBound: "samples/fixtures/html/cookie_antibot_session_bound.html"
+      antiBotBoundary: "samples/fixtures/html/cookie_antibot_boundary.html"
+    notes: "anti-bot boundary sample, not cookie core defect"
+  - sampleId: "SAMPLE-P1-ERROR-001"
+    source: "synthetic"
+    priority: "p1"
+    category: "error_mapping"
+    ruleTypes:
+      - "ErrorMapping"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: "CONTENT_FAILED"
+    errorCode: "networkFailed"
+    blocking: false
+    metadataPath: "samples/metadata/p1_error/SAMPLE-P1-ERROR-001.yml"
+    expectedPath: "samples/expected/error/error_http_404_expected.json"
+    fixturePaths:
+      http404: "samples/fixtures/json/error_http_404.json"
+    notes: "static-only after taxonomy convergence: HTTP 404 should map to CONTENT_FAILED; executable verification is still pending."
+  - sampleId: "SAMPLE-P1-ERROR-002"
+    source: "synthetic"
+    priority: "p1"
+    category: "error_mapping"
+    ruleTypes:
+      - "ErrorMapping"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: "CONTENT_FAILED"
+    errorCode: "networkFailed"
+    blocking: false
+    metadataPath: "samples/metadata/p1_error/SAMPLE-P1-ERROR-002.yml"
+    expectedPath: "samples/expected/error/error_timeout_expected.json"
+    fixturePaths:
+      timeout: "samples/fixtures/text/error_timeout.txt"
+    notes: "static-only after taxonomy convergence: timeout should map to CONTENT_FAILED; no retry or fallback policy is implemented; executable verification is still pending."
+  - sampleId: "SAMPLE-P1-ERROR-003"
+    source: "synthetic"
+    priority: "p1"
+    category: "error_mapping"
+    ruleTypes:
+      - "ErrorMapping"
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: "RULE_INVALID"
+    errorCode: "parsingFailed"
+    blocking: false
+    metadataPath: "samples/metadata/p1_error/SAMPLE-P1-ERROR-003.yml"
+    expectedPath: "samples/expected/error/error_selector_miss_expected.json"
+    fixturePaths:
+      selectorMiss: "samples/fixtures/html/error_selector_miss.html"
+    notes: "static-only after taxonomy convergence: selector miss should map to RULE_INVALID; this does not change parser extraction behavior; executable verification is still pending."
+  - sampleId: "SAMPLE-P1-POLICY-001"
+    source: "synthetic"
+    priority: "p1"
+    category: "policy"
+    ruleTypes:
+      - "Header"
+      - "Regex"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: true
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "B"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_policy/SAMPLE-P1-POLICY-001.yml"
+    expectedPath: "samples/expected/search/policy_header_search_expected.json"
+    verification:
+      status: "NOT_VERIFIED"
+      type: "static_only"
+    fixturePaths:
+      search: "samples/fixtures/text/policy_header_search.txt"
+    notes:
+      - "static-only validation"
+      - "executable verification pending"
+  - sampleId: "SAMPLE-P1-POLICY-002"
+    source: "synthetic"
+    priority: "p1"
+    category: "policy"
+    ruleTypes:
+      - "Cookie"
+      - "Header"
+      - "Regex"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresCustomHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "B"
+    failureType: null
+    errorCode: null
+    blocking: false
+    metadataPath: "samples/metadata/p1_policy/SAMPLE-P1-POLICY-002.yml"
+    expectedPath: "samples/expected/search/policy_cookie_search_expected.json"
+    verification:
+      status: "NOT_VERIFIED"
+      type: "static_only"
+    fixturePaths:
+      bootstrap: "samples/fixtures/text/policy_cookie_bootstrap.txt"
+      search: "samples/fixtures/text/policy_cookie_search.txt"
+    notes:
+      - "static-only validation"
+      - "executable verification pending"
+  - sampleId: "SAMPLE-P1-POLICY-003"
+    source: "synthetic"
+    priority: "p1"
+    category: "policy"
+    ruleTypes:
+      - "ErrorMapping"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresCustomHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "C"
+    failureType: "CONTENT_FAILED"
+    errorCode: "networkFailed"
+    blocking: false
+    metadataPath: "samples/metadata/p1_policy/SAMPLE-P1-POLICY-003.yml"
+    expectedPath: "samples/expected/error/policy_http_404_expected.json"
+    verification:
+      status: "NOT_VERIFIED"
+      type: "static_only"
+    fixturePaths:
+      error: "samples/fixtures/json/policy_http_404.json"
+    notes:
+      - "static-only validation"
+      - "executable verification pending"

@@ -1,0 +1,34 @@
+sampleId: "SAMPLE-P1-HEADER-003"
+sampleFile: "samples/fixtures/html/SAMPLE-P1-HEADER-003.html"
+priority: p1
+category: cookie
+sourceType: fixture
+title: "反爬策略 Header 样本"
+siteTag: "header_anti_crawl"
+featureTags:
+  - "header"
+  - "anti_crawl"
+  - "content"
+  - "html"
+ruleTypes:
+  - "Header"
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: true
+requiresCustomHeader: true
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/html/SAMPLE-P1-HEADER-003.html"
+expectedOutput:
+  search: null
+  toc: null
+  content: "samples/expected/content/SAMPLE-P1-HEADER-003.json"
+degradeExpectation:
+  actualLevel: C
+  failureType: "NETWORK_POLICY_MISMATCH"
+  reason: "失败边界在 anti-bot 上界：动态 token、请求指纹与反爬策略要求超出当前静态 Header / Cookie 能力。"
+knownFailureType: "NETWORK_POLICY_MISMATCH"
+owner: core-parser
+notes: "anti-bot upper bound sample"

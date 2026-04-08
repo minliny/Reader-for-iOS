@@ -1,0 +1,254 @@
+reportId: "multiplatform_architecture_rollout"
+executionMode: "architecture_skeleton_only"
+generatedAt: "2026-04-08T00:00:00+08:00"
+architectureDecision:
+  supportedPlatforms:
+    macOS:
+      supportIntent: true
+      supportTier: first_class
+      rationale: "Swift Package and Core validation can stay close to current Reader-Core implementation."
+    iOS:
+      supportIntent: true
+      supportTier: first_class
+      rationale: "Project shell target remains iOS-later, unlocked only after Core stabilization audit."
+    Linux:
+      supportIntent: true
+      supportTier: first_class_core_validation
+      rationale: "Linux is recommended for portable Core validation and CI-style non-UI verification."
+    Windows:
+      supportIntent: true
+      supportTier: limited_support
+      rationale: "Prioritize adapter and CLI validation before any native shell commitment."
+    Android:
+      supportIntent: true
+      supportTier: limited_support
+      rationale: "Android shell alignment may happen after Core boundary is stable; no Android implementation is added in this rollout skeleton."
+    HarmonyOS:
+      supportIntent: true
+      supportTier: strategy_only
+      rationale: "HarmonyOS must be evaluated as a distinct platform strategy and must not be treated as Android-equivalent."
+  firstClassPlatforms:
+    - macOS
+    - iOS
+    - Linux Core validation
+  limitedSupportPlatforms:
+    - Windows
+    - Android
+    - HarmonyOS strategy only
+  oneCodebaseForAllPlatforms:
+    allowed: false
+    reason: "Shared Core and shared contracts are required, but platform adapters and shells must remain platform-specific."
+  recommendedRoute:
+    - "Keep Core as the single source of truth for models, contracts, parser/network/cache/cookie/error mapping behavior."
+    - "Introduce platform_adapters as thin bridges for network, storage, logging, filesystem, and scheduler differences."
+    - "Introduce shells only after adapter boundaries are explicit; shell code must not own Core compatibility behavior."
+    - "Treat HarmonyOS as a separate strategy track, not as an Android variant."
+layers:
+  unifiedSpecLayer:
+    name: "统一规范层"
+    responsibility:
+      - "BookSource JSON compatibility contract"
+      - "sample metadata / expected / fixture / matrix contract"
+      - "failure taxonomy and capability closure definitions"
+      - "cross-platform regression acceptance rules"
+    boundary:
+      - "Defines behavior and evidence requirements only."
+      - "Does not execute platform code."
+    forbiddenLogic:
+      - "No UI logic"
+      - "No platform API calls"
+      - "No feature implementation"
+      - "No failureType changes without explicit taxonomy workflow"
+  portableCoreLayer:
+    name: "可移植 Core 层"
+    responsibility:
+      - "Reader-Core models and protocols"
+      - "parser / network contract / cache / cookie / error mapping behavior"
+      - "sample-driven regression-compatible behavior"
+    boundary:
+      - "Consumes abstractions from protocols."
+      - "Does not assume UI framework or platform shell."
+    forbiddenLogic:
+      - "No SwiftUI / UIKit / AppKit / Android / HarmonyOS UI logic"
+      - "No platform account system"
+      - "No platform storage schema ownership"
+      - "No shell navigation logic"
+  platformAdapterLayer:
+    name: "平台适配层"
+    responsibility:
+      - "HTTP transport binding"
+      - "cookie persistence binding if later allowed"
+      - "filesystem / key-value storage bridge"
+      - "logging / scheduler / background capability bridge"
+    boundary:
+      - "Thin adapter only; translates platform APIs to Core protocols."
+      - "Must not redefine Core compatibility behavior."
+    forbiddenLogic:
+      - "No parser semantics"
+      - "No failure taxonomy ownership"
+      - "No UI flow"
+      - "No anti-bot bypass"
+  platformShellLayer:
+    name: "平台壳层"
+    responsibility:
+      - "Platform-native UI composition"
+      - "Navigation and presentation"
+      - "User interaction and platform lifecycle"
+    boundary:
+      - "Calls Core through stable APIs and adapters."
+      - "Owns platform experience, not Core compatibility."
+    forbiddenLogic:
+      - "No BookSource parser implementation"
+      - "No cache/cookie/error mapping semantics"
+      - "No hidden compatibility fork"
+      - "No platform-specific rewrite of closed capability behavior"
+  engineeringGovernanceLayer:
+    name: "工程治理层"
+    responsibility:
+      - "CI gates"
+      - "sample regression"
+      - "compat matrix audits"
+      - "release and handoff state synchronization"
+    boundary:
+      - "Controls evidence, gating, and status only."
+      - "Does not implement user-facing features."
+    forbiddenLogic:
+      - "No runtime feature behavior"
+      - "No platform UI code"
+      - "No compatibility behavior changes without samples"
+recommendedDirectoryTree:
+  tree:
+    - "shared/"
+    - "shared/specs/"
+    - "shared/contracts/"
+    - "shared/test-fixtures/"
+    - "core/"
+    - "core/models/"
+    - "core/protocols/"
+    - "core/parser/"
+    - "core/network/"
+    - "core/cache/"
+    - "core/cookie/"
+    - "core/error_mapping/"
+    - "platform_adapters/"
+    - "platform_adapters/apple/"
+    - "platform_adapters/linux/"
+    - "platform_adapters/windows/"
+    - "platform_adapters/android/"
+    - "platform_adapters/harmonyos/"
+    - "shells/"
+    - "shells/ios/"
+    - "shells/macos/"
+    - "shells/windows/"
+    - "shells/android/"
+    - "shells/harmonyos/"
+    - "samples/"
+    - "samples/booksources/"
+    - "samples/metadata/"
+    - "samples/fixtures/"
+    - "samples/expected/"
+    - "samples/matrix/"
+    - "reports/"
+    - "reports/latest/"
+    - "docs/"
+    - "docs/architecture/"
+    - "docs/AI_HANDOFF/"
+  sharedAssets:
+    - "shared/"
+    - "core/"
+    - "samples/"
+    - "reports/"
+    - "docs/"
+  platformSpecificAssets:
+    - "platform_adapters/*"
+    - "shells/*"
+platformResponsibilityMatrix:
+  macOS:
+    uiShellResponsibility: "Native desktop shell later; may be used first for developer validation."
+    networkAdapterResponsibility: "Apple URLSession adapter alignment."
+    storageAdapterResponsibility: "Apple filesystem / key-value adapter skeleton later."
+    platformCapabilityResponsibility: "Local diagnostics and developer validation only in early rollout."
+    currentPriority: P1
+    riskLevel: LOW
+  iOS:
+    uiShellResponsibility: "Primary future mobile shell; no UI code in this skeleton."
+    networkAdapterResponsibility: "Apple URLSession adapter alignment with iOS lifecycle constraints."
+    storageAdapterResponsibility: "iOS sandbox storage adapter skeleton later."
+    platformCapabilityResponsibility: "Lifecycle, backgrounding, and user permissions only after shell phase starts."
+    currentPriority: P1
+    riskLevel: MEDIUM
+  Linux:
+    uiShellResponsibility: "No native UI in initial rollout; Core validation target only."
+    networkAdapterResponsibility: "Portable HTTP adapter validation path later."
+    storageAdapterResponsibility: "Filesystem adapter for CLI/regression later."
+    platformCapabilityResponsibility: "CI and Core validation."
+    currentPriority: P1
+    riskLevel: MEDIUM
+  Windows:
+    uiShellResponsibility: "Shell alignment later; no Windows UI code in this skeleton."
+    networkAdapterResponsibility: "HTTP adapter compatibility validation later."
+    storageAdapterResponsibility: "Windows filesystem / secure storage boundary later."
+    platformCapabilityResponsibility: "Desktop packaging and platform lifecycle later."
+    currentPriority: P2
+    riskLevel: MEDIUM
+  Android:
+    uiShellResponsibility: "Android shell alignment later; no Android UI code in this skeleton."
+    networkAdapterResponsibility: "Android HTTP adapter boundary later; no reuse of external implementation code."
+    storageAdapterResponsibility: "Android storage boundary later."
+    platformCapabilityResponsibility: "Android lifecycle and permissions later."
+    currentPriority: P2
+    riskLevel: HIGH
+  HarmonyOS:
+    uiShellResponsibility: "Separate shell strategy later; not Android-equivalent."
+    networkAdapterResponsibility: "HarmonyOS-specific adapter investigation later."
+    storageAdapterResponsibility: "HarmonyOS-specific persistence boundary later."
+    platformCapabilityResponsibility: "HarmonyOS app model and distribution constraints later."
+    currentPriority: P3
+    riskLevel: HIGH
+rolloutPlan:
+  - phase: "Phase 1"
+    name: "macOS + iOS + Linux Core validation"
+    deliverables:
+      - "Core/shell boundary document"
+      - "Apple adapter skeleton plan"
+      - "Linux Core validation plan"
+      - "regression gate checklist"
+    notDoing:
+      - "No platform UI implementation"
+      - "No app store packaging"
+      - "No capability semantics changes"
+    nextPhaseEntryConditions:
+      - "Core boundary approved"
+      - "Adapter responsibilities approved"
+      - "Regression gate checklist approved"
+  - phase: "Phase 2"
+    name: "Windows + Android shell alignment"
+    deliverables:
+      - "Windows adapter boundary plan"
+      - "Android adapter boundary plan"
+      - "Shell alignment risks and test gates"
+    notDoing:
+      - "No Android implementation reuse from external projects"
+      - "No Windows native UI implementation before boundary approval"
+    nextPhaseEntryConditions:
+      - "Windows/Android adapter boundaries approved"
+      - "No Core behavior fork detected"
+  - phase: "Phase 3"
+    name: "HarmonyOS shell strategy"
+    deliverables:
+      - "HarmonyOS platform model assessment"
+      - "HarmonyOS adapter feasibility note"
+      - "HarmonyOS shell strategy decision"
+    notDoing:
+      - "Do not treat HarmonyOS as Android"
+      - "No HarmonyOS UI implementation in strategy phase"
+    nextPhaseEntryConditions:
+      - "HarmonyOS feasibility accepted"
+      - "Distinct adapter/shell strategy approved"
+status:
+  rolloutState: "ARCHITECTURE_SKELETON_ONLY"
+  platformImplementationDone: false
+  coreSingleSourceOfTruth: true
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

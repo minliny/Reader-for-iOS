@@ -1,0 +1,17 @@
+{
+  "bookSourceName": "Cookie Login Boundary Fixture",
+  "bookSourceUrl": "https://fixture.local/cookie-login",
+  "bookSourceGroup": "p1_cookie_test",
+  "bookSourceType": 0,
+  "searchUrl": "https://fixture.local/cookie-login/search?q={{key}}",
+  "tocUrl": "https://fixture.local/cookie-login/book/login-cookie-book",
+  "ruleSearch": "css:.book;name@css:.title;author@css:.author;detailUrl@css:a@href",
+  "ruleToc": "css:.chapter",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "loginUrl": "https://fixture.local/cookie-login/login",
+  "header": {
+    "Accept": "text/html"
+  }
+}

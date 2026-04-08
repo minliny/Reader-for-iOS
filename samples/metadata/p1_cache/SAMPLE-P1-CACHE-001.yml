@@ -1,0 +1,41 @@
+sampleId: "SAMPLE-P1-CACHE-001"
+sampleFile: "samples/booksources/p1_cache/SAMPLE-P1-CACHE-001.json"
+priority: p1
+category: extended
+sourceType: synthetic
+title: "基础搜索缓存样本"
+siteTag: cachelab
+featureTags:
+  - cache
+ruleTypes:
+  - CSS
+  - Regex
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+requiresCache: true
+fixtureFiles:
+  - "samples/fixtures/html/cache_search_first.html"
+  - "samples/fixtures/html/cache_search_second_changed.html"
+expectedOutput:
+  search: "samples/expected/search/cache_search_expected.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: A
+  failureType: null
+  reason: "最小 Cache contract 已覆盖相同 search 请求的当前阶段缓存命中。"
+knownFailureType: null
+regressionResult:
+  actualLevel: A
+  failureType: null
+  reportPath: "samples/reports/latest/cache_regression_summary.yml"
+owner: core-cache
+notes:
+  - "same search request may use cached first response on repeated execution"
+  - "failureType=OUTPUT_MISMATCH was a placeholder for cache contract not implemented"
+  - "minimal cache lifecycle contract now covers identical search request hit"

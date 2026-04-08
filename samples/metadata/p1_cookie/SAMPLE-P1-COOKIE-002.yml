@@ -1,0 +1,38 @@
+sampleId: "SAMPLE-P1-COOKIE-002"
+sampleFile: "samples/booksources/p1_cookie/SAMPLE-P1-COOKIE-002.json"
+priority: p1
+category: login
+sourceType: synthetic
+title: "登录后 Cookie 边界样本"
+siteTag: cookielab
+featureTags:
+  - cookie
+ruleTypes:
+  - Cookie
+  - Header
+expectedLevel: A
+mustPassStage: mvp
+blocking: false
+requiresLogin: true
+requiresCookieJar: true
+requiresCustomHeader: true
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/html/cookie_login_required.html"
+  - "samples/fixtures/html/cookie_login_success_set_cookie.html"
+  - "samples/fixtures/html/cookie_login_search_success.html"
+expectedOutput:
+  search: "samples/expected/search/cookie_login_search_expected.json"
+  toc: "samples/expected/toc/cookie_login_toc_expected.json"
+  content: null
+degradeExpectation:
+  actualLevel: A
+  failureType: null
+  reason: "最小 Cookie contract 已覆盖单步 loginUrl 响应写入 cookieJar，并在后续 search/toc 请求注入 Cookie。"
+knownFailureType: null
+regressionResult:
+  actualLevel: A
+  failureType: null
+  reportPath: "samples/reports/latest/cookie_regression_summary.yml"
+owner: core-cookie
+notes: "login boundary sample closed only for minimal single-step cookie establishment; no complete UI login system is implemented"

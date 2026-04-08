@@ -1,0 +1,13 @@
+{
+  "bookSourceId": "SAMPLE-P1-POLICY-003",
+  "bookSourceName": "Policy Error Mapping 404 Sample",
+  "bookSourceUrl": "https://fixture.local/policy/error",
+  "bookSourceGroup": "p1_policy",
+  "searchUrl": "https://fixture.local/policy/error/search?q={{key}}",
+  "ruleSearch": "regex:(.+)",
+  "enabled": true,
+  "enabledCookieJar": false,
+  "header": {
+    "Accept": "application/json"
+  }
+}

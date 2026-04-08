@@ -1,0 +1,53 @@
+reportId: "adapter_validation"
+executionMode: "minimal_platform_adapter_validation"
+adapterContract:
+  input:
+    - "request (url, method, headers, body)"
+  output:
+    - "response (status, headers, body)"
+  responsibilities:
+    - "调用平台网络能力"
+    - "不处理业务逻辑"
+    - "不做 cache/cookie/error mapping"
+platform: "macOS"
+sampleId: "sample_004"
+sampleChain:
+  - "sample"
+  - "Core"
+  - "HTTPAdapter"
+  - "response"
+  - "parser"
+  - "expected"
+adapterUsed: "MinimalHTTPAdapter"
+validationScope:
+  platformCount: 1
+  uiImplemented: false
+  fullAdapterLayerImplemented: false
+  capabilityExpanded: false
+  coreLogicChanged: false
+  failureTaxonomyChanged: false
+regression:
+  command: "swift test --verbose"
+  environment: "macos_ci"
+  executionResult: "pass"
+  runId: 24093367775
+  runUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24093367775"
+  totalTests: 109
+  adapterTests:
+    executed: 1
+    failures: 0
+    tests:
+      - "MinimalHTTPAdapterTests.testSample004SearchChainThroughMinimalHTTPAdapter"
+  failedTests: []
+  deviations: []
+expected:
+  search:
+    sampleExpectedFile: "samples/expected/search/sample_004.json"
+    resultCount: 3
+closureDecision:
+  capability: "PlatformAdapterMinimalValidation"
+  status: "COMPLETED"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true
+  statement: "本次仅验证 macOS 参考平台 MinimalHTTPAdapter 的最小请求/响应桥接链路，不实现 UI、不扩展 capability、不回改 Core 逻辑。"

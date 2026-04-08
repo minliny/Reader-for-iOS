@@ -1,144 +1,141 @@
 你是本项目的 AI 开发代理。
 
-当前项目状态如下（必须继承，不允许回退）：
+以下内容是仓库内统一项目上下文，任何模型在执行任务前必须先吸收，不允许依赖对话历史补足关键信息。
+
+## 1. 当前项目定义
 
 ```yaml
 project:
   name: Reader-for-iOS
-  architecture: "Core + multi-shell"
-  phase: p0_non_js_core_stable
-  current_focus: execution_layer_structural_split
-  branch: main
-  head_commit: "9f4e44bdcf4ed270f9a7ceaf1f9606870e02a31c"
-
-ci_status:
-  reader_core_swift_tests:
-    run_id: 23979783880
-    status: success
-  fixture_toc_regression:
-    run_id: 23979783875
-    status: success
-
-core_modules:
-  rule_parser:
-    status: stable
-    responsibilities:
-      - rule_string_parsing
-      - selector_extractor_split
-      - unknown_extractor_fail_fast
-  selector_engine:
-    status: stable
-    capabilities:
-      - selector_semantics
-      - descendant_matching
-      - child_chain
-      - tag_class_id_matching
-  css_executor:
-    status: stable
-    responsibilities:
-      - orchestration
-      - html_document_parse_entry
-      - extraction_dispatch
-    capabilities:
-      - selector_semantics
-      - text/html/href/src/alt extraction
-      - unknown_extractor_fail_fast
-  fixture_toc_parser:
-    status: stable
-    guarantees:
-      - selector_miss_returns_empty
-      - title_miss_returns_empty
-      - url_miss_returns_empty
-      - count_mismatch_returns_empty
-      - singleton_rejected
-  toc_item:
-    status: stable
-    guarantees:
-      - invalid_url_kept_raw
-      - relative_url_requires_explicit_base
-      - title_postprocessing_stable
-  http_client:
-    status: stable
-    guarantees:
-      - invalid_url_maps_to_invalid_url
-
-current_structure:
-  rule_parsing:
-    file: "Core/Sources/ReaderCoreParser/RuleParser.swift"
-    status: decoupled
-  selector_execution:
-    file: "Core/Sources/ReaderCoreParser/SelectorEngine.swift"
-    status: decoupled
-  extraction:
-    file: "Core/Sources/ReaderCoreParser/CSSExecutor.swift"
-    status: coupled
-  orchestration:
-    file: "Core/Sources/ReaderCoreParser/CSSExecutor.swift"
-    status: coupled
-
-contracts:
-  css_executor_unknown_extractor:
-    behavior: fail_fast
-    failure_type: RULE_UNSUPPORTED
-    expected: "samples/expected/toc/css_executor_unknown_extractor_contract.json"
-
-assets:
-  metadata: complete
-  expected: complete
-  compat_matrix: complete
-  regression_summary: complete
-
-next_target:
-  module: extraction_layer
-  action: split_from_css_executor
-  constraints:
-    - no_behavior_change
-    - no_dsl_extension
-    - ci_must_remain_green
-    - no_test_modification
-    - no_failure_type_addition
-
-rules:
+  strategy: Reader-Core first
+  shell_policy: iOS later
+  mainline: Reader-Core compatibility kernel development
+  phase: core_contract_stabilization
   clean_room: true
-  no_gpl_code: true
-  no_test_modification: true
-  no_failure_type_addition: true
-  no_js_login_cookie_expansion: true
+  ios_allowed_now: false
 ```
 
-当前阶段：
-- `p0_non_js_core_stable`
-- 主线 CI 全绿
+解释：
+- 当前主线不是 iOS 壳层开发，而是 Reader-Core 兼容内核开发。
+- iOS 相关工作处于后置阶段，只有当核心兼容能力闭环且 `ios_allowed_now` 变为 `true` 时才允许进入。
+- 所有实现必须遵守 clean-room，禁止引用或搬运 Legado Android 实现。
 
-已完成：
-- CSSExecutor 收敛
-- FixtureTocParser 收敛
-- TocItem URL 语义收敛
-- HTTPClient 错误分类收敛
-- RuleParser 已拆分
-- SelectorEngine 已拆分
+## 2. 当前事实基线
 
-当前结构状态：
-- rule parsing：已解耦
-- selector execution：已解耦
-- extraction：仍在 `CSSExecutor`
-- orchestration：仍在 `CSSExecutor`
+### 已闭环样本
 
-当前唯一允许的开发方向：
-→ 结构拆分（extraction layer）
+```yaml
+closed_samples:
+  - sample_js_runtime_001
+  - sample_js_runtime_002
+  - sample_004
+  - sample_005
+```
 
-禁止事项：
-- 不扩展 DSL
-- 不修改测试
-- 不新增 failureType
-- 不进入 JS / 登录 / Cookie
-- 不回退当前 green contract
+### 已成熟能力
 
-下一步唯一目标：
-→ 从 `CSSExecutor` 中拆分 extraction layer，保持行为完全不变
+```yaml
+mature_capabilities:
+  - CI 执行
+  - artifact 产出
+  - regression 回写
+  - writeback 审核
+  - compat_matrix 审计吸收
+```
 
-附加注意：
-- 当前工作区存在未提交的 `samples/docs` 本地资产，不要误回退。
-- 当前以仓库内源码、tests、samples、CI 结果为唯一依据，继续遵守 clean-room 原则。
+### 当前未覆盖能力
 
-请在此状态下继续执行任务，不要重新分析项目，不要生成新的架构方案。
+```yaml
+uncovered_capabilities:
+  - Header
+  - Cookie
+  - Cache
+  - Error mapping
+```
+
+### 当前阶段与主线
+
+```yaml
+state:
+  phase: core_contract_stabilization
+  active_tracks:
+    - Reader-Core
+    - 非 JS 主路径
+  next_best_task: Header capability closure
+  recent_completed_action: Header capability closure 已转化为样本驱动任务
+  ios_gate:
+    allowed: false
+    reason: "Header/Cookie/Cache/Error mapping 尚未完成，仍禁止进入 iOS 阶段。"
+```
+
+## 3. 当前任务边界
+
+### 当前允许推进
+- Reader-Core 兼容内核开发
+- 非 JS 主路径闭环
+- Header / Cookie / Cache / Error mapping 的样本化与契约稳定
+- 状态文件、handoff 文件、agent 提示词的同步维护
+
+### 当前 Header 样本驱动任务
+- `SAMPLE-P1-HEADER-001`：基础 Header，search expected
+- `SAMPLE-P1-HEADER-002`：Referer/User-Agent，toc expected
+- `SAMPLE-P1-HEADER-003`：反爬策略，content expected
+- 当前 matrix 状态：expectedLevel A / actualLevel C / failureType NETWORK_POLICY_MISMATCH
+- 注意：本阶段仅完成样本驱动任务定义，尚未实现 Core Header 功能。
+
+### 当前不允许推进
+- iOS 壳层实现
+- Android 实现迁移
+- 范围外功能扩展
+- 未绑定样本的兼容性修改
+- 修改 A/B/C/D 兼容等级定义
+- 新增 failure taxonomy 而不更新配置
+
+## 4. 自动状态更新机制
+
+任何模型在完成一次开发步骤后，都必须把仓库状态同步到以下三个文件，确保后续模型无需上下文即可理解当前状态：
+
+```yaml
+required_sync_files:
+  - docs/PROJECT_STATE_SNAPSHOT.yaml
+  - docs/AI_HANDOFF/PROJECT_STATUS.md
+  - docs/AI_HANDOFF/OPEN_TASKS.md
+```
+
+### 触发条件
+- regression 正式回写
+- writeback 完成
+- compat_matrix 审计确认
+- 新样本闭环完成
+
+### 必须同步的内容
+- 当前已闭环样本
+- 当前阶段
+- 当前主线
+- 当前未覆盖能力
+- 下一步唯一最优任务
+- 最近一次完成的关键动作
+- 当前是否允许进入 iOS 阶段与判断原因
+
+### 同步规则
+- 不允许遗漏已闭环样本。
+- 不允许把已完成任务继续保留在 `OPEN_TASKS.md`。
+- 不允许三份文件之间出现阶段、主线、下一步任务或 iOS 判断不一致。
+- 若一次开发步骤仅改治理文档，也必须同步检查三份文件仍与当前真实状态一致。
+
+## 5. 当前交接阅读顺序
+
+模型进入仓库后建议按以下顺序建立上下文：
+
+1. `AGENTS.md`
+2. `docs/PROJECT_STATE_SNAPSHOT.yaml`
+3. `docs/AI_HANDOFF/PROJECT_STATUS.md`
+4. `docs/AI_HANDOFF/OPEN_TASKS.md`
+5. `docs/AI_HANDOFF/DECISIONS.md`
+6. `docs/AI_HANDOFF/NEXT_PROMPTS.md`
+
+## 6. Clean-Room 声明
+
+- 本项目当前状态说明仅来自仓库内部事实、样本、回归结果与治理文件。
+- 不引用 Legado Android 实现细节。
+- 无外部 GPL 代码搬运。

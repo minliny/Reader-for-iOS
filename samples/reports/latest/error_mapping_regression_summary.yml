@@ -1,0 +1,58 @@
+reportId: "error_mapping_regression_summary"
+executionMode: "local_minimal_error_mapping_contract_regression"
+errorMappingContract:
+  inputs:
+    - httpStatus
+    - networkError
+    - timeout
+    - emptyResponse
+    - selectorMiss
+  outputs:
+    - failureType
+    - errorCode
+    - message
+  rules:
+    - "401/403 -> NETWORK_POLICY_MISMATCH"
+    - "404 -> CONTENT_FAILED"
+    - "timeout -> CONTENT_FAILED"
+    - "empty -> CONTENT_FAILED"
+    - "selector miss -> RULE_INVALID"
+samples:
+  - sampleId: "SAMPLE-P1-ERROR-001"
+    actualLevelBefore: "C"
+    actualLevelAfter: "A"
+    failureType: "CONTENT_FAILED"
+  - sampleId: "SAMPLE-P1-ERROR-002"
+    actualLevelBefore: "C"
+    actualLevelAfter: "A"
+    failureType: "CONTENT_FAILED"
+  - sampleId: "SAMPLE-P1-ERROR-003"
+    actualLevelBefore: "C"
+    actualLevelAfter: "A"
+    failureType: "RULE_INVALID"
+summary:
+  totalSamples: 3
+  levelA: 3
+  levelB: 0
+  levelC: 0
+  levelD: 0
+testExecution:
+  environment: "local_windows_workspace"
+  swiftAvailable: false
+  testsRun: false
+  verificationStatus: "NOT_VERIFIED"
+  command: null
+  result: "not_run"
+  totalTests: 0
+  failedTests: []
+  errorMappingTests:
+    totalTests: 0
+    failedTests: []
+    tests: []
+closureDecision:
+  capability: "ErrorMapping"
+  status: "OPEN"
+  rationale: "taxonomy 已收敛到既有 failureType，但本轮未重新执行 Swift 测试，因此当前仅为 static-only 结论。"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

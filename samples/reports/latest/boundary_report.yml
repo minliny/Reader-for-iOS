@@ -1,0 +1,32 @@
+reportId: "boundary_report"
+executionMode: "static_audit"
+generatedAt: "2026-04-07T16:45:00Z"
+checks:
+  capabilityResponsibility:
+    status: "pass"
+    boundaries:
+      Header: "Static request header propagation; anti-bot rotating token remains out of scope."
+      Cache: "Identical-request in-memory response reuse and stale allowance only; no error classification ownership."
+      Cookie: "Per-host in-memory cookie jar and single-step login cookie establishment only; no anti-bot bypass."
+      ErrorMapping: "Maps observed error inputs to failureType/errorCode/message; no retry, fallback, or parser behavior changes."
+  antiBotClassification:
+    status: "pass"
+    evidence:
+      - "SAMPLE-P1-HEADER-003 remains NETWORK_POLICY_MISMATCH and is noted as not header defect."
+      - "SAMPLE-P1-COOKIE-003 remains NETWORK_POLICY_MISMATCH and is noted as not cookie core defect."
+      - "No anti-bot sample is reclassified as Cookie, Cache, or parser defect."
+  cacheStaleBoundary:
+    status: "pass"
+    evidence:
+      - "SAMPLE-P1-CACHE-003 is B with failureType null."
+      - "stale allowance is retained as Cache lifecycle boundary, not ErrorMapping failure."
+  selectorMissBoundary:
+    status: "pass"
+    evidence:
+      - "SAMPLE-P1-ERROR-003 maps selector miss to RULE_INVALID."
+      - "Existing selector-miss fixture contracts that intentionally produce empty TOC remain unchanged."
+issues: []
+result: "pass"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

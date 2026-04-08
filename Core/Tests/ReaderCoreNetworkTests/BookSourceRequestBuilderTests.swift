@@ -87,7 +87,7 @@ final class BookSourceRequestBuilderTests: XCTestCase {
                 return
             }
             XCTAssertEqual(readerError.code, .invalidInput)
-            XCTAssertEqual(readerError.failure?.type, .MISSING_REQUIRED_RULE)
+            XCTAssertEqual(readerError.failure?.type, .FIELD_MISSING)
         }
     }
 }

@@ -1,0 +1,28 @@
+reportId: "core_stabilization_audit"
+executionMode: "static_audit"
+generatedAt: "2026-04-07T16:45:00Z"
+inputs:
+  consistencyReport: "samples/reports/latest/consistency_report.yml"
+  boundaryReport: "samples/reports/latest/boundary_report.yml"
+  contractIntegrityReport: "samples/reports/latest/contract_integrity.yml"
+  regressionPipelineAudit: "samples/reports/latest/regression_pipeline_audit.yml"
+capabilityStatus:
+  Header: "CLOSED"
+  Cache: "CLOSED"
+  Cookie: "CLOSED"
+  ErrorMapping: "CLOSED"
+issues: []
+riskLevel: "LOW"
+ready_for_multiplatform: true
+next_best_task: "Multiplatform architecture rollout"
+decision:
+  status: "PASS"
+  rationale: "Core stabilization audit found no blocking consistency, boundary, contract integrity, or regression pipeline issues."
+constraints:
+  noNewFeatureAdded: true
+  noCapabilityExpanded: true
+  failureTaxonomyModified: false
+  sampleSemanticsModified: false
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

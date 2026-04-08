@@ -1,0 +1,49 @@
+reportId: "header_capability_closure_regression_template"
+scope: "Header capability closure sample-driven task"
+generatedFor:
+  - "SAMPLE-P1-HEADER-001"
+  - "SAMPLE-P1-HEADER-002"
+  - "SAMPLE-P1-HEADER-003"
+expectedBeforeImplementation:
+  expectedLevel: A
+  actualLevel: C
+  failureType: NETWORK_POLICY_MISMATCH
+requiredChecks:
+  metadata:
+    - "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-001.yml"
+    - "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-002.yml"
+    - "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-003.yml"
+  fixtures:
+    - "samples/fixtures/html/SAMPLE-P1-HEADER-001.html"
+    - "samples/fixtures/html/SAMPLE-P1-HEADER-002.html"
+    - "samples/fixtures/html/SAMPLE-P1-HEADER-003.html"
+  expected:
+    - "samples/expected/search/SAMPLE-P1-HEADER-001.json"
+    - "samples/expected/toc/SAMPLE-P1-HEADER-002.json"
+    - "samples/expected/content/SAMPLE-P1-HEADER-003.json"
+  matrix: "samples/matrix/compat_matrix.yml"
+resultTemplate:
+  regressionStatus: pending
+  samples:
+    - sampleId: "SAMPLE-P1-HEADER-001"
+      stage: search
+      expectedLevel: A
+      actualLevel: C
+      failureType: NETWORK_POLICY_MISMATCH
+      notes: "等待 Header 能力实现后回归。"
+    - sampleId: "SAMPLE-P1-HEADER-002"
+      stage: toc
+      expectedLevel: A
+      actualLevel: C
+      failureType: NETWORK_POLICY_MISMATCH
+      notes: "等待 Referer/User-Agent Header 透传能力实现后回归。"
+    - sampleId: "SAMPLE-P1-HEADER-003"
+      stage: content
+      expectedLevel: A
+      actualLevel: C
+      failureType: NETWORK_POLICY_MISMATCH
+      notes: "等待 Header 与基础 Cookie 联合策略实现后回归。"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true
+  note: "本模板仅记录样本驱动任务，不包含 Core 实现代码。"

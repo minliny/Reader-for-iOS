@@ -1,0 +1,37 @@
+sampleId: "SAMPLE-P1-COOKIE-003"
+sampleFile: "samples/booksources/p1_cookie/SAMPLE-P1-COOKIE-003.json"
+priority: p1
+category: cookie
+sourceType: synthetic
+title: "anti-bot / session binding Cookie 上界样本"
+siteTag: cookielab
+featureTags:
+  - cookie
+ruleTypes:
+  - Cookie
+  - Header
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: true
+requiresCustomHeader: true
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/html/cookie_antibot_session_bound.html"
+  - "samples/fixtures/html/cookie_antibot_boundary.html"
+expectedOutput:
+  search: null
+  toc: null
+  content: "samples/expected/content/cookie_antibot_content_expected.json"
+degradeExpectation:
+  actualLevel: C
+  failureType: NETWORK_POLICY_MISMATCH
+  reason: "基础 Cookie 已存在仍可能因动态 token、session binding 或 anti-bot 策略失败。"
+knownFailureType: NETWORK_POLICY_MISMATCH
+regressionResult:
+  actualLevel: C
+  failureType: NETWORK_POLICY_MISMATCH
+  reportPath: "samples/reports/latest/cookie_regression_summary.yml"
+owner: core-cookie
+notes: "anti-bot boundary sample, not cookie core defect"

@@ -1,150 +1,147 @@
 project:
   name: Reader-for-iOS
-  architecture: "Core + multi-shell"
-  phase: p0_non_js_core_stable
-  current_focus: execution_layer_structural_split
-  branch: main
-  head_commit: "9f4e44bdcf4ed270f9a7ceaf1f9606870e02a31c"
-
-ci_status:
-  reader_core_swift_tests:
-    run_id: 23979783880
-    status: success
-    workflow: "Reader Core Swift Tests"
-    head_sha: "9f4e44bdcf4ed270f9a7ceaf1f9606870e02a31c"
-  fixture_toc_regression:
-    run_id: 23979783875
-    status: success
-    workflow: "Fixture TOC Regression (macOS)"
-    head_sha: "9f4e44bdcf4ed270f9a7ceaf1f9606870e02a31c"
-
-core_modules:
-  rule_parser:
-    status: stable
-    responsibilities:
-      - rule_string_parsing
-      - selector_extractor_split
-      - unknown_extractor_fail_fast
-  selector_engine:
-    status: stable
-    capabilities:
-      - selector_semantics
-      - descendant_matching
-      - child_chain
-      - tag_class_id_matching
-  css_executor:
-    status: stable
-    responsibilities:
-      - orchestration
-      - html_document_parse_entry
-      - extraction_dispatch
-    capabilities:
-      - selector_semantics
-      - text/html/href/src/alt extraction
-      - unknown_extractor_fail_fast
-  fixture_toc_parser:
-    status: stable
-    guarantees:
-      - selector_miss_returns_empty
-      - title_miss_returns_empty
-      - url_miss_returns_empty
-      - count_mismatch_returns_empty
-      - singleton_rejected
-  toc_item:
-    status: stable
-    guarantees:
-      - invalid_url_kept_raw
-      - relative_url_requires_explicit_base
-      - title_postprocessing_stable
-  http_client:
-    status: stable
-    guarantees:
-      - invalid_url_maps_to_invalid_url
-
-recent_refactors:
-  - RuleParser_extracted
-  - CSSExecutor_unknown_extractor_fail_fast
-  - SelectorEngine_extracted
-
-current_structure:
-  rule_parsing:
-    file: "Core/Sources/ReaderCoreParser/RuleParser.swift"
-    status: decoupled
-  selector_execution:
-    file: "Core/Sources/ReaderCoreParser/SelectorEngine.swift"
-    status: decoupled
-  extraction:
-    file: "Core/Sources/ReaderCoreParser/CSSExecutor.swift"
-    status: coupled
-  orchestration:
-    file: "Core/Sources/ReaderCoreParser/CSSExecutor.swift"
-    status: coupled
-
-contracts:
-  css_executor_selector_semantics:
-    behavior: stable
-    sample_id: css_executor_selector_semantics_contract
-    coverage:
-      - tag_class_id
-      - child_chain
-      - descendant_single_segment
-      - text_extraction
-      - html_extraction
-      - href_src_alt_extraction
-  css_executor_unknown_extractor:
-    behavior: fail_fast
-    failure_type: RULE_UNSUPPORTED
-    sample_id: css_executor_selector_semantics_contract
-    expected: "samples/expected/toc/css_executor_unknown_extractor_contract.json"
-  fixture_toc_parser_contract:
-    behavior: stable
-    sample_ids:
-      - fixture_toc_selector_miss
-      - fixture_toc_title_rule_miss
-      - fixture_toc_url_rule_miss
-      - fixture_toc_count_mismatch
-      - fixture_toc_non_selector_error
-  toc_item_invalid_url_contract:
-    behavior: stable
-    sample_id: toc_item_invalid_url_contract
-  http_client_invalid_url_contract:
-    behavior: stable
-    sample_id: http_client_invalid_url_contract
-
-assets:
-  metadata: complete
-  expected: complete
-  compat_matrix: complete
-  regression_summary: complete
-  key_files:
-    - "samples/matrix/compat_matrix.yml"
-    - "samples/reports/latest/core_regression_summary.yml"
-    - "samples/expected/toc/css_executor_unknown_extractor_contract.json"
-    - "samples/metadata/p0_non_js/css_executor_selector_semantics_contract/metadata.yml"
-
-next_target:
-  module: extraction_layer
-  action: split_from_css_executor
-  constraints:
-    - no_behavior_change
-    - no_dsl_extension
-    - ci_must_remain_green
-    - no_test_modification
-    - no_failure_type_addition
-
-workspace:
-  has_uncommitted_local_assets: true
-  note: "工作区存在未提交的 samples/docs 资产文件；继续开发时不要误回退这些本地状态。"
-
-rules:
+  strategy: Reader-Core first
+  shell_policy: iOS later
+  mainline: Reader-Core compatibility kernel development
+  phase: core_contract_stabilization
   clean_room: true
-  no_gpl_code: true
-  no_test_modification: true
-  no_failure_type_addition: true
-  no_js_login_cookie_expansion: true
+  allow_ios_phase: false
+  ios_block_reason: "P0 convergence executable verification pending."
 
-validation:
-  state_recoverable: true
-  no_context_missing: true
-  machine_readable: true
-  agent_ready: true
+current_focus:
+  primary_track:
+    - Reader-Core
+    - core contract stabilization
+  next_best_task: P0 convergence executable verification
+  next_best_task_detail: "policy structure converged, executable verification pending, state remains OPEN."
+
+stabilized_samples:
+  - sample_js_runtime_001
+  - sample_js_runtime_002
+  - sample_004
+  - sample_005
+
+mature_capabilities:
+  - CI 执行
+  - artifact 产出
+  - regression 回写
+  - writeback 审核
+  - compat_matrix 审计吸收
+
+uncovered_capabilities:
+  - Header
+  - Cookie
+  - ErrorMapping
+
+recent_action:
+  summary: "P0 policy structure converged (not verified)"
+  category: core_policy_convergence
+  state_effect: "taxonomy、matrix、report、docs 已收敛到同一 pending verification 基线。"
+
+multiplatform_architecture_rollout:
+  reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
+  decisionDoc: "docs/architecture/multiplatform_architecture_rollout.yml"
+  directoryTreeDoc: "docs/architecture/multiplatform_directory_tree.md"
+  rolloutState: "ARCHITECTURE_SKELETON_ONLY"
+  platformImplementationDone: false
+  coreSingleSourceOfTruth: true
+  oneCodebaseForAllPlatforms:
+    allowed: false
+    reason: "共享 Core 是统一事实基线，但 platform_adapters 与 shells 必须显式分层，不能一套代码全吃。"
+
+adapterValidation:
+  status: recorded
+  platform: macOS
+  adapterUsed: MinimalHTTPAdapter
+  reportPath: "samples/reports/latest/adapter_validation.yml"
+  sampleId: "sample_004"
+  executionMode: "minimal_platform_adapter_validation"
+  platformImplementationDone: false
+  uiImplemented: false
+  fullAdapterLayerImplemented: false
+  coreSingleSourceOfTruth: true
+
+adapterHardening:
+  status: recorded
+  platform: macOS
+  adapterUsed: MinimalHTTPAdapter
+  reportPath: "samples/reports/latest/adapter_hardening.yml"
+  validatedSamples:
+    - "SAMPLE-P1-HEADER-001"
+    - "SAMPLE-P1-COOKIE-001"
+    - "SAMPLE-P1-ERROR-001"
+  platformImplementationDone: false
+  uiImplemented: false
+  fullAdapterLayerImplemented: false
+
+policy_layer_regression:
+  reportPath: "samples/reports/latest/policy_regression_summary.yml"
+  executionMode: "static_only"
+  coreCodeTouched: false
+  samples:
+    - sampleId: "SAMPLE-P1-POLICY-001"
+      actualLevel: "B"
+      failureType: null
+    - sampleId: "SAMPLE-P1-POLICY-002"
+      actualLevel: "B"
+      failureType: null
+    - sampleId: "SAMPLE-P1-POLICY-003"
+      actualLevel: "C"
+      failureType: "CONTENT_FAILED"
+  verificationStatus: "NOT_VERIFIED"
+  closureDecision:
+    capability: "NetworkPolicyLayer"
+    status: "OPEN"
+    reason: "Executable regression pending"
+
+error_mapping_regression:
+  reportPath: "samples/reports/latest/error_mapping_regression_summary.yml"
+  executionMode: "static_only"
+  coreCodeTouched: false
+  samples:
+    - sampleId: "SAMPLE-P1-ERROR-001"
+      actualLevel: "A"
+      failureType: "CONTENT_FAILED"
+    - sampleId: "SAMPLE-P1-ERROR-002"
+      actualLevel: "A"
+      failureType: "CONTENT_FAILED"
+    - sampleId: "SAMPLE-P1-ERROR-003"
+      actualLevel: "A"
+      failureType: "RULE_INVALID"
+  verificationStatus: "NOT_VERIFIED"
+  closureDecision:
+    capability: "ErrorMapping"
+    status: "OPEN"
+    reason: "Executable regression pending"
+
+capability_status:
+  Header: IN_PROGRESS
+  Cache: OPEN
+  Cookie: IN_PROGRESS
+  ErrorMapping: OPEN
+
+state_sync:
+  required_files:
+    - docs/PROJECT_STATE_SNAPSHOT.yaml
+    - docs/AI_HANDOFF/PROJECT_STATUS.md
+    - docs/AI_HANDOFF/OPEN_TASKS.md
+  consistency_rules:
+    - 不允许遗漏已闭环样本
+    - 不允许保留已完成任务在 OPEN_TASKS
+    - 不允许出现历史状态与当前状态冲突
+    - 三份文件必须保持内容一致
+
+change_scope:
+  this_update: p0_policy_layer_convergence
+  samples_changed: false
+  compat_matrix_changed: true
+  failure_taxonomy_changed: true
+  core_code_touched: false
+  error_mapping_open: true
+  core_stabilization_audit_passed: false
+  adapter_validation_recorded: true
+  adapter_validation_platform: macOS
+  adapter_hardening_recorded: true
+  platform_ui_touched: false
+  platform_feature_touched: false
+  clean_room_statement: "本轮仅执行 taxonomy、matrix、report、docs 的一致性收敛；不实现新能力，不修改 MinimalHTTPAdapter 职责，不引入外部 GPL 代码，不引用 Legado Android 实现。"

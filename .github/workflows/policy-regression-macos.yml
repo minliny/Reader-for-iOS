@@ -1,0 +1,37 @@
+name: policy-regression-macos
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/policy-regression-macos.yml"
+      - "Core/**"
+      - "samples/**"
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Swift Version
+        run: swift --version
+
+      - name: Run Tests
+        working-directory: Core
+        shell: bash
+        run: |
+          set -o pipefail
+          swift test --verbose 2>&1 | tee swift-test.log
+
+      - name: Upload policy regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: policy-regression-macos
+          if-no-files-found: warn
+          path: |
+            Core/swift-test.log
+            samples/reports/latest/policy_regression_summary.yml

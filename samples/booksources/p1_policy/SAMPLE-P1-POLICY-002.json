@@ -1,0 +1,13 @@
+{
+  "bookSourceId": "SAMPLE-P1-POLICY-002",
+  "bookSourceName": "Policy Cookie Session Sample",
+  "bookSourceUrl": "https://fixture.local/policy/cookie/bootstrap",
+  "bookSourceGroup": "p1_policy",
+  "searchUrl": "https://fixture.local/policy/cookie/search?q={{key}}",
+  "ruleSearch": "regex:(.+)",
+  "enabled": true,
+  "enabledCookieJar": true,
+  "header": {
+    "Accept": "text/plain"
+  }
+}

@@ -8,7 +8,7 @@ public final class BookSourceRequestBuilder: RequestBuilder {
     public func makeSearchRequest(source: BookSource, query: SearchQuery) throws -> HTTPRequest {
         guard let searchUrlTemplate = source.searchUrl, !searchUrlTemplate.isEmpty else {
             throw ReaderError.config(
-                failureType: .MISSING_REQUIRED_RULE,
+                failureType: .FIELD_MISSING,
                 stage: Stage.REQUEST_BUILD.rawValue,
                 ruleField: "searchUrl",
                 message: "searchUrl is required",
@@ -41,6 +41,16 @@ public final class BookSourceRequestBuilder: RequestBuilder {
             }
         }
 
+        guard validatedAbsoluteURLString(finalUrl) != nil else {
+            throw ReaderError.config(
+                failureType: .RULE_INVALID,
+                stage: Stage.REQUEST_BUILD.rawValue,
+                ruleField: "searchUrl",
+                message: "searchUrl must resolve to an absolute http(s) URL",
+                underlyingError: nil
+            )
+        }
+
         var headers = source.header
         if headers["User-Agent"] == nil {
             headers["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
@@ -59,9 +69,19 @@ public final class BookSourceRequestBuilder: RequestBuilder {
     public func makeTOCRequest(source: BookSource, detailURL: String) throws -> HTTPRequest {
         guard !detailURL.isEmpty else {
             throw ReaderError.config(
-                failureType: .INVALID_URL,
+                failureType: .RULE_INVALID,
                 stage: Stage.REQUEST_BUILD.rawValue,
+                ruleField: "detailURL",
                 message: "detailURL is empty",
+                underlyingError: nil
+            )
+        }
+        guard validatedAbsoluteURLString(detailURL) != nil else {
+            throw ReaderError.config(
+                failureType: .RULE_INVALID,
+                stage: Stage.REQUEST_BUILD.rawValue,
+                ruleField: "detailURL",
+                message: "detailURL must be an absolute http(s) URL",
                 underlyingError: nil
             )
         }
@@ -87,9 +107,19 @@ public final class BookSourceRequestBuilder: RequestBuilder {
     public func makeContentRequest(source: BookSource, chapterURL: String) throws -> HTTPRequest {
         guard !chapterURL.isEmpty else {
             throw ReaderError.config(
-                failureType: .INVALID_URL,
+                failureType: .RULE_INVALID,
                 stage: Stage.REQUEST_BUILD.rawValue,
+                ruleField: "chapterURL",
                 message: "chapterURL is empty",
+                underlyingError: nil
+            )
+        }
+        guard validatedAbsoluteURLString(chapterURL) != nil else {
+            throw ReaderError.config(
+                failureType: .RULE_INVALID,
+                stage: Stage.REQUEST_BUILD.rawValue,
+                ruleField: "chapterURL",
+                message: "chapterURL must be an absolute http(s) URL",
                 underlyingError: nil
             )
         }
@@ -110,5 +140,19 @@ public final class BookSourceRequestBuilder: RequestBuilder {
             timeout: 15,
             useCookieJar: source.enabledCookieJar
         )
+    }
+
+    private func validatedAbsoluteURLString(_ rawURL: String) -> URL? {
+        guard let url = URL(string: rawURL),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host,
+              !host.isEmpty,
+              scheme == "http" || scheme == "https"
+        else {
+            return nil
+        }
+
+        return url
     }
 }

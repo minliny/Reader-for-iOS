@@ -1,0 +1,33 @@
+sampleId: "SAMPLE-P1-HEADER-001"
+sampleFile: "samples/fixtures/html/SAMPLE-P1-HEADER-001.html"
+priority: p1
+category: non_js
+sourceType: fixture
+title: "基础 Header 样本"
+siteTag: "header_basic"
+featureTags:
+  - "header"
+  - "search"
+  - "html"
+ruleTypes:
+  - "Header"
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: true
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/html/SAMPLE-P1-HEADER-001.html"
+expectedOutput:
+  search: "samples/expected/search/SAMPLE-P1-HEADER-001.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: C
+  failureType: "NETWORK_POLICY_MISMATCH"
+  reason: "当前 Core 尚未完成自定义 Header 注入，服务端策略可能拒绝请求。"
+knownFailureType: "NETWORK_POLICY_MISMATCH"
+owner: core-parser
+notes: "Header capability closure 的基础 Header 样本，仅用于样本驱动任务定义，不包含 Core 实现代码。"

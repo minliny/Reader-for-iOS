@@ -1,0 +1,36 @@
+sampleId: "SAMPLE-P1-POLICY-003"
+sampleFile: "samples/booksources/p1_policy/SAMPLE-P1-POLICY-003.json"
+priority: p1
+category: policy
+sourceType: synthetic
+title: "404 error mapping policy sample"
+siteTag: policylab
+featureTags:
+  - network_policy
+  - error_mapping
+ruleTypes:
+  - ErrorMapping
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/json/policy_http_404.json"
+expectedOutput:
+  search: "samples/expected/error/policy_http_404_expected.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: C
+  failureType: CONTENT_FAILED
+  reason: "未接通 error mapping 时，HTTP 404 无法稳定回收到既有 taxonomy。"
+regressionResult:
+  actualLevel: C
+  failureType: CONTENT_FAILED
+  reportPath: "samples/reports/latest/policy_regression_summary.yml"
+knownFailureType: CONTENT_FAILED
+owner: core-network-policy
+notes: "static-only: minimal network policy layer routes HTTP 404 into existing CONTENT_FAILED mapping without introducing new failureType."

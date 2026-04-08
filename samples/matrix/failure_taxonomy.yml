@@ -1,14 +1,5 @@
-version: "0.2.0"
-updatedAt: "2026-04-05T20:11:13Z"
-classificationConstraints:
-  level1Policy:
-    - "一级 failureType 只能使用 failureTypes 列表中的既有值。"
-    - "禁止在未更新本文件并完成回归前引入新一级分类。"
-  mappingPolicy:
-    - "每个 samples.matrix.compat_matrix.yml.samples[*].failureType 必须映射到本文件一级分类。"
-    - "同一失败样本仅允许一个主 failureType，细节通过二级原因记录。"
-  scopePolicy:
-    - "首版以非 JS 主路径为主，JS 相关失败仅允许使用 JS_DEGRADED 或 JS_UNSUPPORTED。"
+version: "v1"
+updatedAt: "2026-04-08T16:20:00+08:00"
 failureTypes:
   - JSON_INVALID
   - FIELD_MISSING
@@ -24,55 +15,19 @@ failureTypes:
   - JS_UNSUPPORTED
   - OUTPUT_MISMATCH
   - CRASH
-examples:
-  JSON_INVALID:
-    - malformed_json_payload
-    - trailing_comma_in_source
-  FIELD_MISSING:
-    - missing_book_name
-    - missing_search_url
+secondaryReasons:
   RULE_INVALID:
     - invalid_css_selector
     - invalid_xpath_expression
     - invalid_jsonpath_expression
     - invalid_regex_expression
-  RULE_UNSUPPORTED:
-    - unsupported_selector_feature
-    - unsupported_rule_operator
-  SEARCH_FAILED:
-    - empty_search_result
-    - search_response_parse_error
-  TOC_FAILED:
-    - chapter_list_empty
-    - toc_parse_error
-  CONTENT_FAILED:
-    - content_body_empty
-    - content_parse_error
   NETWORK_POLICY_MISMATCH:
     - missing_header
     - missing_referer
     - invalid_user_agent
     - redirect_not_handled
-    - js_challenge_observed
-    - cloudflare_bot_check
-    - baseline_controlled_fetch_failed
-  COOKIE_REQUIRED:
-    - missing_required_cookie
-    - cookie_expired
-  LOGIN_REQUIRED:
-    - login_state_absent
-    - auth_redirect_detected
-  JS_DEGRADED:
-    - js_rule_skipped_in_non_js_mode
-    - js_eval_fallback_to_plain_parse
-  JS_UNSUPPORTED:
-    - js_engine_not_enabled
-    - js_ast_feature_not_supported
   OUTPUT_MISMATCH:
     - search_result_count_mismatch
     - toc_order_mismatch
     - content_missing_paragraph
     - content_cleaning_mismatch
-  CRASH:
-    - parser_runtime_exception
-    - unexpected_nil_access

@@ -1,0 +1,35 @@
+sampleId: "SAMPLE-P1-ERROR-001"
+sampleFile: "samples/booksources/p1_error/SAMPLE-P1-ERROR-001.json"
+priority: p1
+category: error_mapping
+sourceType: synthetic
+title: "HTTP 404 error mapping sample"
+siteTag: errorlab
+featureTags:
+  - error_mapping
+ruleTypes:
+  - ErrorMapping
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: false
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/json/error_http_404.json"
+expectedOutput:
+  search: "samples/expected/error/error_http_404_expected.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: C
+  failureType: CONTENT_FAILED
+  reason: "Error mapping contract 尚未吸收时，HTTP 404 无法稳定归类为 CONTENT_FAILED。"
+regressionResult:
+  actualLevel: A
+  failureType: CONTENT_FAILED
+  reportPath: "samples/reports/latest/error_mapping_regression_summary.yml"
+knownFailureType: CONTENT_FAILED
+owner: core-error-mapping
+notes: "HTTP 404 maps to CONTENT_FAILED via minimal ErrorMapper contract."

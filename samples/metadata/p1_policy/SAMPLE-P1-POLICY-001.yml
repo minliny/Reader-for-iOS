@@ -1,0 +1,37 @@
+sampleId: "SAMPLE-P1-POLICY-001"
+sampleFile: "samples/booksources/p1_policy/SAMPLE-P1-POLICY-001.json"
+priority: p1
+category: policy
+sourceType: synthetic
+title: "header-aware request builder policy sample"
+siteTag: policylab
+featureTags:
+  - network_policy
+  - header
+ruleTypes:
+  - Header
+  - Regex
+expectedLevel: A
+mustPassStage: phase2
+blocking: false
+requiresLogin: false
+requiresCookieJar: false
+requiresCustomHeader: true
+requiresJs: false
+fixtureFiles:
+  - "samples/fixtures/text/policy_header_search.txt"
+expectedOutput:
+  search: "samples/expected/search/policy_header_search_expected.json"
+  toc: null
+  content: null
+degradeExpectation:
+  actualLevel: C
+  failureType: NETWORK_POLICY_MISMATCH
+  reason: "缺少 policy header 时，服务端策略可能拒绝请求。"
+regressionResult:
+  actualLevel: B
+  failureType: null
+  reportPath: "samples/reports/latest/policy_regression_summary.yml"
+knownFailureType: NETWORK_POLICY_MISMATCH
+owner: core-network-policy
+notes: "static-only: minimal network policy layer builds request through RequestBuilder and preserves static policy headers without expanding adapter scope."

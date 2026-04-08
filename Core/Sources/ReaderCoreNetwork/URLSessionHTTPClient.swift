@@ -53,9 +53,10 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
 
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
         guard let url = validatedURL(from: request.url) else {
-            throw ReaderError.network(
-                failureType: .INVALID_URL,
+            throw ReaderError.config(
+                failureType: .RULE_INVALID,
                 stage: Stage.NETWORK.rawValue,
+                ruleField: "url",
                 message: "Invalid URL: \(request.url)",
                 underlyingError: nil
             )
@@ -87,7 +88,7 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ReaderError.network(
-                    failureType: .NETWORK_ERROR,
+                    failureType: .CONTENT_FAILED,
                     stage: Stage.NETWORK.rawValue,
                     message: "Non-HTTP response received",
                     underlyingError: nil
@@ -114,32 +115,14 @@ public final class URLSessionHTTPClient: HTTPClient, @unchecked Sendable {
                 data: data
             )
         } catch let error as URLError {
-            let failureType: FailureType
             switch error.code {
-            case .badURL, .unsupportedURL:
-                failureType = .INVALID_URL
             case .timedOut:
-                failureType = .NETWORK_TIMEOUT
-            case .cannotConnectToHost, .cannotFindHost:
-                failureType = .NETWORK_ERROR
-            case .notConnectedToInternet:
-                failureType = .NETWORK_ERROR
+                throw ErrorMapper.readerError(for: .timeout)
             default:
-                failureType = .NETWORK_ERROR
+                throw ErrorMapper.readerError(for: .networkError(error.localizedDescription))
             }
-            throw ReaderError.network(
-                failureType: failureType,
-                stage: Stage.NETWORK.rawValue,
-                message: "Network error: \(error.localizedDescription)",
-                underlyingError: error
-            )
         } catch {
-            throw ReaderError.network(
-                failureType: .NETWORK_ERROR,
-                stage: Stage.NETWORK.rawValue,
-                message: "Request failed: \(error.localizedDescription)",
-                underlyingError: error
-            )
+            throw ErrorMapper.readerError(for: .networkError(error.localizedDescription))
         }
     }
 

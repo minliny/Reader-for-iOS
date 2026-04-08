@@ -1,0 +1,45 @@
+reportId: "consistency_report"
+executionMode: "static_audit"
+generatedAt: "2026-04-07T16:45:00Z"
+scope:
+  - "samples/matrix/compat_matrix.yml"
+  - "samples/matrix/failure_taxonomy.yml"
+  - "samples/metadata"
+  - "samples/expected"
+  - "samples/fixtures"
+  - "samples/reports/latest"
+  - "docs/PROJECT_STATE_SNAPSHOT.yaml"
+  - "docs/AI_HANDOFF/PROJECT_STATUS.md"
+  - "docs/AI_HANDOFF/OPEN_TASKS.md"
+checks:
+  failureTypeConsistency:
+    status: "pass"
+    evidence:
+      - "SAMPLE-P1-ERROR-001 now uses CONTENT_FAILED and taxonomy contains CONTENT_FAILED."
+      - "SAMPLE-P1-ERROR-002 now uses CONTENT_FAILED and taxonomy contains CONTENT_FAILED."
+      - "SAMPLE-P1-ERROR-003 now uses RULE_INVALID and taxonomy contains RULE_INVALID."
+      - "Boundary samples continue to use NETWORK_POLICY_MISMATCH where appropriate."
+  compatMatrixRegressionConsistency:
+    status: "pass"
+    evidence:
+      - "Header regression: SAMPLE-P1-HEADER-001=A, SAMPLE-P1-HEADER-002=A, SAMPLE-P1-HEADER-003=C."
+      - "Cache regression: SAMPLE-P1-CACHE-001=A, SAMPLE-P1-CACHE-002=A, SAMPLE-P1-CACHE-003=B."
+      - "Cookie regression: SAMPLE-P1-COOKIE-001=A, SAMPLE-P1-COOKIE-002=A, SAMPLE-P1-COOKIE-003=C."
+      - "ErrorMapping regression is taxonomy-clean but static-only in this round."
+      - "Policy regression is static-only: SAMPLE-P1-POLICY-001=B, SAMPLE-P1-POLICY-002=B, SAMPLE-P1-POLICY-003=C."
+  metadataExpectedFixtureLinks:
+    status: "pass"
+    evidence:
+      - "P1 Header, Cache, Cookie, and ErrorMapping metadata paths referenced by compat_matrix exist."
+      - "Expected and fixture paths referenced by P1 Header, Cache, Cookie, and ErrorMapping samples exist."
+  statusMatrixSync:
+    status: "pass"
+    evidence:
+      - "PROJECT_STATE_SNAPSHOT lists Header, Cache, Cookie, and ErrorMapping as CLOSED."
+      - "PROJECT_STATUS lists Header, Cache, Cookie, and ErrorMapping as CLOSED."
+      - "OPEN_TASKS no longer keeps ErrorMapping as an open capability task."
+issues: []
+result: "pass"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

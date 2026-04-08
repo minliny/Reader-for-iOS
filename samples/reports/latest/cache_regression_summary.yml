@@ -1,0 +1,48 @@
+reportId: "cache_regression_summary"
+executionMode: "local_minimal_cache_contract_regression"
+cacheContract:
+  key:
+    - url
+    - method
+    - selectedHeaders
+  store:
+    - responseBody
+    - contentType
+  hitCondition:
+    - identicalRequest
+  stalePolicy:
+    - allow_stale_for_same_request_in_current_phase
+  refreshPolicy:
+    - not_implemented
+samples:
+  - sampleId: "SAMPLE-P1-CACHE-001"
+    actualLevelBefore: "C"
+    actualLevelAfter: "A"
+    failureTypeBefore: "OUTPUT_MISMATCH"
+    failureTypeAfter: null
+    result: "second identical search request returns first cached response"
+  - sampleId: "SAMPLE-P1-CACHE-002"
+    actualLevelBefore: "C"
+    actualLevelAfter: "A"
+    failureTypeBefore: "OUTPUT_MISMATCH"
+    failureTypeAfter: null
+    result: "second identical toc request returns first cached response"
+  - sampleId: "SAMPLE-P1-CACHE-003"
+    actualLevelBefore: "C"
+    actualLevelAfter: "B"
+    failureTypeBefore: "OUTPUT_MISMATCH"
+    failureTypeAfter: null
+    result: "same-request stale content is allowed; refresh is not implemented"
+summary:
+  totalSamples: 3
+  levelA: 2
+  levelB: 1
+  levelC: 0
+  levelD: 0
+closureDecision:
+  capability: "Cache"
+  status: "CLOSED"
+  rationale: "Current phase requires only same-request in-memory cache hit for SAMPLE-P1-CACHE-001/002 and stale allowance for SAMPLE-P1-CACHE-003; TTL, eviction, invalidation, cross-session persistence, refresh, and cache policy engine are not implemented."
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

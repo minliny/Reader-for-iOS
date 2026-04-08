@@ -1,0 +1,88 @@
+reportId: "header_regression_summary"
+generatedAt: "2026-04-07T00:00:00Z"
+executionMode: "local_static_contract_regression"
+scope: "Header capability closure"
+inputs:
+  booksources: "samples/booksources/p1_cookie/"
+  metadata:
+    - "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-001.yml"
+    - "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-002.yml"
+    - "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-003.yml"
+  fixtures:
+    - "samples/fixtures/html/SAMPLE-P1-HEADER-001.html"
+    - "samples/fixtures/html/SAMPLE-P1-HEADER-002.html"
+    - "samples/fixtures/html/SAMPLE-P1-HEADER-003.html"
+  expected:
+    - "samples/expected/search/SAMPLE-P1-HEADER-001.json"
+    - "samples/expected/toc/SAMPLE-P1-HEADER-002.json"
+    - "samples/expected/content/SAMPLE-P1-HEADER-003.json"
+executionEvidence:
+  requestContract:
+    propagatesSourceHeader: true
+    injectsDefaultUserAgent: true
+    injectsRefererForTOC: true
+    httpClientAppliesRequestHeaders: true
+    cookieJarAvailable: true
+    rotatingTokenSupport: false
+    tlsFingerprintSpoofingSupport: false
+  fixtureExpectedChecks:
+    - sampleId: "SAMPLE-P1-HEADER-001"
+      checks:
+        fixtureHasExpectedName: true
+        fixtureHasExpectedAuthor: true
+        fixtureHasExpectedBookUrl: true
+    - sampleId: "SAMPLE-P1-HEADER-002"
+      checks:
+        fixtureHasChapter1: true
+        fixtureHasChapter2: true
+    - sampleId: "SAMPLE-P1-HEADER-003"
+      checks:
+        fixtureHasExpectedTitle: true
+        fixtureHasExpectedContentLine1: true
+        fixtureHasExpectedContentLine2: true
+samples:
+  - sampleId: "SAMPLE-P1-HEADER-001"
+    mappedFrom: "sample_header_001"
+    stage: "search"
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    result: "pass"
+    rationale: "现有 Core 已支持静态自定义 Header 透传；fixture 与 expected 对齐。"
+  - sampleId: "SAMPLE-P1-HEADER-002"
+    mappedFrom: "sample_header_002"
+    stage: "toc"
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    result: "pass"
+    rationale: "现有 Core 已支持 Referer/UA 透传；fixture 与 expected 对齐。"
+  - sampleId: "SAMPLE-P1-HEADER-003"
+    mappedFrom: "sample_header_003"
+    stage: "content"
+    expectedLevel: "A"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    result: "explainable_gap"
+    rationale: "动态 token + TLS 指纹要求超出 URLSession 静态 Header 能力；无 CRASH，failureType 可解释。"
+summary:
+  totalSamples: 3
+  levelA: 2
+  levelB: 0
+  levelC: 1
+  levelD: 0
+  failureTypeDistribution:
+    NONE: 2
+    NETWORK_POLICY_MISMATCH: 1
+  p0PassRate: null
+closureDecision:
+  capability: "Header"
+  status: "CLOSED"
+  blockingSamplesAtOrAboveB: true
+  noCrash: true
+  failureTypeExplainable: true
+  rationale: "所有 blocking Header 样本已达到 A/B 要求；剩余 gap 为 non-blocking 上界样本。"
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true
+  coreCodeTouched: false
