@@ -31,12 +31,92 @@ final class URLSessionHTTPClientTests: XCTestCase {
         }
     }
 
-    func testDefaultHeadersApplied() async throws {
-        let customClient = URLSessionHTTPClient(
-            defaultHeaders: ["X-Custom": "value"]
+    // MARK: - Header capability tests
+
+    func testDefaultHeadersTransmittedInRequest() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "ok",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Default"), "default-value")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Accept-Language"), "zh-CN")
+            }
         )
-        let request = HTTPRequest(url: "https://example.com", method: "GET")
-        XCTAssertNotNil(customClient)
+
+        client = makeClient(mock: mock, defaultHeaders: [
+            "X-Default": "default-value",
+            "Accept-Language": "zh-CN"
+        ])
+
+        let response = try await client.send(HTTPRequest(
+            url: "https://fixture.local/header/test"
+        ))
+
+        XCTAssertEqual(response.statusCode, 200)
+        let requestCount = await mock.requestCount
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testRequestHeadersOverrideSameNameDefaultHeaders() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "ok",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json",
+                               "Per-request header must override defaultHeader with same name")
+            }
+        )
+
+        client = makeClient(mock: mock, defaultHeaders: [
+            "Accept": "text/html"
+        ])
+
+        let response = try await client.send(HTTPRequest(
+            url: "https://fixture.local/header/override",
+            headers: ["Accept": "application/json"]
+        ))
+
+        XCTAssertEqual(response.statusCode, 200)
+        let requestCount = await mock.requestCount
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testDifferentHeadersMergedFromDefaultAndRequest() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "ok",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Default-Only"), "from-default",
+                               "Default-only header must be present")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Request-Only"), "from-request",
+                               "Request-only header must be present")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Shared"), "from-request",
+                               "Shared key must use request value (override)")
+            }
+        )
+
+        client = makeClient(mock: mock, defaultHeaders: [
+            "X-Default-Only": "from-default",
+            "X-Shared": "from-default"
+        ])
+
+        let response = try await client.send(HTTPRequest(
+            url: "https://fixture.local/header/merge",
+            headers: [
+                "X-Request-Only": "from-request",
+                "X-Shared": "from-request"
+            ]
+        ))
+
+        XCTAssertEqual(response.statusCode, 200)
+        let requestCount = await mock.requestCount
+        XCTAssertEqual(requestCount, 1)
     }
 
     func testCookieJarIntegration() async throws {
@@ -167,11 +247,18 @@ final class URLSessionHTTPClientTests: XCTestCase {
         XCTAssertEqual(requestCount, 2)
     }
 
-    private func makeClient(mock: CookieContractURLProtocol.Mock) -> URLSessionHTTPClient {
+    private func makeClient(
+        mock: CookieContractURLProtocol.Mock,
+        defaultHeaders: [String: String] = [:]
+    ) -> URLSessionHTTPClient {
         CookieContractURLProtocol.mock = mock
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [CookieContractURLProtocol.self]
-        return URLSessionHTTPClient(configuration: configuration, cookieJar: jar)
+        return URLSessionHTTPClient(
+            configuration: configuration,
+            cookieJar: jar,
+            defaultHeaders: defaultHeaders
+        )
     }
 }
 
