@@ -4,6 +4,7 @@ import ReaderCoreModels
 import ReaderCoreNetwork
 import ReaderCoreParser
 import ReaderCoreProtocols
+@testable import ReaderPlatformAdapters
 
 final class NetworkPolicyLayerTests: XCTestCase {
     private let repoRoot = URL(fileURLWithPath: #filePath)

@@ -146,7 +146,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ReaderCoreNetworkTests",
-            dependencies: ["ReaderCoreNetwork", "ReaderCoreModels", "ReaderCoreProtocols"]
+            dependencies: ["ReaderCoreNetwork", "ReaderCoreModels", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
         ),
         .testTarget(
             name: "ReaderCoreCacheTests",

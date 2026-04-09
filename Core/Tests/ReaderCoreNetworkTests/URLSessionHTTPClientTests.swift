@@ -2,6 +2,7 @@ import XCTest
 import ReaderCoreNetwork
 import ReaderCoreProtocols
 import ReaderCoreModels
+@testable import ReaderPlatformAdapters
 
 final class URLSessionHTTPClientTests: XCTestCase {
     var client: URLSessionHTTPClient!
