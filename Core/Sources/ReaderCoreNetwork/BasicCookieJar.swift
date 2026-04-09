@@ -70,9 +70,30 @@ public protocol CookieJar: Sendable {
     func clear() async
 }
 
-public final class BasicCookieJar: CookieJar, @unchecked Sendable {
+private actor CookieStore {
     private var cookies: [String: Cookie] = [:]
-    private let lock = NSLock()
+
+    func matchingCookies(domain: String, path: String) -> [Cookie] {
+        cookies.values.filter { cookie in
+            !cookie.isExpired && cookie.matches(domain: domain, path: path)
+        }
+    }
+
+    func upsert(_ cookie: Cookie, key: String) {
+        if cookie.isExpired {
+            cookies.removeValue(forKey: key)
+        } else {
+            cookies[key] = cookie
+        }
+    }
+
+    func clear() {
+        cookies.removeAll()
+    }
+}
+
+public final class BasicCookieJar: CookieJar, @unchecked Sendable {
+    private let store = CookieStore()
 
     public init() {}
 
@@ -81,24 +102,11 @@ public final class BasicCookieJar: CookieJar, @unchecked Sendable {
     }
 
     public func getCookies(for domain: String, path: String) async -> [Cookie] {
-        lock.lock()
-        defer { lock.unlock() }
-
-        return cookies.values.filter { cookie in
-            !cookie.isExpired && cookie.matches(domain: domain, path: path)
-        }
+        await store.matchingCookies(domain: domain, path: path)
     }
 
     public func setCookie(_ cookie: Cookie) async {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let k = key(for: cookie)
-        if cookie.isExpired {
-            cookies.removeValue(forKey: k)
-        } else {
-            cookies[k] = cookie
-        }
+        await store.upsert(cookie, key: key(for: cookie))
     }
 
     public func setCookies(from headerValue: String, domain: String) async {
@@ -156,8 +164,6 @@ public final class BasicCookieJar: CookieJar, @unchecked Sendable {
     }
 
     public func clear() async {
-        lock.lock()
-        defer { lock.unlock() }
-        cookies.removeAll()
+        await store.clear()
     }
 }

@@ -6,6 +6,7 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreNetwork
 import ReaderCoreProtocols
+import ReaderPlatformAdapters
 
 private func ys(_ s: String) -> String {
     let e = s.replacingOccurrences(of: "\\", with: "\\\\")
@@ -72,11 +73,7 @@ Task {
             .replacingOccurrences(of: "{{keyword}}", with: "test")
             .replacingOccurrences(of: "{{page}}", with: "1")
 
-        // Baseline: ephemeral, no custom headers, no cookie jar
-        let cfg = URLSessionConfiguration.ephemeral
-        cfg.httpShouldSetCookies = false
-        cfg.httpCookieAcceptPolicy = .never
-        let client = URLSessionHTTPClient(configuration: cfg)
+        let client = HTTPAdapterFactory.makeDefault()
 
         var httpStatus: Int? = nil
         var contentType: String? = nil

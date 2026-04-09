@@ -6,6 +6,7 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreNetwork
 import ReaderCoreProtocols
+import ReaderPlatformAdapters
 
 // MARK: - YAML helpers
 private func ys(_ s: String) -> String {
@@ -252,10 +253,8 @@ Task {
         let mobileUA   = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         let referer    = bs.header["Referer"] ?? homeURL
 
-        func ephemeralClient(cookieJar: CookieJar? = nil) -> URLSessionHTTPClient {
-            let c = URLSessionConfiguration.ephemeral
-            c.httpShouldSetCookies = false; c.httpCookieAcceptPolicy = .never
-            return URLSessionHTTPClient(configuration: c, cookieJar: cookieJar)
+        func ephemeralClient(cookieJar: CookieJar? = nil) -> any HTTPAdapterProtocol {
+            HTTPAdapterFactory.makeDefault(cookieJar: cookieJar)
         }
 
         var records: [StepRecord] = []
@@ -263,14 +262,14 @@ Task {
         let runId = "isolation_cookie_002_\(Int(Date().timeIntervalSince1970))"
 
         func send(_ url: String, headers: [String: String] = [:],
-                  client: URLSessionHTTPClient, useJar: Bool = false) async -> HTTPResponse? {
+                  client: any HTTPAdapterProtocol, useJar: Bool = false) async -> HTTPResponse? {
             let req = HTTPRequest(url: url, method: "GET", headers: headers,
                                   body: nil, timeout: 20, useCookieJar: useJar)
             return try? await client.send(req)
         }
 
         // ── BASELINE-000 ──────────────────────────────────────────────────
-        let bl    = ephemeralClient()
+        let bl: any HTTPAdapterProtocol = ephemeralClient()
         let blR   = await send(searchURL, client: bl)
         let blA   = blR.map { analyze($0, ruleSearch: ruleSearch) }
             ?? Analysis(responseClass:"network_error", setCookie:false, login:false, js:false, found:false)
@@ -341,9 +340,7 @@ Task {
         ))
 
         // ── TEST-005: redirect_handling ───────────────────────────────────
-        let cfg5 = URLSessionConfiguration.default
-        cfg5.httpShouldSetCookies = false; cfg5.httpCookieAcceptPolicy = .never
-        let c5 = URLSessionHTTPClient(configuration: cfg5)
+        let c5 = HTTPAdapterFactory.makeDefault(followRedirects: true)
         let r5 = await send(searchURL, client:c5)
         let a5 = r5.map { analyze($0, ruleSearch:ruleSearch) }
             ?? Analysis(responseClass:"network_error", setCookie:false, login:false, js:false, found:false)
