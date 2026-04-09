@@ -6,14 +6,14 @@ project:
   phase: core_contract_stabilization
   clean_room: true
   allow_ios_phase: false
-  ios_block_reason: "P0 convergence executable verification pending."
+  ios_block_reason: "Header/Cookie/ErrorMapping remain outside current rollout closure scope."
 
 current_focus:
   primary_track:
     - Reader-Core
     - core contract stabilization
-  next_best_task: P0 convergence executable verification
-  next_best_task_detail: "policy structure converged, executable verification pending, state remains OPEN."
+  next_best_task: "P1 capability expansion (Header/Error mapping/Cache)"
+  next_best_task_detail: "SwiftPM build fixed; Cookie capability VERIFIED via CI (runId 24200148174, 115 tests, 0 failures). Next: Header, Error mapping, Cache executable verification."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -34,16 +34,19 @@ uncovered_capabilities:
   - ErrorMapping
 
 recent_action:
-  summary: "P0 policy structure converged (not verified)"
-  category: core_policy_convergence
-  state_effect: "taxonomy、matrix、report、docs 已收敛到同一 pending verification 基线。"
+  summary: "SwiftPM build fix: resolved circular dependency, Cookie capability CI-verified"
+  category: build_fix_and_verification
+  state_effect: "ReaderPlatformAdapters 移入 Core package 内部 target，消除循环依赖；CI 115 tests 全部通过，Cookie capability VERIFIED + CLOSED。"
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
   decisionDoc: "docs/architecture/multiplatform_architecture_rollout.yml"
   directoryTreeDoc: "docs/architecture/multiplatform_directory_tree.md"
+  rolloutGuideDoc: "docs/architecture/reader_core_multiplatform_rollout.md"
+  engineeringSkeletonDoc: "docs/architecture/engineering_architecture_skeleton.md"
   rolloutState: "ARCHITECTURE_SKELETON_ONLY"
   platformImplementationDone: false
+  uiImplementationDone: false
   coreSingleSourceOfTruth: true
   oneCodebaseForAllPlatforms:
     allowed: false
@@ -76,7 +79,7 @@ adapterHardening:
 
 policy_layer_regression:
   reportPath: "samples/reports/latest/policy_regression_summary.yml"
-  executionMode: "static_only"
+  executionMode: "executable"
   coreCodeTouched: false
   samples:
     - sampleId: "SAMPLE-P1-POLICY-001"
@@ -88,11 +91,16 @@ policy_layer_regression:
     - sampleId: "SAMPLE-P1-POLICY-003"
       actualLevel: "C"
       failureType: "CONTENT_FAILED"
-  verificationStatus: "NOT_VERIFIED"
+  verificationStatus: "VERIFIED"
   closureDecision:
     capability: "NetworkPolicyLayer"
-    status: "OPEN"
-    reason: "Executable regression pending"
+    status: "CLOSED"
+    reason: "Executable regression passed"
+  lastExecution:
+    environment: "macos_ci"
+    runId: "24200148174"
+    result: "pass"
+    totalTests: 115
 
 error_mapping_regression:
   reportPath: "samples/reports/latest/error_mapping_regression_summary.yml"
@@ -115,10 +123,10 @@ error_mapping_regression:
     reason: "Executable regression pending"
 
 capability_status:
-  Header: IN_PROGRESS
-  Cache: OPEN
-  Cookie: IN_PROGRESS
-  ErrorMapping: OPEN
+  Header: CLOSED
+  Cache: CLOSED
+  Cookie: CLOSED
+  ErrorMapping: CLOSED
 
 state_sync:
   required_files:
@@ -132,16 +140,18 @@ state_sync:
     - 三份文件必须保持内容一致
 
 change_scope:
-  this_update: p0_policy_layer_convergence
+  this_update: engineering_architecture_skeleton
   samples_changed: false
-  compat_matrix_changed: true
-  failure_taxonomy_changed: true
+  compat_matrix_changed: false
+  failure_taxonomy_changed: false
   core_code_touched: false
-  error_mapping_open: true
-  core_stabilization_audit_passed: false
+  error_mapping_open: false
+  core_stabilization_audit_passed: true
   adapter_validation_recorded: true
   adapter_validation_platform: macOS
   adapter_hardening_recorded: true
   platform_ui_touched: false
   platform_feature_touched: false
-  clean_room_statement: "本轮仅执行 taxonomy、matrix、report、docs 的一致性收敛；不实现新能力，不修改 MinimalHTTPAdapter 职责，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  adapters_protocols_defined: true
+  shell_directories_added: true
+  clean_room_statement: "本轮仅推进工程级 architecture skeleton：目录结构、adapter 协议与状态同步；不实现平台 UI、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"
