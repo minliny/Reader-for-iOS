@@ -7,9 +7,6 @@ let package = Package(
         .iOS(.v15),
         .macOS(.v13)
     ],
-    dependencies: [
-        .package(name: "ReaderPlatformAdapters", path: "../Adapters/HTTP")
-    ],
     products: [
         .library(name: "ReaderCoreFoundation", targets: ["ReaderCoreFoundation"]),
         .library(name: "ReaderCoreModels", targets: ["ReaderCoreModels"]),
@@ -35,6 +32,9 @@ let package = Package(
         .executable(name: "SampleLogin003IsolationRunner", targets: ["SampleLogin003IsolationRunner"]),
         .executable(name: "AutoSampleExtractorRunner", targets: ["AutoSampleExtractorRunner"]),
         .library(name: "ReaderCoreJSRenderer", targets: ["ReaderCoreJSRenderer"])
+    ],
+    dependencies: [
+        .package(name: "ReaderPlatformAdapters", path: "../Adapters/HTTP")
     ],
     targets: [
         .target(
