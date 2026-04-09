@@ -25,22 +25,25 @@
 - compat_matrix 审计吸收
 
 ### 当前未覆盖能力
-- 无新的 Core capability 闭环缺口；当前主任务转为架构 rollout
+- ErrorMapping（executable verification 待执行）
 
 ## 最近一次动作
 
-- `SwiftPM build fix: resolved circular dependency, Cookie capability CI-verified`
+- `Header capability executable verification passed`
 - 当前结论：
-  - `P0 policy executable verification` 已完成
-  - SwiftPM 循环依赖已修复：ReaderPlatformAdapters 移入 Core 内部 target
-  - runId: `24200148174`
-  - runUrl: `https://github.com/minliny/Reader-for-iOS/actions/runs/24200148174`
+  - Header capability VERIFIED + CLOSED
+  - runId: `24200529880`
+  - runUrl: `https://github.com/minliny/Reader-for-iOS/actions/runs/24200529880`
   - result: `pass`
   - testsRun: `true`
-  - totalTests: `115`
+  - totalTests: `117`
   - failedTests: `0`
-  - Cookie 测试全部通过：CookieJarIntegration, CookieSample001, CookieSample002, CookieSample003
-  - policy-regression-macos runId: `24200148194` 同样通过
+  - Header 测试全部通过：
+    - `testDefaultHeadersTransmittedInRequest`
+    - `testRequestHeadersOverrideSameNameDefaultHeaders`
+    - `testDifferentHeadersMergedFromDefaultAndRequest`
+  - Cookie 测试无回归（4/4 通过）
+  - merge precedence: request headers override same-name defaultHeaders
   - `platformImplementationDone=false`
 
 ## Adapter Validation
@@ -105,8 +108,8 @@
 
 ## 下一步唯一最优任务
 
-- `P1 capability expansion: Header / Error mapping / Cache executable verification`
-- 目标说明：SwiftPM build 已修复，Cookie capability 已 VERIFIED + CLOSED。下一步对 Header、Error mapping、Cache 进行 executable verification。
+- `P3 capability expansion: Error mapping / Cache executable verification`
+- 目标说明：Header + Cookie 均已 VERIFIED + CLOSED。下一步对 Error mapping、Cache 进行 executable verification。
 
 ## 当前不允许做的事
 

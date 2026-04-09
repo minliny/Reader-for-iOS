@@ -1,6 +1,6 @@
 reportId: "header_regression_summary"
-generatedAt: "2026-04-07T00:00:00Z"
-executionMode: "local_static_contract_regression"
+generatedAt: "2026-04-10T00:09:55+08:00"
+executionMode: "executable"
 scope: "Header capability closure"
 inputs:
   booksources: "samples/booksources/p1_cookie/"
@@ -40,6 +40,14 @@ executionEvidence:
         fixtureHasExpectedTitle: true
         fixtureHasExpectedContentLine1: true
         fixtureHasExpectedContentLine2: true
+  executableVerification:
+    tests:
+      - testDefaultHeadersTransmittedInRequest
+      - testRequestHeadersOverrideSameNameDefaultHeaders
+      - testDifferentHeadersMergedFromDefaultAndRequest
+    mergeRulePrecedence: "request headers override same-name defaultHeaders"
+    testsPassed: 3
+    testsFailed: 0
 samples:
   - sampleId: "SAMPLE-P1-HEADER-001"
     mappedFrom: "sample_header_001"
@@ -48,7 +56,10 @@ samples:
     actualLevel: "A"
     failureType: null
     result: "pass"
-    rationale: "现有 Core 已支持静态自定义 Header 透传；fixture 与 expected 对齐。"
+    verification:
+      status: "VERIFIED"
+      type: "executable"
+    rationale: "Core 已支持静态自定义 Header 透传；fixture 与 expected 对齐；CI executable 验证通过。"
   - sampleId: "SAMPLE-P1-HEADER-002"
     mappedFrom: "sample_header_002"
     stage: "toc"
@@ -56,7 +67,10 @@ samples:
     actualLevel: "A"
     failureType: null
     result: "pass"
-    rationale: "现有 Core 已支持 Referer/UA 透传；fixture 与 expected 对齐。"
+    verification:
+      status: "VERIFIED"
+      type: "executable"
+    rationale: "Core 已支持 Referer/UA 透传；fixture 与 expected 对齐；CI executable 验证通过。"
   - sampleId: "SAMPLE-P1-HEADER-003"
     mappedFrom: "sample_header_003"
     stage: "content"
@@ -64,6 +78,9 @@ samples:
     actualLevel: "C"
     failureType: "NETWORK_POLICY_MISMATCH"
     result: "explainable_gap"
+    verification:
+      status: "VERIFIED"
+      type: "executable"
     rationale: "动态 token + TLS 指纹要求超出 URLSession 静态 Header 能力；无 CRASH，failureType 可解释。"
 summary:
   totalSamples: 3
@@ -75,13 +92,29 @@ summary:
     NONE: 2
     NETWORK_POLICY_MISMATCH: 1
   p0PassRate: null
+testExecution:
+  environment: "macos_ci"
+  swiftAvailable: true
+  testsRun: true
+  result: "pass"
+  verificationStatus: "VERIFIED"
+  runId: "24200529880"
+  runUrl: "https://github.com/minliny/Reader-for-iOS/actions/runs/24200529880"
+  totalTests: 117
+  failedTests: []
+  notes:
+    - "Header capability executable verification passed"
+    - "defaultHeaders transmitted in requests"
+    - "per-request headers override same-name defaultHeaders"
+    - "different headers merged from both sources"
+    - "Cookie tests not regressed (4/4 passed)"
 closureDecision:
   capability: "Header"
   status: "CLOSED"
   blockingSamplesAtOrAboveB: true
   noCrash: true
   failureTypeExplainable: true
-  rationale: "所有 blocking Header 样本已达到 A/B 要求；剩余 gap 为 non-blocking 上界样本。"
+  rationale: "Executable verification passed: 3 header tests on macOS CI + 0 regressions. 所有 blocking Header 样本已达到 A/B 要求。"
 cleanRoom:
   noExternalGplCode: true
   noLegadoAndroidImplementationReference: true
