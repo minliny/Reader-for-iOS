@@ -62,38 +62,49 @@ public protocol ErrorLogger: Sendable {
     func clear() async
 }
 
-public final class InMemoryErrorLogger: ErrorLogger, @unchecked Sendable {
+private actor ErrorLogStore {
     private var logs: [StructuredErrorLog] = []
-    private let lock = NSLock()
     private let maxCapacity: Int
 
-    public init(maxCapacity: Int = 1000) {
+    init(maxCapacity: Int) {
         self.maxCapacity = maxCapacity
     }
 
-    public func log(_ errorLog: StructuredErrorLog) async {
-        lock.lock()
-        defer { lock.unlock() }
-
+    func append(_ errorLog: StructuredErrorLog) {
         logs.append(errorLog)
         if logs.count > maxCapacity {
             logs.removeFirst(logs.count - maxCapacity)
         }
     }
 
-    public func getErrors(since: Date?) async -> [StructuredErrorLog] {
-        lock.lock()
-        defer { lock.unlock() }
-
+    func all(since: Date?) -> [StructuredErrorLog] {
         if let since = since {
             return logs.filter { $0.timestamp >= since }
         }
         return Array(logs)
     }
 
-    public func clear() async {
-        lock.lock()
-        defer { lock.unlock() }
+    func clear() {
         logs.removeAll()
+    }
+}
+
+public final class InMemoryErrorLogger: ErrorLogger, @unchecked Sendable {
+    private let store: ErrorLogStore
+
+    public init(maxCapacity: Int = 1000) {
+        self.store = ErrorLogStore(maxCapacity: maxCapacity)
+    }
+
+    public func log(_ errorLog: StructuredErrorLog) async {
+        await store.append(errorLog)
+    }
+
+    public func getErrors(since: Date?) async -> [StructuredErrorLog] {
+        await store.all(since: since)
+    }
+
+    public func clear() async {
+        await store.clear()
     }
 }

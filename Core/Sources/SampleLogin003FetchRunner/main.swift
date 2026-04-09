@@ -7,6 +7,7 @@ import ReaderCoreModels
 import ReaderCoreNetwork
 import ReaderCoreProtocols
 import ReaderCoreFoundation
+import ReaderPlatformAdapters
 
 private struct LoginFlowConfig { let successMarkers: [String]; let failureMarkers: [String] }
 private func ys(_ s: String) -> String { "\"\(s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"" }
@@ -63,10 +64,7 @@ Task {
         let builder = BookSourceRequestBuilder()
         let builtSearchRequest = try builder.makeSearchRequest(source: source, query: SearchQuery(keyword: "secure", page: 1))
 
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpShouldSetCookies = false
-        configuration.httpCookieAcceptPolicy = .never
-        let client = URLSessionHTTPClient(configuration: configuration)
+        let client = HTTPAdapterFactory.makeDefault()
 
         var httpStatus: Int?
         var contentType: String?

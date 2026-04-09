@@ -36,6 +36,18 @@ public struct NetworkPolicyLayer: Sendable {
     }
 
     private func evaluate(_ response: HTTPResponse) throws -> HTTPResponse {
+        if response.statusCode == 404 {
+            throw ReaderError(
+                code: .networkFailed,
+                message: "HTTP 404 content fetch failed.",
+                failure: FailureRecord(
+                    type: .CONTENT_FAILED,
+                    reason: "error_mapping",
+                    detail: "HTTP 404 content fetch failed."
+                ),
+                context: ["contract": "error_mapping"]
+            )
+        }
         if response.statusCode >= 400 {
             throw ErrorMapper.readerError(for: .httpStatus(response.statusCode))
         }

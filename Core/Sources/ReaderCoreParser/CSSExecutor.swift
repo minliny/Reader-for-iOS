@@ -4,6 +4,7 @@ import ReaderCoreProtocols
 
 /// CSS执行器，用于执行CSS选择器并提取内容
 public final class CSSExecutor: @unchecked Sendable {
+    private let clock = ContinuousClock()
     private let parser = HTMLParser()
     private let sampleId: String?
     private let debugLog: ((String) -> Void)?
@@ -42,12 +43,12 @@ public final class CSSExecutor: @unchecked Sendable {
     /// 执行CSS选择器并返回匹配的节点
     public func select(_ selector: String, from html: String) throws -> [CSSNode] {
         debug("SELECTOR_EXEC start selector=\(sanitize(selector))")
-        let parseStart = DispatchTime.now()
+        let parseStart = clock.now
         debug("RULE_STEP name=document_parse_start selector=\(sanitize(selector))")
         let document = try parser.parse(html)
         let parseDurationMs = elapsedMilliseconds(since: parseStart)
         debug("RULE_STEP name=document_parse_end selector=\(sanitize(selector)) duration_ms=\(parseDurationMs) root_children=\(document.children.count)")
-        let selectionStart = DispatchTime.now()
+        let selectionStart = clock.now
         return try select(selector, from: document)
             .map { node in
                 node
@@ -116,8 +117,11 @@ public final class CSSExecutor: @unchecked Sendable {
             .replacingOccurrences(of: "\n", with: " ")
     }
 
-    private func elapsedMilliseconds(since start: DispatchTime) -> Int {
-        Int(DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds) / 1_000_000
+    private func elapsedMilliseconds(since start: ContinuousClock.Instant) -> Int {
+        let duration = start.duration(to: clock.now)
+        let millisecondsFromSeconds = duration.components.seconds * 1_000
+        let millisecondsFromAttoseconds = duration.components.attoseconds / 1_000_000_000_000_000
+        return Int(millisecondsFromSeconds + millisecondsFromAttoseconds)
     }
 
 }

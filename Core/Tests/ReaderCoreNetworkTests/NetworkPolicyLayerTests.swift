@@ -101,7 +101,7 @@ final class NetworkPolicyLayerTests: XCTestCase {
             _ = try await layer.performSearch(source: source, query: SearchQuery(keyword: "missing"))
             XCTFail("Expected CONTENT_FAILED mapping")
         } catch let error as ReaderError {
-            XCTAssertEqual(error.failure?.type?.rawValue, expected.failureType)
+            XCTAssertEqual(error.failure?.type.rawValue, expected.failureType)
             XCTAssertEqual(error.code.rawValue, expected.errorCode)
             XCTAssertEqual(error.message, expected.message)
         }

@@ -7,6 +7,7 @@ import ReaderCoreModels
 import ReaderCoreNetwork
 import ReaderCoreProtocols
 import ReaderCoreFoundation
+import ReaderPlatformAdapters
 
 private struct LoginFlowConfig {
     let method: String
@@ -166,29 +167,20 @@ Task {
         let referer = source.header["Referer"] ?? source.loginUrl ?? homeURL
         let mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-        func ephemeralClient(cookieJar: CookieJar? = nil) -> URLSessionHTTPClient {
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.httpShouldSetCookies = false
-            configuration.httpCookieAcceptPolicy = .never
-            return URLSessionHTTPClient(configuration: configuration, cookieJar: cookieJar)
+        func ephemeralClient(cookieJar: CookieJar? = nil) -> any HTTPAdapterProtocol {
+            HTTPAdapterFactory.makeDefault(cookieJar: cookieJar)
         }
-        func redirectClient(cookieJar: CookieJar? = nil) -> URLSessionHTTPClient {
-            let configuration = URLSessionConfiguration.default
-            configuration.httpShouldSetCookies = false
-            configuration.httpCookieAcceptPolicy = .never
-            return URLSessionHTTPClient(configuration: configuration, cookieJar: cookieJar)
+        func redirectClient(cookieJar: CookieJar? = nil) -> any HTTPAdapterProtocol {
+            HTTPAdapterFactory.makeDefault(cookieJar: cookieJar, followRedirects: true)
         }
-        func noRedirectClient(cookieJar: CookieJar? = nil) -> URLSessionHTTPClient {
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.httpShouldSetCookies = false
-            configuration.httpCookieAcceptPolicy = .never
-            return URLSessionHTTPClient(configuration: configuration, cookieJar: cookieJar, followRedirects: false)
+        func noRedirectClient(cookieJar: CookieJar? = nil) -> any HTTPAdapterProtocol {
+            HTTPAdapterFactory.makeDefault(cookieJar: cookieJar, followRedirects: false)
         }
-        func send(_ request: HTTPRequest, client: URLSessionHTTPClient) async -> HTTPResponse? { try? await client.send(request) }
+        func send(_ request: HTTPRequest, client: any HTTPAdapterProtocol) async -> HTTPResponse? { try? await client.send(request) }
         func secureRequest(headers: [String: String], useCookieJar: Bool) -> HTTPRequest {
             HTTPRequest(url: builtSearchRequest.url, method: builtSearchRequest.method, headers: headers, body: builtSearchRequest.body, timeout: 20, useCookieJar: useCookieJar)
         }
-        func performLogin(prefetchClient: URLSessionHTTPClient, submitClient: URLSessionHTTPClient, secureClient: URLSessionHTTPClient) async -> HTTPResponse? {
+        func performLogin(prefetchClient: any HTTPAdapterProtocol, submitClient: any HTTPAdapterProtocol, secureClient: any HTTPAdapterProtocol) async -> HTTPResponse? {
             _ = await send(HTTPRequest(url: source.loginUrl ?? homeURL, method: "GET", headers: ["Referer": referer], body: nil, timeout: 20, useCookieJar: true), client: prefetchClient)
             _ = await send(HTTPRequest(url: loginFlow.actionURL, method: loginFlow.method, headers: ["Content-Type": loginFlow.contentType, "Referer": source.loginUrl ?? referer], body: formEncodedBody(flow: loginFlow), timeout: 20, useCookieJar: true), client: submitClient)
             return await send(HTTPRequest(url: loginFlow.successURL, method: "GET", headers: ["Referer": source.loginUrl ?? referer], body: nil, timeout: 20, useCookieJar: true), client: secureClient)

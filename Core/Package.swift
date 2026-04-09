@@ -31,11 +31,10 @@ let package = Package(
         .executable(name: "SampleLogin003FetchRunner", targets: ["SampleLogin003FetchRunner"]),
         .executable(name: "SampleLogin003IsolationRunner", targets: ["SampleLogin003IsolationRunner"]),
         .executable(name: "AutoSampleExtractorRunner", targets: ["AutoSampleExtractorRunner"]),
-        .library(name: "ReaderCoreJSRenderer", targets: ["ReaderCoreJSRenderer"])
+        .library(name: "ReaderCoreJSRenderer", targets: ["ReaderCoreJSRenderer"]),
+        .library(name: "ReaderPlatformAdapters", targets: ["ReaderPlatformAdapters"])
     ],
-    dependencies: [
-        .package(name: "ReaderPlatformAdapters", path: "../Adapters/HTTP")
-    ],
+    dependencies: [],
     targets: [
         .target(
             name: "ReaderCoreFoundation",
@@ -87,47 +86,51 @@ let package = Package(
         ),
         .executableTarget(
             name: "SampleCookie001FetchRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleCookie001IsolationRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleCookie002FetchRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleCookie002IsolationRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleLogin001FetchRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleLogin001IsolationRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleLogin002FetchRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleLogin002IsolationRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleLogin003FetchRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "SampleLogin003IsolationRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreNetwork", "ReaderCoreProtocols", "ReaderCoreFoundation", "ReaderPlatformAdapters"]
         ),
         .executableTarget(
             name: "AutoSampleExtractorRunner",
-            dependencies: ["ReaderCoreModels", "ReaderCoreProtocols", .product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters")]
+            dependencies: ["ReaderCoreModels", "ReaderCoreProtocols", "ReaderPlatformAdapters"]
+        ),
+        .target(
+            name: "ReaderPlatformAdapters",
+            dependencies: ["ReaderCoreProtocols", "ReaderCoreModels", "ReaderCoreNetwork"]
         ),
         .target(
             name: "ReaderCoreJSRenderer",
@@ -151,7 +154,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ReaderPlatformAdaptersTests",
-            dependencies: [.product(name: "ReaderPlatformAdapters", package: "ReaderPlatformAdapters"), "ReaderCoreParser", "ReaderCoreModels", "ReaderCoreProtocols"]
+            dependencies: ["ReaderPlatformAdapters", "ReaderCoreParser", "ReaderCoreModels", "ReaderCoreProtocols"]
         ),
         .testTarget(
             name: "ReaderCoreJSRendererTests",

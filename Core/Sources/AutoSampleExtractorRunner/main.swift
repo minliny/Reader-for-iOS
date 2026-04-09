@@ -4,6 +4,9 @@
 
 import CryptoKit
 import Foundation
+import ReaderCoreModels
+import ReaderCoreProtocols
+import ReaderPlatformAdapters
 
 // ── Config ────────────────────────────────────────────────────────────────────
 private let apiBase          = "https://shuyuan-api.yiove.com"
@@ -217,10 +220,7 @@ Task {
         let cpPath = rp("tools/checkpoints/auto_checkpoint.yml")
         var cp = loadCheckpoint(path: cpPath)
 
-        let cfg = URLSessionConfiguration.ephemeral
-        cfg.timeoutIntervalForRequest  = probeTimeout
-        cfg.timeoutIntervalForResource = 30
-        let session = URLSession(configuration: cfg)
+        let session = HTTPAdapterFactory.makeDefault()
 
         let startPage = cp.lastPageFetched + 1
         var samplesThisRun    = 0
@@ -235,16 +235,25 @@ Task {
             }
 
             print("\n--- Fetching page \(page) (pageSize=\(pageSize)) ---")
-            let apiUrlStr = "\(apiBase)/import/book-sources/\(page)-\(pageSize)"
-            guard let apiUrl = URL(string: apiUrlStr) else {
+                let apiUrlStr = "\(apiBase)/import/book-sources/\(page)-\(pageSize)"
+            guard URL(string: apiUrlStr) != nil else {
                 print("Invalid API URL, skipping page \(page)")
                 continue
             }
 
             let pageData: Data
             do {
-                let (d, _) = try await session.data(from: apiUrl)
-                pageData = d
+                let response = try await session.send(
+                    HTTPRequest(
+                        url: apiUrlStr,
+                        method: "GET",
+                        headers: [:],
+                        body: nil,
+                        timeout: probeTimeout,
+                        useCookieJar: false
+                    )
+                )
+                pageData = response.data
             } catch {
                 print("Page \(page) fetch error: \(error.localizedDescription)")
                 cp.lastPageFetched = page
@@ -309,16 +318,23 @@ Task {
                 var contentType: String?     = nil
                 var probeNotes               = ""
 
-                if let probeURL = URL(string: probeUrlStr) {
+                if URL(string: probeUrlStr) != nil {
                     do {
-                        var req = URLRequest(url: probeURL)
-                        req.setValue(
-                            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
-                            forHTTPHeaderField: "User-Agent"
+                        let response = try await session.send(
+                            HTTPRequest(
+                                url: probeUrlStr,
+                                method: "GET",
+                                headers: [
+                                    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+                                ],
+                                body: nil,
+                                timeout: probeTimeout,
+                                useCookieJar: false
+                            )
                         )
-                        let (pData, pResp) = try await session.data(for: req)
-                        httpStatus  = (pResp as? HTTPURLResponse)?.statusCode
-                        contentType = (pResp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")
+                        let pData = response.data
+                        httpStatus = response.statusCode
+                        contentType = response.headers["Content-Type"] ?? response.headers["content-type"]
                         let body    = String(data: pData, encoding: .utf8)
                                    ?? String(data: pData, encoding: .isoLatin1) ?? ""
                         htmlLength  = body.count

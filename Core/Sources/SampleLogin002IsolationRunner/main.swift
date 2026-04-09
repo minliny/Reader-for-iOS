@@ -7,6 +7,7 @@ import ReaderCoreModels
 import ReaderCoreNetwork
 import ReaderCoreProtocols
 import ReaderCoreFoundation
+import ReaderPlatformAdapters
 
 private struct LoginFlowConfig {
     let method: String
@@ -352,21 +353,15 @@ Task {
         let referer = source.header["Referer"] ?? source.loginUrl ?? homeURL
         let mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-        func ephemeralClient(cookieJar: CookieJar? = nil) -> URLSessionHTTPClient {
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.httpShouldSetCookies = false
-            configuration.httpCookieAcceptPolicy = .never
-            return URLSessionHTTPClient(configuration: configuration, cookieJar: cookieJar)
+        func ephemeralClient(cookieJar: CookieJar? = nil) -> any HTTPAdapterProtocol {
+            HTTPAdapterFactory.makeDefault(cookieJar: cookieJar)
         }
 
-        func redirectClient(cookieJar: CookieJar? = nil) -> URLSessionHTTPClient {
-            let configuration = URLSessionConfiguration.default
-            configuration.httpShouldSetCookies = false
-            configuration.httpCookieAcceptPolicy = .never
-            return URLSessionHTTPClient(configuration: configuration, cookieJar: cookieJar)
+        func redirectClient(cookieJar: CookieJar? = nil) -> any HTTPAdapterProtocol {
+            HTTPAdapterFactory.makeDefault(cookieJar: cookieJar, followRedirects: true)
         }
 
-        func send(_ request: HTTPRequest, client: URLSessionHTTPClient) async -> HTTPResponse? {
+        func send(_ request: HTTPRequest, client: any HTTPAdapterProtocol) async -> HTTPResponse? {
             try? await client.send(request)
         }
 
@@ -381,7 +376,7 @@ Task {
             )
         }
 
-        func performLogin(client: URLSessionHTTPClient) async -> HTTPResponse? {
+        func performLogin(client: any HTTPAdapterProtocol) async -> HTTPResponse? {
             let loginPageRequest = HTTPRequest(
                 url: source.loginUrl ?? homeURL,
                 method: "GET",

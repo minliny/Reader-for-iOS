@@ -1,9 +1,38 @@
 import Foundation
 import ReaderCoreProtocols
 
+private actor CacheEntryStore {
+    private var entries: [String: CacheEntry] = [:]
+
+    func get(_ key: String) -> CacheEntry? {
+        guard let entry = entries[key], !entry.isExpired else {
+            if entries[key] != nil {
+                entries.removeValue(forKey: key)
+            }
+            return nil
+        }
+        return entry
+    }
+
+    func set(_ entry: CacheEntry, key: String) {
+        entries[key] = entry
+    }
+
+    func remove(_ key: String) {
+        entries.removeValue(forKey: key)
+    }
+
+    func clear(scope: CacheScope?) {
+        if let scope = scope {
+            entries = entries.filter { !$0.key.hasPrefix("\(scope.rawValue)|") }
+        } else {
+            entries.removeAll()
+        }
+    }
+}
+
 public final class SimpleCacheRepository: CacheRepository, CacheStore, @unchecked Sendable {
-    private var store: [String: CacheEntry] = [:]
-    private let lock = NSLock()
+    private let store = CacheEntryStore()
 
     public init() {}
 
@@ -12,44 +41,19 @@ public final class SimpleCacheRepository: CacheRepository, CacheStore, @unchecke
     }
 
     public func get(scope: CacheScope, key: String) async throws -> CacheEntry? {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let k = self.key(for: scope, key: key)
-        guard let entry = store[k], !entry.isExpired else {
-            if let _ = store[k] {
-                store.removeValue(forKey: k)
-            }
-            return nil
-        }
-        return entry
+        await store.get(self.key(for: scope, key: key))
     }
 
     public func set(_ entry: CacheEntry) async throws {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let k = key(for: entry.scope, key: entry.key)
-        store[k] = entry
+        await store.set(entry, key: key(for: entry.scope, key: entry.key))
     }
 
     public func remove(scope: CacheScope, key: String) async throws {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let k = self.key(for: scope, key: key)
-        store.removeValue(forKey: k)
+        await store.remove(self.key(for: scope, key: key))
     }
 
     public func clear(scope: CacheScope?) async throws {
-        lock.lock()
-        defer { lock.unlock() }
-
-        if let scope = scope {
-            store = store.filter { !$0.key.hasPrefix("\(scope.rawValue)|") }
-        } else {
-            store.removeAll()
-        }
+        await store.clear(scope: scope)
     }
 
     public func getSearchResponse(key: String) async throws -> Data? {
