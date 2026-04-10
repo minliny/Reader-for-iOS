@@ -15,9 +15,9 @@ let package = Package(
             name: "ReaderPlatformAdapters",
             dependencies: [
                 .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
-                .product(name: "ReaderCoreModels", package: "ReaderCore"),
-                .product(name: "ReaderCoreNetwork", package: "ReaderCore")
-            ]
+                .product(name: "ReaderCoreModels", package: "ReaderCore")
+            ],
+            path: "Sources/ReaderPlatformAdapters"
         )
     ]
 )

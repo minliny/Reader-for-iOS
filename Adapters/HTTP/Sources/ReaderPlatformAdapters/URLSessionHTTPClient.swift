@@ -149,7 +149,7 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
     }
 
     private func setCookieHeaders(from response: HTTPURLResponse) -> [String] {
-        response.allHeaderFields.compactMap { key, value -> [String]? in
+        response.allHeaderFields.compactMap { key, value in
             guard let headerName = key as? String,
                   headerName.caseInsensitiveCompare("Set-Cookie") == .orderedSame
             else {

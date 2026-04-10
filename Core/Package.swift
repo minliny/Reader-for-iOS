@@ -130,7 +130,7 @@ let package = Package(
         ),
         .target(
             name: "ReaderPlatformAdapters",
-            dependencies: ["ReaderCoreProtocols", "ReaderCoreModels", "ReaderCoreNetwork"]
+            dependencies: ["ReaderCoreProtocols", "ReaderCoreModels"]
         ),
         .target(
             name: "ReaderCoreJSRenderer",
