@@ -43,3 +43,77 @@ public protocol CacheRepository: Sendable {
     func setContentResponse(key: String, payload: Data, ttlSeconds: Int) async throws
     func clear(scope: CacheScope?) async throws
 }
+
+// MARK: - HTTP Response Cache Contract
+
+/// Key for an in-memory HTTP response cache entry.
+/// `method` is always uppercased; `varyHeaders` enables Vary-header differentiation.
+public struct ResponseCacheKey: Sendable {
+    public var method: String
+    public var normalizedURL: String
+    public var varyHeaders: [String: String]
+
+    public init(
+        method: String,
+        normalizedURL: String,
+        varyHeaders: [String: String] = [:]
+    ) {
+        self.method = method.uppercased()
+        self.normalizedURL = normalizedURL
+        self.varyHeaders = varyHeaders
+    }
+}
+
+extension ResponseCacheKey: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(method)
+        hasher.combine(normalizedURL)
+        for (k, v) in varyHeaders.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(k)
+            hasher.combine(v)
+        }
+    }
+
+    public static func == (lhs: ResponseCacheKey, rhs: ResponseCacheKey) -> Bool {
+        lhs.method == rhs.method
+            && lhs.normalizedURL == rhs.normalizedURL
+            && lhs.varyHeaders == rhs.varyHeaders
+    }
+}
+
+/// A cached HTTP response with TTL metadata.
+public struct CachedHTTPResponse: Sendable {
+    public var statusCode: Int
+    public var headers: [String: String]
+    public var body: Data
+    public var createdAt: Date
+    public var ttl: TimeInterval
+
+    public init(
+        statusCode: Int,
+        headers: [String: String],
+        body: Data,
+        createdAt: Date = Date(),
+        ttl: TimeInterval
+    ) {
+        self.statusCode = statusCode
+        self.headers = headers
+        self.body = body
+        self.createdAt = createdAt
+        self.ttl = ttl
+    }
+
+    public func isExpired(now: Date = Date()) -> Bool {
+        now.timeIntervalSince(createdAt) > ttl
+    }
+}
+
+/// Minimum cache protocol for HTTP response caching.
+/// Implementations must be actor-isolated or otherwise Sendable-safe.
+public protocol ResponseCache: Sendable {
+    func get(key: ResponseCacheKey, now: Date) async -> CachedHTTPResponse?
+    func put(response: CachedHTTPResponse, key: ResponseCacheKey) async
+    func remove(key: ResponseCacheKey) async
+    func removeAll() async
+    func purgeExpired(now: Date) async
+}
