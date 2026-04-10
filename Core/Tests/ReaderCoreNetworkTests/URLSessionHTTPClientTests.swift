@@ -59,6 +59,26 @@ final class URLSessionHTTPClientTests: XCTestCase {
         XCTAssertEqual(requestCount, 1)
     }
 
+    func testMissingRequiredHeaderThrowsHeaderRequired() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        client = makeClient(mock: mock)
+
+        do {
+            _ = try await client.send(HTTPRequest(
+                url: "https://fixture.local/header/required",
+                requiredHeaders: ["X-Required-Token"]
+            ))
+            XCTFail("Expected HEADER_REQUIRED")
+        } catch let error as MappedReaderError {
+            XCTAssertEqual(error.code, .HEADER_REQUIRED)
+            XCTAssertEqual(error.stage, .request_build)
+            XCTAssertEqual(error.context.details["headerName"], "X-Required-Token")
+        }
+
+        let requestCount = await mock.requestCount
+        XCTAssertEqual(requestCount, 0)
+    }
+
     func testRequestHeadersOverrideSameNameDefaultHeaders() async throws {
         let mock = CookieContractURLProtocol.Mock()
         await mock.enqueue(
@@ -78,6 +98,34 @@ final class URLSessionHTTPClientTests: XCTestCase {
         let response = try await client.send(HTTPRequest(
             url: "https://fixture.local/header/override",
             headers: ["Accept": "application/json"]
+        ))
+
+        XCTAssertEqual(response.statusCode, 200)
+        let requestCount = await mock.requestCount
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testCustomHeadersTransmittedInRequest() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "ok",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Source-Token"), "source-token-001")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "text/plain")
+            }
+        )
+
+        client = makeClient(mock: mock)
+
+        let response = try await client.send(HTTPRequest(
+            url: "https://fixture.local/header/custom",
+            headers: [
+                "X-Source-Token": "source-token-001",
+                "Accept": "text/plain"
+            ],
+            requiredHeaders: ["X-Source-Token"]
         ))
 
         XCTAssertEqual(response.statusCode, 200)
@@ -134,6 +182,53 @@ final class URLSessionHTTPClientTests: XCTestCase {
             useCookieJar: true
         )
         XCTAssertNotNil(request)
+    }
+
+    func testRequiresCookieJarWithoutCookieThrowsCookieRequired() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        client = makeClient(mock: mock)
+
+        do {
+            _ = try await client.send(HTTPRequest(
+                url: "https://fixture.local/cookie-required/search",
+                requiresCookieJar: true
+            ))
+            XCTFail("Expected COOKIE_REQUIRED")
+        } catch let error as MappedReaderError {
+            XCTAssertEqual(error.code, .COOKIE_REQUIRED)
+            XCTAssertEqual(error.stage, .request_build)
+        }
+
+        let requestCount = await mock.requestCount
+        XCTAssertEqual(requestCount, 0)
+    }
+
+    func testRequiresCookieJarWithCookieSendsRequest() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "ok",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"), "reader_session=session-available")
+            }
+        )
+        await jar.setCookie(Cookie(
+            name: "reader_session",
+            value: "session-available",
+            domain: "fixture.local",
+            path: "/"
+        ))
+        client = makeClient(mock: mock)
+
+        let response = try await client.send(HTTPRequest(
+            url: "https://fixture.local/cookie-required/search",
+            requiresCookieJar: true
+        ))
+
+        XCTAssertEqual(response.statusCode, 200)
+        let requestCount = await mock.requestCount
+        XCTAssertEqual(requestCount, 1)
     }
 
     func testCookieSample001StoresSetCookieAndInjectsOnSecondRequest() async throws {

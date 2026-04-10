@@ -78,24 +78,30 @@ public struct HTTPRequest: Sendable, Equatable {
     public var url: String
     public var method: String
     public var headers: [String: String]
+    public var requiredHeaders: [String]
     public var body: Data?
     public var timeout: TimeInterval
     public var useCookieJar: Bool
+    public var requiresCookieJar: Bool
 
     public init(
         url: String,
         method: String = "GET",
         headers: [String: String] = [:],
+        requiredHeaders: [String] = [],
         body: Data? = nil,
         timeout: TimeInterval = 15,
-        useCookieJar: Bool = false
+        useCookieJar: Bool = false,
+        requiresCookieJar: Bool = false
     ) {
         self.url = url
         self.method = method
         self.headers = headers
+        self.requiredHeaders = requiredHeaders
         self.body = body
         self.timeout = timeout
-        self.useCookieJar = useCookieJar
+        self.useCookieJar = useCookieJar || requiresCookieJar
+        self.requiresCookieJar = requiresCookieJar
     }
 }
 

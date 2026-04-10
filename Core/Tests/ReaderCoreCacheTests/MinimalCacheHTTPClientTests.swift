@@ -71,6 +71,32 @@ final class MinimalCacheHTTPClientTests: XCTestCase {
         let callCount = await upstream.callCount
         XCTAssertEqual(callCount, 2)
     }
+
+    func testCookieRuntimeFlagsDoNotChangeCacheKey() async throws {
+        let upstream = SequenceHTTPClient([
+            response(body: "cookie-independent"),
+            response(body: "would-be-origin")
+        ])
+        let client = MinimalCacheHTTPClient(upstream: upstream)
+        let firstRequest = HTTPRequest(
+            url: "https://fixture.local/cache-cookie?q=cache",
+            method: "GET",
+            useCookieJar: false
+        )
+        let secondRequest = HTTPRequest(
+            url: "https://fixture.local/cache-cookie?q=cache",
+            method: "GET",
+            requiresCookieJar: true
+        )
+
+        let first = try await client.send(firstRequest)
+        let second = try await client.send(secondRequest)
+
+        XCTAssertEqual(String(data: first.data, encoding: .utf8), "cookie-independent")
+        XCTAssertEqual(String(data: second.data, encoding: .utf8), "cookie-independent")
+        let callCount = await upstream.callCount
+        XCTAssertEqual(callCount, 1)
+    }
 }
 
 private actor SequenceHTTPClient: HTTPClient {

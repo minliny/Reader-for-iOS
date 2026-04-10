@@ -57,7 +57,10 @@ public struct NetworkPolicyLayer: Sendable {
         return response
     }
 
-    private func normalize(_ error: Error) -> ReaderError {
+    private func normalize(_ error: Error) -> Error {
+        if let mappedError = error as? MappedReaderError {
+            return mappedError
+        }
         if let readerError = error as? ReaderError {
             return readerError
         }

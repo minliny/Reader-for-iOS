@@ -85,17 +85,24 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
 
+        try validateRequiredHeaders(request.requiredHeaders, in: urlRequest, sourceURL: request.url)
+
+        let existingCookieHeader = urlRequest.value(forHTTPHeaderField: "Cookie")
         if request.useCookieJar, let jar = cookieJar {
             let cookies = await jar.getCookies(for: url.host ?? "", path: url.path)
             let cookieValue = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+            if request.requiresCookieJar && cookieValue.isEmpty && isEmptyHeader(existingCookieHeader) {
+                throw cookieRequiredError(sourceURL: request.url)
+            }
             if !cookieValue.isEmpty {
-                let existingCookieHeader = urlRequest.value(forHTTPHeaderField: "Cookie")
                 let mergedCookieHeader = [existingCookieHeader, cookieValue]
                     .compactMap { $0 }
                     .filter { !$0.isEmpty }
                     .joined(separator: existingCookieHeader == nil ? "" : "; ")
                 urlRequest.setValue(mergedCookieHeader, forHTTPHeaderField: "Cookie")
             }
+        } else if request.requiresCookieJar && isEmptyHeader(existingCookieHeader) {
+            throw cookieRequiredError(sourceURL: request.url)
         }
 
         do {
@@ -167,6 +174,37 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
             return nil
         }
         .flatMap { $0 }
+    }
+
+    private func validateRequiredHeaders(_ requiredHeaders: [String], in request: URLRequest, sourceURL: String) throws {
+        for headerName in requiredHeaders {
+            let normalized = headerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { continue }
+            guard let value = request.value(forHTTPHeaderField: normalized),
+                  !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                throw MappedReaderError(
+                    code: .HEADER_REQUIRED,
+                    stage: .request_build,
+                    message: "Required header '\(normalized)' is missing from the request.",
+                    context: ReaderErrorContext(sourceURL: sourceURL, details: ["headerName": normalized])
+                )
+            }
+        }
+    }
+
+    private func isEmptyHeader(_ value: String?) -> Bool {
+        guard let value else { return true }
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func cookieRequiredError(sourceURL: String) -> MappedReaderError {
+        MappedReaderError(
+            code: .COOKIE_REQUIRED,
+            stage: .request_build,
+            message: "Cookie jar is required but no cookies were present for this request.",
+            context: ReaderErrorContext(sourceURL: sourceURL)
+        )
     }
 
     private func validatedURL(from rawURL: String) -> URL? {
