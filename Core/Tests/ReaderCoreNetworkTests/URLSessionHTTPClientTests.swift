@@ -342,6 +342,214 @@ final class URLSessionHTTPClientTests: XCTestCase {
         XCTAssertEqual(requestCount, 2)
     }
 
+    // MARK: - Cookie jar isolation tests (P3 cookie_jar_isolation)
+
+    // 6. Request with cookieScopeKey only injects cookies from that scope.
+    func testRequestUsesScopedCookieJarOnly() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "ok",
+            assertion: { request in
+                // Only the scoped cookie must appear — NOT the unscoped one.
+                let cookieHeader = request.value(forHTTPHeaderField: "Cookie") ?? ""
+                XCTAssertTrue(cookieHeader.contains("scoped_sess=scoped-value"),
+                              "Scoped cookie must be injected")
+                XCTAssertFalse(cookieHeader.contains("global_sess=global-value"),
+                               "Unscoped (global) cookie must NOT bleed into the scoped request")
+            }
+        )
+
+        let scope = CookieJarScopeKey(sourceId: "wensang", host: "fixture.local")
+
+        // Write scoped cookie.
+        await jar.setCookie(
+            Cookie(name: "scoped_sess", value: "scoped-value", domain: "fixture.local", path: "/"),
+            scopeKey: scope
+        )
+        // Write a cookie into the default (unscoped) partition — must not appear.
+        await jar.setCookie(Cookie(name: "global_sess", value: "global-value", domain: "fixture.local", path: "/"))
+
+        client = makeClient(mock: mock)
+        _ = try await client.send(HTTPRequest(
+            url: "https://fixture.local/scoped/search",
+            useCookieJar: true,
+            cookieScopeKey: scope
+        ))
+        let count = await mock.requestCount
+        XCTAssertEqual(count, 1)
+    }
+
+    // 7. requiresCookieJar with scopeKey only counts cookies in that scope.
+    //    Another scope having cookies must NOT satisfy the requirement.
+    func testRequiresCookieJarWithoutScopedCookieThrowsCookieRequired() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        let scopeWensang  = CookieJarScopeKey(sourceId: "wensang",  host: "fixture.local")
+        let scopeXiangshu = CookieJarScopeKey(sourceId: "xiangshu", host: "fixture.local")
+
+        // Put a cookie only in the xiangshu scope — wensang scope is empty.
+        await jar.setCookie(
+            Cookie(name: "sess", value: "xiangshu-cookie", domain: "fixture.local", path: "/"),
+            scopeKey: scopeXiangshu
+        )
+
+        client = makeClient(mock: mock)
+
+        do {
+            _ = try await client.send(HTTPRequest(
+                url: "https://fixture.local/wensang/search",
+                requiresCookieJar: true,
+                cookieScopeKey: scopeWensang    // wensang scope has no cookie
+            ))
+            XCTFail("Expected COOKIE_REQUIRED — xiangshu cookie must not satisfy wensang requirement")
+        } catch let error as MappedReaderError {
+            XCTAssertEqual(error.code, .COOKIE_REQUIRED,
+                           "A cookie in a different scope must not satisfy requiresCookieJar")
+        }
+
+        let count = await mock.requestCount
+        XCTAssertEqual(count, 0, "No network request must be made when cookie requirement fails")
+    }
+
+    // 8. Two requests with different scopeKeys do not share cookie headers.
+    func testScopedCookieDoesNotPolluteOtherRequest() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+
+        let scopeA = CookieJarScopeKey(sourceId: "src-A", host: "fixture.local")
+        let scopeB = CookieJarScopeKey(sourceId: "src-B", host: "fixture.local")
+
+        await jar.setCookie(
+            Cookie(name: "token", value: "token-A", domain: "fixture.local", path: "/"), scopeKey: scopeA
+        )
+        await jar.setCookie(
+            Cookie(name: "token", value: "token-B", domain: "fixture.local", path: "/"), scopeKey: scopeB
+        )
+
+        // First request (scopeA) — must see token-A only.
+        await mock.enqueue(
+            statusCode: 200, headers: [:], body: "resp-A",
+            assertion: { request in
+                let h = request.value(forHTTPHeaderField: "Cookie") ?? ""
+                XCTAssertTrue(h.contains("token=token-A"), "scopeA request must carry token-A")
+                XCTAssertFalse(h.contains("token-B"),      "scopeA request must NOT carry token-B")
+            }
+        )
+        // Second request (scopeB) — must see token-B only.
+        await mock.enqueue(
+            statusCode: 200, headers: [:], body: "resp-B",
+            assertion: { request in
+                let h = request.value(forHTTPHeaderField: "Cookie") ?? ""
+                XCTAssertTrue(h.contains("token=token-B"), "scopeB request must carry token-B")
+                XCTAssertFalse(h.contains("token-A"),      "scopeB request must NOT carry token-A")
+            }
+        )
+
+        client = makeClient(mock: mock)
+        _ = try await client.send(HTTPRequest(url: "https://fixture.local/a", useCookieJar: true, cookieScopeKey: scopeA))
+        _ = try await client.send(HTTPRequest(url: "https://fixture.local/b", useCookieJar: true, cookieScopeKey: scopeB))
+
+        let count = await mock.requestCount
+        XCTAssertEqual(count, 2)
+    }
+
+    func testBootstrapRequestUsesScopedJar() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        let scope = CookieJarScopeKey(sourceId: "bootstrap-source", host: "fixture.local")
+        await jar.setCookie(
+            Cookie(name: "login_session", value: "bootstrap-001", domain: "fixture.local", path: "/"),
+            scopeKey: scope
+        )
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "ok",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"), "login_session=bootstrap-001")
+            }
+        )
+
+        client = makeClient(mock: mock)
+        _ = try await client.send(HTTPRequest(
+            url: "https://fixture.local/login/bootstrap",
+            useCookieJar: true,
+            cookieScopeKey: scope
+        ))
+    }
+
+    func testFollowupRequestUsesSameScopedJar() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        let scope = CookieJarScopeKey(sourceId: "followup-source", host: "fixture.local")
+        await mock.enqueue(
+            statusCode: 200,
+            headers: ["Set-Cookie": "login_session=followup-001; Path=/; HttpOnly"],
+            body: "bootstrap ok"
+        )
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "search ok",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"), "login_session=followup-001")
+            }
+        )
+
+        client = makeClient(mock: mock)
+        _ = try await client.send(HTTPRequest(
+            url: "https://fixture.local/login/bootstrap",
+            useCookieJar: true,
+            cookieScopeKey: scope
+        ))
+        _ = try await client.send(HTTPRequest(
+            url: "https://fixture.local/search",
+            useCookieJar: true,
+            cookieScopeKey: scope
+        ))
+    }
+
+    func testScopedLoginCookieDoesNotLeakAcrossSources() async throws {
+        let mock = CookieContractURLProtocol.Mock()
+        let scopeA = CookieJarScopeKey(sourceId: "source-login-a", host: "fixture.local")
+        let scopeB = CookieJarScopeKey(sourceId: "source-login-b", host: "fixture.local")
+        await jar.setCookie(
+            Cookie(name: "login_session", value: "value-a", domain: "fixture.local", path: "/"),
+            scopeKey: scopeA
+        )
+        await jar.setCookie(
+            Cookie(name: "login_session", value: "value-b", domain: "fixture.local", path: "/"),
+            scopeKey: scopeB
+        )
+
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "resp-a",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"), "login_session=value-a")
+            }
+        )
+        await mock.enqueue(
+            statusCode: 200,
+            headers: [:],
+            body: "resp-b",
+            assertion: { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"), "login_session=value-b")
+            }
+        )
+
+        client = makeClient(mock: mock)
+        _ = try await client.send(HTTPRequest(
+            url: "https://fixture.local/a",
+            useCookieJar: true,
+            cookieScopeKey: scopeA
+        ))
+        _ = try await client.send(HTTPRequest(
+            url: "https://fixture.local/b",
+            useCookieJar: true,
+            cookieScopeKey: scopeB
+        ))
+    }
+
     private func makeClient(
         mock: CookieContractURLProtocol.Mock,
         defaultHeaders: [String: String] = [:]

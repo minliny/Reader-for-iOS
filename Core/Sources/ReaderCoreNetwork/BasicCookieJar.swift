@@ -1,46 +1,110 @@
 import Foundation
 import ReaderCoreProtocols
 
-private actor CookieStore {
-    private var cookies: [String: Cookie] = [:]
+// MARK: - Scoped internal store
 
-    func matchingCookies(domain: String, path: String) -> [Cookie] {
-        cookies.values.filter { cookie in
+private actor CookieStore {
+    /// Two-level dictionary: scope → cookie-key → Cookie.
+    private var scoped: [CookieJarScopeKey: [String: Cookie]] = [:]
+
+    // MARK: Scoped access
+
+    func matchingCookies(domain: String, path: String, scopeKey: CookieJarScopeKey) -> [Cookie] {
+        (scoped[scopeKey] ?? [:]).values.filter { cookie in
             !cookie.isExpired && cookie.matches(domain: domain, path: path)
         }
     }
 
-    func upsert(_ cookie: Cookie, key: String) {
+    func upsert(_ cookie: Cookie, key: String, scopeKey: CookieJarScopeKey) {
         if cookie.isExpired {
-            cookies.removeValue(forKey: key)
+            scoped[scopeKey]?.removeValue(forKey: key)
         } else {
-            cookies[key] = cookie
+            if scoped[scopeKey] == nil { scoped[scopeKey] = [:] }
+            scoped[scopeKey]![key] = cookie
         }
     }
 
+    func clear(scopeKey: CookieJarScopeKey) {
+        scoped.removeValue(forKey: scopeKey)
+    }
+
+    func clearAll() {
+        scoped.removeAll()
+    }
+
+    // MARK: Legacy unscoped (default scope)
+
+    func matchingCookies(domain: String, path: String) -> [Cookie] {
+        matchingCookies(domain: domain, path: path, scopeKey: .default)
+    }
+
+    func upsert(_ cookie: Cookie, key: String) {
+        upsert(cookie, key: key, scopeKey: .default)
+    }
+
     func clear() {
-        cookies.removeAll()
+        clear(scopeKey: .default)
     }
 }
 
-public final class BasicCookieJar: CookieJar, @unchecked Sendable {
+// MARK: - BasicCookieJar
+
+public final class BasicCookieJar: ScopedCookieJar, @unchecked Sendable {
     private let store = CookieStore()
 
     public init() {}
 
-    private func key(for cookie: Cookie) -> String {
+    // MARK: Cookie key
+
+    private func cookieKey(for cookie: Cookie) -> String {
         "\(cookie.domain)|\(cookie.path)|\(cookie.name)"
     }
+
+    // MARK: - ScopedCookieJar (scoped operations)
+
+    public func getCookies(for domain: String, path: String, scopeKey: CookieJarScopeKey) async -> [Cookie] {
+        await store.matchingCookies(domain: domain, path: path, scopeKey: scopeKey)
+    }
+
+    public func setCookie(_ cookie: Cookie, scopeKey: CookieJarScopeKey) async {
+        await store.upsert(cookie, key: cookieKey(for: cookie), scopeKey: scopeKey)
+    }
+
+    public func setCookies(from headerValue: String, domain: String, scopeKey: CookieJarScopeKey) async {
+        guard let cookie = parseCookieHeader(headerValue, fallbackDomain: domain) else { return }
+        await setCookie(cookie, scopeKey: scopeKey)
+    }
+
+    public func clear(scopeKey: CookieJarScopeKey) async {
+        await store.clear(scopeKey: scopeKey)
+    }
+
+    public func clearAll() async {
+        await store.clearAll()
+    }
+
+    // MARK: - CookieJar (legacy unscoped — routed through .default scope)
 
     public func getCookies(for domain: String, path: String) async -> [Cookie] {
         await store.matchingCookies(domain: domain, path: path)
     }
 
     public func setCookie(_ cookie: Cookie) async {
-        await store.upsert(cookie, key: key(for: cookie))
+        await store.upsert(cookie, key: cookieKey(for: cookie))
     }
 
     public func setCookies(from headerValue: String, domain: String) async {
+        guard let cookie = parseCookieHeader(headerValue, fallbackDomain: domain) else { return }
+        await setCookie(cookie)
+    }
+
+    public func clear() async {
+        await store.clear()
+    }
+
+    // MARK: - Set-Cookie header parser (shared)
+
+    private func parseCookieHeader(_ headerValue: String, fallbackDomain: String) -> Cookie? {
         let pairs = headerValue.components(separatedBy: ";")
         var name: String?
         var value: String?
@@ -59,19 +123,19 @@ public final class BasicCookieJar: CookieJar, @unchecked Sendable {
             let v = String(trimmed[trimmed.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
 
             if index == 0 {
-                name = k
+                name  = k
                 value = v
             } else {
                 attributes[k.lowercased()] = v
             }
         }
 
-        guard let n = name, let v = value else { return }
+        guard let n = name, let v = value else { return nil }
 
-        let cookieDomain = attributes["domain"] ?? domain
-        let path = attributes["path"] ?? "/"
-        let secure = attributes.keys.contains("secure")
-        let httpOnly = attributes.keys.contains("httponly")
+        let cookieDomain = attributes["domain"] ?? fallbackDomain
+        let path         = attributes["path"]   ?? "/"
+        let secure       = attributes.keys.contains("secure")
+        let httpOnly     = attributes.keys.contains("httponly")
 
         var expiresAt: Date?
         if let expiresStr = attributes["expires"] {
@@ -81,20 +145,11 @@ public final class BasicCookieJar: CookieJar, @unchecked Sendable {
             expiresAt = formatter.date(from: expiresStr)
         }
 
-        let cookie = Cookie(
-            name: n,
-            value: v,
-            domain: cookieDomain,
-            path: path,
+        return Cookie(
+            name: n, value: v,
+            domain: cookieDomain, path: path,
             expiresAt: expiresAt,
-            secure: secure,
-            httpOnly: httpOnly
+            secure: secure, httpOnly: httpOnly
         )
-
-        await setCookie(cookie)
-    }
-
-    public func clear() async {
-        await store.clear()
     }
 }

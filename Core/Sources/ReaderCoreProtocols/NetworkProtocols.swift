@@ -72,6 +72,56 @@ public protocol CookieJar: Sendable {
     func clear() async
 }
 
+// MARK: - Cookie Jar Scope Key
+
+/// Identifies a uniquely isolated cookie namespace.
+///
+/// Isolation contract:
+///   - Same host, different sourceId   → different jar partition (no cross-source leakage)
+///   - Same sourceId, different host   → different jar partition (no cross-host leakage)
+///   - Same sourceId + host            → same jar partition (cookie sharing within a session)
+public struct CookieJarScopeKey: Hashable, Codable, Sendable {
+    public let sourceId: String
+    public let host: String
+
+    public init(sourceId: String, host: String) {
+        self.sourceId = sourceId.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.host     = host.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Sentinel scope used by the unscoped `CookieJar` protocol methods
+    /// for backwards-compatibility with code that does not supply a scope key.
+    public static let `default` = CookieJarScopeKey(sourceId: "__default__", host: "*")
+}
+
+// MARK: - Scoped Cookie Jar
+
+/// Extends `CookieJar` with per-scope operations.
+/// `BasicCookieJar` conforms to this protocol; URLSessionHTTPClient uses it
+/// when `HTTPRequest.cookieScopeKey` is set.
+public protocol ScopedCookieJar: CookieJar {
+    /// Read cookies for `domain`/`path` within `scopeKey` only.
+    func getCookies(for domain: String, path: String, scopeKey: CookieJarScopeKey) async -> [Cookie]
+
+    /// Write a single cookie into `scopeKey`.
+    func setCookie(_ cookie: Cookie, scopeKey: CookieJarScopeKey) async
+
+    /// Parse and write `Set-Cookie` header value into `scopeKey`.
+    func setCookies(from headerValue: String, domain: String, scopeKey: CookieJarScopeKey) async
+
+    /// Remove all cookies belonging to `scopeKey` without touching other scopes.
+    func clear(scopeKey: CookieJarScopeKey) async
+
+    /// Remove all cookies across every scope.
+    func clearAll() async
+}
+
+/// Narrow adapter-side cookie scope access used by network bootstrap helpers.
+/// Policy callers should depend on higher-level services instead of this protocol.
+public protocol CookieScopeManaging: Sendable {
+    func clearCookies(in scopeKey: CookieJarScopeKey) async
+}
+
 // MARK: - HTTP primitives
 
 public struct HTTPRequest: Sendable, Equatable {
@@ -83,6 +133,9 @@ public struct HTTPRequest: Sendable, Equatable {
     public var timeout: TimeInterval
     public var useCookieJar: Bool
     public var requiresCookieJar: Bool
+    /// When set, `URLSessionHTTPClient` reads and writes cookies exclusively in this
+    /// scope partition.  `nil` falls back to the legacy unscoped jar behaviour.
+    public var cookieScopeKey: CookieJarScopeKey?
 
     public init(
         url: String,
@@ -92,7 +145,8 @@ public struct HTTPRequest: Sendable, Equatable {
         body: Data? = nil,
         timeout: TimeInterval = 15,
         useCookieJar: Bool = false,
-        requiresCookieJar: Bool = false
+        requiresCookieJar: Bool = false,
+        cookieScopeKey: CookieJarScopeKey? = nil
     ) {
         self.url = url
         self.method = method
@@ -102,6 +156,7 @@ public struct HTTPRequest: Sendable, Equatable {
         self.timeout = timeout
         self.useCookieJar = useCookieJar || requiresCookieJar
         self.requiresCookieJar = requiresCookieJar
+        self.cookieScopeKey = cookieScopeKey
     }
 }
 

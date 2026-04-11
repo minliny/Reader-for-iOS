@@ -2,6 +2,34 @@ import Foundation
 import ReaderCoreFoundation
 
 public struct BookSource: Codable, Equatable, Sendable {
+    public struct LoginDescriptor: Equatable, Sendable {
+        public var method: String
+        public var contentType: String
+        public var actionUrl: String
+        public var form: [String: String]
+        public var successUrl: String?
+        public var successMarkers: [String]
+        public var failureMarkers: [String]
+
+        public init(
+            method: String,
+            contentType: String,
+            actionUrl: String,
+            form: [String: String],
+            successUrl: String? = nil,
+            successMarkers: [String] = [],
+            failureMarkers: [String] = []
+        ) {
+            self.method = method
+            self.contentType = contentType
+            self.actionUrl = actionUrl
+            self.form = form
+            self.successUrl = successUrl
+            self.successMarkers = successMarkers
+            self.failureMarkers = failureMarkers
+        }
+    }
+
     public var id: String?
     public var bookSourceName: String
     public var bookSourceUrl: String?
@@ -147,6 +175,73 @@ public struct BookSource: Codable, Equatable, Sendable {
         for (key, value) in unknownFields {
             try dynamic.encode(value, forKey: DynamicCodingKey(key))
         }
+    }
+
+    public var requiresLogin: Bool {
+        if let loginUrl, !loginUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return loginDescriptor != nil
+    }
+
+    public var loginDescriptor: LoginDescriptor? {
+        guard case .object(let object)? = unknownFields["xReaderLoginFlow"] else {
+            return nil
+        }
+        guard boolValue(object["enabled"]) ?? true else {
+            return nil
+        }
+        guard let method = stringValue(object["method"])?.uppercased(),
+              let contentType = stringValue(object["contentType"]),
+              let actionUrl = stringValue(object["actionUrl"]) else {
+            return nil
+        }
+
+        var form = stringMapValue(object["form"]) ?? [:]
+        if form.isEmpty,
+           let usernameField = stringValue(object["usernameField"]),
+           let usernameValue = stringValue(object["usernameValue"]),
+           let passwordField = stringValue(object["passwordField"]),
+           let passwordValue = stringValue(object["passwordValue"]) {
+            form[usernameField] = usernameValue
+            form[passwordField] = passwordValue
+        }
+
+        return LoginDescriptor(
+            method: method,
+            contentType: contentType,
+            actionUrl: actionUrl,
+            form: form,
+            successUrl: stringValue(object["successUrl"]),
+            successMarkers: stringArrayValue(object["successMarkers"]) ?? [],
+            failureMarkers: stringArrayValue(object["failureMarkers"]) ?? []
+        )
+    }
+}
+
+private func stringValue(_ value: JSONValue?) -> String? {
+    guard case .string(let string)? = value else { return nil }
+    return string
+}
+
+private func boolValue(_ value: JSONValue?) -> Bool? {
+    guard case .bool(let flag)? = value else { return nil }
+    return flag
+}
+
+private func stringArrayValue(_ value: JSONValue?) -> [String]? {
+    guard case .array(let values)? = value else { return nil }
+    return values.compactMap {
+        guard case .string(let string) = $0 else { return nil }
+        return string
+    }
+}
+
+private func stringMapValue(_ value: JSONValue?) -> [String: String]? {
+    guard case .object(let values)? = value else { return nil }
+    return values.reduce(into: [String: String]()) { result, item in
+        guard case .string(let string) = item.value else { return }
+        result[item.key] = string
     }
 }
 

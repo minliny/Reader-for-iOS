@@ -48,7 +48,7 @@ public protocol CacheRepository: Sendable {
 
 /// Key for an in-memory HTTP response cache entry.
 /// `method` is always uppercased; `varyHeaders` enables Vary-header differentiation.
-public struct ResponseCacheKey: Sendable {
+public struct ResponseCacheKey: Sendable, Codable {
     public var method: String
     public var normalizedURL: String
     public var varyHeaders: [String: String]
@@ -61,6 +61,22 @@ public struct ResponseCacheKey: Sendable {
         self.method = method.uppercased()
         self.normalizedURL = normalizedURL
         self.varyHeaders = varyHeaders
+    }
+}
+
+extension ResponseCacheKey {
+    private enum CodingKeys: String, CodingKey {
+        case method
+        case normalizedURL
+        case varyHeaders
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let method = try container.decode(String.self, forKey: .method)
+        let normalizedURL = try container.decode(String.self, forKey: .normalizedURL)
+        let varyHeaders = try container.decode([String: String].self, forKey: .varyHeaders)
+        self.init(method: method, normalizedURL: normalizedURL, varyHeaders: varyHeaders)
     }
 }
 
@@ -82,7 +98,7 @@ extension ResponseCacheKey: Hashable {
 }
 
 /// A cached HTTP response with TTL metadata.
-public struct CachedHTTPResponse: Sendable {
+public struct CachedHTTPResponse: Sendable, Codable, Equatable {
     public var statusCode: Int
     public var headers: [String: String]
     public var body: Data
@@ -111,9 +127,9 @@ public struct CachedHTTPResponse: Sendable {
 /// Minimum cache protocol for HTTP response caching.
 /// Implementations must be actor-isolated or otherwise Sendable-safe.
 public protocol ResponseCache: Sendable {
-    func get(key: ResponseCacheKey, now: Date) async -> CachedHTTPResponse?
-    func put(response: CachedHTTPResponse, key: ResponseCacheKey) async
-    func remove(key: ResponseCacheKey) async
+    func get(_ key: ResponseCacheKey, now: Date) async -> CachedHTTPResponse?
+    func put(_ response: CachedHTTPResponse, for key: ResponseCacheKey) async
+    func remove(_ key: ResponseCacheKey) async
     func removeAll() async
     func purgeExpired(now: Date) async
 }

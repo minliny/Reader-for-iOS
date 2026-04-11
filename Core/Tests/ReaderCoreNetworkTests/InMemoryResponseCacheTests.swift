@@ -16,25 +16,25 @@ final class InMemoryResponseCacheTests: XCTestCase {
     func testPutThenGetReturnsStoredResponse() async {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/search")
         let response = makeResponse(statusCode: 200, ttl: 300)
-        await cache.put(response: response, key: key)
+        await cache.put(response, for: key)
 
-        let result = await cache.get(key: key, now: Date())
+        let result = await cache.get(key, now: Date())
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.statusCode, 200)
     }
 
     func testGetOnEmptyCacheReturnsNil() async {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/missing")
-        let result = await cache.get(key: key, now: Date())
+        let result = await cache.get(key, now: Date())
         XCTAssertNil(result)
     }
 
     func testPutOverwritesPreviousEntry() async {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/toc")
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: key)
-        await cache.put(response: makeResponse(statusCode: 204, ttl: 300), key: key)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: key)
+        await cache.put(makeResponse(statusCode: 204, ttl: 300), for: key)
 
-        let result = await cache.get(key: key, now: Date())
+        let result = await cache.get(key, now: Date())
         XCTAssertEqual(result?.statusCode, 204)
     }
 
@@ -44,9 +44,9 @@ final class InMemoryResponseCacheTests: XCTestCase {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/expired")
         let past = Date(timeIntervalSinceNow: -400)
         let response = makeResponse(statusCode: 200, ttl: 300, createdAt: past)
-        await cache.put(response: response, key: key)
+        await cache.put(response, for: key)
 
-        let result = await cache.get(key: key, now: Date())
+        let result = await cache.get(key, now: Date())
         XCTAssertNil(result, "Entry expired 100 s ago must be a miss")
     }
 
@@ -54,9 +54,9 @@ final class InMemoryResponseCacheTests: XCTestCase {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/fresh")
         let past = Date(timeIntervalSinceNow: -100)
         let response = makeResponse(statusCode: 200, ttl: 300, createdAt: past)
-        await cache.put(response: response, key: key)
+        await cache.put(response, for: key)
 
-        let result = await cache.get(key: key, now: Date())
+        let result = await cache.get(key, now: Date())
         XCTAssertNotNil(result, "Entry with 200 s remaining must be a hit")
     }
 
@@ -64,11 +64,11 @@ final class InMemoryResponseCacheTests: XCTestCase {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/boundary")
         let createdAt = Date(timeIntervalSinceNow: -300)
         let response = makeResponse(statusCode: 200, ttl: 300, createdAt: createdAt)
-        await cache.put(response: response, key: key)
+        await cache.put(response, for: key)
 
         // now == createdAt + 300; timeIntervalSince == 300 > 300 is false → not expired
         let now = createdAt.addingTimeInterval(300)
-        let result = await cache.get(key: key, now: now)
+        let result = await cache.get(key, now: now)
         // exactly at boundary: 300 > 300 → false → still valid
         XCTAssertNotNil(result)
     }
@@ -80,13 +80,13 @@ final class InMemoryResponseCacheTests: XCTestCase {
         let expiredKey = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/expired2")
 
         let past = Date(timeIntervalSinceNow: -600)
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300, createdAt: past), key: expiredKey)
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 3600), key: validKey)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300, createdAt: past), for: expiredKey)
+        await cache.put(makeResponse(statusCode: 200, ttl: 3600), for: validKey)
 
         await cache.purgeExpired(now: Date())
 
-        let expiredResult = await cache.get(key: expiredKey, now: Date())
-        let validResult = await cache.get(key: validKey, now: Date())
+        let expiredResult = await cache.get(expiredKey, now: Date())
+        let validResult = await cache.get(validKey, now: Date())
 
         XCTAssertNil(expiredResult, "Expired entry must be removed by purge")
         XCTAssertNotNil(validResult, "Valid entry must survive purge")
@@ -101,27 +101,27 @@ final class InMemoryResponseCacheTests: XCTestCase {
 
     func testRemoveDeletesSingleEntry() async {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/remove-me")
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: key)
-        await cache.remove(key: key)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: key)
+        await cache.remove(key)
 
-        let result = await cache.get(key: key, now: Date())
+        let result = await cache.get(key, now: Date())
         XCTAssertNil(result)
     }
 
     func testRemoveDoesNotAffectOtherEntries() async {
         let key1 = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/one")
         let key2 = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/two")
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: key1)
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: key2)
-        await cache.remove(key: key1)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: key1)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: key2)
+        await cache.remove(key1)
 
-        let result = await cache.get(key: key2, now: Date())
+        let result = await cache.get(key2, now: Date())
         XCTAssertNotNil(result, "Removing key1 must not affect key2")
     }
 
     func testRemoveNonExistentKeyIsNoOp() async {
         let key = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/ghost")
-        await cache.remove(key: key)
+        await cache.remove(key)
         // Must not crash
     }
 
@@ -130,12 +130,12 @@ final class InMemoryResponseCacheTests: XCTestCase {
     func testRemoveAllClearsAllEntries() async {
         let key1 = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/a")
         let key2 = ResponseCacheKey(method: "POST", normalizedURL: "https://example.com/b")
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: key1)
-        await cache.put(response: makeResponse(statusCode: 201, ttl: 300), key: key2)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: key1)
+        await cache.put(makeResponse(statusCode: 201, ttl: 300), for: key2)
         await cache.removeAll()
 
-        let r1 = await cache.get(key: key1, now: Date())
-        let r2 = await cache.get(key: key2, now: Date())
+        let r1 = await cache.get(key1, now: Date())
+        let r2 = await cache.get(key2, now: Date())
         XCTAssertNil(r1)
         XCTAssertNil(r2)
     }
@@ -153,9 +153,9 @@ final class InMemoryResponseCacheTests: XCTestCase {
             normalizedURL: "https://example.com/search",
             varyHeaders: ["Accept-Language": "en-US"]
         )
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300, body: Data("zh".utf8)), key: key1)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300, body: Data("zh".utf8)), for: key1)
 
-        let result = await cache.get(key: key2, now: Date())
+        let result = await cache.get(key2, now: Date())
         XCTAssertNil(result, "Different varyHeaders must not produce a hit")
     }
 
@@ -170,18 +170,18 @@ final class InMemoryResponseCacheTests: XCTestCase {
             normalizedURL: "https://example.com/toc",
             varyHeaders: ["X-Token": "abc123"]
         )
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: key1)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: key1)
 
-        let result = await cache.get(key: key2, now: Date())
+        let result = await cache.get(key2, now: Date())
         XCTAssertNotNil(result, "Identical varyHeaders must produce a hit")
     }
 
     func testEmptyVaryHeadersProduceCacheHit() async {
         let key1 = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/content")
         let key2 = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/content")
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: key1)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: key1)
 
-        let result = await cache.get(key: key2, now: Date())
+        let result = await cache.get(key2, now: Date())
         XCTAssertNotNil(result)
     }
 
@@ -196,9 +196,9 @@ final class InMemoryResponseCacheTests: XCTestCase {
     func testMixedCaseMethodNormalized() async {
         let putKey = ResponseCacheKey(method: "Get", normalizedURL: "https://example.com/norm")
         let getKey = ResponseCacheKey(method: "GET", normalizedURL: "https://example.com/norm")
-        await cache.put(response: makeResponse(statusCode: 200, ttl: 300), key: putKey)
+        await cache.put(makeResponse(statusCode: 200, ttl: 300), for: putKey)
 
-        let result = await cache.get(key: getKey, now: Date())
+        let result = await cache.get(getKey, now: Date())
         XCTAssertNotNil(result, "Mixed-case method must normalize to same key as uppercase")
     }
 

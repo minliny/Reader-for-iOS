@@ -40,7 +40,7 @@ private final class RedirectCaptureDelegate: NSObject, URLSessionTaskDelegate {
     }
 }
 
-public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendable {
+public final class URLSessionHTTPClient: HTTPAdapterProtocol, CookieScopeManaging, @unchecked Sendable {
     private let session: URLSession
     private let cookieJar: CookieJar?
     private let defaultHeaders: [String: String]
@@ -87,10 +87,17 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
 
         try validateRequiredHeaders(request.requiredHeaders, in: urlRequest, sourceURL: request.url)
 
+        // Cookie injection — scoped path takes priority over legacy unscoped path.
         let existingCookieHeader = urlRequest.value(forHTTPHeaderField: "Cookie")
         if request.useCookieJar, let jar = cookieJar {
-            let cookies = await jar.getCookies(for: url.host ?? "", path: url.path)
+            let cookies = await resolvedCookies(
+                jar: jar,
+                domain: url.host ?? "",
+                path: url.path,
+                scopeKey: request.cookieScopeKey
+            )
             let cookieValue = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+
             if request.requiresCookieJar && cookieValue.isEmpty && isEmptyHeader(existingCookieHeader) {
                 throw cookieRequiredError(sourceURL: request.url)
             }
@@ -125,11 +132,20 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
                 }
             }
 
+            // Cookie storage — mirror the scoped/unscoped decision.
             if request.useCookieJar, let jar = cookieJar {
                 for redirectResponse in await redirectDelegate.redirectResponses() {
-                    await storeCookies(from: redirectResponse, jar: jar, fallbackHost: redirectResponse.url?.host ?? url.host ?? "")
+                    let host = redirectResponse.url?.host ?? url.host ?? ""
+                    await storeCookies(
+                        from: redirectResponse, jar: jar,
+                        scopeKey: request.cookieScopeKey, fallbackHost: host
+                    )
                 }
-                await storeCookies(from: httpResponse, jar: jar, fallbackHost: httpResponse.url?.host ?? url.host ?? "")
+                let finalHost = httpResponse.url?.host ?? url.host ?? ""
+                await storeCookies(
+                    from: httpResponse, jar: jar,
+                    scopeKey: request.cookieScopeKey, fallbackHost: finalHost
+                )
             }
 
             return HTTPResponse(
@@ -139,19 +155,43 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
             )
         } catch let error as URLError {
             switch error.code {
-            case .timedOut:
-                throw ErrorMapper.readerError(for: .timeout)
-            default:
-                throw ErrorMapper.readerError(for: .networkError(error.localizedDescription))
+            case .timedOut: throw ErrorMapper.readerError(for: .timeout)
+            default:        throw ErrorMapper.readerError(for: .networkError(error.localizedDescription))
             }
         } catch {
             throw ErrorMapper.readerError(for: .networkError(error.localizedDescription))
         }
     }
 
-    private func storeCookies(from response: HTTPURLResponse, jar: CookieJar, fallbackHost: String) async {
+    // MARK: - Cookie helpers
+
+    /// Reads cookies from the jar, using the scoped API when `scopeKey` is non-nil.
+    private func resolvedCookies(
+        jar: CookieJar,
+        domain: String,
+        path: String,
+        scopeKey: CookieJarScopeKey?
+    ) async -> [Cookie] {
+        if let key = scopeKey, let scopedJar = jar as? ScopedCookieJar {
+            return await scopedJar.getCookies(for: domain, path: path, scopeKey: key)
+        }
+        return await jar.getCookies(for: domain, path: path)
+    }
+
+    /// Stores `Set-Cookie` headers from `response` into the jar, using the scoped
+    /// API when `scopeKey` is non-nil.
+    private func storeCookies(
+        from response: HTTPURLResponse,
+        jar: CookieJar,
+        scopeKey: CookieJarScopeKey?,
+        fallbackHost: String
+    ) async {
         for header in setCookieHeaders(from: response) {
-            await jar.setCookies(from: header, domain: fallbackHost)
+            if let key = scopeKey, let scopedJar = jar as? ScopedCookieJar {
+                await scopedJar.setCookies(from: header, domain: fallbackHost, scopeKey: key)
+            } else {
+                await jar.setCookies(from: header, domain: fallbackHost)
+            }
         }
     }
 
@@ -159,24 +199,28 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
         response.allHeaderFields.compactMap { key, value -> [String]? in
             guard let headerName = key as? String,
                   headerName.caseInsensitiveCompare("Set-Cookie") == .orderedSame
-            else {
-                return nil
-            }
-
-            if let stringValue = value as? String {
-                return [stringValue]
-            }
-
-            if let stringValues = value as? [String] {
-                return stringValues
-            }
-
+            else { return nil }
+            if let stringValue  = value as? String   { return [stringValue] }
+            if let stringValues = value as? [String] { return stringValues  }
             return nil
         }
         .flatMap { $0 }
     }
 
-    private func validateRequiredHeaders(_ requiredHeaders: [String], in request: URLRequest, sourceURL: String) throws {
+    public func clearCookies(in scopeKey: CookieJarScopeKey) async {
+        guard let scopedJar = cookieJar as? ScopedCookieJar else {
+            return
+        }
+        await scopedJar.clear(scopeKey: scopeKey)
+    }
+
+    // MARK: - Request validation helpers
+
+    private func validateRequiredHeaders(
+        _ requiredHeaders: [String],
+        in request: URLRequest,
+        sourceURL: String
+    ) throws {
         for headerName in requiredHeaders {
             let normalized = headerName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalized.isEmpty else { continue }
@@ -214,10 +258,7 @@ public final class URLSessionHTTPClient: HTTPAdapterProtocol, @unchecked Sendabl
               let host = components.host,
               !host.isEmpty,
               scheme == "http" || scheme == "https"
-        else {
-            return nil
-        }
-
+        else { return nil }
         return url
     }
 }

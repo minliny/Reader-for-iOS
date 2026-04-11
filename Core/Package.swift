@@ -134,7 +134,7 @@ let package = Package(
         ),
         .target(
             name: "ReaderCoreJSRenderer",
-            dependencies: []
+            dependencies: ["ReaderCoreParser"]
         ),
         .testTarget(
             name: "ReaderCoreModelsTests",
@@ -142,7 +142,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ReaderCoreParserTests",
-            dependencies: ["ReaderCoreParser", "ReaderCoreModels"]
+            dependencies: ["ReaderCoreParser", "ReaderCoreModels", "ReaderCoreJSRenderer"]
         ),
         .testTarget(
             name: "ReaderCoreNetworkTests",
