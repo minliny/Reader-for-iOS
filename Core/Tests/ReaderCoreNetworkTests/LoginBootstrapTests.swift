@@ -311,7 +311,7 @@ final class LoginBootstrapTests: XCTestCase {
             let resolvedLoginFlow = defaultLoginFlow()
             unknownFields["xReaderLoginFlow"] = resolvedLoginFlow
         }
-        BookSource(
+        return BookSource(
             id: sourceId,
             bookSourceName: sourceId,
             bookSourceUrl: "https://fixture.local",
