@@ -35,20 +35,25 @@ final class BasicCookieJarTests: XCTestCase {
 
     func testDomainMatchDotPrefix() async throws {
         await jar.setCookie(Cookie(name: "test", value: "val", domain: ".example.com", path: "/"))
-        XCTAssertEqual((await jar.getCookies(for: "example.com",     path: "/")).count, 1)
-        XCTAssertEqual((await jar.getCookies(for: "sub.example.com", path: "/")).count, 1)
+        let exact = await jar.getCookies(for: "example.com",     path: "/")
+        let sub   = await jar.getCookies(for: "sub.example.com", path: "/")
+        XCTAssertEqual(exact.count, 1)
+        XCTAssertEqual(sub.count, 1)
     }
 
     func testPathMatch() async throws {
         await jar.setCookie(Cookie(name: "test", value: "val", domain: "example.com", path: "/api"))
-        XCTAssertEqual((await jar.getCookies(for: "example.com", path: "/api/v1")).count, 1)
-        XCTAssertEqual((await jar.getCookies(for: "example.com", path: "/other")).count, 0)
+        let child  = await jar.getCookies(for: "example.com", path: "/api/v1")
+        let other  = await jar.getCookies(for: "example.com", path: "/other")
+        XCTAssertEqual(child.count, 1)
+        XCTAssertEqual(other.count, 0)
     }
 
     func testClear() async throws {
         await jar.setCookie(Cookie(name: "test", value: "val", domain: "example.com", path: "/"))
         await jar.clear()
-        XCTAssertEqual((await jar.getCookies(for: "example.com", path: "/")).count, 0)
+        let after = await jar.getCookies(for: "example.com", path: "/")
+        XCTAssertEqual(after.count, 0)
     }
 
     // MARK: - Isolation tests (new in P3 cookie_jar_isolation)
