@@ -13,6 +13,7 @@
 //   let results = try parser.parseSearchResponse(data, source: source, query: query)
 
 import Foundation
+import ReaderCoreProtocols
 import ReaderCoreParser
 
 public enum JSParserEngineFactory {

@@ -134,7 +134,7 @@ let package = Package(
         ),
         .target(
             name: "ReaderCoreJSRenderer",
-            dependencies: ["ReaderCoreParser"]
+            dependencies: ["ReaderCoreParser", "ReaderCoreProtocols"]
         ),
         .testTarget(
             name: "ReaderCoreModelsTests",
