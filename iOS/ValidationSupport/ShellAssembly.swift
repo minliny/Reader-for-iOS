@@ -3,6 +3,7 @@ import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreNetwork
 import ReaderCoreParser
+import ReaderPlatformAdapters
 
 /// Validation-only composition root used by the macOS-hosted shell gate.
 ///
@@ -15,7 +16,7 @@ public enum ShellAssembly {
         let httpClient = URLSessionHTTPClient(cookieJar: cookieJar)
         let requestBuilder = BookSourceRequestBuilder()
         let ruleScheduler = NonJSRuleScheduler()
-        let parserEngine = NonJSParserEngine(ruleScheduler: ruleScheduler)
+        let parserEngine = NonJSParserEngine(scheduler: ruleScheduler)
         let errorLogger = InMemoryErrorLogger()
 
         return ReadingFlowCoordinator(
