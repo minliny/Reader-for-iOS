@@ -90,7 +90,8 @@ public final class ReadingFlowCoordinator: ObservableObject {
         selectedChapter = nil
         contentPage = nil
 
-        guard let source = selectedSource, let detailURL = book.detailURL else { return }
+        guard let source = selectedSource else { return }
+        let detailURL = book.detailURL
 
         isLoading = true
         currentError = nil
