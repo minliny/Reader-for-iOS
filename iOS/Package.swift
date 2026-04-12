@@ -21,7 +21,8 @@ let package = Package(
                 .product(name: "ReaderCoreModels", package: "Core"),
                 .product(name: "ReaderCoreProtocols", package: "Core"),
                 .product(name: "ReaderCoreParser", package: "Core"),
-                .product(name: "ReaderCoreNetwork", package: "Core")
+                .product(name: "ReaderCoreNetwork", package: "Core"),
+                .product(name: "ReaderPlatformAdapters", package: "Core")
             ],
             path: ".",
             exclude: [
