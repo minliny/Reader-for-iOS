@@ -13,7 +13,8 @@
 | M-iOS-3 | Remote Shell Validation | complete | P0 | M-iOS-2 implementation_complete | 已完成：首阻断点已定位 | 真实 GitHub Actions 证据明确 PASS/FAIL 并记录首阻断点 | yes |
 | M-IOS-4 | Shell Validation Scope Isolation | complete | P0 | M-iOS-3 complete | 已完成，无新增风险 | validation scope 与 execution semantics 分离，并拿到新的远端执行证据 | yes |
 | M-IOS-5 | Validation Glue Alignment | complete | P0 | M-IOS-4 complete | 已完成，无当前阻断 | validation-only glue 对齐 frozen dependency graph，boundary/compile/smoke 远端全绿 | yes |
-| M-IOS-6 | Next Shell Validation Increment | pending | P1 | M-IOS-5 complete | 若 scope 漂移会重新拉回 iOS-only Features/UI | 在保持 ReaderShellValidation 隔离范围不扩大的前提下定义下一步远端 validation 目标 | yes |
+| M-IOS-6 | Reader Feature Wiring | complete | P0 | M-IOS-5 complete | 已完成，无当前阻断 | Reader 主链路入口接入壳层且不破坏 ios-shell-ci green baseline | yes |
+| M-IOS-7 | Reader Flow Functional Validation | pending | P1 | M-IOS-6 complete | 若功能验证扩大为产品化 UI 会偏离范围 | 在保持现有 green baseline 的前提下验证最小 Search -> TOC -> Content 功能链路 | yes |
 
 ## 当前待办列表
 
@@ -163,18 +164,40 @@
   - `validationResult=PASS`
   - `executionVerified=true`
 
-### M-IOS-6: Next Shell Validation Increment
+### M-IOS-6: Reader Feature Wiring
+
+- 状态：`complete`
+- 优先级：`P0`
+- 前置依赖：`M-IOS-5 complete`
+- 已完成：
+  - `ReaderApp` 启动路径已切到 `ReaderFlowFeatureView`
+  - 正式 `iOS/Shell/ShellAssembly.swift` 已用于 app wiring，不再依赖 validation-only glue 作为正式入口
+  - `BookSourceImportView` / `SearchView` / `TOCView` / `ContentView` 已修正为可承接最小 reader 主链路
+  - `ReaderFlowFeatureState` 已提供最小 feature state 汇总
+  - shell smoke 增加 action reachability 验证，并在远端通过
+- 当前远端证据：
+  - latest run `24307509812`
+  - boundary gate: `PASS`
+  - compile: `PASS`
+  - smoke tests: `PASS`
+  - executionVerified: `true`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=PASS`
+  - `executionVerified=true`
+
+### M-IOS-7: Reader Flow Functional Validation
 
 - 状态：`pending`
 - 优先级：`P1`
-- 前置依赖：`M-IOS-5 complete`
+- 前置依赖：`M-IOS-6 complete`
 - 约束：
   - 不得重新扩大 `ReaderShellValidation` compile scope
   - 不得把 `iOS/Features/**` / UI 页面重新纳入 host compile gate
   - 必须继续沿用 `phaseStatus / validationResult / executionVerified` 三层语义
 - 待定义：
-  - 下一个 shell validation 增量目标
-  - 与当前 green baseline (`run 24306965324`) 的差异边界
+  - 非产品化范围内的最小功能验证链路
+  - 与 green baseline (`run 24307509812`) 的差异边界
 
 ## 依赖关系图
 
@@ -236,13 +259,13 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段：`m_ios_5_validation_glue_aligned_verified`
-- 当前主线：`Reader-Core compatibility kernel → M-IOS-5 Validation Glue Alignment`
+- 当前阶段：`m_ios_6_reader_feature_wired_verified`
+- 当前主线：`Reader-Core compatibility kernel → M-IOS-6 Reader Feature Wiring`
 - active_strategy：`minimal_tooling_then_ios`
-- active_milestone：`m_ios_5`
+- active_milestone：`m_ios_6`
 - milestone_status：`pass`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-5 已将 boundary/compile/smoke 远端验证打绿，但后续仍需按 M-IOS-6 受控推进，不能把 isolated shell gate 回退成宽 scope app compile。
+- 判断原因：M-IOS-6 已把 Reader 主链路入口接入壳层并保持 baseline 远端全绿；下一步只允许进入 M-IOS-7 的最小功能验证，不得回退到宽 scope compile 或扩成完整产品化 UI。
