@@ -23,14 +23,13 @@ public final class DefaultTOCService: TOCService {
 
         guard response.statusCode >= 200 && response.statusCode < 300 else {
             throw ReaderError.network(
-                failureType: .NETWORK_ERROR,
+                failureType: .TOC_FAILED,
                 stage: "TOC",
                 message: "HTTP \(response.statusCode)",
                 underlyingError: nil
             )
         }
 
-        let html = String(data: response.data, encoding: .utf8) ?? ""
-        return try tocParser.parse(html: html, source: source, detailURL: detailURL)
+        return try tocParser.parseTOCResponse(response.data, source: source, detailURL: detailURL)
     }
 }
