@@ -77,11 +77,11 @@ repository_convergence:
   trusted_main_branch: main
   trusted_remote: origin
   default_remote_branch: origin/main
-  current_sync_status: "main fast-forwarded to codex/cache-ci-evidence; pending push so origin/main is not yet aligned to local main."
+  current_sync_status: "local main and origin/main are aligned at commit 06515aa after main push."
   merged_branch:
     name: codex/cache-ci-evidence
-    status: merged_into_main
-    evidence: "main was 0 behind / 66 ahead relative to codex/cache-ci-evidence before ff-only merge; main now points at the consolidated tip."
+    status: merged_into_main_and_deleted
+    evidence: "main was 0 behind / 66 ahead relative to codex/cache-ci-evidence before ff-only merge; after merge and push, the local and remote branch refs were deleted."
   retained_branches:
     - name: origin/claude/fervent-goldstine
       reason: "Only updates 5 non-js smoke reports; not yet confirmed as safe-to-delete archival branch."
@@ -89,7 +89,7 @@ repository_convergence:
       reason: "Divergent historical adapter/cache hardening branch; not merged into main by commit ancestry."
     - name: origin/codex-policy-regression-verification-20260409
       reason: "Divergent policy regression branch with independent history; requires separate value review before deletion."
-  next_cleanup_action: "After pushing main, delete origin/codex/cache-ci-evidence and local codex/cache-ci-evidence because its content is fully covered by main."
+  next_cleanup_action: "Review whether origin/claude/fervent-goldstine, origin/codex-cache-ci-evidence-2407, and origin/codex-policy-regression-verification-20260409 still need archival retention before any further cleanup."
 
 ios_shell_ci_gate:
   status: pass

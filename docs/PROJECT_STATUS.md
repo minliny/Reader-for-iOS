@@ -4,7 +4,7 @@
 
 - 可信主线分支：`main`
 - 当前结论：本地开发成果已从 `codex/cache-ci-evidence` 收敛到 `main`，后续开发与审查应以 `main` 为唯一事实主线。
-- 远端基线：`origin/main` 待本次整理提交与推送后对齐到最新状态。
+- 远端基线：`origin/main` 已与本地 `main` 对齐。
 
 ## 本次分支收敛
 
@@ -16,8 +16,10 @@
   原因：与当前主线分叉，包含较早期 adapter/cache hardening 结果，当前主线未按同一提交链吸收，不应武断删除
 - 已确认保留：`origin/codex-policy-regression-verification-20260409`
   原因：与当前主线分叉，包含 policy regression 方向独立提交，需在后续专门审视后决定是否摘取
-- 计划删除：`codex/cache-ci-evidence` / `origin/codex/cache-ci-evidence`
-  原因：其成果已被 `main` 覆盖，删除不会丢失独立开发结果
+- 已删除：`codex/cache-ci-evidence`
+  原因：其成果已被 `main` 覆盖，本地分支已删除
+- 已删除：`origin/codex/cache-ci-evidence`
+  原因：远端同名分支已被 `main` 覆盖，且已完成删除
 
 ## 当前阶段
 
