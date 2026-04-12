@@ -1,8 +1,6 @@
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
-import ReaderCoreNetwork
-import ReaderCoreParser
 
 public final class DefaultContentService: ContentService {
     private let httpClient: HTTPClient
