@@ -56,6 +56,17 @@
 ## 最近一次动作
 
 - M-IOS-6 Reader Feature Wiring 已执行：GitHub Actions run `24307509812` 在 `macos-14` runner 上真实运行。Boundary gate、isolated compile、shell smoke tests 全部通过，且 shell smoke 已扩展为 3 个用例。详见 `docs/ios_shell_ci_gate.yml`。
+- 仓库工程整理已执行：中断的 `rebase` 已恢复完成，`codex/cache-ci-evidence` 已快进收敛进 `main`。当前应以 `main` 作为唯一可信主线；`origin/main` 仍待本次整理提交推送后完全对齐。
+
+## 当前主线结论
+
+- 可信主线分支：`main`
+- 已收敛分支：`codex/cache-ci-evidence`（内容已并入 `main`，后续可删除本地/远端同名分支）
+- 继续保留的远端分支：
+  - `origin/claude/fervent-goldstine`：仅报告文件差异，未确认是否需要长期归档
+  - `origin/codex-cache-ci-evidence-2407`：历史 adapter/cache hardening 分支，提交链未被主线按 ancestry 覆盖
+  - `origin/codex-policy-regression-verification-20260409`：policy regression 独立提交链，需后续专项审视
+- 本地验证限制：当前 Windows 环境无 `swift`，本次无法执行 Swift 编译/测试；仅完成 Git 一致性、分支差异与收敛验证
 
 ## iOS Gate (Recalibrated)
 

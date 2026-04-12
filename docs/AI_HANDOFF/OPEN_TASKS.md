@@ -2,6 +2,8 @@
 
 ## 当前任务概览
 
+> 工程整理状态：`main` 已成为当前唯一可信主线，`codex/cache-ci-evidence` 已收敛完成。剩余分支清理仅限已确认无独立成果或已被主线完整覆盖的分支。
+
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
 | OT-006 | Adapter Integration Harness | ci_verified | P0 | M1 complete ✅ | Adapter mock 设计遗漏边界场景 | Harness可注入mock/real adapter + contract验证模板 | yes |

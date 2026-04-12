@@ -237,7 +237,6 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 若 `executionVerified = false`，不得写 `validationResult = PASS`。
 - Reader Feature 开发必须保持 `ios-shell-ci` green baseline。
 - 正式 Reader Feature 接线必须通过 `iOS/Shell/ShellAssembly.swift`，不得绕过装配层直连 Core internal modules。
-<<<<<<< HEAD
 
 ## Clean-Room 原则
 
