@@ -13,19 +13,15 @@
   - 原因：对应 GitHub PR #2 已 MERGED，分支仅为历史 head，不再适合作为任何主线参考
 - `codex/cache-ci-evidence`
   - 原因：上一轮已确认被 `main` 完整覆盖并删除
-
-## 保留历史分支及原因
-
 - `codex-cache-ci-evidence-2407`
-  - 原因：ahead 22，`git cherry` / `range-diff` 均未证明被 `main` patch-equivalent 覆盖
+  - 原因：静态资产已在 `main`，Swift 差异为旧版契约/测试实现，已被 `main` 的后续架构 supersede
 - `codex-policy-regression-verification-20260409`
-  - 原因：ahead 37，包含 policy regression 代码、测试与样本资产，风险高，禁止强删
+  - 原因：policy 资产与 workflow 已在 `main`，关键 404 逻辑已在 `main`，分支 tip 代码相对 `main` 更旧，已被 supersede
 
 ## 阻塞点
 
 - 当前 Windows 环境没有 `swift`，本轮无法做 Swift 编译/测试验证
-- `codex-policy-regression-verification-20260409` 需要逐提交拆分“可摘取成果”和“过时证据链”
-- `codex-cache-ci-evidence-2407` 需要人工确认是否仍有值得吸收的测试/fixture 资产
+- 无远端历史分支阻塞；后续工作直接基于 `main`
 
 ## 下一步
 

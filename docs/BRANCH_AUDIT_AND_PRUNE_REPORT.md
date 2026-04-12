@@ -93,14 +93,14 @@ branch_audit_result:
     - "Core/Tests/ReaderPlatformAdaptersTests/MinimalHTTPAdapterTests.swift"
     - "Core/Tests/ReaderCoreNetworkTests/URLSessionHTTPClientTests.swift"
     - "header/cookie/error related fixtures and expected files"
-  classification: uncertain
-  action: keep_for_now
+  classification: fully_covered
+  action: delete_now
   rationale:
-    - "merge-base 为 85550af，说明该分支自较早主线分叉，后续 main 已有大规模演进。"
-    - "git cherry 显示 22 个 ahead 提交均未被 main 以 patch-equivalent 形式吸收。"
-    - "git range-diff 表明当前 main 不是该分支提交序列的直接等价覆盖，而是后续实现路线不同。"
-    - "在未逐提交核对是否存在仍值得摘取的测试/fixture 资产前，强删存在丢失独立证据链的风险。"
-  risk_level: medium
+    - "静态资产核对后，header/cookie/error fixtures 与 expected 已存在于 main，未发现缺失资产。"
+    - "Swift 差异集中在旧版 ErrorMapping / MinimalCacheHTTPClient / MinimalHTTPAdapter 测试与契约；main 中对应文件已是更高阶的新架构实现。"
+    - "分支中的 failure taxonomy 扩展（如 CONTENT_NOT_FOUND / PARSE_ERROR）未同步 failure taxonomy 配置，不符合当前治理约束，不能反向合并。"
+    - "结论是该分支被 main 的后续实现 supersede，而不是仍需吸收。"
+  risk_level: low
 ```
 
 ### codex-policy-regression-verification-20260409
@@ -121,14 +121,14 @@ branch_audit_result:
     - "Core/Tests/ReaderCoreNetworkTests/NetworkPolicyLayerTests.swift"
     - "policy booksources / expected / fixture text/json assets"
     - "adapter hardening and minimal validation files inherited from older branch"
-  classification: meaningful_unique
-  action: manual_followup_required
+  classification: fully_covered
+  action: delete_now
   rationale:
-    - "这是四条分支中风险最高的一条，ahead 37，且包含真实代码与样本资产变更，不是纯证据分支。"
-    - "git cherry 与 range-diff 都不能证明这些提交已经被 main 等价覆盖。"
-    - "其中既有 policy regression 代码/测试，也混入了更早的 adapter hardening 链，必须拆分后再判断是否摘取。"
-    - "在未完成逐提交吸收评估前禁止强删。"
-  risk_level: high
+    - "policy 相关静态资产与 workflow 已存在于 main；逐路径 diff 未发现需要再迁移的样本或工作流文件。"
+    - "关键 Swift 提交 2ac89a5 只是为旧版 NetworkPolicyLayer 增加 404 特判，而 main 当前版本已包含同一 404 特判，并额外保留 login bootstrap 与 cookie scope 逻辑。"
+    - "分支 tip 中的 NetworkPolicyLayer/Tests 相对 main 反而更旧，删除这些差异会回退能力，不应合并。"
+    - "结论是该分支已被 main 的后续架构演进 supersede，可安全删除。"
+  risk_level: low
 ```
 
 ## 决策表
@@ -137,8 +137,8 @@ branch_audit_result:
 |---|---|---|
 | `claude/fervent-goldstine` | 可直接删除 | 已删除远端分支 |
 | `codex/main` | PR 已合并，分支仅剩历史 head | 已删除远端分支 |
-| `codex-cache-ci-evidence-2407` | 未证明等价覆盖 | 保留 |
-| `codex-policy-regression-verification-20260409` | 含独立有效成果，需专项拆分 | 保留 |
+| `codex-cache-ci-evidence-2407` | 已被 main 新架构 supersede | 已删除远端分支 |
+| `codex-policy-regression-verification-20260409` | 已被 main 新架构 supersede | 已删除远端分支 |
 
 ## 实际执行动作
 
@@ -146,22 +146,29 @@ branch_audit_result:
 - 已执行 `gh pr view 2 --json ...`，确认 `codex/main` 对应 PR #2 为 `MERGED`
 - 已执行 `git push --delete origin claude/fervent-goldstine`
 - 已执行 `git push --delete origin codex/main`
+- 已执行关键 Swift 静态核对：
+  - `git show 2ac89a5 --`
+  - `git show 7620d5f --`
+  - `git diff main..origin/codex-policy-regression-verification-20260409 -- <关键文件>`
+  - `git diff main..origin/codex-cache-ci-evidence-2407 -- <关键文件>`
+- 已执行 `git push --delete origin codex-cache-ci-evidence-2407`
+- 已执行 `git push --delete origin codex-policy-regression-verification-20260409`
 
 ## GitHub 清理结果
 
 - 已删除远端分支：
   - `claude/fervent-goldstine`
   - `codex/main`
-- 当前仍保留远端分支：
   - `codex-cache-ci-evidence-2407`
   - `codex-policy-regression-verification-20260409`
+- 当前远端仅剩：
+  - `main`
 
 ## 后续建议
 
 - 继续以 `main` 作为唯一可信主线
 - 后续 Track D 继续推进 `M-IOS-7: Reader Flow Functional Validation`
-- 若要继续远端清理，先专项拆分 `codex-policy-regression-verification-20260409`
-- `codex-cache-ci-evidence-2407` 需要补一轮逐提交“是否摘取测试/fixture 资产”的人工确认
+- 历史分支治理已完成，后续不再以任何 `codex/*` 历史分支作为事实来源
 
 ## Clean-Room 说明
 
