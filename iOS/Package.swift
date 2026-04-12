@@ -33,7 +33,7 @@ let package = Package(
             ],
             sources: [
                 "CoreIntegration",
-                "Shell/ShellAssembly.swift"
+                "Shell"
             ]
         ),
         .target(
@@ -45,14 +45,14 @@ let package = Package(
             path: ".",
             exclude: [
                 "CoreIntegration",
+                "Shell/ShellAssembly.swift",
                 "Tests",
-                "Shell/ShellAssembly.swift"
             ],
             sources: [
                 "App",
                 "Features",
                 "Modules",
-                "Shell/ReaderShellEnvironment.swift"
+                "Shell"
             ]
         ),
         .testTarget(
