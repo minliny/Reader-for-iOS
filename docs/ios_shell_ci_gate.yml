@@ -1,15 +1,16 @@
-phase: M-IOS-5
-generatedAt: "2026-04-12T20:41:00+08:00"
+phase: M-IOS-6
+generatedAt: "2026-04-12T21:13:00+08:00"
 implementationStatus:
   boundary_gate_established: true
   shell_ci_established: true
   smoke_validation_established: true
   validation_scope_isolated: true
   validation_glue_aligned: true
+  reader_feature_wired: true
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24306965324"
+  runId: "24307509812"
   status: completed
   conclusion: success
 result:
@@ -58,23 +59,31 @@ result:
     notes:
       - "ShellAssembly now imports ReaderPlatformAdapters for URLSessionHTTPClient visibility."
       - "NonJSParserEngine initializer is aligned to the frozen scheduler: signature."
-      - "Validation glue alignment was execution-verified by GitHub Actions run 24306965324."
+      - "Validation glue alignment remains green under GitHub Actions run 24307509812."
+  reader_feature:
+    implementationStatus: PASS
+    executionStatus: PASS
+    notes:
+      - "ReaderApp now enters through ReaderFlowFeatureView instead of the temporary import-only shell."
+      - "Formal iOS ShellAssembly is used for app wiring; validation-only ShellAssembly remains scoped to ReaderShellValidation."
+      - "The minimal shell path now exposes import -> search -> toc -> content entry points without widening validation scope."
   overall:
     phaseStatus: PASS
     validationResult: PASS
     blockers: []
-    next_phase: M-IOS-6
+    next_phase: M-IOS-7
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24306965324
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24307509812
   headBranch: codex/cache-ci-evidence
-  headSha: "db95a213189fc1174949e924019883fa2471e80c"
+  headSha: "b54787aa86ab8eb2ab75957c2b2e35f8b215c588"
   firstFailedStep: ""
   artifactIds:
-    - "6392691349"
+    - "6392853457"
   summary:
     - "Run 24305799783 verified M-IOS-3 blocker: wide host compile scope incorrectly included iOS/Features."
     - "Run 24306191609 passed isolated compile and failed in smoke because swift test still resolved too much package scope."
     - "Run 24306274617 narrowed smoke to the isolated test product and showed ShellAssembly was still missing from the validation module."
     - "Run 24306358748 confirmed validation scope isolation remained active and narrowed the next blocker to validation-only ShellAssembly glue alignment."
     - "Run 24306965324 passed boundary gate, isolated compile, and ShellAssembly smoke validation on macOS-14."
+    - "Run 24307509812 kept the same green baseline after formal Reader Feature Wiring and expanded shell smoke to 3 passing tests."
