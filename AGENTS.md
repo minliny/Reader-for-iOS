@@ -152,21 +152,28 @@ out_of_scope_capabilities:
   - JSNetwork (ROI NEGATIVE)
 
 ios_gate:
-  allowed: false
+  allowed: conditional
+  decision: CONDITIONAL_ALLOW
+  review_doc: docs/IOS_PHASE_GATE_REVIEW.md
+  remediation_doc: docs/ios_gate_remediation_result.yml
   conditions:
     - condition: "Track D M1 complete"
       status: COMPLETE
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
-      status: IN_PROGRESS  # AdapterHarness CI_VERIFIED, TraceInspector code_complete_pending_ci
+      status: COMPLETE  # AdapterHarness CI_VERIFIED, TraceInspector CI_VERIFIED (run 24303727706)
     - condition: "Shell smoke validation complete"
-      status: PENDING
+      status: PARTIAL_PASS  # construction-only ShellAssembly smoke tests added; macOS CI execution pending
     - condition: "Architecture review pass"
-      status: PENDING
+      status: PASS  # M-iOS-1 remediation complete: 0 illegal imports in CoreIntegration/Features
+  prerequisites_for_execution:
+    - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
+    - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
+    - "CONDITION-3: Execute shell smoke validation — PARTIAL_PASS (construction-only tests added; macOS CI execution pending)"
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
-  ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/ but untested and not phase-gate approved"
+  ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. ShellAssembly is the designated factory layer. boundary gate script + ios-shell-ci workflow + construction-only ShellAssembly smoke tests are now present; macOS CI execution is pending."
 
-recent_completed_action: "OT-007 (TraceInspector) implemented: TracingHTTPClient decorator + TraceRecord models + InMemoryTraceCollector + HeaderRedactionPolicy + BodyPreviewConfig. 28 test cases. Pending CI."
-next_best_task: "OT-007 CI verification, then OT-009 (iOS Phase Gate Review)"
+recent_completed_action: "M-iOS-2 (Shell Build / CI / Boundary Gate) PARTIAL_PASS: scripts/check_ios_boundary.sh + .github/workflows/ios-shell-ci.yml + iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift added. Boundary rescan PASS; macOS CI execution pending."
+next_best_task: "M-iOS-3: Execute shell smoke validation on macOS CI and promote ios_shell_ci_gate from PARTIAL_PASS to PASS"
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 
@@ -219,6 +226,9 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 禁止修改 A/B/C/D 兼容等级定义。
 - 禁止新增 failure taxonomy 而不更新对应配置与回归脚本。
 - 禁止在 `ios_gate.allowed = false` 时推进 iOS 壳层实现、UI 接线或 iOS 优先叙事。
+- 仅 `iOS/Shell/**` 可 import `ReaderCoreNetwork`、`ReaderCoreParser`、`ReaderCoreCache`、`ReaderCoreExecution`。
+- 新增壳层代码不得绕过 `ShellAssembly` 直接装配 Core internal modules。
+- iOS 边界检查入口固定为 `scripts/check_ios_boundary.sh`，CI workflow 固定为 `.github/workflows/ios-shell-ci.yml`。
 
 ## Clean-Room 原则
 

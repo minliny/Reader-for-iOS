@@ -1,0 +1,62 @@
+name: iOS Shell CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/ios-shell-ci.yml"
+      - "iOS/**"
+      - "scripts/check_ios_boundary.sh"
+      - "docs/ios_shell_ci_gate.yml"
+  push:
+    branches:
+      - "**"
+    paths:
+      - ".github/workflows/ios-shell-ci.yml"
+      - "iOS/**"
+      - "scripts/check_ios_boundary.sh"
+
+jobs:
+  ios-shell-ci:
+    name: Boundary + Shell compile smoke
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Protect iOS Shell boundary
+        shell: bash
+        run: |
+          chmod +x scripts/check_ios_boundary.sh
+          ./scripts/check_ios_boundary.sh
+
+      - name: Show Swift toolchain
+        run: swift --version
+
+      - name: Compile iOS Shell composition root
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Interim compile gate: validate SwiftPM package wiring and ShellAssembly
+          # composition root until a full xcodebuild app gate is introduced in M-iOS-3.
+          swift build --package-path iOS 2>&1 | tee ios-shell-build.log
+
+      - name: Run shell smoke validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Smoke scope stays construction-only: protect shell boundary, validate
+          # shell composition root, and prepare M-iOS-3 runtime smoke expansion.
+          swift test --package-path iOS --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
+
+      - name: Upload iOS Shell logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-shell-ci-logs
+          if-no-files-found: error
+          path: |
+            ios-shell-build.log
+            ios-shell-smoke.log

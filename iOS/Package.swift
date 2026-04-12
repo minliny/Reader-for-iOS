@@ -20,10 +20,21 @@ let package = Package(
                 .product(name: "ReaderCoreModels", package: "ReaderCore"),
                 .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
                 .product(name: "ReaderCoreParser", package: "ReaderCore"),
-                .product(name: "ReaderCoreNetwork", package: "ReaderCore"),
-                .product(name: "ReaderCoreCache", package: "ReaderCore")
+                .product(name: "ReaderCoreNetwork", package: "ReaderCore")
             ],
-            path: "."
+            path: ".",
+            sources: [
+                "App",
+                "CoreIntegration",
+                "Features",
+                "Modules",
+                "Shell"
+            ]
+        ),
+        .testTarget(
+            name: "ShellSmokeTests",
+            dependencies: ["ReaderApp"],
+            path: "Tests/ShellSmokeTests"
         )
     ]
 )

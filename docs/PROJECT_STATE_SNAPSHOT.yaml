@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: post_freeze_planning
+  phase: m_ios_2_boundary_gate_established
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
-  allow_ios_phase: false
-  ios_block_reason: "Minimal tooling subset (AdapterHarness + TraceInspector) not yet complete. iOS gate review requires: M1 complete + M2 minimal subset + Shell smoke validation + Architecture review pass."
+  allow_ios_phase: conditional
+  ios_block_reason: "CONDITIONAL_ALLOW — M-iOS-1 complete. M-iOS-2 boundary gate and shell CI entry are established, but macOS CI execution is still required to convert shell smoke validation from PARTIAL_PASS to PASS."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m2_minimal
-  milestone_status: pending
-  milestone_detail: "AdapterIntegrationTestHarness (CI_VERIFIED) + TraceInspector (code_complete) — minimal tooling for iOS gate readiness"
-  next_best_task: "Execute OT-007 CI verification, then OT-009 (iOS Phase Gate Review)"
-  next_best_task_detail: "OT-006 CI VERIFIED. OT-007 code_complete. Both M2 minimal subset items implemented. CI verification pending."
+  active_milestone: m_ios_2
+  milestone_status: partial_pass
+  milestone_detail: "Boundary gate script + ios-shell-ci workflow + construction-only ShellAssembly smoke tests added. Local execution is blocked by missing swift toolchain, so macOS CI evidence is still pending."
+  next_best_task: "M-iOS-3: Execute shell smoke validation on macOS CI"
+  next_best_task_detail: "Run .github/workflows/ios-shell-ci.yml on macOS-14, confirm swift build/test for the iOS package, and promote docs/ios_shell_ci_gate.yml from PARTIAL_PASS to PASS if the run succeeds."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -36,23 +36,31 @@ mature_capabilities:
 uncovered_capabilities: []
 
 ios_gate:
-  allowed: false
+  allowed: conditional
+  decision: CONDITIONAL_ALLOW
+  review_doc: docs/IOS_PHASE_GATE_REVIEW.md
+  remediation_doc: docs/ios_gate_remediation_result.yml
   conditions:
     - condition: "Track D M1 complete"
       status: COMPLETE
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
-      status: IN_PROGRESS
+      status: COMPLETE
     - condition: "Shell smoke validation complete"
-      status: PENDING
+      status: PARTIAL_PASS
     - condition: "Architecture review pass"
-      status: PENDING
+      status: PASS
+  prerequisites_for_execution:
+    - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
+    - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
+    - "CONDITION-3: Execute shell smoke validation — PARTIAL_PASS (construction-only tests added; macOS CI execution pending)"
   previous_conditions_superseded: "Track D M1–M3 complete (旧条件，已校准)"
+  gate_result_doc: docs/ios_shell_ci_gate.yml
 
 ios_shell_audit:
   actual_implementation_state: "SwiftUI views (BookSourceImportView/SearchView/TOCView/ContentView) + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository all exist with real implementation code"
-  tested: false
+  tested: partial
   phase_gate_approved: false
-  test_coverage: "iOS/Tests/ReaderAppTests/ is empty — zero test coverage for iOS Shell"
+  test_coverage: "Construction-only ShellAssembly smoke tests added at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift. macOS CI execution still pending."
   missing_capabilities:
     - "Disk persistence (InMemoryBookSourceRepository only)"
     - "Multi-source management (single source selection only)"
@@ -61,9 +69,16 @@ ios_shell_audit:
   risk_assessment: "iOS Shell code is more complete than state docs previously indicated, but remains untested and unapproved for phase gate"
 
 recent_action:
-  summary: "OT-007 (TraceInspector) implemented: TracingHTTPClient decorator + TraceRecord/TraceRequest/TraceResponse models + InMemoryTraceCollector + HeaderRedactionPolicy + BodyPreviewConfig. 28 test cases. Pending CI verification."
-  category: tooling_implementation
-  state_effect: "OT-007 code complete. M2 minimal subset both items now implemented (AdapterHarness CI_VERIFIED + TraceInspector code_complete)."
+  summary: "M-iOS-2 implemented to PARTIAL_PASS: added scripts/check_ios_boundary.sh, .github/workflows/ios-shell-ci.yml, and ShellAssembly construction smoke tests. Boundary rescan passed with 0 violations; local swift execution remains unavailable."
+  category: ios_shell_gate
+  state_effect: "Shell boundary is now codified, ShellAssembly wiring is test-addressable, and docs/ios_shell_ci_gate.yml records current gate state with next phase set to M-iOS-3."
+
+ios_shell_ci_gate:
+  status: partial_pass
+  report: docs/ios_shell_ci_gate.yml
+  boundary_gate: pass
+  shell_ci: partial_pass
+  smoke_validation: partial_pass
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -251,11 +266,11 @@ change_scope:
     - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
     - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
   freeze_gate_blockers: []
-  active_milestone: m2_minimal
-  active_milestone_status: pending
+  active_milestone: m_ios_2
+  active_milestone_status: partial_pass
   new_docs_created:
     - docs/API_SNAPSHOT/Core_Public_API.md
     - docs/API_SNAPSHOT/Core_Module_Dependency.md
     - docs/FIXTURE_INFRA_SPEC.md
     - docs/TOOLING_BACKLOG.md
-  clean_room_statement: "本轮仅校准规划/状态/gate/task文档；不修改 Core production 代码、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  clean_room_statement: "本轮仅建立 iOS Shell 编译链、边界门禁、construction-only smoke validation 与状态文档同步；不修改 Core production 代码、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"

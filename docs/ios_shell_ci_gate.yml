@@ -1,0 +1,35 @@
+phase: M-iOS-2
+generatedAt: "2026-04-12T18:56:55.3589142+08:00"
+result:
+  boundary_gate:
+    enabled: true
+    status: PASS
+    checked_paths:
+      - iOS/App
+      - iOS/CoreIntegration
+      - iOS/Features
+    forbidden_modules:
+      - ReaderCoreNetwork
+      - ReaderCoreParser
+      - ReaderCoreCache
+      - ReaderCoreExecution
+    violations: []
+  shell_ci:
+    enabled: true
+    status: PARTIAL_PASS
+    workflow: .github/workflows/ios-shell-ci.yml
+    build_mode: interim
+  smoke_validation:
+    enabled: true
+    status: PARTIAL_PASS
+    tests:
+      - iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift
+    notes:
+      - Construction-only smoke coverage added for ShellAssembly and ReadingFlowCoordinator wiring.
+      - Local Windows environment lacks a runnable swift toolchain, so compile/test execution is deferred to macOS GitHub Actions.
+  overall:
+    status: PARTIAL_PASS
+    blockers:
+      - macOS GitHub Actions execution is still required to verify swift build and smoke test runtime for the iOS package.
+      - Local sandbox could not execute bash directly; boundary result was confirmed by equivalent PowerShell rescan after file changes.
+    next_phase: M-iOS-3

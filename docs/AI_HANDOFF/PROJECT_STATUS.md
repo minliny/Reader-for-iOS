@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发
-- 当前阶段：`core_contract_stabilization`
-- 当前是否允许进入 iOS 阶段：`no`
-- 判断原因：当前只进入 `Multiplatform architecture rollout` 的骨架阶段，仍不是平台实现完成态
+- 当前主线：Reader-Core 兼容内核开发 → M-iOS-2 Shell Build / CI / Boundary Gate
+- 当前阶段：`m_ios_2_boundary_gate_established`
+- 当前是否允许进入 iOS 阶段：`conditional`
+- 判断原因：M-iOS-1 (Architecture Remediation) COMPLETE。M-iOS-2 已建立 boundary gate / shell CI / construction-only smoke tests，但 macOS CI 执行证据尚未回写，因此整体仍为 `conditional`。
 
 ## 当前事实基线
 
@@ -16,6 +16,20 @@
 - `sample_js_runtime_002`
 - `sample_004`
 - `sample_005`
+- `sample_001` / `sample_002` / `sample_003`
+- `SAMPLE-P1-HEADER-001` / `002` / `003`
+- `SAMPLE-P1-COOKIE-001` / `002` / `003`
+- `SAMPLE-P1-CACHE-001` / `002` / `003`
+- `SAMPLE-P1-ERROR-001` / `002` / `003`
+- `SAMPLE-P1-POLICY-001` / `002` / `003`
+- `sample_header_001` / `002` / `003`
+- `sample_cookie_001` / `002`
+- `sample_login_001` / `002` / `003`
+- `sample_js_001`
+- `css_executor_selector_semantics_contract`
+- `fixture_toc_selector_miss` / `title_rule_miss` / `url_rule_miss` / `count_mismatch` / `non_selector_error`
+- `toc_item_invalid_url_contract` / `http_client_invalid_url_contract`
+- `SAMPLE-P1-COOKIE-WENSANG-001` / `XIANGSHU-001` / `XUANYGE-001`
 
 ### 已成熟能力
 - CI 执行
@@ -23,28 +37,60 @@
 - regression 回写
 - writeback 审核
 - compat_matrix 审计吸收
+- Header (CLOSED)
+- Cookie (CLOSED, 含 scoped isolation)
+- Cache (CLOSED)
+- ErrorMapping (CI_VERIFIED_CLOSED)
+- PolicyVerification (CI_VERIFIED_CLOSED)
+- JSDomExecution (CLOSED)
+- LoginBootstrap (CLOSED)
+- CookieIsolation (CLOSED)
 
 ### 当前未覆盖能力
-- ErrorMapping（executable verification 待执行）
+- 无（所有能力已关闭或已裁决 out_of_scope）
+
+### 当前 OUT_OF_SCOPE
+- AntiBot (ROI NEGATIVE — 需 WKWebView，与沙箱模型不兼容)
+- JSNetwork (ROI NEGATIVE — 开启 fetch/XHR 破坏 networkLockdown 安全保证)
 
 ## 最近一次动作
 
-- `Header capability executable verification passed`
-- 当前结论：
-  - Header capability VERIFIED + CLOSED
-  - runId: `24200529880`
-  - runUrl: `https://github.com/minliny/Reader-for-iOS/actions/runs/24200529880`
-  - result: `pass`
-  - testsRun: `true`
-  - totalTests: `117`
-  - failedTests: `0`
-  - Header 测试全部通过：
-    - `testDefaultHeadersTransmittedInRequest`
-    - `testRequestHeadersOverrideSameNameDefaultHeaders`
-    - `testDifferentHeadersMergedFromDefaultAndRequest`
-  - Cookie 测试无回归（4/4 通过）
-  - merge precedence: request headers override same-name defaultHeaders
-  - `platformImplementationDone=false`
+- M-iOS-2 完成到 `PARTIAL_PASS`：新增 `scripts/check_ios_boundary.sh`、`.github/workflows/ios-shell-ci.yml`、`iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift`。Boundary rescan 0 违规，ShellAssembly 装配链已有 construction-level smoke 入口，但本机缺少 `swift` 工具链，macOS CI 运行仍待执行。详见 `docs/ios_shell_ci_gate.yml`。
+
+## iOS Gate (Recalibrated)
+
+```yaml
+ios_gate:
+  allowed: conditional
+  decision: CONDITIONAL_ALLOW
+  review_doc: docs/IOS_PHASE_GATE_REVIEW.md
+  conditions:
+    - condition: "Track D M1 complete"
+      status: COMPLETE
+    - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
+      status: COMPLETE
+    - condition: "Shell smoke validation complete"
+      status: PARTIAL_PASS
+    - condition: "Architecture review pass"
+      status: PASS
+  prerequisites_for_execution:
+    - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
+    - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
+    - "CONDITION-3: Execute shell smoke validation — PARTIAL_PASS (construction-only tests added; macOS CI execution pending)"
+  superseded_conditions: "Track D M1–M3 complete (旧条件，已校准)"
+```
+
+## M-iOS-2 Gate Result
+
+```yaml
+ios_shell_ci_gate:
+  report: docs/ios_shell_ci_gate.yml
+  boundary_gate: PASS
+  shell_ci: PARTIAL_PASS
+  smoke_validation: PARTIAL_PASS
+  overall: PARTIAL_PASS
+  next_phase: M-iOS-3
+```
 
 ## Adapter Validation
 
@@ -104,12 +150,44 @@
 - Header: `CLOSED`
 - Cache: `CLOSED`
 - Cookie: `CLOSED`
-- ErrorMapping: `CLOSED`
+- ErrorMapping: `CI_VERIFIED_CLOSED` (14/14 ErrorMappingTests passed on macOS-14 CI, run 24279408481)
+- PolicyVerification: `CI_VERIFIED_CLOSED` (9/9 PolicyVerificationTests passed on macOS-14 CI, run 24279408481)
+- JSDomExecution: `CLOSED`
+- LoginBootstrap: `CLOSED`
+- CookieIsolation: `CLOSED`
+- AntiBot: `OUT_OF_SCOPE`
+- JSNetwork: `OUT_OF_SCOPE`
+
+## Phase 2 — Recalibrated Strategy
+
+- **active_strategy**: `minimal_tooling_then_ios`
+- **execution_mode**: `recalibrated_phase2`
+- **active_milestone**: `m2_minimal`
+- **milestone_status**: `complete`
+- **milestone_name**: AdapterIntegrationTestHarness + Request/Response Trace Inspector
+
+### Tooling Priority
+
+```yaml
+P0_immediate:
+  - AdapterIntegrationTestHarness (OT-006)
+  - Request/Response Trace Inspector (OT-007)
+
+P1_optional_before_ios:
+  - Fixture Replay OR Selector Tester (OT-008, 二选一)
+
+deferred_until_post_ios:
+  - Rule Debugger
+  - Regression Dashboard
+  - JS Runtime Inspector
+  - Login Bootstrap Debugger
+  - Fixture Snapshot Recorder
+```
 
 ## 下一步唯一最优任务
 
-- `P3 capability expansion: Error mapping / Cache executable verification`
-- 目标说明：Header + Cookie 均已 VERIFIED + CLOSED。下一步对 Error mapping、Cache 进行 executable verification。
+- `M-iOS-3: Execute shell smoke validation on macOS CI`
+- 目标说明：运行 `.github/workflows/ios-shell-ci.yml`，拿到 `swift build --package-path iOS` + `swift test --package-path iOS --filter ShellAssemblySmokeTests` 的 macOS-14 证据，并将 `docs/ios_shell_ci_gate.yml` 升级为 PASS 或写回 blocker。
 
 ## 当前不允许做的事
 
@@ -121,9 +199,10 @@
 - 未同步 taxonomy 就新增 failureType
 - 引入 retry、fallback 或复杂错误策略并伪装为 Error Mapping
 - 引入外部 GPL 代码或引用 Legado Android 实现
+- 在 `docs/ios_shell_ci_gate.yml` 仍为 `PARTIAL_PASS` 时推进 iOS Shell 正式开发
 
 ## Clean-Room 状态
 
-- 本次仅依据仓库内部协议、样本资产结构、已验证 policy regression 与架构文档推进 rollout skeleton
+- 本次仅建立 iOS Shell gate 与状态回写，依据仓库内部结构、样本边界与 ShellAssembly 装配事实
 - 无外部 GPL 代码
 - 无 Legado Android 实现引用

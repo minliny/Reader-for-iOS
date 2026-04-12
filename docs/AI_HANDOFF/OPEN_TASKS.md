@@ -5,9 +5,12 @@
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
 | OT-006 | Adapter Integration Harness | ci_verified | P0 | M1 complete ✅ | Adapter mock 设计遗漏边界场景 | Harness可注入mock/real adapter + contract验证模板 | yes |
-| OT-007 | Request/Response Trace Inspector | code_complete | P0 | M1 complete ✅ | 敏感数据泄露 | HTTPClient decorator记录全链路 + 脱敏 | yes |
+| OT-007 | Request/Response Trace Inspector | ci_verified | P0 | M1 complete ✅ | 敏感数据泄露 | HTTPClient decorator记录全链路 + 脱敏 | yes |
 | OT-008 | Optional: Fixture Replay / Selector Tester | pending | P1 | OT-006 | scope膨胀 | 二选一工具可用 | yes |
-| OT-009 | iOS Phase Gate Review | pending | P0 | OT-006 + OT-007 | gate review 不通过 | Shell smoke + Architecture review + gate decision | yes |
+| OT-009 | iOS Phase Gate Review | conditional_allow | P0 | OT-006 + OT-007 ✅ | gate review 不通过 | Shell smoke + Architecture review + gate decision | yes |
+| M-iOS-1 | Architecture Remediation (dependency boundary) | complete | P0 | OT-009 CONDITIONAL_ALLOW | 边界修复不彻底 | iOS Shell 零违规 import Core internals | yes |
+| M-iOS-2 | Shell Build / CI / Boundary Gate | partial_pass | P0 | M-iOS-1 ✅ | 本机缺少 macOS/Swift 编译证据 | boundary gate + shell CI + construction smoke tests 建立完成 | yes |
+| M-iOS-3 | Shell Smoke Validation Execution | pending | P0 | M-iOS-2 partial_pass | CI 编译/测试可能暴露 package wiring 问题 | ios-shell-ci workflow 在 macOS-14 PASS 并回写 gate 结果 | yes |
 
 ## 当前待办列表
 
@@ -33,7 +36,7 @@
 
 ### OT-007: Request/Response Trace Inspector
 
-- 状态：`code_complete` (待 CI 验证)
+- 状态：`ci_verified` ✅
 - 优先级：`P0`
 - 前置依赖：Track D M1 complete (已满足)
 - 风险点：TraceInspector 可能记录敏感数据（cookie、authorization header）
@@ -47,9 +50,11 @@
   - 脱敏配置（HeaderRedactionPolicy）✅
   - Body preview 截断（BodyPreviewConfig）✅
   - InMemoryTraceCollector ✅
-  - 测试套件 ✅ (28 test cases)
+  - 测试套件 ✅ (28 test cases, all passed on CI)
   - 使用文档 — 内嵌于代码注释
-- 待完成：CI 验证通过后标记 `ci_verified`
+- CI 验证：✅ PASS (macOS-14, Run #24303727706, 28/28 TraceInspectorTests passed)
+- CI fix 1: `await` in XCTest autoclosure → extract to `let` binding
+- CI fix 2: URLError description platform-dependent → use non-empty string check
 
 ### OT-008: Optional — Fixture Replay / Selector Tester (二选一)
 
@@ -88,6 +93,32 @@
   - Architecture review report
   - Gate review decision document
 - 是否允许 AI 独立完成：`yes`（执行验证和出具报告，gate decision 需人工确认）
+
+### M-iOS-2: Shell Build / CI / Boundary Gate
+
+- 状态：`partial_pass`
+- 优先级：`P0`
+- 前置依赖：`M-iOS-1` 已完成
+- 风险点：Windows 本地环境无法直接提供 `swift` / `bash` 执行证据，需依赖 macOS GitHub Actions 完成最终编译验证
+- 已完成：
+  - `scripts/check_ios_boundary.sh` 已建立，禁止 `iOS/App/**`、`iOS/CoreIntegration/**`、`iOS/Features/**` 直接 import `ReaderCoreNetwork` / `ReaderCoreParser` / `ReaderCoreCache` / `ReaderCoreExecution`
+  - `.github/workflows/ios-shell-ci.yml` 已建立，执行顺序为 `boundary gate -> swift build --package-path iOS -> swift test --filter ShellAssemblySmokeTests`
+  - `iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift` 已建立，验证 `ShellAssembly` 与 `ReadingFlowCoordinator` wiring
+  - `docs/ios_shell_ci_gate.yml` 已记录当前 gate 结果
+- 未完成：
+  - macOS-14 CI 实跑并回写 PASS / blocker
+
+### M-iOS-3: Shell Smoke Validation Execution
+
+- 状态：`pending`
+- 优先级：`P0`
+- 前置依赖：`M-iOS-2 partial_pass`
+- 风险点：SwiftPM package compile 可能暴露 Shell target / test target 组织问题
+- 验收标准：
+  - `ios-shell-ci` workflow 在 `macos-14` 成功执行
+  - `ShellAssemblySmokeTests` 通过
+  - `docs/ios_shell_ci_gate.yml` 从 `PARTIAL_PASS` 更新为 `PASS` 或明确写入 blocker
+  - 状态文档三件套再次同步
 
 ## 依赖关系图
 
@@ -149,13 +180,13 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段：`post_freeze_planning (execution_mode: recalibrated_phase2)`
-- 当前主线：`Reader-Core compatibility kernel → Minimal Tooling → Early iOS Gate Review`
+- 当前阶段：`m_ios_2_boundary_gate_established`
+- 当前主线：`Reader-Core compatibility kernel → M-iOS-2 Shell Build / CI / Boundary Gate`
 - active_strategy：`minimal_tooling_then_ios`
-- active_milestone：`m2_minimal`
-- milestone_status：`pending`
+- active_milestone：`m_ios_2`
+- milestone_status：`partial_pass`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
-- 当前是否允许进入 iOS 阶段：`no`
-- 判断原因：OT-006 (AdapterHarness) CI_VERIFIED ✅, OT-007 (TraceInspector) code_complete (待 CI 验证)。iOS gate review 需要：M1 complete ✅ + M2 minimal subset (AdapterHarness CI_VERIFIED ✅ + TraceInspector code_complete_pending_ci) + Shell smoke validation + Architecture review pass。
+- 当前是否允许进入 iOS 阶段：`conditional`
+- 判断原因：M-iOS-1 COMPLETE。M-iOS-2 已建立 boundary gate、shell CI 与 construction-only smoke tests，但 macOS CI 执行证据尚未回写，因此下一步唯一最优任务为 `M-iOS-3`。
