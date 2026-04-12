@@ -23,14 +23,13 @@ public final class DefaultSearchService: SearchService {
 
         guard response.statusCode >= 200 && response.statusCode < 300 else {
             throw ReaderError.network(
-                failureType: .NETWORK_ERROR,
+                failureType: .SEARCH_FAILED,
                 stage: "SEARCH",
                 message: "HTTP \(response.statusCode)",
                 underlyingError: nil
             )
         }
 
-        let html = String(data: response.data, encoding: .utf8) ?? ""
-        return try searchParser.parse(html: html, source: source)
+        return try searchParser.parseSearchResponse(response.data, source: source, query: query)
     }
 }
