@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "ReaderApp",
     platforms: [
-        .iOS(.v15)
+        .iOS(.v15),
+        .macOS(.v13)
     ],
     products: [
         .library(name: "ReaderApp", targets: ["ReaderApp"])
