@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderShellValidation
 
 public struct SearchView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
@@ -60,7 +61,7 @@ public struct SearchView: View {
     private var resultsList: some View {
         ScrollView {
             LazyVStack(spacing: 1) {
-                ForEach(coordinator.searchResults, id: \.self) { book in
+                ForEach(coordinator.searchResults, id: \.detailURL) { book in
                     NavigationLink {
                         TOCView(coordinator: coordinator, book: book)
                     } label: {
@@ -77,7 +78,7 @@ private struct BookRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(book.title ?? "无标题")
+            Text(book.title)
                 .font(.headline)
                 .lineLimit(2)
 
@@ -97,6 +98,18 @@ private struct BookRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
+    }
+}
+
+private extension SearchView {
+    func performSearch() {
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty else {
+            return
+        }
+
+        Task {
+            await coordinator.search(keyword: keyword)
+        }
     }
 }
