@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_3_remote_validation_failed
+  phase: m_ios_5_validation_glue_aligned_verified
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "M-iOS-2 implementation is complete. M-iOS-3 remote validation is execution-verified on GitHub Actions and currently FAILS at the iOS Shell compile step before smoke tests."
+  ios_block_reason: "iOS Shell interim validation is now execution-verified PASS on GitHub Actions through the isolated ReaderShellValidation scope. Further iOS work remains gated by the next planned phase, not by the previous validation glue blocker."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_3
-  milestone_status: fail
-  milestone_detail: "Remote validation has been execution-verified on macOS GitHub Actions. Boundary gate passes, but the iOS Shell compile step fails before smoke tests due to host-compilation issues in feature sources."
-  next_best_task: "M-iOS-3 blocker resolution: make iOS Shell compile validation pass under remote SwiftPM gate"
-  next_best_task_detail: "Resolve the first compile blocker recorded in docs/ios_shell_ci_gate.yml, rerun ios-shell-ci on macOS-14, and only reopen smoke validation once compile passes."
+  active_milestone: m_ios_5
+  milestone_status: pass
+  milestone_detail: "M-IOS-4 scope isolation remains active, and M-IOS-5 aligned the validation-only ShellAssembly glue with the frozen dependency graph. GitHub Actions run 24306965324 passed boundary gate, isolated compile, and construction-only smoke tests."
+  next_best_task: "M-IOS-6: define the next remote shell validation increment on top of the now-green isolated shell composition gate"
+  next_best_task_detail: "Use docs/ios_shell_ci_gate.yml run 24306965324 as the green baseline, keep ReaderShellValidation scope isolated, and open the next phase without re-expanding host compile scope."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -46,40 +46,42 @@ ios_gate:
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
       status: COMPLETE
     - condition: "Shell smoke validation complete"
-      status: FAIL
+      status: PASS
     - condition: "Architecture review pass"
       status: PASS
   prerequisites_for_execution:
     - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — FAIL (remote compile failed before smoke tests)"
+    - "CONDITION-3: Execute shell smoke validation — PASS (macOS-14 GitHub Actions run 24306965324)"
   previous_conditions_superseded: "Track D M1–M3 complete (旧条件，已校准)"
   gate_result_doc: docs/ios_shell_ci_gate.yml
 
 ios_shell_audit:
   actual_implementation_state: "SwiftUI views (BookSourceImportView/SearchView/TOCView/ContentView) + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository all exist with real implementation code"
-  tested: remote_execution_failed
-  phase_gate_approved: false
-  test_coverage: "Construction-only ShellAssembly smoke tests exist at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift, but remote macOS CI has not reached test execution because compile fails first."
+  tested: remote_execution_passed
+  phase_gate_approved: true
+  test_coverage: "Construction-only ShellAssembly smoke tests at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift are execution-verified on macOS-14 CI run 24306965324."
   missing_capabilities:
     - "Disk persistence (InMemoryBookSourceRepository only)"
     - "Multi-source management (single source selection only)"
     - "Settings/preferences UI"
     - "Any automated test"
-  risk_assessment: "iOS Shell code is more complete than state docs previously indicated, but remains untested and unapproved for phase gate"
+  risk_assessment: "The isolated shell composition root is now remote-validated. Remaining iOS work must preserve the isolated gate semantics and avoid reintroducing Features/UI into host compile scope."
 
 recent_action:
-  summary: "M-iOS-3 remote validation executed on GitHub Actions. Latest run 24305799783 passed boundary gate, failed at compile, and did not reach smoke tests."
-  category: ios_shell_remote_validation
-  state_effect: "M-iOS-2 is now implementation-complete and execution-verified. M-iOS-3 is execution-verified=TRUE with overall FAIL, and the first blocker is recorded in docs/ios_shell_ci_gate.yml."
+  summary: "M-IOS-5 validation glue alignment completed and was execution-verified on GitHub Actions. Run 24306965324 passed boundary gate, isolated compile, and ShellAssembly smoke validation."
+  category: ios_shell_validation_glue_alignment
+  state_effect: "M-IOS-4 scope isolation is complete, M-IOS-5 validation glue alignment is complete, and docs/ios_shell_ci_gate.yml now records phaseStatus=PASS, validationResult=PASS, executionVerified=TRUE."
 
 ios_shell_ci_gate:
-  status: fail
+  status: pass
   report: docs/ios_shell_ci_gate.yml
   execution_verified: true
   boundary_gate: pass
-  shell_ci: fail
-  smoke_validation: unknown
+  shell_ci: pass
+  smoke_validation: pass
+  validation_scope_isolated: true
+  validation_glue_aligned: true
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -267,8 +269,8 @@ change_scope:
     - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
     - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
   freeze_gate_blockers: []
-  active_milestone: m_ios_3
-  active_milestone_status: fail
+  active_milestone: m_ios_5
+  active_milestone_status: pass
   new_docs_created:
     - docs/API_SNAPSHOT/Core_Public_API.md
     - docs/API_SNAPSHOT/Core_Module_Dependency.md
