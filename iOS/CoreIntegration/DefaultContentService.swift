@@ -23,14 +23,13 @@ public final class DefaultContentService: ContentService {
 
         guard response.statusCode >= 200 && response.statusCode < 300 else {
             throw ReaderError.network(
-                failureType: .NETWORK_ERROR,
+                failureType: .CONTENT_FAILED,
                 stage: "CONTENT",
                 message: "HTTP \(response.statusCode)",
                 underlyingError: nil
             )
         }
 
-        let html = String(data: response.data, encoding: .utf8) ?? ""
-        return try contentParser.parse(html: html, source: source, chapterURL: chapterURL)
+        return try contentParser.parseContentResponse(response.data, source: source, chapterURL: chapterURL)
     }
 }
