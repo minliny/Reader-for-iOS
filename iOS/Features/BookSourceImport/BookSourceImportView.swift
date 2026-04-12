@@ -1,70 +1,59 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderShellValidation
 
 public struct BookSourceImportView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
     @State private var jsonInput = ""
-    @State private var isImporting = false
-    @State private var showFilePicker = false
 
     public init(coordinator: ReadingFlowCoordinator) {
         self.coordinator = coordinator
     }
 
     public var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                Form {
-                    Section("导入书源") {
-                        TextEditor(text: $jsonInput)
-                            .frame(minHeight: 150)
-                            .font(.system(.body, design: .monospaced))
-                            .border(Color.gray.opacity(0.3), cornerRadius: 8)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("导入书源")
+                .font(.headline)
 
-                        Button(action: importFromText) {
-                            HStack {
-                                Image(systemName: "doc.text")
-                                Text("从文本导入")
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .disabled(jsonInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
+            TextEditor(text: $jsonInput)
+                .frame(minHeight: 150)
+                .font(.system(.body, design: .monospaced))
+                .padding(8)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
 
-                    Section("已导入书源") {
-                        if let selected = coordinator.selectedSource {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text(selected.bookSourceName)
-                                    .font(.headline)
-                            }
-                        }
-                    }
+            Button(action: importFromText) {
+                HStack {
+                    Image(systemName: "doc.text")
+                    Text("从文本导入")
                 }
-
-                if !coordinator.searchResults.isEmpty {
-                    Divider()
-                    Button(action: {}) {
-                        NavigationLink("前往搜索") {
-                            SearchView(coordinator: coordinator)
-                        }
-                    }
-                    .padding()
-                }
+                .frame(maxWidth: .infinity)
             }
-            .navigationTitle("书源管理")
-            .sheet(isPresented: $isImporting) {
-                if coordinator.isLoading {
-                    LoadingView(message: "导入中...")
-                } else if let error = coordinator.currentError {
-                    ErrorView(error: error) {
-                        coordinator.currentError = nil
-                    }
-                }
+            .buttonStyle(.borderedProminent)
+            .disabled(jsonInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if coordinator.isLoading {
+                LoadingView(message: "导入中...")
+                    .frame(maxWidth: .infinity, minHeight: 120)
             }
-            .onChange(of: coordinator.isLoading) { _, loading in
-                isImporting = loading || coordinator.currentError != nil
+
+            if let selected = coordinator.selectedSource {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("当前书源")
+                        .font(.subheadline.weight(.semibold))
+                    Text(selected.bookSourceName)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+
+            if let error = coordinator.currentError {
+                ErrorView(error: error) {
+                    coordinator.currentError = nil
+                }
+                .frame(maxWidth: .infinity, minHeight: 180)
             }
         }
     }
