@@ -165,7 +165,7 @@ ios_gate:
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
   ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/ but untested and not phase-gate approved"
 
-recent_completed_action: "OT-006 (AdapterIntegrationTestHarness) implemented: MockHTTPAdapter + MockStorageAdapter + MockSchedulerAdapter + AdapterContractVerifier. 26 test cases. Pending CI verification."
+recent_completed_action: "OT-006 (AdapterIntegrationTestHarness) CI VERIFIED: 26/26 tests passed on macOS-14. URL validation fix applied (http/https scheme+host check)."
 next_best_task: "Execute OT-007 (TraceInspector), then OT-009 (iOS Phase Gate Review)"
 freeze_gate_status: "READY_TO_FREEZE"
 ```

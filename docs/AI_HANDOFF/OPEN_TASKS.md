@@ -4,7 +4,7 @@
 
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
-| OT-006 | Adapter Integration Harness | code_complete | P0 | M1 complete ✅ | Adapter mock 设计遗漏边界场景 | Harness可注入mock/real adapter + contract验证模板 | yes |
+| OT-006 | Adapter Integration Harness | ci_verified | P0 | M1 complete ✅ | Adapter mock 设计遗漏边界场景 | Harness可注入mock/real adapter + contract验证模板 | yes |
 | OT-007 | Request/Response Trace Inspector | pending | P0 | M1 complete ✅ | 敏感数据泄露 | HTTPClient decorator记录全链路 + 脱敏 | yes |
 | OT-008 | Optional: Fixture Replay / Selector Tester | pending | P1 | OT-006 | scope膨胀 | 二选一工具可用 | yes |
 | OT-009 | iOS Phase Gate Review | pending | P0 | OT-006 + OT-007 | gate review 不通过 | Shell smoke + Architecture review + gate decision | yes |
@@ -13,7 +13,7 @@
 
 ### OT-006: Adapter Integration Harness
 
-- 状态：`code_complete` (待 CI 验证)
+- 状态：`ci_verified` ✅
 - 优先级：`P0`
 - 前置依赖：Track D M1 complete (已满足)
 - 风险点：Adapter mock 设计可能遗漏边界场景
@@ -28,7 +28,8 @@
   - Storage/Scheduler mock 预留 ✅
   - 测试套件 ✅ (Core/Tests/ReaderPlatformAdaptersTests/AdapterIntegrationTestHarnessTests.swift, 26 test cases)
   - 使用文档 — 内嵌于代码注释
-- 待完成：CI 验证通过后标记 `done`
+- CI 验证：✅ PASS (macOS-14, Run #24300311259, 26/26 tests passed)
+- URL validation fix: MockHTTPAdapter 现在使用 http/https scheme+host 验证，与 URLSessionHTTPClient.validatedURL 一致
 
 ### OT-007: Request/Response Trace Inspector
 
@@ -154,4 +155,4 @@ OT-007 (TraceInspector) ──┘
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`no`
-- 判断原因：Minimal tooling subset (TraceInspector) 尚未完成。OT-006 (AdapterHarness) 已 code_complete。iOS gate review 需要：M1 complete ✅ + M2 minimal subset (AdapterHarness ✅ + TraceInspector pending) + Shell smoke validation + Architecture review pass。
+- 判断原因：Minimal tooling subset (TraceInspector) 尚未完成。OT-006 (AdapterHarness) 已 CI_VERIFIED ✅。iOS gate review 需要：M1 complete ✅ + M2 minimal subset (AdapterHarness CI_VERIFIED ✅ + TraceInspector pending) + Shell smoke validation + Architecture review pass。

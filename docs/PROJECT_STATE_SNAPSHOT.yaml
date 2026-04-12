@@ -16,9 +16,9 @@ current_focus:
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
   active_milestone: m2_minimal
   milestone_status: pending
-  milestone_detail: "AdapterIntegrationTestHarness + Request/Response Trace Inspector — minimal tooling for iOS gate readiness"
+  milestone_detail: "AdapterIntegrationTestHarness (CI_VERIFIED) + Request/Response Trace Inspector — minimal tooling for iOS gate readiness"
   next_best_task: "Execute OT-007 (Request/Response Trace Inspector), then OT-009 (iOS Phase Gate Review)"
-  next_best_task_detail: "OT-006 (AdapterHarness) complete. OT-007 (TraceInspector) is the remaining M2 minimal subset item."
+  next_best_task_detail: "OT-006 (AdapterHarness) CI VERIFIED. OT-007 (TraceInspector) is the remaining M2 minimal subset item."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -41,7 +41,7 @@ ios_gate:
     - condition: "Track D M1 complete"
       status: COMPLETE
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
-      status: PENDING
+      status: IN_PROGRESS
     - condition: "Shell smoke validation complete"
       status: PENDING
     - condition: "Architecture review pass"
@@ -61,9 +61,9 @@ ios_shell_audit:
   risk_assessment: "iOS Shell code is more complete than state docs previously indicated, but remains untested and unapproved for phase gate"
 
 recent_action:
-  summary: "OT-006 (AdapterIntegrationTestHarness) implemented: MockHTTPAdapter + MockStorageAdapter + MockSchedulerAdapter + AdapterContractVerifier + AdapterAssertions. 26 test cases. Pending CI verification."
-  category: tooling_implementation
-  state_effect: "OT-006 code complete. M2 minimal subset now partially complete (AdapterHarness done, TraceInspector pending)."
+  summary: "OT-006 (AdapterIntegrationTestHarness) CI VERIFIED: 26/26 tests passed on macOS-14. URL validation fix applied (http/https scheme+host check). AdapterHarness = complete_verified."
+  category: tooling_implementation_verified
+  state_effect: "OT-006 CI verified. M2 minimal subset: AdapterHarness=complete_verified, TraceInspector=pending."
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
