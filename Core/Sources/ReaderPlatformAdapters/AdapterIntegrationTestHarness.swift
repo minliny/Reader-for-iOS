@@ -12,6 +12,16 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
 
+// MARK: - Harness Errors
+
+/// Errors thrown by the adapter test harness infrastructure.
+public enum AdapterHarnessError: Error, Equatable, Sendable {
+    /// The URL string could not be parsed into a valid URL.
+    case invalidURL(String)
+    /// A contract requirement was not met.
+    case contractViolation(requirement: String, detail: String)
+}
+
 // MARK: - Contract Verification Result
 
 /// Result of a single adapter contract verification run.
@@ -110,6 +120,13 @@ public final class MockHTTPAdapter: HTTPAdapterProtocol, @unchecked Sendable {
 
     // HTTPAdapterProtocol conformance
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
+        // Validate URL — mirrors the behavior of real adapters (e.g. URLSessionHTTPClient)
+        // which reject malformed URLs. This ensures MockHTTPAdapter passes the
+        // HTTP_send_invalidURLThrows contract test.
+        guard URL(string: request.url) != nil else {
+            throw AdapterHarnessError.invalidURL(request.url)
+        }
+
         await store.capture(request)
         let entry = await store.dequeue()
         switch entry {
