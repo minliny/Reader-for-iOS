@@ -230,6 +230,11 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 新增壳层代码不得绕过 `ShellAssembly` 直接装配 Core internal modules。
 - iOS 边界检查入口固定为 `scripts/check_ios_boundary.sh`，CI workflow 固定为 `.github/workflows/ios-shell-ci.yml`。
 - M-iOS-2 与 M-iOS-3 必须拆分书写：`implementation_complete` 只表示 gate 已建设；`execution_verified` 只表示远端真实执行已取证，二者不得混写成 `PARTIAL_PASS`。
+- interim shell validation 只验证 host-compilable shell composition root，不得扩大到整个 iOS app host compile。
+- `iOS/Features/**` 与其他 iOS-only UI 源文件不得纳入 macOS host compile gate。
+- phase status、validation result、execution verified 必须分开写，禁止再用单一 PASS/FAIL 混写三层语义。
+- validation glue 必须与 frozen dependency graph / frozen initializer signatures 对齐，不得编造 wrapper 或 convenience API。
+- 若 `executionVerified = false`，不得写 `validationResult = PASS`。
 
 ## Clean-Room 原则
 
