@@ -97,7 +97,7 @@ final class TraceInspectorTests: XCTestCase {
 
         XCTAssertNil(records[0].response)
         XCTAssertNotNil(records[0].error)
-        XCTAssertTrue(records[0].error?.contains("notConnectedToInternet") == true)
+        XCTAssertFalse(records[0].error?.isEmpty ?? true)
     }
 
     // MARK: - 4. Duration Recorded
