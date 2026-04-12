@@ -416,10 +416,12 @@ final class TraceInspectorTests: XCTestCase {
         await collector.record(TraceRecord(
             request: TraceRequest(method: "GET", url: "https://example.com", headers: [:])
         ))
-        XCTAssertEqual(await collector.count, 1)
+        let countBefore = await collector.count
+        XCTAssertEqual(countBefore, 1)
 
         await collector.clear()
-        XCTAssertEqual(await collector.count, 0)
+        let countAfter = await collector.count
+        XCTAssertEqual(countAfter, 0)
     }
 
     func testInMemoryTraceCollector_allRecords() async throws {
