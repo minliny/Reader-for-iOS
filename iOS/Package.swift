@@ -15,7 +15,7 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "ReaderApp",
+            name: "ReaderShellValidation",
             dependencies: [
                 .product(name: "ReaderCoreFoundation", package: "Core"),
                 .product(name: "ReaderCoreModels", package: "Core"),
@@ -24,17 +24,40 @@ let package = Package(
                 .product(name: "ReaderCoreNetwork", package: "Core")
             ],
             path: ".",
-            sources: [
+            exclude: [
                 "App",
-                "CoreIntegration",
                 "Features",
                 "Modules",
-                "Shell"
+                "Tests",
+                "Shell/ReaderShellEnvironment.swift"
+            ],
+            sources: [
+                "CoreIntegration",
+                "Shell/ShellAssembly.swift"
+            ]
+        ),
+        .target(
+            name: "ReaderApp",
+            dependencies: [
+                "ReaderShellValidation",
+                .product(name: "ReaderCoreModels", package: "Core")
+            ],
+            path: ".",
+            exclude: [
+                "CoreIntegration",
+                "Tests",
+                "Shell/ShellAssembly.swift"
+            ],
+            sources: [
+                "App",
+                "Features",
+                "Modules",
+                "Shell/ReaderShellEnvironment.swift"
             ]
         ),
         .testTarget(
             name: "ShellSmokeTests",
-            dependencies: ["ReaderApp"],
+            dependencies: ["ReaderShellValidation"],
             path: "Tests/ShellSmokeTests"
         )
     ]
