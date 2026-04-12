@@ -39,16 +39,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Interim compile gate: validate SwiftPM package wiring and ShellAssembly
-          # composition root until a full xcodebuild app gate is introduced in M-iOS-3.
-          swift build --package-path iOS 2>&1 | tee ios-shell-build.log
+          # Interim compile gate validates only the host-compilable shell composition root.
+          # iOS-only Features/UI stay outside this macOS-hosted SwiftPM validation scope.
+          swift build --package-path iOS --target ReaderShellValidation 2>&1 | tee ios-shell-build.log
 
       - name: Run shell smoke validation
         shell: bash
         run: |
           set -euo pipefail
-          # Smoke scope stays construction-only: protect shell boundary, validate
-          # shell composition root, and prepare M-iOS-3 runtime smoke expansion.
+          # Construction-only smoke stays bound to the isolated shell validation target.
           swift test --package-path iOS --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
 
       - name: Upload iOS Shell logs
