@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderShellValidation
+import ReaderCoreModels
 
 @MainActor
 final class ShellAssemblySmokeTests: XCTestCase {
@@ -21,5 +22,32 @@ final class ShellAssemblySmokeTests: XCTestCase {
         XCTAssertTrue(coordinator.searchService is DefaultSearchService)
         XCTAssertTrue(coordinator.tocService is DefaultTOCService)
         XCTAssertTrue(coordinator.contentService is DefaultContentService)
+    }
+
+    func testCoordinatorActionPathsAreReachableWithoutConfiguredSource() async {
+        let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
+
+        await coordinator.search(keyword: "demo")
+        XCTAssertTrue(coordinator.searchResults.isEmpty)
+        XCTAssertNil(coordinator.currentError)
+
+        let book = SearchResultItem(
+            title: "Demo Book",
+            detailURL: "https://example.com/book"
+        )
+        await coordinator.selectBook(book)
+        XCTAssertEqual(coordinator.selectedBook, book)
+        XCTAssertTrue(coordinator.tocItems.isEmpty)
+        XCTAssertNil(coordinator.currentError)
+
+        let chapter = TOCItem(
+            chapterTitle: "Chapter 1",
+            chapterURL: "https://example.com/book/1",
+            chapterIndex: 1
+        )
+        await coordinator.selectChapter(chapter)
+        XCTAssertEqual(coordinator.selectedChapter, chapter)
+        XCTAssertNil(coordinator.contentPage)
+        XCTAssertNil(coordinator.currentError)
     }
 }
