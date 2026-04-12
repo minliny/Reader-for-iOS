@@ -16,11 +16,11 @@ let package = Package(
         .target(
             name: "ReaderApp",
             dependencies: [
-                .product(name: "ReaderCoreFoundation", package: "ReaderCore"),
-                .product(name: "ReaderCoreModels", package: "ReaderCore"),
-                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
-                .product(name: "ReaderCoreParser", package: "ReaderCore"),
-                .product(name: "ReaderCoreNetwork", package: "ReaderCore")
+                .product(name: "ReaderCoreFoundation", package: "Core"),
+                .product(name: "ReaderCoreModels", package: "Core"),
+                .product(name: "ReaderCoreProtocols", package: "Core"),
+                .product(name: "ReaderCoreParser", package: "Core"),
+                .product(name: "ReaderCoreNetwork", package: "Core")
             ],
             path: ".",
             sources: [
