@@ -10,7 +10,10 @@
 | OT-009 | iOS Phase Gate Review | conditional_allow | P0 | OT-006 + OT-007 ✅ | gate review 不通过 | Shell smoke + Architecture review + gate decision | yes |
 | M-iOS-1 | Architecture Remediation (dependency boundary) | complete | P0 | OT-009 CONDITIONAL_ALLOW | 边界修复不彻底 | iOS Shell 零违规 import Core internals | yes |
 | M-iOS-2 | Shell Build / CI / Boundary Gate | implementation_complete | P0 | M-iOS-1 ✅ | 已完成，无执行语义 | boundary gate + shell CI + construction smoke tests 建立完成 | yes |
-| M-iOS-3 | Remote Shell Validation | fail | P0 | M-iOS-2 implementation_complete | iOS Shell compile 在远端 validation mode 下失败 | 真实 GitHub Actions 证据明确 PASS/FAIL 并记录首阻断点 | yes |
+| M-iOS-3 | Remote Shell Validation | complete | P0 | M-iOS-2 implementation_complete | 已完成：首阻断点已定位 | 真实 GitHub Actions 证据明确 PASS/FAIL 并记录首阻断点 | yes |
+| M-IOS-4 | Shell Validation Scope Isolation | complete | P0 | M-iOS-3 complete | 已完成，无新增风险 | validation scope 与 execution semantics 分离，并拿到新的远端执行证据 | yes |
+| M-IOS-5 | Validation Glue Alignment | complete | P0 | M-IOS-4 complete | 已完成，无当前阻断 | validation-only glue 对齐 frozen dependency graph，boundary/compile/smoke 远端全绿 | yes |
+| M-IOS-6 | Next Shell Validation Increment | pending | P1 | M-IOS-5 complete | 若 scope 漂移会重新拉回 iOS-only Features/UI | 在保持 ReaderShellValidation 隔离范围不扩大的前提下定义下一步远端 validation 目标 | yes |
 
 ## 当前待办列表
 
@@ -111,7 +114,7 @@
 
 ### M-iOS-3: Remote Shell Validation
 
-- 状态：`fail`
+- 状态：`complete`
 - 优先级：`P0`
 - 前置依赖：`M-iOS-2 implementation_complete`
 - 当前远端证据：
@@ -120,17 +123,58 @@
   - boundary gate: `PASS`
   - compile: `FAIL`
   - smoke tests: `UNKNOWN`（未启动）
-- 第一阻断点：
-  - step: `Compile iOS Shell composition root`
-  - blocker: `iOS feature sources are not host-compilable under the current SwiftPM macOS validation mode`
-  - observed symptoms:
-    - `SearchView.swift`: `performSearch` 不在作用域
-    - `SearchResultItem` / `TOCItem` 不满足 `Hashable` 的 `ForEach(id: \\.self)` 用法
-    - `navigationBarTitleDisplayMode` 在 macOS 下 unavailable
-    - `Color(.systemBackground)` 触发 macOS host compile 错误
-- 待修项：
-  - 先定义并批准 compile validation mode 的最小适配策略
-  - 仅修复 compile 首阻断簇后，再重跑 `ios-shell-ci`
+- 结果：
+  - 已完成真实远端验证取证
+  - 已定位原始阻断点：`SwiftPM interim host compile scope 过宽，把 iOS-only Features 层纳入了 macOS host validation`
+  - 后续修复已转入 `M-IOS-4`
+
+### M-IOS-4: Shell Validation Scope Isolation
+
+- 状态：`complete`
+- 优先级：`P0`
+- 前置依赖：`M-iOS-3 complete`
+- 已完成：
+  - `ReaderShellValidation` 作为 isolated host-compilable validation target 已建立
+  - workflow compile 已收敛到 `swift build --package-path iOS --target ReaderShellValidation`
+  - workflow smoke 已收敛到 isolated test product，不再把 `iOS/Features/**` 作为首阻断输入
+  - phase status / validation result / execution verified 已拆分记录到 `docs/ios_shell_ci_gate.yml`
+- 结果：
+  - iOS-only Features/UI 已持续排除在 macOS host compile gate 之外
+  - 后续 validation glue 对齐已转入 `M-IOS-5` 并完成
+
+### M-IOS-5: Validation Glue Alignment
+
+- 状态：`complete`
+- 优先级：`P0`
+- 前置依赖：`M-IOS-4 complete`
+- 已完成：
+  - `iOS/ValidationSupport/ShellAssembly.swift` 已对齐 frozen dependency graph
+  - `URLSessionHTTPClient` 已通过 `ReaderPlatformAdapters` 暴露给 `ReaderShellValidation`
+  - `NonJSParserEngine` 初始化已对齐为真实 `scheduler:` 签名
+  - 远端复验 run `24306965324` 全绿
+- 当前远端证据：
+  - latest run `24306965324`
+  - boundary gate: `PASS`
+  - compile: `PASS`
+  - smoke tests: `PASS`
+  - executionVerified: `true`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=PASS`
+  - `executionVerified=true`
+
+### M-IOS-6: Next Shell Validation Increment
+
+- 状态：`pending`
+- 优先级：`P1`
+- 前置依赖：`M-IOS-5 complete`
+- 约束：
+  - 不得重新扩大 `ReaderShellValidation` compile scope
+  - 不得把 `iOS/Features/**` / UI 页面重新纳入 host compile gate
+  - 必须继续沿用 `phaseStatus / validationResult / executionVerified` 三层语义
+- 待定义：
+  - 下一个 shell validation 增量目标
+  - 与当前 green baseline (`run 24306965324`) 的差异边界
 
 ## 依赖关系图
 
@@ -192,13 +236,13 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段：`m_ios_3_remote_validation_failed`
-- 当前主线：`Reader-Core compatibility kernel → M-iOS-3 Remote Shell Validation`
+- 当前阶段：`m_ios_5_validation_glue_aligned_verified`
+- 当前主线：`Reader-Core compatibility kernel → M-IOS-5 Validation Glue Alignment`
 - active_strategy：`minimal_tooling_then_ios`
-- active_milestone：`m_ios_3`
-- milestone_status：`fail`
+- active_milestone：`m_ios_5`
+- milestone_status：`pass`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-iOS-2 implementation complete；M-iOS-3 execution verified=true，但远端 compile 失败，下一步必须先做 blocker resolution，不能推进 M-iOS-4。
+- 判断原因：M-IOS-5 已将 boundary/compile/smoke 远端验证打绿，但后续仍需按 M-IOS-6 受控推进，不能把 isolated shell gate 回退成宽 scope app compile。
