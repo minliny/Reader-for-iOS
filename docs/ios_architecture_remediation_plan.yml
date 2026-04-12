@@ -1,0 +1,101 @@
+# M-iOS-1: iOS Architecture Remediation Plan
+# Generated: 2026-04-12
+# Purpose: Minimal fix plan to restore legal dependency direction
+
+target_architecture:
+  shell_dependency_direction: "Shell -> CoreIntegration -> ReaderCoreProtocols + ReaderCoreModels"
+  factory_dependency_direction: "ShellAssembly -> Concrete Core Modules (ReaderCoreNetwork, ReaderCoreParser)"
+  rule: "CoreIntegration layer must NOT import Core internal modules; only ShellAssembly may do so"
+
+remediation_steps:
+
+  - step: 1
+    title: "Remove unused imports from Default*Service files"
+    files:
+      - "iOS/CoreIntegration/DefaultSearchService.swift"
+      - "iOS/CoreIntegration/DefaultTOCService.swift"
+      - "iOS/CoreIntegration/DefaultContentService.swift"
+    action: "Delete `import ReaderCoreNetwork` and `import ReaderCoreParser` from each file"
+    rationale: "These files only use protocol types (HTTPClient, RequestBuilder, SearchParser/TOCParser/ContentParser) which are already available via ReaderCoreProtocols"
+    risk: "NONE — these imports are genuinely unused; no code change beyond import deletion"
+    verification: "grep -r 'import ReaderCoreNetwork\\|import ReaderCoreParser' iOS/CoreIntegration/Default*Service.swift → empty"
+
+  - step: 2
+    title: "Move makeDefault() factory out of ReadingFlowCoordinator into new ShellAssembly"
+    files:
+      - "iOS/CoreIntegration/ReadingFlowCoordinator.swift"  # remove factory + illegal imports
+      - "iOS/Shell/ShellAssembly.swift"  # NEW — contains makeDefault() with concrete imports
+    action: |
+      1. Create iOS/Shell/ShellAssembly.swift with `import ReaderCoreNetwork`, `import ReaderCoreParser`
+      2. Move `ReadingFlowCoordinator.makeDefault()` to `ShellAssembly.makeDefaultReadingFlowCoordinator()`
+      3. Remove `import ReaderCoreNetwork`, `import ReaderCoreParser`, `import ReaderCoreCache`, `import ReaderCoreFoundation` from ReadingFlowCoordinator.swift
+      4. ReaderApp.swift and any callers of makeDefault() switch to ShellAssembly
+    rationale: |
+      ReadingFlowCoordinator itself only uses protocol types — the violation is makeDefault()
+      which constructs concrete types (URLSessionHTTPClient, BookSourceRequestBuilder, etc.).
+      By moving the factory to ShellAssembly, we separate:
+        - Protocol-oriented code (ReadingFlowCoordinator) → depends on ReaderCoreProtocols + ReaderCoreModels only
+        - Object wiring code (ShellAssembly) → depends on concrete modules
+    risk: "LOW — only wiring code moves; no logic change"
+    verification: "grep -r 'import ReaderCoreNetwork\\|import ReaderCoreParser\\|import ReaderCoreCache' iOS/CoreIntegration/ → empty"
+
+  - step: 3
+    title: "Update iOS Package.swift dependencies"
+    files:
+      - "iOS/Package.swift"
+    action: |
+      Remove ReaderCoreCache from ReaderApp target dependencies.
+      Keep ReaderCoreNetwork and ReaderCoreParser since ShellAssembly needs them.
+      Add ReaderCoreFoundation if ShellAssembly needs it (already in deps).
+    rationale: "ReaderCoreCache is not used by any iOS Shell code; ReaderCoreFoundation is only needed transitively"
+    risk: "NONE — removing unused dependency"
+    verification: "Package.swift no longer lists ReaderCoreCache"
+
+  - step: 4
+    title: "Update ReaderApp.swift to use ShellAssembly"
+    files:
+      - "iOS/App/ReaderApp.swift"
+    action: "Replace ReadingFlowCoordinator.makeDefault() with ShellAssembly.makeDefaultReadingFlowCoordinator()"
+    rationale: "Factory method moved to ShellAssembly"
+    risk: "NONE — same runtime behavior"
+    verification: "ReaderApp.swift compiles and calls ShellAssembly"
+
+dependency_matrix_after:
+  iOS/CoreIntegration/ReadingFlowCoordinator.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/CoreIntegration/DefaultSearchService.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/CoreIntegration/DefaultTOCService.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/CoreIntegration/DefaultContentService.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/CoreIntegration/InMemoryBookSourceRepository.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/CoreIntegration/DefaultBookSourceDecoder.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/Shell/ShellAssembly.swift:  # NEW
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+    - ReaderCoreNetwork ⚠️ (allowed: factory wiring only)
+    - ReaderCoreParser ⚠️ (allowed: factory wiring only)
+  iOS/Shell/ReaderShellEnvironment.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/App/ReaderApp.swift:
+    - ReaderCoreModels ✅
+    - ReaderCoreProtocols ✅
+  iOS/Features/*:
+    - ReaderCoreModels ✅
+
+boundary_rule:
+  description: |
+    Only iOS/Shell/ShellAssembly.swift may import Core internal modules (ReaderCoreNetwork, ReaderCoreParser).
+    All other iOS Shell files must depend only on ReaderCoreProtocols + ReaderCoreModels.
+    This preserves the "Shell -> Adapter/Integration -> Frozen Protocols" dependency direction.
+  enforcement: "grep audit in CI"

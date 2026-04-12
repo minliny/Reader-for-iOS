@@ -1,0 +1,89 @@
+# M-iOS-1: iOS Gate Remediation Result
+# Generated: 2026-04-12
+# Purpose: Evidence that architecture boundary violations have been fixed
+
+result:
+  illegal_import_count_before: 10
+  illegal_import_count_after: 0
+  # ShellAssembly.swift has 2 imports (ReaderCoreNetwork + ReaderCoreParser) but these are
+  # ALLOWED per boundary rule — ShellAssembly is the designated factory/wiring layer.
+  # No CoreIntegration or Feature files import Core internals.
+  files_modified:
+    - "iOS/CoreIntegration/ReadingFlowCoordinator.swift"
+      change: "Removed imports ReaderCoreNetwork/ReaderCoreParser/ReaderCoreCache/ReaderCoreFoundation; removed makeDefault() factory method"
+    - "iOS/CoreIntegration/DefaultSearchService.swift"
+      change: "Removed imports ReaderCoreNetwork/ReaderCoreParser"
+    - "iOS/CoreIntegration/DefaultTOCService.swift"
+      change: "Removed imports ReaderCoreNetwork/ReaderCoreParser"
+    - "iOS/CoreIntegration/DefaultContentService.swift"
+      change: "Removed imports ReaderCoreNetwork/ReaderCoreParser"
+    - "iOS/Package.swift"
+      change: "Removed ReaderCoreCache dependency"
+    - "iOS/App/ReaderApp.swift"
+      change: "Changed ReadingFlowCoordinator.makeDefault() to ShellAssembly.makeDefaultReadingFlowCoordinator()"
+  files_created:
+    - "iOS/Shell/ShellAssembly.swift"
+      purpose: "Factory for wiring concrete Core implementations into protocol-typed dependencies. Only file permitted to import Core internal modules."
+  boundary_restored: true
+  remaining_blockers: []
+
+boundary_verification:
+  coreintegration_files:
+    iOS/CoreIntegration/ReadingFlowCoordinator.swift:
+      imports: ["Foundation", "ReaderCoreModels", "ReaderCoreProtocols"]
+      illegal_imports: []
+    iOS/CoreIntegration/DefaultSearchService.swift:
+      imports: ["Foundation", "ReaderCoreModels", "ReaderCoreProtocols"]
+      illegal_imports: []
+    iOS/CoreIntegration/DefaultTOCService.swift:
+      imports: ["Foundation", "ReaderCoreModels", "ReaderCoreProtocols"]
+      illegal_imports: []
+    iOS/CoreIntegration/DefaultContentService.swift:
+      imports: ["Foundation", "ReaderCoreModels", "ReaderCoreProtocols"]
+      illegal_imports: []
+    iOS/CoreIntegration/InMemoryBookSourceRepository.swift:
+      imports: ["ReaderCoreModels", "ReaderCoreProtocols"]
+      illegal_imports: []
+    iOS/CoreIntegration/DefaultBookSourceDecoder.swift:
+      imports: ["ReaderCoreModels", "ReaderCoreProtocols"]
+      illegal_imports: []
+
+  shell_factory_files:
+    iOS/Shell/ShellAssembly.swift:
+      imports: ["Foundation", "ReaderCoreModels", "ReaderCoreProtocols", "ReaderCoreNetwork", "ReaderCoreParser"]
+      illegal_imports: []
+      note: "ReaderCoreNetwork + ReaderCoreParser are ALLOWED in ShellAssembly per boundary rule"
+
+  app_files:
+    iOS/App/ReaderApp.swift:
+      imports: ["SwiftUI", "ReaderCoreModels"]
+      illegal_imports: []
+
+  feature_files:
+    iOS/Features/BookSourceImport/BookSourceImportView.swift:
+      imports: ["SwiftUI", "ReaderCoreModels"]
+      illegal_imports: []
+    iOS/Features/Search/SearchView.swift:
+      imports: ["SwiftUI", "ReaderCoreModels"]
+      illegal_imports: []
+    iOS/Features/TOC/TOCView.swift:
+      imports: ["SwiftUI", "ReaderCoreModels"]
+      illegal_imports: []
+    iOS/Features/Content/ContentView.swift:
+      imports: ["SwiftUI", "ReaderCoreModels"]
+      illegal_imports: []
+    iOS/Features/Common/ErrorView.swift:
+      imports: ["SwiftUI", "ReaderCoreModels"]
+      illegal_imports: []
+    iOS/Features/Common/LoadingView.swift:
+      imports: ["SwiftUI"]
+      illegal_imports: []
+
+dependency_direction_restored:
+  description: |
+    Shell -> CoreIntegration -> ReaderCoreProtocols + ReaderCoreModels (protocol-only)
+    Shell -> ShellAssembly -> ReaderCoreNetwork + ReaderCoreParser (concrete wiring, allowed)
+  clean_room: true
+  no_core_contract_changes: true
+  no_new_capabilities: true
+  no_ui_expansion: true

@@ -1,0 +1,133 @@
+version: "1.0.0"
+generatedAt: "2026-04-11T00:00:00+08:00"
+sourceMatrix: "samples/matrix/compat_matrix.yml"
+sourceDemand: "samples/matrix/capability_demand.yml"
+stage: "p3-capability-decision"
+note: >
+  ROI is computed per capability based on:
+    impact_samples_count  – number of currently-failing samples that would improve
+    level_improvement     – the expected actualLevel delta (D→C, C→B, C→A, D→A)
+    implementation_complexity – engineering effort, risk, and scope:
+        LOW     – extend existing file, <200 LOC, no new module
+        MEDIUM  – new Swift file in existing module, defined protocol boundary
+        HIGH    – cross-module changes, partial browser simulation, or real network inside JSContext
+        EXTREME – requires full browser engine (WKWebView), TLS fingerprint bypass, or anti-bot JS
+  ROI score is qualitative: HIGH / MEDIUM / LOW / NEGATIVE
+
+# ── Completed (baseline) ──────────────────────────────────────────────────────
+- capability: js_dom
+  status: COMPLETED
+  impact_samples_count: 1        # XUANYGE-001 moved D→C; others unaffected by js_dom alone
+  expected_level_improvement: "D→C (XUANYGE-001)"
+  implementation_complexity: MEDIUM
+  actual_gain: "XUANYGE-001: D→C. JS execution gap closed."
+  roi: DELIVERED
+  note: "Baseline capability. All ROI already realised."
+
+# ── Candidates ────────────────────────────────────────────────────────────────
+- capability: cookie_jar_isolation
+  status: UNIMPLEMENTED
+  impact_samples_count: 3        # WENSANG-001 (C), XIANGSHU-001 (C), XUANYGE-001 (C)
+  expected_level_improvement: "C→B for WENSANG-001 and XIANGSHU-001 (pending real-network confirmation); C→B for XUANYGE-001 if cookie gap resolves access"
+  implementation_complexity: MEDIUM
+  rationale: >
+    Requires extending BasicCookieJar with a host-keyed API and wiring
+    NetworkPolicyLayer to select per-source jars. All within ReaderCoreNetwork;
+    no new module or cross-module protocol needed. No browser dependency.
+  risks:
+    - "Cookie isolation alone may not resolve access if site enforces additional policy (TLS, rate limit)."
+    - "Real-network CI execution required for post-implementation verification."
+  roi: HIGH
+  p3_recommendation: implement
+
+- capability: login_cookie_bootstrap
+  status: UNIMPLEMENTED
+  impact_samples_count: 1        # sample_login_001 (D — architecture reference)
+  expected_level_improvement: "D→B (architecture; actual CI verification blocked by geofencing)"
+  implementation_complexity: MEDIUM
+  rationale: >
+    New LoginCookieBootstrap.swift in ReaderCoreNetwork. Single HTTP POST,
+    Set-Cookie extraction, jar write. Protocol-isolated. No browser dependency.
+    sample_login_003 already validated the pattern (actualLevel A, LOGIN_REQUIRED).
+  risks:
+    - "sample_login_001 host (biquge.com.cn) may remain geofenced from US CI — cannot produce executable evidence."
+    - "Real credential injection model not defined; PoC requires caller-supplied credentials."
+  roi: MEDIUM
+  p3_recommendation: implement
+
+- capability: policy_verification
+  status: UNIMPLEMENTED
+  impact_samples_count: 1        # SAMPLE-P1-POLICY-003 (C, static-only)
+  expected_level_improvement: "C→A (if executable test confirms HTTP 404 → CONTENT_FAILED mapping)"
+  implementation_complexity: LOW
+  rationale: >
+    SAMPLE-P1-POLICY-003 is already classified correctly (CONTENT_FAILED / networkFailed).
+    Gap is the absence of an executable XCTest rather than a capability gap.
+    Adding one XCTest that feeds a fixture HTTP-404 response through NetworkErrorMapper
+    would close the verification gap.
+  risks:
+    - "Minimal; purely test-side change, no production code required."
+  roi: MEDIUM
+  p3_recommendation: implement
+
+- capability: js_eval_inline
+  status: UNIMPLEMENTED
+  impact_samples_count: 1        # XUANYGE-001 (remaining cookie gap; js_eval_inline alone is insufficient)
+  expected_level_improvement: "No isolated improvement — XUANYGE-001 still blocked by cookie binding after this"
+  implementation_complexity: LOW
+  rationale: >
+    js_eval_inline (inline <script> extraction) depends on js_dom (done) and
+    extends JSRuntimeDOMBridge.execute(). It would help sites that self-modify
+    the DOM before CSS rules run, but XUANYGE-001's remaining block is cookie,
+    not inline JS. No other C/D sample is directly helped by this alone.
+  risks:
+    - "Inline <script> evaluation raises security surface in JSContext if input HTML is attacker-controlled."
+  roi: LOW
+  p3_recommendation: defer    # revisit once cookie_jar_isolation resolves XUANYGE-001
+
+# ── Out of scope ───────────────────────────────────────────────────────────────
+- capability: js_network
+  status: UNIMPLEMENTED
+  impact_samples_count: 1        # sample_cookie_002 (D)
+  expected_level_improvement: "D→B (if AJAX responses are available)"
+  implementation_complexity: HIGH
+  rationale: >
+    Requires threading URLSession calls through a JS↔Swift bridge inside JSContext,
+    handling async callbacks synchronously, and maintaining the security boundary.
+    Would require removing networkLockdownScript (which is a safety guarantee) or
+    replacing it with a proxied allow-list. No existing architecture for this.
+  risks:
+    - "Removing networkLockdownScript opens arbitrary outbound requests from book-source JS — security boundary broken."
+    - "Async bridge inside synchronous JSContext is fragile; deadlock risk."
+    - "Only one C/D sample directly benefits."
+  roi: NEGATIVE    # security cost > one-sample gain
+  p3_recommendation: out_of_scope
+
+- capability: antibot
+  status: UNIMPLEMENTED
+  impact_samples_count: 5        # sample_js_001, sample_cookie_001, sample_header_003, SAMPLE-P1-HEADER-003, SAMPLE-P1-COOKIE-003
+  expected_level_improvement: "D→A (2 samples), C→A (3 samples) — theoretical only"
+  implementation_complexity: EXTREME
+  rationale: >
+    Requires WKWebView with real network access, TLS fingerprint emulation (or bypass),
+    and the ability to replay challenge tokens. Fundamentally incompatible with the
+    Core module's URLSession-only, sandboxed JS model.
+    Even if implemented, Cloudflare regularly updates its detection logic — maintenance cost is unbounded.
+  risks:
+    - "App Store policy risk: TLS fingerprint spoofing may violate ATS requirements."
+    - "Maintenance cost is effectively unbounded (Cloudflare updates challenge logic regularly)."
+    - "Would require WKWebView in ReaderCore — violates the 'no UI framework in Core' constraint."
+  roi: NEGATIVE
+  p3_recommendation: out_of_scope
+
+# ── Summary table ──────────────────────────────────────────────────────────────
+summary:
+  implement:
+    - cookie_jar_isolation    # ROI HIGH,   MEDIUM complexity, 3 samples
+    - login_cookie_bootstrap  # ROI MEDIUM, MEDIUM complexity, 1 sample (arch reference)
+    - policy_verification     # ROI MEDIUM, LOW complexity,    1 sample
+  defer:
+    - js_eval_inline          # ROI LOW; no unblocked sample gains from it alone
+  out_of_scope:
+    - js_network              # security cost > gain; only 1 sample; HIGH complexity
+    - antibot                 # EXTREME complexity; unbounded maintenance; policy risk

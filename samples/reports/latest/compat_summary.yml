@@ -1,0 +1,199 @@
+reportId: "compat_summary_p1_cookie_header_login_20260411"
+generatedAt: "2026-04-11T00:00:00+08:00"
+scope: "p1_cookie_header_login"
+execution:
+  requestedFlows:
+    - "search"
+    - "toc"
+    - "content"
+  sourceReports:
+    - "samples/reports/latest/cookie_regression_summary.yml"
+    - "samples/reports/latest/header_regression_summary.yml"
+    - "samples/reports/latest/policy_regression_summary.yml"
+    - "samples/reports/latest/fixture_fetch_result.yml"
+    - "samples/reports/latest/fixture_fetch_failure_analysis.yml"
+    - "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_001.yml"
+    - "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_002.yml"
+    - "samples/reports/latest/fetch_isolation_decision_summary_sample_login_001.yml"
+    - "samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml"
+    - "samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml"
+  localExecution:
+    attempted: true
+    status: "blocked"
+    blocker: "swift toolchain unavailable on current Windows host"
+    evidence: "swift --version: The term 'swift' is not recognized as a name of a cmdlet, function, script file, or executable program."
+summary:
+  totalSamples: 20
+  levelA: 8
+  levelB: 2
+  levelC: 5
+  levelD: 5
+  passRate: 40.0
+  p1PassRate: 40.0
+samples:
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "networkFailed"
+    evidence:
+      - "Controlled fetch failed; exact cause not isolated."
+      - "Mapped to existing NETWORK_POLICY_MISMATCH instead of adding UNKNOWN taxonomy."
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "networkFailed"
+    evidence:
+      - "Controlled fetch failed; exact cause not isolated."
+      - "Mapped to existing NETWORK_POLICY_MISMATCH instead of adding UNKNOWN taxonomy."
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "D"
+    failureType: "JS_UNSUPPORTED"
+    errorCode: "unsupported"
+    evidence:
+      - "Metadata marks requiresJs=true because ruleBookInfo.intro contains @js."
+      - "Blocked until ReaderCoreJSRenderer PoC."
+  - sampleId: "sample_cookie_001"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "networkFailed"
+    evidence:
+      - "HTTP 403 with JS challenge across isolation steps; no step resolved access."
+  - sampleId: "sample_cookie_002"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "networkFailed"
+    evidence:
+      - "HTTP 202 with Set-Cookie, but no search result marker after isolation."
+  - sampleId: "sample_header_001"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Header regression summary: static custom Header passthrough verified."
+  - sampleId: "sample_header_002"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Header regression summary: Referer/User-Agent passthrough verified."
+  - sampleId: "sample_header_003"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "POLICY_REJECTED"
+    evidence:
+      - "Dynamic token + TLS fingerprint policy remains above static Header capability."
+  - sampleId: "SAMPLE-P1-HEADER-001"
+    priority: "p1"
+    category: "non_js"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Executable Header capability closure verified."
+  - sampleId: "SAMPLE-P1-HEADER-002"
+    priority: "p1"
+    category: "non_js"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Executable Header capability closure verified."
+  - sampleId: "SAMPLE-P1-HEADER-003"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "POLICY_REJECTED"
+    evidence:
+      - "Anti-bot boundary sample; dynamic token and request fingerprint remain unsupported."
+  - sampleId: "SAMPLE-P1-COOKIE-001"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Set-Cookie stored in memory and injected into second same-session request."
+  - sampleId: "SAMPLE-P1-COOKIE-002"
+    priority: "p1"
+    category: "login"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Single-step loginUrl response stores cookie; later search/toc inject Cookie."
+  - sampleId: "SAMPLE-P1-COOKIE-003"
+    priority: "p1"
+    category: "cookie"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "POLICY_REJECTED"
+    evidence:
+      - "Cookie is injected, but anti-bot/session-binding boundary remains unresolved."
+  - sampleId: "sample_login_001"
+    priority: "p1"
+    category: "login"
+    actualLevel: "D"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "networkFailed"
+    evidence:
+      - "All 8 isolation steps failed; no JS challenge, no login marker; domain unreachable or policy blocked from CI."
+  - sampleId: "sample_login_002"
+    priority: "p1"
+    category: "login"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Negative login candidate: baseline anonymous fetch reached secure markers, so it does not prove login-required gating."
+  - sampleId: "sample_login_003"
+    priority: "p1"
+    category: "login"
+    actualLevel: "A"
+    failureType: "LOGIN_REQUIRED"
+    errorCode: "POLICY_REJECTED"
+    evidence:
+      - "Baseline stayed outside secure markers; TEST-006 form-login reached secure page."
+  - sampleId: "SAMPLE-P1-POLICY-001"
+    priority: "p1"
+    category: "policy"
+    actualLevel: "B"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Executable policy regression verified header-aware request builder path."
+  - sampleId: "SAMPLE-P1-POLICY-002"
+    priority: "p1"
+    category: "policy"
+    actualLevel: "B"
+    failureType: null
+    errorCode: null
+    evidence:
+      - "Executable policy regression verified minimal cookie store path."
+  - sampleId: "sample_js_001"
+    priority: "p1"
+    category: "js"
+    actualLevel: "D"
+    failureType: "JS_UNSUPPORTED"
+    errorCode: "unsupported"
+    evidence:
+      - "Cookie-required but classified-only JS gate sample; do not retry with URLSession-only isolation."
+cleanRoom:
+  noExternalGplCode: true
+  noLegadoAndroidImplementationReference: true

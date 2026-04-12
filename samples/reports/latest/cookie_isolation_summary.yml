@@ -1,0 +1,89 @@
+version: "1.0.0"
+generatedAt: "2026-04-11T00:00:00+08:00"
+sourceMatrix: "samples/matrix/compat_matrix.yml"
+matrixVersion: "0.22.0"
+stage: "p3-cookie-jar-isolation"
+capability: "cookie_jar_isolation"
+
+implementation:
+  scopeKey: "CookieJarScopeKey(sourceId:host:)"
+  protocol: "ScopedCookieJar (extends CookieJar)"
+  storage: "BasicCookieJar — two-level actor: [CookieJarScopeKey: [String: Cookie]]"
+  integration: "NetworkPolicyLayer.performSearch/TOC/content injects scopeKey derived from BookSource"
+  backwardsCompat: "Existing unscoped CookieJar protocol methods route through CookieJarScopeKey.default"
+
+cookieIsolationSummary:
+  totalSamples: 3   # only the 3 samples targeted by this capability
+
+  # Cookie jar isolation is active; the failure that remains is NOT due to cookie
+  # contamination or cross-source leakage.
+  isolated_and_improved:
+    count: 0
+    samples: []
+    note: >
+      No C/D sample reaches a higher actualLevel from isolation alone:
+      WENSANG and XIANGSHU need real-network CI runs to confirm whether isolated
+      cookie satisfies site policy.  COOKIE-003 remains blocked by anti-bot.
+
+  # Isolation is confirmed active; a different non-cookie blocker prevents level improvement.
+  isolated_but_still_blocked:
+    count: 3
+    samples:
+      - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+        actualLevel: "C"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        cookieIsolationStatus: isolated_but_still_blocked
+        remainingBlocker: "Site access policy unconfirmed — real-network CI run required. Isolation eliminates cross-source contamination as a confound."
+        evidence:
+          - "P3 cookie_jar_isolation active: CookieJarScopeKey(sourceId='WENSANG', host='wensang.com') partition created."
+          - "Cross-source cookie leakage from XIANGSHU or other sources eliminated."
+          - "No real-network run completed from US CI; site policy status unconfirmed."
+
+      - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+        actualLevel: "C"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        cookieIsolationStatus: isolated_but_still_blocked
+        remainingBlocker: "Site access policy unconfirmed — real-network CI run required. Isolation eliminates cross-source contamination as a confound."
+        evidence:
+          - "P3 cookie_jar_isolation active: CookieJarScopeKey(sourceId='XIANGSHU', host='xiangshu.com') partition created."
+          - "Cross-source cookie leakage from WENSANG or other sources eliminated."
+          - "No real-network run completed from US CI; site policy status unconfirmed."
+
+      - sampleId: "SAMPLE-P1-COOKIE-003"
+        actualLevel: "C"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        cookieIsolationStatus: isolated_but_still_blocked
+        remainingBlocker: "Anti-bot session-binding (capabilityDecision.status=out_of_scope). Cookie contamination confirmed NOT the cause."
+        evidence:
+          - "P3 cookie_jar_isolation active: scoped cookie partition confirmed working via testCookieSample003KeepsAntiBotBoundaryFailureWithCookiePresent."
+          - "Cookie injection is confirmed reaching the server (HTTP 403 returned after cookie present)."
+          - "Remaining blocker is anti-bot session-binding — requires WKWebView, out of scope."
+
+  # No samples in the targeted set fall here; all three required cookie handling.
+  not_needed:
+    count: 0
+    samples: []
+
+consistency:
+  isolated_and_improved_count: 0
+  isolated_but_still_blocked_count: 3
+  not_needed_count: 0
+  totalCheck: "0 + 3 + 0 = 3"
+  totalSamplesMatch: true
+  matrixAligned: true
+  failureTaxonomyChanged: false
+  abcdDefinitionChanged: false
+  actualLevelChanged: false
+
+testCoverage:
+  basicCookieJarTests:
+    - testSameScopeStoresAndReadsCookies
+    - testDifferentSampleIdsDoNotLeakCookies
+    - testDifferentHostsDoNotLeakCookies
+    - testClearScopeRemovesOnlyScopedCookies
+    - testClearAllRemovesEverything
+  urlSessionHTTPClientTests:
+    - testRequestUsesScopedCookieJarOnly
+    - testRequiresCookieJarWithoutScopedCookieThrowsCookieRequired
+    - testScopedCookieDoesNotPolluteOtherRequest
+  regressionStatus: "All existing tests unaffected (unscoped CookieJar API routes through .default scope partition)"

@@ -1,18 +1,18 @@
-version: "0.20.2"
-generatedAt: "2026-04-08T16:20:00+08:00"
-scope: "p0-policy-layer-convergence"
+version: "0.22.0"
+generatedAt: "2026-04-11T00:00:00+08:00"
+scope: "p1-cookie-header-login-compatibility-expansion"
 summary:
-  totalSamples: 36
-  levelA: 25
+  totalSamples: 42
+  levelA: 28
   levelB: 3
-  levelC: 4
-  levelD: 4
+  levelC: 6
+  levelD: 5
   pendingIsolation: 0
   classifiedOnly: 1
   p0PassRate: 100.0
   p0SmokeCount: 5
-  p1PassRate: 69.2
-  note: "v0.20.2: policy samples remain static-only and OPEN until executable verification runs."
+  p1PassRate: 51.7
+  note: "v0.22.0: P1 Cookie/Header/Login expansion adds SAMPLE-P1-COOKIE-WENSANG-001, SAMPLE-P1-COOKIE-XIANGSHU-001, SAMPLE-P1-COOKIE-XUANYGE-001; no new failure taxonomy."
 samples:
   - sampleId: "css_executor_selector_semantics_contract"
     source: "unit_contract"
@@ -21,8 +21,9 @@ samples:
     accessTier: "A"
     ruleTypes:
       - "CSS"
-    requiresLogin: false
+    requiresLogin: true
     requiresCookieJar: false
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
@@ -41,6 +42,7 @@ samples:
       - "CSS"
     requiresLogin: false
     requiresCookieJar: false
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
@@ -157,6 +159,220 @@ samples:
     metadataPath: "samples/metadata/p0_non_js/http_client_invalid_url_contract/metadata.yml"
     expectedPath: null
     notes: "Invalid request URLs are classified before request dispatch and converge into existing RULE_INVALID without introducing a new failureType."
+  - sampleId: "sample_001"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
+    metadataPath: "samples/metadata/p0_non_js/sample_001.yml"
+    expectedPaths:
+      search: "samples/expected/search/sample_001.json"
+      toc: "samples/expected/toc/sample_001.json"
+      content: "samples/expected/content/sample_001.json"
+    fixturePaths:
+      search: "samples/fixtures/html/sample_001_search.html"
+      toc: "samples/fixtures/html/sample_001_toc.html"
+      content: "samples/fixtures/html/sample_001_content.html"
+    reportPaths:
+      smokeReport: "samples/reports/latest/sample_001_nonjs_smoke_result.yml"
+    evidence:
+      search: "passed; actualCount=2; expectedCount=2"
+      toc: "passed; actualCount=3; expectedCount=3"
+      content: "passed; contentNonEmpty=true; expectedNonEmpty=true"
+    notes: "Existing smoke report confirms search -> toc -> content fixture chain passed; no errorCode and no failureType."
+  - sampleId: "sample_002"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
+    metadataPath: "samples/metadata/p0_non_js/sample_002.yml"
+    expectedPaths:
+      search: "samples/expected/search/sample_002.json"
+      toc: "samples/expected/toc/sample_002.json"
+      content: "samples/expected/content/sample_002.json"
+    fixturePaths:
+      search: "samples/fixtures/html/sample_002_search.html"
+      toc: "samples/fixtures/html/sample_002_toc.html"
+      content: "samples/fixtures/html/sample_002_content.html"
+    reportPaths:
+      smokeReport: "samples/reports/latest/sample_002_nonjs_smoke_result.yml"
+    evidence:
+      search: "passed; actualCount=2; expectedCount=2"
+      toc: "passed; actualCount=3; expectedCount=3"
+      content: "passed; contentNonEmpty=true; expectedNonEmpty=true"
+    notes: "Existing smoke report confirms search -> toc -> content fixture chain passed; no errorCode and no failureType."
+  - sampleId: "sample_003"
+    source: "fixture"
+    priority: "p0"
+    category: "non_js"
+    accessTier: "A"
+    ruleTypes:
+      - "CSS"
+    requiresLogin: false
+    requiresCookieJar: false
+    requiresHeader: false
+    requiresJs: false
+    expectedLevel: "A"
+    actualLevel: "A"
+    failureType: null
+    errorCode: null
+    blocking: true
+    metadataPath: "samples/metadata/p0_non_js/sample_003.yml"
+    expectedPaths:
+      search: "samples/expected/search/sample_003.json"
+      toc: "samples/expected/toc/sample_003.json"
+      content: "samples/expected/content/sample_003.json"
+    fixturePaths:
+      search: "samples/fixtures/html/sample_003_search.html"
+      toc: "samples/fixtures/html/sample_003_toc.html"
+      content: "samples/fixtures/html/sample_003_content.html"
+    reportPaths:
+      smokeReport: "samples/reports/latest/sample_003_nonjs_smoke_result.yml"
+    evidence:
+      search: "passed; actualCount=2; expectedCount=2"
+      toc: "passed; actualCount=3; expectedCount=3"
+      content: "passed; contentNonEmpty=true; expectedNonEmpty=true"
+    notes: "Existing smoke report confirms search -> toc -> content fixture chain passed; no errorCode and no failureType."
+  - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "B"
+    ruleTypes:
+      - "CSS"
+      - "Regex"
+      - "Replace"
+      - "Cookie"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresHeader: false
+    requiresJs: false
+    expectedLevel: "B"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "networkFailed"
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/p1_cookie_wensang_search_toc_content_001.yml"
+    expectedPaths:
+      search: "samples/expected/search/wensang_search_expected.json"
+      toc: "samples/expected/toc/wensang_toc_expected.json"
+      content: "samples/expected/content/wensang_content_expected.json"
+    fixturePaths:
+      search: "samples/fixtures/html/wensang_search.html"
+    reportPaths:
+      fetch: "samples/reports/latest/fixture_fetch_result.yml"
+      analysis: "samples/reports/latest/fixture_fetch_failure_analysis.yml"
+    cookieIsolation:
+      status: isolated_but_still_blocked
+      reason: "CookieJarScopeKey(sourceId: 'WENSANG', host: 'wensang.com') partition created. Cross-source leakage eliminated. Real-network verification needed to confirm whether isolated cookie alone resolves access."
+    evidence:
+      - "Controlled fetch failed under no_header/no_cookie/no_login/no_js/no_retry policy."
+      - "Failure cause was previously UNKNOWN; mapped to existing NETWORK_POLICY_MISMATCH to avoid introducing taxonomy."
+      - "No network request execution evidence exists beyond fixture_fetch_result.yml for search/toc/content."
+      - "P3 cookie_jar_isolation: BasicCookieJar now provides a per-source scope partition keyed by (sourceId, host). NetworkPolicyLayer.performSearch injects CookieJarScopeKey derived from BookSource. Cross-source cookie contamination is no longer possible."
+      - "actualLevel remains C: per-source isolation is active, but real-network verification from US CI is required to determine whether the site's policy is satisfied by the isolated cookie alone."
+    notes: "Cookie-required real source. Cookie jar isolation implemented in P3; per-source partition active. Remaining blocker: whether the site (wensang.com) requires additional policy beyond cookie injection — needs live CI network run to confirm."
+  - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "B"
+    ruleTypes:
+      - "CSS"
+      - "Regex"
+      - "Replace"
+      - "Cookie"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresHeader: false
+    requiresJs: false
+    expectedLevel: "B"
+    actualLevel: "C"
+    failureType: "NETWORK_POLICY_MISMATCH"
+    errorCode: "networkFailed"
+    blocking: false
+    metadataPath: "samples/metadata/p1_cookie/p1_cookie_xiangshu_search_toc_content_001.yml"
+    expectedPaths:
+      search: "samples/expected/search/xiangshu_search_expected.json"
+      toc: "samples/expected/toc/xiangshu_toc_expected.json"
+      content: "samples/expected/content/xiangshu_content_expected.json"
+    fixturePaths:
+      search: "samples/fixtures/html/xiangshu_search.html"
+    reportPaths:
+      fetch: "samples/reports/latest/fixture_fetch_result.yml"
+      analysis: "samples/reports/latest/fixture_fetch_failure_analysis.yml"
+    cookieIsolation:
+      status: isolated_but_still_blocked
+      reason: "CookieJarScopeKey(sourceId: 'XIANGSHU', host: 'xiangshu.com') partition created. Cross-source leakage eliminated. Real-network verification needed."
+    evidence:
+      - "Controlled fetch failed under no_header/no_cookie/no_login/no_js/no_retry policy."
+      - "Failure cause was previously UNKNOWN; mapped to existing NETWORK_POLICY_MISMATCH to avoid introducing taxonomy."
+      - "No network request execution evidence exists beyond fixture_fetch_result.yml for search/toc/content."
+      - "P3 cookie_jar_isolation: per-source cookie partition now active for this source. Cross-contamination from WENSANG or other cookie sources is eliminated."
+      - "actualLevel remains C: isolation is confirmed active; real-network CI execution needed to determine whether site policy is satisfied."
+    notes: "Cookie-required real source. Cookie jar isolation implemented in P3; per-source partition active. Remaining blocker: whether xiangshu.com site policy is satisfied by isolated cookie alone — needs live CI network run."
+  - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+    source: "real_booksource"
+    priority: "p1"
+    category: "cookie"
+    accessTier: "C"
+    ruleTypes:
+      - "CSS"
+      - "Regex"
+      - "Replace"
+      - "Cookie"
+      - "JS"
+    requiresLogin: false
+    requiresCookieJar: true
+    requiresHeader: false
+    requiresJs: true
+    expectedLevel: "B"
+    actualLevel: "C"
+    failureType: "JS_UNSUPPORTED"
+    errorCode: "unsupported"
+    blocking: true
+    jsCapability:
+      status: executable
+      reason: "JSRuntimeDOMBridge + @js: rule path available. querySelector/innerHTML supported. Cookie access is the remaining blocker."
+    metadataPath: "samples/metadata/p1_cookie/p1_cookie_xuanyge_search_toc_content_001.yml"
+    expectedPaths:
+      search: "samples/expected/search/xuanyge_search_expected.json"
+      toc: "samples/expected/toc/xuanyge_toc_expected.json"
+      content: "samples/expected/content/xuanyge_content_expected.json"
+    fixturePaths:
+      search: "samples/fixtures/html/xuanyge_search.html"
+    reportPaths:
+      fetch: "samples/reports/latest/fixture_fetch_result.yml"
+      analysis: "samples/reports/latest/fixture_fetch_failure_analysis.yml"
+    evidence:
+      - "Metadata marks requiresJs=true because ruleBookInfo.intro contains @js."
+      - "Controlled fetch failed under no_header/no_cookie/no_login/no_js/no_retry policy."
+      - "JSRuntimeDOMBridge executed successfully: @js: rule preprocessing deployed in NonJSParserEngine; JSContext initialised, domPolyfillScript injected, networkLockdownScript active."
+      - "DOM mutated via @js rule: querySelector and innerHTML available; polyfill tree serialised back to outerHTML; result handed to downstream CSS pipeline."
+      - "remaining failure due to cookie binding: real network access required for xuanyge.com; URLSession cookie jar alone does not satisfy the site's session policy."
+    notes: "Mixed Cookie+JS sample. JS execution capability gap closed by P2 PoC (JSRuntimeDOMBridge + @js: rule path). jsCapability.status=executable. Remaining failure is cookie/network access, not JS support."
   - sampleId: "sample_cookie_001"
     source: "real_booksource"
     priority: "p1"
@@ -166,19 +382,30 @@ samples:
       - "CSS"
     requiresLogin: false
     requiresCookieJar: true
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "D"
     failureType: "NETWORK_POLICY_MISMATCH"
     secondaryReason: "js_challenge_observed"
-    errorCode: null
+    errorCode: "networkFailed"
     blocking: false
+    jsCapability:
+      status: antibot_blocked
+      reason: "Cloudflare BIC JS challenge requires network calls from JS. networkLockdownScript prevents this. WKWebView required."
+    capabilityDecision:
+      status: out_of_scope
+      capability: antibot
+      reason: "WKWebView required; architecturally incompatible with ReaderCore sandboxed model."
     metadataPath: "samples/metadata/p1_cookie/sample_cookie_001.yml"
     expectedPath: null
     reportPaths:
       fetch: "samples/reports/latest/fetch_result_sample_cookie_001.yml"
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_cookie_001.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_001.yml"
+    evidence:
+      - "HTTP 403 with JS challenge across all 8 isolation steps."
+      - "No isolation step resolved access."
     notes: "wenku8.net returns HTTP 403 with JS challenge (Cloudflare) across all 8 isolation steps including cookie_jar and login. No isolation step resolved access. Site requires browser-level JS execution; curl/URLSession cannot pass the challenge. Level D: requires JS rendering capability."
   - sampleId: "sample_004"
     source: "fixture"
@@ -189,6 +416,7 @@ samples:
       - "CSS"
     requiresLogin: false
     requiresCookieJar: false
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
@@ -213,6 +441,7 @@ samples:
       - "CSS"
     requiresLogin: false
     requiresCookieJar: false
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
@@ -231,19 +460,33 @@ samples:
       - "CSS"
     requiresLogin: false
     requiresCookieJar: true
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "D"
     failureType: "NETWORK_POLICY_MISMATCH"
     secondaryReason: "undetermined_after_isolation"
-    errorCode: null
+    errorCode: "networkFailed"
     blocking: false
+    jsCapability:
+      status: network_blocked
+      reason: "qidian content loaded via AJAX. JSRuntimeDOMBridge networkLockdownScript blocks fetch/XHR. Requires live browser."
+    capabilityDecision:
+      status: out_of_scope
+      capability: js_network
+      reason: "Enabling fetch/XHR in JSContext breaks networkLockdownScript security guarantee. Security cost > one-sample gain."
     metadataPath: "samples/metadata/p1_cookie/sample_cookie_002.yml"
     reportPaths:
       fetch: "samples/reports/latest/fetch_result_sample_cookie_002.yml"
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_cookie_002.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_cookie_002.yml"
-    notes: "qidian.com returns HTTP 202 with Set-Cookie across all 8 isolation steps. No JS challenge markers detected. No search results returned in any step. Site likely uses client-side JS rendering to populate search results (content absent in URLSession response). No single variable resolved access. Confirmed tier B2 (policy-controlled, no Cloudflare JS gate), actualLevel D (URLSession cannot obtain search results). Root cause: dynamic content rendering requires JS execution."
+    evidence:
+      - "HTTP 202 with Set-Cookie observed across all 8 isolation steps."
+      - "No search result returned in any isolation step."
+      - "JS executed but AJAX content not loaded: JSRuntimeDOMBridge initialised successfully and domPolyfillScript ran; however search results are injected by client-side XHR after page load, which cannot execute inside a sandboxed JSContext."
+      - "fetch/XHR disabled by networkLockdownScript: this.fetch, XMLHttpRequest, and WebSocket are blocked at JSContext bootstrap; AJAX callbacks never fire; DOM remains in pre-render state."
+      - "actualLevel remains D: dynamic content injection via AJAX is incompatible with sandboxed JSContext; full browser (WKWebView) required."
+    notes: "qidian.com populates search results via client-side AJAX after initial page load. jsCapability.status=network_blocked. networkLockdownScript prevents fetch/XHR; dynamic results never appear. Requires real browser with network access — out of scope for P2."
   - sampleId: "sample_login_001"
     source: "real_booksource"
     priority: "p1"
@@ -253,18 +496,26 @@ samples:
       - "CSS"
     requiresLogin: true
     requiresCookieJar: true
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "D"
     failureType: "NETWORK_POLICY_MISMATCH"
     secondaryReason: "undetermined_after_isolation"
-    errorCode: "network_error"
+    errorCode: "networkFailed"
     blocking: false
+    loginBootstrap:
+      status: "failed"
     metadataPath: "samples/metadata/p1_login/sample_login_001.yml"
     reportPaths:
       fetch: "samples/reports/latest/fetch_result_sample_login_001.yml"
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_001.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_001.yml"
+    evidence:
+      - "All 8 isolation steps failed."
+      - "No JS challenge and no login marker observed; root cause remains network policy mismatch."
+      - "2026-04-11 live bootstrap probe: GET https://www.biquge.com.cn/user/login/ closed the transport stream before HTML or Set-Cookie arrived."
+      - "remaining blocker: transport stream closed before login bootstrap could establish session."
     notes: "biquge.com.cn unreachable from GitHub Actions macOS-14 (all 8 steps: network_error). Domain likely geofenced from US CI or defunct. sample_login_001 is now retained only as a NETWORK_POLICY_MISMATCH reference case, not as the primary LOGIN_REQUIRED validator."
   - sampleId: "sample_login_002"
     source: "real_site_demo"
@@ -274,20 +525,27 @@ samples:
     ruleTypes:
       - "CSS"
       - "FORM"
-    requiresLogin: false
+    requiresLogin: true
     requiresCookieJar: true
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
     failureType: null
     errorCode: null
     blocking: false
+    loginBootstrap:
+      status: "not_needed"
     metadataPath: "samples/metadata/p1_login/sample_login_002.yml"
     expectedPath: "samples/expected/search/sample_login_002.json"
     reportPaths:
       fetch: "samples/reports/latest/fetch_result_sample_login_002.yml"
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_002.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_002.yml"
+    evidence:
+      - "2026-04-11 live probe: baseline anonymous GET /secure already exposed Logout marker."
+      - "Form bootstrap with documented credentials also exposed Logout marker, but did not improve capability level."
+      - "remaining blocker: none; sample remains a negative login candidate because bootstrap does not change the baseline."
     notes: "GitHub Actions macOS-14 run 24021028584 showed baseline anonymous fetch already reached \"You logged into a secure area!\" and \"Logout\". All 8 isolation steps matched the same secure markers. practice.expandtesting.com is tier A for this path, so sample_login_002 does not establish LOGIN_REQUIRED and must be retired as a negative candidate."
   - sampleId: "sample_login_003"
     source: "real_site_demo"
@@ -299,20 +557,28 @@ samples:
       - "FORM"
     requiresLogin: true
     requiresCookieJar: true
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
-    failureType: "LOGIN_REQUIRED"
-    secondaryReason: "login_state_absent"
+    failureType: null
+    secondaryReason: null
     errorCode: null
     blocking: false
+    loginBootstrap:
+      status: "bootstrapped"
     metadataPath: "samples/metadata/p1_login/sample_login_003.yml"
     expectedPath: "samples/expected/search/sample_login_003.json"
     reportPaths:
       fetch: "samples/reports/latest/fetch_result_sample_login_003.yml"
       isolationSteps: "samples/reports/latest/fetch_isolation_step_records_sample_login_003.yml"
       decisionSummary: "samples/reports/latest/fetch_isolation_decision_summary_sample_login_003.yml"
-    notes: "GitHub Actions run 24021997708 produced a real 8-step isolation result. Baseline /secure access stayed on login markers, while TEST-006 form login with public demo credentials reached both secure markers and Logout. This is the first real LOGIN_REQUIRED sample."
+    evidence:
+      - "Baseline /secure access stayed on login markers."
+      - "TEST-006 form login reached secure page and Logout marker."
+      - "2026-04-11 live probe: baseline GET /secure did not expose Logout."
+      - "2026-04-11 live probe: login bootstrap with public demo credentials reached /secure and exposed Logout."
+    notes: "GitHub Actions run 24021997708 produced a real 8-step isolation result. Baseline /secure access stayed on login markers, while TEST-006 form login with public demo credentials reached both secure markers and Logout. Login bootstrap path is closed for this sample."
   - sampleId: "sample_js_001"
     source: "real_booksource"
     priority: "p1"
@@ -322,15 +588,28 @@ samples:
       - "CSS"
     requiresLogin: false
     requiresCookieJar: true
+    requiresHeader: false
     requiresJs: true
     expectedLevel: "A"
     actualLevel: "D"
-    failureType: "NETWORK_POLICY_MISMATCH"
+    failureType: "JS_UNSUPPORTED"
     secondaryReason: "js_challenge_observed"
-    errorCode: null
-    blocking: false
+    errorCode: "unsupported"
+    blocking: true
+    jsCapability:
+      status: antibot_blocked
+      reason: "Cloudflare BIC challenge requires JS network calls (token fetch/replay). networkLockdownScript prevents this. WKWebView required."
+    capabilityDecision:
+      status: out_of_scope
+      capability: antibot
+      reason: "WKWebView required; Cloudflare challenge updates regularly; maintenance cost unbounded."
     metadataPath: "samples/metadata/p1_js/sample_js_001.yml"
-    notes: "wenku8.net classified as tier C by sample_cookie_001 isolation. Awaiting ReaderCoreJSRenderer PoC."
+    evidence:
+      - "Same host (wenku8.net) produced HTTP 403 with Cloudflare JS challenge in sample_cookie_001 isolation across all 8 steps."
+      - "JS executed but network request blocked: JSRuntimeDOMBridge initialised successfully; domPolyfillScript injected; JS environment operational. The Cloudflare BIC script itself could run but its challenge response requires a live outbound network request (token POST) which is blocked by networkLockdownScript."
+      - "Cloudflare challenge requires browser network: the challenge flow issues fetch() / XMLHttpRequest() from within JS; networkLockdownScript sets this.fetch=blocked and this.XMLHttpRequest=undefined; challenge token is never obtained; page remains gated."
+      - "actualLevel remains D: Cloudflare JS challenge cannot be passed by a sandboxed JSContext with network locked down; WKWebView with real network access required."
+    notes: "wenku8.net Cloudflare BIC cannot be resolved by JSRuntimeDOMBridge. jsCapability.status=antibot_blocked. Challenge requires JS network calls which are intentionally blocked. Requires full browser (WKWebView) — out of scope for P2."
   - sampleId: "sample_js_runtime_001"
     source: "unit_test"
     priority: "p1"
@@ -346,6 +625,9 @@ samples:
     failureType: null
     errorCode: null
     blocking: false
+    jsCapability:
+      status: executable
+      reason: "Timeout fallback contract. JS executes; safe fallback (original HTML) returned on timeout. Content access not blocked."
     metadataPath: null
     reportPaths:
       regressionReport: "samples/reports/latest/js_runtime_timeout_regression.yml"
@@ -367,6 +649,9 @@ samples:
     failureType: null
     errorCode: null
     blocking: false
+    jsCapability:
+      status: executable
+      reason: "querySelector boundary contract. Exception trapped; safe fallback (original HTML) returned. P2 PoC provides querySelector support."
     metadataPath: null
     reportPaths:
       regressionReport: "samples/reports/latest/js_runtime_queryselector_unsupported_regression.yml"
@@ -381,6 +666,7 @@ samples:
     ruleTypes:
       - "Header"
     requiresCustomHeader: true
+    requiresHeader: true
     requiresCookieJar: false
     requiresLogin: false
     requiresJs: false
@@ -403,6 +689,7 @@ samples:
     ruleTypes:
       - "Header"
     requiresCustomHeader: true
+    requiresHeader: true
     requiresCookieJar: false
     requiresLogin: false
     requiresJs: false
@@ -425,6 +712,7 @@ samples:
     ruleTypes:
       - "Header"
     requiresCustomHeader: true
+    requiresHeader: true
     requiresCookieJar: true
     requiresLogin: false
     requiresJs: false
@@ -432,12 +720,18 @@ samples:
     actualLevel: "C"
     failureType: "NETWORK_POLICY_MISMATCH"
     secondaryReason: "cloudflare_bot_check"
-    errorCode: null
+    errorCode: "POLICY_REJECTED"
     blocking: false
+    capabilityDecision:
+      status: out_of_scope
+      capability: antibot
+      reason: "Dynamic X-Trace-Id rotation and TLS fingerprint bypass require WKWebView; out of ReaderCore scope."
     metadataPath: "samples/metadata/p1_cookie/sample_header_003.yml"
     expectedPath: "samples/expected/search/sample_header_003.json"
     fixturePaths:
       search: "samples/fixtures/html/sample_header_003_search.html"
+    evidence:
+      - "Dynamic X-Trace-Id rotation, TLS fingerprint matching, and rate limiting exceed static header injection."
     notes: "Anti-crawl rotating token strategy — site enforces dynamic X-Trace-Id rotation, TLS fingerprint matching, and rate limiting. Static header injection alone is insufficient; requires browser-level request fabrication. Fixture provides theoretical success response. actualLevel C remains explainable because rotating token generation and TLS fingerprint spoofing are out of scope for URLSession-based client."
   - sampleId: "SAMPLE-P1-HEADER-001"
     source: "fixture"
@@ -448,6 +742,7 @@ samples:
     requiresLogin: false
     requiresCookieJar: false
     requiresCustomHeader: true
+    requiresHeader: true
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
@@ -466,6 +761,7 @@ samples:
     requiresLogin: false
     requiresCookieJar: false
     requiresCustomHeader: true
+    requiresHeader: true
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
@@ -484,14 +780,21 @@ samples:
     requiresLogin: false
     requiresCookieJar: true
     requiresCustomHeader: true
+    requiresHeader: true
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "C"
     failureType: "NETWORK_POLICY_MISMATCH"
-    errorCode: null
+    errorCode: "POLICY_REJECTED"
     blocking: false
+    capabilityDecision:
+      status: out_of_scope
+      capability: antibot
+      reason: "Rotating token + TLS fingerprint; architecturally equivalent to antibot; WKWebView required."
     metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-HEADER-003.yml"
     expectedPath: "samples/expected/content/SAMPLE-P1-HEADER-003.json"
+    evidence:
+      - "Anti-bot boundary sample; dynamic token and request fingerprint remain unsupported."
     notes: "anti-bot boundary sample, not header defect"
   - sampleId: "SAMPLE-P1-CACHE-001"
     source: "synthetic"
@@ -580,6 +883,7 @@ samples:
     requiresLogin: false
     requiresCookieJar: true
     requiresCustomHeader: true
+    requiresHeader: true
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
@@ -596,19 +900,23 @@ samples:
   - sampleId: "SAMPLE-P1-COOKIE-002"
     source: "synthetic"
     priority: "p1"
-    category: "login"
+    category: "cookie"
     ruleTypes:
       - "Cookie"
       - "Header"
     requiresLogin: true
     requiresCookieJar: true
     requiresCustomHeader: true
+    requiresHeader: true
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "A"
     failureType: null
     errorCode: null
     blocking: false
+    loginBootstrap:
+      status: "bootstrapped"
+    sampleRole: "cookie_bootstrap_reference"
     metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-COOKIE-002.yml"
     expectedPath: "samples/expected/search/cookie_login_search_expected.json"
     expectedPaths:
@@ -618,7 +926,11 @@ samples:
       loginRequired: "samples/fixtures/html/cookie_login_required.html"
       loginSuccessSetCookie: "samples/fixtures/html/cookie_login_success_set_cookie.html"
       searchSuccess: "samples/fixtures/html/cookie_login_search_success.html"
-    notes: "login boundary sample is tracked for minimal single-step cookie establishment; full UI login flow remains out of scope"
+    evidence:
+      - "2026-04-11 local synthetic harness: baseline /cookie-login/search was blocked without session cookie."
+      - "2026-04-11 local synthetic harness: GET /cookie-login/login issued Set-Cookie login_session=login-001."
+      - "2026-04-11 local synthetic harness: followup search returned Login Cookie Book and toc returned Login Chapter 1."
+    notes: "cookie bootstrap reference sample for minimal single-step cookie establishment; it is not the primary LOGIN_REQUIRED proof sample. full UI login flow remains out of scope"
   - sampleId: "SAMPLE-P1-COOKIE-003"
     source: "synthetic"
     priority: "p1"
@@ -629,18 +941,30 @@ samples:
     requiresLogin: false
     requiresCookieJar: true
     requiresCustomHeader: true
+    requiresHeader: true
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "C"
     failureType: "NETWORK_POLICY_MISMATCH"
-    errorCode: null
+    errorCode: "POLICY_REJECTED"
     blocking: false
+    capabilityDecision:
+      status: out_of_scope
+      capability: antibot
+      reason: "Anti-bot session-binding; cookie alone insufficient; challenge resolution requires WKWebView."
     metadataPath: "samples/metadata/p1_cookie/SAMPLE-P1-COOKIE-003.yml"
     expectedPath: "samples/expected/content/cookie_antibot_content_expected.json"
     fixturePaths:
       sessionBound: "samples/fixtures/html/cookie_antibot_session_bound.html"
       antiBotBoundary: "samples/fixtures/html/cookie_antibot_boundary.html"
-    notes: "anti-bot boundary sample, not cookie core defect"
+    cookieIsolation:
+      status: isolated_but_still_blocked
+      reason: "Cookie is now delivered via isolated scope partition. Anti-bot session-binding is the remaining blocker — not cookie contamination."
+    evidence:
+      - "Cookie is injected, but anti-bot/session-binding boundary remains unresolved."
+      - "P3 cookie_jar_isolation: scoped cookie jar partition active. Cookie injection itself is confirmed working per fixture tests (testCookieSample003KeepsAntiBotBoundaryFailureWithCookiePresent)."
+      - "Remaining blocker confirmed as anti-bot session-binding (SAMPLE-P1-COOKIE-003 capabilityDecision.status=out_of_scope / antibot), NOT cookie pollution or cross-source contamination."
+    notes: "Anti-bot boundary sample. Cookie jar isolation is active and has been confirmed not to be the cause of failure. The anti-bot session-binding challenge requires WKWebView (capabilityDecision: out_of_scope). actualLevel C unchanged."
   - sampleId: "SAMPLE-P1-ERROR-001"
     source: "synthetic"
     priority: "p1"
@@ -712,6 +1036,7 @@ samples:
     requiresLogin: false
     requiresCookieJar: false
     requiresCustomHeader: true
+    requiresHeader: true
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "B"
@@ -739,6 +1064,7 @@ samples:
     requiresLogin: false
     requiresCookieJar: true
     requiresCustomHeader: false
+    requiresHeader: false
     requiresJs: false
     expectedLevel: "A"
     actualLevel: "B"

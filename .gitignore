@@ -1,0 +1,43 @@
+# Xcode
+.build/
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.resolved
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# CI temporary files
+.ci_tmp/
+.ci_tmp2/
+.ci_policy_run_*.log
+
+# GitHub CLI local data
+.gh-localappdata/
+.gh_file_raw.json
+.gh_put_body.json
+.gh_put_body_*.json
+
+# IDE / AI tool artifacts
+.codebuddy/
+.workbuddy/
+.claude/
+.vscode/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Misc temp files
+*.log
+*.tmp

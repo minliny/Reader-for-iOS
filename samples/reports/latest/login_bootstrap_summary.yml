@@ -1,0 +1,26 @@
+loginBootstrapSummary:
+  totalSamples: 4
+
+  bootstrapped_and_improved:
+    count: 2
+    samples:
+      - "sample_login_003"
+      - "SAMPLE-P1-COOKIE-002"
+
+  bootstrapped_but_still_blocked:
+    count: 0
+    samples: []
+
+  failed:
+    count: 1
+    samples:
+      - "sample_login_001"
+
+  not_needed:
+    count: 1
+    samples:
+      - "sample_login_002"
+
+consistency:
+  totalCheck: "2+0+1+1=4"
+  matrixAligned: true

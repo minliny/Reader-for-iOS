@@ -1,0 +1,185 @@
+version: "1.0.0"
+generatedAt: "2026-04-11T00:00:00+08:00"
+sourceMatrix: "samples/matrix/compat_matrix.yml"
+matrixVersion: "0.22.0"
+stage: "p3-capability-decision"
+note: >
+  Derived by reading every C/D-level sample in compat_matrix and mapping each
+  to the minimum capability whose absence is the primary failure cause.
+  Samples may appear under multiple capabilities when more than one gap exists.
+
+capabilities:
+  - capability: js_dom
+    description: >
+      Execute book-source JS rules inside a sandboxed JSContext with DOM access
+      (querySelector / innerHTML). Implemented by JSRuntimeDOMBridge + @js: rule path.
+    status: COMPLETED      # P2 PoC shipped; @js: integrated into NonJSParserEngine
+    samples:
+      - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+        actualLevel: "C"
+        expectedLevel: "B"
+        priority: "p1"
+        failureType: "JS_UNSUPPORTED"
+        primaryGap: "js_dom"
+        note: "JS gap closed by P2. Remaining blocker is cookie_jar (not js_dom)."
+      - sampleId: "sample_js_001"
+        actualLevel: "D"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "JS_UNSUPPORTED"
+        primaryGap: "antibot"
+        note: "js_dom insufficient alone; Cloudflare BIC needs live network inside JS."
+      - sampleId: "sample_js_runtime_001"
+        actualLevel: "A"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: null
+        primaryGap: null
+        note: "Timeout fallback contract. No gap; included for completeness."
+      - sampleId: "sample_js_runtime_002"
+        actualLevel: "A"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: null
+        primaryGap: null
+        note: "querySelector boundary contract. No gap; included for completeness."
+    affected_count: 4
+    blocked_count: 1      # XUANYGE-001 (remaining gap is now cookie_jar, not js_dom)
+    out_of_scope_count: 1 # sample_js_001 (antibot, not js_dom)
+
+  - capability: js_network
+    description: >
+      Allow JS executed inside JSContext to make real outbound HTTP requests
+      (fetch / XMLHttpRequest). Currently blocked by networkLockdownScript by design.
+      Would require replacing networkLockdownScript with a proxied bridge to URLSession.
+    status: UNIMPLEMENTED
+    samples:
+      - sampleId: "sample_cookie_002"
+        actualLevel: "D"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        primaryGap: "js_network"
+        note: "qidian AJAX rendering requires XHR inside JS. js_dom alone is insufficient."
+    affected_count: 1
+    blocked_count: 1
+
+  - capability: antibot
+    description: >
+      Pass Cloudflare Browser Integrity Check, dynamic token rotation, TLS fingerprint
+      matching, and similar anti-crawl challenges. Requires a real browser engine
+      (WKWebView) with full network access — fundamentally incompatible with
+      JSRuntimeDOMBridge's sandboxed networkLockdownScript model.
+    status: UNIMPLEMENTED
+    samples:
+      - sampleId: "sample_js_001"
+        actualLevel: "D"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "JS_UNSUPPORTED"
+        primaryGap: "antibot"
+        note: "Cloudflare BIC; WKWebView required."
+      - sampleId: "sample_cookie_001"
+        actualLevel: "D"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "js_challenge_observed"
+        primaryGap: "antibot"
+        note: "Same wenku8.net host; same Cloudflare JS gate as sample_js_001."
+      - sampleId: "sample_header_003"
+        actualLevel: "C"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "cloudflare_bot_check"
+        primaryGap: "antibot"
+        note: "Dynamic X-Trace-Id rotation + TLS fingerprint. Anti-bot, not header gap."
+      - sampleId: "SAMPLE-P1-HEADER-003"
+        actualLevel: "C"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        primaryGap: "antibot"
+        note: "Rotating token + fingerprint strategy. Anti-bot boundary sample."
+      - sampleId: "SAMPLE-P1-COOKIE-003"
+        actualLevel: "C"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        primaryGap: "antibot"
+        note: "Anti-bot session-binding. Cookie injected but challenge unresolved."
+    affected_count: 5
+    blocked_count: 5
+
+  - capability: cookie_jar_isolation
+    description: >
+      Per-source cookie jar keyed by BookSource host. Prevents cross-source
+      contamination. Required before WENSANG/XIANGSHU isolation can produce
+      a clean verdict on whether cookie alone resolves access.
+    status: UNIMPLEMENTED
+    samples:
+      - sampleId: "SAMPLE-P1-COOKIE-WENSANG-001"
+        actualLevel: "C"
+        expectedLevel: "B"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        primaryGap: "cookie_jar_isolation"
+        note: "Real-network fetch failed. Isolation needed to rule out cross-jar contamination."
+      - sampleId: "SAMPLE-P1-COOKIE-XIANGSHU-001"
+        actualLevel: "C"
+        expectedLevel: "B"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        primaryGap: "cookie_jar_isolation"
+        note: "Same root cause as WENSANG-001."
+      - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+        actualLevel: "C"
+        expectedLevel: "B"
+        priority: "p1"
+        failureType: "JS_UNSUPPORTED"
+        primaryGap: "cookie_jar_isolation"
+        note: "JS gap closed; remaining blocker confirmed as cookie binding."
+    affected_count: 3
+    blocked_count: 3
+
+  - capability: login_cookie_bootstrap
+    description: >
+      Single-step HTTP form-POST login that stores Set-Cookie into BasicCookieJar.
+      Enables cookie-gated search/toc/content flows for sources with loginUrl.
+    status: UNIMPLEMENTED
+    samples:
+      - sampleId: "sample_login_001"
+        actualLevel: "D"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "undetermined_after_isolation"
+        primaryGap: "login_cookie_bootstrap"
+        note: "biquge.com.cn geofenced from US CI. Login arch reference; real test blocked by geography."
+      - sampleId: "sample_login_003"
+        actualLevel: "A"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "LOGIN_REQUIRED"
+        primaryGap: null
+        note: "Already A. First real LOGIN_REQUIRED sample; login_cookie_bootstrap pattern validated."
+    affected_count: 2
+    blocked_count: 1      # sample_login_001 (geofenced; login capability itself works per login_003)
+
+  - capability: policy_verification
+    description: >
+      Executable verification for SAMPLE-P1-POLICY samples currently static-only.
+      SAMPLE-P1-POLICY-003 (actualLevel C) is the only C/D sample in this group.
+      The others (B) are verified static-only, not failing.
+    status: UNIMPLEMENTED
+    samples:
+      - sampleId: "SAMPLE-P1-POLICY-003"
+        actualLevel: "C"
+        expectedLevel: "A"
+        priority: "p1"
+        failureType: "CONTENT_FAILED"
+        primaryGap: "policy_verification"
+        note: "HTTP 404 error mapping. Static-only; executable verification pending."
+    affected_count: 1
+    blocked_count: 1

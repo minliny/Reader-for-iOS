@@ -1,0 +1,80 @@
+# M-iOS-1: iOS Shell Dependency Boundary Violations
+# Generated: 2026-04-12
+# Purpose: Complete inventory of illegal Core internal imports in iOS Shell
+
+legal_dependencies:
+  - ReaderCoreProtocols
+  - ReaderCoreModels
+  - ReaderCoreFoundation
+
+illegal_dependencies:
+  - ReaderCoreNetwork
+  - ReaderCoreParser
+  - ReaderCoreCache
+  - ReaderCoreJSRenderer
+
+violations:
+  - file: "iOS/CoreIntegration/ReadingFlowCoordinator.swift"
+    illegal_imports:
+      - ReaderCoreNetwork
+      - ReaderCoreParser
+      - ReaderCoreCache
+      - ReaderCoreFoundation
+    reason: "CoreIntegration layer directly imports Core internal implementation modules instead of depending solely on frozen protocols/models"
+    current_usage:
+      ReaderCoreNetwork: "References URLSessionHTTPClient, BasicCookieJar — concrete implementations for makeDefault() factory"
+      ReaderCoreParser: "References BookSourceRequestBuilder, NonJSRuleScheduler, NonJSParserEngine — concrete implementations for makeDefault() factory"
+      ReaderCoreCache: "Not used in code body — vestigial import"
+      ReaderCoreFoundation: "Not directly used by ReadingFlowCoordinator itself — transitively available through ReaderCoreModels/ReaderCoreProtocols"
+    remediation_strategy: "Replace concrete imports with protocol-only dependencies; move makeDefault() factory to a separate ShellAssembly module that depends on concrete modules"
+
+  - file: "iOS/CoreIntegration/DefaultSearchService.swift"
+    illegal_imports:
+      - ReaderCoreNetwork
+      - ReaderCoreParser
+    reason: "DefaultSearchService imports Core internals but only uses protocol types (HTTPClient, RequestBuilder, SearchParser)"
+    current_usage:
+      ReaderCoreNetwork: "Not used in code body — only protocol types from ReaderCoreProtocols are referenced"
+      ReaderCoreParser: "Not used in code body — only protocol types from ReaderCoreProtocols are referenced"
+    remediation_strategy: "Remove unused imports; DefaultSearchService only needs ReaderCoreProtocols + ReaderCoreModels"
+
+  - file: "iOS/CoreIntegration/DefaultTOCService.swift"
+    illegal_imports:
+      - ReaderCoreNetwork
+      - ReaderCoreParser
+    reason: "DefaultTOCService imports Core internals but only uses protocol types (HTTPClient, RequestBuilder, TOCParser)"
+    current_usage:
+      ReaderCoreNetwork: "Not used in code body — only protocol types from ReaderCoreProtocols are referenced"
+      ReaderCoreParser: "Not used in code body — only protocol types from ReaderCoreProtocols are referenced"
+    remediation_strategy: "Remove unused imports; DefaultTOCService only needs ReaderCoreProtocols + ReaderCoreModels"
+
+  - file: "iOS/CoreIntegration/DefaultContentService.swift"
+    illegal_imports:
+      - ReaderCoreNetwork
+      - ReaderCoreParser
+    reason: "DefaultContentService imports Core internals but only uses protocol types (HTTPClient, RequestBuilder, ContentParser)"
+    current_usage:
+      ReaderCoreNetwork: "Not used in code body — only protocol types from ReaderCoreProtocols are referenced"
+      ReaderCoreParser: "Not used in code body — only protocol types from ReaderCoreProtocols are referenced"
+    remediation_strategy: "Remove unused imports; DefaultContentService only needs ReaderCoreProtocols + ReaderCoreModels"
+
+summary:
+  total_violations: 10
+  files_affected: 4
+  illegal_import_count: 10
+  breakdown:
+    ReaderCoreNetwork: 4
+    ReaderCoreParser: 4
+    ReaderCoreCache: 1
+    ReaderCoreFoundation: 1
+  category:
+    unused_imports: 8  # Default*Service files (6) + Cache + Foundation in ReadingFlowCoordinator
+    factory_dependency: 2  # ReadingFlowCoordinator makeDefault() needs concrete types from Network+Parser
+
+# Note: DefaultSearchService/TOCService/ContentService have a method signature mismatch:
+# - Protocol SearchParser defines: parseSearchResponse(_:source:query:) 
+# - Service calls: searchParser.parse(html:source:) which does NOT match
+# - Same for TOCParser.parse(html:source:detailURL:) vs parseTOCResponse(_:source:detailURL:)
+# - Same for ContentParser.parse(html:source:chapterURL:) vs parseContentResponse(_:source:chapterURL:)
+# This is a compile-time issue but NOT a boundary violation — it's an API signature mismatch
+# that will be caught when Shell CI is established (CONDITION-2).

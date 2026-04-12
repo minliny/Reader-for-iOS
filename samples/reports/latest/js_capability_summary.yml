@@ -1,0 +1,155 @@
+version: "2.0.0"
+generatedAt: "2026-04-11T00:00:00+08:00"
+sourceMatrix: "samples/matrix/compat_matrix.yml"
+matrixVersion: "0.22.0"
+stage: "p2-js-capability-audit"
+
+# Classification key (not a new failureType taxonomy):
+#   executable      – JSRuntimeDOMBridge ran; DOM mutated; result available.
+#                     Remaining blockers (if any) are outside JS capability.
+#   network_blocked – JSContext ran but AJAX / fetch / XHR needed for content.
+#                     networkLockdownScript prevents these calls by design.
+#   antibot_blocked – JS challenge (Cloudflare BIC / fingerprint) requires live
+#                     network from within JS. Same networkLockdownScript barrier.
+#   not_required    – requiresJs=false; no JS interaction observed or needed.
+#
+# Relation to failureType: jsCapability is an explanatory sub-field only.
+# It does NOT modify failureType (JS_UNSUPPORTED / NETWORK_POLICY_MISMATCH)
+# and does NOT modify actualLevel.
+
+jsCapabilitySummary:
+  totalSamples: 42
+
+  executable:
+    count: 3
+    samples:
+      - sampleId: "SAMPLE-P1-COOKIE-XUANYGE-001"
+        requiresJs: true
+        actualLevel: "C"
+        failureType: "JS_UNSUPPORTED"
+        jsCapability: executable
+        evidence:
+          - "JSRuntimeDOMBridge executed successfully"
+          - "DOM mutated via @js rule"
+          - "remaining failure due to cookie binding"
+        remainingBlocker: "cookie binding — real network access required for xuanyge.com"
+
+      - sampleId: "sample_js_runtime_001"
+        requiresJs: true
+        actualLevel: "A"
+        failureType: null
+        jsCapability: executable
+        evidence:
+          - "JSRuntime timeout fallback contract verified (makeForTesting timeout=10ms, delay=30ms)"
+          - "Original HTML returned unchanged on timeout; safe fallback present"
+          - "Content access not blocked; actualLevel A"
+        remainingBlocker: null
+
+      - sampleId: "sample_js_runtime_002"
+        requiresJs: true
+        actualLevel: "A"
+        failureType: null
+        jsCapability: executable
+        evidence:
+          - "JSRuntime querySelector boundary contract verified"
+          - "Exception trapped; original HTML returned as safe fallback"
+          - "P2 PoC now provides querySelector support via JSRuntimeDOMBridge"
+        remainingBlocker: null
+
+  network_blocked:
+    count: 1
+    samples:
+      - sampleId: "sample_cookie_002"
+        requiresJs: false    # requiresJs=false but site uses client-side AJAX rendering
+        actualLevel: "D"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        jsCapability: network_blocked
+        evidence:
+          - "JS executed but AJAX content not loaded"
+          - "fetch/XHR disabled by networkLockdownScript"
+          - "Search results injected by client-side XHR after page load; cannot execute in sandboxed JSContext"
+        remainingBlocker: "AJAX rendering — WKWebView with live network access required"
+
+  antibot_blocked:
+    count: 2
+    samples:
+      - sampleId: "sample_js_001"
+        requiresJs: true
+        actualLevel: "D"
+        failureType: "JS_UNSUPPORTED"
+        jsCapability: antibot_blocked
+        evidence:
+          - "JS executed but network request blocked"
+          - "Cloudflare challenge requires browser network"
+          - "Challenge token POST blocked by networkLockdownScript (this.fetch=blocked)"
+        remainingBlocker: "Cloudflare BIC — WKWebView with real network access required"
+
+      - sampleId: "sample_cookie_001"
+        requiresJs: false    # requiresJs=false but Cloudflare JS challenge observed at HTTP layer
+        actualLevel: "D"
+        failureType: "NETWORK_POLICY_MISMATCH"
+        secondaryReason: "js_challenge_observed"
+        jsCapability: antibot_blocked
+        evidence:
+          - "HTTP 403 with Cloudflare JS challenge across all 8 isolation steps"
+          - "JS challenge requires browser network — same root cause as sample_js_001"
+          - "networkLockdownScript would block any token fetch even if JSRuntime were invoked"
+        remainingBlocker: "Cloudflare BIC — WKWebView with real network access required"
+
+  not_required:
+    count: 36
+    samples:
+      - "css_executor_selector_semantics_contract"
+      - "fixture_toc_selector_miss"
+      - "fixture_toc_title_rule_miss"
+      - "fixture_toc_url_rule_miss"
+      - "fixture_toc_count_mismatch"
+      - "fixture_toc_non_selector_error"
+      - "toc_item_invalid_url_contract"
+      - "http_client_invalid_url_contract"
+      - "sample_001"
+      - "sample_002"
+      - "sample_003"
+      - "sample_004"
+      - "sample_005"
+      - "SAMPLE-P1-COOKIE-WENSANG-001"
+      - "SAMPLE-P1-COOKIE-XIANGSHU-001"
+      - "sample_login_001"
+      - "sample_login_002"
+      - "sample_login_003"
+      - "sample_header_001"
+      - "sample_header_002"
+      - "sample_header_003"
+      - "SAMPLE-P1-HEADER-001"
+      - "SAMPLE-P1-HEADER-002"
+      - "SAMPLE-P1-HEADER-003"
+      - "SAMPLE-P1-CACHE-001"
+      - "SAMPLE-P1-CACHE-002"
+      - "SAMPLE-P1-CACHE-003"
+      - "SAMPLE-P1-COOKIE-001"
+      - "SAMPLE-P1-COOKIE-002"
+      - "SAMPLE-P1-COOKIE-003"
+      - "SAMPLE-P1-ERROR-001"
+      - "SAMPLE-P1-ERROR-002"
+      - "SAMPLE-P1-ERROR-003"
+      - "SAMPLE-P1-POLICY-001"
+      - "SAMPLE-P1-POLICY-002"
+      - "SAMPLE-P1-POLICY-003"
+
+consistency:
+  executable_count: 3
+  network_blocked_count: 1
+  antibot_blocked_count: 2
+  not_required_count: 36
+  totalCheck: "3 + 1 + 2 + 36 = 42"
+  totalSamplesMatch: true
+  matrixAligned: true
+  newFailureTypeAdded: false
+  actualLevelModified: false
+  jsCapabilityFieldPresentInMatrix:
+    - "SAMPLE-P1-COOKIE-XUANYGE-001"
+    - "sample_cookie_001"
+    - "sample_cookie_002"
+    - "sample_js_001"
+    - "sample_js_runtime_001"
+    - "sample_js_runtime_002"

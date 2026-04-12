@@ -1,0 +1,168 @@
+version: "1.0.0"
+generatedAt: "2026-04-11T00:00:00+08:00"
+sourceMatrix: "samples/matrix/compat_matrix.yml"
+sourceDemand:  "samples/matrix/capability_demand.yml"
+sourceROI:     "samples/matrix/capability_roi.yml"
+stage: "p3-capability-decision"
+decisionAuthority: "AI development agent (P3 decision layer)"
+note: >
+  Each decision is derived from demand.yml + roi.yml and is traceable to specific
+  samples. Decisions are final for P3. P4 may revisit deferred items.
+  Constraints enforced:
+    - No new one-level taxonomy
+    - No actualLevel change without executable evidence
+    - No WKWebView / browser engine in Core
+
+decisions:
+
+  # ── BASELINE (already delivered) ────────────────────────────────────────────
+  - capability: js_dom
+    decision: implement
+    decision_detail: "COMPLETED — delivered in P2"
+    affected_samples:
+      - SAMPLE-P1-COOKIE-XUANYGE-001
+      - sample_js_runtime_001
+      - sample_js_runtime_002
+    expected_gain: "XUANYGE-001: D→C. JS execution gap closed. Remaining blocker is cookie binding."
+    reason: >
+      JSRuntimeDOMBridge + @js: rule path shipped. querySelector, querySelectorAll,
+      innerHTML, textContent available. networkLockdownScript ensures safety.
+      JSParserEngineFactory wires the bridge into NonJSParserEngine for production use.
+
+  # ── IMPLEMENT in P3 ─────────────────────────────────────────────────────────
+  - capability: cookie_jar_isolation
+    decision: implement
+    priority: P3-1
+    affected_samples:
+      - SAMPLE-P1-COOKIE-WENSANG-001    # C / NETWORK_POLICY_MISMATCH
+      - SAMPLE-P1-COOKIE-XIANGSHU-001   # C / NETWORK_POLICY_MISMATCH
+      - SAMPLE-P1-COOKIE-XUANYGE-001    # C / JS_UNSUPPORTED (remaining gap is cookie)
+    expected_gain: >
+      With per-source cookie isolation: WENSANG-001 and XIANGSHU-001 can be retested
+      with clean per-host jars. If cookie alone resolves site access, actualLevel C→B.
+      XUANYGE-001: cookie isolation removes contamination risk; enables clean
+      verification that cookie binding (not jar pollution) is the sole remaining blocker.
+    reason: >
+      Three C-level samples share cookie binding as primary or sole remaining gap.
+      Implementation is MEDIUM complexity (extend BasicCookieJar, wire NetworkPolicyLayer).
+      No browser dependency. All within ReaderCoreNetwork. ROI HIGH.
+    implementation_scope:
+      module: ReaderCoreNetwork
+      target_file: "Core/Sources/ReaderCoreNetwork/BasicCookieJar.swift"
+      integration_point: "NetworkPolicyLayer selects jar by BookSource.bookSourceUrl host component"
+      test_target: ReaderCoreNetworkTests
+
+  - capability: login_cookie_bootstrap
+    decision: implement
+    priority: P3-2
+    affected_samples:
+      - sample_login_001    # D / NETWORK_POLICY_MISMATCH (geofenced; arch reference)
+    expected_gain: >
+      LoginCookieBootstrap.swift enables form-POST login → Set-Cookie capture → jar write.
+      sample_login_001 is geofenced from US CI; executable CI evidence will remain blocked,
+      but the capability is validated by sample_login_003 (already A).
+      Architecture coverage: any source with loginUrl can now attempt authenticated access.
+    reason: >
+      sample_login_003 proved the pattern works (LOGIN_REQUIRED → A).
+      login_cookie_bootstrap fills the gap for sources where loginUrl is set but
+      no bootstrap is attempted. MEDIUM complexity, no browser dependency. ROI MEDIUM.
+    implementation_scope:
+      module: ReaderCoreNetwork
+      target_file: "Core/Sources/ReaderCoreNetwork/LoginCookieBootstrap.swift"
+      integration_point: "Called before search flow when BookSource.loginUrl != nil"
+      test_target: ReaderCoreNetworkTests
+
+  - capability: policy_verification
+    decision: implement
+    priority: P3-3
+    affected_samples:
+      - SAMPLE-P1-POLICY-003    # C / CONTENT_FAILED (static-only, executable pending)
+    expected_gain: >
+      Adding an XCTest that feeds a fixture HTTP-404 response through NetworkErrorMapper
+      and asserts CONTENT_FAILED closes the verification gap.
+      If test passes: actualLevel C→A.
+    reason: >
+      SAMPLE-P1-POLICY-003 is classified correctly (CONTENT_FAILED). The only gap is
+      the absence of an executable XCTest. LOW complexity; no production code change.
+    implementation_scope:
+      module: ReaderCoreNetworkTests
+      target_file: "Core/Tests/ReaderCoreNetworkTests/PolicyVerificationTests.swift"
+      integration_point: "XCTest only; no production code change required"
+      test_target: ReaderCoreNetworkTests
+
+  # ── DEFER ────────────────────────────────────────────────────────────────────
+  - capability: js_eval_inline
+    decision: defer
+    defer_to: "P4 (after cookie_jar_isolation closes XUANYGE-001)"
+    affected_samples:
+      - SAMPLE-P1-COOKIE-XUANYGE-001
+    expected_gain: >
+      Marginal: XUANYGE-001 is blocked by cookie binding, not inline-script evaluation.
+      js_eval_inline would not change its actualLevel until cookie is resolved.
+    reason: >
+      js_dom (delivered) already covers the @js: rule path. js_eval_inline (inline
+      <script> extraction) has no unblocked sample that gains a level improvement by
+      itself in P3. Deferring avoids premature scope expansion.
+      Security consideration: inline <script> evaluation from untrusted HTML raises
+      the JSContext attack surface; revisit with explicit threat model in P4.
+
+  # ── OUT OF SCOPE ─────────────────────────────────────────────────────────────
+  - capability: js_network
+    decision: out_of_scope
+    affected_samples:
+      - sample_cookie_002    # D / NETWORK_POLICY_MISMATCH (qidian AJAX rendering)
+    expected_gain: "D→B (theoretical; one sample)"
+    reason: >
+      Enabling fetch/XHR inside JSContext requires removing or proxying
+      networkLockdownScript — the security guarantee that prevents book-source JS
+      from making arbitrary outbound requests. Removing this guarantee introduces
+      an unbounded SSRF-class risk (book sources are untrusted third-party JSON).
+      Security cost >> one-sample gain. ROI NEGATIVE.
+    capabilityDecision:
+      status: out_of_scope
+      rationale: "Security boundary (networkLockdownScript) must not be weakened for one sample."
+
+  - capability: antibot
+    decision: out_of_scope
+    affected_samples:
+      - sample_js_001           # D / JS_UNSUPPORTED (Cloudflare BIC)
+      - sample_cookie_001       # D / NETWORK_POLICY_MISMATCH (Cloudflare JS challenge)
+      - sample_header_003       # C / NETWORK_POLICY_MISMATCH (cloudflare_bot_check)
+      - SAMPLE-P1-HEADER-003    # C / NETWORK_POLICY_MISMATCH (anti-bot boundary)
+      - SAMPLE-P1-COOKIE-003    # C / NETWORK_POLICY_MISMATCH (anti-bot boundary)
+    expected_gain: "D→A (2), C→A (3) — theoretical only; 5 samples"
+    reason: >
+      Requires WKWebView with real network access and/or TLS fingerprint bypass.
+      Fundamentally incompatible with the URLSession-only, sandboxed JSContext model
+      in ReaderCore. Introducing WKWebView into Core violates the no-UI-framework
+      constraint and breaks macOS CLI target compatibility.
+      Cloudflare challenge updates regularly — maintenance cost is unbounded.
+      App Store / ATS policy risk from TLS fingerprint manipulation.
+      ROI NEGATIVE despite 5 affected samples.
+    capabilityDecision:
+      status: out_of_scope
+      rationale: "Requires real browser engine — architecturally incompatible with ReaderCore model."
+
+# ── Decision summary ──────────────────────────────────────────────────────────
+summary:
+  implement:
+    count: 4    # js_dom (done), cookie_jar_isolation, login_cookie_bootstrap, policy_verification
+    items:
+      - js_dom                  # COMPLETED
+      - cookie_jar_isolation    # P3-1
+      - login_cookie_bootstrap  # P3-2
+      - policy_verification     # P3-3
+  defer:
+    count: 1
+    items:
+      - js_eval_inline          # revisit P4
+  out_of_scope:
+    count: 2
+    items:
+      - js_network
+      - antibot
+
+  samples_covered_by_implement: 7    # XUANYGE-001, WENSANG-001, XIANGSHU-001, login_001, login_003, POLICY-003, js_runtime_001/002
+  samples_remaining_out_of_scope: 5  # js_001, cookie_001, header_003, HEADER-003, COOKIE-003
+  new_taxonomy_added: false
+  actual_level_changes: 0    # will be updated when P3 implement produces executable evidence

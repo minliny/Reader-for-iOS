@@ -1,0 +1,110 @@
+version: "0.1.0"
+generatedAt: "2026-04-11T00:00:00+08:00"
+stage: "p2-capability-breakthrough"
+sourceMatrix: "samples/matrix/compat_matrix.yml"
+note: >
+  P2 capability plan derived from C/D-level failures in compat_matrix v0.22.0.
+  Capability priority is assigned relative to sample count and implementation cost.
+  Anti-bot / TLS-fingerprint capabilities are out of scope per P2 constraints.
+
+capabilities:
+  - capability: js_dom_querySelector
+    description: >
+      Minimal DOM polyfill inside JavaScriptCore that exposes document.querySelector /
+      document.querySelectorAll backed by a pure-JS regex HTML parser. Supports tag,
+      #id, and .class selectors. No network access. No full browser required.
+    required_for_samples:
+      - SAMPLE-P1-COOKIE-XUANYGE-001   # D / JS_UNSUPPORTED – mixed Cookie+JS rule
+      - sample_js_001                  # D / JS_UNSUPPORTED – wenku8 Cloudflare JS gate
+      - sample_cookie_002              # D / NETWORK_POLICY_MISMATCH – qidian client-side rendering
+    dependency: null
+    priority: P1
+    implementation_scope:
+      module: ReaderCoreJSRenderer
+      files:
+        - Core/Sources/ReaderCoreJSRenderer/JSRuntimeDOMBridge.swift  # new – PoC skeleton
+      integration_point: >
+        NonJSParserEngine: before evaluating a rule that contains the @js prefix,
+        pass the raw HTML through JSRuntimeDOMBridge.execute(html:evalScript:) to
+        obtain a post-JS HTML string, then hand that string to the existing CSS
+        rule pipeline.
+      test_target: ReaderCoreJSRendererTests
+
+  - capability: js_eval_inline
+    description: >
+      Extend JSRuntime additionalEvaluationScripts hook to execute inline <script> blocks
+      extracted from the HTML and run them against the DOM polyfill. Allows simple
+      document.write / DOM mutation patterns seen in light-weight book-source JS rules.
+    required_for_samples:
+      - SAMPLE-P1-COOKIE-XUANYGE-001
+      - sample_js_001
+    dependency: js_dom_querySelector
+    priority: P2
+    implementation_scope:
+      module: ReaderCoreJSRenderer
+      files:
+        - Core/Sources/ReaderCoreJSRenderer/JSRuntimeDOMBridge.swift  # extend existing
+      integration_point: >
+        JSRuntimeDOMBridge.execute(html:evalScript:) accepts an optional extra script
+        string; the caller extracts <script> content from HTML and passes it here.
+      test_target: ReaderCoreJSRendererTests
+
+  - capability: login_cookie_bootstrap
+    description: >
+      Single-step HTTP form login that performs a POST with credentials, reads the
+      Set-Cookie response, and stores the session cookie in BasicCookieJar. Enables
+      cookie-authenticated requests in subsequent search/toc/content steps.
+      Credentials are injected at call-site; no keychain integration in PoC.
+    required_for_samples:
+      - sample_login_001               # D / NETWORK_POLICY_MISMATCH (geofenced; login arch reference)
+    dependency: null
+    priority: P3
+    implementation_scope:
+      module: ReaderCoreNetwork
+      files:
+        - Core/Sources/ReaderCoreNetwork/LoginCookieBootstrap.swift   # new
+      integration_point: >
+        Called before the search flow when BookSource.loginUrl is non-null.
+        Stores the resulting cookies in BasicCookieJar; all subsequent requests
+        in the same session share the jar.
+      test_target: ReaderCoreNetworkTests
+    notes: >
+      sample_login_001 (biquge.com.cn) is likely geofenced from US CI; the capability
+      itself is still required for sources that gate search behind login. Implement
+      using the existing BasicCookieJar + URLSession pipeline; no new taxonomy.
+
+  - capability: cookie_jar_isolation
+    description: >
+      Enforce per-source cookie-jar isolation so that NETWORK_POLICY_MISMATCH failures
+      on cookie-required sources (WENSANG, XIANGSHU) can be debugged in isolation
+      without cross-source cookie contamination.
+    required_for_samples:
+      - SAMPLE-P1-COOKIE-WENSANG-001   # C / NETWORK_POLICY_MISMATCH
+      - SAMPLE-P1-COOKIE-XIANGSHU-001  # C / NETWORK_POLICY_MISMATCH
+    dependency: null
+    priority: P2
+    implementation_scope:
+      module: ReaderCoreNetwork
+      files:
+        - Core/Sources/ReaderCoreNetwork/BasicCookieJar.swift  # extend with source-scoped API
+      integration_point: >
+        NetworkPolicyLayer selects the jar keyed by BookSource.bookSourceUrl host;
+        no global jar shared between sources.
+      test_target: ReaderCoreNetworkTests
+
+  - capability: anti_bot_out_of_scope
+    description: >
+      Cloudflare Browser Integrity Check, dynamic token rotation, and TLS fingerprint
+      matching cannot be resolved without a real browser and are explicitly out of scope
+      for P2. Samples blocked by anti-bot remain at C/D and blocking=false.
+    required_for_samples:
+      - sample_cookie_001              # D / NETWORK_POLICY_MISMATCH (Cloudflare JS challenge)
+      - sample_header_003              # C / NETWORK_POLICY_MISMATCH (cloudflare_bot_check)
+      - SAMPLE-P1-HEADER-003           # C / NETWORK_POLICY_MISMATCH (anti-bot boundary)
+      - SAMPLE-P1-COOKIE-003           # C / NETWORK_POLICY_MISMATCH (anti-bot boundary)
+    dependency: null
+    priority: OUT_OF_SCOPE
+    implementation_scope: null
+    notes: >
+      These samples document the capability boundary. No implementation planned in P2.
+      They will remain at their current actualLevel and blocking=false.
