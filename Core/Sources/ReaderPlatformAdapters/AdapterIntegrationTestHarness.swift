@@ -121,9 +121,9 @@ public final class MockHTTPAdapter: HTTPAdapterProtocol, @unchecked Sendable {
     // HTTPAdapterProtocol conformance
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
         // Validate URL — mirrors the behavior of real adapters (e.g. URLSessionHTTPClient)
-        // which reject malformed URLs. This ensures MockHTTPAdapter passes the
-        // HTTP_send_invalidURLThrows contract test.
-        guard URL(string: request.url) != nil else {
+        // which reject URLs without valid http/https scheme and non-empty host.
+        // This ensures MockHTTPAdapter passes the HTTP_send_invalidURLThrows contract.
+        guard isValidHTTPURL(request.url) else {
             throw AdapterHarnessError.invalidURL(request.url)
         }
 
@@ -138,6 +138,19 @@ public final class MockHTTPAdapter: HTTPAdapterProtocol, @unchecked Sendable {
             // Default: return 200 with empty body if no response enqueued
             return HTTPResponse(statusCode: 200, headers: [:], data: Data())
         }
+    }
+
+    /// Validate that the URL has a valid http/https scheme and non-empty host.
+    /// Mirrors URLSessionHTTPClient.validatedURL behavior.
+    private func isValidHTTPURL(_ rawURL: String) -> Bool {
+        guard let url = URL(string: rawURL),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host,
+              !host.isEmpty,
+              scheme == "http" || scheme == "https"
+        else { return false }
+        return true
     }
 }
 
