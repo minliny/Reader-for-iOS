@@ -3,17 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: core_contract_stabilization
+  phase: post_freeze_planning
+  execution_mode: recalibrated_phase2
+  active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: false
-  ios_block_reason: "Header/Cookie/ErrorMapping remain outside current rollout closure scope."
+  ios_block_reason: "Minimal tooling subset (AdapterHarness + TraceInspector) not yet complete. iOS gate review requires: M1 complete + M2 minimal subset + Shell smoke validation + Architecture review pass."
 
 current_focus:
   primary_track:
     - Reader-Core
-    - core contract stabilization
-  next_best_task: "P3 capability expansion: Error mapping / Cache executable verification"
-  next_best_task_detail: "Header capability VERIFIED via CI (runId 24200529880, 117 tests, 0 failures). Next: Error mapping, Cache executable verification."
+    - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
+  active_milestone: m2_minimal
+  milestone_status: pending
+  milestone_detail: "AdapterIntegrationTestHarness + Request/Response Trace Inspector — minimal tooling for iOS gate readiness"
+  next_best_task: "Execute OT-007 (Request/Response Trace Inspector), then OT-009 (iOS Phase Gate Review)"
+  next_best_task_detail: "OT-006 (AdapterHarness) complete. OT-007 (TraceInspector) is the remaining M2 minimal subset item."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -28,13 +33,37 @@ mature_capabilities:
   - writeback 审核
   - compat_matrix 审计吸收
 
-uncovered_capabilities:
-  - ErrorMapping
+uncovered_capabilities: []
+
+ios_gate:
+  allowed: false
+  conditions:
+    - condition: "Track D M1 complete"
+      status: COMPLETE
+    - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
+      status: PENDING
+    - condition: "Shell smoke validation complete"
+      status: PENDING
+    - condition: "Architecture review pass"
+      status: PENDING
+  previous_conditions_superseded: "Track D M1–M3 complete (旧条件，已校准)"
+
+ios_shell_audit:
+  actual_implementation_state: "SwiftUI views (BookSourceImportView/SearchView/TOCView/ContentView) + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository all exist with real implementation code"
+  tested: false
+  phase_gate_approved: false
+  test_coverage: "iOS/Tests/ReaderAppTests/ is empty — zero test coverage for iOS Shell"
+  missing_capabilities:
+    - "Disk persistence (InMemoryBookSourceRepository only)"
+    - "Multi-source management (single source selection only)"
+    - "Settings/preferences UI"
+    - "Any automated test"
+  risk_assessment: "iOS Shell code is more complete than state docs previously indicated, but remains untested and unapproved for phase gate"
 
 recent_action:
-  summary: "Header capability executable verification passed on macOS CI"
-  category: capability_verification
-  state_effect: "Header capability VERIFIED + CLOSED. 3 executable tests added (defaultHeaders transmitted, override precedence, merge). CI runId 24200529880, 117 tests, 0 failures."
+  summary: "OT-006 (AdapterIntegrationTestHarness) implemented: MockHTTPAdapter + MockStorageAdapter + MockSchedulerAdapter + AdapterContractVerifier + AdapterAssertions. 26 test cases. Pending CI verification."
+  category: tooling_implementation
+  state_effect: "OT-006 code complete. M2 minimal subset now partially complete (AdapterHarness done, TraceInspector pending)."
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -127,7 +156,7 @@ header_regression:
 
 error_mapping_regression:
   reportPath: "samples/reports/latest/error_mapping_regression_summary.yml"
-  executionMode: "static_only"
+  executionMode: "executable"
   coreCodeTouched: false
   samples:
     - sampleId: "SAMPLE-P1-ERROR-001"
@@ -139,17 +168,57 @@ error_mapping_regression:
     - sampleId: "SAMPLE-P1-ERROR-003"
       actualLevel: "A"
       failureType: "RULE_INVALID"
-  verificationStatus: "NOT_VERIFIED"
+  verificationStatus: "CI_VERIFIED"
   closureDecision:
     capability: "ErrorMapping"
-    status: "OPEN"
-    reason: "Executable regression pending"
+    status: "CLOSED"
+    reason: "14/14 ErrorMappingTests passed on macOS-14 CI (run 24279408481)"
+  testFile: "Core/Tests/ReaderCoreNetworkTests/ErrorMappingTests.swift"
+  totalTests: 14
+  lastExecution:
+    environment: "macos_ci"
+    runId: "24279408481"
+    result: "pass"
+    totalTests: 14
 
 capability_status:
   Header: CLOSED
   Cache: CLOSED
   Cookie: CLOSED
-  ErrorMapping: CLOSED
+  ErrorMapping: CI_VERIFIED_CLOSED
+  PolicyVerification: CI_VERIFIED_CLOSED
+  JSDomExecution: CLOSED
+  LoginBootstrap: CLOSED
+  CookieIsolation: CLOSED
+  AntiBot: OUT_OF_SCOPE
+  JSNetwork: OUT_OF_SCOPE
+
+policy_verification_regression:
+  reportPath: "samples/reports/latest/policy_regression_summary.yml"
+  executionMode: "executable"
+  coreCodeTouched: false
+  samples:
+    - sampleId: "SAMPLE-P1-POLICY-001"
+      actualLevel: "B"
+      failureType: null
+    - sampleId: "SAMPLE-P1-POLICY-002"
+      actualLevel: "B"
+      failureType: null
+    - sampleId: "SAMPLE-P1-POLICY-003"
+      actualLevel: "C"
+      failureType: "CONTENT_FAILED"
+  verificationStatus: "CI_VERIFIED"
+  closureDecision:
+    capability: "PolicyVerification"
+    status: "CLOSED"
+    reason: "9/9 PolicyVerificationTests passed on macOS-14 CI (run 24279408481)"
+  testFile: "Core/Tests/ReaderCoreNetworkTests/PolicyVerificationTests.swift"
+  totalTests: 9
+  lastExecution:
+    environment: "macos_ci"
+    runId: "24279408481"
+    result: "pass"
+    totalTests: 9
 
 state_sync:
   required_files:
@@ -163,7 +232,7 @@ state_sync:
     - 三份文件必须保持内容一致
 
 change_scope:
-  this_update: engineering_architecture_skeleton
+  this_update: phase2_strategy_recalibration
   samples_changed: false
   compat_matrix_changed: false
   failure_taxonomy_changed: false
@@ -177,4 +246,16 @@ change_scope:
   platform_feature_touched: false
   adapters_protocols_defined: true
   shell_directories_added: true
-  clean_room_statement: "本轮仅推进工程级 architecture skeleton：目录结构、adapter 协议与状态同步；不实现平台 UI、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  freeze_gate_status: "READY_TO_FREEZE"
+  freeze_gate_evidence:
+    - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
+    - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
+  freeze_gate_blockers: []
+  active_milestone: m2_minimal
+  active_milestone_status: pending
+  new_docs_created:
+    - docs/API_SNAPSHOT/Core_Public_API.md
+    - docs/API_SNAPSHOT/Core_Module_Dependency.md
+    - docs/FIXTURE_INFRA_SPEC.md
+    - docs/TOOLING_BACKLOG.md
+  clean_room_statement: "本轮仅校准规划/状态/gate/task文档；不修改 Core production 代码、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"

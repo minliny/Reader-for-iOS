@@ -8,7 +8,7 @@
 你是本项目的 AI 开发代理。
 
 项目定义：
-这是一个“兼容 Legado 书源 JSON 主流字段结构与主流程行为”的多端本地客户端项目，采用“统一 Core + 多端壳层”路线。当前主线为 Reader-Core first，iOS later。当前阶段聚焦 Reader-Core 兼容内核开发与 core contract stabilization，先完成非 UI、非壳层、可回归的核心兼容闭环，再决定是否进入 iOS 壳层阶段。
+这是一个"兼容 Legado 书源 JSON 主流字段结构与主流程行为"的多端本地客户端项目，采用"统一 Core + 多端壳层"路线。当前主线为 Reader-Core first，iOS later。Core 兼容内核已完成 core_contract_stabilization 并通过 freeze gate CI 验证，当前阶段为 post_freeze，推荐 Track D (Tooling/Debug/Fixture) 作为下一步。
 
 你必须遵守以下规则：
 1. 兼容格式与行为，不复用实现代码。
@@ -27,6 +27,20 @@
 - sample_js_runtime_002
 - sample_004
 - sample_005
+- sample_001 / sample_002 / sample_003
+- SAMPLE-P1-HEADER-001 / 002 / 003
+- SAMPLE-P1-COOKIE-001 / 002 / 003
+- SAMPLE-P1-CACHE-001 / 002 / 003
+- SAMPLE-P1-ERROR-001 / 002 / 003
+- SAMPLE-P1-POLICY-001 / 002 / 003
+- sample_header_001 / 002 / 003
+- sample_cookie_001 / 002
+- sample_login_001 / 002 / 003
+- sample_js_001
+- css_executor_selector_semantics_contract
+- fixture_toc_selector_miss / title_rule_miss / url_rule_miss / count_mismatch / non_selector_error
+- toc_item_invalid_url_contract / http_client_invalid_url_contract
+- SAMPLE-P1-COOKIE-WENSANG-001 / XIANGSHU-001 / XUANYGE-001
 
 当前成熟能力：
 - CI 执行
@@ -34,20 +48,29 @@
 - regression 回写
 - writeback 审核
 - compat_matrix 审计吸收
+- Header (CLOSED)
+- Cookie (CLOSED)
+- Cache (CLOSED)
+- ErrorMapping (CI_VERIFIED_CLOSED)
+- PolicyVerification (CI_VERIFIED_CLOSED)
+- JSDomExecution (CLOSED)
+- LoginBootstrap (CLOSED)
+- CookieIsolation (CLOSED)
 
 当前未覆盖能力：
-- Header
-- Cookie
-- Cache
-- Error mapping
+- 无（所有能力已关闭或已裁决 OUT_OF_SCOPE）
+
+当前 OUT_OF_SCOPE 能力：
+- AntiBot (ROI NEGATIVE — 需 WKWebView，与沙箱模型不兼容)
+- JSNetwork (ROI NEGATIVE — 开启 fetch/XHR 破坏 networkLockdown 安全保证)
 
 当前阶段不做：
-- iOS 壳层推进
 - 直接移植 Android 实现
 - 完整历史边缘规则兼容
 - 复杂在线调试服务复刻
 - 内置内容平台
 - 云同步、账号、社区优先开发
+- 未通过 phase gate 审批前进入 iOS 壳层正式开发
 
 工作方式：
 1. 先输出本次要生成的文件列表。
@@ -81,13 +104,31 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: core_contract_stabilization
+  phase: post_freeze (core_contract_stabilization COMPLETE)
 
 closed_samples:
   - sample_js_runtime_001
   - sample_js_runtime_002
   - sample_004
   - sample_005
+  - sample_001
+  - sample_002
+  - sample_003
+  - SAMPLE-P1-HEADER-001
+  - SAMPLE-P1-HEADER-002
+  - SAMPLE-P1-HEADER-003
+  - SAMPLE-P1-COOKIE-001
+  - SAMPLE-P1-COOKIE-002
+  - SAMPLE-P1-COOKIE-003
+  - SAMPLE-P1-CACHE-001
+  - SAMPLE-P1-CACHE-002
+  - SAMPLE-P1-CACHE-003
+  - SAMPLE-P1-ERROR-001
+  - SAMPLE-P1-ERROR-002
+  - SAMPLE-P1-ERROR-003
+  - SAMPLE-P1-POLICY-001
+  - SAMPLE-P1-POLICY-002
+  - SAMPLE-P1-POLICY-003
 
 mature_capabilities:
   - ci_execution
@@ -95,33 +136,49 @@ mature_capabilities:
   - regression_writeback
   - writeback_review
   - compat_matrix_audit_absorption
+  - Header (CLOSED)
+  - Cookie (CLOSED)
+  - Cache (CLOSED)
+  - ErrorMapping (CI_VERIFIED_CLOSED)
+  - PolicyVerification (CI_VERIFIED_CLOSED)
+  - JSDomExecution (CLOSED)
+  - LoginBootstrap (CLOSED)
+  - CookieIsolation (CLOSED)
 
-uncovered_capabilities:
-  - Header
-  - Cookie
-  - Cache
-  - Error mapping
+uncovered_capabilities: []
+
+out_of_scope_capabilities:
+  - AntiBot (ROI NEGATIVE)
+  - JSNetwork (ROI NEGATIVE)
 
 ios_gate:
   allowed: false
-  reason: "Reader-Core 主线仍处于 core_contract_stabilization，未完成 Header/Cookie/Cache/Error mapping 闭环。"
+  conditions:
+    - condition: "Track D M1 complete"
+      status: COMPLETE
+    - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
+      status: IN_PROGRESS
+    - condition: "Shell smoke validation complete"
+      status: PENDING
+    - condition: "Architecture review pass"
+      status: PENDING
+  superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
+  ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/ but untested and not phase-gate approved"
 
-recent_completed_action: "Header capability closure 已转化为样本驱动任务"
-next_best_task: "基于 SAMPLE-P1-HEADER-001/002/003 推进 Header 能力实现与回归。"
-header_sample_driven_task:
-  matrix_state: "expectedLevel A / actualLevel C / failureType NETWORK_POLICY_MISMATCH"
-  implementation_done: false
+recent_completed_action: "OT-006 (AdapterIntegrationTestHarness) implemented: MockHTTPAdapter + MockStorageAdapter + MockSchedulerAdapter + AdapterContractVerifier. 26 test cases. Pending CI verification."
+next_best_task: "Execute OT-007 (TraceInspector), then OT-009 (iOS Phase Gate Review)"
+freeze_gate_status: "READY_TO_FREEZE"
 ```
 
 ## 首版范围与边界
 
 ### 首版必须完成
-- 统一 Core 基础模型
-- BookSource 导入
-- 搜索 / 目录 / 正文主链路
-- 非 JS 主路径
-- Header / 基础 Cookie / 缓存 / 错误定位
-- 最小调试能力
+- 统一 Core 基础模型 ✅
+- BookSource 导入 ✅
+- 搜索 / 目录 / 正文主链路 ✅
+- 非 JS 主路径 ✅
+- Header / 基础 Cookie / 缓存 / 错误定位 ✅
+- 最小调试能力 ✅ (smoke runner + regression scripts)
 
 ### 当前已成熟能力
 - CI 执行
@@ -129,25 +186,34 @@ header_sample_driven_task:
 - regression 回写
 - writeback 审核
 - compat_matrix 审计吸收
+- Header (CLOSED)
+- Cookie (CLOSED, 含 scoped isolation)
+- Cache (CLOSED, 含 SimpleCacheRepository + MinimalCacheHTTPClient + InMemoryResponseCache)
+- Error mapping (CI_VERIFIED_CLOSED, 14/14 ErrorMappingTests passed)
+- PolicyVerification (CI_VERIFIED_CLOSED, 9/9 PolicyVerificationTests passed)
+- JSDomExecution (CLOSED, JSRuntime + JSRuntimeDOMBridge)
+- LoginBootstrap (CLOSED, 3-step bootstrap + marker verification)
+- CookieIsolation (CLOSED, scoped BasicCookieJar)
 
 ### 当前未覆盖能力
-- Header
-- Cookie
-- Cache
-- Error mapping
+- 无（所有能力已关闭或已裁决 OUT_OF_SCOPE）
+
+### 当前 OUT_OF_SCOPE
+- AntiBot (ROI NEGATIVE — 需 WKWebView，与沙箱模型不兼容)
+- JSNetwork (ROI NEGATIVE — 开启 fetch/XHR 破坏 networkLockdown 安全保证)
 
 ### 当前明确不做
-- 当前阶段不进入 iOS 壳层开发
 - 直接移植 Android 实现
 - 完整历史边缘规则兼容
 - 复杂在线调试服务复刻
 - 内置内容平台
 - 云同步、账号、社区优先开发
+- 未通过 phase gate 审批前进入 iOS 壳层正式开发
 
 ## 禁止事项
 
 - 禁止复制、翻译、改写 Legado Android 源码或其实现细节。
-- 禁止引入首版范围外功能并伪装为“顺手优化”。
+- 禁止引入首版范围外功能并伪装为"顺手优化"。
 - 禁止在未绑定样本的情况下提交兼容性改动。
 - 禁止跳过 metadata、expected、matrix 中任一项。
 - 禁止修改 A/B/C/D 兼容等级定义。
@@ -174,7 +240,7 @@ header_sample_driven_task:
 
 ## 自动状态更新机制
 
-以下规则适用于任何“开发步骤完成后”的状态同步：
+以下规则适用于任何"开发步骤完成后"的状态同步：
 
 ### 触发动作
 
@@ -241,5 +307,5 @@ header_sample_driven_task:
 ## 生效范围
 
 - 本文件适用于本仓库下所有人类与智能体协作任务。
-- 子智能体配置必须显式继承本文件的“强制前置主提示词”。
+- 子智能体配置必须显式继承本文件的"强制前置主提示词"。
 - 如子智能体配置与本文件冲突，以本文件为准。
