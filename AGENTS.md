@@ -157,7 +157,7 @@ ios_gate:
     - condition: "Track D M1 complete"
       status: COMPLETE
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
-      status: IN_PROGRESS
+      status: IN_PROGRESS  # AdapterHarness CI_VERIFIED, TraceInspector code_complete_pending_ci
     - condition: "Shell smoke validation complete"
       status: PENDING
     - condition: "Architecture review pass"
@@ -165,8 +165,8 @@ ios_gate:
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
   ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/ but untested and not phase-gate approved"
 
-recent_completed_action: "OT-006 (AdapterIntegrationTestHarness) CI VERIFIED: 26/26 tests passed on macOS-14. URL validation fix applied (http/https scheme+host check)."
-next_best_task: "Execute OT-007 (TraceInspector), then OT-009 (iOS Phase Gate Review)"
+recent_completed_action: "OT-007 (TraceInspector) implemented: TracingHTTPClient decorator + TraceRecord models + InMemoryTraceCollector + HeaderRedactionPolicy + BodyPreviewConfig. 28 test cases. Pending CI."
+next_best_task: "OT-007 CI verification, then OT-009 (iOS Phase Gate Review)"
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 

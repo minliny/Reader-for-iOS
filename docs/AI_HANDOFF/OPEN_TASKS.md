@@ -5,7 +5,7 @@
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
 | OT-006 | Adapter Integration Harness | ci_verified | P0 | M1 complete ✅ | Adapter mock 设计遗漏边界场景 | Harness可注入mock/real adapter + contract验证模板 | yes |
-| OT-007 | Request/Response Trace Inspector | pending | P0 | M1 complete ✅ | 敏感数据泄露 | HTTPClient decorator记录全链路 + 脱敏 | yes |
+| OT-007 | Request/Response Trace Inspector | code_complete | P0 | M1 complete ✅ | 敏感数据泄露 | HTTPClient decorator记录全链路 + 脱敏 | yes |
 | OT-008 | Optional: Fixture Replay / Selector Tester | pending | P1 | OT-006 | scope膨胀 | 二选一工具可用 | yes |
 | OT-009 | iOS Phase Gate Review | pending | P0 | OT-006 + OT-007 | gate review 不通过 | Shell smoke + Architecture review + gate decision | yes |
 
@@ -33,20 +33,23 @@
 
 ### OT-007: Request/Response Trace Inspector
 
-- 状态：`pending`
+- 状态：`code_complete` (待 CI 验证)
 - 优先级：`P0`
 - 前置依赖：Track D M1 complete (已满足)
 - 风险点：TraceInspector 可能记录敏感数据（cookie、authorization header）
 - 验收标准：
-  - HTTPClient decorator 记录所有请求/响应
-  - 支持敏感数据脱敏（cookie、authorization header 等）
-  - 输出格式为结构化 JSON/YAML
-  - 可与 AdapterIntegrationTestHarness 配合使用
+  - HTTPClient decorator 记录所有请求/响应 ✅
+  - 支持敏感数据脱敏（cookie、authorization header 等）✅
+  - 输出格式为结构化 TraceRecord ✅
+  - 可与 AdapterIntegrationTestHarness 配合使用 ✅
 - 交付物：
-  - TraceInspector 实现（HTTPClient decorator）
-  - 脱敏配置
-  - 使用文档
-- 是否允许 AI 独立完成：`yes`
+  - TraceInspector 实现（TracingHTTPClient decorator）✅
+  - 脱敏配置（HeaderRedactionPolicy）✅
+  - Body preview 截断（BodyPreviewConfig）✅
+  - InMemoryTraceCollector ✅
+  - 测试套件 ✅ (28 test cases)
+  - 使用文档 — 内嵌于代码注释
+- 待完成：CI 验证通过后标记 `ci_verified`
 
 ### OT-008: Optional — Fixture Replay / Selector Tester (二选一)
 
@@ -155,4 +158,4 @@ OT-007 (TraceInspector) ──┘
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`no`
-- 判断原因：Minimal tooling subset (TraceInspector) 尚未完成。OT-006 (AdapterHarness) 已 CI_VERIFIED ✅。iOS gate review 需要：M1 complete ✅ + M2 minimal subset (AdapterHarness CI_VERIFIED ✅ + TraceInspector pending) + Shell smoke validation + Architecture review pass。
+- 判断原因：OT-006 (AdapterHarness) CI_VERIFIED ✅, OT-007 (TraceInspector) code_complete (待 CI 验证)。iOS gate review 需要：M1 complete ✅ + M2 minimal subset (AdapterHarness CI_VERIFIED ✅ + TraceInspector code_complete_pending_ci) + Shell smoke validation + Architecture review pass。
