@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderShellValidation
 
 public struct TOCView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
@@ -26,7 +27,7 @@ public struct TOCView: View {
                 tocList
             }
         }
-        .navigationTitle(book.title ?? "目录")
+        .navigationTitle(book.title)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if coordinator.tocItems.isEmpty {
@@ -50,7 +51,7 @@ public struct TOCView: View {
     private var tocList: some View {
         ScrollView {
             LazyVStack(spacing: 1) {
-                ForEach(coordinator.tocItems, id: \.self) { chapter in
+                ForEach(coordinator.tocItems, id: \.chapterURL) { chapter in
                     NavigationLink {
                         ContentView(coordinator: coordinator, chapter: chapter)
                     } label: {
@@ -67,7 +68,7 @@ private struct ChapterRow: View {
 
     var body: some View {
         HStack {
-            Text(chapter.title ?? "无标题")
+            Text(chapter.chapterTitle)
                 .font(.body)
                 .lineLimit(1)
             Spacer()
@@ -75,6 +76,5 @@ private struct ChapterRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
     }
 }
