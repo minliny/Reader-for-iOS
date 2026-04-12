@@ -77,19 +77,33 @@ repository_convergence:
   trusted_main_branch: main
   trusted_remote: origin
   default_remote_branch: origin/main
-  current_sync_status: "local main and origin/main are aligned at commit 06515aa after main push."
+  current_sync_status: "local main and origin/main are aligned at commit 1a07234 after branch audit prune."
   merged_branch:
     name: codex/cache-ci-evidence
     status: merged_into_main_and_deleted
     evidence: "main was 0 behind / 66 ahead relative to codex/cache-ci-evidence before ff-only merge; after merge and push, the local and remote branch refs were deleted."
   retained_branches:
-    - name: origin/claude/fervent-goldstine
-      reason: "Only updates 5 non-js smoke reports; not yet confirmed as safe-to-delete archival branch."
     - name: origin/codex-cache-ci-evidence-2407
-      reason: "Divergent historical adapter/cache hardening branch; not merged into main by commit ancestry."
+      reason: "Ahead 22 / behind 68; git cherry and range-diff did not prove patch-equivalent coverage by main."
     - name: origin/codex-policy-regression-verification-20260409
-      reason: "Divergent policy regression branch with independent history; requires separate value review before deletion."
-  next_cleanup_action: "Review whether origin/claude/fervent-goldstine, origin/codex-cache-ci-evidence-2407, and origin/codex-policy-regression-verification-20260409 still need archival retention before any further cleanup."
+      reason: "Ahead 37 / behind 68; contains meaningful policy regression code/test/sample changes and requires manual follow-up before deletion."
+  next_cleanup_action: "Keep only codex-cache-ci-evidence-2407 and codex-policy-regression-verification-20260409 under review; do not delete until selective absorption analysis is complete."
+
+git_governance:
+  trusted_mainline: main
+  audited_remote_branches:
+    - claude/fervent-goldstine
+    - codex/main
+    - codex-cache-ci-evidence-2407
+    - codex-policy-regression-verification-20260409
+  pruned_remote_branches:
+    - claude/fervent-goldstine
+    - codex/main
+  retained_remote_branches:
+    - codex-cache-ci-evidence-2407
+    - codex-policy-regression-verification-20260409
+  branch_audit_report: docs/BRANCH_AUDIT_AND_PRUNE_REPORT.md
+  github_sync_status: in_sync
 
 ios_shell_ci_gate:
   status: pass
