@@ -1,5 +1,5 @@
 import XCTest
-@testable import ReaderApp
+@testable import ReaderShellValidation
 
 @MainActor
 final class ShellAssemblySmokeTests: XCTestCase {
