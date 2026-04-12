@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-iOS-3 Remote Shell Validation
-- 当前阶段：`m_ios_3_remote_validation_failed`
+- 当前主线：Reader-Core 兼容内核开发 → M-IOS-5 Validation Glue Alignment
+- 当前阶段：`m_ios_5_validation_glue_aligned_verified`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-iOS-2 implementation complete。M-iOS-3 已拿到真实 GitHub Actions 证据，当前 `executionVerified=true`，但 compile step 失败，因此整体仍为 `conditional`。
+- 判断原因：M-IOS-5 已把 isolated shell validation 打绿，但后续 iOS 工作仍需沿着受控 phase gate 前进，因此整体仍保持 `conditional`。
 
 ## 当前事实基线
 
@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-iOS-3 远端验证已执行：GitHub Actions run `24305799783` 在 `macos-14` runner 上真实运行。Boundary gate 通过，compile 失败，smoke tests 未执行。详见 `docs/ios_shell_ci_gate.yml`。
+- M-IOS-5 validation glue alignment 已执行：GitHub Actions run `24306965324` 在 `macos-14` runner 上真实运行。Boundary gate、isolated compile、construction-only smoke tests 全部通过。详见 `docs/ios_shell_ci_gate.yml`。
 
 ## iOS Gate (Recalibrated)
 
@@ -70,38 +70,45 @@ ios_gate:
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
       status: COMPLETE
     - condition: "Shell smoke validation complete"
-      status: FAIL
+      status: PASS
     - condition: "Architecture review pass"
       status: PASS
   prerequisites_for_execution:
     - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — FAIL (run 24305799783 compile failed before test execution)"
+    - "CONDITION-3: Execute shell smoke validation — PASS (run 24306965324)"
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准)"
 ```
 
-## M-iOS-3 Gate Result
+## M-IOS-5 Gate Result
 
 ```yaml
 ios_shell_ci_gate:
   report: docs/ios_shell_ci_gate.yml
   executionVerified: true
+  phaseStatus: PASS
+  validationResult: PASS
   boundary_gate:
     implementationStatus: PASS
     executionStatus: PASS
   shell_ci:
     implementationStatus: PASS
-    executionStatus: FAIL
+    executionStatus: PASS
   smoke_validation:
     implementationStatus: PASS
-    executionStatus: UNKNOWN
-  overall: FAIL
-  next_phase: M-iOS-3-blocker-resolution
+    executionStatus: PASS
+  validation_scope:
+    implementationStatus: PASS
+    executionStatus: PASS
+  validation_glue:
+    implementationStatus: PASS
+    executionStatus: PASS
+  next_phase: M-IOS-6
 ```
 
 ## 本轮验证内容
 
-- 验证对象：`.github/workflows/ios-shell-ci.yml`
+- 验证对象：`ReaderShellValidation` + validation-only `ShellAssembly` glue + isolated shell smoke scope
 - 真实证据源：GitHub Actions
 - runner：`macos-14`
 - executionVerified：`true`
@@ -110,12 +117,31 @@ ios_shell_ci_gate:
   - run `24305565566`：boundary gate pass，compile fail，暴露 SwiftPM package identity 问题
   - run `24305713381`：boundary gate pass，compile fail，暴露 macOS platform floor 问题
   - run `24305799783`：boundary gate pass，compile fail，暴露 host compile 下的 iOS feature source incompatibilities
+  - run `24306191609`：isolated compile pass，smoke fail，暴露 smoke scope 仍过宽
+  - run `24306274617`：smoke narrowed to isolated test product，暴露 validation target 未导出 `ShellAssembly`
+  - run `24306358748`：validation-only glue 被纳入 isolated compile，暴露新首阻断点
+  - run `24306965324`：validation glue 对齐后，boundary/compile/smoke 全绿
 
-## 第一阻断点
+## Phase / Validation / Evidence
 
-- step：`Compile iOS Shell composition root`
-- blocker 类型：`remote_compile_validation_failure`
-- 结论：当前 compile validation mode 会把 `iOS/Features/**` 作为 macOS-hosted SwiftPM build 输入，触发一组 host-incompatible SwiftUI / model assumptions，导致 smoke tests 无法开始
+- phase status：`PASS`
+- validation result：`PASS`
+- execution verified：`true`
+
+## 本轮处理内容
+
+- `iOS/ValidationSupport/ShellAssembly.swift` 增加 `ReaderPlatformAdapters` import
+- `ReaderShellValidation` target 增加 `ReaderPlatformAdapters` 依赖
+- `NonJSParserEngine(ruleScheduler:)` 改为真实 frozen 签名 `NonJSParserEngine(scheduler:)`
+
+## 当前结论
+
+- validation scope isolation：`PASS`
+- validation glue alignment：`PASS`
+- boundary gate：`PASS`
+- shell compile：`PASS`
+- shell smoke validation：`PASS`
+- 当前无活动 blocker；下一步仅允许在 green baseline 上定义 `M-IOS-6`
 
 ## Adapter Validation
 
@@ -211,8 +237,8 @@ deferred_until_post_ios:
 
 ## 下一步唯一最优任务
 
-- `M-iOS-3 blocker resolution: make remote compile validation pass`
-- 目标说明：先定义并批准最小 compile validation 适配策略，解决 `docs/ios_shell_ci_gate.yml` 中记录的 compile 首阻断簇，再重跑 `ios-shell-ci`。只有 compile 通过后，才允许继续看 smoke tests。
+- `M-IOS-6: define the next isolated shell validation increment`
+- 目标说明：以 `docs/ios_shell_ci_gate.yml` 记录的 green baseline（run `24306965324`）为基础推进下一阶段，不得重新扩大 host compile scope。
 
 ## 当前不允许做的事
 
@@ -224,7 +250,7 @@ deferred_until_post_ios:
 - 未同步 taxonomy 就新增 failureType
 - 引入 retry、fallback 或复杂错误策略并伪装为 Error Mapping
 - 引入外部 GPL 代码或引用 Legado Android 实现
-- 在 `docs/ios_shell_ci_gate.yml` 为 `FAIL` 或 `BLOCKED` 时推进 iOS Shell 正式开发
+- 在 `docs/ios_shell_ci_gate.yml` 未保持 `phaseStatus / validationResult / executionVerified` 三层一致时推进下一阶段
 
 ## Clean-Room 状态
 
