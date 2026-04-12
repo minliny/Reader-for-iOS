@@ -162,18 +162,18 @@ ios_gate:
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
       status: COMPLETE  # AdapterHarness CI_VERIFIED, TraceInspector CI_VERIFIED (run 24303727706)
     - condition: "Shell smoke validation complete"
-      status: FAIL  # executionVerified=true on GitHub Actions run 24305799783; compile failed before tests
+      status: PASS  # executionVerified=true on GitHub Actions runs 24306965324 / 24307509812
     - condition: "Architecture review pass"
       status: PASS  # M-iOS-1 remediation complete: 0 illegal imports in CoreIntegration/Features
   prerequisites_for_execution:
     - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — FAIL (remote compile failed before tests)"
+    - "CONDITION-3: Execute shell smoke validation — PASS (remote validation green on macOS-14)"
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
-  ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. ShellAssembly is the designated factory layer. boundary gate script + ios-shell-ci workflow + construction-only ShellAssembly smoke tests are present. Remote validation is executionVerified=true and currently fails at the compile step."
+  ios_shell_current_state: "SwiftUI views + formal ShellAssembly + ReaderFlowFeatureView + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. boundary gate script + ios-shell-ci workflow + shell smoke tests are present. Remote validation is executionVerified=true and currently green."
 
-recent_completed_action: "M-iOS-3 (Remote Shell Validation) FAIL: GitHub Actions runs executed on macOS-14. Boundary gate is execution PASS; current first blocker is compile failure before smoke tests. See docs/ios_shell_ci_gate.yml."
-next_best_task: "M-iOS-3 blocker resolution: address the recorded remote compile blocker, then rerun ios-shell-ci"
+recent_completed_action: "M-IOS-6 (Reader Feature Wiring) PASS: GitHub Actions run 24307509812 kept boundary gate, isolated compile, and shell smoke validation green after app entry wiring."
+next_best_task: "M-IOS-7: Reader Flow Functional Validation"
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 
@@ -235,6 +235,8 @@ freeze_gate_status: "READY_TO_FREEZE"
 - phase status、validation result、execution verified 必须分开写，禁止再用单一 PASS/FAIL 混写三层语义。
 - validation glue 必须与 frozen dependency graph / frozen initializer signatures 对齐，不得编造 wrapper 或 convenience API。
 - 若 `executionVerified = false`，不得写 `validationResult = PASS`。
+- Reader Feature 开发必须保持 `ios-shell-ci` green baseline。
+- 正式 Reader Feature 接线必须通过 `iOS/Shell/ShellAssembly.swift`，不得绕过装配层直连 Core internal modules。
 
 ## Clean-Room 原则
 
