@@ -47,8 +47,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Construction-only smoke stays bound to the isolated shell validation target.
-          swift test --package-path iOS --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
+          # Construction-only smoke stays bound to the isolated shell validation test product.
+          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
 
       - name: Upload iOS Shell logs
         if: always()
