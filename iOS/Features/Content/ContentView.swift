@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderShellValidation
 
 public struct ContentView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
@@ -26,7 +27,7 @@ public struct ContentView: View {
                 emptyState
             }
         }
-        .navigationTitle(chapter.title ?? "正文")
+        .navigationTitle(chapter.chapterTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if coordinator.selectedChapter != chapter || coordinator.contentPage == nil {
@@ -51,14 +52,12 @@ public struct ContentView: View {
     private func contentReader(_ content: ContentPage) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if let title = content.title {
-                    Text(title)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
+                Text(content.title)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity, alignment: .center)
 
-                Text(content.body)
+                Text(content.content)
                     .font(.body)
                     .lineSpacing(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
