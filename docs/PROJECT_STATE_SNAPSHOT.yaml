@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_2_boundary_gate_established
+  phase: m_ios_3_remote_validation_failed
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "CONDITIONAL_ALLOW — M-iOS-1 complete. M-iOS-2 boundary gate and shell CI entry are established, but macOS CI execution is still required to convert shell smoke validation from PARTIAL_PASS to PASS."
+  ios_block_reason: "M-iOS-2 implementation is complete. M-iOS-3 remote validation is execution-verified on GitHub Actions and currently FAILS at the iOS Shell compile step before smoke tests."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_2
-  milestone_status: partial_pass
-  milestone_detail: "Boundary gate script + ios-shell-ci workflow + construction-only ShellAssembly smoke tests added. Local execution is blocked by missing swift toolchain, so macOS CI evidence is still pending."
-  next_best_task: "M-iOS-3: Execute shell smoke validation on macOS CI"
-  next_best_task_detail: "Run .github/workflows/ios-shell-ci.yml on macOS-14, confirm swift build/test for the iOS package, and promote docs/ios_shell_ci_gate.yml from PARTIAL_PASS to PASS if the run succeeds."
+  active_milestone: m_ios_3
+  milestone_status: fail
+  milestone_detail: "Remote validation has been execution-verified on macOS GitHub Actions. Boundary gate passes, but the iOS Shell compile step fails before smoke tests due to host-compilation issues in feature sources."
+  next_best_task: "M-iOS-3 blocker resolution: make iOS Shell compile validation pass under remote SwiftPM gate"
+  next_best_task_detail: "Resolve the first compile blocker recorded in docs/ios_shell_ci_gate.yml, rerun ios-shell-ci on macOS-14, and only reopen smoke validation once compile passes."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -46,21 +46,21 @@ ios_gate:
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
       status: COMPLETE
     - condition: "Shell smoke validation complete"
-      status: PARTIAL_PASS
+      status: FAIL
     - condition: "Architecture review pass"
       status: PASS
   prerequisites_for_execution:
     - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — PARTIAL_PASS (construction-only tests added; macOS CI execution pending)"
+    - "CONDITION-3: Execute shell smoke validation — FAIL (remote compile failed before smoke tests)"
   previous_conditions_superseded: "Track D M1–M3 complete (旧条件，已校准)"
   gate_result_doc: docs/ios_shell_ci_gate.yml
 
 ios_shell_audit:
   actual_implementation_state: "SwiftUI views (BookSourceImportView/SearchView/TOCView/ContentView) + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository all exist with real implementation code"
-  tested: partial
+  tested: remote_execution_failed
   phase_gate_approved: false
-  test_coverage: "Construction-only ShellAssembly smoke tests added at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift. macOS CI execution still pending."
+  test_coverage: "Construction-only ShellAssembly smoke tests exist at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift, but remote macOS CI has not reached test execution because compile fails first."
   missing_capabilities:
     - "Disk persistence (InMemoryBookSourceRepository only)"
     - "Multi-source management (single source selection only)"
@@ -69,16 +69,17 @@ ios_shell_audit:
   risk_assessment: "iOS Shell code is more complete than state docs previously indicated, but remains untested and unapproved for phase gate"
 
 recent_action:
-  summary: "M-iOS-2 implemented to PARTIAL_PASS: added scripts/check_ios_boundary.sh, .github/workflows/ios-shell-ci.yml, and ShellAssembly construction smoke tests. Boundary rescan passed with 0 violations; local swift execution remains unavailable."
-  category: ios_shell_gate
-  state_effect: "Shell boundary is now codified, ShellAssembly wiring is test-addressable, and docs/ios_shell_ci_gate.yml records current gate state with next phase set to M-iOS-3."
+  summary: "M-iOS-3 remote validation executed on GitHub Actions. Latest run 24305799783 passed boundary gate, failed at compile, and did not reach smoke tests."
+  category: ios_shell_remote_validation
+  state_effect: "M-iOS-2 is now implementation-complete and execution-verified. M-iOS-3 is execution-verified=TRUE with overall FAIL, and the first blocker is recorded in docs/ios_shell_ci_gate.yml."
 
 ios_shell_ci_gate:
-  status: partial_pass
+  status: fail
   report: docs/ios_shell_ci_gate.yml
+  execution_verified: true
   boundary_gate: pass
-  shell_ci: partial_pass
-  smoke_validation: partial_pass
+  shell_ci: fail
+  smoke_validation: unknown
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -266,11 +267,11 @@ change_scope:
     - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
     - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
   freeze_gate_blockers: []
-  active_milestone: m_ios_2
-  active_milestone_status: partial_pass
+  active_milestone: m_ios_3
+  active_milestone_status: fail
   new_docs_created:
     - docs/API_SNAPSHOT/Core_Public_API.md
     - docs/API_SNAPSHOT/Core_Module_Dependency.md
     - docs/FIXTURE_INFRA_SPEC.md
     - docs/TOOLING_BACKLOG.md
-  clean_room_statement: "本轮仅建立 iOS Shell 编译链、边界门禁、construction-only smoke validation 与状态文档同步；不修改 Core production 代码、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  clean_room_statement: "本轮仅执行 macOS GitHub Actions 远端验证、最小 workflow/build wiring 修正与状态文档同步；不修改 Core production 代码、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"

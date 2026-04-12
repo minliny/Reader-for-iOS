@@ -9,8 +9,8 @@
 | OT-008 | Optional: Fixture Replay / Selector Tester | pending | P1 | OT-006 | scope膨胀 | 二选一工具可用 | yes |
 | OT-009 | iOS Phase Gate Review | conditional_allow | P0 | OT-006 + OT-007 ✅ | gate review 不通过 | Shell smoke + Architecture review + gate decision | yes |
 | M-iOS-1 | Architecture Remediation (dependency boundary) | complete | P0 | OT-009 CONDITIONAL_ALLOW | 边界修复不彻底 | iOS Shell 零违规 import Core internals | yes |
-| M-iOS-2 | Shell Build / CI / Boundary Gate | partial_pass | P0 | M-iOS-1 ✅ | 本机缺少 macOS/Swift 编译证据 | boundary gate + shell CI + construction smoke tests 建立完成 | yes |
-| M-iOS-3 | Shell Smoke Validation Execution | pending | P0 | M-iOS-2 partial_pass | CI 编译/测试可能暴露 package wiring 问题 | ios-shell-ci workflow 在 macOS-14 PASS 并回写 gate 结果 | yes |
+| M-iOS-2 | Shell Build / CI / Boundary Gate | implementation_complete | P0 | M-iOS-1 ✅ | 已完成，无执行语义 | boundary gate + shell CI + construction smoke tests 建立完成 | yes |
+| M-iOS-3 | Remote Shell Validation | fail | P0 | M-iOS-2 implementation_complete | iOS Shell compile 在远端 validation mode 下失败 | 真实 GitHub Actions 证据明确 PASS/FAIL 并记录首阻断点 | yes |
 
 ## 当前待办列表
 
@@ -96,7 +96,7 @@
 
 ### M-iOS-2: Shell Build / CI / Boundary Gate
 
-- 状态：`partial_pass`
+- 状态：`implementation_complete`
 - 优先级：`P0`
 - 前置依赖：`M-iOS-1` 已完成
 - 风险点：Windows 本地环境无法直接提供 `swift` / `bash` 执行证据，需依赖 macOS GitHub Actions 完成最终编译验证
@@ -105,20 +105,32 @@
   - `.github/workflows/ios-shell-ci.yml` 已建立，执行顺序为 `boundary gate -> swift build --package-path iOS -> swift test --filter ShellAssemblySmokeTests`
   - `iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift` 已建立，验证 `ShellAssembly` 与 `ReadingFlowCoordinator` wiring
   - `docs/ios_shell_ci_gate.yml` 已记录当前 gate 结果
-- 未完成：
-  - macOS-14 CI 实跑并回写 PASS / blocker
+- 说明：
+  - 该任务只表示 gate 建设完成，不等于远端执行通过
+  - 远端执行结果由 `M-iOS-3` 单独记录
 
-### M-iOS-3: Shell Smoke Validation Execution
+### M-iOS-3: Remote Shell Validation
 
-- 状态：`pending`
+- 状态：`fail`
 - 优先级：`P0`
-- 前置依赖：`M-iOS-2 partial_pass`
-- 风险点：SwiftPM package compile 可能暴露 Shell target / test target 组织问题
-- 验收标准：
-  - `ios-shell-ci` workflow 在 `macos-14` 成功执行
-  - `ShellAssemblySmokeTests` 通过
-  - `docs/ios_shell_ci_gate.yml` 从 `PARTIAL_PASS` 更新为 `PASS` 或明确写入 blocker
-  - 状态文档三件套再次同步
+- 前置依赖：`M-iOS-2 implementation_complete`
+- 当前远端证据：
+  - run `24305799783`
+  - workflow: `iOS Shell CI`
+  - boundary gate: `PASS`
+  - compile: `FAIL`
+  - smoke tests: `UNKNOWN`（未启动）
+- 第一阻断点：
+  - step: `Compile iOS Shell composition root`
+  - blocker: `iOS feature sources are not host-compilable under the current SwiftPM macOS validation mode`
+  - observed symptoms:
+    - `SearchView.swift`: `performSearch` 不在作用域
+    - `SearchResultItem` / `TOCItem` 不满足 `Hashable` 的 `ForEach(id: \\.self)` 用法
+    - `navigationBarTitleDisplayMode` 在 macOS 下 unavailable
+    - `Color(.systemBackground)` 触发 macOS host compile 错误
+- 待修项：
+  - 先定义并批准 compile validation mode 的最小适配策略
+  - 仅修复 compile 首阻断簇后，再重跑 `ios-shell-ci`
 
 ## 依赖关系图
 
@@ -180,13 +192,13 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段：`m_ios_2_boundary_gate_established`
-- 当前主线：`Reader-Core compatibility kernel → M-iOS-2 Shell Build / CI / Boundary Gate`
+- 当前阶段：`m_ios_3_remote_validation_failed`
+- 当前主线：`Reader-Core compatibility kernel → M-iOS-3 Remote Shell Validation`
 - active_strategy：`minimal_tooling_then_ios`
-- active_milestone：`m_ios_2`
-- milestone_status：`partial_pass`
+- active_milestone：`m_ios_3`
+- milestone_status：`fail`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-iOS-1 COMPLETE。M-iOS-2 已建立 boundary gate、shell CI 与 construction-only smoke tests，但 macOS CI 执行证据尚未回写，因此下一步唯一最优任务为 `M-iOS-3`。
+- 判断原因：M-iOS-2 implementation complete；M-iOS-3 execution verified=true，但远端 compile 失败，下一步必须先做 blocker resolution，不能推进 M-iOS-4。

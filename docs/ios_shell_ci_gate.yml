@@ -1,9 +1,20 @@
-phase: M-iOS-2
-generatedAt: "2026-04-12T18:56:55.3589142+08:00"
+phase: M-iOS-3
+generatedAt: "2026-04-12T19:36:30+08:00"
+implementationStatus:
+  boundary_gate_established: true
+  shell_ci_established: true
+  smoke_validation_established: true
+executionStatus:
+  executionVerified: true
+  source: github_actions
+  runId: "24305799783"
+  status: completed
+  conclusion: failure
 result:
   boundary_gate:
     enabled: true
-    status: PASS
+    implementationStatus: PASS
+    executionStatus: PASS
     checked_paths:
       - iOS/App
       - iOS/CoreIntegration
@@ -16,20 +27,35 @@ result:
     violations: []
   shell_ci:
     enabled: true
-    status: PARTIAL_PASS
+    implementationStatus: PASS
+    executionStatus: FAIL
     workflow: .github/workflows/ios-shell-ci.yml
-    build_mode: interim
+    build_mode: swiftpm_interim
   smoke_validation:
     enabled: true
-    status: PARTIAL_PASS
+    implementationStatus: PASS
+    executionStatus: UNKNOWN
     tests:
       - iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift
     notes:
-      - Construction-only smoke coverage added for ShellAssembly and ReadingFlowCoordinator wiring.
-      - Local Windows environment lacks a runnable swift toolchain, so compile/test execution is deferred to macOS GitHub Actions.
+      - Remote workflow reached macOS-14 runner and executed boundary gate + swift toolchain steps.
+      - Smoke tests did not start because compile failed first.
   overall:
-    status: PARTIAL_PASS
+    status: FAIL
     blockers:
-      - macOS GitHub Actions execution is still required to verify swift build and smoke test runtime for the iOS package.
-      - Local sandbox could not execute bash directly; boundary result was confirmed by equivalent PowerShell rescan after file changes.
-    next_phase: M-iOS-3
+      - "First failed step: Compile iOS Shell composition root"
+      - "First blocker: iOS feature sources are not currently host-compilable under the SwiftPM macOS validation mode. Observed symptoms include missing performSearch in SearchView, non-Hashable SearchResultItem/TOCItem ForEach ids, macOS-unavailable navigationBarTitleDisplayMode, and UIKit-only Color(.systemBackground) usage."
+    next_phase: M-iOS-3-blocker-resolution
+evidence:
+  workflow: iOS Shell CI
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24305799783
+  headBranch: codex/cache-ci-evidence
+  headSha: "871fd9a208e71cd51786b0ae063a91417ffe6b49"
+  firstFailedStep: Compile iOS Shell composition root
+  artifactIds:
+    - "6392344312"
+  summary:
+    - "Run 24305489976 failed at boundary gate because remote branch still contained CoreIntegration imports of ReaderCoreNetwork/Parser/Cache."
+    - "Run 24305565566 failed at compile because iOS/Package.swift referenced package identity ReaderCore instead of Core."
+    - "Run 24305713381 failed at compile because macOS platform floor was not declared for the host validation build."
+    - "Run 24305799783 passed boundary gate and swift --version, then failed in compile before smoke tests began."

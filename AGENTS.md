@@ -162,18 +162,18 @@ ios_gate:
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
       status: COMPLETE  # AdapterHarness CI_VERIFIED, TraceInspector CI_VERIFIED (run 24303727706)
     - condition: "Shell smoke validation complete"
-      status: PARTIAL_PASS  # construction-only ShellAssembly smoke tests added; macOS CI execution pending
+      status: FAIL  # executionVerified=true on GitHub Actions run 24305799783; compile failed before tests
     - condition: "Architecture review pass"
       status: PASS  # M-iOS-1 remediation complete: 0 illegal imports in CoreIntegration/Features
   prerequisites_for_execution:
     - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — PARTIAL_PASS (construction-only tests added; macOS CI execution pending)"
+    - "CONDITION-3: Execute shell smoke validation — FAIL (remote compile failed before tests)"
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
-  ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. ShellAssembly is the designated factory layer. boundary gate script + ios-shell-ci workflow + construction-only ShellAssembly smoke tests are now present; macOS CI execution is pending."
+  ios_shell_current_state: "SwiftUI views + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. ShellAssembly is the designated factory layer. boundary gate script + ios-shell-ci workflow + construction-only ShellAssembly smoke tests are present. Remote validation is executionVerified=true and currently fails at the compile step."
 
-recent_completed_action: "M-iOS-2 (Shell Build / CI / Boundary Gate) PARTIAL_PASS: scripts/check_ios_boundary.sh + .github/workflows/ios-shell-ci.yml + iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift added. Boundary rescan PASS; macOS CI execution pending."
-next_best_task: "M-iOS-3: Execute shell smoke validation on macOS CI and promote ios_shell_ci_gate from PARTIAL_PASS to PASS"
+recent_completed_action: "M-iOS-3 (Remote Shell Validation) FAIL: GitHub Actions runs executed on macOS-14. Boundary gate is execution PASS; current first blocker is compile failure before smoke tests. See docs/ios_shell_ci_gate.yml."
+next_best_task: "M-iOS-3 blocker resolution: address the recorded remote compile blocker, then rerun ios-shell-ci"
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 
@@ -229,6 +229,7 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 仅 `iOS/Shell/**` 可 import `ReaderCoreNetwork`、`ReaderCoreParser`、`ReaderCoreCache`、`ReaderCoreExecution`。
 - 新增壳层代码不得绕过 `ShellAssembly` 直接装配 Core internal modules。
 - iOS 边界检查入口固定为 `scripts/check_ios_boundary.sh`，CI workflow 固定为 `.github/workflows/ios-shell-ci.yml`。
+- M-iOS-2 与 M-iOS-3 必须拆分书写：`implementation_complete` 只表示 gate 已建设；`execution_verified` 只表示远端真实执行已取证，二者不得混写成 `PARTIAL_PASS`。
 
 ## Clean-Room 原则
 

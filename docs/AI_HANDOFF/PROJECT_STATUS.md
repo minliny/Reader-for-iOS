@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-iOS-2 Shell Build / CI / Boundary Gate
-- 当前阶段：`m_ios_2_boundary_gate_established`
+- 当前主线：Reader-Core 兼容内核开发 → M-iOS-3 Remote Shell Validation
+- 当前阶段：`m_ios_3_remote_validation_failed`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-iOS-1 (Architecture Remediation) COMPLETE。M-iOS-2 已建立 boundary gate / shell CI / construction-only smoke tests，但 macOS CI 执行证据尚未回写，因此整体仍为 `conditional`。
+- 判断原因：M-iOS-2 implementation complete。M-iOS-3 已拿到真实 GitHub Actions 证据，当前 `executionVerified=true`，但 compile step 失败，因此整体仍为 `conditional`。
 
 ## 当前事实基线
 
@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-iOS-2 完成到 `PARTIAL_PASS`：新增 `scripts/check_ios_boundary.sh`、`.github/workflows/ios-shell-ci.yml`、`iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift`。Boundary rescan 0 违规，ShellAssembly 装配链已有 construction-level smoke 入口，但本机缺少 `swift` 工具链，macOS CI 运行仍待执行。详见 `docs/ios_shell_ci_gate.yml`。
+- M-iOS-3 远端验证已执行：GitHub Actions run `24305799783` 在 `macos-14` runner 上真实运行。Boundary gate 通过，compile 失败，smoke tests 未执行。详见 `docs/ios_shell_ci_gate.yml`。
 
 ## iOS Gate (Recalibrated)
 
@@ -70,27 +70,52 @@ ios_gate:
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
       status: COMPLETE
     - condition: "Shell smoke validation complete"
-      status: PARTIAL_PASS
+      status: FAIL
     - condition: "Architecture review pass"
       status: PASS
   prerequisites_for_execution:
     - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — PARTIAL_PASS (construction-only tests added; macOS CI execution pending)"
+    - "CONDITION-3: Execute shell smoke validation — FAIL (run 24305799783 compile failed before test execution)"
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准)"
 ```
 
-## M-iOS-2 Gate Result
+## M-iOS-3 Gate Result
 
 ```yaml
 ios_shell_ci_gate:
   report: docs/ios_shell_ci_gate.yml
-  boundary_gate: PASS
-  shell_ci: PARTIAL_PASS
-  smoke_validation: PARTIAL_PASS
-  overall: PARTIAL_PASS
-  next_phase: M-iOS-3
+  executionVerified: true
+  boundary_gate:
+    implementationStatus: PASS
+    executionStatus: PASS
+  shell_ci:
+    implementationStatus: PASS
+    executionStatus: FAIL
+  smoke_validation:
+    implementationStatus: PASS
+    executionStatus: UNKNOWN
+  overall: FAIL
+  next_phase: M-iOS-3-blocker-resolution
 ```
+
+## 本轮验证内容
+
+- 验证对象：`.github/workflows/ios-shell-ci.yml`
+- 真实证据源：GitHub Actions
+- runner：`macos-14`
+- executionVerified：`true`
+- 远端执行链路：
+  - run `24305489976`：boundary gate fail，暴露远端仍有 CoreIntegration boundary leaks
+  - run `24305565566`：boundary gate pass，compile fail，暴露 SwiftPM package identity 问题
+  - run `24305713381`：boundary gate pass，compile fail，暴露 macOS platform floor 问题
+  - run `24305799783`：boundary gate pass，compile fail，暴露 host compile 下的 iOS feature source incompatibilities
+
+## 第一阻断点
+
+- step：`Compile iOS Shell composition root`
+- blocker 类型：`remote_compile_validation_failure`
+- 结论：当前 compile validation mode 会把 `iOS/Features/**` 作为 macOS-hosted SwiftPM build 输入，触发一组 host-incompatible SwiftUI / model assumptions，导致 smoke tests 无法开始
 
 ## Adapter Validation
 
@@ -186,8 +211,8 @@ deferred_until_post_ios:
 
 ## 下一步唯一最优任务
 
-- `M-iOS-3: Execute shell smoke validation on macOS CI`
-- 目标说明：运行 `.github/workflows/ios-shell-ci.yml`，拿到 `swift build --package-path iOS` + `swift test --package-path iOS --filter ShellAssemblySmokeTests` 的 macOS-14 证据，并将 `docs/ios_shell_ci_gate.yml` 升级为 PASS 或写回 blocker。
+- `M-iOS-3 blocker resolution: make remote compile validation pass`
+- 目标说明：先定义并批准最小 compile validation 适配策略，解决 `docs/ios_shell_ci_gate.yml` 中记录的 compile 首阻断簇，再重跑 `ios-shell-ci`。只有 compile 通过后，才允许继续看 smoke tests。
 
 ## 当前不允许做的事
 
@@ -199,10 +224,10 @@ deferred_until_post_ios:
 - 未同步 taxonomy 就新增 failureType
 - 引入 retry、fallback 或复杂错误策略并伪装为 Error Mapping
 - 引入外部 GPL 代码或引用 Legado Android 实现
-- 在 `docs/ios_shell_ci_gate.yml` 仍为 `PARTIAL_PASS` 时推进 iOS Shell 正式开发
+- 在 `docs/ios_shell_ci_gate.yml` 为 `FAIL` 或 `BLOCKED` 时推进 iOS Shell 正式开发
 
 ## Clean-Room 状态
 
-- 本次仅建立 iOS Shell gate 与状态回写，依据仓库内部结构、样本边界与 ShellAssembly 装配事实
+- 本次仅执行远端 validation、最小 build wiring 修正与状态回写，依据仓库内部结构、真实 GitHub Actions 日志与 ShellAssembly 装配事实
 - 无外部 GPL 代码
 - 无 Legado Android 实现引用
