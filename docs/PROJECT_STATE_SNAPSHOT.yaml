@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_5_validation_glue_aligned_verified
+  phase: m_ios_6_reader_feature_wired_verified
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "iOS Shell interim validation is now execution-verified PASS on GitHub Actions through the isolated ReaderShellValidation scope. Further iOS work remains gated by the next planned phase, not by the previous validation glue blocker."
+  ios_block_reason: "No active iOS shell validation blocker. Reader Feature Wiring is now connected through the formal ShellAssembly while the isolated ReaderShellValidation baseline remains green on GitHub Actions."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_5
+  active_milestone: m_ios_6
   milestone_status: pass
-  milestone_detail: "M-IOS-4 scope isolation remains active, and M-IOS-5 aligned the validation-only ShellAssembly glue with the frozen dependency graph. GitHub Actions run 24306965324 passed boundary gate, isolated compile, and construction-only smoke tests."
-  next_best_task: "M-IOS-6: define the next remote shell validation increment on top of the now-green isolated shell composition gate"
-  next_best_task_detail: "Use docs/ios_shell_ci_gate.yml run 24306965324 as the green baseline, keep ReaderShellValidation scope isolated, and open the next phase without re-expanding host compile scope."
+  milestone_detail: "M-IOS-6 wired the formal Reader Feature entry through ReaderFlowFeatureView + ShellAssembly, while GitHub Actions run 24307509812 kept boundary gate, isolated compile, and shell smoke validation green."
+  next_best_task: "M-IOS-7: Reader Flow Functional Validation"
+  next_best_task_detail: "Use docs/ios_shell_ci_gate.yml run 24307509812 as the new green baseline, keep ReaderShellValidation scope isolated, and validate the minimal search -> toc -> content path functionally without widening host compile scope."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -57,21 +57,21 @@ ios_gate:
   gate_result_doc: docs/ios_shell_ci_gate.yml
 
 ios_shell_audit:
-  actual_implementation_state: "SwiftUI views (BookSourceImportView/SearchView/TOCView/ContentView) + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository all exist with real implementation code"
+  actual_implementation_state: "SwiftUI views (ReaderFlowFeatureView/BookSourceImportView/SearchView/TOCView/ContentView) + formal ShellAssembly + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository are now wired into a minimal reader entry flow"
   tested: remote_execution_passed
   phase_gate_approved: true
-  test_coverage: "Construction-only ShellAssembly smoke tests at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift are execution-verified on macOS-14 CI run 24306965324."
+  test_coverage: "Construction-only ShellAssembly smoke tests at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift are execution-verified on macOS-14 CI run 24307509812, including reader action reachability."
   missing_capabilities:
     - "Disk persistence (InMemoryBookSourceRepository only)"
     - "Multi-source management (single source selection only)"
     - "Settings/preferences UI"
     - "Any automated test"
-  risk_assessment: "The isolated shell composition root is now remote-validated. Remaining iOS work must preserve the isolated gate semantics and avoid reintroducing Features/UI into host compile scope."
+  risk_assessment: "Reader Feature Wiring is now in place. Remaining iOS work must preserve the isolated gate semantics, avoid bypassing ShellAssembly, and validate the wired reader path functionally before productizing UI."
 
 recent_action:
-  summary: "M-IOS-5 validation glue alignment completed and was execution-verified on GitHub Actions. Run 24306965324 passed boundary gate, isolated compile, and ShellAssembly smoke validation."
-  category: ios_shell_validation_glue_alignment
-  state_effect: "M-IOS-4 scope isolation is complete, M-IOS-5 validation glue alignment is complete, and docs/ios_shell_ci_gate.yml now records phaseStatus=PASS, validationResult=PASS, executionVerified=TRUE."
+  summary: "M-IOS-6 Reader Feature Wiring completed and was revalidated on GitHub Actions. Run 24307509812 passed boundary gate, isolated compile, and 3 shell smoke tests after app entry was wired to the formal reader flow."
+  category: ios_reader_feature_wiring
+  state_effect: "M-IOS-5 validation pipeline stays green, M-IOS-6 reader feature wiring is complete, and docs/ios_shell_ci_gate.yml now records phaseStatus=PASS, validationResult=PASS, executionVerified=TRUE for the wired reader entry."
 
 ios_shell_ci_gate:
   status: pass
@@ -82,6 +82,7 @@ ios_shell_ci_gate:
   smoke_validation: pass
   validation_scope_isolated: true
   validation_glue_aligned: true
+  reader_feature_wired: true
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -269,7 +270,7 @@ change_scope:
     - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
     - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
   freeze_gate_blockers: []
-  active_milestone: m_ios_5
+  active_milestone: m_ios_6
   active_milestone_status: pass
   new_docs_created:
     - docs/API_SNAPSHOT/Core_Public_API.md
