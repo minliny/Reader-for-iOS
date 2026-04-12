@@ -28,12 +28,12 @@ let package = Package(
                 "App",
                 "Features",
                 "Modules",
+                "Shell",
                 "Tests",
-                "Shell/ReaderShellEnvironment.swift"
             ],
             sources: [
                 "CoreIntegration",
-                "Shell"
+                "ValidationSupport"
             ]
         ),
         .target(
