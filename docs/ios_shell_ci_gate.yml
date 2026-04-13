@@ -13,7 +13,7 @@ implementationStatus:
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24353675339"
+  runId: "24353820945"
   status: completed
   conclusion: success
 result:
@@ -132,12 +132,12 @@ result:
     next_phase: M-IOS-11
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24353675339
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24353820945
   headBranch: main
-  headSha: "2148f7a"
+  headSha: "405bd89"
   firstFailedStep: "None"
   artifactIds:
-    - "6409739255"
+    - "6409796386"
   summary:
-    - "Run 24353675339 executionVerified=true and validationResult=PASS. All M-IOS-10 validation steps passed on macOS host."
+    - "Run 24353820945 executionVerified=true and validationResult=PASS. All M-IOS-10 validation steps passed on macOS host."
     - "Reader Interaction Foundation implemented and tested successfully."

@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-IOS-10 Reader Interaction Foundation 已完成：GitHub Actions run `24353675339` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation, interaction foundation）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
+- M-IOS-10 Reader Interaction Foundation 已完成：GitHub Actions run `24353820945` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation, interaction foundation）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
 - 仓库工程整理已完成：远端历史分支已清理完毕，当前应以 `main` 作为唯一可信主线。
 
 ## 当前主线结论
@@ -149,7 +149,7 @@ ios_shell_ci_gate:
 - runner：`macos-14-arm64`
 - executionVerified：`true`
 - 远端执行链路：
-  - run `24353675339`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation, interaction foundation validation 全部通过。
+  - run `24353820945`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation, interaction foundation validation 全部通过。
 
 ## Phase / Validation / Evidence
 

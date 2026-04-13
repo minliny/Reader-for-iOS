@@ -290,8 +290,8 @@
   - ContentView / TOCView 空状态下增加重试入口
   - ReaderInteractionValidationTests 添加，验证交互行为不退化
 - 当前远端证据：
-  - latest run `24353675339`
-  - artifact `6409739255`
+  - latest run `24353820945`
+  - artifact `6409796386`
   - boundary gate: `PASS`
   - compile: `PASS`
   - smoke tests: `PASS`
