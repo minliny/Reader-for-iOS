@@ -32,6 +32,38 @@ public struct ReaderFlowFeatureState {
         coordinator: ReadingFlowCoordinator,
         boundary: ReaderModuleBoundary
     ) -> String {
+        if coordinator.isLoading {
+            if coordinator.selectedChapter != nil {
+                return "正文加载中"
+            }
+
+            if coordinator.selectedBook != nil {
+                return "目录加载中"
+            }
+
+            if coordinator.selectedSource != nil {
+                return "搜索中"
+            }
+
+            return "书源导入中"
+        }
+
+        if coordinator.currentError != nil {
+            if coordinator.selectedChapter != nil {
+                return "正文加载失败"
+            }
+
+            if coordinator.selectedBook != nil {
+                return "目录加载失败"
+            }
+
+            if coordinator.selectedSource != nil {
+                return "搜索失败"
+            }
+
+            return "书源导入失败"
+        }
+
         if coordinator.contentPage != nil {
             return "正文已加载"
         }

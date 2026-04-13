@@ -69,6 +69,18 @@ let package = Package(
                 .product(name: "ReaderCoreNetwork", package: "Core")
             ],
             path: "Tests/ShellSmokeTests"
+        ),
+        .testTarget(
+            name: "ReaderUXFoundationTests",
+            dependencies: [
+                "ReaderApp",
+                "ReaderShellValidation",
+                .product(name: "ReaderCoreModels", package: "Core"),
+                .product(name: "ReaderCoreProtocols", package: "Core"),
+                .product(name: "ReaderCoreParser", package: "Core"),
+                .product(name: "ReaderCoreNetwork", package: "Core")
+            ],
+            path: "Tests/ReaderUXFoundationTests"
         )
     ]
 )

@@ -64,6 +64,13 @@ jobs:
           # Hardening validation stays on the same isolated test product and only checks state-transition consistency.
           swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderFlowHardeningTests 2>&1 | tee ios-reader-hardening.log
 
+      - name: Run reader UX foundation validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # UX foundation validation is additive and only checks state-driven presentation surfaces on the minimal reader path.
+          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderUXFoundationStateTests 2>&1 | tee ios-reader-ux-foundation.log
+
       - name: Upload iOS Shell logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -75,3 +82,4 @@ jobs:
             ios-shell-smoke.log
             ios-reader-functional.log
             ios-reader-hardening.log
+            ios-reader-ux-foundation.log

@@ -12,20 +12,42 @@ public struct ContentView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            if coordinator.isLoading {
-                LoadingView(message: "加载正文...")
-            } else if let error = coordinator.currentError {
-                ErrorView(error: error) {
-                    Task {
-                        await coordinator.selectChapter(chapter)
+        let uxState = ReaderUXFoundationState(coordinator: coordinator, chapter: chapter)
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                ReaderStatusCardView(
+                    eyebrow: "阅读阶段",
+                    title: uxState.stageTitle,
+                    subtitle: uxState.stageDetail,
+                    items: contextItems(for: uxState)
+                )
+
+                switch uxState.surfaceKind {
+                case .loading:
+                    LoadingView(message: "加载正文...")
+                        .frame(maxWidth: .infinity, minHeight: 240)
+
+                case .error:
+                    if let error = coordinator.currentError {
+                        ErrorView(error: error) {
+                            Task {
+                                await coordinator.selectChapter(chapter)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 240)
                     }
+
+                case .content:
+                    if let title = uxState.contentTitle, let bodyText = uxState.contentBody {
+                        ReaderContentSectionView(title: title, bodyText: bodyText)
+                    }
+
+                case .empty:
+                    emptyState(uxState)
                 }
-            } else if let content = coordinator.contentPage {
-                contentReader(content)
-            } else {
-                emptyState
             }
+            .padding(20)
         }
         .navigationTitle(chapter.chapterTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -36,33 +58,37 @@ public struct ContentView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-            Text("暂无内容")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    private func emptyState(_ uxState: ReaderUXFoundationState) -> some View {
+        ReaderEmptyStateView(
+            title: "暂无正文",
+            message: uxState.stageDetail,
+            systemImage: "doc.text"
+        )
+        .frame(maxWidth: .infinity, minHeight: 240)
     }
 
-    @ViewBuilder
-    private func contentReader(_ content: ContentPage) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(content.title)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .frame(maxWidth: .infinity, alignment: .center)
+    private func contextItems(for uxState: ReaderUXFoundationState) -> [ReaderStatusCardItem] {
+        var items: [ReaderStatusCardItem] = []
 
-                Text(content.content)
-                    .font(.body)
-                    .lineSpacing(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(20)
+        if let sourceName = uxState.sourceName {
+            items.append(ReaderStatusCardItem(label: "书源", value: sourceName))
         }
+
+        if let bookTitle = uxState.bookTitle {
+            items.append(ReaderStatusCardItem(label: "书籍", value: bookTitle))
+        }
+
+        if let chapterTitle = uxState.chapterTitle {
+            items.append(ReaderStatusCardItem(label: "章节", value: chapterTitle))
+        }
+
+        items.append(
+            ReaderStatusCardItem(
+                label: "状态",
+                value: uxState.surfaceKind.rawValue
+            )
+        )
+
+        return items
     }
 }

@@ -44,21 +44,12 @@ public struct ReaderFlowFeatureView: View {
     }
 
     private func statusCard(_ featureState: ReaderFlowFeatureState) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Reader Flow")
-                .font(.headline)
-
-            Text(featureState.currentStageTitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text("Core >= \(environment.appEntry.minimumCoreVersion)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        ReaderStatusCardView(
+            eyebrow: "Reader Flow",
+            title: featureState.currentStageTitle,
+            subtitle: "Core >= \(environment.appEntry.minimumCoreVersion)",
+            items: progressItems
+        )
     }
 
     @ViewBuilder
@@ -113,30 +104,12 @@ public struct ReaderFlowFeatureView: View {
     }
 
     private var progressCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("当前进度")
-                .font(.headline)
-
-            if let source = coordinator.selectedSource {
-                Text("书源：\(source.bookSourceName)")
-            }
-
-            if let book = coordinator.selectedBook {
-                Text("书籍：\(book.title)")
-            }
-
-            if let chapter = coordinator.selectedChapter {
-                Text("章节：\(chapter.chapterTitle)")
-            }
-
-            if coordinator.contentPage != nil {
-                Text("正文：已加载")
-            }
-        }
-        .font(.subheadline)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        ReaderStatusCardView(
+            eyebrow: "当前进度",
+            title: coordinator.contentPage == nil ? "阅读链路进行中" : "正文已可阅读",
+            subtitle: "用户可从这里确认当前书源、书籍与章节上下文。",
+            items: progressItems
+        )
     }
 
     private func actionRow(title: String, subtitle: String) -> some View {
@@ -150,5 +123,27 @@ public struct ReaderFlowFeatureView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var progressItems: [ReaderStatusCardItem] {
+        var items: [ReaderStatusCardItem] = []
+
+        if let source = coordinator.selectedSource?.bookSourceName {
+            items.append(ReaderStatusCardItem(label: "书源", value: source))
+        }
+
+        if let book = coordinator.selectedBook?.title {
+            items.append(ReaderStatusCardItem(label: "书籍", value: book))
+        }
+
+        if let chapter = coordinator.selectedChapter?.chapterTitle {
+            items.append(ReaderStatusCardItem(label: "章节", value: chapter))
+        }
+
+        if coordinator.contentPage != nil {
+            items.append(ReaderStatusCardItem(label: "正文", value: "已加载"))
+        }
+
+        return items
     }
 }

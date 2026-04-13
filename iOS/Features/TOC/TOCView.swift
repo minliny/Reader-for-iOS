@@ -13,6 +13,8 @@ public struct TOCView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
+            tocStageCard
+
             if coordinator.isLoading {
                 LoadingView(message: "加载目录...")
             } else if let error = coordinator.currentError {
@@ -36,16 +38,27 @@ public struct TOCView: View {
         }
     }
 
+    private var tocStageCard: some View {
+        ReaderStatusCardView(
+            eyebrow: "目录阶段",
+            title: book.title,
+            subtitle: "目录准备完成后，选择章节进入正文阅读。",
+            items: [
+                ReaderStatusCardItem(label: "书源", value: coordinator.selectedSource?.bookSourceName ?? "未选中"),
+                ReaderStatusCardItem(label: "章节", value: "\(coordinator.tocItems.count) 条")
+            ]
+        )
+        .padding(.horizontal)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+    }
+
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "list.bullet")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-            Text("暂无目录")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ReaderEmptyStateView(
+            title: "暂无目录",
+            message: "当前书籍还没有可展示的章节列表。",
+            systemImage: "list.bullet"
+        )
     }
 
     private var tocList: some View {

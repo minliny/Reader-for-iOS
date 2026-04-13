@@ -13,6 +13,7 @@ public struct SearchView: View {
     public var body: some View {
         VStack(spacing: 0) {
             searchBar
+            searchStageCard
 
             if coordinator.isLoading {
                 LoadingView(message: "搜索中...")
@@ -28,6 +29,19 @@ public struct SearchView: View {
         }
         .navigationTitle("搜索")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var searchStageCard: some View {
+        ReaderStatusCardView(
+            eyebrow: "搜索阶段",
+            title: coordinator.selectedSource?.bookSourceName ?? "等待书源",
+            subtitle: coordinator.searchResults.isEmpty ? "输入关键词后进入最小搜索链路。" : "搜索结果已生成，可继续进入目录。",
+            items: [
+                ReaderStatusCardItem(label: "结果", value: "\(coordinator.searchResults.count) 条")
+            ]
+        )
+        .padding(.horizontal)
+        .padding(.bottom, 12)
     }
 
     private var searchBar: some View {
@@ -47,15 +61,11 @@ public struct SearchView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "text.magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-            Text("输入关键词开始搜索")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ReaderEmptyStateView(
+            title: "等待搜索",
+            message: "输入关键词开始搜索，随后进入目录与正文链路。",
+            systemImage: "text.magnifyingglass"
+        )
     }
 
     private var resultsList: some View {
