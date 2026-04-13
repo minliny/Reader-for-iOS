@@ -50,7 +50,7 @@ public struct ContentView: View {
             .padding(20)
         }
         .navigationTitle(chapter.chapterTitle)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationBarTitle()
         .task {
             if coordinator.selectedChapter != chapter || coordinator.contentPage == nil {
                 await coordinator.selectChapter(chapter)

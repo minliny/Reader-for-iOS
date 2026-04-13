@@ -28,7 +28,7 @@ public struct SearchView: View {
             }
         }
         .navigationTitle("搜索")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationBarTitle()
     }
 
     private var searchStageCard: some View {

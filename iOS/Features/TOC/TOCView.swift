@@ -30,7 +30,7 @@ public struct TOCView: View {
             }
         }
         .navigationTitle(book.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationBarTitle()
         .task {
             if coordinator.tocItems.isEmpty {
                 await coordinator.selectBook(book)
