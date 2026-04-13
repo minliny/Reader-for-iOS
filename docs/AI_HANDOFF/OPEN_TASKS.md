@@ -21,6 +21,7 @@
 | M-IOS-9 | Reader UX Foundation | complete | P1 | M-IOS-8 complete | 已完成，无当前阻断 | 在 M-IOS-8 baseline 上建立最小可用阅读体验基础层 | yes |
 | M-IOS-10 | Reader Interaction Foundation | complete | P1 | M-IOS-9 complete | 已完成，无当前阻断 | 在 M-IOS-9 baseline 上建立最小交互基础层 | yes |
 | M-IOS-11 | Reader Session Polish | complete | P1 | M-IOS-10 complete | 已完成，无当前阻断 | 在 M-IOS-10 baseline 上建立最小可用会话层 | yes |
+| M-IOS-12 | Reader Navigation Foundation | complete | P1 | M-IOS-11 complete | 已完成，无当前阻断 | 在 M-IOS-11 baseline 上建立最小可用导航层 | yes |
 
 ## 当前待办列表
 
@@ -307,6 +308,36 @@
   - `validationResult=PASS`
   - `executionVerified=true`
 
+### M-IOS-12: Reader Navigation Foundation
+
+- 状态：`complete`
+- 优先级：`P1`
+- 前置依赖：`M-IOS-11 complete`
+- 约束：
+  - 不得破坏 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-11 session polish baseline
+  - 不得重写庞大的进度管理框架，仅保持最小导航和进度感知
+- 已完成实现：
+  - ReaderProgressSurfaceView 添加，提供阅读进度的可视化展示
+  - 扩展 ReaderUXFoundationState 提供 chapterIndex, chapterCount 和 progressPercentage
+  - ReaderNavigationValidationTests 添加，验证阅读进度和导航连续性
+- 当前远端证据：
+  - latest run `24355741993`
+  - artifact `6410603684`
+  - boundary gate: `PASS`
+  - compile: `PASS`
+  - smoke tests: `PASS`
+  - functional validation: `PASS`
+  - hardening validation: `PASS`
+  - ux foundation validation: `PASS`
+  - interaction foundation validation: `PASS`
+  - session polish validation: `PASS`
+  - navigation foundation validation: `PASS`
+  - executionVerified: `true`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=PASS`
+  - `executionVerified=true`
+
 ## 依赖关系图
 
 ```
@@ -367,10 +398,10 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段: `m_ios_11_reader_session_polish_verified`
-- 当前主线: `Reader-Core compatibility kernel → M-IOS-12 Next Phase Planning`
+- 当前阶段: `m_ios_12_reader_navigation_foundation_verified`
+- 当前主线: `Reader-Core compatibility kernel → M-IOS-13 Next Phase Planning`
 - active_strategy: `minimal_tooling_then_ios`
-- active_milestone: `m_ios_12`
+- active_milestone: `m_ios_13`
 - milestone_status: `in_progress`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`

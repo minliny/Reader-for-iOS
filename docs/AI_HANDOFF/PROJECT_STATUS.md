@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-IOS-12 Next Phase Planning
-- 当前阶段：`m_ios_11_reader_session_polish_verified`
+- 当前主线：Reader-Core 兼容内核开发 → M-IOS-13 Next Phase Planning
+- 当前阶段：`m_ios_12_reader_navigation_foundation_verified`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-11 已通过 macOS 远端 validation。可以开始进入 M-IOS-12 阶段的讨论和计划。
+- 判断原因：M-IOS-12 已通过 macOS 远端 validation。可以开始进入 M-IOS-13 阶段的讨论和计划。
 
 ## 当前事实基线
 
@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-IOS-11 Reader Session Polish 已完成：GitHub Actions run `24354710607` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation, interaction foundation, session polish）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
+- M-IOS-12 Reader Navigation Foundation 已完成：GitHub Actions run `24355741993` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation, interaction foundation, session polish, navigation foundation）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
 - 仓库工程整理已完成：远端历史分支已清理完毕，当前应以 `main` 作为唯一可信主线。
 
 ## 当前主线结论
@@ -152,7 +152,7 @@ ios_shell_ci_gate:
 - runner：`macos-14-arm64`
 - executionVerified：`true`
 - 远端执行链路：
-  - run `24353820945`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation, interaction foundation validation 全部通过。
+  - run `24355741993`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation, interaction foundation, session polish, navigation foundation validation 全部通过。
 
 ## Phase / Validation / Evidence
 
@@ -162,9 +162,9 @@ ios_shell_ci_gate:
 
 ## 本轮处理内容
 
-- 新增 `ReaderSessionSummaryView`，提供会话状态下的可视化总结与“继续阅读”入口。
-- 将 `ReaderFlowFeatureView` 中空占位的逻辑替换为 `sessionSummary`，基于现有 FeatureState 判断可跳转的目标视图（ContentView/TOCView/SearchView）。
-- 新增 `ReaderSessionValidationTests` 确保重载与重进 ReaderRoot 时当前会话不丢失且引导有效。
+- 新增 `ReaderProgressSurfaceView`，提供章节进度可视化及位置感知展示。
+- 将进度属性如 `chapterIndex`、`chapterCount` 和 `progressPercentage` 加入到 `ReaderUXFoundationState` 的初始化计算逻辑中。
+- 新增 `ReaderNavigationValidationTests` 测试用例，确保在章节位置变更或获取不到书源时的位置感知能力及表现均符合预期，不退化。
 
 ## 当前结论
 
@@ -176,10 +176,11 @@ ios_shell_ci_gate:
 - reader ux foundation：`PASS`
 - reader interaction foundation：`PASS`
 - reader session polish：`PASS`
+- reader navigation foundation：`PASS`
 - boundary gate：`PASS`
 - shell compile：`PASS`
 - shell smoke validation：`PASS`
-- 当前 blocker：`None`；下一步允许开启 `M-IOS-12` 规划。
+- 当前 blocker：`None`；下一步允许开启 `M-IOS-13` 规划。
 
 ## Adapter Validation
 
@@ -275,8 +276,8 @@ deferred_until_post_ios:
 
 ## 下一步唯一最优任务
 
-- `M-IOS-12: Next Phase Planning`
-- 目标说明：M-IOS-11 Reader Session Polish 已在 macOS CI 执行验证通过。可以开始开启下一阶段的工作。
+- `M-IOS-13: Next Phase Planning`
+- 目标说明：M-IOS-12 Reader Navigation Foundation 已在 macOS CI 执行验证通过。可以开始开启下一阶段的工作。
 
 ## 当前不允许做的事
 

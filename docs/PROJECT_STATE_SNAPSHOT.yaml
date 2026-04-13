@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_11_reader_session_polish_verified
+  phase: m_ios_12_reader_navigation_foundation_verified
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "None. M-IOS-11 Reader Session Polish successfully passed remote shell validation."
+  ios_block_reason: "None. M-IOS-12 Reader Navigation Foundation successfully passed remote shell validation."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_12
+  active_milestone: m_ios_13
   milestone_status: in_progress
-  milestone_detail: "M-IOS-11 passed successfully on GitHub Actions. Ready to proceed to M-IOS-12."
-  next_best_task: "M-IOS-12: Next Phase Planning"
-  next_best_task_detail: "Plan the next phase now that session polish is solid."
+  milestone_detail: "M-IOS-12 passed successfully on GitHub Actions. Ready to proceed to M-IOS-13."
+  next_best_task: "M-IOS-13: Next Phase Planning"
+  next_best_task_detail: "Plan the next phase now that navigation foundation is solid."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -104,10 +104,26 @@ ios_reader_session_polish:
   notes:
     - "M-IOS-11 Reader Session Polish passed shell smoke and session validation tests."
 
+ios_reader_navigation_foundation:
+  status: execution_verified
+  report: docs/ios_shell_ci_gate.yml
+  validated_navigation_cases:
+    - prev_next_chapter_navigation
+    - chapter_position_awareness
+    - current_progress_surface
+  lastExecution:
+    environment: github_actions_macos_14_arm64
+    runId: "24355741993"
+    artifactId: "6410603684"
+    result: pass
+    validationExecuted: true
+  notes:
+    - "M-IOS-12 Reader Navigation Foundation passed shell smoke and navigation validation tests."
+
 recent_action:
-  summary: "M-IOS-11 Reader Session Polish implementation and validation tests completed. Run 24354710607 passed on GitHub Actions."
-  category: ios_reader_session_polish_verified
-  state_effect: "Reader Session Polish is now executionVerified=true and validationResult=PASS."
+  summary: "M-IOS-12 Reader Navigation Foundation implementation and validation tests completed. Run 24355741993 passed on GitHub Actions."
+  category: ios_reader_navigation_foundation_verified
+  state_effect: "Reader Navigation Foundation is now executionVerified=true and validationResult=PASS."
 
 repository_convergence:
   trusted_main_branch: main
@@ -149,6 +165,7 @@ ios_shell_ci_gate:
   ux_foundation_validation: pass
   interaction_foundation_validation: pass
   session_polish_validation: pass
+  navigation_foundation_validation: pass
   validation_scope_isolated: true
   validation_glue_aligned: true
   reader_feature_wired: true

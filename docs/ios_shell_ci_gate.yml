@@ -1,4 +1,4 @@
-phase: M-IOS-11
+phase: M-IOS-12
 implementationStatus:
   boundary_gate_established: true
   shell_ci_established: true
@@ -11,10 +11,11 @@ implementationStatus:
   reader_ux_foundation_built: true
   reader_interaction_foundation_built: true
   reader_session_polished: true
+  reader_navigation_foundation_built: true
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24354710607"
+  runId: "24355741993"
   status: completed
   conclusion: success
 result:
@@ -139,19 +140,30 @@ result:
       - "Added ReaderSessionSummaryView for rendering reading context."
       - "Integrated sessionSummary into ReaderFlowFeatureView."
       - "Added ReaderSessionValidationTests to ensure session continuity."
+  reader_navigation_foundation:
+    implementationStatus: PASS
+    executionStatus: PASS
+    validated_navigation_cases:
+      - prev_next_chapter_navigation
+      - chapter_position_awareness
+      - current_progress_surface
+    notes:
+      - "Added ReaderProgressSurfaceView for showing chapter index and progress."
+      - "Updated ReaderUXFoundationState to compute progress dynamically."
+      - "Added ReaderNavigationValidationTests."
   overall:
     phaseStatus: PASS
     validationResult: PASS
     blockers: []
-    next_phase: M-IOS-12
+    next_phase: M-IOS-13
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24354710607
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24355741993
   headBranch: main
-  headSha: "7bca2ed"
+  headSha: "7ca2851"
   firstFailedStep: "None"
   artifactIds:
-    - "6410171749"
+    - "6410603684"
   summary:
-    - "Run 24354710607 executionVerified=true and validationResult=PASS. All M-IOS-11 validation steps passed on macOS host."
-    - "Reader Session Polish implemented and tested successfully."
+    - "Run 24355741993 executionVerified=true and validationResult=PASS. All M-IOS-12 validation steps passed on macOS host."
+    - "Reader Navigation and Progress Foundation implemented and tested successfully."
