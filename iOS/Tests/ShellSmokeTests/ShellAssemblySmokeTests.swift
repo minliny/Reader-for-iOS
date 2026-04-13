@@ -2,8 +2,8 @@ import XCTest
 @testable import ReaderShellValidation
 import ReaderCoreModels
 
-@MainActor
 final class ShellAssemblySmokeTests: XCTestCase {
+    @MainActor
     func testShellAssemblyBuildsDefaultCoordinator() {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
@@ -14,6 +14,7 @@ final class ShellAssemblySmokeTests: XCTestCase {
         XCTAssertNil(coordinator.currentError)
     }
 
+    @MainActor
     func testShellAssemblyWiresExpectedCoreIntegrationTypes() {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
@@ -24,6 +25,7 @@ final class ShellAssemblySmokeTests: XCTestCase {
         XCTAssertTrue(coordinator.contentService is DefaultContentService)
     }
 
+    @MainActor
     func testCoordinatorActionPathsAreReachableWithoutConfiguredSource() async {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 

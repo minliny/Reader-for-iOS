@@ -1,6 +1,7 @@
 import XCTest
 import Foundation
 @testable import ReaderApp
+import ReaderShellValidation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreParser
@@ -19,9 +20,9 @@ final class ReaderInteractionValidationTests: XCTestCase {
         await coordinator.selectBook(firstBook)
         
         // Add fake toc items to simulate multiple chapters
-        let chapter1 = TOCItem(chapterTitle: "Chapter 1", chapterURL: "url1")
-        let chapter2 = TOCItem(chapterTitle: "Chapter 2", chapterURL: fixture.expectedTOC.expected.chapters[0].chapterURL)
-        let chapter3 = TOCItem(chapterTitle: "Chapter 3", chapterURL: "url3")
+        let chapter1 = TOCItem(chapterTitle: "Chapter 1", chapterURL: "url1", chapterIndex: 0)
+        let chapter2 = TOCItem(chapterTitle: "Chapter 2", chapterURL: fixture.expectedTOC.expected.chapters[0].chapterURL, chapterIndex: 1)
+        let chapter3 = TOCItem(chapterTitle: "Chapter 3", chapterURL: "url3", chapterIndex: 2)
         coordinator.tocItems = [chapter1, chapter2, chapter3]
         
         await coordinator.selectChapter(chapter2)
