@@ -57,6 +57,13 @@ jobs:
           # Functional validation reuses fixture-backed sources without widening the ReaderShellValidation compile target.
           swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderFlowFunctionalValidationTests 2>&1 | tee ios-reader-functional.log
 
+      - name: Run reader hardening validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Hardening validation stays on the same isolated test product and only checks state-transition consistency.
+          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderFlowHardeningTests 2>&1 | tee ios-reader-hardening.log
+
       - name: Upload iOS Shell logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,3 +74,4 @@ jobs:
             ios-shell-build.log
             ios-shell-smoke.log
             ios-reader-functional.log
+            ios-reader-hardening.log

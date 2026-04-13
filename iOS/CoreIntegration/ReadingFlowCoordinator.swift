@@ -44,9 +44,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
         do {
             let source = try bookSourceDecoder.decodeBookSource(from: data)
             try await bookSourceRepository.save(source)
-            if selectedSource == nil {
-                selectedSource = source
-            }
+            applySourceSelection(source)
         } catch let error as ReaderError {
             currentError = error
             await logError(error)
@@ -66,6 +64,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
         isLoading = true
         currentError = nil
         searchResults.removeAll()
+        resetBookSelectionState()
         defer { isLoading = false }
 
         do {
@@ -86,9 +85,8 @@ public final class ReadingFlowCoordinator: ObservableObject {
 
     public func selectBook(_ book: SearchResultItem) async {
         selectedBook = book
+        resetChapterSelectionState()
         tocItems.removeAll()
-        selectedChapter = nil
-        contentPage = nil
 
         guard let source = selectedSource else { return }
         let detailURL = book.detailURL
@@ -144,5 +142,23 @@ public final class ReadingFlowCoordinator: ObservableObject {
             sampleId: selectedSource?.id
         )
         await errorLogger.log(log)
+    }
+
+    private func applySourceSelection(_ source: BookSource) {
+        selectedSource = source
+        searchResults.removeAll()
+        resetBookSelectionState()
+        currentError = nil
+    }
+
+    private func resetBookSelectionState() {
+        selectedBook = nil
+        tocItems.removeAll()
+        resetChapterSelectionState()
+    }
+
+    private func resetChapterSelectionState() {
+        selectedChapter = nil
+        contentPage = nil
     }
 }
