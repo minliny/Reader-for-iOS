@@ -16,7 +16,7 @@ final class ReaderInteractionValidationTests: XCTestCase {
         
         await coordinator.importBookSource(from: fixture.bookSourceData)
         await coordinator.search(keyword: "三体")
-        let firstBook = try XCTUnwrap(coordinator.searchResults.first)
+        let firstBook: SearchResultItem = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
         
         // Add fake toc items to simulate multiple chapters

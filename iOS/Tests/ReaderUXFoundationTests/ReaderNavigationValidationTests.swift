@@ -1,6 +1,7 @@
 import XCTest
 import Foundation
 @testable import ReaderApp
+import ReaderShellValidation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreParser
@@ -15,7 +16,7 @@ final class ReaderNavigationValidationTests: XCTestCase {
         
         await coordinator.importBookSource(from: fixture.bookSourceData)
         await coordinator.search(keyword: "三体")
-        let firstBook = try XCTUnwrap(coordinator.searchResults.first)
+        let firstBook: SearchResultItem = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
         
         // Setup multiple chapters

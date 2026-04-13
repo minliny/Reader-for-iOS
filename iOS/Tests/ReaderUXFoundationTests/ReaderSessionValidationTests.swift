@@ -16,9 +16,9 @@ final class ReaderSessionValidationTests: XCTestCase {
         
         await coordinator.importBookSource(from: fixture.bookSourceData)
         await coordinator.search(keyword: "三体")
-        let firstBook = try XCTUnwrap(coordinator.searchResults.first)
+        let firstBook: SearchResultItem = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
-        let firstChapter = try XCTUnwrap(coordinator.tocItems.first)
+        let firstChapter: TOCItem = try XCTUnwrap(coordinator.tocItems.first)
         await coordinator.selectChapter(firstChapter)
         
         let featureState = ReaderFlowFeatureState(coordinator: coordinator)
@@ -38,9 +38,9 @@ final class ReaderSessionValidationTests: XCTestCase {
         
         await coordinator.importBookSource(from: fixture.bookSourceData)
         await coordinator.search(keyword: "三体")
-        let firstBook = try XCTUnwrap(coordinator.searchResults.first)
+        let firstBook: SearchResultItem = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
-        let firstChapter = try XCTUnwrap(coordinator.tocItems.first)
+        let firstChapter: TOCItem = try XCTUnwrap(coordinator.tocItems.first)
         await coordinator.selectChapter(firstChapter)
         
         XCTAssertNotNil(coordinator.contentPage)
