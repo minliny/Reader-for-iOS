@@ -1,6 +1,7 @@
 import Foundation
 import ReaderShellValidation
 
+@MainActor
 public struct ReaderFlowFeatureState {
     public let hasSelectedSource: Bool
     public let canStartSearch: Bool
