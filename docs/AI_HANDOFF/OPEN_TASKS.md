@@ -2,21 +2,22 @@
 
 ## 当前任务概览
 
-> 工程整理状态：`main` 已成为当前唯一可信主线，并已与 `origin/main` 对齐；`codex/cache-ci-evidence` 本地/远端分支已删除。剩余分支清理仅限已确认无独立成果或已被主线完整覆盖的分支。
+> 工程整理状态：`main` 已成为当前唯一可信主线，并已与 `origin/main` 对齐；远端历史分支已清理完成。当前 iOS 工作基线已推进到 `M-IOS-7` 并在 GitHub Actions 上真实通过。
 
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
 | OT-006 | Adapter Integration Harness | ci_verified | P0 | M1 complete ✅ | Adapter mock 设计遗漏边界场景 | Harness可注入mock/real adapter + contract验证模板 | yes |
 | OT-007 | Request/Response Trace Inspector | ci_verified | P0 | M1 complete ✅ | 敏感数据泄露 | HTTPClient decorator记录全链路 + 脱敏 | yes |
 | OT-008 | Optional: Fixture Replay / Selector Tester | pending | P1 | OT-006 | scope膨胀 | 二选一工具可用 | yes |
-| OT-009 | iOS Phase Gate Review | conditional_allow | P0 | OT-006 + OT-007 ✅ | gate review 不通过 | Shell smoke + Architecture review + gate decision | yes |
+| OT-009 | iOS Phase Gate Review | complete | P0 | OT-006 + OT-007 ✅ | 已完成，无当前阻断 | Shell smoke + Architecture review + gate decision | yes |
 | M-iOS-1 | Architecture Remediation (dependency boundary) | complete | P0 | OT-009 CONDITIONAL_ALLOW | 边界修复不彻底 | iOS Shell 零违规 import Core internals | yes |
 | M-iOS-2 | Shell Build / CI / Boundary Gate | implementation_complete | P0 | M-iOS-1 ✅ | 已完成，无执行语义 | boundary gate + shell CI + construction smoke tests 建立完成 | yes |
 | M-iOS-3 | Remote Shell Validation | complete | P0 | M-iOS-2 implementation_complete | 已完成：首阻断点已定位 | 真实 GitHub Actions 证据明确 PASS/FAIL 并记录首阻断点 | yes |
 | M-IOS-4 | Shell Validation Scope Isolation | complete | P0 | M-iOS-3 complete | 已完成，无新增风险 | validation scope 与 execution semantics 分离，并拿到新的远端执行证据 | yes |
 | M-IOS-5 | Validation Glue Alignment | complete | P0 | M-IOS-4 complete | 已完成，无当前阻断 | validation-only glue 对齐 frozen dependency graph，boundary/compile/smoke 远端全绿 | yes |
 | M-IOS-6 | Reader Feature Wiring | complete | P0 | M-IOS-5 complete | 已完成，无当前阻断 | Reader 主链路入口接入壳层且不破坏 ios-shell-ci green baseline | yes |
-| M-IOS-7 | Reader Flow Functional Validation | pending | P1 | M-IOS-6 complete | 若功能验证扩大为产品化 UI 会偏离范围 | 在保持现有 green baseline 的前提下验证最小 Search -> TOC -> Content 功能链路 | yes |
+| M-IOS-7 | Reader Flow Functional Validation | complete | P1 | M-IOS-6 complete | 已完成，当前仅保留非阻断 warning | 在保持现有 green baseline 的前提下验证最小 Search -> TOC -> Content 功能链路 | yes |
+| M-IOS-8 | Reader Flow Failure-State Hardening | pending | P1 | M-IOS-7 complete | 若扩大到产品化 UI 或重新放宽 compile scope 会偏离范围 | 在 M-IOS-7 baseline 上补最小 failure-state / state-sync 覆盖 | yes |
 
 ## 当前待办列表
 
@@ -81,7 +82,7 @@
 
 ### OT-009: iOS Phase Gate Review
 
-- 状态：`pending`
+- 状态：`complete`
 - 优先级：`P0`
 - 前置依赖：OT-006 + OT-007 完成
 - 风险点：gate review 不通过，需补充条件后重新评估
@@ -95,10 +96,14 @@
   - Gate review decision: approved / deferred with conditions / rejected
   - 若 approved: ios_gate.allowed = true
 - 交付物：
-  - Shell smoke validation report
-  - Architecture review report
-  - Gate review decision document
-- 是否允许 AI 独立完成：`yes`（执行验证和出具报告，gate decision 需人工确认）
+  - Shell smoke validation report ✅
+  - Architecture review report ✅
+  - Gate review decision document ✅
+- 当前结论：
+  - `ios_gate.allowed = conditional`
+  - `decision = CONDITIONAL_ALLOW`
+  - 后续 iOS 工作仅允许沿 M-IOS-1 ~ M-IOS-7 既定最小 Reader 路径推进
+- 是否允许 AI 独立完成：`yes`
 
 ### M-iOS-2: Shell Build / CI / Boundary Gate
 
@@ -190,16 +195,44 @@
 
 ### M-IOS-7: Reader Flow Functional Validation
 
-- 状态：`pending`
+- 状态：`complete`
 - 优先级：`P1`
 - 前置依赖：`M-IOS-6 complete`
 - 约束：
   - 不得重新扩大 `ReaderShellValidation` compile scope
   - 不得把 `iOS/Features/**` / UI 页面重新纳入 host compile gate
   - 必须继续沿用 `phaseStatus / validationResult / executionVerified` 三层语义
-- 待定义：
-  - 非产品化范围内的最小功能验证链路
-  - 与 green baseline (`run 24307509812`) 的差异边界
+- 已完成：
+  - `ReaderFlowFunctionalValidationTests` 已建立，并保持在 `iOS/Tests/ShellSmokeTests` 范围内
+  - `sample_004` / `sample_005` 已完成 fixture-backed import -> search -> toc -> content 全链路验证
+  - content 阶段受控 `HTTP 404` 错误路径已验证为 non-crashing / non-silent
+  - `ios-shell-ci` 已增加 functional validation 步骤，且不替代原 shell baseline
+- 当前远端证据：
+  - latest run `24345092018`
+  - artifact `6406027921`
+  - boundary gate: `PASS`
+  - compile: `PASS`
+  - smoke tests: `PASS`
+  - functional validation: `PASS`
+  - executionVerified: `true`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=PASS`
+  - `executionVerified=true`
+
+### M-IOS-8: Reader Flow Failure-State Hardening
+
+- 状态：`pending`
+- 优先级：`P1`
+- 前置依赖：`M-IOS-7 complete`
+- 约束：
+  - 不得破坏 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-7 functional baseline
+  - 不得重新扩大 `ReaderShellValidation` compile scope
+  - 不得扩写 UI 产品化需求或新增与 Reader 主链路无关功能
+- 目标：
+  - 只补最小 failure-state / state-sync 验证
+  - 覆盖导入失败、搜索失败、目录失败、正文失败中的高价值最小集合
+  - 保持 `phaseStatus / validationResult / executionVerified` 三层语义
 
 ## 依赖关系图
 
@@ -261,13 +294,13 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段：`m_ios_6_reader_feature_wired_verified`
-- 当前主线：`Reader-Core compatibility kernel → M-IOS-6 Reader Feature Wiring`
+- 当前阶段：`m_ios_7_reader_flow_functionally_validated`
+- 当前主线：`Reader-Core compatibility kernel → M-IOS-7 Reader Flow Functional Validation`
 - active_strategy：`minimal_tooling_then_ios`
-- active_milestone：`m_ios_6`
+- active_milestone：`m_ios_7`
 - milestone_status：`pass`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-6 已把 Reader 主链路入口接入壳层并保持 baseline 远端全绿；下一步只允许进入 M-IOS-7 的最小功能验证，不得回退到宽 scope compile 或扩成完整产品化 UI。
+- 判断原因：M-IOS-7 已把最小 Reader 主链路功能验证跑通并保持 baseline 远端全绿；下一步只允许进入 M-IOS-8 的 failure-state hardening，不得回退到宽 scope compile 或扩成完整产品化 UI。

@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_6_reader_feature_wired_verified
+  phase: m_ios_7_reader_flow_functionally_validated
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "No active iOS shell validation blocker. Reader Feature Wiring is now connected through the formal ShellAssembly while the isolated ReaderShellValidation baseline remains green on GitHub Actions."
+  ios_block_reason: "No active iOS shell functional blocker. Reader Feature Wiring is functionally validated on fixture-backed sources while the isolated ReaderShellValidation baseline remains green on GitHub Actions."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_6
+  active_milestone: m_ios_7
   milestone_status: pass
-  milestone_detail: "M-IOS-6 wired the formal Reader Feature entry through ReaderFlowFeatureView + ShellAssembly, while GitHub Actions run 24307509812 kept boundary gate, isolated compile, and shell smoke validation green."
-  next_best_task: "M-IOS-7: Reader Flow Functional Validation"
-  next_best_task_detail: "Use docs/ios_shell_ci_gate.yml run 24307509812 as the new green baseline, keep ReaderShellValidation scope isolated, and validate the minimal search -> toc -> content path functionally without widening host compile scope."
+  milestone_detail: "M-IOS-7 established the first functional reader baseline: GitHub Actions run 24345092018 kept boundary gate, isolated compile, and shell smoke green while ReaderFlowFunctionalValidationTests verified import -> search -> toc -> content on sample_004 and sample_005 plus a controlled content 404 path."
+  next_best_task: "M-IOS-8: Reader Flow Failure-State Hardening"
+  next_best_task_detail: "Keep the M-IOS-7 functional baseline fixed, extend only failure-state/state-sync coverage around the same minimal reader path, and do not widen host compile scope or productize UI."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -57,21 +57,21 @@ ios_gate:
   gate_result_doc: docs/ios_shell_ci_gate.yml
 
 ios_shell_audit:
-  actual_implementation_state: "SwiftUI views (ReaderFlowFeatureView/BookSourceImportView/SearchView/TOCView/ContentView) + formal ShellAssembly + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository are now wired into a minimal reader entry flow"
+  actual_implementation_state: "SwiftUI views (ReaderFlowFeatureView/BookSourceImportView/SearchView/TOCView/ContentView) + formal ShellAssembly + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository are wired into a minimal reader entry flow, and functional validation now proves import -> search -> toc -> content works on fixture-backed sources."
   tested: remote_execution_passed
   phase_gate_approved: true
-  test_coverage: "Construction-only ShellAssembly smoke tests at iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift are execution-verified on macOS-14 CI run 24307509812, including reader action reachability."
+  test_coverage: "Construction-only ShellAssembly smoke tests plus ReaderFlowFunctionalValidationTests are execution-verified on macOS-14-arm64 CI run 24345092018. Coverage now includes reader action reachability, two fixture-backed full-chain validations (sample_004/sample_005), and a controlled content-stage 404 path."
   missing_capabilities:
     - "Disk persistence (InMemoryBookSourceRepository only)"
     - "Multi-source management (single source selection only)"
     - "Settings/preferences UI"
-    - "Any automated test"
-  risk_assessment: "Reader Feature Wiring is now in place. Remaining iOS work must preserve the isolated gate semantics, avoid bypassing ShellAssembly, and validate the wired reader path functionally before productizing UI."
+    - "No UI automation beyond shell/functional smoke"
+  risk_assessment: "The first functional baseline is now in place. Remaining iOS work must preserve the isolated gate semantics, avoid bypassing ShellAssembly, and harden only failure-state handling around the validated reader path before any productizing UI work."
 
 recent_action:
-  summary: "M-IOS-6 Reader Feature Wiring completed and was revalidated on GitHub Actions. Run 24307509812 passed boundary gate, isolated compile, and 3 shell smoke tests after app entry was wired to the formal reader flow."
-  category: ios_reader_feature_wiring
-  state_effect: "M-IOS-5 validation pipeline stays green, M-IOS-6 reader feature wiring is complete, and docs/ios_shell_ci_gate.yml now records phaseStatus=PASS, validationResult=PASS, executionVerified=TRUE for the wired reader entry."
+  summary: "M-IOS-7 Reader Flow Functional Validation completed and passed on GitHub Actions. Run 24345092018 passed boundary gate, isolated compile, 3 shell smoke tests, and 3 functional validation tests after exercising sample_004/sample_005 fixture chains plus a controlled content 404 path."
+  category: ios_reader_functional_validation
+  state_effect: "M-IOS-6 wiring remains green, M-IOS-7 functional validation is complete, and docs/ios_shell_ci_gate.yml now records phaseStatus=PASS, validationResult=PASS, executionVerified=TRUE for the first functional reader baseline."
 
 repository_convergence:
   trusted_main_branch: main
@@ -108,9 +108,33 @@ ios_shell_ci_gate:
   boundary_gate: pass
   shell_ci: pass
   smoke_validation: pass
+  functional_validation: pass
   validation_scope_isolated: true
   validation_glue_aligned: true
   reader_feature_wired: true
+  reader_functionally_validated: true
+
+ios_reader_functional_validation:
+  status: execution_verified
+  report: docs/ios_shell_ci_gate.yml
+  validated_sources:
+    - sample_004
+    - sample_005
+  controlled_error_path:
+    sampleId: sample_004
+    stage: content
+    scenario: http_404
+    result: pass
+  lastExecution:
+    environment: github_actions_macos_14_arm64
+    runId: "24345092018"
+    artifactId: "6406027921"
+    result: pass
+    functionalTests: 3
+  notes:
+    - "Functional validation reuses samples/booksources/p0_non_js/sample_004.json and sample_005.json with their search/toc/content fixtures and expected outputs."
+    - "The validation stays inside the ShellSmokeTests test product and does not widen the ReaderShellValidation compile target."
+    - "Current non-blocking risks are Swift 6 XCTest actor-isolation warnings and GitHub Node 20 action deprecation."
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -298,11 +322,11 @@ change_scope:
     - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
     - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
   freeze_gate_blockers: []
-  active_milestone: m_ios_6
+  active_milestone: m_ios_7
   active_milestone_status: pass
   new_docs_created:
     - docs/API_SNAPSHOT/Core_Public_API.md
     - docs/API_SNAPSHOT/Core_Module_Dependency.md
     - docs/FIXTURE_INFRA_SPEC.md
     - docs/TOOLING_BACKLOG.md
-  clean_room_statement: "本轮仅执行 macOS GitHub Actions 远端验证、最小 workflow/build wiring 修正与状态文档同步；不修改 Core production 代码、不扩展 capability、不修改已闭环 policy taxonomy / matrix / regression contract，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  clean_room_statement: "本轮仅新增 iOS Shell 功能验证测试、轻量 workflow 步骤与状态文档同步；验证链路基于仓库内 samples/booksources、samples/fixtures、samples/expected 与现有 Shell/CoreIntegration 装配，不修改 Core frozen contract、不扩展 capability、不修改 compat_matrix / failure_taxonomy，不引入外部 GPL 代码，不引用 Legado Android 实现。"

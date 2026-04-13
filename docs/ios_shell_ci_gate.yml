@@ -1,5 +1,5 @@
-phase: M-IOS-6
-generatedAt: "2026-04-12T21:13:00+08:00"
+phase: M-IOS-7
+generatedAt: "2026-04-13T21:20:00+08:00"
 implementationStatus:
   boundary_gate_established: true
   shell_ci_established: true
@@ -7,10 +7,11 @@ implementationStatus:
   validation_scope_isolated: true
   validation_glue_aligned: true
   reader_feature_wired: true
+  reader_functionally_validated: true
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24307509812"
+  runId: "24345092018"
   status: completed
   conclusion: success
 result:
@@ -42,7 +43,7 @@ result:
       - iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift
     notes:
       - "Construction-only smoke remains bound to ShellAssembly.makeDefaultReadingFlowCoordinator() and coordinator wiring assertions."
-      - "Run 24306965324 executed 2 ShellAssembly smoke tests with 0 failures."
+      - "Run 24345092018 executed 3 ShellAssembly smoke tests with 0 failures and preserved the M-IOS-6 green baseline."
   validation_scope:
     implementationStatus: PASS
     executionStatus: PASS
@@ -67,23 +68,33 @@ result:
       - "ReaderApp now enters through ReaderFlowFeatureView instead of the temporary import-only shell."
       - "Formal iOS ShellAssembly is used for app wiring; validation-only ShellAssembly remains scoped to ReaderShellValidation."
       - "The minimal shell path now exposes import -> search -> toc -> content entry points without widening validation scope."
+  reader_functional_validation:
+    implementationStatus: PASS
+    executionStatus: PASS
+    validated_sources:
+      - sample_004
+      - sample_005
+    tests:
+      - iOS/Tests/ShellSmokeTests/ReaderFlowFunctionalValidationTests.swift
+    notes:
+      - "ReaderFlowFunctionalValidationTests runs fixture-backed import -> search -> toc -> content integration on the real ReadingFlowCoordinator graph."
+      - "sample_004 and sample_005 both passed full-chain validation against samples/booksources + samples/fixtures + samples/expected assets."
+      - "A controlled content-stage 404 path also passed, proving error propagation remains non-crashing and non-silent."
   overall:
     phaseStatus: PASS
     validationResult: PASS
     blockers: []
-    next_phase: M-IOS-7
+    next_phase: M-IOS-8
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24307509812
-  headBranch: codex/cache-ci-evidence
-  headSha: "b54787aa86ab8eb2ab75957c2b2e35f8b215c588"
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24345092018
+  headBranch: main
+  headSha: "52e042b436fd958bd6ad37544859ff881530eaec"
   firstFailedStep: ""
   artifactIds:
-    - "6392853457"
+    - "6406027921"
   summary:
-    - "Run 24305799783 verified M-IOS-3 blocker: wide host compile scope incorrectly included iOS/Features."
-    - "Run 24306191609 passed isolated compile and failed in smoke because swift test still resolved too much package scope."
-    - "Run 24306274617 narrowed smoke to the isolated test product and showed ShellAssembly was still missing from the validation module."
-    - "Run 24306358748 confirmed validation scope isolation remained active and narrowed the next blocker to validation-only ShellAssembly glue alignment."
-    - "Run 24306965324 passed boundary gate, isolated compile, and ShellAssembly smoke validation on macOS-14."
-    - "Run 24307509812 kept the same green baseline after formal Reader Feature Wiring and expanded shell smoke to 3 passing tests."
+    - "Run 24345092018 passed boundary gate, isolated compile, shell smoke validation, and reader functional validation on macOS-14-arm64."
+    - "ReaderFlowFunctionalValidationTests executed 3 tests with 0 failures: sample_004 chain, sample_005 chain, and controlled content-stage 404."
+    - "Artifact 6406027921 captured ios-shell-build.log, ios-shell-smoke.log, and ios-reader-functional.log."
+    - "Current warnings are non-blocking: Swift 6 actor-isolation warnings in XCTest subclasses and Node.js 20 action deprecation in GitHub-hosted actions."

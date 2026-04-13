@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-IOS-6 Reader Feature Wiring
-- 当前阶段：`m_ios_6_reader_feature_wired_verified`
+- 当前主线：Reader-Core 兼容内核开发 → M-IOS-7 Reader Flow Functional Validation
+- 当前阶段：`m_ios_7_reader_flow_functionally_validated`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-6 已把 Reader 主链路入口接到壳层并保持 baseline 远端全绿，但后续仍需先做最小功能验证，因此整体仍保持 `conditional`。
+- 判断原因：M-IOS-7 已完成最小 Reader 主链路功能验证，并保持 baseline 远端全绿；当前仍维持 `conditional`，因为下一步只允许进入 failure-state hardening，不允许扩成产品化 UI。
 
 ## 当前事实基线
 
@@ -55,17 +55,14 @@
 
 ## 最近一次动作
 
-- M-IOS-6 Reader Feature Wiring 已执行：GitHub Actions run `24307509812` 在 `macos-14` runner 上真实运行。Boundary gate、isolated compile、shell smoke tests 全部通过，且 shell smoke 已扩展为 3 个用例。详见 `docs/ios_shell_ci_gate.yml`。
-- 仓库工程整理已执行：中断的 `rebase` 已恢复完成，`codex/cache-ci-evidence` 已快进收敛进 `main`，且 `main` 已成功推送到 `origin/main`。当前应以 `main` 作为唯一可信主线。
+- M-IOS-7 Reader Flow Functional Validation 已执行：GitHub Actions run `24345092018` 在 `macos-14-arm64` runner 上真实运行。Boundary gate、isolated compile、shell smoke tests、reader functional validation 全部通过，artifact `6406027921` 已上传。详见 `docs/ios_shell_ci_gate.yml`。
+- 仓库工程整理已完成：远端历史分支已清理完毕，当前应以 `main` 作为唯一可信主线。
 
 ## 当前主线结论
 
 - 可信主线分支：`main`
-- 已收敛并删除的分支：`codex/cache-ci-evidence`（本地与远端同名分支均已删除，内容已并入 `main`）
-- 继续保留的远端分支：
-  - `origin/claude/fervent-goldstine`：仅报告文件差异，未确认是否需要长期归档
-  - `origin/codex-cache-ci-evidence-2407`：历史 adapter/cache hardening 分支，提交链未被主线按 ancestry 覆盖
-  - `origin/codex-policy-regression-verification-20260409`：policy regression 独立提交链，需后续专项审视
+- 已收敛并删除的分支：`codex/cache-ci-evidence`、`claude/fervent-goldstine`、`codex/main`、`codex-cache-ci-evidence-2407`、`codex-policy-regression-verification-20260409`
+- 继续保留的远端分支：无（远端仅剩 `origin/main`）
 - 本地验证限制：当前 Windows 环境无 `swift`，本次无法执行 Swift 编译/测试；仅完成 Git 一致性、分支差异与收敛验证
 
 ## iOS Gate (Recalibrated)
@@ -91,7 +88,7 @@ ios_gate:
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准)"
 ```
 
-## M-IOS-6 Gate Result
+## M-IOS-7 Gate Result
 
 ```yaml
 ios_shell_ci_gate:
@@ -117,25 +114,23 @@ ios_shell_ci_gate:
   reader_feature:
     implementationStatus: PASS
     executionStatus: PASS
-  next_phase: M-IOS-7
+  reader_functional_validation:
+    implementationStatus: PASS
+    executionStatus: PASS
+    validated_sources:
+      - sample_004
+      - sample_005
+  next_phase: M-IOS-8
 ```
 
 ## 本轮验证内容
 
-- 验证对象：`ReaderShellValidation` green baseline + formal Reader Feature entry wiring
+- 验证对象：`ReaderShellValidation` green baseline + fixture-backed Reader functional validation
 - 真实证据源：GitHub Actions
-- runner：`macos-14`
+- runner：`macos-14-arm64`
 - executionVerified：`true`
 - 远端执行链路：
-  - run `24305489976`：boundary gate fail，暴露远端仍有 CoreIntegration boundary leaks
-  - run `24305565566`：boundary gate pass，compile fail，暴露 SwiftPM package identity 问题
-  - run `24305713381`：boundary gate pass，compile fail，暴露 macOS platform floor 问题
-  - run `24305799783`：boundary gate pass，compile fail，暴露 host compile 下的 iOS feature source incompatibilities
-  - run `24306191609`：isolated compile pass，smoke fail，暴露 smoke scope 仍过宽
-  - run `24306274617`：smoke narrowed to isolated test product，暴露 validation target 未导出 `ShellAssembly`
-  - run `24306358748`：validation-only glue 被纳入 isolated compile，暴露新首阻断点
-  - run `24306965324`：validation glue 对齐后，boundary/compile/smoke 全绿
-  - run `24307509812`：Reader Feature Wiring 落地后，baseline 仍全绿，shell smoke 扩展为 3 个通过用例
+  - run `24345092018`：boundary gate / isolated compile / shell smoke / reader functional validation 全绿，artifact `6406027921`
 
 ## Phase / Validation / Evidence
 
@@ -145,21 +140,21 @@ ios_shell_ci_gate:
 
 ## 本轮处理内容
 
-- `ReaderApp` 启动入口改为 `ReaderFlowFeatureView`
-- 正式 `iOS/Shell/ShellAssembly.swift` 对齐真实依赖图，并用于 app wiring
-- `BookSourceImportView` / `SearchView` / `TOCView` / `ContentView` 修正为最小可接线 reader path
-- 新增 `ReaderFlowFeatureState` 汇总最小 feature state
-- shell smoke 增加 `search / toc / content` action reachability 验证
+- 新增 `ReaderFlowFunctionalValidationTests`，对 `sample_004` 与 `sample_005` 执行 import -> search -> toc -> content 全链路验证
+- functional validation 复用 `samples/booksources`、`samples/fixtures`、`samples/expected` 真实仓库资产，不引入新 capability
+- `ios-shell-ci` 新增轻量 functional validation 步骤，并继续保留原 shell baseline
+- 新增受控 content 404 路径验证，确认错误传播无 crash / 无 silent corruption
 
 ## 当前结论
 
 - validation scope isolation：`PASS`
 - validation glue alignment：`PASS`
 - reader feature wiring：`PASS`
+- reader functional validation：`PASS`
 - boundary gate：`PASS`
 - shell compile：`PASS`
 - shell smoke validation：`PASS`
-- 当前无活动 blocker；下一步仅允许在 green baseline 上定义 `M-IOS-7`
+- 当前无活动 blocker；下一步仅允许在 M-IOS-7 functional baseline 上进入 `M-IOS-8`
 
 ## Adapter Validation
 
@@ -255,8 +250,8 @@ deferred_until_post_ios:
 
 ## 下一步唯一最优任务
 
-- `M-IOS-7: Reader Flow Functional Validation`
-- 目标说明：以 `docs/ios_shell_ci_gate.yml` 记录的 green baseline（run `24307509812`）为基础，对最小 Search -> TOC -> Content 主链路做功能级验证，不得重新扩大 host compile scope。
+- `M-IOS-8: Reader Flow Failure-State Hardening`
+- 目标说明：以 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-7 functional baseline（run `24345092018`）为基础，只补最小 failure-state / state-sync 覆盖，不得重新扩大 host compile scope，也不得扩成产品化 UI。
 
 ## 当前不允许做的事
 
