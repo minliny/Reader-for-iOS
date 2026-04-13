@@ -42,11 +42,21 @@ public struct ContentView: View {
                     if let title = uxState.contentTitle, let bodyText = uxState.contentBody {
                         ReaderContentSectionView(title: title, bodyText: bodyText)
                         
-                        ReaderStageActionBar(
-                            onPrevious: previousChapterAction,
-                            onNext: nextChapterAction,
-                            onReload: { Task { await coordinator.selectChapter(chapter) } }
-                        )
+                        VStack(spacing: 12) {
+                            if let chapterIndex = uxState.chapterIndex, uxState.chapterCount > 0 {
+                                ReaderProgressSurfaceView(
+                                    chapterIndex: chapterIndex,
+                                    chapterCount: uxState.chapterCount,
+                                    progressPercentage: uxState.progressPercentage ?? 0
+                                )
+                            }
+                            
+                            ReaderStageActionBar(
+                                onPrevious: previousChapterAction,
+                                onNext: nextChapterAction,
+                                onReload: { Task { await coordinator.selectChapter(chapter) } }
+                            )
+                        }
                         .padding(.top, 16)
                     }
 

@@ -20,6 +20,9 @@ public struct ReaderUXFoundationState: Equatable {
     public let contentTitle: String?
     public let contentBody: String?
     public let errorMessage: String?
+    public let chapterIndex: Int?
+    public let chapterCount: Int
+    public let progressPercentage: Double?
 
     public init(
         coordinator: ReadingFlowCoordinator,
@@ -34,7 +37,19 @@ public struct ReaderUXFoundationState: Equatable {
         stageTitle = featureState.currentStageTitle
         sourceName = coordinator.selectedSource?.bookSourceName
         bookTitle = coordinator.selectedBook?.title
-        chapterTitle = chapter?.chapterTitle ?? coordinator.selectedChapter?.chapterTitle
+        
+        let targetChapter = chapter ?? coordinator.selectedChapter
+        chapterTitle = targetChapter?.chapterTitle
+        
+        chapterCount = coordinator.tocItems.count
+        if let targetChapter = targetChapter,
+           let index = coordinator.tocItems.firstIndex(where: { $0.chapterURL == targetChapter.chapterURL }) {
+            chapterIndex = index
+            progressPercentage = chapterCount > 0 ? Double(index + 1) / Double(chapterCount) : nil
+        } else {
+            chapterIndex = nil
+            progressPercentage = nil
+        }
 
         if coordinator.isLoading {
             surfaceKind = .loading

@@ -85,6 +85,13 @@ jobs:
           # Session polish validation tests session continuity and minimal resume affordances.
           swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderSessionValidationTests 2>&1 | tee ios-reader-session-polish.log
 
+      - name: Run reader navigation and progress foundation validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Navigation validation tests chapter position awareness and progress features
+          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderNavigationValidationTests 2>&1 | tee ios-reader-navigation-foundation.log
+
       - name: Upload iOS Shell logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -99,3 +106,4 @@ jobs:
             ios-reader-ux-foundation.log
             ios-reader-interaction-foundation.log
             ios-reader-session-polish.log
+            ios-reader-navigation-foundation.log

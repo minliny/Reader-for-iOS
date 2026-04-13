@@ -254,7 +254,7 @@ public final class TracingHTTPClient: HTTPClient, @unchecked Sendable {
     }
 
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
-        let startCFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        let startTimestamp = Date().timeIntervalSince1970
         let requestTimestamp = Date()
 
         // Build trace request (with redaction and body preview)
@@ -268,7 +268,7 @@ public final class TracingHTTPClient: HTTPClient, @unchecked Sendable {
 
         do {
             let response = try await wrapped.send(request)
-            let durationMs = (CFAbsoluteTimeGetCurrent() - startCFAbsoluteTime) * 1000.0
+            let durationMs = (Date().timeIntervalSince1970 - startTimestamp) * 1000.0
 
             let traceResponse = TraceResponse(
                 statusCode: response.statusCode,
@@ -287,7 +287,7 @@ public final class TracingHTTPClient: HTTPClient, @unchecked Sendable {
 
             return response
         } catch {
-            let durationMs = (CFAbsoluteTimeGetCurrent() - startCFAbsoluteTime) * 1000.0
+            let durationMs = (Date().timeIntervalSince1970 - startTimestamp) * 1000.0
 
             let record = TraceRecord(
                 request: traceRequest,
