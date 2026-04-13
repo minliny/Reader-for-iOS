@@ -63,7 +63,10 @@ let package = Package(
             name: "ShellSmokeTests",
             dependencies: [
                 "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Core")
+                .product(name: "ReaderCoreModels", package: "Core"),
+                .product(name: "ReaderCoreProtocols", package: "Core"),
+                .product(name: "ReaderCoreParser", package: "Core"),
+                .product(name: "ReaderCoreNetwork", package: "Core")
             ],
             path: "Tests/ShellSmokeTests"
         )
