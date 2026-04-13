@@ -1,5 +1,5 @@
-phase: M-IOS-8
-generatedAt: "2026-04-13T22:18:00+08:00"
+phase: M-IOS-9
+generatedAt: "2026-04-13T23:20:00+08:00"
 implementationStatus:
   boundary_gate_established: true
   shell_ci_established: true
@@ -9,12 +9,13 @@ implementationStatus:
   reader_feature_wired: true
   reader_functionally_validated: true
   reader_flow_hardened: true
+  reader_ux_foundation_built: true
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24348124841"
+  runId: "24350744946"
   status: completed
-  conclusion: success
+  conclusion: failure
 result:
   boundary_gate:
     enabled: true
@@ -33,13 +34,13 @@ result:
   shell_ci:
     enabled: true
     implementationStatus: PASS
-    executionStatus: PASS
+    executionStatus: FAIL
     workflow: .github/workflows/ios-shell-ci.yml
     build_mode: swiftpm_interim_isolated
   smoke_validation:
     enabled: true
     implementationStatus: PASS
-    executionStatus: PASS
+    executionStatus: FAIL
     tests:
       - iOS/Tests/ShellSmokeTests/ShellAssemblySmokeTests.swift
     notes:
@@ -47,7 +48,7 @@ result:
       - "Run 24345092018 executed 3 ShellAssembly smoke tests with 0 failures and preserved the M-IOS-6 green baseline."
   validation_scope:
     implementationStatus: PASS
-    executionStatus: PASS
+    executionStatus: FAIL
     target: ReaderShellValidation
     excludes_ios_only_features: true
     notes:
@@ -56,7 +57,7 @@ result:
       - "Runs after M-IOS-4 keep iOS-only Features/UI outside the first failed step and outside the isolated validation target."
   validation_glue:
     implementationStatus: PASS
-    executionStatus: PASS
+    executionStatus: FAIL
     file: iOS/ValidationSupport/ShellAssembly.swift
     notes:
       - "ShellAssembly now imports ReaderPlatformAdapters for URLSessionHTTPClient visibility."
@@ -64,14 +65,14 @@ result:
       - "Validation glue alignment remains green under GitHub Actions run 24307509812."
   reader_feature:
     implementationStatus: PASS
-    executionStatus: PASS
+    executionStatus: FAIL
     notes:
       - "ReaderApp now enters through ReaderFlowFeatureView instead of the temporary import-only shell."
       - "Formal iOS ShellAssembly is used for app wiring; validation-only ShellAssembly remains scoped to ReaderShellValidation."
       - "The minimal shell path now exposes import -> search -> toc -> content entry points without widening validation scope."
   reader_functional_validation:
     implementationStatus: PASS
-    executionStatus: PASS
+    executionStatus: UNKNOWN
     validated_sources:
       - sample_004
       - sample_005
@@ -83,7 +84,7 @@ result:
       - "A controlled content-stage 404 path also passed, proving error propagation remains non-crashing and non-silent."
   reader_flow_hardening:
     implementationStatus: PASS
-    executionStatus: PASS
+    executionStatus: UNKNOWN
     validated_cases:
       - repeated_search
       - book_switch
@@ -98,21 +99,35 @@ result:
       - "Repeated search now clears stale selectedBook/toc/selectedChapter/content state before new results are observed."
       - "Switching books and sources now resets downstream chapter/content state, preventing stale reader-state carryover."
       - "Chapter replacement and post-error recovery were execution-verified against fixture-backed sample_004 routes."
+  reader_ux_foundation:
+    implementationStatus: PASS
+    executionStatus: FAIL
+    validated_surfaces:
+      - loading_surface
+      - empty_surface
+      - error_surface
+      - content_surface
+      - chapter_context_surface
+    notes:
+      - "Reader UX foundation UI and state-driven validation were added without changing any Core frozen contract."
+      - "A first blocker fix landed in d97a9fb to isolate ReaderFlowFeatureState on MainActor."
+      - "Current remote failure remains at shell smoke validation because macOS-hosted SwiftUI compilation rejects navigationBarTitleDisplayMode(.inline) in SearchView/TOCView/ContentView before the new UX validation step can run."
   overall:
     phaseStatus: PASS
-    validationResult: PASS
-    blockers: []
+    validationResult: FAIL
+    blockers:
+      - "shell_smoke_validation: navigationBarTitleDisplayMode(.inline) is unavailable in macOS for ContentView/SearchView/TOCView under the ReaderApp compile path"
     next_phase: M-IOS-9
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24348124841
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24350744946
   headBranch: main
-  headSha: "d93f4f65607d0fb7fa2899e8b98c81002778de98"
-  firstFailedStep: ""
+  headSha: "d97a9fb5f5ae95eb152bb5f96ecca99c3f4d3ad6"
+  firstFailedStep: "Run shell smoke validation"
   artifactIds:
-    - "6407333111"
+    - "6408467566"
   summary:
-    - "Run 24348124841 passed boundary gate, isolated compile, shell smoke validation, reader functional validation, and reader flow hardening validation on macOS-14-arm64."
-    - "ReaderFlowHardeningTests executed 6 tests with 0 failures after the shell-validation-scope fix landed in commit d93f4f6."
-    - "Artifact 6407333111 captured ios-shell-build.log, ios-shell-smoke.log, ios-reader-functional.log, and ios-reader-hardening.log."
+    - "Run 24350744946 executionVerified=true but failed at shell smoke validation before functional, hardening, and UX foundation validation steps could run."
+    - "First blocker fix d97a9fb resolved ReaderFlowFeatureState actor isolation; the current first failed step is macOS-unavailable navigationBarTitleDisplayMode(.inline) in ContentView/SearchView/TOCView."
+    - "Artifact 6408467566 captured ios-shell-build.log and ios-shell-smoke.log for the failed M-IOS-9 attempt."
     - "Current warnings are non-blocking: Swift 6 actor-isolation warnings in XCTest subclasses and Node.js 20 action deprecation in GitHub-hosted actions."

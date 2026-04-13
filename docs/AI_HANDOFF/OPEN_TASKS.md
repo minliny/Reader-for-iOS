@@ -2,7 +2,7 @@
 
 ## 当前任务概览
 
-> 工程整理状态：`main` 已成为当前唯一可信主线，并已与 `origin/main` 对齐；远端历史分支已清理完成。当前 iOS 工作基线已推进到 `M-IOS-8` 并在 GitHub Actions 上真实通过。
+> 工程整理状态：`main` 已成为当前唯一可信主线，并已与 `origin/main` 对齐；远端历史分支已清理完成。当前 iOS 工作基线已进入 `M-IOS-9` 尝试态，并已拿到 GitHub Actions 失败证据。
 
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
@@ -18,7 +18,7 @@
 | M-IOS-6 | Reader Feature Wiring | complete | P0 | M-IOS-5 complete | 已完成，无当前阻断 | Reader 主链路入口接入壳层且不破坏 ios-shell-ci green baseline | yes |
 | M-IOS-7 | Reader Flow Functional Validation | complete | P1 | M-IOS-6 complete | 已完成，当前仅保留非阻断 warning | 在保持现有 green baseline 的前提下验证最小 Search -> TOC -> Content 功能链路 | yes |
 | M-IOS-8 | Reader Flow Failure-State Hardening | complete | P1 | M-IOS-7 complete | 已完成，当前仅保留非阻断 warning | 在 M-IOS-7 baseline 上补最小 failure-state / state-sync 覆盖 | yes |
-| M-IOS-9 | Reader Flow Navigation/Recovery Expansion | pending | P1 | M-IOS-8 complete | 若扩大到 UI 产品化、真机自动化或 Core 改造会偏离范围 | 在 M-IOS-8 baseline 上继续补相邻 reader-flow 恢复/切换覆盖 | yes |
+| M-IOS-9 | Reader UX Foundation | fail | P1 | M-IOS-8 complete | 当前首阻断点是 macOS-hosted shell smoke 不接受 navigationBarTitleDisplayMode(.inline) | 在 M-IOS-8 baseline 上建立最小可用阅读体验基础层 | yes |
 
 ## 当前待办列表
 
@@ -249,19 +249,36 @@
   - `validationResult=PASS`
   - `executionVerified=true`
 
-### M-IOS-9: Reader Flow Navigation/Recovery Expansion
+### M-IOS-9: Reader UX Foundation
 
-- 状态：`pending`
+- 状态：`fail`
 - 优先级：`P1`
 - 前置依赖：`M-IOS-8 complete`
 - 约束：
   - 不得破坏 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-8 hardening baseline
   - 不得重新扩大 `ReaderShellValidation` compile scope
   - 不得扩写 UI 产品化需求或新增与 Reader 主链路无关功能
-- 目标：
-  - 继续补相邻 reader-flow navigation/recovery 覆盖
-  - 优先验证用户回退、重复导入、跨 source 再次检索等状态一致性
-  - 保持 `phaseStatus / validationResult / executionVerified` 三层语义
+- 已完成实现：
+  - Reader 状态卡片、正文容器、empty/error/loading surface 已进入 ReaderApp 代码
+  - state-driven UX foundation validation 已添加为 workflow 附加步骤
+  - 第一阻断点修复已落地：`ReaderFlowFeatureState` 改为 `@MainActor`
+- 当前远端证据：
+  - latest run `24350744946`
+  - artifact `6408467566`
+  - boundary gate: `PASS`
+  - compile: `PASS`
+  - smoke tests: `FAIL`
+  - functional validation: `UNKNOWN`
+  - hardening validation: `UNKNOWN`
+  - ux foundation validation: `FAIL`（未执行，因前序失败）
+  - executionVerified: `true`
+- 当前首阻断点：
+  - `shell_smoke_validation`
+  - `navigationBarTitleDisplayMode(.inline)` 在 macOS-hosted ReaderApp 编译中不可用，涉及 `ContentView` / `SearchView` / `TOCView`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=FAIL`
+  - `executionVerified=true`
 
 ## 依赖关系图
 
@@ -323,13 +340,13 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段：`m_ios_8_reader_flow_hardened`
-- 当前主线：`Reader-Core compatibility kernel → M-IOS-8 Reader Flow Hardening`
+- 当前阶段：`m_ios_9_reader_ux_foundation_attempted`
+- 当前主线：`Reader-Core compatibility kernel → M-IOS-9 Reader UX Foundation`
 - active_strategy：`minimal_tooling_then_ios`
-- active_milestone：`m_ios_8`
-- milestone_status：`pass`
+- active_milestone：`m_ios_9`
+- milestone_status：`fail`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-8 已把 Reader 主链路的最小状态清理与恢复验证跑通并保持 baseline 远端全绿；下一步只允许进入 M-IOS-9 的相邻 navigation/recovery 扩展，不得回退到宽 scope compile 或扩成完整产品化 UI。
+- 判断原因：M-IOS-9 已有真实远端失败证据；当前只允许继续处理 Reader UX Foundation 的首阻断点，不得回退到宽 scope compile 之外的范围，也不得扩成完整产品化 UI。

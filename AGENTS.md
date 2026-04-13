@@ -170,10 +170,10 @@ ios_gate:
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
     - "CONDITION-3: Execute shell smoke validation — PASS (remote validation green on macOS-14)"
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
-  ios_shell_current_state: "SwiftUI views + formal ShellAssembly + ReaderFlowFeatureView + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. boundary gate script + ios-shell-ci workflow + shell smoke tests are present. ReaderFlowFunctionalValidationTests verify sample_004/sample_005 fixture-backed import -> search -> toc -> content plus a controlled content 404 path, and ReaderFlowHardeningTests verify repeated search, book switch, chapter switch, error recovery, and source switch state cleanup. Remote validation is executionVerified=true and currently green on run 24348124841."
+  ios_shell_current_state: "SwiftUI views + formal ShellAssembly + ReaderFlowFeatureView + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. boundary gate script + ios-shell-ci workflow + shell smoke tests are present. ReaderFlowFunctionalValidationTests verify sample_004/sample_005 fixture-backed import -> search -> toc -> content plus a controlled content 404 path, ReaderFlowHardeningTests verify repeated search/book switch/chapter switch/error recovery/source switch, and an M-IOS-9 Reader UX Foundation attempt now adds minimal reader status cards plus content/empty/error/loading surfaces. The latest execution evidence is run 24350744946 with executionVerified=true but validationResult=FAIL because macOS-hosted shell smoke compile rejects navigationBarTitleDisplayMode(.inline) in ReaderApp views."
 
-recent_completed_action: "M-IOS-8 (Reader Flow Hardening) PASS: GitHub Actions run 24348124841 kept boundary gate, isolated compile, shell smoke validation, reader functional validation, and reader flow hardening green after hardening repeated search/source-switch state cleanup."
-next_best_task: "M-IOS-9: Reader Flow Navigation/Recovery Expansion"
+recent_completed_action: "M-IOS-9 attempt recorded: commit 5346743 added Reader UX foundation surfaces and commit d97a9fb fixed the first actor-isolation blocker, but GitHub Actions run 24350744946 still failed at shell smoke validation due to macOS-unavailable navigationBarTitleDisplayMode(.inline)."
+next_best_task: "M-IOS-9: Reader UX Foundation blocker resolution"
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 
