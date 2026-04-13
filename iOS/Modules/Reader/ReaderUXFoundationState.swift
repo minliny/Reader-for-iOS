@@ -9,6 +9,7 @@ public enum ReaderUXSurfaceKind: String, Equatable {
     case content
 }
 
+@MainActor
 public struct ReaderUXFoundationState: Equatable {
     public let stageTitle: String
     public let stageDetail: String
