@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-IOS-9 Reader UX Foundation
-- 当前阶段：`m_ios_9_reader_ux_foundation_attempted`
+- 当前主线：Reader-Core 兼容内核开发 → M-IOS-10 Next Phase Planning
+- 当前阶段：`m_ios_9_reader_ux_foundation_verified`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-9 已建立最小 UX foundation 实现，但远端 validation 失败；当前仍维持 `conditional`，因为下一步只允许处理本轮首阻断点，不允许扩成产品化 UI。
+- 判断原因：M-IOS-9 已通过 macOS 远端 validation。可以开始进入 M-IOS-10 阶段的讨论和计划。
 
 ## 当前事实基线
 
@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-IOS-9 Reader UX Foundation 已尝试执行：GitHub Actions run `24350744946` 在 `macos-14-arm64` runner 上真实运行。Boundary gate 与 isolated compile 通过，但 shell smoke validation 失败，导致后续 functional / hardening / UX foundation validation 未执行，artifact `6408467566` 已上传。详见 `docs/ios_shell_ci_gate.yml`。
+- M-IOS-9 Reader UX Foundation 阻断点已修复：GitHub Actions run `24352725871` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
 - 仓库工程整理已完成：远端历史分支已清理完毕，当前应以 `main` 作为唯一可信主线。
 
 ## 当前主线结论
@@ -95,7 +95,7 @@ ios_shell_ci_gate:
   report: docs/ios_shell_ci_gate.yml
   executionVerified: true
   phaseStatus: PASS
-  validationResult: FAIL
+  validationResult: PASS
   boundary_gate:
     implementationStatus: PASS
     executionStatus: PASS
@@ -132,14 +132,14 @@ ios_shell_ci_gate:
       - state_transition_surface
   reader_ux_foundation:
     implementationStatus: PASS
-    executionStatus: FAIL
+    executionStatus: PASS
     validated_surfaces:
       - loading_surface
       - empty_surface
       - error_surface
       - content_surface
       - chapter_context_surface
-  next_phase: M-IOS-9
+  next_phase: "M-IOS-10"
 ```
 
 ## 本轮验证内容
@@ -149,20 +149,18 @@ ios_shell_ci_gate:
 - runner：`macos-14-arm64`
 - executionVerified：`true`
 - 远端执行链路：
-  - run `24350744946`：boundary gate / isolated compile 通过；shell smoke 在 ReaderApp 视图编译阶段失败；artifact `6408467566`
+  - run `24352725871`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation validation 全部通过。
 
 ## Phase / Validation / Evidence
 
 - phase status：`PASS`
-- validation result：`FAIL`
+- validation result：`PASS`
 - execution verified：`true`
 
 ## 本轮处理内容
 
-- 新增最小 UX foundation 呈现层：Reader 状态卡片、正文容器、统一 empty/error/loading surface
-- 新增 `ReaderUXFoundationStateTests` 作为附加 state-driven UX validation
-- 第一阻断点修复已落地：`ReaderFlowFeatureState` 改为 `@MainActor`
-- 当前剩余首阻断点是 `navigationBarTitleDisplayMode(.inline)` 在 macOS-hosted ReaderApp 编译中不可用
+- 新增 `View+HostCompatibility` 并修复 macOS 下 `navigationBarTitleDisplayMode(.inline)` 的兼容问题。
+- 修复 `ReaderUXFoundationStateTests` 中存在的 Swift 6 `MainActor` 隔离警告和错误，确保其可以在 GitHub Actions 环境下正常执行。
 
 ## 当前结论
 
@@ -171,11 +169,11 @@ ios_shell_ci_gate:
 - reader feature wiring：`PASS`
 - reader functional validation：`PASS`
 - reader flow hardening：`PASS`
-- reader ux foundation：`FAIL`
+- reader ux foundation：`PASS`
 - boundary gate：`PASS`
 - shell compile：`PASS`
 - shell smoke validation：`PASS`
-- 当前 blocker：`shell_smoke_validation` 下的 macOS-unavailable navigation API；下一步仅允许继续处理 `M-IOS-9`
+- 当前 blocker：`None`；下一步允许开启 `M-IOS-10` 规划。
 
 ## Adapter Validation
 
@@ -271,8 +269,8 @@ deferred_until_post_ios:
 
 ## 下一步唯一最优任务
 
-- `M-IOS-9: Reader UX Foundation blocker resolution`
-- 目标说明：以 `docs/ios_shell_ci_gate.yml` 记录的失败证据（run `24350744946`）为基础，先消除 macOS-hosted shell smoke 的首阻断点，再重试 M-IOS-9，不得打开 M-IOS-10。
+- `M-IOS-10: Next Phase Planning`
+- 目标说明：M-IOS-9 Reader UX Foundation 已在 macOS CI 执行验证通过。可以开始开启下一阶段的工作。
 
 ## 当前不允许做的事
 

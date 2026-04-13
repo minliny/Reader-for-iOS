@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_9_reader_ux_foundation_attempted
+  phase: m_ios_9_reader_ux_foundation_verified
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "M-IOS-9 is currently blocked in macOS-hosted shell smoke validation because ReaderApp compile reaches navigationBarTitleDisplayMode(.inline), which is unavailable on macOS before UX validation can execute."
+  ios_block_reason: "None. M-IOS-9 Reader UX foundation successfully passed remote shell validation."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_9
-  milestone_status: fail
-  milestone_detail: "M-IOS-9 attempted a first Reader UX foundation baseline: commit 5346743 added minimal reader status cards, content container, empty/error/loading surfaces, and state-driven UX validation, but GitHub Actions run 24350744946 failed before UX validation executed because shell smoke compilation on macOS hit navigationBarTitleDisplayMode(.inline) in ReaderApp views."
-  next_best_task: "M-IOS-9: Reader UX Foundation blocker resolution"
-  next_best_task_detail: "Keep the attempted UX foundation scope fixed, resolve the macOS-hosted shell smoke compile blocker first, and do not open M-IOS-10 until UX foundation validation is execution-verified."
+  active_milestone: m_ios_10
+  milestone_status: in_progress
+  milestone_detail: "M-IOS-9 passed successfully on GitHub Actions. Ready to proceed to M-IOS-10."
+  next_best_task: "M-IOS-10: Next Phase Planning"
+  next_best_task_detail: "Plan the next phase now that UX foundation is solid."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -57,10 +57,10 @@ ios_gate:
   gate_result_doc: docs/ios_shell_ci_gate.yml
 
 ios_shell_audit:
-  actual_implementation_state: "SwiftUI views (ReaderFlowFeatureView/BookSourceImportView/SearchView/TOCView/ContentView) + formal ShellAssembly + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository are wired into a minimal reader entry flow, and functional validation now proves import -> search -> toc -> content works on fixture-backed sources."
+  actual_implementation_state: "SwiftUI views (ReaderFlowFeatureView/BookSourceImportView/SearchView/TOCView/ContentView) + formal ShellAssembly + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository are wired into a minimal reader entry flow, and functional validation now proves import -> search -> toc -> content works on fixture-backed sources. Reader UX Foundation is validated."
   tested: remote_execution_passed
   phase_gate_approved: true
-  test_coverage: "Construction-only ShellAssembly smoke tests plus ReaderFlowFunctionalValidationTests are execution-verified on macOS-14-arm64 CI run 24345092018. Coverage now includes reader action reachability, two fixture-backed full-chain validations (sample_004/sample_005), and a controlled content-stage 404 path."
+  test_coverage: "Construction-only ShellAssembly smoke tests plus ReaderFlowFunctionalValidationTests, ReaderFlowHardeningTests, and ReaderUXFoundationStateTests are execution-verified on macOS-14-arm64 CI run 24352725871."
   missing_capabilities:
     - "Disk persistence (InMemoryBookSourceRepository only)"
     - "Multi-source management (single source selection only)"
@@ -69,9 +69,9 @@ ios_shell_audit:
   risk_assessment: "The first functional baseline is now in place. Remaining iOS work must preserve the isolated gate semantics, avoid bypassing ShellAssembly, and harden only failure-state handling around the validated reader path before any productizing UI work."
 
 recent_action:
-  summary: "M-IOS-9 Reader UX Foundation was attempted. Run 24350744946 executed on GitHub Actions and failed at shell smoke validation after the first blocker fix d97a9fb landed; the remaining first failed step is macOS-unavailable navigationBarTitleDisplayMode(.inline) in ReaderApp views."
-  category: ios_reader_ux_foundation_attempt
-  state_effect: "Reader UX foundation implementation exists, executionVerified remains true, but validationResult is FAIL until the macOS-hosted shell smoke compile blocker is removed and the additive UX validation step can run."
+  summary: "M-IOS-9 Reader UX Foundation blocker resolved. Run 24352725871 executed on GitHub Actions and passed all validation steps including shell smoke, functional, hardening, and ux foundation."
+  category: ios_reader_ux_foundation_verified
+  state_effect: "Reader UX foundation implementation is now executionVerified=true and validationResult=PASS."
 
 repository_convergence:
   trusted_main_branch: main
@@ -102,15 +102,15 @@ git_governance:
   github_sync_status: in_sync
 
 ios_shell_ci_gate:
-  status: fail
+  status: pass
   report: docs/ios_shell_ci_gate.yml
   execution_verified: true
   boundary_gate: pass
-  shell_ci: fail
-  smoke_validation: fail
-  functional_validation: unknown
-  hardening_validation: unknown
-  ux_foundation_validation: fail
+  shell_ci: pass
+  smoke_validation: pass
+  functional_validation: pass
+  hardening_validation: pass
+  ux_foundation_validation: pass
   validation_scope_isolated: true
   validation_glue_aligned: true
   reader_feature_wired: true
@@ -169,7 +169,7 @@ ios_reader_flow_hardening:
     - "Current non-blocking risks remain Swift 6 XCTest actor-isolation warnings and GitHub Node 20 action deprecation."
 
 ios_reader_ux_foundation:
-  status: execution_failed
+  status: execution_verified
   report: docs/ios_shell_ci_gate.yml
   validated_sources:
     - sample_004
@@ -184,22 +184,16 @@ ios_reader_ux_foundation:
     commit: d97a9fb
     blocker: reader_feature_state_main_actor_isolation
     result: pass
-  currentBlocker:
-    stage: shell_smoke_validation
-    fileGroup:
-      - iOS/Features/Content/ContentView.swift
-      - iOS/Features/Search/SearchView.swift
-      - iOS/Features/TOC/TOCView.swift
-    symptom: navigationBarTitleDisplayMode(.inline) is unavailable on macOS-hosted ReaderApp compile
+  currentBlocker: null
   lastExecution:
     environment: github_actions_macos_14_arm64
-    runId: "24350744946"
-    artifactId: "6408467566"
-    result: fail
-    uxValidationExecuted: false
+    runId: "24352725871"
+    artifactId: "6409311277"
+    result: pass
+    uxValidationExecuted: true
   notes:
-    - "M-IOS-9 keeps UX foundation within Reader views, helper views, and state-driven presentation logic; Core frozen contract remains unchanged."
-    - "The additive UX validation step was added to ios-shell-ci but did not execute because shell smoke failed earlier."
+    - "M-IOS-9 UX foundation validation successfully executed after resolving the navigationBarTitleDisplayMode(.inline) compilation blocker."
+    - "Reader UX foundation is now execution-verified."
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -387,8 +381,8 @@ change_scope:
     - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
     - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
   freeze_gate_blockers: []
-  active_milestone: m_ios_9
-  active_milestone_status: fail
+  active_milestone: m_ios_10
+  active_milestone_status: in_progress
   new_docs_created:
     - docs/API_SNAPSHOT/Core_Public_API.md
     - docs/API_SNAPSHOT/Core_Module_Dependency.md
