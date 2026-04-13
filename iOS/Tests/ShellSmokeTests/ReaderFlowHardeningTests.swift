@@ -148,7 +148,7 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertNil(coordinator.contentPage)
     }
 
-    func testFeatureStateReflectsEmptyLoadingLoadedAndErrorTransitions() async throws {
+    func testCoordinatorStateReflectsEmptyLoadedAndErrorTransitions() async throws {
         let fixture = try FunctionalFixtureSample.load(sampleId: "sample_004")
         let coordinator = makeCoordinator(
             for: fixture,
@@ -156,35 +156,39 @@ final class ReaderFlowHardeningTests: XCTestCase {
                 fixture.expectedTOC.expected.chapters[0].chapterURL: HardeningFixtureRoute(statusCode: 404, data: fixture.contentFixtureData)
             ]
         )
-        let boundary = ReaderModuleBoundary()
 
-        let initial = ReaderFlowFeatureState(coordinator: coordinator, boundary: boundary)
-        XCTAssertFalse(initial.hasSelectedSource)
-        XCTAssertEqual(initial.currentStageTitle, "等待导入书源")
+        XCTAssertNil(coordinator.selectedSource)
+        XCTAssertTrue(coordinator.searchResults.isEmpty)
+        XCTAssertTrue(coordinator.tocItems.isEmpty)
+        XCTAssertNil(coordinator.selectedChapter)
+        XCTAssertNil(coordinator.contentPage)
+        XCTAssertNil(coordinator.currentError)
 
         await coordinator.importBookSource(from: fixture.bookSourceData)
-        let imported = ReaderFlowFeatureState(coordinator: coordinator, boundary: boundary)
-        XCTAssertTrue(imported.hasSelectedSource)
-        XCTAssertEqual(imported.currentStageTitle, "可开始搜索")
+        XCTAssertNotNil(coordinator.selectedSource)
+        XCTAssertTrue(coordinator.searchResults.isEmpty)
+        XCTAssertTrue(coordinator.tocItems.isEmpty)
+        XCTAssertNil(coordinator.currentError)
 
         await coordinator.search(keyword: "三体")
-        let searched = ReaderFlowFeatureState(coordinator: coordinator, boundary: boundary)
-        XCTAssertTrue(searched.hasSearchResults)
-        XCTAssertEqual(searched.currentStageTitle, "搜索结果已就绪")
+        XCTAssertFalse(coordinator.searchResults.isEmpty)
+        XCTAssertNil(coordinator.selectedBook)
+        XCTAssertTrue(coordinator.tocItems.isEmpty)
+        XCTAssertNil(coordinator.currentError)
 
         let firstBook = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
-        let toced = ReaderFlowFeatureState(coordinator: coordinator, boundary: boundary)
-        XCTAssertTrue(toced.hasTOCItems)
-        XCTAssertEqual(toced.currentStageTitle, "目录已加载")
+        XCTAssertEqual(coordinator.selectedBook, firstBook)
+        XCTAssertFalse(coordinator.tocItems.isEmpty)
+        XCTAssertNil(coordinator.selectedChapter)
+        XCTAssertNil(coordinator.currentError)
 
         let firstChapter = try XCTUnwrap(coordinator.tocItems.first)
         await coordinator.selectChapter(firstChapter)
-        let failed = ReaderFlowFeatureState(coordinator: coordinator, boundary: boundary)
-        XCTAssertTrue(failed.hasSelectedChapter)
-        XCTAssertFalse(failed.hasContentPage)
-        XCTAssertEqual(failed.currentStageTitle, "章节已选择")
+        XCTAssertEqual(coordinator.selectedChapter, firstChapter)
+        XCTAssertNil(coordinator.contentPage)
         XCTAssertNotNil(coordinator.currentError)
+        XCTAssertFalse(coordinator.isLoading)
     }
 }
 
