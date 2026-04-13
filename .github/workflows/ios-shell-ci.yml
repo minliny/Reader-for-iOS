@@ -71,6 +71,13 @@ jobs:
           # UX foundation validation is additive and only checks state-driven presentation surfaces on the minimal reader path.
           swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderUXFoundationStateTests 2>&1 | tee ios-reader-ux-foundation.log
 
+      - name: Run reader interaction foundation validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Interaction validation tests minimal interactions like retry and reload without full UI automation.
+          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderInteractionValidationTests 2>&1 | tee ios-reader-interaction-foundation.log
+
       - name: Upload iOS Shell logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,3 +90,4 @@ jobs:
             ios-reader-functional.log
             ios-reader-hardening.log
             ios-reader-ux-foundation.log
+            ios-reader-interaction-foundation.log

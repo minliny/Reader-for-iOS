@@ -1,5 +1,4 @@
-phase: M-IOS-9
-generatedAt: "2026-04-13T23:20:00+08:00"
+phase: M-IOS-10
 implementationStatus:
   boundary_gate_established: true
   shell_ci_established: true
@@ -10,10 +9,11 @@ implementationStatus:
   reader_functionally_validated: true
   reader_flow_hardened: true
   reader_ux_foundation_built: true
+  reader_interaction_foundation_built: true
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24352725871"
+  runId: "24353675339"
   status: completed
   conclusion: success
 result:
@@ -112,20 +112,32 @@ result:
       - "Reader UX foundation UI and state-driven validation were added without changing any Core frozen contract."
       - "A first blocker fix landed in d97a9fb to isolate ReaderFlowFeatureState on MainActor."
       - "Current remote failure remains at shell smoke validation because macOS-hosted SwiftUI compilation rejects navigationBarTitleDisplayMode(.inline) in SearchView/TOCView/ContentView before the new UX validation step can run."
+  reader_interaction_foundation:
+    implementationStatus: PASS
+    executionStatus: PASS
+    validated_interactions:
+      - retry_action
+      - reload_action
+      - empty_state_affordance
+      - error_recovery_affordance
+      - chapter_switch_continuity
+    notes:
+      - "Added ReaderStageActionBar for previous/next/reload interactions."
+      - "Added retry/reload buttons to empty states in ContentView and TOCView."
+      - "State-driven interaction tests execution verified."
   overall:
     phaseStatus: PASS
     validationResult: PASS
     blockers: []
-    next_phase: M-IOS-10
+    next_phase: M-IOS-11
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24352725871
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24353675339
   headBranch: main
-  headSha: "c21eca2"
+  headSha: "2148f7a"
   firstFailedStep: "None"
   artifactIds:
-    - "6409311277"
+    - "6409739255"
   summary:
-    - "Run 24352725871 executionVerified=true and validationResult=PASS. All M-IOS-9 validation steps passed on macOS host."
-    - "macOS host compile blocker resolved by adding conditional .inlineNavigationBarTitle() extension wrapper."
-    - "ReaderUXFoundationState and tests actor-isolation blockers resolved, allowing ux_foundation_validation to execute successfully."
+    - "Run 24353675339 executionVerified=true and validationResult=PASS. All M-IOS-10 validation steps passed on macOS host."
+    - "Reader Interaction Foundation implemented and tested successfully."

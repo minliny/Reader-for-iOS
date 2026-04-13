@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-IOS-10 Next Phase Planning
-- 当前阶段：`m_ios_9_reader_ux_foundation_verified`
+- 当前主线：Reader-Core 兼容内核开发 → M-IOS-11 Next Phase Planning
+- 当前阶段：`m_ios_10_reader_interaction_foundation_verified`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-9 已通过 macOS 远端 validation。可以开始进入 M-IOS-10 阶段的讨论和计划。
+- 判断原因：M-IOS-10 已通过 macOS 远端 validation。可以开始进入 M-IOS-11 阶段的讨论和计划。
 
 ## 当前事实基线
 
@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-IOS-9 Reader UX Foundation 阻断点已修复：GitHub Actions run `24352725871` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
+- M-IOS-10 Reader Interaction Foundation 已完成：GitHub Actions run `24353675339` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation, interaction foundation）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
 - 仓库工程整理已完成：远端历史分支已清理完毕，当前应以 `main` 作为唯一可信主线。
 
 ## 当前主线结论
@@ -149,7 +149,7 @@ ios_shell_ci_gate:
 - runner：`macos-14-arm64`
 - executionVerified：`true`
 - 远端执行链路：
-  - run `24352725871`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation validation 全部通过。
+  - run `24353675339`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation, interaction foundation validation 全部通过。
 
 ## Phase / Validation / Evidence
 
@@ -159,8 +159,9 @@ ios_shell_ci_gate:
 
 ## 本轮处理内容
 
-- 新增 `View+HostCompatibility` 并修复 macOS 下 `navigationBarTitleDisplayMode(.inline)` 的兼容问题。
-- 修复 `ReaderUXFoundationStateTests` 中存在的 Swift 6 `MainActor` 隔离警告和错误，确保其可以在 GitHub Actions 环境下正常执行。
+- 新增 `ReaderStageActionBar`，提供正文阅读阶段上一章、下一章、重新加载功能的交互。
+- 修改 `ContentView` 与 `TOCView` 的空状态，补充重试入口，增强 error recovery affordance。
+- 新增 `ReaderInteractionValidationTests`，覆盖重试、空状态、翻页等交互测试，确保 interaction foundation 达到 baseline。
 
 ## 当前结论
 
@@ -170,10 +171,11 @@ ios_shell_ci_gate:
 - reader functional validation：`PASS`
 - reader flow hardening：`PASS`
 - reader ux foundation：`PASS`
+- reader interaction foundation：`PASS`
 - boundary gate：`PASS`
 - shell compile：`PASS`
 - shell smoke validation：`PASS`
-- 当前 blocker：`None`；下一步允许开启 `M-IOS-10` 规划。
+- 当前 blocker：`None`；下一步允许开启 `M-IOS-11` 规划。
 
 ## Adapter Validation
 
@@ -269,8 +271,8 @@ deferred_until_post_ios:
 
 ## 下一步唯一最优任务
 
-- `M-IOS-10: Next Phase Planning`
-- 目标说明：M-IOS-9 Reader UX Foundation 已在 macOS CI 执行验证通过。可以开始开启下一阶段的工作。
+- `M-IOS-11: Next Phase Planning`
+- 目标说明：M-IOS-10 Reader Interaction Foundation 已在 macOS CI 执行验证通过。可以开始开启下一阶段的工作。
 
 ## 当前不允许做的事
 

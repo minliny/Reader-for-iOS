@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_9_reader_ux_foundation_verified
+  phase: m_ios_10_reader_interaction_foundation_verified
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "None. M-IOS-9 Reader UX foundation successfully passed remote shell validation."
+  ios_block_reason: "None. M-IOS-10 Reader Interaction Foundation successfully passed remote shell validation."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_10
+  active_milestone: m_ios_11
   milestone_status: in_progress
-  milestone_detail: "M-IOS-9 passed successfully on GitHub Actions. Ready to proceed to M-IOS-10."
-  next_best_task: "M-IOS-10: Next Phase Planning"
-  next_best_task_detail: "Plan the next phase now that UX foundation is solid."
+  milestone_detail: "M-IOS-10 passed successfully on GitHub Actions. Ready to proceed to M-IOS-11."
+  next_best_task: "M-IOS-11: Next Phase Planning"
+  next_best_task_detail: "Plan the next phase now that interaction foundation is solid."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -68,10 +68,28 @@ ios_shell_audit:
     - "No UI automation beyond shell/functional smoke"
   risk_assessment: "The first functional baseline is now in place. Remaining iOS work must preserve the isolated gate semantics, avoid bypassing ShellAssembly, and harden only failure-state handling around the validated reader path before any productizing UI work."
 
+ios_reader_interaction_foundation:
+  status: execution_verified
+  report: docs/ios_shell_ci_gate.yml
+  validated_interactions:
+    - retry_action
+    - reload_action
+    - empty_state_affordance
+    - error_recovery_affordance
+    - chapter_switch_continuity
+  lastExecution:
+    environment: github_actions_macos_14_arm64
+    runId: "24353675339"
+    artifactId: "6409739255"
+    result: pass
+    validationExecuted: true
+  notes:
+    - "M-IOS-10 Reader Interaction Foundation passed shell smoke and state-driven interaction tests."
+
 recent_action:
-  summary: "M-IOS-9 Reader UX Foundation blocker resolved. Run 24352725871 executed on GitHub Actions and passed all validation steps including shell smoke, functional, hardening, and ux foundation."
-  category: ios_reader_ux_foundation_verified
-  state_effect: "Reader UX foundation implementation is now executionVerified=true and validationResult=PASS."
+  summary: "M-IOS-10 Reader Interaction Foundation implementation and validation tests completed. Run 24353675339 passed on GitHub Actions."
+  category: ios_reader_interaction_foundation_verified
+  state_effect: "Reader Interaction Foundation is now executionVerified=true and validationResult=PASS."
 
 repository_convergence:
   trusted_main_branch: main
@@ -111,6 +129,7 @@ ios_shell_ci_gate:
   functional_validation: pass
   hardening_validation: pass
   ux_foundation_validation: pass
+  interaction_foundation_validation: pass
   validation_scope_isolated: true
   validation_glue_aligned: true
   reader_feature_wired: true

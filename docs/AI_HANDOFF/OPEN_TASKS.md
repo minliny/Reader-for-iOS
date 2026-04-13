@@ -277,6 +277,34 @@
   - `validationResult=PASS`
   - `executionVerified=true`
 
+### M-IOS-10: Reader Interaction Foundation
+
+- 状态：`complete`
+- 优先级：`P1`
+- 前置依赖：`M-IOS-9 complete`
+- 约束：
+  - 不得破坏 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-9 UX foundation baseline
+  - 不得重写庞大的交互框架，仅保持最小交互基础层
+- 已完成实现：
+  - ReaderStageActionBar 添加（包含上一章、下一章、重新加载）
+  - ContentView / TOCView 空状态下增加重试入口
+  - ReaderInteractionValidationTests 添加，验证交互行为不退化
+- 当前远端证据：
+  - latest run `24353675339`
+  - artifact `6409739255`
+  - boundary gate: `PASS`
+  - compile: `PASS`
+  - smoke tests: `PASS`
+  - functional validation: `PASS`
+  - hardening validation: `PASS`
+  - ux foundation validation: `PASS`
+  - interaction foundation validation: `PASS`
+  - executionVerified: `true`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=PASS`
+  - `executionVerified=true`
+
 ## 依赖关系图
 
 ```
