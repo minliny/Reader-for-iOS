@@ -162,7 +162,7 @@ ios_gate:
     - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
       status: COMPLETE  # AdapterHarness CI_VERIFIED, TraceInspector CI_VERIFIED (run 24303727706)
     - condition: "Shell smoke validation complete"
-      status: PASS  # executionVerified=true on GitHub Actions runs 24306965324 / 24307509812 / 24345092018
+      status: PASS  # executionVerified=true on GitHub Actions runs 24306965324 / 24307509812 / 24345092018 / 24348124841
     - condition: "Architecture review pass"
       status: PASS  # M-iOS-1 remediation complete: 0 illegal imports in CoreIntegration/Features
   prerequisites_for_execution:
@@ -170,10 +170,10 @@ ios_gate:
     - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
     - "CONDITION-3: Execute shell smoke validation — PASS (remote validation green on macOS-14)"
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
-  ios_shell_current_state: "SwiftUI views + formal ShellAssembly + ReaderFlowFeatureView + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. boundary gate script + ios-shell-ci workflow + shell smoke tests are present. ReaderFlowFunctionalValidationTests now verify sample_004/sample_005 fixture-backed import -> search -> toc -> content plus a controlled content 404 path. Remote validation is executionVerified=true and currently green on run 24345092018."
+  ios_shell_current_state: "SwiftUI views + formal ShellAssembly + ReaderFlowFeatureView + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService exist in iOS/. boundary gate script + ios-shell-ci workflow + shell smoke tests are present. ReaderFlowFunctionalValidationTests verify sample_004/sample_005 fixture-backed import -> search -> toc -> content plus a controlled content 404 path, and ReaderFlowHardeningTests verify repeated search, book switch, chapter switch, error recovery, and source switch state cleanup. Remote validation is executionVerified=true and currently green on run 24348124841."
 
-recent_completed_action: "M-IOS-7 (Reader Flow Functional Validation) PASS: GitHub Actions run 24345092018 kept boundary gate, isolated compile, shell smoke validation, and reader functional validation green after exercising sample_004/sample_005 plus a controlled content 404 path."
-next_best_task: "M-IOS-8: Reader Flow Failure-State Hardening"
+recent_completed_action: "M-IOS-8 (Reader Flow Hardening) PASS: GitHub Actions run 24348124841 kept boundary gate, isolated compile, shell smoke validation, reader functional validation, and reader flow hardening green after hardening repeated search/source-switch state cleanup."
+next_best_task: "M-IOS-9: Reader Flow Navigation/Recovery Expansion"
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 

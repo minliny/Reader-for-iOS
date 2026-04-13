@@ -2,7 +2,7 @@
 
 ## 当前任务概览
 
-> 工程整理状态：`main` 已成为当前唯一可信主线，并已与 `origin/main` 对齐；远端历史分支已清理完成。当前 iOS 工作基线已推进到 `M-IOS-7` 并在 GitHub Actions 上真实通过。
+> 工程整理状态：`main` 已成为当前唯一可信主线，并已与 `origin/main` 对齐；远端历史分支已清理完成。当前 iOS 工作基线已推进到 `M-IOS-8` 并在 GitHub Actions 上真实通过。
 
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
@@ -17,7 +17,8 @@
 | M-IOS-5 | Validation Glue Alignment | complete | P0 | M-IOS-4 complete | 已完成，无当前阻断 | validation-only glue 对齐 frozen dependency graph，boundary/compile/smoke 远端全绿 | yes |
 | M-IOS-6 | Reader Feature Wiring | complete | P0 | M-IOS-5 complete | 已完成，无当前阻断 | Reader 主链路入口接入壳层且不破坏 ios-shell-ci green baseline | yes |
 | M-IOS-7 | Reader Flow Functional Validation | complete | P1 | M-IOS-6 complete | 已完成，当前仅保留非阻断 warning | 在保持现有 green baseline 的前提下验证最小 Search -> TOC -> Content 功能链路 | yes |
-| M-IOS-8 | Reader Flow Failure-State Hardening | pending | P1 | M-IOS-7 complete | 若扩大到产品化 UI 或重新放宽 compile scope 会偏离范围 | 在 M-IOS-7 baseline 上补最小 failure-state / state-sync 覆盖 | yes |
+| M-IOS-8 | Reader Flow Failure-State Hardening | complete | P1 | M-IOS-7 complete | 已完成，当前仅保留非阻断 warning | 在 M-IOS-7 baseline 上补最小 failure-state / state-sync 覆盖 | yes |
+| M-IOS-9 | Reader Flow Navigation/Recovery Expansion | pending | P1 | M-IOS-8 complete | 若扩大到 UI 产品化、真机自动化或 Core 改造会偏离范围 | 在 M-IOS-8 baseline 上继续补相邻 reader-flow 恢复/切换覆盖 | yes |
 
 ## 当前待办列表
 
@@ -222,16 +223,44 @@
 
 ### M-IOS-8: Reader Flow Failure-State Hardening
 
-- 状态：`pending`
+- 状态：`complete`
 - 优先级：`P1`
 - 前置依赖：`M-IOS-7 complete`
 - 约束：
   - 不得破坏 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-7 functional baseline
   - 不得重新扩大 `ReaderShellValidation` compile scope
   - 不得扩写 UI 产品化需求或新增与 Reader 主链路无关功能
+- 已完成：
+  - `ReaderFlowHardeningTests` 已建立，并保持在 `iOS/Tests/ShellSmokeTests` 范围内
+  - repeated search / book switch / chapter switch / error recovery / source switch / state-transition surface 已执行验证
+  - `ReadingFlowCoordinator` 已补最小状态清理：重复 search 清空旧书籍链路状态，切换 source 清空旧 reader 状态
+  - 远端复验 run `24348124841` 全绿
+- 当前远端证据：
+  - latest run `24348124841`
+  - artifact `6407333111`
+  - boundary gate: `PASS`
+  - compile: `PASS`
+  - smoke tests: `PASS`
+  - functional validation: `PASS`
+  - hardening validation: `PASS`
+  - executionVerified: `true`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=PASS`
+  - `executionVerified=true`
+
+### M-IOS-9: Reader Flow Navigation/Recovery Expansion
+
+- 状态：`pending`
+- 优先级：`P1`
+- 前置依赖：`M-IOS-8 complete`
+- 约束：
+  - 不得破坏 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-8 hardening baseline
+  - 不得重新扩大 `ReaderShellValidation` compile scope
+  - 不得扩写 UI 产品化需求或新增与 Reader 主链路无关功能
 - 目标：
-  - 只补最小 failure-state / state-sync 验证
-  - 覆盖导入失败、搜索失败、目录失败、正文失败中的高价值最小集合
+  - 继续补相邻 reader-flow navigation/recovery 覆盖
+  - 优先验证用户回退、重复导入、跨 source 再次检索等状态一致性
   - 保持 `phaseStatus / validationResult / executionVerified` 三层语义
 
 ## 依赖关系图
@@ -294,13 +323,13 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段：`m_ios_7_reader_flow_functionally_validated`
-- 当前主线：`Reader-Core compatibility kernel → M-IOS-7 Reader Flow Functional Validation`
+- 当前阶段：`m_ios_8_reader_flow_hardened`
+- 当前主线：`Reader-Core compatibility kernel → M-IOS-8 Reader Flow Hardening`
 - active_strategy：`minimal_tooling_then_ios`
-- active_milestone：`m_ios_7`
+- active_milestone：`m_ios_8`
 - milestone_status：`pass`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`
 - 冻结门禁证据：ErrorMappingTests 14/14 passed + PolicyVerificationTests 9/9 passed (CI run 24279408481, macOS-14)
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-7 已把最小 Reader 主链路功能验证跑通并保持 baseline 远端全绿；下一步只允许进入 M-IOS-8 的 failure-state hardening，不得回退到宽 scope compile 或扩成完整产品化 UI。
+- 判断原因：M-IOS-8 已把 Reader 主链路的最小状态清理与恢复验证跑通并保持 baseline 远端全绿；下一步只允许进入 M-IOS-9 的相邻 navigation/recovery 扩展，不得回退到宽 scope compile 或扩成完整产品化 UI。

@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-IOS-7 Reader Flow Functional Validation
-- 当前阶段：`m_ios_7_reader_flow_functionally_validated`
+- 当前主线：Reader-Core 兼容内核开发 → M-IOS-8 Reader Flow Hardening
+- 当前阶段：`m_ios_8_reader_flow_hardened`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-7 已完成最小 Reader 主链路功能验证，并保持 baseline 远端全绿；当前仍维持 `conditional`，因为下一步只允许进入 failure-state hardening，不允许扩成产品化 UI。
+- 判断原因：M-IOS-8 已完成最小 Reader 主链路状态加固，并保持 baseline 远端全绿；当前仍维持 `conditional`，因为下一步只允许进入相邻 navigation/recovery 扩展，不允许扩成产品化 UI。
 
 ## 当前事实基线
 
@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-IOS-7 Reader Flow Functional Validation 已执行：GitHub Actions run `24345092018` 在 `macos-14-arm64` runner 上真实运行。Boundary gate、isolated compile、shell smoke tests、reader functional validation 全部通过，artifact `6406027921` 已上传。详见 `docs/ios_shell_ci_gate.yml`。
+- M-IOS-8 Reader Flow Hardening 已执行：GitHub Actions run `24348124841` 在 `macos-14-arm64` runner 上真实运行。Boundary gate、isolated compile、shell smoke tests、reader functional validation、reader flow hardening 全部通过，artifact `6407333111` 已上传。详见 `docs/ios_shell_ci_gate.yml`。
 - 仓库工程整理已完成：远端历史分支已清理完毕，当前应以 `main` 作为唯一可信主线。
 
 ## 当前主线结论
@@ -88,7 +88,7 @@ ios_gate:
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准)"
 ```
 
-## M-IOS-7 Gate Result
+## M-IOS-8 Gate Result
 
 ```yaml
 ios_shell_ci_gate:
@@ -120,17 +120,27 @@ ios_shell_ci_gate:
     validated_sources:
       - sample_004
       - sample_005
-  next_phase: M-IOS-8
+  reader_flow_hardening:
+    implementationStatus: PASS
+    executionStatus: PASS
+    validated_cases:
+      - repeated_search
+      - book_switch
+      - chapter_switch
+      - error_recovery
+      - source_switch
+      - state_transition_surface
+  next_phase: M-IOS-9
 ```
 
 ## 本轮验证内容
 
-- 验证对象：`ReaderShellValidation` green baseline + fixture-backed Reader functional validation
+- 验证对象：`ReaderShellValidation` green baseline + fixture-backed Reader functional validation + reader flow hardening validation
 - 真实证据源：GitHub Actions
 - runner：`macos-14-arm64`
 - executionVerified：`true`
 - 远端执行链路：
-  - run `24345092018`：boundary gate / isolated compile / shell smoke / reader functional validation 全绿，artifact `6406027921`
+  - run `24348124841`：boundary gate / isolated compile / shell smoke / reader functional validation / reader flow hardening 全绿，artifact `6407333111`
 
 ## Phase / Validation / Evidence
 
@@ -140,10 +150,10 @@ ios_shell_ci_gate:
 
 ## 本轮处理内容
 
-- 新增 `ReaderFlowFunctionalValidationTests`，对 `sample_004` 与 `sample_005` 执行 import -> search -> toc -> content 全链路验证
-- functional validation 复用 `samples/booksources`、`samples/fixtures`、`samples/expected` 真实仓库资产，不引入新 capability
-- `ios-shell-ci` 新增轻量 functional validation 步骤，并继续保留原 shell baseline
-- 新增受控 content 404 路径验证，确认错误传播无 crash / 无 silent corruption
+- 新增 `ReaderFlowHardeningTests`，对 `sample_004` 与 `sample_005` 执行 repeated search / book switch / chapter switch / error recovery / source switch / state-transition hardening 验证
+- `ReadingFlowCoordinator` 补最小状态清理，确保重复搜索与切换 source 不保留旧书籍/章节/正文状态
+- hardening validation 继续复用 `samples/booksources`、`samples/fixtures`、`samples/expected` 真实仓库资产，不引入新 capability
+- `ios-shell-ci` 新增轻量 hardening validation 步骤，并继续保留原 shell baseline 与 M-IOS-7 functional baseline
 
 ## 当前结论
 
@@ -151,10 +161,11 @@ ios_shell_ci_gate:
 - validation glue alignment：`PASS`
 - reader feature wiring：`PASS`
 - reader functional validation：`PASS`
+- reader flow hardening：`PASS`
 - boundary gate：`PASS`
 - shell compile：`PASS`
 - shell smoke validation：`PASS`
-- 当前无活动 blocker；下一步仅允许在 M-IOS-7 functional baseline 上进入 `M-IOS-8`
+- 当前无活动 blocker；下一步仅允许在 M-IOS-8 hardening baseline 上进入 `M-IOS-9`
 
 ## Adapter Validation
 
@@ -250,8 +261,8 @@ deferred_until_post_ios:
 
 ## 下一步唯一最优任务
 
-- `M-IOS-8: Reader Flow Failure-State Hardening`
-- 目标说明：以 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-7 functional baseline（run `24345092018`）为基础，只补最小 failure-state / state-sync 覆盖，不得重新扩大 host compile scope，也不得扩成产品化 UI。
+- `M-IOS-9: Reader Flow Navigation/Recovery Expansion`
+- 目标说明：以 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-8 hardening baseline（run `24348124841`）为基础，只补相邻 navigation/recovery 覆盖，不得重新扩大 host compile scope，也不得扩成产品化 UI。
 
 ## 当前不允许做的事
 

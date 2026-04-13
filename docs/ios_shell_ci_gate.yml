@@ -1,5 +1,5 @@
-phase: M-IOS-7
-generatedAt: "2026-04-13T21:20:00+08:00"
+phase: M-IOS-8
+generatedAt: "2026-04-13T22:18:00+08:00"
 implementationStatus:
   boundary_gate_established: true
   shell_ci_established: true
@@ -8,10 +8,11 @@ implementationStatus:
   validation_glue_aligned: true
   reader_feature_wired: true
   reader_functionally_validated: true
+  reader_flow_hardened: true
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24345092018"
+  runId: "24348124841"
   status: completed
   conclusion: success
 result:
@@ -80,21 +81,38 @@ result:
       - "ReaderFlowFunctionalValidationTests runs fixture-backed import -> search -> toc -> content integration on the real ReadingFlowCoordinator graph."
       - "sample_004 and sample_005 both passed full-chain validation against samples/booksources + samples/fixtures + samples/expected assets."
       - "A controlled content-stage 404 path also passed, proving error propagation remains non-crashing and non-silent."
+  reader_flow_hardening:
+    implementationStatus: PASS
+    executionStatus: PASS
+    validated_cases:
+      - repeated_search
+      - book_switch
+      - chapter_switch
+      - error_recovery
+      - source_switch
+      - state_transition_surface
+    tests:
+      - iOS/Tests/ShellSmokeTests/ReaderFlowHardeningTests.swift
+    notes:
+      - "ReaderFlowHardeningTests keeps validation inside the ShellSmokeTests test product and does not widen the isolated ReaderShellValidation compile target."
+      - "Repeated search now clears stale selectedBook/toc/selectedChapter/content state before new results are observed."
+      - "Switching books and sources now resets downstream chapter/content state, preventing stale reader-state carryover."
+      - "Chapter replacement and post-error recovery were execution-verified against fixture-backed sample_004 routes."
   overall:
     phaseStatus: PASS
     validationResult: PASS
     blockers: []
-    next_phase: M-IOS-8
+    next_phase: M-IOS-9
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24345092018
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24348124841
   headBranch: main
-  headSha: "52e042b436fd958bd6ad37544859ff881530eaec"
+  headSha: "d93f4f65607d0fb7fa2899e8b98c81002778de98"
   firstFailedStep: ""
   artifactIds:
-    - "6406027921"
+    - "6407333111"
   summary:
-    - "Run 24345092018 passed boundary gate, isolated compile, shell smoke validation, and reader functional validation on macOS-14-arm64."
-    - "ReaderFlowFunctionalValidationTests executed 3 tests with 0 failures: sample_004 chain, sample_005 chain, and controlled content-stage 404."
-    - "Artifact 6406027921 captured ios-shell-build.log, ios-shell-smoke.log, and ios-reader-functional.log."
+    - "Run 24348124841 passed boundary gate, isolated compile, shell smoke validation, reader functional validation, and reader flow hardening validation on macOS-14-arm64."
+    - "ReaderFlowHardeningTests executed 6 tests with 0 failures after the shell-validation-scope fix landed in commit d93f4f6."
+    - "Artifact 6407333111 captured ios-shell-build.log, ios-shell-smoke.log, ios-reader-functional.log, and ios-reader-hardening.log."
     - "Current warnings are non-blocking: Swift 6 actor-isolation warnings in XCTest subclasses and Node.js 20 action deprecation in GitHub-hosted actions."

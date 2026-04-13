@@ -3,22 +3,22 @@ project:
   strategy: Reader-Core first
   shell_policy: iOS later
   mainline: Reader-Core compatibility kernel development
-  phase: m_ios_7_reader_flow_functionally_validated
+  phase: m_ios_8_reader_flow_hardened
   execution_mode: recalibrated_phase2
   active_strategy: minimal_tooling_then_ios
   clean_room: true
   allow_ios_phase: conditional
-  ios_block_reason: "No active iOS shell functional blocker. Reader Feature Wiring is functionally validated on fixture-backed sources while the isolated ReaderShellValidation baseline remains green on GitHub Actions."
+  ios_block_reason: "No active iOS shell hardening blocker. Reader flow state cleanup and recovery are execution-verified while the isolated ReaderShellValidation baseline remains green on GitHub Actions."
 
 current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_7
+  active_milestone: m_ios_8
   milestone_status: pass
-  milestone_detail: "M-IOS-7 established the first functional reader baseline: GitHub Actions run 24345092018 kept boundary gate, isolated compile, and shell smoke green while ReaderFlowFunctionalValidationTests verified import -> search -> toc -> content on sample_004 and sample_005 plus a controlled content 404 path."
-  next_best_task: "M-IOS-8: Reader Flow Failure-State Hardening"
-  next_best_task_detail: "Keep the M-IOS-7 functional baseline fixed, extend only failure-state/state-sync coverage around the same minimal reader path, and do not widen host compile scope or productize UI."
+  milestone_detail: "M-IOS-8 hardened the reader flow state machine on top of the M-IOS-7 baseline: GitHub Actions run 24348124841 kept boundary gate, isolated compile, shell smoke, and functional validation green while ReaderFlowHardeningTests verified repeated search, book switch, chapter switch, error recovery, source switch, and state-transition cleanup."
+  next_best_task: "M-IOS-9: Reader Flow Navigation/Recovery Expansion"
+  next_best_task_detail: "Keep the M-IOS-8 hardening baseline fixed, extend only adjacent reader-flow recovery/navigation coverage on the same minimal shell path, and do not widen host compile scope or productize UI."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -69,9 +69,9 @@ ios_shell_audit:
   risk_assessment: "The first functional baseline is now in place. Remaining iOS work must preserve the isolated gate semantics, avoid bypassing ShellAssembly, and harden only failure-state handling around the validated reader path before any productizing UI work."
 
 recent_action:
-  summary: "M-IOS-7 Reader Flow Functional Validation completed and passed on GitHub Actions. Run 24345092018 passed boundary gate, isolated compile, 3 shell smoke tests, and 3 functional validation tests after exercising sample_004/sample_005 fixture chains plus a controlled content 404 path."
-  category: ios_reader_functional_validation
-  state_effect: "M-IOS-6 wiring remains green, M-IOS-7 functional validation is complete, and docs/ios_shell_ci_gate.yml now records phaseStatus=PASS, validationResult=PASS, executionVerified=TRUE for the first functional reader baseline."
+  summary: "M-IOS-8 Reader Flow Hardening completed and passed on GitHub Actions. Run 24348124841 passed boundary gate, isolated compile, 3 shell smoke tests, 3 functional validation tests, and 6 hardening tests after fixing shell-validation-scope leakage in the hardening suite."
+  category: ios_reader_flow_hardening
+  state_effect: "M-IOS-7 functional validation remains green, M-IOS-8 hardening is complete, and docs/ios_shell_ci_gate.yml now records phaseStatus=PASS, validationResult=PASS, executionVerified=TRUE for the first reader flow hardening baseline."
 
 repository_convergence:
   trusted_main_branch: main
@@ -109,10 +109,12 @@ ios_shell_ci_gate:
   shell_ci: pass
   smoke_validation: pass
   functional_validation: pass
+  hardening_validation: pass
   validation_scope_isolated: true
   validation_glue_aligned: true
   reader_feature_wired: true
   reader_functionally_validated: true
+  reader_flow_hardened: true
 
 ios_reader_functional_validation:
   status: execution_verified
@@ -135,6 +137,34 @@ ios_reader_functional_validation:
     - "Functional validation reuses samples/booksources/p0_non_js/sample_004.json and sample_005.json with their search/toc/content fixtures and expected outputs."
     - "The validation stays inside the ShellSmokeTests test product and does not widen the ReaderShellValidation compile target."
     - "Current non-blocking risks are Swift 6 XCTest actor-isolation warnings and GitHub Node 20 action deprecation."
+
+ios_reader_flow_hardening:
+  status: execution_verified
+  report: docs/ios_shell_ci_gate.yml
+  validated_sources:
+    - sample_004
+    - sample_005
+  validated_cases:
+    - repeated_search
+    - book_switch
+    - chapter_switch
+    - error_recovery
+    - source_switch
+    - state_transition_surface
+  firstFix:
+    commit: d93f4f6
+    blocker: shell_validation_scope
+    result: pass
+  lastExecution:
+    environment: github_actions_macos_14_arm64
+    runId: "24348124841"
+    artifactId: "6407333111"
+    result: pass
+    hardeningTests: 6
+  notes:
+    - "Hardening validation reuses fixture-backed sample_004/sample_005 flow assets and keeps execution inside the ShellSmokeTests product."
+    - "ReadingFlowCoordinator now resets stale downstream reader state on repeated search and source switch without changing any Core frozen contract."
+    - "Current non-blocking risks remain Swift 6 XCTest actor-isolation warnings and GitHub Node 20 action deprecation."
 
 multiplatform_architecture_rollout:
   reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
@@ -322,11 +352,11 @@ change_scope:
     - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
     - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
   freeze_gate_blockers: []
-  active_milestone: m_ios_7
+  active_milestone: m_ios_8
   active_milestone_status: pass
   new_docs_created:
     - docs/API_SNAPSHOT/Core_Public_API.md
     - docs/API_SNAPSHOT/Core_Module_Dependency.md
     - docs/FIXTURE_INFRA_SPEC.md
     - docs/TOOLING_BACKLOG.md
-  clean_room_statement: "本轮仅新增 iOS Shell 功能验证测试、轻量 workflow 步骤与状态文档同步；验证链路基于仓库内 samples/booksources、samples/fixtures、samples/expected 与现有 Shell/CoreIntegration 装配，不修改 Core frozen contract、不扩展 capability、不修改 compat_matrix / failure_taxonomy，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  clean_room_statement: "本轮仅新增 iOS Shell hardening 验证测试、最小 coordinator 状态清理修复、轻量 workflow 步骤与状态文档同步；验证链路基于仓库内 samples/booksources、samples/fixtures、samples/expected 与现有 Shell/CoreIntegration 装配，不修改 Core frozen contract、不扩展 capability、不修改 compat_matrix / failure_taxonomy，不引入外部 GPL 代码，不引用 Legado Android 实现。"
