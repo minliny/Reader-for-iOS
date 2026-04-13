@@ -18,6 +18,7 @@ final class ReaderUXFoundationStateTests: XCTestCase {
         let firstBook = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
         let firstChapter = try XCTUnwrap(coordinator.tocItems.first)
+        await coordinator.selectChapter(firstChapter)
 
         coordinator.isLoading = true
 
