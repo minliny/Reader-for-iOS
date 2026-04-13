@@ -78,6 +78,13 @@ jobs:
           # Interaction validation tests minimal interactions like retry and reload without full UI automation.
           swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderInteractionValidationTests 2>&1 | tee ios-reader-interaction-foundation.log
 
+      - name: Run reader session polish validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Session polish validation tests session continuity and minimal resume affordances.
+          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderSessionValidationTests 2>&1 | tee ios-reader-session-polish.log
+
       - name: Upload iOS Shell logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,3 +98,4 @@ jobs:
             ios-reader-hardening.log
             ios-reader-ux-foundation.log
             ios-reader-interaction-foundation.log
+            ios-reader-session-polish.log

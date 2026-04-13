@@ -31,11 +31,12 @@ public struct ReaderFlowFeatureView: View {
                         BookSourceImportView(coordinator: coordinator)
                     }
 
+                    if featureState.hasSelectedBook || featureState.hasSelectedChapter || featureState.hasContentPage {
+                        sessionSummary(featureState)
+                    }
+
                     readerActions(featureState)
 
-                    if featureState.hasSelectedBook || featureState.hasSelectedChapter || featureState.hasContentPage {
-                        progressCard
-                    }
                 }
                 .padding(20)
             }
@@ -50,6 +51,50 @@ public struct ReaderFlowFeatureView: View {
             subtitle: "Core >= \(environment.appEntry.minimumCoreVersion)",
             items: progressItems
         )
+    }
+
+    @ViewBuilder
+    private func sessionSummary(_ featureState: ReaderFlowFeatureState) -> some View {
+        if let chapter = coordinator.selectedChapter, moduleBoundary.canReadContent {
+            NavigationLink {
+                ContentView(coordinator: coordinator, chapter: chapter)
+            } label: {
+                ReaderSessionSummaryView(
+                    title: coordinator.selectedBook?.title ?? "未知书籍",
+                    subtitle: chapter.chapterTitle,
+                    actionTitle: "继续阅读",
+                    action: {}
+                )
+                .allowsHitTesting(false) // 依靠外层 NavigationLink 触发跳转
+            }
+            .buttonStyle(.plain)
+        } else if let book = coordinator.selectedBook, featureState.hasTOCItems {
+            NavigationLink {
+                TOCView(coordinator: coordinator, book: book)
+            } label: {
+                ReaderSessionSummaryView(
+                    title: book.title,
+                    subtitle: "等待选择章节",
+                    actionTitle: "继续目录",
+                    action: {}
+                )
+                .allowsHitTesting(false)
+            }
+            .buttonStyle(.plain)
+        } else if featureState.hasSearchResults {
+            NavigationLink {
+                SearchView(coordinator: coordinator)
+            } label: {
+                ReaderSessionSummaryView(
+                    title: "搜索结果",
+                    subtitle: "选择书籍以继续",
+                    actionTitle: "继续搜索",
+                    action: {}
+                )
+                .allowsHitTesting(false)
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     @ViewBuilder
@@ -103,14 +148,6 @@ public struct ReaderFlowFeatureView: View {
         }
     }
 
-    private var progressCard: some View {
-        ReaderStatusCardView(
-            eyebrow: "当前进度",
-            title: coordinator.contentPage == nil ? "阅读链路进行中" : "正文已可阅读",
-            subtitle: "用户可从这里确认当前书源、书籍与章节上下文。",
-            items: progressItems
-        )
-    }
 
     private func actionRow(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
