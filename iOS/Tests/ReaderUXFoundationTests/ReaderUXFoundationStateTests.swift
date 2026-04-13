@@ -1,13 +1,14 @@
 import XCTest
 import Foundation
 @testable import ReaderApp
+import ReaderShellValidation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreParser
 import ReaderCoreNetwork
 
-@MainActor
 final class ReaderUXFoundationStateTests: XCTestCase {
+    @MainActor
     func testLoadingSurfaceIsExposedForContentStage() async throws {
         let fixture = try FunctionalFixtureSample.load(sampleId: "sample_004")
         let coordinator = makeCoordinator(for: fixture)
@@ -26,6 +27,7 @@ final class ReaderUXFoundationStateTests: XCTestCase {
         XCTAssertEqual(state.stageTitle, "正文加载中")
     }
 
+    @MainActor
     func testEmptySurfaceIsExposedBeforeContentArrives() async throws {
         let fixture = try FunctionalFixtureSample.load(sampleId: "sample_004")
         let coordinator = makeCoordinator(for: fixture)
@@ -42,6 +44,7 @@ final class ReaderUXFoundationStateTests: XCTestCase {
         XCTAssertEqual(state.chapterTitle, firstChapter.chapterTitle)
     }
 
+    @MainActor
     func testErrorSurfaceDoesNotMixWithLoadedContent() async throws {
         let fixture = try FunctionalFixtureSample.load(sampleId: "sample_004")
         let coordinator = makeCoordinator(for: fixture)
@@ -65,6 +68,7 @@ final class ReaderUXFoundationStateTests: XCTestCase {
         XCTAssertEqual(state.errorMessage, "正文加载失败")
     }
 
+    @MainActor
     func testContentSurfaceCarriesChapterContextAndReadableBody() async throws {
         let fixture = try FunctionalFixtureSample.load(sampleId: "sample_004")
         let coordinator = makeCoordinator(for: fixture)
@@ -84,6 +88,7 @@ final class ReaderUXFoundationStateTests: XCTestCase {
         XCTAssertEqual(state.contentBody, fixture.expectedContent.expected.content)
     }
 
+    @MainActor
     func testFeatureStateStillDrivesStageFeedbackAcrossSearchTOCAndContent() async throws {
         let fixture = try FunctionalFixtureSample.load(sampleId: "sample_004")
         let coordinator = makeCoordinator(for: fixture)
@@ -112,6 +117,7 @@ final class ReaderUXFoundationStateTests: XCTestCase {
 }
 
 private extension ReaderUXFoundationStateTests {
+    @MainActor
     func makeCoordinator(for fixture: FunctionalFixtureSample) -> ReadingFlowCoordinator {
         let httpClient = UXFixtureHTTPClient(
             searchURLPrefix: (fixture.bookSource.bookSourceUrl ?? "") + "/search",
