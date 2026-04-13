@@ -19,6 +19,8 @@
 | M-IOS-7 | Reader Flow Functional Validation | complete | P1 | M-IOS-6 complete | 已完成，当前仅保留非阻断 warning | 在保持现有 green baseline 的前提下验证最小 Search -> TOC -> Content 功能链路 | yes |
 | M-IOS-8 | Reader Flow Failure-State Hardening | complete | P1 | M-IOS-7 complete | 已完成，当前仅保留非阻断 warning | 在 M-IOS-7 baseline 上补最小 failure-state / state-sync 覆盖 | yes |
 | M-IOS-9 | Reader UX Foundation | complete | P1 | M-IOS-8 complete | 已完成，无当前阻断 | 在 M-IOS-8 baseline 上建立最小可用阅读体验基础层 | yes |
+| M-IOS-10 | Reader Interaction Foundation | complete | P1 | M-IOS-9 complete | 已完成，无当前阻断 | 在 M-IOS-9 baseline 上建立最小交互基础层 | yes |
+| M-IOS-11 | Reader Session Polish | complete | P1 | M-IOS-10 complete | 已完成，无当前阻断 | 在 M-IOS-10 baseline 上建立最小可用会话层 | yes |
 
 ## 当前待办列表
 
@@ -365,10 +367,10 @@ OT-007 (TraceInspector) ──┘
 
 ## 当前状态约束
 
-- 当前阶段: `m_ios_9_reader_ux_foundation_verified`
-- 当前主线: `Reader-Core compatibility kernel → M-IOS-10 Next Phase Planning`
+- 当前阶段: `m_ios_11_reader_session_polish_verified`
+- 当前主线: `Reader-Core compatibility kernel → M-IOS-12 Next Phase Planning`
 - active_strategy: `minimal_tooling_then_ios`
-- active_milestone: `m_ios_10`
+- active_milestone: `m_ios_12`
 - milestone_status: `in_progress`
 - 当前未覆盖能力：无（所有能力已关闭或已裁决 out_of_scope）
 - 冻结门禁状态：`READY_TO_FREEZE`

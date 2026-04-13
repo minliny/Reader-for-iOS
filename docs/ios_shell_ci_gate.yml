@@ -1,4 +1,4 @@
-phase: M-IOS-10
+phase: M-IOS-11
 implementationStatus:
   boundary_gate_established: true
   shell_ci_established: true
@@ -10,10 +10,11 @@ implementationStatus:
   reader_flow_hardened: true
   reader_ux_foundation_built: true
   reader_interaction_foundation_built: true
+  reader_session_polished: true
 executionStatus:
   executionVerified: true
   source: github_actions
-  runId: "24353820945"
+  runId: "24354710607"
   status: completed
   conclusion: success
 result:
@@ -125,19 +126,32 @@ result:
       - "Added ReaderStageActionBar for previous/next/reload interactions."
       - "Added retry/reload buttons to empty states in ContentView and TOCView."
       - "State-driven interaction tests execution verified."
+  reader_session_polish:
+    implementationStatus: PASS
+    executionStatus: PASS
+    validated_session_cases:
+      - continue_reading_affordance
+      - session_context_summary
+      - current_selection_continuity
+      - retry_refresh_session_continuity
+      - minimal_resume_guidance
+    notes:
+      - "Added ReaderSessionSummaryView for rendering reading context."
+      - "Integrated sessionSummary into ReaderFlowFeatureView."
+      - "Added ReaderSessionValidationTests to ensure session continuity."
   overall:
     phaseStatus: PASS
     validationResult: PASS
     blockers: []
-    next_phase: M-IOS-11
+    next_phase: M-IOS-12
 evidence:
   workflow: iOS Shell CI
-  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24353820945
+  url: https://github.com/minliny/Reader-for-iOS/actions/runs/24354710607
   headBranch: main
-  headSha: "405bd89"
+  headSha: "7bca2ed"
   firstFailedStep: "None"
   artifactIds:
-    - "6409796386"
+    - "6410171749"
   summary:
-    - "Run 24353820945 executionVerified=true and validationResult=PASS. All M-IOS-10 validation steps passed on macOS host."
-    - "Reader Interaction Foundation implemented and tested successfully."
+    - "Run 24354710607 executionVerified=true and validationResult=PASS. All M-IOS-11 validation steps passed on macOS host."
+    - "Reader Session Polish implemented and tested successfully."
