@@ -1,6 +1,9 @@
+#if canImport(SwiftUI)
 import SwiftUI
+#endif
 import ReaderShellValidation
-
+#if canImport(SwiftUI)
+@MainActor
 public struct ReaderFlowFeatureView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
     public let environment: ReaderShellEnvironment
@@ -24,7 +27,7 @@ public struct ReaderFlowFeatureView: View {
 
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     statusCard(featureState)
 
                     if moduleBoundary.canImportBookSource {
@@ -40,6 +43,7 @@ public struct ReaderFlowFeatureView: View {
                 }
                 .padding(20)
             }
+            .background(Color(UIColor.systemGroupedBackground))
             .navigationTitle(environment.appEntry.appName)
         }
     }
@@ -51,6 +55,7 @@ public struct ReaderFlowFeatureView: View {
             subtitle: "Core >= \(environment.appEntry.minimumCoreVersion)",
             items: progressItems
         )
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
@@ -153,13 +158,16 @@ public struct ReaderFlowFeatureView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
             Text(subtitle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
     }
 
     private var progressItems: [ReaderStatusCardItem] {
@@ -184,3 +192,4 @@ public struct ReaderFlowFeatureView: View {
         return items
     }
 }
+#endif
