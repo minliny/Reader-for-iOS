@@ -41,6 +41,13 @@ public struct ContentView: View {
                 case .content:
                     if let title = uxState.contentTitle, let bodyText = uxState.contentBody {
                         ReaderContentSectionView(title: title, bodyText: bodyText)
+                        
+                        ReaderStageActionBar(
+                            onPrevious: previousChapterAction,
+                            onNext: nextChapterAction,
+                            onReload: { Task { await coordinator.selectChapter(chapter) } }
+                        )
+                        .padding(.top, 16)
                     }
 
                 case .empty:
@@ -59,12 +66,41 @@ public struct ContentView: View {
     }
 
     private func emptyState(_ uxState: ReaderUXFoundationState) -> some View {
-        ReaderEmptyStateView(
-            title: "暂无正文",
-            message: uxState.stageDetail,
-            systemImage: "doc.text"
-        )
+        VStack(spacing: 16) {
+            ReaderEmptyStateView(
+                title: "暂无正文",
+                message: uxState.stageDetail,
+                systemImage: "doc.text"
+            )
+            
+            Button("重新加载正文") {
+                Task { await coordinator.selectChapter(chapter) }
+            }
+            .buttonStyle(.bordered)
+        }
         .frame(maxWidth: .infinity, minHeight: 240)
+    }
+
+    private var previousChapterAction: (() -> Void)? {
+        guard let currentIndex = coordinator.tocItems.firstIndex(where: { $0.chapterURL == chapter.chapterURL }),
+              currentIndex > 0 else {
+            return nil
+        }
+        let previous = coordinator.tocItems[currentIndex - 1]
+        return {
+            Task { await coordinator.selectChapter(previous) }
+        }
+    }
+
+    private var nextChapterAction: (() -> Void)? {
+        guard let currentIndex = coordinator.tocItems.firstIndex(where: { $0.chapterURL == chapter.chapterURL }),
+              currentIndex < coordinator.tocItems.count - 1 else {
+            return nil
+        }
+        let next = coordinator.tocItems[currentIndex + 1]
+        return {
+            Task { await coordinator.selectChapter(next) }
+        }
     }
 
     private func contextItems(for uxState: ReaderUXFoundationState) -> [ReaderStatusCardItem] {

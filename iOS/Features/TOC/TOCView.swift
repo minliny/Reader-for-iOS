@@ -54,11 +54,19 @@ public struct TOCView: View {
     }
 
     private var emptyState: some View {
-        ReaderEmptyStateView(
-            title: "暂无目录",
-            message: "当前书籍还没有可展示的章节列表。",
-            systemImage: "list.bullet"
-        )
+        VStack(spacing: 16) {
+            ReaderEmptyStateView(
+                title: "暂无目录",
+                message: "当前书籍还没有可展示的章节列表。",
+                systemImage: "list.bullet"
+            )
+            
+            Button("重新加载目录") {
+                Task { await coordinator.selectBook(book) }
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.vertical, 32)
     }
 
     private var tocList: some View {
