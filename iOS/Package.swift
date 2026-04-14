@@ -1,4 +1,15 @@
 // swift-tools-version: 5.9
+// Reverse Split Dependency Patch (2026-04-14):
+// Reader-iOS now depends on the independent Reader-Core repo.
+//
+// Local dev: .package(path: "../Reader-Core")
+//   Requires Reader-Core checked out as sibling: ../Reader-Core
+//
+// Canonical (CI / remote): .package(url: "https://github.com/minliny/Reader-Core.git", exact: "0.1.0")
+//   Switch to URL-based dependency once Reader-Core remote is stable as primary.
+//
+// Reader-iOS MUST only depend on Reader-Core public products.
+// Direct source imports from Core/Sources/** are FORBIDDEN.
 import PackageDescription
 
 let package = Package(
@@ -11,18 +22,19 @@ let package = Package(
         .library(name: "ReaderApp", targets: ["ReaderApp"])
     ],
     dependencies: [
-        .package(path: "../Core")
+        // Local dev: Reader-Core sibling checkout
+        .package(path: "../Reader-Core")
     ],
     targets: [
         .target(
             name: "ReaderShellValidation",
             dependencies: [
-                .product(name: "ReaderCoreFoundation", package: "Core"),
-                .product(name: "ReaderCoreModels", package: "Core"),
-                .product(name: "ReaderCoreProtocols", package: "Core"),
-                .product(name: "ReaderCoreParser", package: "Core"),
-                .product(name: "ReaderCoreNetwork", package: "Core"),
-                .product(name: "ReaderPlatformAdapters", package: "Core")
+                .product(name: "ReaderCoreFoundation", package: "ReaderCore"),
+                .product(name: "ReaderCoreModels", package: "ReaderCore"),
+                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
+                .product(name: "ReaderCoreParser", package: "ReaderCore"),
+                .product(name: "ReaderCoreNetwork", package: "ReaderCore"),
+                .product(name: "ReaderPlatformAdapters", package: "ReaderCore")
             ],
             path: ".",
             exclude: [
@@ -41,11 +53,11 @@ let package = Package(
             name: "ReaderApp",
             dependencies: [
                 "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Core"),
-                .product(name: "ReaderCoreProtocols", package: "Core"),
-                .product(name: "ReaderCoreParser", package: "Core"),
-                .product(name: "ReaderCoreNetwork", package: "Core"),
-                .product(name: "ReaderPlatformAdapters", package: "Core")
+                .product(name: "ReaderCoreModels", package: "ReaderCore"),
+                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
+                .product(name: "ReaderCoreParser", package: "ReaderCore"),
+                .product(name: "ReaderCoreNetwork", package: "ReaderCore"),
+                .product(name: "ReaderPlatformAdapters", package: "ReaderCore")
             ],
             path: ".",
             exclude: [
@@ -63,10 +75,10 @@ let package = Package(
             name: "ShellSmokeTests",
             dependencies: [
                 "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Core"),
-                .product(name: "ReaderCoreProtocols", package: "Core"),
-                .product(name: "ReaderCoreParser", package: "Core"),
-                .product(name: "ReaderCoreNetwork", package: "Core")
+                .product(name: "ReaderCoreModels", package: "ReaderCore"),
+                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
+                .product(name: "ReaderCoreParser", package: "ReaderCore"),
+                .product(name: "ReaderCoreNetwork", package: "ReaderCore")
             ],
             path: "Tests/ShellSmokeTests"
         ),
@@ -75,10 +87,10 @@ let package = Package(
             dependencies: [
                 "ReaderApp",
                 "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Core"),
-                .product(name: "ReaderCoreProtocols", package: "Core"),
-                .product(name: "ReaderCoreParser", package: "Core"),
-                .product(name: "ReaderCoreNetwork", package: "Core")
+                .product(name: "ReaderCoreModels", package: "ReaderCore"),
+                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
+                .product(name: "ReaderCoreParser", package: "ReaderCore"),
+                .product(name: "ReaderCoreNetwork", package: "ReaderCore")
             ],
             path: "Tests/ReaderUXFoundationTests"
         )

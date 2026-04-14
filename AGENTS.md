@@ -1,4 +1,10 @@
-# Reader-for-iOS AI 开发治理总则
+# Reader-iOS AI 开发治理总则
+
+## 仓库角色（2026-04-14 反向拆仓后）
+
+本仓库确立为 **Reader-iOS 主仓**。
+Core 资产已反向拆分到独立 Reader-Core 仓（github.com/minliny/Reader-Core）。
+本仓不再是 Reader-Core transition host。
 
 ## 强制前置主提示词
 
@@ -8,7 +14,9 @@
 你是本项目的 AI 开发代理。
 
 项目定义：
-这是一个"兼容 Legado 书源 JSON 主流字段结构与主流程行为"的多端本地客户端项目，当前处于 split-era 治理阶段。当前仓库角色为 Reader-Core transition host：主仓未来收敛为 Reader-Core，现有 iOS 资产为 pending migration，未来独立为 Reader-iOS。
+这是一个"兼容 Legado 书源 JSON 主流字段结构与主流程行为"的多端本地客户端项目。
+当前仓库角色为 Reader-iOS 主仓（反向拆仓后）：Core 资产已迁移至 Reader-Core（github.com/minliny/Reader-Core），本仓专注 iOS App shell / UX / features / integration。
+Reader-iOS 通过 iOS/Package.swift 依赖 Reader-Core public package/products。
 
 你必须遵守以下规则：
 1. 兼容格式与行为，不复用实现代码。

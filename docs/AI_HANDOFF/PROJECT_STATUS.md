@@ -152,24 +152,26 @@
   - iOS/Package.swift 依赖已切换至独立 Core 路径
   - Reader-Core 主仓 iOS 资产保留历史指针
 
-## 当前状态
+## 当前状态（反向拆仓完成 2026-04-14）
 
 ```yaml
-local_split_complete: true
-remote_publication_complete: true
-remote_dependency_cutover_complete: true
-post_split_stabilization_complete: true
+current_repo_role: Reader-iOS
+reader_core_repo_initialized_locally: true
+reverse_split_direction_applied: true
+current_repo_role_switched_to_reader_ios: true
+physical_core_extraction_complete: true
 ```
 
-- 本仓角色：Reader-Core (post-split, stabilized)
-- 远端：https://github.com/minliny/Reader-for-iOS
-- 当前稳定 tag：0.1.0（含根 Package.swift）
-- Reader-iOS 远端：https://github.com/minliny/Reader-iOS
-- Reader-iOS 依赖：canonical URL, exact: 0.1.0
+- 本仓角色：Reader-iOS 主仓
+- 远端：https://github.com/minliny/Reader-for-iOS（TODO: 改名为 Reader-iOS）
+- Reader-Core 远端：https://github.com/minliny/Reader-Core，tag 0.1.0
+- Reader-iOS 依赖：`../Reader-Core` (local sibling)，canonical: `https://github.com/minliny/Reader-Core.git`
 
-## 下一步任务（可选）
+## 下一步任务
 
-- RS-005-FU-04: 将 Reader-for-iOS 仓重命名为 Reader-Core（GitHub 仓库设置，非阻断）
+- 触发 Reader-Core CI 确认 Core 独立运行正常
+- 将 Reader-for-iOS 仓重命名为 Reader-iOS（GitHub 仓库设置）
+- 在本地验证 iOS/Package.swift 可解析 ../Reader-Core 依赖
 
 ## Clean-Room 状态
 
