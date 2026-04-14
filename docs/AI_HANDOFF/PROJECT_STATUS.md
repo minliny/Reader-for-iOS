@@ -154,17 +154,22 @@
 
 ## 当前状态
 
-- `reader_ios_repo_initialized: true`
-- `physical_split_complete: true`
-- 本仓角色：Reader-Core (post-split)
-- iOS 主线归属：Reader-iOS 独立仓
+```yaml
+local_split_complete: true
+remote_publication_complete: true
+remote_dependency_cutover_complete: true
+post_split_stabilization_complete: true
+```
 
-## 下一步任务
+- 本仓角色：Reader-Core (post-split, stabilized)
+- 远端：https://github.com/minliny/Reader-for-iOS
+- 当前稳定 tag：0.1.0（含根 Package.swift）
+- Reader-iOS 远端：https://github.com/minliny/Reader-iOS
+- Reader-iOS 依赖：canonical URL, exact: 0.1.0
 
-- RS-005-FU-01: 发布 Reader-Core 为正式 Swift Package（远端 URL + validated tag）
-- RS-005-FU-02: 更新 Reader-iOS Package.swift 切换到 URL-based 依赖
-- RS-005-FU-03: 更新 Reader-iOS ios-shell-ci 移除 symlink workaround
-- RS-005-FU-04: 将 Reader-for-iOS 仓重命名为 Reader-Core
+## 下一步任务（可选）
+
+- RS-005-FU-04: 将 Reader-for-iOS 仓重命名为 Reader-Core（GitHub 仓库设置，非阻断）
 
 ## Clean-Room 状态
 

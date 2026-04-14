@@ -125,7 +125,13 @@
 - prompt governance：`split-era active only`
 - legacy prompt archive：`archive/prompts/legacy/`
 - iOS feature progression in current host repo：`paused`
+- local_split_complete：`true`
 - reader_ios_repo_initialized：`true`
 - physical_split_complete：`true`
+- remote_publication_complete：`true`
+- remote_dependency_cutover_complete：`true`
+- post_split_stabilization_complete：`true`
 - split_date：`2026-04-14`
-- reader_ios_repo_path：`../Reader-iOS`
+- stabilization_date：`2026-04-14`
+- reader_ios_remote：`https://github.com/minliny/Reader-iOS`
+- reader_core_stable_tag：`0.1.0`

@@ -6,7 +6,7 @@ project:
   strategy: split-era governance
   shell_policy: Reader-iOS split COMPLETE (RS-005 2026-04-14)
   mainline: Reader-Core convergence — iOS assets migrated to independent Reader-iOS repo
-  phase: post_physical_split
+  phase: post_split_stabilization_complete
   execution_mode: core_mainline
   clean_room: true
   allow_ios_phase: false
@@ -15,11 +15,11 @@ project:
 current_focus:
   primary_track:
     - Reader-Core repository mainline convergence
-  active_milestone: rs_005_physical_split
+  active_milestone: post_split_stabilization
   milestone_status: complete
-  milestone_detail: "RS-005 Physical Repo Split Execution 完成（2026-04-14）：Reader-iOS 独立仓已建立，iOS 代码/docs/workflows/scripts 已迁移，依赖接入已切换。"
-  next_best_task: "RS-005-FU-01: Publish Reader-Core as proper Swift package (remote URL + tag)"
-  next_best_task_detail: "将 Reader-for-iOS/Core 发布为远端 Swift Package，使 Reader-iOS/iOS/Package.swift 可切换为 URL-based 依赖，并更新 ios-shell-ci 以移除 symlink workaround。"
+  milestone_detail: "Post-Split Stabilization 完成（2026-04-14）：Reader-iOS 远端仓已建立并 push，Reader-Core 0.1.0 已发布并添加根 Package.swift，Reader-iOS 依赖已切换为 canonical URL，ios-shell-ci 已稳定。"
+  next_best_task: "RS-005-FU-04: Rename Reader-for-iOS to Reader-Core on GitHub (optional cosmetic)"
+  next_best_task_detail: "可选收尾：将 GitHub 仓库名从 Reader-for-iOS 改为 Reader-Core，使仓库名与仓库角色一致。不影响当前 CI/依赖运行。"
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -96,24 +96,31 @@ repo_split:
   reader_ios_repo_initialized: true
   physical_split_complete: true
   split_date: "2026-04-14"
+  stabilization_date: "2026-04-14"
   reader_ios_repo_path: "../Reader-iOS"
+  reader_ios_remote_url: "https://github.com/minliny/Reader-iOS"
   current_host_repo_should_converge_to: Reader-Core
   independent_repo: Reader-iOS
+  reader_core_remote_url: "https://github.com/minliny/Reader-for-iOS"
+  reader_core_stable_tag: "0.1.0"
+  reader_core_root_package_swift: true
   dependency_direction: "Reader-iOS -> Reader-Core public package/products only"
+  dependency_mode: "canonical URL — .package(url: https://github.com/minliny/Reader-for-iOS.git, exact: 0.1.0)"
+  local_split_complete: true
+  remote_publication_complete: true
+  remote_dependency_cutover_complete: true
+  post_split_stabilization_complete: true
   history_pointers_in_core:
-    - iOS/** (retained as historical evidence — long-term mainline ownership transferred to Reader-iOS)
+    - iOS/** (retained as historical evidence)
     - docs/IOS_PHASE_GATE_REVIEW.md (history pointer)
     - docs/ios_gate_remediation_result.yml (history pointer)
     - docs/ios_shell_ci_gate.yml (history pointer)
     - docs/ios_architecture_remediation_plan.yml (history pointer)
     - docs/ios_boundary_violations.yml (history pointer)
-    - .github/workflows/ios-shell-ci.yml (history pointer — active CI moved to Reader-iOS)
+    - .github/workflows/ios-shell-ci.yml (history pointer — active CI in Reader-iOS)
   split_blockers: []
   next_tasks:
-    - RS-005-FU-01: Publish Reader-Core as proper Swift package
-    - RS-005-FU-02: Update Reader-iOS Package.swift to URL-based dependency
-    - RS-005-FU-03: Simplify ios-shell-ci in Reader-iOS (remove symlink workaround)
-    - RS-005-FU-04: Rename Reader-for-iOS to Reader-Core
+    - RS-005-FU-04: Rename Reader-for-iOS to Reader-Core on GitHub (optional cosmetic)
 
 docs_split:
   complete: true
@@ -189,9 +196,9 @@ reader_ios_scope:
     - functional / hardening / UX / interaction / session / navigation / presentation validation
 
 recent_action:
-  summary: "RS-005 Physical Repo Split Execution 完成（2026-04-14）：Reader-iOS 独立仓已物理建立，iOS 代码/docs/workflows/scripts 已迁移，Package.swift 依赖已切换，Reader-Core 状态文件已更新。"
-  category: physical_repo_split
-  state_effect: "Reader-iOS 已独立。Reader-Core 主仓 iOS 资产保留为历史指针；主仓主线为 Core 兼容内核。"
+  summary: "Post-Split Stabilization 完成（2026-04-14）：Reader-iOS 远端仓已建立（minliny/Reader-iOS），push 完成，Reader-Core 0.1.0 发布并添加根 Package.swift，Reader-iOS 依赖切换为 canonical URL，ios-shell-ci 稳定化。"
+  category: post_split_stabilization
+  state_effect: "Reader-iOS 独立远端仓已运行。Reader-Core 已发布 0.1.0。依赖为 canonical URL 模式。本仓收敛为 Reader-Core mainline。"
 
 reader_ios_bootstrap:
   prepared_docs:
