@@ -1,3 +1,5 @@
+import Foundation
+#if canImport(SwiftUI)
 import SwiftUI
 
 public struct ReaderStatusCardItem: Identifiable, Equatable {
@@ -6,7 +8,7 @@ public struct ReaderStatusCardItem: Identifiable, Equatable {
     public let value: String
 
     public init(label: String, value: String) {
-        self.id = label
+        self.id = UUID().uuidString
         self.label = label
         self.value = value
     }
@@ -31,40 +33,53 @@ public struct ReaderStatusCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(eyebrow.uppercased())
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            Text(title)
-                .font(.title3.weight(.semibold))
-
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
+        VStack(alignment: .leading, spacing: 16) {
+            if !eyebrow.isEmpty {
+                Text(eyebrow.uppercased())
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tint)
+                    .tracking(1.2)
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
             if !items.isEmpty {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(items) { item in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(item.label)
-                                .font(.caption.weight(.semibold))
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                        HStack {
+                            Text(item.element.label)
+                                .font(.callout.weight(.medium))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 44, alignment: .leading)
-
-                            Text(item.value)
-                                .font(.subheadline)
+                            Spacer()
+                            Text(item.element.value)
+                                .font(.callout)
                                 .foregroundStyle(.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        .padding(.vertical, 10)
+                        
+                        if index < items.count - 1 {
+                            Divider()
                         }
                     }
                 }
+                .padding(.horizontal, 16)
+                .background(Color(UIColor.tertiarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .padding(20)
+        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
 }
+#endif

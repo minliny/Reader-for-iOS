@@ -92,6 +92,13 @@ jobs:
           # Navigation validation tests chapter position awareness and progress features
           swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderNavigationValidationTests 2>&1 | tee ios-reader-navigation-foundation.log
 
+      - name: Run reader presentation polish validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Presentation validation tests consistency of surfaces across the reader feature
+          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderPresentationValidationTests 2>&1 | tee ios-reader-presentation-polish.log
+
       - name: Upload iOS Shell logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,3 +114,4 @@ jobs:
             ios-reader-interaction-foundation.log
             ios-reader-session-polish.log
             ios-reader-navigation-foundation.log
+            ios-reader-presentation-polish.log

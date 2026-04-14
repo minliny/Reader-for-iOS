@@ -1,0 +1,977 @@
+diff --git a/.github/workflows/ios-shell-ci.yml b/.github/workflows/ios-shell-ci.yml
+index 41790d7..937903b 100644
+--- a/.github/workflows/ios-shell-ci.yml
++++ b/.github/workflows/ios-shell-ci.yml
+@@ -92,6 +92,13 @@ jobs:
+           # Navigation validation tests chapter position awareness and progress features
+           swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderNavigationValidationTests 2>&1 | tee ios-reader-navigation-foundation.log
+ 
++      - name: Run reader presentation polish validation
++        shell: bash
++        run: |
++          set -euo pipefail
++          # Presentation validation tests consistency of surfaces across the reader feature
++          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderPresentationValidationTests 2>&1 | tee ios-reader-presentation-polish.log
++
+       - name: Upload iOS Shell logs
+         if: always()
+         uses: actions/upload-artifact@v4
+@@ -107,3 +114,4 @@ jobs:
+             ios-reader-interaction-foundation.log
+             ios-reader-session-polish.log
+             ios-reader-navigation-foundation.log
++            ios-reader-presentation-polish.log
+diff --git a/iOS/CoreIntegration/ReadingFlowCoordinator.swift b/iOS/CoreIntegration/ReadingFlowCoordinator.swift
+index f63e586..badb760 100644
+--- a/iOS/CoreIntegration/ReadingFlowCoordinator.swift
++++ b/iOS/CoreIntegration/ReadingFlowCoordinator.swift
+@@ -1,7 +1,11 @@
+ import Foundation
++#if canImport(Combine)
++import Combine
++#endif
+ import ReaderCoreModels
+ import ReaderCoreProtocols
+ 
++#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+ @MainActor
+ public final class ReadingFlowCoordinator: ObservableObject {
+     @Published public var selectedSource: BookSource?
+@@ -12,7 +16,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
+     @Published public var contentPage: ContentPage?
+     @Published public var isLoading = false
+     @Published public var currentError: ReaderError?
+-
++    
+     public let bookSourceRepository: BookSourceRepository
+     public let bookSourceDecoder: BookSourceDecoder
+     public let searchService: SearchService
+@@ -35,7 +39,167 @@ public final class ReadingFlowCoordinator: ObservableObject {
+         self.contentService = contentService
+         self.errorLogger = errorLogger
+     }
++    
++    public func importBookSource(from data: Data) async {
++        isLoading = true
++        currentError = nil
++        defer { isLoading = false }
++
++        do {
++            let source = try bookSourceDecoder.decodeBookSource(from: data)
++            try await bookSourceRepository.save(source)
++            applySourceSelection(source)
++        } catch let error as ReaderError {
++            currentError = error
++            await logError(error)
++        } catch {
++            let readerError = ReaderError(
++                code: .unknown,
++                message: "Import failed: \(error.localizedDescription)"
++            )
++            currentError = readerError
++            await logError(readerError)
++        }
++    }
++
++    public func search(keyword: String) async {
++        guard let source = selectedSource else { return }
++
++        isLoading = true
++        currentError = nil
++        searchResults.removeAll()
++        resetBookSelectionState()
++        defer { isLoading = false }
++
++        do {
++            let query = SearchQuery(keyword: keyword, page: 1)
++            searchResults = try await searchService.search(source: source, query: query)
++        } catch let error as ReaderError {
++            currentError = error
++            await logError(error, stage: "SEARCH")
++        } catch {
++            let readerError = ReaderError(
++                code: .unknown,
++                message: "Search failed: \(error.localizedDescription)"
++            )
++            currentError = readerError
++            await logError(readerError, stage: "SEARCH")
++        }
++    }
++
++    public func selectBook(_ book: SearchResultItem) async {
++        selectedBook = book
++        resetChapterSelectionState()
++        tocItems.removeAll()
++
++        guard let source = selectedSource else { return }
++        let detailURL = book.detailURL
++
++        isLoading = true
++        currentError = nil
++        defer { isLoading = false }
++
++        do {
++            tocItems = try await tocService.fetchTOC(source: source, detailURL: detailURL)
++        } catch let error as ReaderError {
++            currentError = error
++            await logError(error, stage: "TOC")
++        } catch {
++            let readerError = ReaderError(
++                code: .unknown,
++                message: "TOC failed: \(error.localizedDescription)"
++            )
++            currentError = readerError
++            await logError(readerError, stage: "TOC")
++        }
++    }
+ 
++    public func selectChapter(_ chapter: TOCItem) async {
++        selectedChapter = chapter
++        contentPage = nil
++
++        guard let source = selectedSource else { return }
++
++        isLoading = true
++        currentError = nil
++        defer { isLoading = false }
++
++        do {
++            contentPage = try await contentService.fetchContent(source: source, chapterURL: chapter.chapterURL)
++        } catch let error as ReaderError {
++            currentError = error
++            await logError(error, stage: "CONTENT")
++        } catch {
++            let readerError = ReaderError(
++                code: .unknown,
++                message: "Content failed: \(error.localizedDescription)"
++            )
++            currentError = readerError
++            await logError(readerError, stage: "CONTENT")
++        }
++    }
++
++    private func logError(_ error: ReaderError, stage: String? = nil) async {
++        let log = StructuredErrorLog.from(
++            error,
++            stage: stage,
++            sampleId: selectedSource?.id
++        )
++        await errorLogger.log(log)
++    }
++
++    private func applySourceSelection(_ source: BookSource) {
++        selectedSource = source
++        searchResults.removeAll()
++        resetBookSelectionState()
++        currentError = nil
++    }
++
++    private func resetBookSelectionState() {
++        selectedBook = nil
++        tocItems.removeAll()
++        resetChapterSelectionState()
++    }
++
++    private func resetChapterSelectionState() {
++        selectedChapter = nil
++        contentPage = nil
++    }
++}
++#else
++public final class ReadingFlowCoordinator {
++    public var selectedSource: BookSource?
++    public var searchResults: [SearchResultItem] = []
++    public var selectedBook: SearchResultItem?
++    public var tocItems: [TOCItem] = []
++    public var selectedChapter: TOCItem?
++    public var contentPage: ContentPage?
++    public var isLoading = false
++    public var currentError: ReaderError?
++    
++    public let bookSourceRepository: BookSourceRepository
++    public let bookSourceDecoder: BookSourceDecoder
++    public let searchService: SearchService
++    public let tocService: TOCService
++    public let contentService: ContentService
++    public let errorLogger: ErrorLogger
++
++    public init(
++        bookSourceRepository: BookSourceRepository,
++        bookSourceDecoder: BookSourceDecoder,
++        searchService: SearchService,
++        tocService: TOCService,
++        contentService: ContentService,
++        errorLogger: ErrorLogger
++    ) {
++        self.bookSourceRepository = bookSourceRepository
++        self.bookSourceDecoder = bookSourceDecoder
++        self.searchService = searchService
++        self.tocService = tocService
++        self.contentService = contentService
++        self.errorLogger = errorLogger
++    }
++    
+     public func importBookSource(from data: Data) async {
+         isLoading = true
+         currentError = nil
+@@ -162,3 +326,4 @@ public final class ReadingFlowCoordinator: ObservableObject {
+         contentPage = nil
+     }
+ }
++#endif
+diff --git a/iOS/Features/Common/ErrorView.swift b/iOS/Features/Common/ErrorView.swift
+index 719a085..612a67a 100644
+--- a/iOS/Features/Common/ErrorView.swift
++++ b/iOS/Features/Common/ErrorView.swift
+@@ -12,33 +12,37 @@ public struct ErrorView: View {
+ 
+     public var body: some View {
+         VStack(spacing: 16) {
+-            Image(systemName: "exclamationmark.triangle")
+-                .font(.system(size: 48))
+-                .foregroundColor(.orange)
++            Image(systemName: "exclamationmark.triangle.fill")
++                .font(.system(size: 34, weight: .medium))
++                .foregroundStyle(.orange)
+ 
+             Text(error.message)
+                 .font(.headline)
++                .foregroundStyle(.primary)
+                 .multilineTextAlignment(.center)
++                .padding(.horizontal, 16)
+ 
+             if let failureType = error.failure?.type {
+                 Text("Failure: \(failureType.rawValue)")
+                     .font(.caption)
+-                    .foregroundColor(.secondary)
++                    .foregroundStyle(.secondary)
+             }
+ 
+             if let retry = retryAction {
+                 Button(action: retry) {
+                     Text("重试")
+-                        .font(.subheadline)
+-                        .padding(.horizontal, 24)
+-                        .padding(.vertical, 12)
+-                        .background(Color.blue)
+-                        .foregroundColor(.white)
+-                        .cornerRadius(8)
++                        .font(.body.weight(.medium))
++                        .frame(minWidth: 100)
+                 }
++                .buttonStyle(.borderedProminent)
++                .controlSize(.large)
++                .padding(.top, 8)
+             }
+         }
+-        .padding(24)
++        .padding(32)
+         .frame(maxWidth: .infinity, maxHeight: .infinity)
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+     }
+ }
+diff --git a/iOS/Features/Common/LoadingView.swift b/iOS/Features/Common/LoadingView.swift
+index cf7d09e..1ff12f6 100644
+--- a/iOS/Features/Common/LoadingView.swift
++++ b/iOS/Features/Common/LoadingView.swift
+@@ -10,13 +10,18 @@ public struct LoadingView: View {
+     public var body: some View {
+         VStack(spacing: 16) {
+             ProgressView()
+-                .progressViewStyle(CircularProgressViewStyle())
++                .progressViewStyle(.circular)
++                .controlSize(.large)
+             if let message = message {
+                 Text(message)
+                     .font(.subheadline)
+-                    .foregroundColor(.secondary)
++                    .foregroundStyle(.secondary)
+             }
+         }
+         .frame(maxWidth: .infinity, maxHeight: .infinity)
++        .padding(32)
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+     }
+ }
+diff --git a/iOS/Features/Common/ReaderEmptyStateView.swift b/iOS/Features/Common/ReaderEmptyStateView.swift
+index 6d764b4..8566f38 100644
+--- a/iOS/Features/Common/ReaderEmptyStateView.swift
++++ b/iOS/Features/Common/ReaderEmptyStateView.swift
+@@ -23,13 +23,18 @@ public struct ReaderEmptyStateView: View {
+ 
+             Text(title)
+                 .font(.headline)
++                .foregroundStyle(.primary)
+ 
+             Text(message)
+                 .font(.subheadline)
+                 .foregroundStyle(.secondary)
+                 .multilineTextAlignment(.center)
++                .padding(.horizontal, 16)
+         }
+         .frame(maxWidth: .infinity, maxHeight: .infinity)
+-        .padding(24)
++        .padding(32)
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+     }
+ }
+diff --git a/iOS/Features/Content/ContentView.swift b/iOS/Features/Content/ContentView.swift
+index 2f03882..e5c9d38 100644
+--- a/iOS/Features/Content/ContentView.swift
++++ b/iOS/Features/Content/ContentView.swift
+@@ -15,13 +15,14 @@ public struct ContentView: View {
+         let uxState = ReaderUXFoundationState(coordinator: coordinator, chapter: chapter)
+ 
+         ScrollView {
+-            VStack(alignment: .leading, spacing: 16) {
++            VStack(alignment: .leading, spacing: 20) {
+                 ReaderStatusCardView(
+                     eyebrow: "阅读阶段",
+                     title: uxState.stageTitle,
+                     subtitle: uxState.stageDetail,
+                     items: contextItems(for: uxState)
+                 )
++                .padding(.bottom, 8)
+ 
+                 switch uxState.surfaceKind {
+                 case .loading:
+@@ -66,6 +67,7 @@ public struct ContentView: View {
+             }
+             .padding(20)
+         }
++        .background(Color(UIColor.systemGroupedBackground))
+         .navigationTitle(chapter.chapterTitle)
+         .inlineNavigationBarTitle()
+         .task {
+diff --git a/iOS/Features/Content/ReaderContentSectionView.swift b/iOS/Features/Content/ReaderContentSectionView.swift
+index 6ad941c..6c26eea 100644
+--- a/iOS/Features/Content/ReaderContentSectionView.swift
++++ b/iOS/Features/Content/ReaderContentSectionView.swift
+@@ -10,18 +10,23 @@ public struct ReaderContentSectionView: View {
+     }
+ 
+     public var body: some View {
+-        VStack(alignment: .leading, spacing: 18) {
++        VStack(alignment: .leading, spacing: 24) {
+             Text(title)
+-                .font(.title3.weight(.semibold))
++                .font(.title2.weight(.bold))
++                .foregroundStyle(.primary)
+                 .frame(maxWidth: .infinity, alignment: .leading)
++                .padding(.bottom, 8)
+ 
+             Text(bodyText)
+                 .font(.body)
+-                .lineSpacing(9)
++                .lineSpacing(12)
++                .foregroundStyle(.primary.opacity(0.9))
+                 .textSelection(.enabled)
+                 .frame(maxWidth: .infinity, alignment: .leading)
+         }
+-        .padding(20)
+-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
++        .padding(24)
++        .background(Color(UIColor.systemBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+     }
+ }
+diff --git a/iOS/Features/Reader/ReaderFlowFeatureView.swift b/iOS/Features/Reader/ReaderFlowFeatureView.swift
+index 49ff47a..e4ad8f0 100644
+--- a/iOS/Features/Reader/ReaderFlowFeatureView.swift
++++ b/iOS/Features/Reader/ReaderFlowFeatureView.swift
+@@ -1,6 +1,9 @@
++#if canImport(SwiftUI)
+ import SwiftUI
++#endif
+ import ReaderShellValidation
+-
++#if canImport(SwiftUI)
++@MainActor
+ public struct ReaderFlowFeatureView: View {
+     @ObservedObject public var coordinator: ReadingFlowCoordinator
+     public let environment: ReaderShellEnvironment
+@@ -24,7 +27,7 @@ public struct ReaderFlowFeatureView: View {
+ 
+         NavigationStack {
+             ScrollView {
+-                VStack(alignment: .leading, spacing: 20) {
++                VStack(alignment: .leading, spacing: 24) {
+                     statusCard(featureState)
+ 
+                     if moduleBoundary.canImportBookSource {
+@@ -40,6 +43,7 @@ public struct ReaderFlowFeatureView: View {
+                 }
+                 .padding(20)
+             }
++            .background(Color(UIColor.systemGroupedBackground))
+             .navigationTitle(environment.appEntry.appName)
+         }
+     }
+@@ -51,6 +55,7 @@ public struct ReaderFlowFeatureView: View {
+             subtitle: "Core >= \(environment.appEntry.minimumCoreVersion)",
+             items: progressItems
+         )
++        .padding(.bottom, 8)
+     }
+ 
+     @ViewBuilder
+@@ -153,13 +158,16 @@ public struct ReaderFlowFeatureView: View {
+         VStack(alignment: .leading, spacing: 6) {
+             Text(title)
+                 .font(.body.weight(.semibold))
++                .foregroundStyle(.primary)
+             Text(subtitle)
+                 .font(.caption)
+                 .foregroundStyle(.secondary)
+         }
+         .frame(maxWidth: .infinity, alignment: .leading)
+         .padding(16)
+-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+     }
+ 
+     private var progressItems: [ReaderStatusCardItem] {
+@@ -184,3 +192,4 @@ public struct ReaderFlowFeatureView: View {
+         return items
+     }
+ }
++#endif
+diff --git a/iOS/Features/Reader/ReaderProgressSurfaceView.swift b/iOS/Features/Reader/ReaderProgressSurfaceView.swift
+index 9f0a206..52c77b6 100644
+--- a/iOS/Features/Reader/ReaderProgressSurfaceView.swift
++++ b/iOS/Features/Reader/ReaderProgressSurfaceView.swift
+@@ -1,3 +1,5 @@
++import Foundation
++#if canImport(SwiftUI)
+ import SwiftUI
+ 
+ public struct ReaderProgressSurfaceView: View {
+@@ -12,20 +14,26 @@ public struct ReaderProgressSurfaceView: View {
+     }
+     
+     public var body: some View {
+-        VStack(spacing: 8) {
++        VStack(spacing: 12) {
+             ProgressView(value: progressPercentage)
+                 .progressViewStyle(.linear)
+                 .tint(.accentColor)
++                .scaleEffect(x: 1, y: 1.5, anchor: .center)
+             
+             HStack {
+                 Text("第 \(chapterIndex + 1) 章")
++                    .font(.subheadline.weight(.medium))
++                    .foregroundStyle(.primary)
+                 Spacer()
+                 Text("共 \(chapterCount) 章 (\(String(format: "%.1f", progressPercentage * 100))%)")
++                    .font(.footnote)
++                    .foregroundStyle(.secondary)
+             }
+-            .font(.caption)
+-            .foregroundStyle(.secondary)
+         }
+-        .padding()
+-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
++        .padding(20)
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+     }
+ }
++#endif
+diff --git a/iOS/Features/Reader/ReaderSessionSummaryView.swift b/iOS/Features/Reader/ReaderSessionSummaryView.swift
+index 2405244..14ac634 100644
+--- a/iOS/Features/Reader/ReaderSessionSummaryView.swift
++++ b/iOS/Features/Reader/ReaderSessionSummaryView.swift
+@@ -1,3 +1,5 @@
++import Foundation
++#if canImport(SwiftUI)
+ import SwiftUI
+ 
+ public struct ReaderSessionSummaryView: View {
+@@ -19,27 +21,39 @@ public struct ReaderSessionSummaryView: View {
+     }
+     
+     public var body: some View {
+-        VStack(alignment: .leading, spacing: 12) {
+-            Text("会话上下文")
+-                .font(.headline)
++        VStack(alignment: .leading, spacing: 14) {
++            HStack {
++                Image(systemName: "book.closed.fill")
++                    .foregroundStyle(.tint)
++                Text("会话上下文")
++                    .font(.headline)
++            }
+             
+-            VStack(alignment: .leading, spacing: 6) {
++            VStack(alignment: .leading, spacing: 8) {
+                 Text(title)
+-                    .font(.body.weight(.semibold))
++                    .font(.title3.weight(.bold))
++                    .foregroundStyle(.primary)
++                
+                 Text(subtitle)
+-                    .font(.caption)
++                    .font(.subheadline)
+                     .foregroundStyle(.secondary)
+                     .lineLimit(2)
+             }
++            .padding(.vertical, 4)
+             
+             Button(action: action) {
+                 Text(actionTitle)
++                    .font(.body.weight(.medium))
+                     .frame(maxWidth: .infinity)
+             }
+             .buttonStyle(.borderedProminent)
+-            .padding(.top, 8)
++            .controlSize(.large)
++            .padding(.top, 4)
+         }
+-        .padding(16)
+-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
++        .padding(20)
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+     }
+ }
++#endif
+diff --git a/iOS/Features/Reader/ReaderStageActionBar.swift b/iOS/Features/Reader/ReaderStageActionBar.swift
+index 7e700e4..6274f25 100644
+--- a/iOS/Features/Reader/ReaderStageActionBar.swift
++++ b/iOS/Features/Reader/ReaderStageActionBar.swift
+@@ -1,3 +1,5 @@
++import Foundation
++#if canImport(SwiftUI)
+ import SwiftUI
+ 
+ public struct ReaderStageActionBar: View {
+@@ -23,17 +25,31 @@ public struct ReaderStageActionBar: View {
+                         Image(systemName: "chevron.left")
+                         Text("上一章")
+                     }
++                    .font(.subheadline.weight(.medium))
+                 }
+                 .buttonStyle(.bordered)
++            } else {
++                // Placeholder to keep spacing
++                Button(action: {}) {
++                    HStack(spacing: 4) {
++                        Image(systemName: "chevron.left")
++                        Text("上一章")
++                    }
++                }
++                .buttonStyle(.bordered)
++                .opacity(0)
++                .allowsHitTesting(false)
+             }
+             
+             Spacer()
+             
+             if let onReload = onReload {
+                 Button(action: onReload) {
+-                    Label("重新加载", systemImage: "arrow.clockwise")
++                    Image(systemName: "arrow.clockwise")
++                        .font(.body.weight(.semibold))
+                 }
+                 .buttonStyle(.borderless)
++                .tint(.secondary)
+             }
+             
+             Spacer()
+@@ -44,11 +60,27 @@ public struct ReaderStageActionBar: View {
+                         Text("下一章")
+                         Image(systemName: "chevron.right")
+                     }
++                    .font(.subheadline.weight(.medium))
++                }
++                .buttonStyle(.bordered)
++            } else {
++                // Placeholder to keep spacing
++                Button(action: {}) {
++                    HStack(spacing: 4) {
++                        Text("下一章")
++                        Image(systemName: "chevron.right")
++                    }
+                 }
+                 .buttonStyle(.bordered)
++                .opacity(0)
++                .allowsHitTesting(false)
+             }
+         }
+-        .padding()
+-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
++        .padding(.vertical, 12)
++        .padding(.horizontal, 16)
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 16))
++        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+     }
+ }
++#endif
+diff --git a/iOS/Features/Reader/ReaderStatusCardView.swift b/iOS/Features/Reader/ReaderStatusCardView.swift
+index 5bfdadf..9f9ea6e 100644
+--- a/iOS/Features/Reader/ReaderStatusCardView.swift
++++ b/iOS/Features/Reader/ReaderStatusCardView.swift
+@@ -1,3 +1,5 @@
++import Foundation
++#if canImport(SwiftUI)
+ import SwiftUI
+ 
+ public struct ReaderStatusCardItem: Identifiable, Equatable {
+@@ -6,7 +8,7 @@ public struct ReaderStatusCardItem: Identifiable, Equatable {
+     public let value: String
+ 
+     public init(label: String, value: String) {
+-        self.id = label
++        self.id = UUID().uuidString
+         self.label = label
+         self.value = value
+     }
+@@ -31,40 +33,53 @@ public struct ReaderStatusCardView: View {
+     }
+ 
+     public var body: some View {
+-        VStack(alignment: .leading, spacing: 12) {
+-            Text(eyebrow.uppercased())
+-                .font(.caption.weight(.semibold))
+-                .foregroundStyle(.secondary)
+-
+-            Text(title)
+-                .font(.title3.weight(.semibold))
+-
+-            Text(subtitle)
+-                .font(.subheadline)
+-                .foregroundStyle(.secondary)
+-
++        VStack(alignment: .leading, spacing: 16) {
++            if !eyebrow.isEmpty {
++                Text(eyebrow.uppercased())
++                    .font(.caption.weight(.bold))
++                    .foregroundStyle(.tint)
++                    .tracking(1.2)
++            }
++            
++            VStack(alignment: .leading, spacing: 6) {
++                Text(title)
++                    .font(.title3.weight(.bold))
++                    .foregroundStyle(.primary)
++                Text(subtitle)
++                    .font(.subheadline)
++                    .foregroundStyle(.secondary)
++                    .fixedSize(horizontal: false, vertical: true)
++            }
++            
+             if !items.isEmpty {
+-                Divider()
+-
+-                VStack(alignment: .leading, spacing: 8) {
+-                    ForEach(items) { item in
+-                        HStack(alignment: .top, spacing: 8) {
+-                            Text(item.label)
+-                                .font(.caption.weight(.semibold))
++                VStack(spacing: 0) {
++                    ForEach(Array(items.enumerated()), id: \.offset) { index, item in
++                        HStack {
++                            Text(item.element.label)
++                                .font(.callout.weight(.medium))
+                                 .foregroundStyle(.secondary)
+-                                .frame(width: 44, alignment: .leading)
+-
+-                            Text(item.value)
+-                                .font(.subheadline)
++                            Spacer()
++                            Text(item.element.value)
++                                .font(.callout)
+                                 .foregroundStyle(.primary)
+-                                .frame(maxWidth: .infinity, alignment: .leading)
++                                .multilineTextAlignment(.trailing)
++                        }
++                        .padding(.vertical, 10)
++                        
++                        if index < items.count - 1 {
++                            Divider()
+                         }
+                     }
+                 }
++                .padding(.horizontal, 16)
++                .background(Color(UIColor.tertiarySystemGroupedBackground))
++                .clipShape(RoundedRectangle(cornerRadius: 12))
+             }
+         }
+-        .frame(maxWidth: .infinity, alignment: .leading)
+-        .padding(16)
+-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
++        .padding(20)
++        .background(Color(UIColor.secondarySystemGroupedBackground))
++        .clipShape(RoundedRectangle(cornerRadius: 20))
++        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+     }
+ }
++#endif
+diff --git a/iOS/Features/Reader/View+HostCompatibility.swift b/iOS/Features/Reader/View+HostCompatibility.swift
+index 33627b9..d793b3f 100644
+--- a/iOS/Features/Reader/View+HostCompatibility.swift
++++ b/iOS/Features/Reader/View+HostCompatibility.swift
+@@ -1,6 +1,8 @@
++import Foundation
++#if canImport(SwiftUI)
+ import SwiftUI
+ 
+-extension View {
++public extension View {
+     @ViewBuilder
+     public func inlineNavigationBarTitle() -> some View {
+         #if os(iOS)
+@@ -10,3 +12,4 @@ extension View {
+         #endif
+     }
+ }
++#endif
+diff --git a/iOS/Features/Search/SearchView.swift b/iOS/Features/Search/SearchView.swift
+index 7c75c14..5e249d5 100644
+--- a/iOS/Features/Search/SearchView.swift
++++ b/iOS/Features/Search/SearchView.swift
+@@ -1,3 +1,5 @@
++import Foundation
++#if canImport(SwiftUI)
+ import SwiftUI
+ import ReaderCoreModels
+ import ReaderShellValidation
+@@ -82,6 +84,7 @@ public struct SearchView: View {
+         }
+     }
+ }
++#endif
+ 
+ private struct BookRow: View {
+     let book: SearchResultItem
+diff --git a/iOS/Tests/ReaderUXFoundationTests/ReaderPresentationValidationTests.swift b/iOS/Tests/ReaderUXFoundationTests/ReaderPresentationValidationTests.swift
+new file mode 100644
+index 0000000..c04f916
+--- /dev/null
++++ b/iOS/Tests/ReaderUXFoundationTests/ReaderPresentationValidationTests.swift
+@@ -0,0 +1,213 @@
++import XCTest
++import Foundation
++@testable import ReaderApp
++import ReaderCoreModels
++import ReaderCoreProtocols
++import ReaderCoreParser
++import ReaderCoreNetwork
++
++final class ReaderPresentationValidationTests: XCTestCase {
++    
++    @MainActor
++    func testPresentationSurfacesAreConsistentWithUXState() async throws {
++        let fixture = try FunctionalFixtureSample.load(sampleId: "sample_004")
++        let coordinator = makeCoordinator(for: fixture)
++        
++        await coordinator.importBookSource(from: fixture.bookSourceData)
++        await coordinator.search(keyword: "三体")
++        let firstBook: SearchResultItem = try XCTUnwrap(coordinator.searchResults.first)
++        await coordinator.selectBook(firstBook)
++        
++        // Setup multiple chapters
++        let chapters = [
++            TOCItem(chapterTitle: "Chapter 1", chapterURL: fixture.expectedTOC.expected.chapters[0].chapterURL, chapterIndex: 0)
++        ]
++        coordinator.tocItems = chapters
++        
++        let firstChapter = chapters[0]
++        await coordinator.selectChapter(firstChapter)
++        
++        let uxState = ReaderUXFoundationState(coordinator: coordinator, chapter: firstChapter)
++        
++        XCTAssertEqual(uxState.surfaceKind, .content)
++        XCTAssertNotNil(uxState.contentTitle)
++        XCTAssertNotNil(uxState.contentBody)
++        XCTAssertEqual(uxState.chapterCount, 1)
++        XCTAssertEqual(uxState.chapterIndex, 0)
++        
++        // Error presentation
++        coordinator.currentError = ReaderError(code: .networkFailed, message: "Network failed during presentation")
++        let errorState = ReaderUXFoundationState(coordinator: coordinator, chapter: nil)
++        XCTAssertEqual(errorState.surfaceKind, .error)
++        XCTAssertEqual(errorState.errorMessage, "Network failed during presentation")
++    }
++}
++
++private extension ReaderPresentationValidationTests {
++    @MainActor
++    func makeCoordinator(for fixture: FunctionalFixtureSample) -> ReadingFlowCoordinator {
++        let httpClient = PresentationFixtureHTTPClient(
++            searchURLPrefix: (fixture.bookSource.bookSourceUrl ?? "") + "/search",
++            searchRoute: .ok(data: fixture.searchFixtureData),
++            routes: [
++                fixture.expectedSearch.expected.items[0].detailURL: .ok(data: fixture.tocFixtureData),
++                fixture.expectedTOC.expected.chapters[0].chapterURL: .ok(data: fixture.contentFixtureData)
++            ]
++        )
++
++        return ReadingFlowCoordinator(
++            bookSourceRepository: InMemoryBookSourceRepository(),
++            bookSourceDecoder: DefaultBookSourceDecoder(),
++            searchService: DefaultSearchService(
++                httpClient: httpClient,
++                requestBuilder: BookSourceRequestBuilder(),
++                searchParser: NonJSParserEngine()
++            ),
++            tocService: DefaultTOCService(
++                httpClient: httpClient,
++                requestBuilder: BookSourceRequestBuilder(),
++                tocParser: NonJSParserEngine()
++            ),
++            contentService: DefaultContentService(
++                httpClient: httpClient,
++                requestBuilder: BookSourceRequestBuilder(),
++                contentParser: NonJSParserEngine()
++            ),
++            errorLogger: InMemoryErrorLogger()
++        )
++    }
++}
++
++private actor PresentationFixtureHTTPClient: HTTPClient {
++    private let searchURLPrefix: String
++    private let searchRoute: PresentationFixtureRoute
++    private let routes: [String: PresentationFixtureRoute]
++
++    init(
++        searchURLPrefix: String,
++        searchRoute: PresentationFixtureRoute,
++        routes: [String: PresentationFixtureRoute]
++    ) {
++        self.searchURLPrefix = searchURLPrefix
++        self.searchRoute = searchRoute
++        self.routes = routes
++    }
++
++    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
++        let route: PresentationFixtureRoute?
++        if request.url.hasPrefix(searchURLPrefix) {
++            route = searchRoute
++        } else {
++            route = routes[request.url]
++        }
++
++        guard let route else {
++            throw ReaderError(
++                code: .networkFailed,
++                message: "Missing Presentation fixture route for \(request.url)"
++            )
++        }
++
++        return HTTPResponse(
++            statusCode: route.statusCode,
++            headers: ["Content-Type": "text/html; charset=utf-8"],
++            data: route.data
++        )
++    }
++}
++
++private struct PresentationFixtureRoute {
++    let statusCode: Int
++    let data: Data
++
++    static func ok(data: Data) -> PresentationFixtureRoute {
++        PresentationFixtureRoute(statusCode: 200, data: data)
++    }
++}
++
++private struct FunctionalFixtureSample {
++    let sampleId: String
++    let bookSourceData: Data
++    let bookSource: BookSource
++    let searchFixtureData: Data
++    let tocFixtureData: Data
++    let contentFixtureData: Data
++    let expectedSearch: ExpectedSearchFile
++    let expectedTOC: ExpectedTOCFile
++    let expectedContent: ExpectedContentFile
++
++    static func load(sampleId: String) throws -> FunctionalFixtureSample {
++        let root = repositoryRootURL()
++        let decoder = JSONDecoder()
++
++        let bookSourcePath = root.appendingPathComponent("samples/booksources/p0_non_js/\(sampleId).json")
++        let searchFixturePath = root.appendingPathComponent("samples/fixtures/html/\(sampleId)_search.html")
++        let tocFixturePath = root.appendingPathComponent("samples/fixtures/html/\(sampleId)_toc.html")
++        let contentFixturePath = root.appendingPathComponent("samples/fixtures/html/\(sampleId)_content.html")
++        let searchExpectedPath = root.appendingPathComponent("samples/expected/search/\(sampleId).json")
++        let tocExpectedPath = root.appendingPathComponent("samples/expected/toc/\(sampleId).json")
++        let contentExpectedPath = root.appendingPathComponent("samples/expected/content/\(sampleId).json")
++
++        let bookSourceData = try Data(contentsOf: bookSourcePath)
++        return FunctionalFixtureSample(
++            sampleId: sampleId,
++            bookSourceData: bookSourceData,
++            bookSource: try decoder.decode(BookSource.self, from: bookSourceData),
++            searchFixtureData: try Data(contentsOf: searchFixturePath),
++            tocFixtureData: try Data(contentsOf: tocFixturePath),
++            contentFixtureData: try Data(contentsOf: contentFixturePath),
++            expectedSearch: try decoder.decode(ExpectedSearchFile.self, from: Data(contentsOf: searchExpectedPath)),
++            expectedTOC: try decoder.decode(ExpectedTOCFile.self, from: Data(contentsOf: tocExpectedPath)),
++            expectedContent: try decoder.decode(ExpectedContentFile.self, from: Data(contentsOf: contentExpectedPath))
++        )
++    }
++}
++
++private struct ExpectedSearchFile: Decodable {
++    let expected: ExpectedSearchPayload
++}
++
++private struct ExpectedSearchPayload: Decodable {
++    let success: Bool
++    let resultCount: Int
++    let items: [ExpectedSearchItem]
++}
++
++private struct ExpectedSearchItem: Decodable, Equatable {
++    let title: String
++    let detailURL: String
++}
++
++private struct ExpectedTOCFile: Decodable {
++    let expected: ExpectedTOCPayload
++}
++
++private struct ExpectedTOCPayload: Decodable {
++    let success: Bool
++    let chapterCount: Int
++    let chapters: [ExpectedTOCChapter]
++}
++
++private struct ExpectedTOCChapter: Decodable, Equatable {
++    let chapterTitle: String
++    let chapterURL: String
++    let chapterIndex: Int
++}
++
++private struct ExpectedContentFile: Decodable {
++    let expected: ExpectedContentPayload
++}
++
++private struct ExpectedContentPayload: Decodable {
++    let success: Bool
++    let contentNonEmpty: Bool
++    let content: String
++}
++
++private func repositoryRootURL() -> URL {
++    URL(fileURLWithPath: #filePath)
++        .deletingLastPathComponent()
++        .deletingLastPathComponent()
++        .deletingLastPathComponent()
++        .deletingLastPathComponent()
++}

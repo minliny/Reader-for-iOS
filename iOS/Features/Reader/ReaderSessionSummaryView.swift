@@ -1,3 +1,5 @@
+import Foundation
+#if canImport(SwiftUI)
 import SwiftUI
 
 public struct ReaderSessionSummaryView: View {
@@ -19,27 +21,39 @@ public struct ReaderSessionSummaryView: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("会话上下文")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Image(systemName: "book.closed.fill")
+                    .foregroundStyle(.tint)
+                Text("会话上下文")
+                    .font(.headline)
+            }
             
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(.body.weight(.semibold))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+                
                 Text(subtitle)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
+            .padding(.vertical, 4)
             
             Button(action: action) {
                 Text(actionTitle)
+                    .font(.body.weight(.medium))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .padding(.top, 8)
+            .controlSize(.large)
+            .padding(.top, 4)
         }
-        .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(20)
+        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
     }
 }
+#endif

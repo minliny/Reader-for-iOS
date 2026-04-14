@@ -15,13 +15,14 @@ public struct ContentView: View {
         let uxState = ReaderUXFoundationState(coordinator: coordinator, chapter: chapter)
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
                 ReaderStatusCardView(
                     eyebrow: "阅读阶段",
                     title: uxState.stageTitle,
                     subtitle: uxState.stageDetail,
                     items: contextItems(for: uxState)
                 )
+                .padding(.bottom, 8)
 
                 switch uxState.surfaceKind {
                 case .loading:
@@ -66,6 +67,7 @@ public struct ContentView: View {
             }
             .padding(20)
         }
+        .background(Color(UIColor.systemGroupedBackground))
         .navigationTitle(chapter.chapterTitle)
         .inlineNavigationBarTitle()
         .task {

@@ -1,3 +1,5 @@
+import Foundation
+#if canImport(SwiftUI)
 import SwiftUI
 import ReaderCoreModels
 import ReaderShellValidation
@@ -82,6 +84,7 @@ public struct SearchView: View {
         }
     }
 }
+#endif
 
 private struct BookRow: View {
     let book: SearchResultItem

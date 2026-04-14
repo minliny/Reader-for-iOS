@@ -1,6 +1,8 @@
+import Foundation
+#if canImport(SwiftUI)
 import SwiftUI
 
-extension View {
+public extension View {
     @ViewBuilder
     public func inlineNavigationBarTitle() -> some View {
         #if os(iOS)
@@ -10,3 +12,4 @@ extension View {
         #endif
     }
 }
+#endif
