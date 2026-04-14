@@ -16,13 +16,15 @@ public struct ContentView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                ReaderStatusCardView(
-                    eyebrow: "阅读阶段",
-                    title: uxState.stageTitle,
-                    subtitle: uxState.stageDetail,
-                    items: contextItems(for: uxState)
-                )
-                .padding(.bottom, 8)
+                if uxState.surfaceKind != .content {
+                    ReaderStatusCardView(
+                        eyebrow: "阅读阶段",
+                        title: uxState.stageTitle,
+                        subtitle: uxState.stageDetail,
+                        items: contextItems(for: uxState)
+                    )
+                    .padding(.bottom, 8)
+                }
 
                 switch uxState.surfaceKind {
                 case .loading:
@@ -41,8 +43,13 @@ public struct ContentView: View {
 
                 case .content:
                     if let title = uxState.contentTitle, let bodyText = uxState.contentBody {
-                        ReaderContentSectionView(title: title, bodyText: bodyText)
-                        
+                        ReaderContentSectionView(
+                            title: title,
+                            bodyText: bodyText,
+                            bookTitle: uxState.bookTitle,
+                            sourceName: uxState.sourceName
+                        )
+
                         VStack(spacing: 12) {
                             if let chapterIndex = uxState.chapterIndex, uxState.chapterCount > 0 {
                                 ReaderProgressSurfaceView(
@@ -78,17 +85,13 @@ public struct ContentView: View {
     }
 
     private func emptyState(_ uxState: ReaderUXFoundationState) -> some View {
-        VStack(spacing: 16) {
-            ReaderEmptyStateView(
-                title: "暂无正文",
-                message: uxState.stageDetail,
-                systemImage: "doc.text"
-            )
-            
-            Button("重新加载正文") {
-                Task { await coordinator.selectChapter(chapter) }
-            }
-            .buttonStyle(.bordered)
+        ReaderEmptyStateView(
+            title: "暂无正文",
+            message: uxState.stageDetail,
+            systemImage: "doc.text",
+            actionTitle: "重新加载正文"
+        ) {
+            Task { await coordinator.selectChapter(chapter) }
         }
         .frame(maxWidth: .infinity, minHeight: 240)
     }

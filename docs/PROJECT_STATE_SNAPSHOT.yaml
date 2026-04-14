@@ -14,11 +14,11 @@ current_focus:
   primary_track:
     - Reader-Core
     - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_13
+  active_milestone: m_ios_14
   milestone_status: in_progress
-  milestone_detail: "M-IOS-12 passed successfully on GitHub Actions. Ready to proceed to M-IOS-13."
-  next_best_task: "M-IOS-13: Next Phase Planning"
-  next_best_task_detail: "Plan the next phase now that navigation foundation is solid."
+  milestone_detail: "M-IOS-13 Reader Presentation Polish complete. ContentView hides status cards in reading mode, uses ReaderContentSectionView as readable text layer, uniform common surfaces. validationResult=UNKNOWN (no macOS runner)."
+  next_best_task: "M-IOS-14: Remote Execution Verification & Next Phase Planning"
+  next_best_task_detail: "Verify remote execution and plan the next phase."
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -121,9 +121,9 @@ ios_reader_navigation_foundation:
     - "M-IOS-12 Reader Navigation Foundation passed shell smoke and navigation validation tests."
 
 recent_action:
-  summary: "M-IOS-12 Reader Navigation Foundation implementation and validation tests completed. Run 24355741993 passed on GitHub Actions."
-  category: ios_reader_navigation_foundation_verified
-  state_effect: "Reader Navigation Foundation is now executionVerified=true and validationResult=PASS."
+  summary: "M-IOS-13 completion recorded: Presentation polish applied to ContentView and Common UI."
+  category: ios_reader_presentation_polish
+  state_effect: "M-IOS-13 Reader Presentation Polish complete. ContentView hides status cards in reading mode, uses ReaderContentSectionView as readable text layer, uniform common surfaces. validationResult=UNKNOWN (no macOS runner)."
 
 repository_convergence:
   trusted_main_branch: main
