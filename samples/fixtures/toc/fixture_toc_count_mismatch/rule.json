@@ -1,6 +1,0 @@
-{
-  "flow": "toc",
-  "titleRule": "ul@text",
-  "urlRule": "a@href",
-  "baseURL": null
-}

@@ -1,5 +1,0 @@
-{
-  "failureType": "CONTENT_FAILED",
-  "errorCode": "networkFailed",
-  "message": "HTTP 404 content fetch failed."
-}

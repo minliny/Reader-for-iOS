@@ -5,21 +5,21 @@ project:
   target_repo_name: Reader-iOS
   strategy: dual-repo governance
   mainline: Reader-iOS — iOS shell / UX / features / integration
-  phase: reverse_split_complete
+  phase: core_asset_migration_complete
   execution_mode: ios_mainline
   clean_room: true
   allow_ios_phase: true
-  core_extraction_note: "Core 资产已于 2026-04-14 反向拆分到独立 Reader-Core 仓（github.com/minliny/Reader-Core）"
+  core_extraction_note: "Core 资产已于 2026-04-15 完成真实物理迁移到 Reader-Core 仓（github.com/minliny/Reader-Core）；本仓已无 Core/samples/tools 等 Core 主线资产"
 
 current_focus:
   primary_track:
     - Reader-iOS mainline evolution
     - Reader-Core dependency via public package products
-  active_milestone: reverse_split_execution
+  active_milestone: core_asset_migration
   milestone_status: complete
-  milestone_detail: "反向拆仓完成（2026-04-14）：Core 资产已抽离到 Reader-Core（github.com/minliny/Reader-Core），本仓确立为 Reader-iOS 主仓，iOS/Package.swift 依赖已切换至 ../Reader-Core。"
-  next_best_task: "dual-repo stabilization — trigger Core CI in Reader-Core, confirm iOS dep resolves"
-  next_best_task_detail: "在 Reader-Core 仓触发 core-swift-tests 等 Core CI；确认 Reader-iOS iOS/Package.swift 在本地可解析 ../Reader-Core 依赖。"
+  milestone_detail: "Core Asset Migration 完成（2026-04-15）：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、Core workflows、Core docs 已全部从本仓移除并迁移至 Reader-Core（b4dffc4）。本仓现仅包含 iOS 主线资产。"
+  next_best_task: "dual-repo CI validation — trigger Reader-Core CI, confirm Reader-iOS ios-shell-ci resolves ../Reader-Core dep"
+  next_best_task_detail: "触发 Reader-Core core-swift-tests 和 Reader-iOS ios-shell-ci，验证双仓 CI 独立运行正常。"
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -91,7 +91,10 @@ reverse_split:
   reverse_split_direction_applied: true
   current_repo_role_switched_to_reader_ios: true
   physical_core_extraction_complete: true
+  core_asset_migration_complete: true
+  dual_repo_consistency_complete: true
   extraction_date: "2026-04-14"
+  migration_complete_date: "2026-04-15"
   current_repo_role: "Reader-iOS"
   reader_core_local_path: "../Reader-Core"
   reader_core_remote_url: "https://github.com/minliny/Reader-Core"
@@ -200,9 +203,9 @@ reader_ios_scope:
     - functional / hardening / UX / interaction / session / navigation / presentation validation
 
 recent_action:
-  summary: "反向拆仓完成（2026-04-14）：Core 资产抽离至独立 Reader-Core 仓（github.com/minliny/Reader-Core，tag 0.1.0），本仓确立为 Reader-iOS 主仓，iOS/Package.swift 依赖切换至 ../Reader-Core。"
-  category: reverse_split_execution
-  state_effect: "本仓角色由 Reader-Core transition host 切换为 Reader-iOS 主仓。Core 主线已迁移至 Reader-Core。依赖方向 Reader-iOS -> Reader-Core public products。"
+  summary: "Core Asset Migration 完成（2026-04-15）：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、10 Core workflows、Core docs 已从本仓物理移除并在 Reader-Core 就位（b4dffc4）。本仓已收敛为纯 Reader-iOS 主仓。"
+  category: core_asset_migration_complete
+  state_effect: "本仓仅保留 iOS/**、ios-shell-ci、iOS docs/scripts/handoff。所有 Core 主线资产已完成物理迁移至 Reader-Core。双仓一致性完成。"
 
 reader_ios_bootstrap:
   prepared_docs:

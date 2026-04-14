@@ -125,12 +125,14 @@
 - prompt governance：`split-era active only`
 - legacy prompt archive：`archive/prompts/legacy/`
 - iOS feature progression in current host repo：`paused`
-- reader_core_repo_initialized_locally：`true`
-- reverse_split_direction_applied：`true`
+- reverse_split_bootstrap_complete：`true`
+- core_asset_migration_complete：`true`
 - current_repo_role_switched_to_reader_ios：`true`
-- physical_core_extraction_complete：`true`
-- extraction_date：`2026-04-14`
+- dual_repo_consistency_complete：`true`
+- migration_complete_date：`2026-04-15`
 - current_repo_role：`Reader-iOS`
+- core_assets_physically_removed_from_this_repo：`true`
 - reader_core_remote：`https://github.com/minliny/Reader-Core`
+- reader_core_commit：`b4dffc4`
 - reader_core_stable_tag：`0.1.0`
-- reader_ios_dependency：`../Reader-Core (local sibling)`
+- reader_ios_dependency：`../Reader-Core (local sibling) | canonical: https://github.com/minliny/Reader-Core.git`

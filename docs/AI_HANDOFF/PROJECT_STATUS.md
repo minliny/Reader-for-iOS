@@ -152,26 +152,27 @@
   - iOS/Package.swift 依赖已切换至独立 Core 路径
   - Reader-Core 主仓 iOS 资产保留历史指针
 
-## 当前状态（反向拆仓完成 2026-04-14）
+## 当前状态（Core Asset Migration 完成 2026-04-15）
 
 ```yaml
 current_repo_role: Reader-iOS
-reader_core_repo_initialized_locally: true
-reverse_split_direction_applied: true
+reverse_split_bootstrap_complete: true
+core_asset_migration_complete: true
 current_repo_role_switched_to_reader_ios: true
-physical_core_extraction_complete: true
+dual_repo_consistency_complete: true
 ```
 
-- 本仓角色：Reader-iOS 主仓
+- 本仓保留资产：iOS/**、scripts/check_ios_boundary.sh、.github/workflows/ios-shell-ci.yml、iOS docs/handoff
+- 本仓已移除：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、10 Core workflows、Core docs
 - 远端：https://github.com/minliny/Reader-for-iOS（TODO: 改名为 Reader-iOS）
-- Reader-Core 远端：https://github.com/minliny/Reader-Core，tag 0.1.0
-- Reader-iOS 依赖：`../Reader-Core` (local sibling)，canonical: `https://github.com/minliny/Reader-Core.git`
+- Reader-Core 远端：https://github.com/minliny/Reader-Core，commit b4dffc4，tag 0.1.0
+- Reader-iOS 依赖：`../Reader-Core` (local)，canonical: `https://github.com/minliny/Reader-Core.git`
 
 ## 下一步任务
 
-- 触发 Reader-Core CI 确认 Core 独立运行正常
+- 触发 Reader-iOS ios-shell-ci 验证依赖解析
+- 触发 Reader-Core core-swift-tests 验证 Core 独立运行
 - 将 Reader-for-iOS 仓重命名为 Reader-iOS（GitHub 仓库设置）
-- 在本地验证 iOS/Package.swift 可解析 ../Reader-Core 依赖
 
 ## Clean-Room 状态
 
