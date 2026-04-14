@@ -15,20 +15,19 @@ public struct ReaderProgressSurfaceView: View {
     
     public var body: some View {
         VStack(spacing: 12) {
-            ProgressView(value: progressPercentage)
-                .progressViewStyle(.linear)
-                .tint(.accentColor)
-                .scaleEffect(x: 1, y: 1.5, anchor: .center)
-            
             HStack {
                 Text("第 \(chapterIndex + 1) 章")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
                 Spacer()
-                Text("共 \(chapterCount) 章 (\(String(format: "%.1f", progressPercentage * 100))%)")
-                    .font(.footnote)
+                Text("共 \(chapterCount) 章 · \(String(format: "%.1f", progressPercentage * 100))%")
+                    .font(.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
+
+            ProgressView(value: progressPercentage)
+                .progressViewStyle(.linear)
+                .tint(.accentColor)
         }
         .padding(20)
         .background(Color(UIColor.secondarySystemGroupedBackground))

@@ -338,6 +338,39 @@
   - `validationResult=PASS`
   - `executionVerified=true`
 
+### M-IOS-13: Reader Presentation Polish
+
+- 状态：`complete`
+- 优先级：`P1`
+- 前置依赖：`M-IOS-12 complete`
+- 约束：
+  - 不得破坏 `docs/ios_shell_ci_gate.yml` 记录的 M-IOS-12 navigation baseline
+  - 不得重新扩大 `ReaderShellValidation` compile scope
+  - 不得引入主题系统、字体设置等庞大功能
+- 已完成实现：
+  - ContentView 隐藏阅读态下的庞大状态卡片
+  - ReaderContentSectionView 重构成更适合阅读的正文呈现层
+  - ErrorView / LoadingView / ReaderEmptyStateView 样式统一
+  - ReaderProgressSurfaceView 细节优化
+- 当前远端证据：
+  - latest run `none`
+  - artifact `none`
+  - boundary gate: `PASS`
+  - compile: `UNKNOWN`
+  - smoke tests: `UNKNOWN`
+  - functional validation: `UNKNOWN`
+  - hardening validation: `UNKNOWN`
+  - ux foundation validation: `UNKNOWN`
+  - interaction foundation validation: `UNKNOWN`
+  - session polish validation: `UNKNOWN`
+  - navigation foundation validation: `UNKNOWN`
+  - presentation polish validation: `UNKNOWN`
+  - executionVerified: `false`
+- 结果：
+  - `phaseStatus=PASS`
+  - `validationResult=UNKNOWN`
+  - `executionVerified=false`
+
 ## 依赖关系图
 
 ```

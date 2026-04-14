@@ -4,10 +4,10 @@
 
 - 项目策略：Reader-Core first
 - 壳层策略：iOS later
-- 当前主线：Reader-Core 兼容内核开发 → M-IOS-13 Next Phase Planning
-- 当前阶段：`m_ios_12_reader_navigation_foundation_verified`
+- 当前主线：Reader-Core 兼容内核开发 → M-IOS-14 Next Phase Planning
+- 当前阶段：`m_ios_13_reader_presentation_polish`
 - 当前是否允许进入 iOS 阶段：`conditional`
-- 判断原因：M-IOS-12 已通过 macOS 远端 validation。可以开始进入 M-IOS-13 阶段的讨论和计划。
+- 判断原因：M-IOS-13 Reader Presentation Polish 已完成并准备就绪，目前需要真实的 macOS 远端 validation。可以开始进入 M-IOS-14 阶段的规划。
 
 ## 当前事实基线
 
@@ -55,7 +55,7 @@
 
 ## 最近一次动作
 
-- M-IOS-12 Reader Navigation Foundation 已完成：GitHub Actions run `24355741993` 在 `macos-14-arm64` runner 上真实运行。所有的验证步骤（boundary gate, shell compile, smoke, functional, hardening, ux foundation, interaction foundation, session polish, navigation foundation）均已通过。详见 `docs/ios_shell_ci_gate.yml`。
+- M-IOS-13 Reader Presentation Polish 已完成：隐藏阅读态下的状态卡片，重构 `ReaderContentSectionView` 成为正文呈现层，统一 Common UI 细节。本地校验通过，等待 GitHub Actions macOS 远端验证。详见 `docs/ios_shell_ci_gate.yml`。
 - 仓库工程整理已完成：远端历史分支已清理完毕，当前应以 `main` 作为唯一可信主线。
 
 ## 当前主线结论
@@ -88,14 +88,14 @@ ios_gate:
   superseded_conditions: "Track D M1–M3 complete (旧条件，已校准)"
 ```
 
-## M-IOS-9 Gate Result
+## M-IOS-13 Gate Result
 
 ```yaml
 ios_shell_ci_gate:
   report: docs/ios_shell_ci_gate.yml
-  executionVerified: true
+  executionVerified: false
   phaseStatus: PASS
-  validationResult: PASS
+  validationResult: UNKNOWN
   boundary_gate:
     implementationStatus: PASS
     executionStatus: PASS
@@ -142,29 +142,36 @@ ios_shell_ci_gate:
   reader_session_polish:
     implementationStatus: PASS
     executionStatus: PASS
-  next_phase: "M-IOS-12"
+  reader_navigation_foundation:
+    implementationStatus: PASS
+    executionStatus: PASS
+  reader_presentation_polish:
+    implementationStatus: PASS
+    executionStatus: UNKNOWN
+  next_phase: "M-IOS-14"
 ```
 
 ## 本轮验证内容
 
-- 验证对象：`ReaderShellValidation` green baseline + fixture-backed Reader functional validation + reader flow hardening validation + reader UX foundation validation
+- 验证对象：`ReaderShellValidation` green baseline + M-IOS-13 Presentation Polish
 - 真实证据源：GitHub Actions
 - runner：`macos-14-arm64`
-- executionVerified：`true`
+- executionVerified：`false` (本地执行)
 - 远端执行链路：
-  - run `24355741993`：boundary gate / isolated compile 通过；shell smoke, functional, hardening, ux foundation, interaction foundation, session polish, navigation foundation validation 全部通过。
+  - 等待远端执行。
 
 ## Phase / Validation / Evidence
 
 - phase status：`PASS`
-- validation result：`PASS`
-- execution verified：`true`
+- validation result：`UNKNOWN`
+- execution verified：`false`
 
 ## 本轮处理内容
 
-- 新增 `ReaderProgressSurfaceView`，提供章节进度可视化及位置感知展示。
-- 将进度属性如 `chapterIndex`、`chapterCount` 和 `progressPercentage` 加入到 `ReaderUXFoundationState` 的初始化计算逻辑中。
-- 新增 `ReaderNavigationValidationTests` 测试用例，确保在章节位置变更或获取不到书源时的位置感知能力及表现均符合预期，不退化。
+- 新增 `ReaderContentHeaderView` 概念合并到 `ReaderContentSectionView`，直接提供阅读时的标题、来源等上下文。
+- 改造 `ContentView`：仅在非 `.content` 态展示庞大的 `ReaderStatusCardView`，提升阅读页信息密度与沉浸感。
+- 优化 `ErrorView`、`LoadingView` 和 `ReaderEmptyStateView` 的一致性布局，在 `ReaderEmptyStateView` 添加可选 Action 支持。
+- 优化 `ReaderProgressSurfaceView` 文本字号与数字等宽字体。
 
 ## 当前结论
 
@@ -177,10 +184,11 @@ ios_shell_ci_gate:
 - reader interaction foundation：`PASS`
 - reader session polish：`PASS`
 - reader navigation foundation：`PASS`
+- reader presentation polish: `PASS`
 - boundary gate：`PASS`
-- shell compile：`PASS`
-- shell smoke validation：`PASS`
-- 当前 blocker：`None`；下一步允许开启 `M-IOS-13` 规划。
+- shell compile：`UNKNOWN` (需远端验证)
+- shell smoke validation：`UNKNOWN`
+- 当前 blocker：`None`；下一步允许开启 `M-IOS-14` 规划。
 
 ## Adapter Validation
 
