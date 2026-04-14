@@ -1,45 +1,33 @@
 # 技术决策 (DECISIONS)
 
+> support-only 文档；不是 active prompt entry，不参与唯一 active prompt chain。
+
 ## 当前已确认决策
 
 | 决策项 | 内容 | 状态 |
 |--------|------|------|
-| 项目策略 | Reader-Core first | 已确认 |
-| 壳层策略 | iOS later | 已确认 |
-| 当前主线 | Reader-Core 兼容内核开发 | 已确认 |
-| 当前阶段 | `core_contract_stabilization` | 已确认 |
-| 开发方式 | clean-room，不复用 Legado Android 实现 | 已确认 |
-| 当前已闭环样本 | `sample_js_runtime_001`、`sample_js_runtime_002`、`sample_004`、`sample_005` | 已确认 |
-| Header capability | 通过回归闭环确认为 CLOSED | 已确认 |
-| 下一步唯一最优任务 | `Cookie capability closure` | 已确认 |
+| 当前仓库角色 | Reader-Core transition host | 已确认 |
+| 目标主仓 | Reader-Core | 已确认 |
+| 未来独立仓 | Reader-iOS | 已确认 |
+| 当前阶段 | `repo_split_execution_phase_a` | 已确认 |
+| prompt 治理 | active prompt 仅保留 split-era 版本 | 已确认 |
+| iOS 资产语义 | pending migration | 已确认 |
+| 依赖方向 | Reader-iOS -> Reader-Core public package/products only | 已确认 |
 
-## 当前未覆盖能力
+## Prompt Governance 决策
 
-- Cookie
-- Cache
-- Error mapping
-
-## 自动状态更新决策
-
-以下动作被定义为“开发步骤完成”，一旦发生必须同步状态文件：
-
-- regression 正式回写
-- writeback 完成
-- compat_matrix 审计确认
-- 新样本闭环完成
-
-必须同步更新：
-
-- `docs/PROJECT_STATE_SNAPSHOT.yaml`
-- `docs/AI_HANDOFF/PROJECT_STATUS.md`
-- `docs/AI_HANDOFF/OPEN_TASKS.md`
+1. 不再把 pre-split 主线口径作为 active prompt 时态。
+2. 不再继续使用任何以 pre-split iOS feature phase 为默认下一步的 handoff prompt。
+3. 历史 prompt 必须归档到 `archive/prompts/legacy/`，不得无痕删除。
+4. 当前 active prompt set 仅由 split-era 治理文档组成。
+5. Reader-iOS 未来必须拥有独立 prompt set，不再共享当前主仓长期治理 prompt。
 
 ## 当前不允许漂移的规则
 
-1. 不允许将当前阶段重新表述为 iOS 先行
-2. 不允许遗漏已闭环样本
-3. 不允许在 `OPEN_TASKS.md` 中保留已完成任务
-4. 不允许在三份状态文件中出现不一致事实
+1. 不允许将当前阶段重新表述为 pre-split iOS feature 推进期
+2. 不允许把 iOS gate 文档继续作为主仓当前主线状态
+3. 不允许遗漏已闭环样本
+4. 不允许在状态文件中出现 split-era 与 pre-split 语义混写
 5. 不允许修改 A/B/C/D 兼容等级定义
 6. 不允许新增 failure taxonomy 而不更新配置
 7. 不允许引入外部 GPL 代码或引用 Legado Android 实现

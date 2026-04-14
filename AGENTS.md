@@ -8,7 +8,7 @@
 你是本项目的 AI 开发代理。
 
 项目定义：
-这是一个"兼容 Legado 书源 JSON 主流字段结构与主流程行为"的多端本地客户端项目，采用"统一 Core + 多端壳层"路线。当前主线为 Reader-Core first，iOS later。Core 兼容内核已完成 core_contract_stabilization 并通过 freeze gate CI 验证，当前阶段为 post_freeze，推荐 Track D (Tooling/Debug/Fixture) 作为下一步。
+这是一个"兼容 Legado 书源 JSON 主流字段结构与主流程行为"的多端本地客户端项目，当前处于 split-era 治理阶段。当前仓库角色为 Reader-Core transition host：主仓未来收敛为 Reader-Core，现有 iOS 资产为 pending migration，未来独立为 Reader-iOS。
 
 你必须遵守以下规则：
 1. 兼容格式与行为，不复用实现代码。
@@ -70,7 +70,8 @@
 - 复杂在线调试服务复刻
 - 内置内容平台
 - 云同步、账号、社区优先开发
-- 未通过 phase gate 审批前进入 iOS 壳层正式开发
+- 继续使用 pre-split iOS feature prompts
+- 在当前 host repo 启动任何 pre-split iOS feature phase
 
 工作方式：
 1. 先输出本次要生成的文件列表。
@@ -91,6 +92,25 @@ PR 输出必须包含：
 现在开始执行我接下来给出的任务，不要复述背景，直接产出可落地结果。
 ```
 
+## 唯一 Active Prompt Chain
+
+```yaml
+active_prompt_chain:
+  - AGENTS.md
+  - docs/PROMPT_GOVERNANCE.md
+  - docs/PROJECT_CONTEXT_PROMPT.md
+  - docs/AI_HANDOFF.md
+
+state_inputs_outside_chain:
+  - docs/PROJECT_STATE_SNAPSHOT.yaml
+  - docs/AI_HANDOFF/PROJECT_STATUS.md
+  - docs/AI_HANDOFF/OPEN_TASKS.md
+
+lockdown:
+  active_chain_only: true
+  fail_on_legacy_prompt_reference: true
+```
+
 ## 项目目标
 
 - 交付一个本地化、多端可复用的阅读核心能力，兼容 Legado 书源 JSON 主流字段结构与主流程行为。
@@ -101,10 +121,11 @@ PR 输出必须包含：
 
 ```yaml
 project:
-  strategy: Reader-Core first
-  shell_policy: iOS later
-  mainline: Reader-Core compatibility kernel development
-  phase: post_freeze (core_contract_stabilization COMPLETE)
+  current_repo_role: Reader-Core transition host
+  current_host_repo_should_converge_to: Reader-Core
+  future_independent_repo: Reader-iOS
+  mainline: split-era governance and boundary convergence
+  phase: repo_split_execution_phase_a
 
 closed_samples:
   - sample_js_runtime_001
@@ -152,28 +173,26 @@ out_of_scope_capabilities:
   - JSNetwork (ROI NEGATIVE)
 
 ios_gate:
-  allowed: conditional
-  decision: CONDITIONAL_ALLOW
+  allowed: false
+  decision: PENDING_MIGRATION
   review_doc: docs/IOS_PHASE_GATE_REVIEW.md
   remediation_doc: docs/ios_gate_remediation_result.yml
-  conditions:
-    - condition: "Track D M1 complete"
-      status: COMPLETE
-    - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
-      status: COMPLETE  # AdapterHarness CI_VERIFIED, TraceInspector CI_VERIFIED (run 24303727706)
-    - condition: "Shell smoke validation complete"
-      status: PASS  # executionVerified=true on GitHub Actions runs 24354710607
-    - condition: "Architecture review pass"
-      status: PASS  # M-iOS-1 remediation complete: 0 illegal imports in CoreIntegration/Features
-  prerequisites_for_execution:
-    - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
-    - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — PASS (remote validation green on macOS-14)"
-  superseded_conditions: "Track D M1–M3 complete (旧条件，已校准为最小 M2 subset)"
-  ios_shell_current_state: "M-IOS-13 Reader Presentation Polish complete. ContentView hides status cards in reading mode, uses ReaderContentSectionView as readable text layer, uniform common surfaces. validationResult=UNKNOWN (no macOS runner)."
+  split_policy:
+    current_host_repo_role: Reader-Core transition host
+    target_core_repo: Reader-Core
+    target_ios_repo: Reader-iOS
+    planning_complete: true
+    logical_split_complete: false
+    physical_split_complete: false
+    dependency_direction: "Reader-iOS -> Reader-Core public package/products only"
+    retained_ios_evidence:
+      - docs/IOS_PHASE_GATE_REVIEW.md
+      - docs/ios_gate_remediation_result.yml
+      - docs/ios_shell_ci_gate.yml
+      - .github/workflows/ios-shell-ci.yml
 
-recent_completed_action: "M-IOS-13 completion recorded: Presentation polish applied to ContentView and Common UI."
-next_best_task: "M-IOS-14: Remote Execution Verification & Next Phase Planning"
+recent_completed_action: "Prompt governance cleanup and split-era active prompt reconstruction."
+next_best_task: "Continue logical split execution, then docs/workflow split."
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 
@@ -215,7 +234,9 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 复杂在线调试服务复刻
 - 内置内容平台
 - 云同步、账号、社区优先开发
-- 未通过 phase gate 审批前进入 iOS 壳层正式开发
+- 在主仓继续推进新的 iOS feature phase
+- 将 iOS phase/gate 继续作为 Core 主仓长期状态维护
+- 在物理拆仓完成前伪造“Reader-iOS 已独立完成”
 
 ## 禁止事项
 
@@ -228,8 +249,12 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 禁止在 `ios_gate.allowed = false` 时推进 iOS 壳层实现、UI 接线或 iOS 优先叙事。
 - 仅 `iOS/Shell/**` 可 import `ReaderCoreNetwork`、`ReaderCoreParser`、`ReaderCoreCache`、`ReaderCoreExecution`。
 - 新增壳层代码不得绕过 `ShellAssembly` 直接装配 Core internal modules。
+- Core 主仓不得继续吸纳 iOS feature 演进；本仓当前只允许执行拆仓规划、边界重构、迁移清单、文档重定位与 CI 拆分。
+- iOS phase/gate 不得继续作为 Core 主线长期状态维护；现有 iOS phase/gate 仅作为待迁移 Reader-iOS 资产保留。
+- Reader-iOS 只能依赖 Reader-Core public products；不得反向拥有 Core 实现控制权。
+- 当前仓库中的 iOS 资产视为 pending migration；physical split 前的新增 iOS 变更只能服务于 split/bootstrap，不得服务于 feature 扩张。
+- 禁止继续使用任何 pre-split prompt；凡带有旧主线、旧阶段、旧轨道或旧 iOS feature 续推语义的 pasted prompt，均不得作为 active prompt 使用。
 - iOS 边界检查入口固定为 `scripts/check_ios_boundary.sh`，CI workflow 固定为 `.github/workflows/ios-shell-ci.yml`。
-- M-iOS-2 与 M-iOS-3 必须拆分书写：`implementation_complete` 只表示 gate 已建设；`execution_verified` 只表示远端真实执行已取证，二者不得混写成 `PARTIAL_PASS`。
 - interim shell validation 只验证 host-compilable shell composition root，不得扩大到整个 iOS app host compile。
 - `iOS/Features/**` 与其他 iOS-only UI 源文件不得纳入 macOS host compile gate。
 - phase status、validation result、execution verified 必须分开写，禁止再用单一 PASS/FAIL 混写三层语义。
@@ -283,6 +308,8 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 下一步唯一最优任务
 - 最近一次完成的关键动作
 - 当前是否允许进入 iOS 阶段与判断原因
+- 当前主仓未来角色是否收敛为 Reader-Core
+- Reader-iOS 是否应独立成仓
 
 ### 一致性要求
 
@@ -291,6 +318,7 @@ freeze_gate_status: "READY_TO_FREEZE"
 - 不允许出现历史状态与当前状态冲突。
 - 三份文件必须保持同一事实基线、同一阶段、同一下一步任务。
 - 若本次变更不涉及样本或兼容矩阵，也必须检查三份文件是否仍与当前事实一致。
+- 不允许再把 iOS phase/gate 与 Core 主仓长期状态混写。
 
 ## PR 门禁
 
@@ -321,6 +349,7 @@ freeze_gate_status: "READY_TO_FREEZE"
 - Reviewer 只做审查，不直接实现功能。
 - Regression 只维护样本与回归资产，不实现业务逻辑。
 - 所有角色都必须先吸收 `docs/PROJECT_STATE_SNAPSHOT.yaml` 与 `docs/AI_HANDOFF/*`，禁止依赖对话上下文代替仓库状态。
+- 若发现 active path 重新引用 legacy prompt/source，必须立即停止当前执行并回到唯一 active prompt chain 重建上下文。
 
 ## 生效范围
 

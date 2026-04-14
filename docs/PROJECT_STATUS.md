@@ -3,50 +3,54 @@
 ## 当前可信主线
 
 - 可信主线分支：`main`
-- 当前结论：本地开发成果已从 `codex/cache-ci-evidence` 收敛到 `main`，后续开发与审查应以 `main` 为唯一事实主线。
-- 远端基线：`origin/main` 已与本地 `main` 对齐。
-
-## 本次分支收敛
-
-- 已完成：将 `codex/cache-ci-evidence` 上的有效开发成果快进合并到 `main`
-- 已完成：恢复一次中断的 `rebase`，解决 `AGENTS.md` 与 `iOS/Shell/ShellAssembly.swift` 的冲突标记残留
-- 已确认保留：`origin/claude/fervent-goldstine`
-  原因：仅包含 5 份 non-js smoke report 更新，未并入主线，不应在未人工确认价值前删除
-- 已确认保留：`origin/codex-cache-ci-evidence-2407`
-  原因：与当前主线分叉，包含较早期 adapter/cache hardening 结果，当前主线未按同一提交链吸收，不应武断删除
-- 已确认保留：`origin/codex-policy-regression-verification-20260409`
-  原因：与当前主线分叉，包含 policy regression 方向独立提交，需在后续专门审视后决定是否摘取
-- 已删除：`codex/cache-ci-evidence`
-  原因：其成果已被 `main` 覆盖，本地分支已删除
-- 已删除：`origin/codex/cache-ci-evidence`
-  原因：远端同名分支已被 `main` 覆盖，且已完成删除
+- 当前仓库过渡角色：`Reader-Core transition host`
+- 后续长期身份：`Reader-Core`
+- 当前结论：主仓不再继续承载 Core 主线与 iOS 产品壳层主线的长期混合演进。
 
 ## 当前阶段
 
-- 项目目标：Reader-Core first，iOS later
-- 当前阶段：`m_ios_6_reader_feature_wired_verified`
-- 已完成重点：
-  - OT-006 Adapter Integration Harness 已 `ci_verified`
-  - OT-007 TraceInspector 已 `ci_verified`
-  - M-IOS-1 ~ M-IOS-6 已完成，Reader 主链路已通过 `ShellAssembly` 接入 iOS 壳层
-  - GitHub Actions run `24307509812` 保持 boundary gate / isolated compile / shell smoke tests 全绿
-- 未完成事项：
-  - `M-IOS-7: Reader Flow Functional Validation`
-  - OT-008 Optional Fixture Replay / Selector Tester
-  - OT-009 gate decision 文档化收尾（若仍需单独审议）
+- 项目目标：`Reader-iOS bootstrap preparation`
+- 当前阶段：`repo_split_execution_phase_a`
+- 当前主线：`split-era governance and Reader-iOS bootstrap preparation`
+- 当前下一步：`RS-005 Physical Repo Split Execution`
+
+## 当前 bootstrap 语义
+
+- RS-002 Docs Split：`PASS`
+- RS-003 Workflow Split：`PASS`
+- 当前正在执行：`RS-004 Reader-iOS Bootstrap Preparation`
+- 当前仍未执行：`Reader-iOS physical repo split`
+
+## 文档角色说明
+
+- 本页是主仓总览页，不是 Reader-iOS 的长期状态页。
+- 当前 docs 入口以 Reader-Core transition host 视角组织。
+- iOS docs 仍在 `docs/` 根目录，但归属语义已经变为 `pending migration`。
+- docs 分类与迁移索引见 `docs/DOCS_SPLIT_INDEX.md` 与 `docs/IOS_PENDING_MIGRATION_REGISTRY.md`。
+- Reader-iOS bootstrap 输入文档见：
+  - `docs/READER_IOS_BOOTSTRAP_PLAN.md`
+  - `docs/READER_IOS_DEPENDENCY_BOOTSTRAP.md`
+  - `docs/READER_IOS_MIGRATION_MANIFEST.md`
+  - `docs/READER_IOS_REPO_INIT_CHECKLIST.md`
+
+## 边界结论
+
+- `Core/**`、`samples/**`、compat/regression/tooling/docs mainline 继续属于 Reader-Core。
+- `iOS/**`、iOS gate 文档、`ios-shell-ci` workflow、边界检查脚本属于待迁移 Reader-iOS 资产。
+- 现有 iOS 远端执行证据保留，但不再作为 Core 主仓长期状态维护。
 
 ## 风险与阻塞
 
-- 当前 Windows 本地环境无 `swift`，无法在本机执行 Swift build/test；本次整理仅完成 Git 一致性与分支收敛验证
-- `origin/codex-cache-ci-evidence-2407` 与 `origin/codex-policy-regression-verification-20260409` 仍含未并入主线的历史提交链，暂不删除
-- `origin/claude/fervent-goldstine` 仅变更报告文件，是否保留需人工结合审计价值判断
+- 若继续在主仓维护任何 pre-split iOS feature phase，会持续污染 Core 主仓状态语义与 CI 归属。
+- 若 Reader-iOS 在拆仓后直接 import Core internal modules，会破坏 clean boundary 与版本治理。
+- 物理拆仓尚未执行，当前仍需避免误写“已拆仓完成”。
 
 ## 推荐下一步
 
-- 以 `main` 为基线推进 `M-IOS-7: Reader Flow Functional Validation`
-- 单独审视 `origin/codex-policy-regression-verification-20260409` 是否仍有值得 selective cherry-pick 的 policy regression 资产
-- 若确认无保留价值，再清理 `origin/claude/fervent-goldstine`、`origin/codex-cache-ci-evidence-2407`、`origin/codex-policy-regression-verification-20260409`
+- 按 `docs/READER_IOS_REPO_INIT_CHECKLIST.md` 执行 RS-005 Physical Repo Split Execution。
+- 在 RS-005 中新建 Reader-iOS 仓并迁移 `iOS/**`、iOS docs、iOS workflows/scripts。
+- 将 Reader-iOS 依赖切换为 Reader-Core public package/products only。
 
 ## Clean-Room 说明
 
-- 本次操作仅基于本地仓库 Git 历史、工作区文件与项目内文档执行，未引入或搬运任何外部 GPL 代码。
+- 本次状态重写仅基于仓库内部文件与既有执行证据，不引入或搬运任何外部 GPL 代码。

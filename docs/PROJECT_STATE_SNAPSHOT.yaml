@@ -1,30 +1,69 @@
 project:
   name: Reader-for-iOS
-  strategy: Reader-Core first
-  shell_policy: iOS later
-  mainline: Reader-Core compatibility kernel development
-  phase: m_ios_12_reader_navigation_foundation_verified
-  execution_mode: recalibrated_phase2
-  active_strategy: minimal_tooling_then_ios
+  current_repo_role: Reader-Core (post-split)
+  current_docs_role: Reader-Core primary docs host
+  target_repo_name: Reader-Core
+  strategy: split-era governance
+  shell_policy: Reader-iOS split COMPLETE (RS-005 2026-04-14)
+  mainline: Reader-Core convergence — iOS assets migrated to independent Reader-iOS repo
+  phase: post_physical_split
+  execution_mode: core_mainline
   clean_room: true
-  allow_ios_phase: conditional
-  ios_block_reason: "None. M-IOS-12 Reader Navigation Foundation successfully passed remote shell validation."
+  allow_ios_phase: false
+  ios_block_reason: "iOS 资产已于 RS-005 物理迁移至独立 Reader-iOS 仓；本仓仅保留历史指针与执行证据。"
 
 current_focus:
   primary_track:
-    - Reader-Core
-    - Phase 2: Minimal Tooling Hardening → Early iOS Gate Review
-  active_milestone: m_ios_14
-  milestone_status: in_progress
-  milestone_detail: "M-IOS-13 Reader Presentation Polish complete. ContentView hides status cards in reading mode, uses ReaderContentSectionView as readable text layer, uniform common surfaces. validationResult=UNKNOWN (no macOS runner)."
-  next_best_task: "M-IOS-14: Remote Execution Verification & Next Phase Planning"
-  next_best_task_detail: "Verify remote execution and plan the next phase."
+    - Reader-Core repository mainline convergence
+  active_milestone: rs_005_physical_split
+  milestone_status: complete
+  milestone_detail: "RS-005 Physical Repo Split Execution 完成（2026-04-14）：Reader-iOS 独立仓已建立，iOS 代码/docs/workflows/scripts 已迁移，依赖接入已切换。"
+  next_best_task: "RS-005-FU-01: Publish Reader-Core as proper Swift package (remote URL + tag)"
+  next_best_task_detail: "将 Reader-for-iOS/Core 发布为远端 Swift Package，使 Reader-iOS/iOS/Package.swift 可切换为 URL-based 依赖，并更新 ios-shell-ci 以移除 symlink workaround。"
 
 stabilized_samples:
   - sample_js_runtime_001
   - sample_js_runtime_002
   - sample_004
   - sample_005
+  - sample_001
+  - sample_002
+  - sample_003
+  - SAMPLE-P1-HEADER-001
+  - SAMPLE-P1-HEADER-002
+  - SAMPLE-P1-HEADER-003
+  - SAMPLE-P1-COOKIE-001
+  - SAMPLE-P1-COOKIE-002
+  - SAMPLE-P1-COOKIE-003
+  - SAMPLE-P1-CACHE-001
+  - SAMPLE-P1-CACHE-002
+  - SAMPLE-P1-CACHE-003
+  - SAMPLE-P1-ERROR-001
+  - SAMPLE-P1-ERROR-002
+  - SAMPLE-P1-ERROR-003
+  - SAMPLE-P1-POLICY-001
+  - SAMPLE-P1-POLICY-002
+  - SAMPLE-P1-POLICY-003
+  - sample_header_001
+  - sample_header_002
+  - sample_header_003
+  - sample_cookie_001
+  - sample_cookie_002
+  - sample_login_001
+  - sample_login_002
+  - sample_login_003
+  - sample_js_001
+  - css_executor_selector_semantics_contract
+  - fixture_toc_selector_miss
+  - fixture_toc_title_rule_miss
+  - fixture_toc_url_rule_miss
+  - fixture_toc_count_mismatch
+  - fixture_toc_non_selector_error
+  - toc_item_invalid_url_contract
+  - http_client_invalid_url_contract
+  - SAMPLE-P1-COOKIE-WENSANG-001
+  - SAMPLE-P1-COOKIE-XIANGSHU-001
+  - SAMPLE-P1-COOKIE-XUANYGE-001
 
 mature_capabilities:
   - CI 执行
@@ -32,378 +71,164 @@ mature_capabilities:
   - regression 回写
   - writeback 审核
   - compat_matrix 审计吸收
+  - Header (CLOSED)
+  - Cookie (CLOSED)
+  - Cache (CLOSED)
+  - ErrorMapping (CI_VERIFIED_CLOSED)
+  - PolicyVerification (CI_VERIFIED_CLOSED)
+  - JSDomExecution (CLOSED)
+  - LoginBootstrap (CLOSED)
+  - CookieIsolation (CLOSED)
 
 uncovered_capabilities: []
 
-ios_gate:
-  allowed: conditional
-  decision: CONDITIONAL_ALLOW
-  review_doc: docs/IOS_PHASE_GATE_REVIEW.md
-  remediation_doc: docs/ios_gate_remediation_result.yml
-  conditions:
-    - condition: "Track D M1 complete"
-      status: COMPLETE
-    - condition: "Minimal M2 tooling subset complete (AdapterHarness + TraceInspector)"
-      status: COMPLETE
-    - condition: "Shell smoke validation complete"
-      status: PASS
-    - condition: "Architecture review pass"
-      status: PASS
-  prerequisites_for_execution:
-    - "CONDITION-1: Fix dependency boundary leaks — COMPLETE (M-iOS-1)"
-    - "CONDITION-2: Establish iOS Shell CI build — COMPLETE (ios-shell-ci workflow added)"
-    - "CONDITION-3: Execute shell smoke validation — PASS (macOS-14 GitHub Actions run 24306965324)"
-  previous_conditions_superseded: "Track D M1–M3 complete (旧条件，已校准)"
-  gate_result_doc: docs/ios_shell_ci_gate.yml
+out_of_scope_capabilities:
+  - AntiBot (ROI NEGATIVE)
+  - JSNetwork (ROI NEGATIVE)
 
-ios_shell_audit:
-  actual_implementation_state: "SwiftUI views (ReaderFlowFeatureView/BookSourceImportView/SearchView/TOCView/ContentView) + formal ShellAssembly + ReadingFlowCoordinator + DefaultSearchService/TOCService/ContentService + InMemoryBookSourceRepository are wired into a minimal reader entry flow, and functional validation now proves import -> search -> toc -> content works on fixture-backed sources. Reader UX Foundation is validated."
-  tested: remote_execution_passed
-  phase_gate_approved: true
-  test_coverage: "Construction-only ShellAssembly smoke tests plus ReaderFlowFunctionalValidationTests, ReaderFlowHardeningTests, and ReaderUXFoundationStateTests are execution-verified on macOS-14-arm64 CI run 24352725871."
-  missing_capabilities:
-    - "Disk persistence (InMemoryBookSourceRepository only)"
-    - "Multi-source management (single source selection only)"
-    - "Settings/preferences UI"
-    - "No UI automation beyond shell/functional smoke"
-  risk_assessment: "The first functional baseline is now in place. Remaining iOS work must preserve the isolated gate semantics, avoid bypassing ShellAssembly, and harden only failure-state handling around the validated reader path before any productizing UI work."
+repo_split:
+  planning_complete: true
+  logical_split_complete: true
+  docs_split_complete: true
+  workflow_split_complete: true
+  bootstrap_preparation_complete: true
+  reader_ios_bootstrap_ready: true
+  reader_ios_repo_initialized: true
+  physical_split_complete: true
+  split_date: "2026-04-14"
+  reader_ios_repo_path: "../Reader-iOS"
+  current_host_repo_should_converge_to: Reader-Core
+  independent_repo: Reader-iOS
+  dependency_direction: "Reader-iOS -> Reader-Core public package/products only"
+  history_pointers_in_core:
+    - iOS/** (retained as historical evidence — long-term mainline ownership transferred to Reader-iOS)
+    - docs/IOS_PHASE_GATE_REVIEW.md (history pointer)
+    - docs/ios_gate_remediation_result.yml (history pointer)
+    - docs/ios_shell_ci_gate.yml (history pointer)
+    - docs/ios_architecture_remediation_plan.yml (history pointer)
+    - docs/ios_boundary_violations.yml (history pointer)
+    - .github/workflows/ios-shell-ci.yml (history pointer — active CI moved to Reader-iOS)
+  split_blockers: []
+  next_tasks:
+    - RS-005-FU-01: Publish Reader-Core as proper Swift package
+    - RS-005-FU-02: Update Reader-iOS Package.swift to URL-based dependency
+    - RS-005-FU-03: Simplify ios-shell-ci in Reader-iOS (remove symlink workaround)
+    - RS-005-FU-04: Rename Reader-for-iOS to Reader-Core
 
-ios_reader_interaction_foundation:
-  status: execution_verified
-  report: docs/ios_shell_ci_gate.yml
-  validated_interactions:
-    - retry_action
-    - reload_action
-    - empty_state_affordance
-    - error_recovery_affordance
-    - chapter_switch_continuity
-  lastExecution:
-    environment: github_actions_macos_14_arm64
-    runId: "24353820945"
-    artifactId: "6409796386"
-    result: pass
-    validationExecuted: true
-  notes:
-    - "M-IOS-10 Reader Interaction Foundation passed shell smoke and state-driven interaction tests."
+docs_split:
+  complete: true
+  ios_docs_pending_migration: true
+  index_doc: docs/DOCS_SPLIT_INDEX.md
+  ios_registry_doc: docs/IOS_PENDING_MIGRATION_REGISTRY.md
+  core_docs_primary:
+    - docs/PROJECT_STATE_SNAPSHOT.yaml
+    - docs/PROJECT_STATUS.md
+    - docs/PROMPT_GOVERNANCE.md
+    - docs/PROJECT_CONTEXT_PROMPT.md
+    - docs/AI_HANDOFF.md
+    - docs/AI_HANDOFF/**
+    - docs/API_SNAPSHOT/**
+    - docs/FIXTURE_INFRA_SPEC.md
+    - docs/TOOLING_BACKLOG.md
+    - docs/architecture/**
+    - docs/decision_engine/**
+    - docs/process/**
+  ios_docs_pending_migration_areas:
+    - docs/ios_shell_ci_gate.yml
+    - docs/IOS_PHASE_GATE_REVIEW.md
+    - docs/ios_gate_remediation_result.yml
+    - docs/ios_architecture_remediation_plan.yml
+    - docs/ios_boundary_violations.yml
+  deprecated_docs:
+    - docs/ROADMAP_PHASE2.md
+    - docs/BRANCH_AUDIT_AND_PRUNE_REPORT.md
+    - docs/DEV_CHECKPOINT.md
+    - docs/design/**
+    - docs/dev_state/**
 
-ios_reader_session_polish:
-  status: execution_verified
-  report: docs/ios_shell_ci_gate.yml
-  validated_session_cases:
-    - continue_reading_affordance
-    - session_context_summary
-    - current_selection_continuity
-    - retry_refresh_session_continuity
-    - minimal_resume_guidance
-  lastExecution:
-    environment: github_actions_macos_14_arm64
-    runId: "24354710607"
-    artifactId: "6410171749"
-    result: pass
-    validationExecuted: true
-  notes:
-    - "M-IOS-11 Reader Session Polish passed shell smoke and session validation tests."
+reader_core_scope:
+  owns:
+    - Core/**
+    - samples/**
+    - docs/API_SNAPSHOT/**
+    - docs/FIXTURE_INFRA_SPEC.md
+    - docs/TOOLING_BACKLOG.md
+    - docs/decision_engine/**
+    - docs/process/**
+    - docs/architecture/**
+    - core-related GitHub workflows
+  excludes:
+    - iOS/App/**
+    - iOS/Features/**
+    - iOS/Modules/**
+    - iOS/Shell/**
+    - iOS/Tests/**
+    - iOS-specific phase/gate as long-term mainline status
+  gates:
+    - core-swift-tests
+    - fixture-toc-regression-macos
+    - policy-regression-macos
+    - sample smoke / isolation / extractor workflows
 
-ios_reader_navigation_foundation:
-  status: execution_verified
-  report: docs/ios_shell_ci_gate.yml
-  validated_navigation_cases:
-    - prev_next_chapter_navigation
-    - chapter_position_awareness
-    - current_progress_surface
-  lastExecution:
-    environment: github_actions_macos_14_arm64
-    runId: "24355741993"
-    artifactId: "6410603684"
-    result: pass
-    validationExecuted: true
-  notes:
-    - "M-IOS-12 Reader Navigation Foundation passed shell smoke and navigation validation tests."
+reader_ios_scope:
+  owns:
+    - iOS/**
+    - docs/IOS_PHASE_GATE_REVIEW.md
+    - docs/ios_gate_remediation_result.yml
+    - docs/ios_shell_ci_gate.yml
+    - docs/ios_architecture_remediation_plan.yml
+    - docs/ios_boundary_violations.yml
+    - ios-shell-ci workflow
+  excludes:
+    - Core implementation control
+    - samples matrix ownership
+    - compat/failure taxonomy governance
+  gates:
+    - ios-shell-ci
+    - shell smoke validation
+    - functional / hardening / UX / interaction / session / navigation / presentation validation
 
 recent_action:
-  summary: "M-IOS-13 completion recorded: Presentation polish applied to ContentView and Common UI."
-  category: ios_reader_presentation_polish
-  state_effect: "M-IOS-13 Reader Presentation Polish complete. ContentView hides status cards in reading mode, uses ReaderContentSectionView as readable text layer, uniform common surfaces. validationResult=UNKNOWN (no macOS runner)."
+  summary: "RS-005 Physical Repo Split Execution 完成（2026-04-14）：Reader-iOS 独立仓已物理建立，iOS 代码/docs/workflows/scripts 已迁移，Package.swift 依赖已切换，Reader-Core 状态文件已更新。"
+  category: physical_repo_split
+  state_effect: "Reader-iOS 已独立。Reader-Core 主仓 iOS 资产保留为历史指针；主仓主线为 Core 兼容内核。"
 
-repository_convergence:
-  trusted_main_branch: main
-  trusted_remote: origin
-  default_remote_branch: origin/main
-  current_sync_status: "local main and origin/main are aligned after final historical branch prune; origin only retains main."
-  merged_branch:
-    name: codex/cache-ci-evidence
-    status: merged_into_main_and_deleted
-    evidence: "main was 0 behind / 66 ahead relative to codex/cache-ci-evidence before ff-only merge; after merge and push, the local and remote branch refs were deleted."
-  retained_branches: []
-  next_cleanup_action: "No additional historical remote branch cleanup required; keep main as sole trusted mainline."
+reader_ios_bootstrap:
+  prepared_docs:
+    - docs/READER_IOS_BOOTSTRAP_PLAN.md
+    - docs/READER_IOS_DEPENDENCY_BOOTSTRAP.md
+    - docs/READER_IOS_MIGRATION_MANIFEST.md
+    - docs/READER_IOS_REPO_INIT_CHECKLIST.md
+  reusable_ios_assets:
+    - iOS/App/**
+    - iOS/CoreIntegration/**
+    - iOS/Features/**
+    - iOS/Modules/**
+    - iOS/Shell/**
+    - iOS/Tests/**
+    - iOS/ValidationSupport/**
+    - iOS/Package.swift
+  required_core_public_products:
+    - ReaderCoreFoundation
+    - ReaderCoreModels
+    - ReaderCoreProtocols
+    - ReaderCoreParser
+    - ReaderCoreNetwork
+    - ReaderPlatformAdapters
+  optional_core_public_products:
+    - ReaderCoreCache
+    - ReaderCoreJSRenderer
+  same_repo_assumptions:
+    - iOS/Package.swift currently uses .package(path: "../Core")
+    - .github/workflows/ios-shell-ci.yml checks out the mixed host repo and builds with --package-path iOS
+    - scripts/check_ios_boundary.sh assumes iOS/** is colocated with Core sources inside one repo
 
-git_governance:
-  trusted_mainline: main
-  audited_remote_branches:
-    - claude/fervent-goldstine
-    - codex/main
-    - codex-cache-ci-evidence-2407
-    - codex-policy-regression-verification-20260409
-  pruned_remote_branches:
-    - claude/fervent-goldstine
-    - codex/main
-    - codex-cache-ci-evidence-2407
-    - codex-policy-regression-verification-20260409
-  retained_remote_branches: []
-  branch_audit_report: docs/BRANCH_AUDIT_AND_PRUNE_REPORT.md
-  github_sync_status: in_sync
-
-ios_shell_ci_gate:
-  status: pass
-  report: docs/ios_shell_ci_gate.yml
-  execution_verified: true
-  boundary_gate: pass
-  shell_ci: pass
-  smoke_validation: pass
-  functional_validation: pass
-  hardening_validation: pass
-  ux_foundation_validation: pass
-  interaction_foundation_validation: pass
-  session_polish_validation: pass
-  navigation_foundation_validation: pass
-  validation_scope_isolated: true
-  validation_glue_aligned: true
-  reader_feature_wired: true
-  reader_functionally_validated: true
-  reader_flow_hardened: true
-  reader_ux_foundation_built: true
-
-ios_reader_functional_validation:
-  status: execution_verified
-  report: docs/ios_shell_ci_gate.yml
-  validated_sources:
-    - sample_004
-    - sample_005
-  controlled_error_path:
-    sampleId: sample_004
-    stage: content
-    scenario: http_404
-    result: pass
-  lastExecution:
-    environment: github_actions_macos_14_arm64
-    runId: "24345092018"
-    artifactId: "6406027921"
-    result: pass
-    functionalTests: 3
-  notes:
-    - "Functional validation reuses samples/booksources/p0_non_js/sample_004.json and sample_005.json with their search/toc/content fixtures and expected outputs."
-    - "The validation stays inside the ShellSmokeTests test product and does not widen the ReaderShellValidation compile target."
-    - "Current non-blocking risks are Swift 6 XCTest actor-isolation warnings and GitHub Node 20 action deprecation."
-
-ios_reader_flow_hardening:
-  status: execution_verified
-  report: docs/ios_shell_ci_gate.yml
-  validated_sources:
-    - sample_004
-    - sample_005
-  validated_cases:
-    - repeated_search
-    - book_switch
-    - chapter_switch
-    - error_recovery
-    - source_switch
-    - state_transition_surface
-  firstFix:
-    commit: d93f4f6
-    blocker: shell_validation_scope
-    result: pass
-  lastExecution:
-    environment: github_actions_macos_14_arm64
-    runId: "24348124841"
-    artifactId: "6407333111"
-    result: pass
-    hardeningTests: 6
-  notes:
-    - "Hardening validation reuses fixture-backed sample_004/sample_005 flow assets and keeps execution inside the ShellSmokeTests product."
-    - "ReadingFlowCoordinator now resets stale downstream reader state on repeated search and source switch without changing any Core frozen contract."
-    - "Current non-blocking risks remain Swift 6 XCTest actor-isolation warnings and GitHub Node 20 action deprecation."
-
-ios_reader_ux_foundation:
-  status: execution_verified
-  report: docs/ios_shell_ci_gate.yml
-  validated_sources:
-    - sample_004
-    - sample_005
-  intended_surfaces:
-    - loading_surface
-    - empty_surface
-    - error_surface
-    - content_surface
-    - chapter_context_surface
-  firstFix:
-    commit: d97a9fb
-    blocker: reader_feature_state_main_actor_isolation
-    result: pass
-  currentBlocker: null
-  lastExecution:
-    environment: github_actions_macos_14_arm64
-    runId: "24352725871"
-    artifactId: "6409311277"
-    result: pass
-    uxValidationExecuted: true
-  notes:
-    - "M-IOS-9 UX foundation validation successfully executed after resolving the navigationBarTitleDisplayMode(.inline) compilation blocker."
-    - "Reader UX foundation is now execution-verified."
-
-multiplatform_architecture_rollout:
-  reportPath: "samples/reports/latest/multiplatform_architecture_rollout.yml"
-  decisionDoc: "docs/architecture/multiplatform_architecture_rollout.yml"
-  directoryTreeDoc: "docs/architecture/multiplatform_directory_tree.md"
-  rolloutGuideDoc: "docs/architecture/reader_core_multiplatform_rollout.md"
-  engineeringSkeletonDoc: "docs/architecture/engineering_architecture_skeleton.md"
-  rolloutState: "ARCHITECTURE_SKELETON_ONLY"
-  platformImplementationDone: false
-  uiImplementationDone: false
-  coreSingleSourceOfTruth: true
-  oneCodebaseForAllPlatforms:
-    allowed: false
-    reason: "共享 Core 是统一事实基线，但 platform_adapters 与 shells 必须显式分层，不能一套代码全吃。"
-
-adapterValidation:
-  status: recorded
-  platform: macOS
-  adapterUsed: MinimalHTTPAdapter
-  reportPath: "samples/reports/latest/adapter_validation.yml"
-  sampleId: "sample_004"
-  executionMode: "minimal_platform_adapter_validation"
-  platformImplementationDone: false
-  uiImplemented: false
-  fullAdapterLayerImplemented: false
-  coreSingleSourceOfTruth: true
-
-adapterHardening:
-  status: recorded
-  platform: macOS
-  adapterUsed: MinimalHTTPAdapter
-  reportPath: "samples/reports/latest/adapter_hardening.yml"
-  validatedSamples:
-    - "SAMPLE-P1-HEADER-001"
-    - "SAMPLE-P1-COOKIE-001"
-    - "SAMPLE-P1-ERROR-001"
-  platformImplementationDone: false
-  uiImplemented: false
-  fullAdapterLayerImplemented: false
-
-policy_layer_regression:
-  reportPath: "samples/reports/latest/policy_regression_summary.yml"
-  executionMode: "executable"
-  coreCodeTouched: false
-  samples:
-    - sampleId: "SAMPLE-P1-POLICY-001"
-      actualLevel: "B"
-      failureType: null
-    - sampleId: "SAMPLE-P1-POLICY-002"
-      actualLevel: "B"
-      failureType: null
-    - sampleId: "SAMPLE-P1-POLICY-003"
-      actualLevel: "C"
-      failureType: "CONTENT_FAILED"
-  verificationStatus: "VERIFIED"
-  closureDecision:
-    capability: "NetworkPolicyLayer"
-    status: "CLOSED"
-    reason: "Executable regression passed"
-  lastExecution:
-    environment: "macos_ci"
-    runId: "24200529880"
-    result: "pass"
-    totalTests: 117
-
-header_regression:
-  reportPath: "samples/reports/latest/header_regression_summary.yml"
-  executionMode: "executable"
-  coreCodeTouched: false
-  samples:
-    - sampleId: "SAMPLE-P1-HEADER-001"
-      actualLevel: "A"
-      failureType: null
-    - sampleId: "SAMPLE-P1-HEADER-002"
-      actualLevel: "A"
-      failureType: null
-    - sampleId: "SAMPLE-P1-HEADER-003"
-      actualLevel: "C"
-      failureType: "NETWORK_POLICY_MISMATCH"
-  verificationStatus: "VERIFIED"
-  closureDecision:
-    capability: "Header"
-    status: "CLOSED"
-    reason: "Executable verification passed: 3 header tests + 0 regressions"
-  lastExecution:
-    environment: "macos_ci"
-    runId: "24200529880"
-    result: "pass"
-    totalTests: 117
-
-error_mapping_regression:
-  reportPath: "samples/reports/latest/error_mapping_regression_summary.yml"
-  executionMode: "executable"
-  coreCodeTouched: false
-  samples:
-    - sampleId: "SAMPLE-P1-ERROR-001"
-      actualLevel: "A"
-      failureType: "CONTENT_FAILED"
-    - sampleId: "SAMPLE-P1-ERROR-002"
-      actualLevel: "A"
-      failureType: "CONTENT_FAILED"
-    - sampleId: "SAMPLE-P1-ERROR-003"
-      actualLevel: "A"
-      failureType: "RULE_INVALID"
-  verificationStatus: "CI_VERIFIED"
-  closureDecision:
-    capability: "ErrorMapping"
-    status: "CLOSED"
-    reason: "14/14 ErrorMappingTests passed on macOS-14 CI (run 24279408481)"
-  testFile: "Core/Tests/ReaderCoreNetworkTests/ErrorMappingTests.swift"
-  totalTests: 14
-  lastExecution:
-    environment: "macos_ci"
-    runId: "24279408481"
-    result: "pass"
-    totalTests: 14
-
-capability_status:
-  Header: CLOSED
-  Cache: CLOSED
-  Cookie: CLOSED
-  ErrorMapping: CI_VERIFIED_CLOSED
-  PolicyVerification: CI_VERIFIED_CLOSED
-  JSDomExecution: CLOSED
-  LoginBootstrap: CLOSED
-  CookieIsolation: CLOSED
-  AntiBot: OUT_OF_SCOPE
-  JSNetwork: OUT_OF_SCOPE
-
-policy_verification_regression:
-  reportPath: "samples/reports/latest/policy_regression_summary.yml"
-  executionMode: "executable"
-  coreCodeTouched: false
-  samples:
-    - sampleId: "SAMPLE-P1-POLICY-001"
-      actualLevel: "B"
-      failureType: null
-    - sampleId: "SAMPLE-P1-POLICY-002"
-      actualLevel: "B"
-      failureType: null
-    - sampleId: "SAMPLE-P1-POLICY-003"
-      actualLevel: "C"
-      failureType: "CONTENT_FAILED"
-  verificationStatus: "CI_VERIFIED"
-  closureDecision:
-    capability: "PolicyVerification"
-    status: "CLOSED"
-    reason: "9/9 PolicyVerificationTests passed on macOS-14 CI (run 24279408481)"
-  testFile: "Core/Tests/ReaderCoreNetworkTests/PolicyVerificationTests.swift"
-  totalTests: 9
-  lastExecution:
-    environment: "macos_ci"
-    runId: "24279408481"
-    result: "pass"
-    totalTests: 9
+freeze_gate:
+  status: READY_TO_FREEZE
+  evidence:
+    - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
+    - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
+  blockers: []
 
 state_sync:
   required_files:
@@ -415,32 +240,15 @@ state_sync:
     - 不允许保留已完成任务在 OPEN_TASKS
     - 不允许出现历史状态与当前状态冲突
     - 三份文件必须保持内容一致
+    - 当前主仓长期状态不得继续混写 iOS phase/gate
 
 change_scope:
-  this_update: phase2_strategy_recalibration
+  this_update: reader_ios_bootstrap_preparation
   samples_changed: false
   compat_matrix_changed: false
   failure_taxonomy_changed: false
   core_code_touched: false
-  error_mapping_open: false
-  core_stabilization_audit_passed: true
-  adapter_validation_recorded: true
-  adapter_validation_platform: macOS
-  adapter_hardening_recorded: true
-  platform_ui_touched: false
-  platform_feature_touched: false
-  adapters_protocols_defined: true
-  shell_directories_added: true
-  freeze_gate_status: "READY_TO_FREEZE"
-  freeze_gate_evidence:
-    - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
-    - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
-  freeze_gate_blockers: []
-  active_milestone: m_ios_10
-  active_milestone_status: in_progress
-  new_docs_created:
-    - docs/API_SNAPSHOT/Core_Public_API.md
-    - docs/API_SNAPSHOT/Core_Module_Dependency.md
-    - docs/FIXTURE_INFRA_SPEC.md
-    - docs/TOOLING_BACKLOG.md
-  clean_room_statement: "本轮仅新增 iOS Reader UX foundation 最小视图层、状态驱动呈现模型、附加 UX validation 步骤，并应用第一阻断点修复；验证链路基于仓库内 samples/booksources、samples/fixtures、samples/expected 与现有 Shell/CoreIntegration 装配，不修改 Core frozen contract、不扩展 capability、不修改 compat_matrix / failure_taxonomy，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  ios_code_touched: false
+  workflows_changed: false
+  status_docs_changed: true
+  clean_room_statement: "本轮仅执行仓库拆解规划、状态治理回写与边界重构说明，依据本仓库目录结构、现有 docs、samples、workflow 与真实执行证据整理，不修改 Core frozen contract，不删除历史执行证据，不引入外部 GPL 代码，不引用 Legado Android 实现。"
