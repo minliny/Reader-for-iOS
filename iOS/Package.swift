@@ -29,12 +29,12 @@ let package = Package(
         .target(
             name: "ReaderShellValidation",
             dependencies: [
-                .product(name: "ReaderCoreFoundation", package: "ReaderCore"),
-                .product(name: "ReaderCoreModels", package: "ReaderCore"),
-                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
-                .product(name: "ReaderCoreParser", package: "ReaderCore"),
-                .product(name: "ReaderCoreNetwork", package: "ReaderCore"),
-                .product(name: "ReaderPlatformAdapters", package: "ReaderCore")
+                .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
+                .product(name: "ReaderCoreModels", package: "Reader-Core"),
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
+                .product(name: "ReaderCoreParser", package: "Reader-Core"),
+                .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
+                .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
             ],
             path: ".",
             exclude: [
@@ -53,11 +53,11 @@ let package = Package(
             name: "ReaderApp",
             dependencies: [
                 "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "ReaderCore"),
-                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
-                .product(name: "ReaderCoreParser", package: "ReaderCore"),
-                .product(name: "ReaderCoreNetwork", package: "ReaderCore"),
-                .product(name: "ReaderPlatformAdapters", package: "ReaderCore")
+                .product(name: "ReaderCoreModels", package: "Reader-Core"),
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
+                .product(name: "ReaderCoreParser", package: "Reader-Core"),
+                .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
+                .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
             ],
             path: ".",
             exclude: [
@@ -75,10 +75,10 @@ let package = Package(
             name: "ShellSmokeTests",
             dependencies: [
                 "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "ReaderCore"),
-                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
-                .product(name: "ReaderCoreParser", package: "ReaderCore"),
-                .product(name: "ReaderCoreNetwork", package: "ReaderCore")
+                .product(name: "ReaderCoreModels", package: "Reader-Core"),
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
+                .product(name: "ReaderCoreParser", package: "Reader-Core"),
+                .product(name: "ReaderCoreNetwork", package: "Reader-Core")
             ],
             path: "Tests/ShellSmokeTests"
         ),
@@ -87,10 +87,10 @@ let package = Package(
             dependencies: [
                 "ReaderApp",
                 "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "ReaderCore"),
-                .product(name: "ReaderCoreProtocols", package: "ReaderCore"),
-                .product(name: "ReaderCoreParser", package: "ReaderCore"),
-                .product(name: "ReaderCoreNetwork", package: "ReaderCore")
+                .product(name: "ReaderCoreModels", package: "Reader-Core"),
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
+                .product(name: "ReaderCoreParser", package: "Reader-Core"),
+                .product(name: "ReaderCoreNetwork", package: "Reader-Core")
             ],
             path: "Tests/ReaderUXFoundationTests"
         )
