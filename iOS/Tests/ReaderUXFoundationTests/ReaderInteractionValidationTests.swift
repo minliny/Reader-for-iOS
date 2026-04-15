@@ -227,9 +227,12 @@ private struct ExpectedContentPayload: Decodable {
 }
 
 private func repositoryRootURL() -> URL {
+    // Post-split: samples live in the sibling Reader-Core repository.
     URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
+        .deletingLastPathComponent()  // ReaderUXFoundationTests/
+        .deletingLastPathComponent()  // Tests/
+        .deletingLastPathComponent()  // iOS/
+        .deletingLastPathComponent()  // Reader-iOS repo root
+        .deletingLastPathComponent()  // parent directory
+        .appendingPathComponent("Reader-Core")
 }

@@ -51,7 +51,7 @@ public struct ReaderSessionSummaryView: View {
             .padding(.top, 4)
         }
         .padding(20)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .background(Color.platformSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
     }
