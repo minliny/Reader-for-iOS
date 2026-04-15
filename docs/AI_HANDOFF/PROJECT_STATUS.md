@@ -168,11 +168,83 @@ dual_repo_consistency_complete: true
 - Reader-Core 远端：https://github.com/minliny/Reader-Core，commit b4dffc4，tag 0.1.0
 - Reader-iOS 依赖：`../Reader-Core` (local)，canonical: `https://github.com/minliny/Reader-Core.git`
 
+## CI 验证状态（2026-04-15 — 全量绿，burn-down complete）
+
+```yaml
+core_stabilization_blocker_burn_down_status: core_stabilization_blocker_burn_down_complete
+reader_core_swift_tests_last_run_id: "24455327984"
+reader_core_swift_tests_last_conclusion: success
+reader_core_swift_tests_run_date: "2026-04-15"
+reader_core_swift_tests_failing_count: 0
+reader_core_swift_tests_runner: macos-14
+cluster_a_js_dom_bridge_tests: CLOSED (7/7 passing)
+cluster_b_js_integration_tests: CLOSED (3/3 passing)
+cluster_c_login_bootstrap_tests: CLOSED (all passing)
+cluster_d_network_policy_tests: CLOSED (all passing)
+```
+
+### 本轮修复记录（CORE_JS_DOM_BRIDGE_CONTRACT_COMPLETION）
+
+**根因：** `domPolyfillScript` IIFE 含 `"use strict"`，严格模式下 IIFE 内 `this` 为 `undefined`，
+导致 `this.document = {…}` 抛出 TypeError，JSRuntime 触发 fallback 返回原始 HTML，
+全部 Cluster A/B 测试均得到未经处理的原始 HTML 输出。
+
+**修复：**
+- `JSRuntimeDOMBridge.swift`：将 `this.document = {` 替换为 `globalThis.document = {`
+  — commit `243ef12` (Reader-Core main)
+- `JSIntegrationTests.swift`：修正 TOC 测试 fixture，`<li>` 元素改为仅含 chapter title
+  （原 `Chapter 1|/ch/1` 导致 `-ok` 被追加到 URL 部分而非 title 部分）
+  — commit `1d75720` (Reader-Core main)
+
+**Cluster A/B 收敛结果：**
+
+| Run | 失败数 | Cluster A | Cluster B | Groups C+D |
+|-----|--------|-----------|-----------|------------|
+| 24452819385 (修复前) | 12 | 7 failing | 3 failing | 2 failing |
+| 24453337742 (修复 A) | 3 | 0 failing ✅ | 1 failing | 2 failing |
+| 24453443546 (修复 B) | 2 | 0 failing ✅ | 0 failing ✅ | 2 failing |
+
+### 修复记录（CORE_LOGIN_COOKIE_BLOCKER_BURN_DOWN — 2026-04-15）
+
+#### Group C 修复：LoginBootstrapService.swift — commit `e803b8d`
+`execute()` 在发送 verificationRequest 前，新增对 submit 响应的 failure marker 检查。
+submit body 含 "Invalid password." 时立即 abort，不再消耗 verification 槽位，
+避免后续 scope 的 mock 响应全部偏移一位。
+
+#### Group D 修复：BasicCookieJar.swift — commit `e803b8d`
+`getCookies(for:path:scopeKey:)` 在 scoped lookup 返回空时，fallback 到 `.default` scope，
+使通过 `layer.send()`（无 scopeKey）存入的 bootstrap cookie 对后续 `performSearch` 可见。
+
+## M-IOS-1: iOS Shell CI 全绿（2026-04-16）
+
+```yaml
+m_ios_1_status: complete
+m_ios_1_ci_run_id: "24465449786"
+m_ios_1_ci_conclusion: success
+m_ios_1_ci_run_date: "2026-04-16"
+m_ios_1_branch: claude/lucid-poincare
+```
+
+**修复记录（本轮 — M-IOS-1）：**
+
+| Commit | 说明 |
+|--------|------|
+| `fe67685` | fix(ci+tests): correct Reader-Core path — sibling to iOS/, not to repo root |
+| `5e8cd53` | fix(ios): use package identity 'Reader-Core' matching SwiftPM path-based resolution |
+| `b4313af` | fix(tests): add missing ReaderShellValidation import to ReaderPresentationValidationTests |
+
+**根因：**
+1. CI `actions/checkout@v4` 禁止 workspace 外路径 → 改用 `git clone Reader-Core`（在 workspace 内，与 `iOS/` 同级）
+2. SwiftPM 本地 path dependency 以路径最后一段作为 package identity（`Reader-Core`），而非 Package.swift 中的 `name`（`ReaderCore`） → 全量替换为 `package: "Reader-Core"`
+3. `ReaderPresentationValidationTests.swift` 缺失 `import ReaderShellValidation` → 添加缺失 import
+
+**验收状态：** ios-shell-ci 全部 8 个测试步骤 ✅ 通过
+
 ## 下一步任务
 
-- 触发 Reader-iOS ios-shell-ci 验证依赖解析
-- 触发 Reader-Core core-swift-tests 验证 Core 独立运行
 - 将 Reader-for-iOS 仓重命名为 Reader-iOS（GitHub 仓库设置）
+- RS-005-FU-01: 发布 Reader-Core 正式 Swift Package tag（已有 0.1.0，可增量 patch）
+- RS-005-FU-02: 更新 Reader-iOS Package.swift 切换到 URL-based 依赖
 
 ## Clean-Room 状态
 

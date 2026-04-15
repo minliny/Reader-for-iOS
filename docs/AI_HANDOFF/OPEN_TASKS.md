@@ -6,17 +6,18 @@
 
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
-| RS-001 | Reader-Core / Reader-iOS Logical Split | in_progress | P0 | 无 | 状态文件继续混写 Core / iOS 主线 | 边界、迁移清单、依赖方向、治理规则已固化到状态文档 | yes |
+| RS-001 | Reader-Core / Reader-iOS Logical Split | complete | P0 | 无 | 状态文件继续混写 Core / iOS 主线 | 边界、迁移清单、依赖方向、治理规则已固化到状态文档 | yes |
 | RS-002 | Docs Split And Re-anchor | complete | P0 | RS-001 | iOS gate 文档继续污染 Core 状态 | Core docs / iOS docs / split docs 清单明确，主仓状态文件去除 iOS phase 主线叙事 | yes |
 | RS-003 | Workflow Ownership Split | complete | P0 | RS-001 | CI 归属不清导致拆仓后 gate 失效 | Core workflow 保留清单、iOS workflow 迁移清单、拆仓后 patch 项明确 | yes |
 | RS-004 | Reader-iOS Repo Bootstrap Preparation | complete | P1 | RS-001 + RS-003 | 物理拆仓时依赖、tag、checkout 方案不完整 | 新仓初始化输入清单、包依赖与版本策略明确 | yes |
 | RS-005 | Physical Repo Split Execution | complete (2026-04-14) | P1 | RS-001 + RS-002 + RS-003 + RS-004 | 历史执行证据丢失或路径失效 | Reader-iOS 新仓建立、iOS 目录/文档/workflow 迁移、Core 依赖切换完成 | yes |
+| M-IOS-1 | Reader-iOS Shell Development — ios-shell-ci 全绿 | complete (2026-04-16) | P1 | RS-005 | SwiftPM identity 错误、CI checkout 路径限制、缺失 import | ios-shell-ci 全部步骤绿，CI run 24465449786 ✅ | yes |
 
 ## 当前待办列表
 
 ### RS-001: Reader-Core / Reader-iOS Logical Split
 
-- 状态：`in_progress`
+- 状态：`complete`
 - 优先级：`P0`
 - 目标：
   - 明确 Reader-Core 与 Reader-iOS 的长期职责
@@ -104,6 +105,41 @@
 - RS-005-FU-02: 更新 Reader-iOS Package.swift 切换到 URL-based 依赖（移除 local path）
 - RS-005-FU-03: 更新 Reader-iOS ios-shell-ci 移除 symlink workaround
 - RS-005-FU-04: 将 Reader-for-iOS 仓重命名为 Reader-Core（需 GitHub repo settings）
+
+### CORE_STABILIZATION_BLOCKER_BURN_DOWN
+
+**状态：`core_stabilization_blocker_burn_down_complete` ✅**
+
+### 执行历史
+
+| Run ID | 时间 | 失败数 | 说明 |
+|--------|------|--------|------|
+| `24452819385` | 2026-04-15 | 12 | 修复前基线 |
+| `24453337742` | 2026-04-15 | 3 | `globalThis.document` 修复后：Cluster A 全清 |
+| `24453443546` | 2026-04-15 | 2 | TOC fixture 修复后：Cluster B 全清 |
+
+### 已关闭（Cluster A — JSRuntimeDOMBridgeTests，7 条）✅
+
+根因（已修复）：`domPolyfillScript` 严格模式 IIFE 中 `this` 为 `undefined`，
+`this.document = {…}` 抛出 TypeError，全部测试收到 fallback HTML。
+修复：`globalThis.document = {…}` — commit `243ef12`（Reader-Core main）
+
+### 已关闭（Cluster B — JSIntegrationTests，3 条）✅
+
+同上（polyfill 不加载导致），+ TOC fixture 修正（`Chapter 1|/ch/1` → `Chapter 1`）
+— commit `1d75720`（Reader-Core main）
+
+### 已关闭所有 Blocker — CI run `24455327984` 全绿 ✅
+
+| Run ID | 失败数 | 说明 |
+|--------|--------|------|
+| `24452819385` | 12 | 初始基线 |
+| `24453443546` | 2 | Cluster A/B 修复后 |
+| `24455327984` | **0** | Groups C+D 修复后 — **全绿** |
+
+**完成条件已满足：**
+- Reader-Core core-swift-tests macOS-14 全量测试 green（0 failing）
+- OPEN_TASKS / PROJECT_STATUS 已回写 `core_stabilization_blocker_burn_down_complete`
 
 ## 已完成事实，不得继续保留为待办
 
