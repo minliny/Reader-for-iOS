@@ -233,6 +233,5 @@ private func repositoryRootURL() -> URL {
         .deletingLastPathComponent()  // Tests/
         .deletingLastPathComponent()  // iOS/
         .deletingLastPathComponent()  // Reader-iOS repo root
-        .deletingLastPathComponent()  // parent directory
         .appendingPathComponent("Reader-Core")
 }

@@ -31,13 +31,15 @@ jobs:
       - name: Checkout Reader-iOS repository
         uses: actions/checkout@v4
 
-      - name: Checkout Reader-Core (sibling, for local path dependency)
+      - name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
         shell: bash
         run: |
-          # actions/checkout@v4 forbids paths outside $GITHUB_WORKSPACE.
-          # Use git clone directly to place Reader-Core as a sibling of the
-          # Reader-iOS checkout, matching the iOS/Package.swift local path dep.
-          git clone --depth 1 https://github.com/minliny/Reader-Core.git ../Reader-Core
+          # iOS/Package.swift: .package(path: "../Reader-Core")
+          # Path is relative to the iOS/ directory, so Reader-Core must land at
+          # <workspace>/Reader-Core (sibling of iOS/ within the checkout).
+          # actions/checkout@v4 forbids paths outside $GITHUB_WORKSPACE, so we
+          # use git clone which writes to the path relative to $GITHUB_WORKSPACE.
+          git clone --depth 1 https://github.com/minliny/Reader-Core.git Reader-Core
 
       - name: Protect iOS Shell boundary
         shell: bash
