@@ -1,6 +1,7 @@
 import XCTest
 import Foundation
 @testable import ReaderApp
+import ReaderShellValidation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreParser
