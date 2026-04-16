@@ -3,44 +3,36 @@
 ## 当前唯一可信主线
 
 - 分支：`main`
-- 仓库角色：`Reader-Core transition host`
-- 当前主线：`split-era governance / reader-ios bootstrap preparation`
+- 仓库角色：`Reader-iOS 主仓`
+- 当前主线：`post-split stabilization audit / boundary and CI hardening`
 
 ## 当前 handoff 语义
 
-- 本仓当前不继续推进新的 iOS feature phase。
-- iOS 资产仍在仓内，但归属语义为 `pending migration to future Reader-iOS repo`。
-- Core frozen contract 继续由当前主仓维护。
-- 当前 active handoff 面向 RS-* 治理任务，不再面向任何 pre-split iOS feature phase。
-- 当前 active handoff 已进入 `RS-004 Reader-iOS Bootstrap Preparation`。
+- 当前任务不是继续拆仓，而是验证拆仓后双仓是否真正稳定。
+- 本仓只允许处理：
+  - 审计
+  - split 后结构/依赖/CI/文档问题修复
+  - boundary gate / governance 加固
+- 不允许：
+  - 新功能开发
+  - Core 业务逻辑修改
+  - 扩 scope
 
 ## 下一步
 
-- RS-004 Reader-iOS Bootstrap Preparation
-- RS-005 Physical Repo Split Execution
+- 修复 Reader-Core standalone CI failures
+- 评审 Reader-iOS remote package dependency 切换窗口
+- 维持 Reader-iOS boundary gate 与 docs semantics 稳态
 
-## Reader-iOS Bootstrap Entry
+## Active Handoff Entry
 
-- `docs/READER_IOS_BOOTSTRAP_PLAN.md`
-- `docs/READER_IOS_DEPENDENCY_BOOTSTRAP.md`
-- `docs/READER_IOS_MIGRATION_MANIFEST.md`
-- `docs/READER_IOS_REPO_INIT_CHECKLIST.md`
+- `docs/PROJECT_STATE_SNAPSHOT.yaml`
 - `docs/AI_HANDOFF/PROJECT_STATUS.md`
 - `docs/AI_HANDOFF/OPEN_TASKS.md`
-
-## Split Preconditions Already Frozen
-
-- `RS-002 Docs Split = PASS`
-- `RS-003 Workflow Split = PASS`
-- 当前任何 iOS 变更仅服务于 split/bootstrap，不得扩张为新的 iOS feature mainline。
-
-## Legacy Prompt Policy
-
-- legacy prompt 仅允许存在于 archive-only 区域
-- active handoff 不得引用 archive prompt 内容或旧阶段标记
+- `docs/POST_SPLIT_STABILIZATION_AUDIT.md`
 
 ## Clean-Room
 
-- 本轮仅做 prompt governance cleanup 与 split-era handoff 收敛
+- 本轮仅做 post-split stabilization audit 与结构/CI/文档/边界加固
 - 未引入外部 GPL 代码
 - 未复制、翻译或改写 Legado Android 源码

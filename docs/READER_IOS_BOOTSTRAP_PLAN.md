@@ -10,10 +10,10 @@
 - 当前使用时机：`RS-004 Reader-iOS Bootstrap Preparation`
 - 后续执行时机：`RS-005 Physical Repo Split Execution`
 
-## Future Destination
+## Historical Status
 
-- future destination: `Reader-iOS/docs/READER_IOS_BOOTSTRAP_PLAN.md`
-- 当前状态：`still located here in Reader-Core transition host`
+- future destination 已执行：`Reader-iOS/docs/READER_IOS_BOOTSTRAP_PLAN.md`
+- 当前状态：`historical split record retained in Reader-iOS repo`
 
 ## Bootstrap Scope
 

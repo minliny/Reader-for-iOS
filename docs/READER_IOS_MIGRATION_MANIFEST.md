@@ -9,10 +9,10 @@
 - 当前使用时机：`RS-004`
 - 实际执行时机：`RS-005`
 
-## Future Destination
+## Historical Status
 
-- future destination: `Reader-iOS/docs/READER_IOS_MIGRATION_MANIFEST.md`
-- 当前状态：`migration prep asset in Reader-Core transition host`
+- future destination 已执行：`Reader-iOS/docs/READER_IOS_MIGRATION_MANIFEST.md`
+- 当前状态：`historical split record retained in Reader-iOS repo`
 
 ## Code To Move
 

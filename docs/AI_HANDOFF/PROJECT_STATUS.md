@@ -3,189 +3,62 @@
 ## 项目定义
 
 - 当前仓库名：`Reader-for-iOS`
-- 当前仓库过渡角色：`Reader-Core transition host`
-- 目标主仓身份：`Reader-Core`
-- 目标独立仓身份：`Reader-iOS`
-- 当前主线：`repo split governance / reader-ios bootstrap preparation`
-- 当前阶段：`repo_split_execution_phase_a`
-- 当前是否允许继续推进新的 iOS feature：`no`
-- 判断原因：本轮只做 Reader-iOS bootstrap preparation、依赖接入设计、初始化文档与迁移前置清单；不新增 iOS feature scope。
+- 当前仓库角色：`Reader-iOS 主仓`
+- 依赖上游仓：`Reader-Core`
+- 当前主线：`post-split stabilization audit`
+- 当前阶段：`post_split_stabilization_audit`
+- 当前是否允许继续推进新功能：`no`
+- 判断原因：本轮只允许审计、split 后结构/依赖/CI/文档修复与 boundary gate 加固。
 
-## 为什么现在必须拆仓
+## 当前审计批次
 
-- Core compatibility kernel 已完成核心冻结与 freeze gate 验证，已经具备独立仓长期演进条件。
-- iOS shell 已累积独立 phase、独立 workflow、独立远端执行证据，继续放在同一主仓会持续污染 Core 主线语义。
-- 当前状态文件同时维护 Core closure 与 iOS phase/gate，导致“仓库职责”“CI 归属”“下一步任务”长期漂移。
-- Reader-iOS 不应反向拥有 Core 实现控制权；它应只消费 Reader-Core 暴露的 package/product。
+### Batch 1: Reader-Core 独立性验证
 
-## 当前真实边界
+- fresh clone：`complete`
+- 独立 Package.swift：`present`
+- 最新 GitHub Actions core-swift-tests：`failure`
+- 结论：Reader-Core 尚未达到独立 green 稳态
 
-### Reader-Core
+### Batch 2: Reader-iOS 依赖策略审计
 
-- 职责：兼容内核、sample/fixture/expected/matrix、regression、policy、parser、network、cache、cookie、login bootstrap、tooling/debug/fixture CLI。
-- 当前天然归属路径：
-  - `Core/**`
-  - `samples/**`
-  - `tools/**`
-  - `scripts/**` 中 Core 通用脚本
-  - `docs/API_SNAPSHOT/**`
-  - `docs/FIXTURE_INFRA_SPEC.md`
-  - `docs/TOOLING_BACKLOG.md`
-  - `docs/decision_engine/**`
-  - `docs/process/**`
-  - `docs/architecture/**`
-- 持续 gate：
-  - `core-swift-tests.yml`
-  - `fixture-toc-regression-macos.yml`
-  - `policy-regression-macos.yml`
-  - `sample001-nonjs-smoke.yml`
-  - `sample-cookie-001-isolation.yml`
-  - `sample-cookie-002-isolation.yml`
-  - `sample-login-001-isolation.yml`
-  - `sample-login-002-isolation.yml`
-  - `sample-login-003-isolation.yml`
-  - `auto-sample-extractor.yml`（后续需去掉历史分支绑定）
+- 当前模式：`path dependency`
+- 依赖方向：`Reader-iOS -> Reader-Core public package/products only`
+- 结论：方向正确，但 path dependency 不适合作为长期 canonical mode
 
-### Reader-iOS
+### Batch 3: Boundary Gate 加固
 
-- 职责：iOS app shell、composition root、core integration glue、reader UX / interaction / navigation / session / presentation 验证。
-- 当前天然归属路径：
-  - `iOS/**`
-  - `docs/IOS_PHASE_GATE_REVIEW.md`
-  - `docs/ios_gate_remediation_result.yml`
-  - `docs/ios_shell_ci_gate.yml`
-  - `docs/ios_architecture_remediation_plan.yml`
-  - `docs/ios_boundary_violations.yml`
-  - `.github/workflows/ios-shell-ci.yml`
-  - `scripts/check_ios_boundary.sh`
-- 持续 gate：
-  - `ios-shell-ci`
-  - shell smoke
-  - functional validation
-  - hardening validation
-  - UX / interaction / session / navigation / presentation validation
+- `scripts/check_ios_boundary.sh`：`patched`
+- 新增校验：
+  - forbidden root paths
+  - forbidden core workflows
+  - forbidden core docs
+  - legacy local Core path references
 
-## 当前仓库后续如何推进
+### Batch 4: Docs Semantic Audit
 
-### Phase A: Logical Split
+- 发现：当前仓仍残留 `Reader-Core transition host` 语义
+- 处理：主状态文档、handoff、prompt governance、docs split index 已回写为 Reader-iOS 主仓语义
 
-- 在当前仓库内先完成状态语义切换：主仓视角改写为 Reader-Core。
-- 固化目录归属、文档迁移清单、workflow 拆分清单、依赖与版本策略。
-- 保留全部 iOS 历史执行证据，但从“主仓当前 phase”降级为“待迁移 Reader-iOS 资产”。
+### Batch 5: CI Audit
 
-### RS-004: Reader-iOS Bootstrap Preparation
-
-- 当前目标：输出 Reader-iOS 独立仓初始化蓝图、依赖接入方案、bootstrap 文档与迁移 checklist。
-- 当前不做：physical split、Reader-iOS 新仓真实创建、iOS feature 扩张。
-- bootstrap 完成条件：
-  - Reader-iOS repo skeleton 明确
-  - Reader-Core public products 接入方案明确
-  - 首批代码/docs/workflow/script 迁移清单明确
-  - RS-005 可直接按 checklist 执行
-
-### Phase B: Physical Split
-
-- 新建 `Reader-iOS` 仓库。
-- 迁移 `iOS/**`、iOS docs、`ios-shell-ci` workflow、边界脚本。
-- Reader-iOS 改为通过 Swift Package 依赖 Reader-Core public products。
-- Reader-Core 主仓仅保留 Core/sample/regression/tooling/docs mainline。
-
-## 当前事实基线
-
-### 已闭环样本
-
-- `sample_js_runtime_001`
-- `sample_js_runtime_002`
-- `sample_004`
-- `sample_005`
-- `sample_001` / `sample_002` / `sample_003`
-- `SAMPLE-P1-HEADER-001` / `002` / `003`
-- `SAMPLE-P1-COOKIE-001` / `002` / `003`
-- `SAMPLE-P1-CACHE-001` / `002` / `003`
-- `SAMPLE-P1-ERROR-001` / `002` / `003`
-- `SAMPLE-P1-POLICY-001` / `002` / `003`
-- `sample_header_001` / `002` / `003`
-- `sample_cookie_001` / `002`
-- `sample_login_001` / `002` / `003`
-- `sample_js_001`
-- `css_executor_selector_semantics_contract`
-- `fixture_toc_selector_miss` / `title_rule_miss` / `url_rule_miss` / `count_mismatch` / `non_selector_error`
-- `toc_item_invalid_url_contract` / `http_client_invalid_url_contract`
-- `SAMPLE-P1-COOKIE-WENSANG-001` / `XIANGSHU-001` / `XUANYGE-001`
-
-### 已成熟能力
-
-- CI 执行
-- artifact 产出
-- regression 回写
-- writeback 审核
-- compat_matrix 审计吸收
-- Header (CLOSED)
-- Cookie (CLOSED)
-- Cache (CLOSED)
-- ErrorMapping (CI_VERIFIED_CLOSED)
-- PolicyVerification (CI_VERIFIED_CLOSED)
-- JSDomExecution (CLOSED)
-- LoginBootstrap (CLOSED)
-- CookieIsolation (CLOSED)
-
-### 当前未覆盖能力
-
-- 无
-
-### 当前 OUT_OF_SCOPE
-
-- AntiBot (ROI NEGATIVE — 需 WKWebView，与沙箱模型不兼容)
-- JSNetwork (ROI NEGATIVE — 开启 fetch/XHR 破坏 networkLockdown 安全保证)
+- Reader-Core 最新 `Reader Core Swift Tests`：`failure`
+- Reader-iOS 最新 `iOS Shell CI`：`failure`
+- Reader-iOS 阻断原因：checkout path 在 workspace 之外
+- 处理：本仓 workflow 已改为 `path: Reader-Core`
 
 ## 最近一次动作
 
-- 已完成：Reader-Core / Reader-iOS split planning，并回写状态文件与治理规则。
-- 已保留：全部 iOS gate / run evidence，历史指针保留于本仓，主线归属已迁移至 Reader-iOS。
-- 已完成：Prompt Governance Cleanup，active prompt set 已切换到 split-era，legacy prompt 已归档到 `archive/prompts/legacy/`。
-- 已完成：RS-002 Docs Split。
-- 已完成：RS-003 Workflow Split。
-- 已完成：RS-004 Reader-iOS Bootstrap Preparation。
-- 已完成：RS-005 Physical Repo Split Execution（2026-04-14）。
-  - Reader-iOS 独立仓已建立：`../Reader-iOS`
-  - iOS 代码/docs/workflows/scripts 已迁移
-  - iOS/Package.swift 依赖已切换至独立 Core 路径
-  - Reader-Core 主仓 iOS 资产保留历史指针
+- 已完成：`Post-Split Stabilization Audit`
+- 已完成：Reader-iOS `ios-shell-ci` checkout path 修复
+- 已完成：Reader-iOS boundary gate 加固
+- 已完成：Reader-iOS 状态文档去除 transition-host 漂移
 
-## 当前状态（Core Asset Migration 完成 2026-04-15）
+## 下一步唯一最优任务
 
-```yaml
-current_repo_role: Reader-iOS
-reverse_split_bootstrap_complete: true
-core_asset_migration_complete: true
-current_repo_role_switched_to_reader_ios: true
-dual_repo_consistency_complete: true
-```
-
-- 本仓保留资产：iOS/**、scripts/check_ios_boundary.sh、.github/workflows/ios-shell-ci.yml、iOS docs/handoff
-- 本仓已移除：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、10 Core workflows、Core docs
-- 远端：https://github.com/minliny/Reader-for-iOS（TODO: 改名为 Reader-iOS）
-- Reader-Core 远端：https://github.com/minliny/Reader-Core，commit b4dffc4，tag 0.1.0
-- Reader-iOS 依赖：`../Reader-Core` (local)，canonical: `https://github.com/minliny/Reader-Core.git`
-
-## 下一步任务
-
-- 触发 Reader-iOS ios-shell-ci 验证依赖解析
-- 触发 Reader-Core core-swift-tests 验证 Core 独立运行
-- 将 Reader-for-iOS 仓重命名为 Reader-iOS（GitHub 仓库设置）
+- 在 Reader-Core 仓修复 standalone CI/test failure
+- 评审并执行 Reader-iOS remote dependency 切换
 
 ## Clean-Room 状态
 
 - Clean-room maintained: `yes`
 - External GPL code copied: `no`
-- 本轮仅依据仓库内目录、文档、workflow 与已有执行证据整理边界，不修改 Core frozen contract，不搬运外部实现。
-
-## Prompt Governance 状态
-
-- active prompt set:
-  - `AGENTS.md`
-  - `docs/PROMPT_GOVERNANCE.md`
-  - `docs/PROJECT_CONTEXT_PROMPT.md`
-  - `docs/AI_HANDOFF.md`
-- legacy prompt archive: `archive/prompts/legacy/`
-- pre-split iOS feature prompts: `forbidden in active governance`

@@ -129,11 +129,10 @@ lockdown:
 
 ```yaml
 project:
-  current_repo_role: Reader-Core transition host
-  current_host_repo_should_converge_to: Reader-Core
-  future_independent_repo: Reader-iOS
-  mainline: split-era governance and boundary convergence
-  phase: repo_split_execution_phase_a
+  current_repo_role: Reader-iOS
+  upstream_core_repo: Reader-Core
+  mainline: post_split_stabilization_audit
+  phase: post_split_stabilization_audit
 
 closed_samples:
   - sample_js_runtime_001
@@ -181,26 +180,14 @@ out_of_scope_capabilities:
   - JSNetwork (ROI NEGATIVE)
 
 ios_gate:
-  allowed: false
-  decision: PENDING_MIGRATION
+  allowed: true
+  decision: READER_IOS_MAINLINE
   review_doc: docs/IOS_PHASE_GATE_REVIEW.md
   remediation_doc: docs/ios_gate_remediation_result.yml
-  split_policy:
-    current_host_repo_role: Reader-Core transition host
-    target_core_repo: Reader-Core
-    target_ios_repo: Reader-iOS
-    planning_complete: true
-    logical_split_complete: false
-    physical_split_complete: false
-    dependency_direction: "Reader-iOS -> Reader-Core public package/products only"
-    retained_ios_evidence:
-      - docs/IOS_PHASE_GATE_REVIEW.md
-      - docs/ios_gate_remediation_result.yml
-      - docs/ios_shell_ci_gate.yml
-      - .github/workflows/ios-shell-ci.yml
+  dependency_direction: "Reader-iOS -> Reader-Core public package/products only"
 
-recent_completed_action: "Prompt governance cleanup and split-era active prompt reconstruction."
-next_best_task: "Continue logical split execution, then docs/workflow split."
+recent_completed_action: "Reverse split / Core Asset Migration completed; post-split stabilization audit in progress."
+next_best_task: "Stabilize dual-repo CI and retire Reader-iOS path dependency."
 freeze_gate_status: "READY_TO_FREEZE"
 ```
 
