@@ -11,22 +11,59 @@ public struct ContentView: View {
         self.chapter = chapter
     }
 
-    public var body: some View {
-        let uxState = ReaderUXFoundationState(coordinator: coordinator, chapter: chapter)
+    private var surfaceKind: ContentSurfaceKind {
+        if coordinator.isLoading {
+            return .loading
+        }
+        if coordinator.currentError != nil {
+            return .error
+        }
+        if coordinator.contentPage != nil {
+            return .content
+        }
+        return .empty
+    }
 
+    private var stageTitle: String {
+        if coordinator.isLoading {
+            return "正文加载中"
+        }
+        if coordinator.currentError != nil {
+            return "正文加载失败"
+        }
+        if coordinator.contentPage != nil {
+            return "正文已加载"
+        }
+        return "等待加载正文"
+    }
+
+    private var stageDetail: String {
+        if coordinator.isLoading {
+            return "正在获取章节内容..."
+        }
+        if let error = coordinator.currentError {
+            return error.message
+        }
+        if coordinator.contentPage != nil {
+            return coordinator.contentPage?.title ?? ""
+        }
+        return "暂无正文内容"
+    }
+
+    public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                if uxState.surfaceKind != .content {
+                if surfaceKind != .content {
                     ReaderStatusCardView(
                         eyebrow: "阅读阶段",
-                        title: uxState.stageTitle,
-                        subtitle: uxState.stageDetail,
-                        items: contextItems(for: uxState)
+                        title: stageTitle,
+                        subtitle: stageDetail,
+                        items: contextItems()
                     )
                     .padding(.bottom, 8)
                 }
 
-                switch uxState.surfaceKind {
+                switch surfaceKind {
                 case .loading:
                     LoadingView(message: "加载正文...")
                         .frame(maxWidth: .infinity, minHeight: 240)
@@ -42,23 +79,24 @@ public struct ContentView: View {
                     }
 
                 case .content:
-                    if let title = uxState.contentTitle, let bodyText = uxState.contentBody {
+                    if let contentPage = coordinator.contentPage {
                         ReaderContentSectionView(
-                            title: title,
-                            bodyText: bodyText,
-                            bookTitle: uxState.bookTitle,
-                            sourceName: uxState.sourceName
+                            title: contentPage.title,
+                            bodyText: contentPage.content,
+                            bookTitle: coordinator.selectedBook?.title,
+                            sourceName: coordinator.selectedSource?.bookSourceName
                         )
 
                         VStack(spacing: 12) {
-                            if let chapterIndex = uxState.chapterIndex, uxState.chapterCount > 0 {
-                                ReaderProgressSurfaceView(
-                                    chapterIndex: chapterIndex,
-                                    chapterCount: uxState.chapterCount,
-                                    progressPercentage: uxState.progressPercentage ?? 0
-                                )
-                            }
-                            
+                            let currentIndex = coordinator.tocItems.firstIndex(where: { $0.chapterURL == chapter.chapterURL }) ?? 0
+                            let totalCount = coordinator.tocItems.count
+
+                            ReaderProgressSurfaceView(
+                                chapterIndex: currentIndex,
+                                chapterCount: totalCount,
+                                progressPercentage: totalCount > 0 ? Double(currentIndex) / Double(totalCount) : 0
+                            )
+
                             ReaderStageActionBar(
                                 onPrevious: previousChapterAction,
                                 onNext: nextChapterAction,
@@ -69,7 +107,7 @@ public struct ContentView: View {
                     }
 
                 case .empty:
-                    emptyState(uxState)
+                    emptyState
                 }
             }
             .padding(20)
@@ -84,10 +122,10 @@ public struct ContentView: View {
         }
     }
 
-    private func emptyState(_ uxState: ReaderUXFoundationState) -> some View {
+    private var emptyState: some View {
         ReaderEmptyStateView(
             title: "暂无正文",
-            message: uxState.stageDetail,
+            message: stageDetail,
             systemImage: "doc.text",
             actionTitle: "重新加载正文"
         ) {
@@ -118,28 +156,33 @@ public struct ContentView: View {
         }
     }
 
-    private func contextItems(for uxState: ReaderUXFoundationState) -> [ReaderStatusCardItem] {
+    private func contextItems() -> [ReaderStatusCardItem] {
         var items: [ReaderStatusCardItem] = []
 
-        if let sourceName = uxState.sourceName {
+        if let sourceName = coordinator.selectedSource?.bookSourceName {
             items.append(ReaderStatusCardItem(label: "书源", value: sourceName))
         }
 
-        if let bookTitle = uxState.bookTitle {
+        if let bookTitle = coordinator.selectedBook?.title {
             items.append(ReaderStatusCardItem(label: "书籍", value: bookTitle))
         }
 
-        if let chapterTitle = uxState.chapterTitle {
-            items.append(ReaderStatusCardItem(label: "章节", value: chapterTitle))
-        }
+        items.append(ReaderStatusCardItem(label: "章节", value: chapter.chapterTitle))
 
         items.append(
             ReaderStatusCardItem(
                 label: "状态",
-                value: uxState.surfaceKind.rawValue
+                value: surfaceKind.rawValue
             )
         )
 
         return items
     }
+}
+
+private enum ContentSurfaceKind: String {
+    case loading = "加载中"
+    case error = "错误"
+    case content = "已加载"
+    case empty = "空"
 }
