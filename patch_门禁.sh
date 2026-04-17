@@ -1,3 +1,7 @@
+#!/bin/bash
+set -e
+
+cat << 'TEST_EOF' > /workspace/iOS/Tests/ShellSmokeTests/ShellNoDirectNetworkLogicTests.swift
 import XCTest
 import Foundation
 
@@ -38,3 +42,4 @@ private func repositoryRootURL() -> URL {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 }
+TEST_EOF

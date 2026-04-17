@@ -4,6 +4,7 @@ import Combine
 #endif
 import ReaderCoreModels
 import ReaderCoreProtocols
+import ReaderCoreFacade
 
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 @MainActor
@@ -19,24 +20,18 @@ public final class ReadingFlowCoordinator: ObservableObject {
     
     public let bookSourceRepository: BookSourceRepository
     public let bookSourceDecoder: BookSourceDecoder
-    public let searchService: SearchService
-    public let tocService: TOCService
-    public let contentService: ContentService
+    public let readingFlowFacade: ReadingFlowFacade
     public let errorLogger: ErrorLogger
 
     public init(
         bookSourceRepository: BookSourceRepository,
         bookSourceDecoder: BookSourceDecoder,
-        searchService: SearchService,
-        tocService: TOCService,
-        contentService: ContentService,
+        readingFlowFacade: ReadingFlowFacade,
         errorLogger: ErrorLogger
     ) {
         self.bookSourceRepository = bookSourceRepository
         self.bookSourceDecoder = bookSourceDecoder
-        self.searchService = searchService
-        self.tocService = tocService
-        self.contentService = contentService
+        self.readingFlowFacade = readingFlowFacade
         self.errorLogger = errorLogger
     }
     
@@ -73,7 +68,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
 
         do {
             let query = SearchQuery(keyword: keyword, page: 1)
-            searchResults = try await searchService.search(source: source, query: query)
+            searchResults = try await readingFlowFacade.search(source: source, query: query)
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "SEARCH")
@@ -100,7 +95,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
         defer { isLoading = false }
 
         do {
-            tocItems = try await tocService.fetchTOC(source: source, detailURL: detailURL)
+            tocItems = try await readingFlowFacade.fetchTOC(source: source, detailURL: detailURL)
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "TOC")
@@ -125,7 +120,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
         defer { isLoading = false }
 
         do {
-            contentPage = try await contentService.fetchContent(source: source, chapterURL: chapter.chapterURL)
+            contentPage = try await readingFlowFacade.fetchContent(source: source, chapterURL: chapter.chapterURL)
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "CONTENT")
@@ -179,24 +174,18 @@ public final class ReadingFlowCoordinator {
     
     public let bookSourceRepository: BookSourceRepository
     public let bookSourceDecoder: BookSourceDecoder
-    public let searchService: SearchService
-    public let tocService: TOCService
-    public let contentService: ContentService
+    public let readingFlowFacade: ReadingFlowFacade
     public let errorLogger: ErrorLogger
 
     public init(
         bookSourceRepository: BookSourceRepository,
         bookSourceDecoder: BookSourceDecoder,
-        searchService: SearchService,
-        tocService: TOCService,
-        contentService: ContentService,
+        readingFlowFacade: ReadingFlowFacade,
         errorLogger: ErrorLogger
     ) {
         self.bookSourceRepository = bookSourceRepository
         self.bookSourceDecoder = bookSourceDecoder
-        self.searchService = searchService
-        self.tocService = tocService
-        self.contentService = contentService
+        self.readingFlowFacade = readingFlowFacade
         self.errorLogger = errorLogger
     }
     
@@ -233,7 +222,7 @@ public final class ReadingFlowCoordinator {
 
         do {
             let query = SearchQuery(keyword: keyword, page: 1)
-            searchResults = try await searchService.search(source: source, query: query)
+            searchResults = try await readingFlowFacade.search(source: source, query: query)
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "SEARCH")
@@ -260,7 +249,7 @@ public final class ReadingFlowCoordinator {
         defer { isLoading = false }
 
         do {
-            tocItems = try await tocService.fetchTOC(source: source, detailURL: detailURL)
+            tocItems = try await readingFlowFacade.fetchTOC(source: source, detailURL: detailURL)
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "TOC")
@@ -285,7 +274,7 @@ public final class ReadingFlowCoordinator {
         defer { isLoading = false }
 
         do {
-            contentPage = try await contentService.fetchContent(source: source, chapterURL: chapter.chapterURL)
+            contentPage = try await readingFlowFacade.fetchContent(source: source, chapterURL: chapter.chapterURL)
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "CONTENT")

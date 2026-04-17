@@ -16,9 +16,7 @@ public enum ShellAssembly {
         return ReadingFlowCoordinator(
             bookSourceRepository: InMemoryBookSourceRepository(),
             bookSourceDecoder: DefaultBookSourceDecoder(),
-            searchService: DefaultSearchService(facade: coreFacade),
-            tocService: DefaultTOCService(facade: coreFacade),
-            contentService: DefaultContentService(facade: coreFacade),
+            readingFlowFacade: coreFacade,
             errorLogger: errorLogger
         )
     }
