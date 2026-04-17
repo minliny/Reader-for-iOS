@@ -1,35 +1,18 @@
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
+import ReaderCoreFacade
 
 public final class DefaultTOCService: TOCService {
-    private let httpClient: HTTPClient
-    private let requestBuilder: RequestBuilder
-    private let tocParser: TOCParser
+    private let facade: any TOCService
 
     public init(
-        httpClient: HTTPClient,
-        requestBuilder: RequestBuilder,
-        tocParser: TOCParser
+        facade: any TOCService
     ) {
-        self.httpClient = httpClient
-        self.requestBuilder = requestBuilder
-        self.tocParser = tocParser
+        self.facade = facade
     }
 
     public func fetchTOC(source: BookSource, detailURL: String) async throws -> [TOCItem] {
-        let request = try requestBuilder.makeTOCRequest(source: source, detailURL: detailURL)
-        let response = try await httpClient.send(request)
-
-        guard response.statusCode >= 200 && response.statusCode < 300 else {
-            throw ReaderError.network(
-                failureType: .TOC_FAILED,
-                stage: "TOC",
-                message: "HTTP \(response.statusCode)",
-                underlyingError: nil
-            )
-        }
-
-        return try tocParser.parseTOCResponse(response.data, source: source, detailURL: detailURL)
+        try await facade.fetchTOC(source: source, detailURL: detailURL)
     }
 }

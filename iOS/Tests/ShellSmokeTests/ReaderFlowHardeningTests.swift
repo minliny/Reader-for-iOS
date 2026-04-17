@@ -5,6 +5,7 @@ import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreParser
 import ReaderCoreNetwork
+import ReaderCoreFacade
 
 @MainActor
 final class ReaderFlowHardeningTests: XCTestCase {
@@ -227,24 +228,19 @@ private extension ReaderFlowHardeningTests {
             searchRoute: .ok(data: fixture.searchFixtureData),
             routes: routes
         )
+        let coreFacade = ReaderFlowCoreFacade(httpClient: httpClient)
 
         return ReadingFlowCoordinator(
             bookSourceRepository: InMemoryBookSourceRepository(),
             bookSourceDecoder: DefaultBookSourceDecoder(),
             searchService: DefaultSearchService(
-                httpClient: httpClient,
-                requestBuilder: BookSourceRequestBuilder(),
-                searchParser: NonJSParserEngine()
+                facade: coreFacade
             ),
             tocService: DefaultTOCService(
-                httpClient: httpClient,
-                requestBuilder: BookSourceRequestBuilder(),
-                tocParser: NonJSParserEngine()
+                facade: coreFacade
             ),
             contentService: DefaultContentService(
-                httpClient: httpClient,
-                requestBuilder: BookSourceRequestBuilder(),
-                contentParser: NonJSParserEngine()
+                facade: coreFacade
             ),
             errorLogger: InMemoryErrorLogger()
         )
@@ -392,9 +388,21 @@ private struct HardeningExpectedContentPayload: Decodable {
 }
 
 private func repositoryRootURL() -> URL {
-    URL(fileURLWithPath: #filePath)
+    let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
+
+    let fileManager = FileManager.default
+    if fileManager.fileExists(atPath: root.appendingPathComponent("samples").path) {
+        return root
+    }
+
+    let readerCoreRoot = root.appendingPathComponent("Reader-Core")
+    if fileManager.fileExists(atPath: readerCoreRoot.appendingPathComponent("samples").path) {
+        return readerCoreRoot
+    }
+
+    return root
 }

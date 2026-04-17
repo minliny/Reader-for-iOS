@@ -5,6 +5,7 @@ import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreParser
 import ReaderCoreNetwork
+import ReaderCoreFacade
 
 @MainActor
 final class ReaderFlowFunctionalValidationTests: XCTestCase {
@@ -66,7 +67,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
         let currentError = try XCTUnwrap(coordinator.currentError)
         XCTAssertEqual(currentError.code, .networkFailed)
         XCTAssertEqual(currentError.failure?.type, .CONTENT_FAILED)
-        XCTAssertEqual(currentError.failure?.reason, "CONTENT")
+        XCTAssertEqual(currentError.failure?.reason, "error_mapping")
     }
 }
 
@@ -85,27 +86,19 @@ private extension ReaderFlowFunctionalValidationTests {
                 data: fixture.contentFixtureData
             )
         ])
-
-        let requestBuilder = BookSourceRequestBuilder()
-        let parserEngine = NonJSParserEngine()
+        let coreFacade = ReaderFlowCoreFacade(httpClient: httpClient)
 
         return ReadingFlowCoordinator(
             bookSourceRepository: InMemoryBookSourceRepository(),
             bookSourceDecoder: DefaultBookSourceDecoder(),
             searchService: DefaultSearchService(
-                httpClient: httpClient,
-                requestBuilder: requestBuilder,
-                searchParser: parserEngine
+                facade: coreFacade
             ),
             tocService: DefaultTOCService(
-                httpClient: httpClient,
-                requestBuilder: requestBuilder,
-                tocParser: parserEngine
+                facade: coreFacade
             ),
             contentService: DefaultContentService(
-                httpClient: httpClient,
-                requestBuilder: requestBuilder,
-                contentParser: parserEngine
+                facade: coreFacade
             ),
             errorLogger: InMemoryErrorLogger()
         )
@@ -324,9 +317,21 @@ private struct ExpectedContentPayload: Decodable {
 }
 
 private func repositoryRootURL() -> URL {
-    URL(fileURLWithPath: #filePath)
+    let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
+
+    let fileManager = FileManager.default
+    if fileManager.fileExists(atPath: root.appendingPathComponent("samples").path) {
+        return root
+    }
+
+    let readerCoreRoot = root.appendingPathComponent("Reader-Core")
+    if fileManager.fileExists(atPath: readerCoreRoot.appendingPathComponent("samples").path) {
+        return readerCoreRoot
+    }
+
+    return root
 }
