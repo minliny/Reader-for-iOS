@@ -112,7 +112,7 @@ public struct ContentView: View {
             }
             .padding(20)
         }
-        .background(Color(UIColor.systemGroupedBackground))
+        .background(Color.platformGroupedBackground)
         .navigationTitle(chapter.chapterTitle)
         .inlineNavigationBarTitle()
         .task {

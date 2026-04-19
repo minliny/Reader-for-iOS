@@ -392,9 +392,11 @@ private struct HardeningExpectedContentPayload: Decodable {
 }
 
 private func repositoryRootURL() -> URL {
+    // Post-split: samples live in the sibling Reader-Core repository.
     URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
+        .deletingLastPathComponent()  // ShellSmokeTests/
+        .deletingLastPathComponent()  // Tests/
+        .deletingLastPathComponent()  // iOS/
+        .deletingLastPathComponent()  // Reader-iOS repo root
+        .appendingPathComponent("Reader-Core")
 }

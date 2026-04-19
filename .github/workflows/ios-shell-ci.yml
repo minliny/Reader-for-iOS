@@ -32,19 +32,15 @@ jobs:
       - name: Checkout Reader-iOS repository
         uses: actions/checkout@v4
 
-      - name: Checkout Reader-Core (workspace-local for path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: minliny/Reader-Core
-          path: Reader-Core
-          # Provides <workspace>/Reader-Core, which matches ../Reader-Core from iOS/Package.swift
-          # TODO: switch to canonical URL dependency once Reader-iOS moves off path dependency
-
-      - name: Verify Reader-Core checkout path
+- name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
         shell: bash
         run: |
-          set -euo pipefail
-          test -f Reader-Core/Package.swift
+          # iOS/Package.swift: .package(path: "../Reader-Core")
+          # Path is relative to the iOS/ directory, so Reader-Core must land at
+          # <workspace>/Reader-Core (sibling of iOS/ within the checkout).
+          # actions/checkout@v4 forbids paths outside $GITHUB_WORKSPACE, so we
+          # use git clone which writes to the path relative to $GITHUB_WORKSPACE.
+          git clone --depth 1 https://github.com/minliny/Reader-Core.git Reader-Core
 
       - name: Protect iOS Shell boundary
         shell: bash

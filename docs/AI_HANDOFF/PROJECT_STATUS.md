@@ -55,8 +55,19 @@
 
 ## 下一步唯一最优任务
 
-- 在 Reader-Core 仓修复 standalone CI/test failure
-- 评审并执行 Reader-iOS remote dependency 切换
+```yaml
+current_repo_role: Reader-iOS
+reverse_split_bootstrap_complete: true
+core_asset_migration_complete: true
+current_repo_role_switched_to_reader_ios: true
+dual_repo_consistency_complete: true
+```
+
+- 本仓保留资产：iOS/**、scripts/check_ios_boundary.sh、.github/workflows/ios-shell-ci.yml、iOS docs/handoff
+- 本仓已移除：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、10 Core workflows、Core docs
+- 远端：https://github.com/minliny/Reader-for-iOS（TODO: 改名为 Reader-iOS）
+- Reader-Core 远端：https://github.com/minliny/Reader-Core，commit b4dffc4，tag 0.1.0
+- Reader-iOS 依赖：`../Reader-Core` (local)，canonical: `https://github.com/minliny/Reader-Core.git`
 
 ## Clean-Room 状态
 

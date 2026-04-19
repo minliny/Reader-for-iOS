@@ -53,7 +53,7 @@ public struct ReaderStatusCardView: View {
             
             if !items.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    ForEach(Array(items.enumerated()), id: \.offset) { item in
                         HStack {
                             Text(item.element.label)
                                 .font(.callout.weight(.medium))
@@ -65,19 +65,19 @@ public struct ReaderStatusCardView: View {
                                 .multilineTextAlignment(.trailing)
                         }
                         .padding(.vertical, 10)
-                        
-                        if index < items.count - 1 {
+
+                        if item.offset < items.count - 1 {
                             Divider()
                         }
                     }
                 }
                 .padding(.horizontal, 16)
-                .background(Color(UIColor.tertiarySystemGroupedBackground))
+                .background(Color.platformTertiaryGroupedBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
         .padding(20)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .background(Color.platformSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
