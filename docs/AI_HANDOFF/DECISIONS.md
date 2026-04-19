@@ -6,12 +6,11 @@
 
 | 决策项 | 内容 | 状态 |
 |--------|------|------|
-| 当前仓库角色 | Reader-Core transition host | 已确认 |
-| 目标主仓 | Reader-Core | 已确认 |
-| 未来独立仓 | Reader-iOS | 已确认 |
-| 当前阶段 | `repo_split_execution_phase_a` | 已确认 |
-| prompt 治理 | active prompt 仅保留 split-era 版本 | 已确认 |
-| iOS 资产语义 | pending migration | 已确认 |
+| 当前仓库角色 | Reader-iOS 主仓 | 已确认 |
+| 上游 Core 仓 | Reader-Core | 已确认 |
+| 当前阶段 | `post_split_stabilization_audit` | 已确认 |
+| prompt 治理 | active prompt 仅保留 post-split 版本 | 已确认 |
+| iOS 资产语义 | Reader-iOS mainline | 已确认 |
 | 依赖方向 | Reader-iOS -> Reader-Core public package/products only | 已确认 |
 
 ## Prompt Governance 决策
@@ -19,8 +18,8 @@
 1. 不再把 pre-split 主线口径作为 active prompt 时态。
 2. 不再继续使用任何以 pre-split iOS feature phase 为默认下一步的 handoff prompt。
 3. 历史 prompt 必须归档到 `archive/prompts/legacy/`，不得无痕删除。
-4. 当前 active prompt set 仅由 split-era 治理文档组成。
-5. Reader-iOS 未来必须拥有独立 prompt set，不再共享当前主仓长期治理 prompt。
+4. 当前 active prompt set 仅由 post-split Reader-iOS 治理文档组成。
+5. Reader-Core 与 Reader-iOS 长期保持独立治理 prompt。
 
 ## 当前不允许漂移的规则
 

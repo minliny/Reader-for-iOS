@@ -2,7 +2,8 @@ name: iOS Shell CI
 # Core Asset Migration patch (2026-04-15):
 # Reader-iOS is now independent. Reader-Core dependency resolved via:
 #   iOS/Package.swift: .package(path: "../Reader-Core")
-# In CI the Reader-Core repo is checked out as a sibling directory.
+# The path is relative to iOS/Package.swift, so CI must materialize Reader-Core
+# at <workspace>/Reader-Core, not outside GITHUB_WORKSPACE.
 # Canonical remote: https://github.com/minliny/Reader-Core.git exact:0.1.0
 
 on:
@@ -31,7 +32,7 @@ jobs:
       - name: Checkout Reader-iOS repository
         uses: actions/checkout@v4
 
-      - name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
+- name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
         shell: bash
         run: |
           # iOS/Package.swift: .package(path: "../Reader-Core")

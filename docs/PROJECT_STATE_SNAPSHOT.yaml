@@ -1,25 +1,21 @@
 project:
   name: Reader-iOS
-  current_repo_role: Reader-iOS (主仓)
+  current_repo_role: Reader-iOS
   current_docs_role: Reader-iOS primary docs host
-  target_repo_name: Reader-iOS
-  strategy: dual-repo governance
-  mainline: Reader-iOS — iOS shell / UX / features / integration
-  phase: core_asset_migration_complete
-  execution_mode: ios_mainline
+  upstream_core_repo: Reader-Core
+  phase: post_split_stabilization_audit
+  execution_mode: audit_only
   clean_room: true
-  allow_ios_phase: true
-  core_extraction_note: "Core 资产已于 2026-04-15 完成真实物理迁移到 Reader-Core 仓（github.com/minliny/Reader-Core）；本仓已无 Core/samples/tools 等 Core 主线资产"
+  feature_expansion_allowed: false
 
 current_focus:
   primary_track:
-    - Reader-iOS mainline evolution
-    - Reader-Core dependency via public package products
-  active_milestone: core_asset_migration
-  milestone_status: complete
-  milestone_detail: "Core Asset Migration 完成（2026-04-15）：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、Core workflows、Core docs 已全部从本仓移除并迁移至 Reader-Core（b4dffc4）。本仓现仅包含 iOS 主线资产。"
-  next_best_task: "dual-repo CI validation — trigger Reader-Core CI, confirm Reader-iOS ios-shell-ci resolves ../Reader-Core dep"
-  next_best_task_detail: "触发 Reader-Core core-swift-tests 和 Reader-iOS ios-shell-ci，验证双仓 CI 独立运行正常。"
+    - Reader-iOS post-split stabilization
+    - Reader-Core external dependency validation
+  active_milestone: post_split_stabilization_audit
+  milestone_status: in_progress
+  milestone_detail: "审计双仓独立构建、独立测试、依赖方向、CI 和文档语义是否达到长期稳态。"
+  next_best_task: "Fix Reader-Core standalone CI and finalize Reader-iOS remote dependency migration plan"
 
 stabilized_samples:
   - sample_js_runtime_001
@@ -44,225 +40,33 @@ stabilized_samples:
   - SAMPLE-P1-POLICY-001
   - SAMPLE-P1-POLICY-002
   - SAMPLE-P1-POLICY-003
-  - sample_header_001
-  - sample_header_002
-  - sample_header_003
-  - sample_cookie_001
-  - sample_cookie_002
-  - sample_login_001
-  - sample_login_002
-  - sample_login_003
-  - sample_js_001
-  - css_executor_selector_semantics_contract
-  - fixture_toc_selector_miss
-  - fixture_toc_title_rule_miss
-  - fixture_toc_url_rule_miss
-  - fixture_toc_count_mismatch
-  - fixture_toc_non_selector_error
-  - toc_item_invalid_url_contract
-  - http_client_invalid_url_contract
-  - SAMPLE-P1-COOKIE-WENSANG-001
-  - SAMPLE-P1-COOKIE-XIANGSHU-001
-  - SAMPLE-P1-COOKIE-XUANYGE-001
 
-mature_capabilities:
-  - CI 执行
-  - artifact 产出
-  - regression 回写
-  - writeback 审核
-  - compat_matrix 审计吸收
-  - Header (CLOSED)
-  - Cookie (CLOSED)
-  - Cache (CLOSED)
-  - ErrorMapping (CI_VERIFIED_CLOSED)
-  - PolicyVerification (CI_VERIFIED_CLOSED)
-  - JSDomExecution (CLOSED)
-  - LoginBootstrap (CLOSED)
-  - CookieIsolation (CLOSED)
-
-uncovered_capabilities: []
-
-out_of_scope_capabilities:
-  - AntiBot (ROI NEGATIVE)
-  - JSNetwork (ROI NEGATIVE)
-
-reverse_split:
-  reader_core_repo_initialized_locally: true
-  reverse_split_direction_applied: true
-  current_repo_role_switched_to_reader_ios: true
-  physical_core_extraction_complete: true
-  core_asset_migration_complete: true
-  dual_repo_consistency_complete: true
-  extraction_date: "2026-04-14"
-  migration_complete_date: "2026-04-15"
-  current_repo_role: "Reader-iOS"
-  reader_core_local_path: "../Reader-Core"
-  reader_core_remote_url: "https://github.com/minliny/Reader-Core"
-  reader_core_stable_tag: "0.1.0"
-  reader_ios_remote_url: "https://github.com/minliny/Reader-for-iOS"
-  dependency_direction: "Reader-iOS -> Reader-Core public package/products only"
-  dependency_mode: "local sibling path ../Reader-Core (canonical: https://github.com/minliny/Reader-Core.git exact:0.1.0)"
-  extracted_to_reader_core:
-    - Core/**
-    - samples/**
-    - tools/**
-    - scripts/ (Core)
-    - .github/workflows/ (Core CI — 10 workflows)
-    - docs/API_SNAPSHOT/**
-    - docs/architecture/**
-    - docs/decision_engine/**
-    - docs/process/**
-    - docs/FIXTURE_INFRA_SPEC.md
-    - docs/TOOLING_BACKLOG.md
-    - Package.swift (root — Reader-Core package manifest)
-  retained_in_reader_ios:
-    - iOS/**
-    - docs/IOS_*
-    - docs/ios_*
-    - .github/workflows/ios-shell-ci.yml
-    - scripts/check_ios_boundary.sh
-    - docs/PROJECT_STATE_SNAPSHOT.yaml (rewritten for Reader-iOS)
-    - docs/AI_HANDOFF/**
-    - AGENTS.md (rewritten for Reader-iOS)
-  history_pointers_here:
-    - Core/** (retained in Reader-iOS as historical evidence)
-    - samples/** (retained as history)
-    - Core CI workflows (retained as history)
-
-docs_split:
-  complete: true
-  ios_docs_pending_migration: true
-  index_doc: docs/DOCS_SPLIT_INDEX.md
-  ios_registry_doc: docs/IOS_PENDING_MIGRATION_REGISTRY.md
-  core_docs_primary:
-    - docs/PROJECT_STATE_SNAPSHOT.yaml
-    - docs/PROJECT_STATUS.md
-    - docs/PROMPT_GOVERNANCE.md
-    - docs/PROJECT_CONTEXT_PROMPT.md
-    - docs/AI_HANDOFF.md
-    - docs/AI_HANDOFF/**
-    - docs/API_SNAPSHOT/**
-    - docs/FIXTURE_INFRA_SPEC.md
-    - docs/TOOLING_BACKLOG.md
-    - docs/architecture/**
-    - docs/decision_engine/**
-    - docs/process/**
-  ios_docs_pending_migration_areas:
-    - docs/ios_shell_ci_gate.yml
-    - docs/IOS_PHASE_GATE_REVIEW.md
-    - docs/ios_gate_remediation_result.yml
-    - docs/ios_architecture_remediation_plan.yml
-    - docs/ios_boundary_violations.yml
-  deprecated_docs:
-    - docs/ROADMAP_PHASE2.md
-    - docs/BRANCH_AUDIT_AND_PRUNE_REPORT.md
-    - docs/DEV_CHECKPOINT.md
-    - docs/design/**
-    - docs/dev_state/**
-
-reader_core_scope:
-  owns:
-    - Core/**
-    - samples/**
-    - docs/API_SNAPSHOT/**
-    - docs/FIXTURE_INFRA_SPEC.md
-    - docs/TOOLING_BACKLOG.md
-    - docs/decision_engine/**
-    - docs/process/**
-    - docs/architecture/**
-    - core-related GitHub workflows
-  excludes:
-    - iOS/App/**
-    - iOS/Features/**
-    - iOS/Modules/**
-    - iOS/Shell/**
-    - iOS/Tests/**
-    - iOS-specific phase/gate as long-term mainline status
-  gates:
-    - core-swift-tests
-    - fixture-toc-regression-macos
-    - policy-regression-macos
-    - sample smoke / isolation / extractor workflows
-
-reader_ios_scope:
-  owns:
-    - iOS/**
-    - docs/IOS_PHASE_GATE_REVIEW.md
-    - docs/ios_gate_remediation_result.yml
-    - docs/ios_shell_ci_gate.yml
-    - docs/ios_architecture_remediation_plan.yml
-    - docs/ios_boundary_violations.yml
-    - ios-shell-ci workflow
-  excludes:
-    - Core implementation control
-    - samples matrix ownership
-    - compat/failure taxonomy governance
-  gates:
-    - ios-shell-ci
-    - shell smoke validation
-    - functional / hardening / UX / interaction / session / navigation / presentation validation
+post_split_audit:
+  reader_core_fresh_clone_complete: true
+  reader_core_standalone_build_verified: false
+  reader_core_standalone_test_verified: false
+  reader_core_relative_path_leak_found: true
+  reader_ios_dependency_direction_stable: true
+  reader_ios_path_dependency_active: true
+  reader_ios_remote_dependency_ready: false
+  reader_ios_boundary_gate_hardened: true
+  reader_ios_docs_semantic_drift_fixed: true
+  reader_ios_ci_checkout_path_fixed: true
+  reader_core_ci_green: false
+  reader_ios_ci_green: false
 
 recent_action:
-  summary: "Core Asset Migration 完成（2026-04-15）：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、10 Core workflows、Core docs 已从本仓物理移除并在 Reader-Core 就位（b4dffc4）。本仓已收敛为纯 Reader-iOS 主仓。"
-  category: core_asset_migration_complete
-  state_effect: "本仓仅保留 iOS/**、ios-shell-ci、iOS docs/scripts/handoff。所有 Core 主线资产已完成物理迁移至 Reader-Core。双仓一致性完成。"
-
-reader_ios_bootstrap:
-  prepared_docs:
-    - docs/READER_IOS_BOOTSTRAP_PLAN.md
-    - docs/READER_IOS_DEPENDENCY_BOOTSTRAP.md
-    - docs/READER_IOS_MIGRATION_MANIFEST.md
-    - docs/READER_IOS_REPO_INIT_CHECKLIST.md
-  reusable_ios_assets:
-    - iOS/App/**
-    - iOS/CoreIntegration/**
-    - iOS/Features/**
-    - iOS/Modules/**
-    - iOS/Shell/**
-    - iOS/Tests/**
-    - iOS/ValidationSupport/**
-    - iOS/Package.swift
-  required_core_public_products:
-    - ReaderCoreFoundation
-    - ReaderCoreModels
-    - ReaderCoreProtocols
-    - ReaderCoreParser
-    - ReaderCoreNetwork
-    - ReaderPlatformAdapters
-  optional_core_public_products:
-    - ReaderCoreCache
-    - ReaderCoreJSRenderer
-  same_repo_assumptions:
-    - iOS/Package.swift currently uses .package(path: "../Core")
-    - .github/workflows/ios-shell-ci.yml checks out the mixed host repo and builds with --package-path iOS
-    - scripts/check_ios_boundary.sh assumes iOS/** is colocated with Core sources inside one repo
-
-freeze_gate:
-  status: READY_TO_FREEZE
-  evidence:
-    - "ErrorMappingTests: 14/14 passed, run 24279408481, macOS-14 CI"
-    - "PolicyVerificationTests: 9/9 passed, run 24279408481, macOS-14 CI"
-  blockers: []
-
-state_sync:
-  required_files:
-    - docs/PROJECT_STATE_SNAPSHOT.yaml
-    - docs/AI_HANDOFF/PROJECT_STATUS.md
-    - docs/AI_HANDOFF/OPEN_TASKS.md
-  consistency_rules:
-    - 不允许遗漏已闭环样本
-    - 不允许保留已完成任务在 OPEN_TASKS
-    - 不允许出现历史状态与当前状态冲突
-    - 三份文件必须保持内容一致
-    - 当前主仓长期状态不得继续混写 iOS phase/gate
+  summary: "Post-Split Stabilization Audit：完成 Reader-Core fresh clone 审计、Reader-iOS boundary gate/CI/docs 修复。"
+  category: post_split_stabilization_audit
 
 change_scope:
-  this_update: reader_ios_bootstrap_preparation
+  this_update: post_split_stabilization_audit
   samples_changed: false
   compat_matrix_changed: false
   failure_taxonomy_changed: false
-  core_code_touched: false
-  ios_code_touched: false
-  workflows_changed: false
+  core_logic_touched: false
+  ios_business_logic_touched: false
+  workflows_changed: true
+  scripts_changed: true
   status_docs_changed: true
-  clean_room_statement: "本轮仅执行仓库拆解规划、状态治理回写与边界重构说明，依据本仓库目录结构、现有 docs、samples、workflow 与真实执行证据整理，不修改 Core frozen contract，不删除历史执行证据，不引入外部 GPL 代码，不引用 Legado Android 实现。"
+  clean_room_statement: "本轮仅执行审计、boundary gate/CI/docs hardening 与状态文档回写；未开发新功能，未修改业务逻辑，未搬运外部 GPL 代码。"

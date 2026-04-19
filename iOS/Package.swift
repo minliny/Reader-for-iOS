@@ -42,11 +42,12 @@ let package = Package(
                 "Features",
                 "Modules",
                 "Shell",
+                "Navigation",
+                "Surface",
                 "Tests",
             ],
             sources: [
-                "CoreIntegration",
-                "ValidationSupport"
+                "CoreIntegration"
             ]
         ),
         .target(
@@ -68,7 +69,9 @@ let package = Package(
                 "App",
                 "Features",
                 "Shell",
-                "Modules"
+                "Modules",
+                "Navigation",
+                "Surface"
             ]
         ),
         .testTarget(
@@ -81,18 +84,6 @@ let package = Package(
                 .product(name: "ReaderCoreNetwork", package: "Reader-Core")
             ],
             path: "Tests/ShellSmokeTests"
-        ),
-        .testTarget(
-            name: "ReaderUXFoundationTests",
-            dependencies: [
-                "ReaderApp",
-                "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Reader-Core"),
-                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
-                .product(name: "ReaderCoreParser", package: "Reader-Core"),
-                .product(name: "ReaderCoreNetwork", package: "Reader-Core")
-            ],
-            path: "Tests/ReaderUXFoundationTests"
         )
     ]
 )

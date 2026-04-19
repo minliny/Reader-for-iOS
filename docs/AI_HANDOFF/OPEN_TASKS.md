@@ -2,7 +2,7 @@
 
 ## 当前任务概览
 
-> 当前仓库进入 `repo_split_execution_phase_a` 阶段。主仓后续角色收敛为 `Reader-Core`，`Reader-iOS` 将独立成仓。现有 iOS phase / gate / execution evidence 仅作为待迁移资产保留，不再作为 Core 主仓长期主线状态。
+> 当前仓库已经是 `Reader-iOS` 主仓。拆仓执行已完成，当前只处理 post-split stabilization 问题，不推进新功能。
 
 | ID | 任务名称 | 状态 | 优先级 | 前置依赖 | 风险点 | 验收标准 | 是否允许 AI 独立完成 |
 |----|----------|------|--------|----------|--------|----------|----------------------|
@@ -13,8 +13,9 @@
 | RS-005 | Physical Repo Split Execution | complete (2026-04-14) | P1 | RS-001 + RS-002 + RS-003 + RS-004 | 历史执行证据丢失或路径失效 | Reader-iOS 新仓建立、iOS 目录/文档/workflow 迁移、Core 依赖切换完成 | yes |
 | M-IOS-1 | Reader-iOS Shell Development — ios-shell-ci 全绿 | complete (2026-04-16) | P1 | RS-005 | SwiftPM identity 错误、CI checkout 路径限制、缺失 import | ios-shell-ci 全部步骤绿，CI run 24465449786 ✅ | yes |
 
-## 当前待办列表
+## 已完成
 
+<<<<<<< HEAD
 ### RS-001: Reader-Core / Reader-iOS Logical Split
 
 - 状态：`complete`
@@ -148,27 +149,19 @@
 - 现有 iOS shell / functional / hardening / UX / interaction / session / navigation / presentation 证据已存在，但应迁移为 Reader-iOS 仓资产
 - 本轮已完成 `Repo Split Planning`，但未执行物理拆仓
 - 本轮已完成 `Prompt Governance Cleanup`，legacy prompt 已归档，active prompt 已切换为 split-era 集合
+=======
+- RS-005 Physical Repo Split Execution
+- Reverse Split / Core Asset Migration
+- Prompt Source Lockdown
+- Reader-iOS boundary gate hardening
+- Reader-iOS docs semantic stabilization
+>>>>>>> main
 
 ## 当前状态约束
 
-- 当前阶段：`repo_split_execution_phase_a`
-- 当前主线：`repo split governance / reader-ios bootstrap preparation`
-- 当前未覆盖能力：无
-- 冻结门禁状态：`READY_TO_FREEZE`
-- 当前是否允许继续推进新的 iOS feature phase：`no`
-- 判断原因：当前主仓治理目标是完成 Reader-Core / Reader-iOS 拆仓与边界重构；iOS 工作仅保留迁移与证据归档，不新增 feature scope
+- 当前阶段：`post_split_stabilization_audit`
+- 当前主线：`Reader-iOS standalone stabilization`
+- 当前是否允许新 feature：`no`
 - 依赖方向：`Reader-iOS -> Reader-Core public package/products only`
-- prompt governance：`split-era active only`
-- legacy prompt archive：`archive/prompts/legacy/`
-- iOS feature progression in current host repo：`paused`
-- reverse_split_bootstrap_complete：`true`
-- core_asset_migration_complete：`true`
-- current_repo_role_switched_to_reader_ios：`true`
-- dual_repo_consistency_complete：`true`
-- migration_complete_date：`2026-04-15`
-- current_repo_role：`Reader-iOS`
-- core_assets_physically_removed_from_this_repo：`true`
-- reader_core_remote：`https://github.com/minliny/Reader-Core`
-- reader_core_commit：`b4dffc4`
-- reader_core_stable_tag：`0.1.0`
-- reader_ios_dependency：`../Reader-Core (local sibling) | canonical: https://github.com/minliny/Reader-Core.git`
+- reader_core_ci_green：`false`
+- reader_ios_ci_green：`false`

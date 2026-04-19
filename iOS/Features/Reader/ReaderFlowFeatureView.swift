@@ -1,68 +1,115 @@
-#if canImport(SwiftUI)
 import SwiftUI
-#endif
 import ReaderShellValidation
-#if canImport(SwiftUI)
+
 @MainActor
 public struct ReaderFlowFeatureView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
+    public var navigationState: AppNavigationState
     public let environment: ReaderShellEnvironment
     public let moduleBoundary: ReaderModuleBoundary
 
     public init(
         coordinator: ReadingFlowCoordinator,
+        navigationState: AppNavigationState,
         environment: ReaderShellEnvironment = ReaderShellEnvironment(),
         moduleBoundary: ReaderModuleBoundary = ReaderModuleBoundary()
     ) {
         self.coordinator = coordinator
+        self.navigationState = navigationState
         self.environment = environment
         self.moduleBoundary = moduleBoundary
     }
 
     public var body: some View {
-        let featureState = ReaderFlowFeatureState(
-            coordinator: coordinator,
-            boundary: moduleBoundary
-        )
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                statusCard
 
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    statusCard(featureState)
-
-                    if moduleBoundary.canImportBookSource {
-                        BookSourceImportView(coordinator: coordinator)
-                    }
-
-                    if featureState.hasSelectedBook || featureState.hasSelectedChapter || featureState.hasContentPage {
-                        sessionSummary(featureState)
-                    }
-
-                    readerActions(featureState)
-
+                if moduleBoundary.canImportBookSource {
+                    BookSourceImportView(coordinator: coordinator)
                 }
-                .padding(20)
+
+                if coordinator.selectedBook != nil || coordinator.selectedChapter != nil || coordinator.contentPage != nil {
+                    sessionSummary
+                }
+
+                readerActions
             }
-            .background(Color.platformGroupedBackground)
-            .navigationTitle(environment.appEntry.appName)
+            .padding(20)
         }
+        .background(Color(UIColor.systemGroupedBackground))
+        .navigationTitle(environment.appEntry.appName)
     }
 
-    private func statusCard(_ featureState: ReaderFlowFeatureState) -> some View {
+    private var statusCard: some View {
         ReaderStatusCardView(
             eyebrow: "Reader Flow",
-            title: featureState.currentStageTitle,
+            title: currentStageTitle,
             subtitle: "Core >= \(environment.appEntry.minimumCoreVersion)",
             items: progressItems
         )
         .padding(.bottom, 8)
     }
 
+    private var currentStageTitle: String {
+        if coordinator.isLoading {
+            if coordinator.selectedChapter != nil {
+                return "正文加载中"
+            }
+            if coordinator.selectedBook != nil {
+                return "目录加载中"
+            }
+            if coordinator.selectedSource != nil {
+                return "搜索中"
+            }
+            return "书源导入中"
+        }
+
+        if coordinator.currentError != nil {
+            if coordinator.selectedChapter != nil {
+                return "正文加载失败"
+            }
+            if coordinator.selectedBook != nil {
+                return "目录加载失败"
+            }
+            if coordinator.selectedSource != nil {
+                return "搜索失败"
+            }
+            return "书源导入失败"
+        }
+
+        if coordinator.contentPage != nil {
+            return "正文已加载"
+        }
+
+        if coordinator.selectedChapter != nil {
+            return "章节已选择"
+        }
+
+        if !coordinator.tocItems.isEmpty {
+            return "目录已加载"
+        }
+
+        if coordinator.selectedBook != nil {
+            return "书籍已选择"
+        }
+
+        if !coordinator.searchResults.isEmpty {
+            return "搜索结果已就绪"
+        }
+
+        if moduleBoundary.canSearch && coordinator.selectedSource != nil {
+            return "可开始搜索"
+        }
+
+        return "等待导入书源"
+    }
+
     @ViewBuilder
-    private func sessionSummary(_ featureState: ReaderFlowFeatureState) -> some View {
+    private var sessionSummary: some View {
         if let chapter = coordinator.selectedChapter, moduleBoundary.canReadContent {
-            NavigationLink {
-                ContentView(coordinator: coordinator, chapter: chapter)
+            Button {
+                navigationState.push(.content(chapterTitle: chapter.chapterTitle))
             } label: {
                 ReaderSessionSummaryView(
                     title: coordinator.selectedBook?.title ?? "未知书籍",
@@ -70,12 +117,11 @@ public struct ReaderFlowFeatureView: View {
                     actionTitle: "继续阅读",
                     action: {}
                 )
-                .allowsHitTesting(false) // 依靠外层 NavigationLink 触发跳转
             }
             .buttonStyle(.plain)
-        } else if let book = coordinator.selectedBook, featureState.hasTOCItems {
-            NavigationLink {
-                TOCView(coordinator: coordinator, book: book)
+        } else if let book = coordinator.selectedBook, !coordinator.tocItems.isEmpty {
+            Button {
+                navigationState.push(.toc(bookTitle: book.title, bookAuthor: book.author))
             } label: {
                 ReaderSessionSummaryView(
                     title: book.title,
@@ -83,12 +129,11 @@ public struct ReaderFlowFeatureView: View {
                     actionTitle: "继续目录",
                     action: {}
                 )
-                .allowsHitTesting(false)
             }
             .buttonStyle(.plain)
-        } else if featureState.hasSearchResults {
-            NavigationLink {
-                SearchView(coordinator: coordinator)
+        } else if !coordinator.searchResults.isEmpty {
+            Button {
+                navigationState.push(.search)
             } label: {
                 ReaderSessionSummaryView(
                     title: "搜索结果",
@@ -96,22 +141,21 @@ public struct ReaderFlowFeatureView: View {
                     actionTitle: "继续搜索",
                     action: {}
                 )
-                .allowsHitTesting(false)
             }
             .buttonStyle(.plain)
         }
     }
 
     @ViewBuilder
-    private func readerActions(_ featureState: ReaderFlowFeatureState) -> some View {
+    private var readerActions: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("主链路入口")
                 .font(.headline)
 
             if moduleBoundary.canSearch {
-                if featureState.canStartSearch {
-                    NavigationLink {
-                        SearchView(coordinator: coordinator)
+                if moduleBoundary.canSearch && coordinator.selectedSource != nil {
+                    Button {
+                        navigationState.push(.search)
                     } label: {
                         actionRow(
                             title: "开始搜索",
@@ -127,9 +171,9 @@ public struct ReaderFlowFeatureView: View {
                 }
             }
 
-            if let selectedBook = coordinator.selectedBook, featureState.hasTOCItems {
-                NavigationLink {
-                    TOCView(coordinator: coordinator, book: selectedBook)
+            if let selectedBook = coordinator.selectedBook, !coordinator.tocItems.isEmpty {
+                Button {
+                    navigationState.push(.toc(bookTitle: selectedBook.title, bookAuthor: selectedBook.author))
                 } label: {
                     actionRow(
                         title: "继续目录",
@@ -140,8 +184,8 @@ public struct ReaderFlowFeatureView: View {
             }
 
             if let selectedChapter = coordinator.selectedChapter, moduleBoundary.canReadContent {
-                NavigationLink {
-                    ContentView(coordinator: coordinator, chapter: selectedChapter)
+                Button {
+                    navigationState.push(.content(chapterTitle: selectedChapter.chapterTitle))
                 } label: {
                     actionRow(
                         title: "继续阅读",
@@ -152,7 +196,6 @@ public struct ReaderFlowFeatureView: View {
             }
         }
     }
-
 
     private func actionRow(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -192,4 +235,3 @@ public struct ReaderFlowFeatureView: View {
         return items
     }
 }
-#endif
