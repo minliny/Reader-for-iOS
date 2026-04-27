@@ -6,7 +6,6 @@ import ReaderCoreProtocols
 public enum ShellAssembly {
 
     public static func makeMockReadingFlowCoordinator() -> ReadingFlowCoordinator {
-        let mockService = MockReaderCoreService.shared
         let serviceProvider = ReaderCoreServiceProvider.shared
 
         return ReadingFlowCoordinator(
@@ -43,7 +42,7 @@ public final class MockSearchService: SearchService {
             throw error
         case .unsupported(let reason):
             throw AppReaderError(code: .unsupported, message: reason, stage: "SEARCH")
-        case .partial(let items, let warning):
+        case .partial(let items, _):
             return items
         default:
             throw AppReaderError(code: .unknown, message: "Unexpected state", stage: "SEARCH")
