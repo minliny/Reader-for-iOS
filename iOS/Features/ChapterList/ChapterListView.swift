@@ -3,13 +3,14 @@ import ReaderCoreModels
 
 public struct ChapterListView: View {
     @StateObject private var viewModel: ChapterListViewModel
+    @State private var navigationPath = NavigationPath()
 
     public init(bookURL: String, bookTitle: String) {
         self._viewModel = StateObject(wrappedValue: ChapterListViewModel(bookURL: bookURL, bookTitle: bookTitle))
     }
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             VStack(alignment: .leading, spacing: 16) {
                 listStateView
             }
@@ -18,6 +19,9 @@ public struct ChapterListView: View {
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 Task { await viewModel.loadChapters() }
+            }
+            .navigationDestination(for: TOCItem.self) { chapter in
+                ReaderView(chapterURL: chapter.chapterURL, chapterTitle: chapter.chapterTitle)
             }
         }
     }
@@ -123,5 +127,6 @@ public struct ChapterListView: View {
     }
 
     private func showChapterAction(chapter: TOCItem) {
+        navigationPath.append(chapter)
     }
 }
