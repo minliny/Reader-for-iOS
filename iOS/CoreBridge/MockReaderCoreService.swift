@@ -34,7 +34,11 @@ public final class MockReaderCoreService: Sendable {
 
     public func validateBookSource(from data: Data) async -> LoadState<BookSource> {
         try? await Task.sleep(nanoseconds: 100_000_000)
-        return processScenario(for: BookSource(id: "mock", name: "Mock Source", url: "https://example.com"))
+        return processScenario(for: BookSource(
+            id: "mock",
+            bookSourceName: "Mock Source",
+            bookSourceUrl: "https://example.com"
+        ))
     }
 
     public func searchBooks(keyword: String, page: Int) async -> LoadState<[SearchResultItem]> {
@@ -243,18 +247,18 @@ public final class MockReaderCoreService: Sendable {
     public static let mockSearchResults: [SearchResultItem] = [
         SearchResultItem(
             title: "凡人修仙传",
-            author: "忘语",
-            detailURL: "https://example.com/book/1"
+            detailURL: "https://example.com/book/1",
+            author: "忘语"
         ),
         SearchResultItem(
             title: "仙逆",
-            author: "耳根",
-            detailURL: "https://example.com/book/2"
+            detailURL: "https://example.com/book/2",
+            author: "耳根"
         ),
         SearchResultItem(
             title: "一念永恒",
-            author: "耳根",
-            detailURL: "https://example.com/book/3"
+            detailURL: "https://example.com/book/3",
+            author: "耳根"
         )
     ]
 

@@ -47,16 +47,14 @@ public struct AppReaderError: Error, Sendable {
             code = .notFound
         case .invalidResponse:
             code = .invalidResponse
-        case .unauthorized:
-            code = .loginRequired
         default:
             code = .unknown
         }
         return AppReaderError(
             code: code,
             message: readerError.message,
-            stage: readerError.stage,
-            underlyingError: readerError.underlyingError
+            stage: nil,
+            underlyingError: nil
         )
     }
 }
