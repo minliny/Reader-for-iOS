@@ -41,13 +41,14 @@ let package = Package(
                 "App",
                 "Features",
                 "Modules",
-                "Shell",
                 "Navigation",
                 "Surface",
                 "Tests",
             ],
             sources: [
-                "CoreIntegration"
+                "CoreIntegration",
+                "CoreBridge",
+                "Shell"
             ]
         ),
         .target(
