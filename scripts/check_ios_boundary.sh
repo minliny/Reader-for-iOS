@@ -56,7 +56,6 @@ checked_files=0
 check_file() {
   local file="$1"
   local line
-
   for module in "${forbidden_modules[@]}"; do
     while IFS= read -r line; do
       violations+=("${file}:${line}:${module}")

@@ -67,6 +67,7 @@ let package = Package(
             ],
             sources: [
                 "App",
+                "CoreBridge",
                 "Features",
                 "Shell",
                 "Modules",
