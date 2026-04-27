@@ -32,7 +32,7 @@ jobs:
       - name: Checkout Reader-iOS repository
         uses: actions/checkout@v4
 
-- name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
+      - name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
         shell: bash
         run: |
           # iOS/Package.swift: .package(path: "../Reader-Core")
