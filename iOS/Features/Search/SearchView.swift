@@ -1,128 +1,155 @@
-import Foundation
-#if canImport(SwiftUI)
 import SwiftUI
-import ReaderCoreModels
-import ReaderShellValidation
 
 public struct SearchView: View {
-    @ObservedObject public var coordinator: ReadingFlowCoordinator
-    @State private var searchText = ""
+    @StateObject private var viewModel = SearchViewModel()
 
-    public init(coordinator: ReadingFlowCoordinator) {
-        self.coordinator = coordinator
-    }
+    public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            searchBar
-            searchStageCard
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                sourceSelectionView
+                searchInputView
+                searchStateView
+            }
+            .padding()
+            .navigationTitle("Search")
+        }
+    }
 
-            if coordinator.isLoading {
-                LoadingView(message: "搜索中...")
-            } else if let error = coordinator.currentError {
-                ErrorView(error: error) {
-                    coordinator.currentError = nil
+    private var sourceSelectionView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Book Source")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+
+            Picker("Select source", selection: Binding(
+                get: { viewModel.selectedSource },
+                set: { if let source = $0 { viewModel.selectSource(source) } }
+            )) {
+                ForEach(viewModel.sources, id: \.id) { source in
+                    Text(source.displayName)
                 }
-            } else if coordinator.searchResults.isEmpty {
-                emptyState
-            } else {
-                resultsList
             }
+            .pickerStyle(.menu)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
-        .navigationTitle("搜索")
-        .inlineNavigationBarTitle()
     }
 
-    private var searchStageCard: some View {
-        ReaderStatusCardView(
-            eyebrow: "搜索阶段",
-            title: coordinator.selectedSource?.bookSourceName ?? "等待书源",
-            subtitle: coordinator.searchResults.isEmpty ? "输入关键词后进入最小搜索链路。" : "搜索结果已生成，可继续进入目录。",
-            items: [
-                ReaderStatusCardItem(label: "结果", value: "\(coordinator.searchResults.count) 条")
-            ]
-        )
-        .padding(.horizontal)
-        .padding(.bottom, 12)
-    }
-
-    private var searchBar: some View {
-        HStack(spacing: 12) {
-            TextField("输入关键词", text: $searchText)
+    private var searchInputView: some View {
+        HStack(spacing: 8) {
+            TextField("Enter keyword", text: $viewModel.keyword)
                 .textFieldStyle(.roundedBorder)
-                .submitLabel(.search)
-                .onSubmit(performSearch)
 
-            Button(action: performSearch) {
+            Button(action: {
+                Task { await viewModel.search() }
+            }) {
                 Image(systemName: "magnifyingglass")
-                    .font(.headline)
+                    .padding()
+                    .background(.primary)
+                    .foregroundStyle(.white)
+                    .cornerRadius(8)
             }
-            .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding()
     }
 
-    private var emptyState: some View {
-        ReaderEmptyStateView(
-            title: "等待搜索",
-            message: "输入关键词开始搜索，随后进入目录与正文链路。",
-            systemImage: "text.magnifyingglass"
-        )
-    }
+    @ViewBuilder
+    private var searchStateView: some View {
+        switch viewModel.searchState {
+        case .idle:
+            Text("Enter a keyword and select a book source to search")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
 
-    private var resultsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 1) {
-                ForEach(coordinator.searchResults, id: \.detailURL) { book in
-                    NavigationLink {
-                        TOCView(coordinator: coordinator, book: book)
-                    } label: {
-                        BookRow(book: book)
+        case .loading:
+            ProgressView("Searching...")
+                .frame(maxWidth: .infinity, minHeight: 120)
+
+        case .success(let results):
+            List {
+                ForEach(results, id: \.detailURL) { result in
+                    SearchResultRowView(
+                        result: result,
+                        sourceName: viewModel.selectedSource?.displayName ?? ""
+                    )
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
+                }
+            }
+            .listStyle(.plain)
+
+        case .empty:
+            VStack(spacing: 16) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.secondary)
+
+                Text("No Results")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Text("Try a different keyword or book source")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Search Failed", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+
+        case .unsupported(let reason):
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Unsupported", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+
+        case .partial(let results, let warnings):
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Partial Results", systemImage: "exclamationmark.circle.fill")
+                        .foregroundStyle(.yellow)
+                        .font(.subheadline.weight(.semibold))
+
+                    ForEach(warnings, id: \.self) {
+                        Text("⚠️ \($0)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
+                .padding()
+                .background(Color.yellow.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+
+                List {
+                    ForEach(results, id: \.detailURL) { result in
+                        SearchResultRowView(
+                            result: result,
+                            sourceName: viewModel.selectedSource?.displayName ?? ""
+                        )
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowSeparator(.hidden)
+                    }
+                }
+                .listStyle(.plain)
             }
-        }
-    }
-}
-#endif
-
-private struct BookRow: View {
-    let book: SearchResultItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(book.title)
-                .font(.headline)
-                .lineLimit(2)
-
-            if let author = book.author {
-                Text(author)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            if let intro = book.intro {
-                Text(intro)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private extension SearchView {
-    func performSearch() {
-        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty else {
-            return
-        }
-
-        Task {
-            await coordinator.search(keyword: keyword)
         }
     }
 }
