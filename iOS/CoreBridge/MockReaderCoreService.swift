@@ -22,19 +22,19 @@ public final class MockReaderCoreService: Sendable {
 
     public func setScenario(_ scenario: MockScenario) {
         lock.lock()
-        defer { unlock }
+        defer { lock.unlock() }
         self.scenario = scenario
     }
 
     public func reset() {
         lock.lock()
-        defer { unlock }
+        defer { lock.unlock() }
         self.scenario = .success
     }
 
     public func validateBookSource(from data: Data) async -> LoadState<BookSource> {
         try? await Task.sleep(nanoseconds: 100_000_000)
-        return processScenario(for: ())
+        return processScenario(for: BookSource(id: "mock", name: "Mock Source", url: "https://example.com"))
     }
 
     public func searchBooks(keyword: String, page: Int) async -> LoadState<[SearchResultItem]> {
@@ -83,15 +83,15 @@ public final class MockReaderCoreService: Sendable {
         }
     }
 
-    public func getBookDetail(bookURL: String) async -> LoadState<Book> {
+    public func getBookDetail(bookURL: String) async -> LoadState<SearchResultItem> {
         try? await Task.sleep(nanoseconds: 200_000_000)
 
         switch scenario {
         case .success:
-            return .loaded(Self.mockBook)
+            return .loaded(Self.mockSearchResults[0])
 
         case .partial(let warning):
-            return .partial(Self.mockBook, warning: warning)
+            return .partial(Self.mockSearchResults[0], warning: warning)
 
         case .unsupported(let reason):
             return .unsupported(reason)
@@ -242,99 +242,47 @@ public final class MockReaderCoreService: Sendable {
 
     public static let mockSearchResults: [SearchResultItem] = [
         SearchResultItem(
-            id: "mock-book-1",
             title: "凡人修仙传",
             author: "忘语",
-            coverURL: nil,
-            detailURL: "https://example.com/book/1",
-            description: "一个凡人修炼成仙的传奇故事",
-            wordCount: 10000000,
-            lastUpdate: "2024-01-01"
+            detailURL: "https://example.com/book/1"
         ),
         SearchResultItem(
-            id: "mock-book-2",
             title: "仙逆",
             author: "耳根",
-            coverURL: nil,
-            detailURL: "https://example.com/book/2",
-            description: "顺为凡，逆则仙",
-            wordCount: 8000000,
-            lastUpdate: "2024-02-15"
+            detailURL: "https://example.com/book/2"
         ),
         SearchResultItem(
-            id: "mock-book-3",
             title: "一念永恒",
             author: "耳根",
-            coverURL: nil,
-            detailURL: "https://example.com/book/3",
-            description: "一念之间，永恒轮回",
-            wordCount: 6000000,
-            lastUpdate: "2024-03-20"
+            detailURL: "https://example.com/book/3"
         )
     ]
 
-    public static let mockBook: Book = {
-        let author = Author(name: "忘语", description: nil)
-        return Book(
-            id: "mock-book-1",
-            title: "凡人修仙传",
-            author: author,
-            coverURL: nil,
-            detailURL: "https://example.com/book/1",
-            description: "一个凡人修炼成仙的传奇故事，讲述了一个资质平庸的少年如何通过努力和机遇，一步步踏上修仙之路，最终成为一代大能的历程。",
-            wordCount: 10000000,
-            lastUpdate: "2024-01-01",
-            status: .published,
-            categories: ["仙侠", "玄幻"],
-            tags: ["修仙", "成长", "热血"]
-        )
-    }()
-
     public static let mockTOCItems: [TOCItem] = [
         TOCItem(
-            index: 0,
-            title: "第一章 山村少年",
+            chapterTitle: "第一章 山村少年",
             chapterURL: "https://example.com/book/1/chapter/1",
-            isVIP: false,
-            isPaid: false,
-            wordCount: 5000,
-            updateTime: "2020-01-01"
+            chapterIndex: 0
         ),
         TOCItem(
-            index: 1,
-            title: "第二章 仙缘",
+            chapterTitle: "第二章 仙缘",
             chapterURL: "https://example.com/book/1/chapter/2",
-            isVIP: false,
-            isPaid: false,
-            wordCount: 4500,
-            updateTime: "2020-01-02"
+            chapterIndex: 1
         ),
         TOCItem(
-            index: 2,
-            title: "第三章 修炼入门",
+            chapterTitle: "第三章 修炼入门",
             chapterURL: "https://example.com/book/1/chapter/3",
-            isVIP: false,
-            isPaid: false,
-            wordCount: 4800,
-            updateTime: "2020-01-03"
+            chapterIndex: 2
         ),
         TOCItem(
-            index: 3,
-            title: "第四章 宗门大选",
+            chapterTitle: "第四章 宗门大选",
             chapterURL: "https://example.com/book/1/chapter/4",
-            isVIP: true,
-            isPaid: false,
-            wordCount: 5200,
-            updateTime: "2020-01-04"
+            chapterIndex: 3
         ),
         TOCItem(
-            index: 4,
-            title: "第五章 初入灵泉",
+            chapterTitle: "第五章 初入灵泉",
             chapterURL: "https://example.com/book/1/chapter/5",
-            isVIP: true,
-            isPaid: false,
-            wordCount: 5100,
-            updateTime: "2020-01-05"
+            chapterIndex: 4
         )
     ]
 
@@ -361,7 +309,7 @@ public final class MockReaderCoreService: Sendable {
 
         韩立一听，顿时脸色大变。
         """,
-        previousURL: nil,
-        nextURL: "https://example.com/book/1/chapter/2"
+        chapterURL: "https://example.com/book/1/chapter/1",
+        nextChapterURL: "https://example.com/book/1/chapter/2"
     )
 }

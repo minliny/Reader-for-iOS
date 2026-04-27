@@ -19,13 +19,13 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     public var currentMode: ServiceMode {
         lock.lock()
-        defer { unlock }
+        defer { lock.unlock() }
         return mode
     }
 
     public func setMode(_ newMode: ServiceMode) {
         lock.lock()
-        defer { unlock }
+        defer { lock.unlock() }
         self.mode = newMode
     }
 
@@ -37,7 +37,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         await mockService.searchBooks(keyword: keyword, page: page)
     }
 
-    public func getBookDetail(bookURL: String) async -> LoadState<Book> {
+    public func getBookDetail(bookURL: String) async -> LoadState<SearchResultItem> {
         await mockService.getBookDetail(bookURL: bookURL)
     }
 
