@@ -3,6 +3,7 @@ import ReaderCoreModels
 
 public struct BookDetailView: View {
     @StateObject private var viewModel: BookDetailViewModel
+    @State private var showChapterList = false
     let result: SearchResultItem
 
     public init(result: SearchResultItem) {
@@ -21,6 +22,9 @@ public struct BookDetailView: View {
             .navigationTitle("Book Detail")
             .onAppear {
                 Task { await viewModel.loadDetail() }
+            }
+            .navigationDestination(isPresented: $showChapterList) {
+                ChapterListView(bookURL: result.detailURL, bookTitle: result.title)
             }
         }
     }
@@ -170,6 +174,7 @@ public struct BookDetailView: View {
                 .cornerRadius(12)
             }
             .buttonStyle(.plain)
+            .disabled(false)
         }
     }
 
@@ -186,5 +191,6 @@ public struct BookDetailView: View {
     }
 
     private func showTOCAction() {
+        showChapterList = true
     }
 }
