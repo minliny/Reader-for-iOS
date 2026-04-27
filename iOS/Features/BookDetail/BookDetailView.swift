@@ -4,7 +4,9 @@ import ReaderCoreModels
 public struct BookDetailView: View {
     @StateObject private var viewModel: BookDetailViewModel
     @State private var showChapterList = false
+    @State private var isInBookshelf = false
     let result: SearchResultItem
+    private let bookshelfStore = BookshelfStore.shared
 
     public init(result: SearchResultItem) {
         self.result = result
@@ -21,12 +23,19 @@ public struct BookDetailView: View {
             }
             .navigationTitle("Book Detail")
             .onAppear {
-                Task { await viewModel.loadDetail() }
+                Task {
+                    await viewModel.loadDetail()
+                    checkBookshelfStatus()
+                }
             }
             .navigationDestination(isPresented: $showChapterList) {
                 ChapterListView(bookURL: result.detailURL, bookTitle: result.title)
             }
         }
+    }
+
+    private func checkBookshelfStatus() {
+        isInBookshelf = (try? bookshelfStore.find(bookURL: result.detailURL, sourceID: result.detailURL)) != nil
     }
 
     @ViewBuilder
@@ -174,8 +183,39 @@ public struct BookDetailView: View {
                 .cornerRadius(12)
             }
             .buttonStyle(.plain)
-            .disabled(false)
+
+            addToBookshelfButton
         }
+    }
+
+    private var addToBookshelfButton: some View {
+        Button(action: {
+            addToBookshelf()
+        }) {
+            HStack {
+                Image(systemName: isInBookshelf ? "checkmark.circle.fill" : "plus.circle")
+                Text(isInBookshelf ? "In Bookshelf" : "Add to Bookshelf")
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(isInBookshelf ? Color.gray : Color.blue)
+            .foregroundStyle(.white)
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func addToBookshelf() {
+        let item = BookshelfItem(
+            sourceID: result.detailURL,
+            bookURL: result.detailURL,
+            title: result.title,
+            author: result.author,
+            coverURL: result.coverURL,
+            latestChapter: result.latestChapter
+        )
+        try? bookshelfStore.addOrUpdate(item)
+        isInBookshelf = true
     }
 
     private var coverPlaceholder: some View {
