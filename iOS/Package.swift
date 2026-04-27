@@ -54,23 +54,18 @@ let package = Package(
         .target(
             name: "ReaderApp",
             dependencies: [
-                "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Reader-Core"),
-                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
-                .product(name: "ReaderCoreParser", package: "Reader-Core"),
-                .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
-                .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
+                "ReaderShellValidation"
             ],
             path: ".",
             exclude: [
                 "CoreIntegration",
+                "CoreBridge",
+                "Shell",
                 "Tests",
             ],
             sources: [
                 "App",
-                "CoreBridge",
                 "Features",
-                "Shell",
                 "Modules",
                 "Navigation",
                 "Surface"
