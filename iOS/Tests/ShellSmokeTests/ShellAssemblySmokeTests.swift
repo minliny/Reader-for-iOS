@@ -20,9 +20,9 @@ final class ShellAssemblySmokeTests: XCTestCase {
 
         XCTAssertTrue(coordinator.bookSourceRepository is InMemoryBookSourceRepository)
         XCTAssertTrue(coordinator.bookSourceDecoder is DefaultBookSourceDecoder)
-        XCTAssertTrue(coordinator.searchService is DefaultSearchService)
-        XCTAssertTrue(coordinator.tocService is DefaultTOCService)
-        XCTAssertTrue(coordinator.contentService is DefaultContentService)
+        XCTAssertTrue(coordinator.searchService is MockSearchService)
+        XCTAssertTrue(coordinator.tocService is MockTOCService)
+        XCTAssertTrue(coordinator.contentService is MockContentService)
     }
 
     @MainActor
