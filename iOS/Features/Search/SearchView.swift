@@ -1,7 +1,9 @@
 import SwiftUI
+import ReaderCoreModels
 
 public struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
+    @State private var selectedResult: SearchResultItem?
 
     public init() {}
 
@@ -14,6 +16,9 @@ public struct SearchView: View {
             }
             .padding()
             .navigationTitle("Search")
+            .navigationDestination(item: $selectedResult) { result in
+                BookDetailView(result: result)
+            }
         }
     }
 
@@ -70,7 +75,10 @@ public struct SearchView: View {
                 ForEach(results, id: \.detailURL) { result in
                     SearchResultRowView(
                         result: result,
-                        sourceName: viewModel.selectedSource?.displayName ?? ""
+                        sourceName: viewModel.selectedSource?.displayName ?? "",
+                        onTap: {
+                            selectedResult = result
+                        }
                     )
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowSeparator(.hidden)
@@ -142,7 +150,10 @@ public struct SearchView: View {
                     ForEach(results, id: \.detailURL) { result in
                         SearchResultRowView(
                             result: result,
-                            sourceName: viewModel.selectedSource?.displayName ?? ""
+                            sourceName: viewModel.selectedSource?.displayName ?? "",
+                            onTap: {
+                                selectedResult = result
+                            }
                         )
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowSeparator(.hidden)

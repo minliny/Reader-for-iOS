@@ -4,14 +4,19 @@ import ReaderCoreModels
 public struct SearchResultRowView: View {
     let result: SearchResultItem
     let sourceName: String
+    let onTap: (() -> Void)?
 
-    public init(result: SearchResultItem, sourceName: String) {
+    public init(result: SearchResultItem, sourceName: String, onTap: (() -> Void)? = nil) {
         self.result = result
         self.sourceName = sourceName
+        self.onTap = onTap
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        Button(action: {
+            onTap?()
+        }) {
+            VStack(alignment: .leading, spacing: 8) {
             Text(result.title)
                 .font(.headline)
 
@@ -40,7 +45,9 @@ public struct SearchResultRowView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
     }
 }
