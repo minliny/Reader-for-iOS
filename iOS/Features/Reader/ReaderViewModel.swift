@@ -42,6 +42,7 @@ public final class ReaderViewModel: ObservableObject {
     public let chapterTitle: String
 
     private let provider = ReaderCoreServiceProvider.shared
+    private let bookshelfStore = BookshelfStore.shared
 
     public init(chapterURL: String, chapterTitle: String) {
         self.chapterURL = chapterURL
@@ -56,9 +57,11 @@ public final class ReaderViewModel: ObservableObject {
             switch state {
             case .loaded(let content):
                 readerState = .loaded(content: content)
+                await saveReadingProgress()
 
             case .partial(let content, let warning):
                 readerState = .partial(content: content, warnings: [warning])
+                await saveReadingProgress()
 
             case .unsupported(let reason):
                 readerState = .unsupported(reason: reason)
@@ -75,6 +78,27 @@ public final class ReaderViewModel: ObservableObject {
         } catch {
             readerState = .failed(message: "Load content failed: \(error.localizedDescription)")
         }
+    }
+
+    private func saveReadingProgress() async {
+        let bookURL = extractBookURL(from: chapterURL)
+        let sourceID = bookURL
+
+        if let existingItem = try? bookshelfStore.find(bookURL: bookURL, sourceID: sourceID) {
+            try? bookshelfStore.updateProgress(
+                bookID: existingItem.id,
+                progress: 0.0,
+                chapterTitle: chapterTitle,
+                chapterURL: chapterURL
+            )
+        }
+    }
+
+    private func extractBookURL(from chapterURL: String) -> String {
+        if let range = chapterURL.range(of: "/chapter/") {
+            return String(chapterURL[..<range.lowerBound])
+        }
+        return chapterURL
     }
 
     public func increaseFontSize() {
