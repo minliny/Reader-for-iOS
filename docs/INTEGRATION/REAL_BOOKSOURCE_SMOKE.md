@@ -1,29 +1,26 @@
-# Real BookSource Integration Smoke Test Results
+# Reader-for-iOS Integration Smoke Test Results
 
 ## Overview
 
-This document records the integration test results for real book sources with Reader-for-iOS.
+This document records the integration test results for Reader-for-iOS. It explicitly distinguishes between:
+- **Mock Shell Smoke**: Verifies iOS UI/Store/CoreBridge main flow works with mock data
+- **Real BookSource Smoke**: Tests with actual BookSource JSON files (currently PENDING)
 
-## Test Environment
+## Current Status
 
-- Reader-for-iOS commit: 0c17cee
-- Reader-Core dependency: Local sibling checkout
-- Test Date: 2026-04-28
+- **Mock Shell Smoke**: VERIFIED
+- **Real BookSource Smoke**: PENDING_INPUT
+- **Test Date**: 2026-04-28
 
-## Book Source Test Cases
+---
 
-### Legend
+## A. Mock Shell Smoke Test (Baseline)
 
-| Status | Meaning |
-|--------|---------|
-| ✓ | Success |
-| ✗ | Failed |
-| ⚠ | Partial / Warning |
-| - | Not tested |
+### Purpose
 
-## Test Results
+Verify that the iOS shell main flow works correctly with mock services. This does NOT represent real book source parsing capability.
 
-### Mock Service Smoke Test (Baseline)
+### Results
 
 | Step | Result | Notes |
 |------|--------|-------|
@@ -36,31 +33,64 @@ This document records the integration test results for real book sources with Re
 | Add to Bookshelf | ✓ | Saves to BookshelfStore |
 | Update Reading Progress | ✓ | Updates progress in store |
 
-### Test Summary
+### Conclusion
 
-#### Failed Steps
+Mock shell smoke test: **PASS**
+This confirms iOS UI, Store, and CoreBridge integration are working correctly with mock data.
 
-| Source | Step | Failure Category | Suspected Owner | Next Action |
-|--------|------|-----------------|-----------------|-------------|
-| N/A | N/A | N/A | N/A | Awaiting real book sources |
+---
 
-#### Failure Category Distribution
+## B. Real BookSource Smoke Test
 
-- ios_ui_state: 0
-- corebridge_mapping: 0
-- reader_core_facade: 0
-- reader_core_parser: 0
-- reader_core_network: 0
-- reader_core_policy: 0
-- unsupported_capability: 0
-- test_data_invalid: 0
-- unknown: 0
+### Current Status: PENDING_INPUT
 
-## Real BookSource Test Records
+Real book source testing has not yet started. Waiting for valid BookSource JSON files to be placed in `test_inputs/booksources/`.
+
+### Input Requirements
+
+- **Input Directory**: `test_inputs/booksources/`
+- **File Format**: `*.json`
+- **File Content**: Valid BookSource JSON compatible with Legado format
+
+### Test Execution Requirements
+
+For each real book source, the following must be recorded:
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| source_file | Path to the BookSource JSON file | Yes |
+| source_name | Name from the book source | Yes |
+| import_result | Result of importing the JSON | Yes |
+| validation_result | Result of validateBookSource | Yes |
+| search_keyword | Keyword used for search | Yes |
+| search_result | Result of searchBooks | Yes |
+| detail_result | Result of getBookDetail | Yes |
+| chapter_list_result | Result of getChapterList | Yes |
+| chapter_content_result | Result of getChapterContent | Yes |
+| bookshelf_result | Result of addToBookshelf | Yes |
+| reading_progress_result | Result of progress update | Yes |
+| failed_step | Which step failed (if any) | No |
+| failure_category | Category of failure (see below) | If failed |
+| suspected_owner | Which component owns this issue | If failed |
+| next_action | What needs to be done | If failed |
+
+### Failure Category Enumeration
+
+| Category | Description |
+|----------|-------------|
+| ios_ui_state | iOS UI state handling error |
+| corebridge_mapping | CoreBridge DTO mapping error |
+| reader_core_facade | Reader-Core facade API issue |
+| reader_core_parser | Reader-Core parser rule issue |
+| reader_core_network | Reader-Core network issue |
+| reader_core_policy | Reader-Core policy violation |
+| unsupported_capability | Unsupported feature/capability |
+| test_data_invalid | Invalid test data format |
+| unknown | Unknown failure cause |
 
 ### Record Template
 
-```
+```markdown
 #### [Source Name]
 
 | Property | Value |
@@ -82,32 +112,49 @@ This document records the integration test results for real book sources with Re
 | next_action | |
 ```
 
-### Test Records (Empty - Awaiting Real Book Sources)
+### Test Records
 
-No real book sources have been tested yet. Please place valid BookSource JSON files in `test_inputs/booksources/` and run the integration tests.
+No real book source tests have been executed yet.
 
-## Reader-Core Issues
+---
 
-| Sample ID | Failed Step | Failure Reason | Expected Behavior | Regression Requirement |
-|-----------|-------------|----------------|------------------|------------------------|
-| N/A | N/A | N/A | N/A | N/A |
+## C. Failed Steps Summary (Real BookSource)
 
-## iOS Shell Issues
+| Source | Step | Failure Category | Suspected Owner | Next Action |
+|--------|------|-----------------|-----------------|-------------|
+| N/A | N/A | N/A | N/A | Awaiting real book sources |
 
-| Issue | Description | Fix Status |
-|-------|-------------|------------|
-| N/A | N/A | N/A |
+---
 
-## Conclusion
+## D. Test Execution Instructions
 
-- Mock service smoke test: PASS
-- Real book source tests: PENDING (awaiting test data)
-- iOS shell boundaries: VERIFIED
+### To Run Real BookSource Tests
+
+1. Place valid BookSource JSON files in `test_inputs/booksources/`
+2. Launch the iOS app
+3. Import the book source
+4. Execute the full flow: Search → Detail → Chapter List → Reading → Bookshelf
+5. Record results in section B using the template provided
+6. Update the Failed Steps Summary if any failures occur
+
+### To Report Issues
+
+**iOS Shell Issues**: Fix in Reader-for-iOS repository
+
+**Reader-Core Issues**: Report to Reader-Core repository with:
+- Sample ID
+- Source JSON
+- Failed step
+- Failure reason
+- Expected behavior
+- Regression requirement
+
+---
 
 ## Next Steps
 
-1. Add real book source JSON files to `test_inputs/booksources/`
-2. Run integration tests with real sources
+1. **User Action Required**: Add real BookSource JSON files to `test_inputs/booksources/`
+2. Run real book source integration tests
 3. Document failures and assign ownership
 4. Fix iOS-side issues in this repository
 5. Report Reader-Core issues to Reader-Core repository
