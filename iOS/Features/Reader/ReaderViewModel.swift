@@ -35,18 +35,29 @@ public enum ReaderState: Equatable {
 @MainActor
 public final class ReaderViewModel: ObservableObject {
     @Published public var readerState: ReaderState = .idle
-    @Published public var fontSize: Int = 16
-    @Published public var backgroundMode: BackgroundMode = .light
+    @Published public var displaySettings = ReaderDisplaySettings.default
 
     public let chapterURL: String
     public let chapterTitle: String
 
     private let provider = ReaderCoreServiceProvider.shared
     private let bookshelfStore = BookshelfStore.shared
+    private let settingsStore = ReaderSettingsStore.shared
 
     public init(chapterURL: String, chapterTitle: String) {
         self.chapterURL = chapterURL
         self.chapterTitle = chapterTitle
+        loadSettings()
+    }
+
+    private func loadSettings() {
+        if let savedSettings = try? settingsStore.loadSettings() {
+            displaySettings = savedSettings
+        }
+    }
+
+    public func saveSettings() {
+        try? settingsStore.saveSettings(displaySettings)
     }
 
     public func loadContent() async {
@@ -102,36 +113,14 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     public func increaseFontSize() {
-        if fontSize < 32 {
-            fontSize += 2
+        if displaySettings.fontSize < 32 {
+            displaySettings.fontSize += 2
         }
     }
 
     public func decreaseFontSize() {
-        if fontSize > 12 {
-            fontSize -= 2
-        }
-    }
-}
-
-public enum BackgroundMode: String, CaseIterable {
-    case light
-    case sepia
-    case dark
-
-    public var backgroundColor: String {
-        switch self {
-        case .light: return "#FFFFFF"
-        case .sepia: return "#F4ECD8"
-        case .dark: return "#1C1C1E"
-        }
-    }
-
-    public var textColor: String {
-        switch self {
-        case .light: return "#000000"
-        case .sepia: return "#5C4B37"
-        case .dark: return "#FFFFFF"
+        if displaySettings.fontSize > 12 {
+            displaySettings.fontSize -= 2
         }
     }
 }

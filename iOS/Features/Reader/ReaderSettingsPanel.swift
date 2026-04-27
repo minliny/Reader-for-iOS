@@ -1,13 +1,11 @@
 import SwiftUI
 
 public struct ReaderSettingsPanel: View {
-    @Binding var fontSize: Int
-    @Binding var backgroundMode: BackgroundMode
+    @Binding var displaySettings: ReaderDisplaySettings
     let onDismiss: () -> Void
 
-    public init(fontSize: Binding<Int>, backgroundMode: Binding<BackgroundMode>, onDismiss: @escaping () -> Void) {
-        self._fontSize = fontSize
-        self._backgroundMode = backgroundMode
+    public init(displaySettings: Binding<ReaderDisplaySettings>, onDismiss: @escaping () -> Void) {
+        self._displaySettings = displaySettings
         self.onDismiss = onDismiss
     }
 
@@ -20,8 +18,8 @@ public struct ReaderSettingsPanel: View {
 
                 HStack(spacing: 16) {
                     Button(action: {
-                        if fontSize > 12 {
-                            fontSize -= 2
+                        if displaySettings.fontSize > 12 {
+                            displaySettings.fontSize -= 2
                         }
                     }) {
                         Image(systemName: "textformat.size.smaller")
@@ -30,17 +28,52 @@ public struct ReaderSettingsPanel: View {
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                     }
 
-                    Text("\(fontSize)")
+                    Text("\(displaySettings.fontSize)")
                         .font(.title)
                         .fontWeight(.bold)
                         .frame(width: 60)
 
                     Button(action: {
-                        if fontSize < 32 {
-                            fontSize += 2
+                        if displaySettings.fontSize < 32 {
+                            displaySettings.fontSize += 2
                         }
                     }) {
                         Image(systemName: "textformat.size.larger")
+                            .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+
+            VStack(spacing: 12) {
+                Text("Line Spacing")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                HStack(spacing: 16) {
+                    Button(action: {
+                        if displaySettings.lineSpacing > 2 {
+                            displaySettings.lineSpacing -= 2
+                        }
+                    }) {
+                        Image(systemName: "minus")
+                            .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    Text(String(format: "%.0f", displaySettings.lineSpacing))
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .frame(width: 60)
+
+                    Button(action: {
+                        if displaySettings.lineSpacing < 24 {
+                            displaySettings.lineSpacing += 2
+                        }
+                    }) {
+                        Image(systemName: "plus")
                             .font(.title2)
                             .frame(width: 44, height: 44)
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -54,9 +87,9 @@ public struct ReaderSettingsPanel: View {
                     .fontWeight(.semibold)
 
                 HStack(spacing: 12) {
-                    ForEach(BackgroundMode.allCases, id: \.self) { mode in
+                    ForEach(ReaderBackgroundMode.allCases, id: \.self) { mode in
                         Button(action: {
-                            backgroundMode = mode
+                            displaySettings.backgroundMode = mode
                         }) {
                             VStack(spacing: 4) {
                                 Circle()
@@ -64,7 +97,7 @@ public struct ReaderSettingsPanel: View {
                                     .frame(width: 32, height: 32)
                                     .overlay(
                                         Circle()
-                                            .stroke(backgroundMode == mode ? Color.blue : Color.clear, lineWidth: 2)
+                                            .stroke(displaySettings.backgroundMode == mode ? Color.blue : Color.clear, lineWidth: 2)
                                     )
 
                                 Text(mode.rawValue.capitalized)

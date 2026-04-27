@@ -33,9 +33,9 @@ public struct ReaderView: View {
             }
             .sheet(isPresented: $showSettings) {
                 ReaderSettingsPanel(
-                    fontSize: $viewModel.fontSize,
-                    backgroundMode: $viewModel.backgroundMode,
+                    displaySettings: $viewModel.displaySettings,
                     onDismiss: {
+                        viewModel.saveSettings()
                         showSettings = false
                     }
                 )
@@ -49,14 +49,7 @@ public struct ReaderView: View {
 
     @ViewBuilder
     private var contentBackground: some View {
-        switch viewModel.backgroundMode {
-        case .light:
-            Color.white
-        case .sepia:
-            Color(hex: "#F4ECD8")
-        case .dark:
-            Color(hex: "#1C1C1E")
-        }
+        Color(hex: viewModel.displaySettings.backgroundMode.backgroundColor)
     }
 
     @ViewBuilder
@@ -74,9 +67,15 @@ public struct ReaderView: View {
         case .loaded(let content):
             ScrollView {
                 Text(content.content)
-                    .font(.system(size: CGFloat(viewModel.fontSize)))
-                    .foregroundColor(Color(hex: viewModel.backgroundMode.textColor))
-                    .padding()
+                    .font(.system(size: CGFloat(viewModel.displaySettings.fontSize)))
+                    .foregroundColor(Color(hex: viewModel.displaySettings.backgroundMode.textColor))
+                    .lineSpacing(CGFloat(viewModel.displaySettings.lineSpacing))
+                    .padding(EdgeInsets(
+                        top: viewModel.displaySettings.verticalPadding,
+                        leading: viewModel.displaySettings.horizontalPadding,
+                        bottom: viewModel.displaySettings.verticalPadding,
+                        trailing: viewModel.displaySettings.horizontalPadding
+                    ))
             }
 
         case .empty:
@@ -141,9 +140,15 @@ public struct ReaderView: View {
 
                 ScrollView {
                     Text(content.content)
-                        .font(.system(size: CGFloat(viewModel.fontSize)))
-                        .foregroundColor(Color(hex: viewModel.backgroundMode.textColor))
-                        .padding()
+                        .font(.system(size: CGFloat(viewModel.displaySettings.fontSize)))
+                        .foregroundColor(Color(hex: viewModel.displaySettings.backgroundMode.textColor))
+                        .lineSpacing(CGFloat(viewModel.displaySettings.lineSpacing))
+                        .padding(EdgeInsets(
+                            top: viewModel.displaySettings.verticalPadding,
+                            leading: viewModel.displaySettings.horizontalPadding,
+                            bottom: viewModel.displaySettings.verticalPadding,
+                            trailing: viewModel.displaySettings.horizontalPadding
+                        ))
                 }
             }
         }
