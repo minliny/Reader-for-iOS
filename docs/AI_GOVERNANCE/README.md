@@ -10,8 +10,8 @@ This document defines the local governance baseline for AI-assisted work in this
 
 ## 3. Current Execution State
 
-- phase: post_split_stabilization_audit
-- execution_mode: audit_only
+- phase: Reader-for-iOS 正式开发启动阶段
+- execution_mode: active_development
 
 ## 4. Single Source of Truth
 

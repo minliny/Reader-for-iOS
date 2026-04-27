@@ -131,107 +131,74 @@ lockdown:
 project:
   current_repo_role: Reader-iOS
   upstream_core_repo: Reader-Core
-  mainline: post_split_stabilization_audit
-  phase: post_split_stabilization_audit
+  mainline: Reader-for-iOS 正式开发启动阶段
+  phase: Phase 0-1 development
 
-closed_samples:
-  - sample_js_runtime_001
-  - sample_js_runtime_002
-  - sample_004
-  - sample_005
-  - sample_001
-  - sample_002
-  - sample_003
-  - SAMPLE-P1-HEADER-001
-  - SAMPLE-P1-HEADER-002
-  - SAMPLE-P1-HEADER-003
-  - SAMPLE-P1-COOKIE-001
-  - SAMPLE-P1-COOKIE-002
-  - SAMPLE-P1-COOKIE-003
-  - SAMPLE-P1-CACHE-001
-  - SAMPLE-P1-CACHE-002
-  - SAMPLE-P1-CACHE-003
-  - SAMPLE-P1-ERROR-001
-  - SAMPLE-P1-ERROR-002
-  - SAMPLE-P1-ERROR-003
-  - SAMPLE-P1-POLICY-001
-  - SAMPLE-P1-POLICY-002
-  - SAMPLE-P1-POLICY-003
+current_phase_definition:
+  phase_name: Reader-for-iOS 正式开发启动阶段
+  goal: 建立 CoreBridge + Mock Service + 非 JS 主链路 UI
+  strategy: Facade 冻结优先，Parser 能力通过 unsupported/partial/error 态向 UI 暴露
+  start_condition: |
+    Reader-for-iOS 正式开发可以开始；
+    但 iOS 只能依赖 Reader-Core public Facade；
+    Parser 能力不足必须通过 unsupported/partial/failed 状态表达；
+    不得让 iOS UI 直接绑定 Parser 内部实现。
 
-mature_capabilities:
-  - ci_execution
-  - artifact_output
-  - regression_writeback
-  - writeback_review
-  - compat_matrix_audit_absorption
-  - Header (CLOSED)
-  - Cookie (CLOSED)
-  - Cache (CLOSED)
-  - ErrorMapping (CI_VERIFIED_CLOSED)
-  - PolicyVerification (CI_VERIFIED_CLOSED)
-  - JSDomExecution (CLOSED)
-  - LoginBootstrap (CLOSED)
-  - CookieIsolation (CLOSED)
+development_phases:
+  - Phase 0: Core 接入准备
+  - Phase 1: 书源管理
+  - Phase 2: 搜索流程
+  - Phase 3: 书籍详情
+  - Phase 4: 目录页
+  - Phase 5: 阅读页
+  - Phase 6: 本地书架
+  - Phase 7: 稳定化
 
-uncovered_capabilities: []
+postpone_items:
+  - JS
+  - 登录
+  - 多书源聚合搜索
+  - 复杂阅读设置
+  - 云同步
 
-out_of_scope_capabilities:
-  - AntiBot (ROI NEGATIVE)
-  - JSNetwork (ROI NEGATIVE)
-
-ios_gate:
-  allowed: true
-  decision: READER_IOS_MAINLINE
-  review_doc: docs/IOS_PHASE_GATE_REVIEW.md
-  remediation_doc: docs/ios_gate_remediation_result.yml
-  dependency_direction: "Reader-iOS -> Reader-Core public package/products only"
-
-recent_completed_action: "Reverse split / Core Asset Migration completed; post-split stabilization audit in progress."
-next_best_task: "Stabilize dual-repo CI and retire Reader-iOS path dependency."
-freeze_gate_status: "READY_TO_FREEZE"
+ios_dependency_rules:
+  allowed:
+    - Reader-Core public Facade API
+    - ReaderCoreModels
+    - ReaderCoreProtocols
+  forbidden:
+    - ReaderCoreParser (internal)
+    - ReaderCoreJSRenderer
+    - ReaderCoreNetwork (internal)
+    - NonJSRuleScheduler
+    - NonJSParserEngine
+    - SelectorEngine
 ```
 
 ## 首版范围与边界
 
+### 首版阶段定义
+
+```text
+Reader-for-iOS 正式开发启动阶段
+目标：先建立 CoreBridge + Mock Service + 非 JS 主链路 UI
+策略：Facade 冻结优先，Parser 能力通过 unsupported/partial/error 态向 UI 暴露
+```
+
 ### 首版必须完成
-- 统一 Core 基础模型 ✅
-- BookSource 导入 ✅
-- 搜索 / 目录 / 正文主链路 ✅
-- 非 JS 主路径 ✅
-- Header / 基础 Cookie / 缓存 / 错误定位 ✅
-- 最小调试能力 ✅ (smoke runner + regression scripts)
+- Phase 0: Core 接入准备（CoreBridge + Mock Service）
+- Phase 1: 书源管理（导入/保存/列表/校验）
+- Phase 2: 搜索流程（搜索 UI + 结果展示）
+- Phase 3: 书籍详情
+- Phase 4: 目录页
+- Phase 5: 阅读页
 
-### 当前已成熟能力
-- CI 执行
-- artifact 产出
-- regression 回写
-- writeback 审核
-- compat_matrix 审计吸收
-- Header (CLOSED)
-- Cookie (CLOSED, 含 scoped isolation)
-- Cache (CLOSED, 含 SimpleCacheRepository + MinimalCacheHTTPClient + InMemoryResponseCache)
-- Error mapping (CI_VERIFIED_CLOSED, 14/14 ErrorMappingTests passed)
-- PolicyVerification (CI_VERIFIED_CLOSED, 9/9 PolicyVerificationTests passed)
-- JSDomExecution (CLOSED, JSRuntime + JSRuntimeDOMBridge)
-- LoginBootstrap (CLOSED, 3-step bootstrap + marker verification)
-- CookieIsolation (CLOSED, scoped BasicCookieJar)
-
-### 当前未覆盖能力
-- 无（所有能力已关闭或已裁决 OUT_OF_SCOPE）
-
-### 当前 OUT_OF_SCOPE
-- AntiBot (ROI NEGATIVE — 需 WKWebView，与沙箱模型不兼容)
-- JSNetwork (ROI NEGATIVE — 开启 fetch/XHR 破坏 networkLockdown 安全保证)
-
-### 当前明确不做
-- 直接移植 Android 实现
-- 完整历史边缘规则兼容
-- 复杂在线调试服务复刻
-- 内置内容平台
-- 云同步、账号、社区优先开发
-- 在主仓继续推进新的 iOS feature phase
-- 将 iOS phase/gate 继续作为 Core 主仓长期状态维护
-- 在物理拆仓完成前伪造“Reader-iOS 已独立完成”
+### 首版延后
+- JS 执行
+- 登录态
+- 多书源聚合搜索
+- 复杂阅读设置
+- 云同步
 
 ## 禁止事项
 

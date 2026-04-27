@@ -23,7 +23,7 @@
 - Reader-Core latest CI is not green; `Reader Core Swift Tests` failed on GitHub Actions.
 - Reader-iOS still used path dependency as the active integration mode.
 - Reader-iOS ios-shell-ci had a broken checkout path outside workspace.
-- Reader-iOS docs still contained transition-host semantics after reverse split.
+- Reader-iOS docs were rewritten to reflect Reader-iOS primary repo semantics after reverse split.
 
 ## Fixes Applied In This Repo
 
