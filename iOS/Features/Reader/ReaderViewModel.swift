@@ -93,9 +93,13 @@ public final class ReaderViewModel: ObservableObject {
 
     private func saveReadingProgress() async {
         let bookURL = extractBookURL(from: chapterURL)
-        let sourceID = bookURL
+        let sourceIdentity = SourceIdentity(
+            id: bookURL,
+            name: nil,
+            baseURL: nil
+        )
 
-        if let existingItem = try? bookshelfStore.find(bookURL: bookURL, sourceID: sourceID) {
+        if let existingItem = try? bookshelfStore.find(bookURL: bookURL, sourceID: sourceIdentity.id) {
             try? bookshelfStore.updateProgress(
                 bookID: existingItem.id,
                 progress: 0.0,

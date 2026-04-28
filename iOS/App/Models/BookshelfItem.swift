@@ -3,6 +3,7 @@ import Foundation
 public struct BookshelfItem: Codable, Identifiable, Equatable {
     public let id: String
     public let sourceID: String
+    public let sourceName: String?
     public let bookURL: String
     public let title: String
     public let author: String?
@@ -17,6 +18,7 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
     public init(
         id: String = UUID().uuidString,
         sourceID: String,
+        sourceName: String? = nil,
         bookURL: String,
         title: String,
         author: String? = nil,
@@ -30,6 +32,7 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
     ) {
         self.id = id
         self.sourceID = sourceID
+        self.sourceName = sourceName
         self.bookURL = bookURL
         self.title = title
         self.author = author

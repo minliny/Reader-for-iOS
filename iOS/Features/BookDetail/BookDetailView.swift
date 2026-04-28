@@ -7,6 +7,9 @@ public struct BookDetailView: View {
     @State private var isInBookshelf = false
     let result: SearchResultItem
     private let bookshelfStore = BookshelfStore.shared
+    private var sourceIdentity: SourceIdentity {
+        SourceIdentityFactory.from(searchResult: result)
+    }
 
     public init(result: SearchResultItem) {
         self.result = result
@@ -35,7 +38,7 @@ public struct BookDetailView: View {
     }
 
     private func checkBookshelfStatus() {
-        isInBookshelf = (try? bookshelfStore.find(bookURL: result.detailURL, sourceID: result.detailURL)) != nil
+        isInBookshelf = (try? bookshelfStore.find(bookURL: result.detailURL, sourceID: sourceIdentity.id)) != nil
     }
 
     @ViewBuilder
@@ -206,8 +209,10 @@ public struct BookDetailView: View {
     }
 
     private func addToBookshelf() {
+        let identity = sourceIdentity
         let item = BookshelfItem(
-            sourceID: result.detailURL,
+            sourceID: identity.id,
+            sourceName: identity.name,
             bookURL: result.detailURL,
             title: result.title,
             author: result.author,
