@@ -1,0 +1,1200 @@
+# 1. 当前阶段判断
+
+**结论：Reader-for-iOS 可以正式开始开发。**
+
+但前提是：iOS 侧必须以 **Reader-Core Facade API** 为唯一依赖边界，不直接绑定 Parser 内部实现。当前 Reader-Core 的 Parser / BookSource / Regression 能力已经足够支撑 iOS 启动主链路开发；真实书源解析能力仍在迭代，但这不应阻塞 iOS UI、状态流、书源管理、搜索链路、阅读链路的并行推进。
+
+当前阶段应定义为：
+
+```text
+Reader-for-iOS 正式开发启动阶段
+目标：先建立 CoreBridge + Mock Service + 非 JS 主链路 UI
+策略：Facade 冻结优先，Parser 能力通过 unsupported / partial / error 态向 UI 暴露
+```
+
+是否可以正式开始 iOS 开发：
+
+```text
+YES
+```
+
+---
+
+# 2. iOS 总体开发路线
+
+Reader-for-iOS 应按 **“先壳层主链路，后真实能力补齐”** 的方式推进。
+
+整体路线：
+
+```text
+Phase 0：Core 接入准备
+Phase 1：书源管理
+Phase 2：搜索流程
+Phase 3：书籍详情
+Phase 4：目录页
+Phase 5：阅读页
+Phase 6：本地书架
+Phase 7：稳定化
+```
+
+开发原则：
+
+```text
+1. iOS 只依赖 Reader-Core public API
+2. iOS 不直接 import Parser 内部模块
+3. iOS 通过 CoreBridge 访问 Reader-Core
+4. UI 只面向 DTO / ReaderError / LoadState
+5. Parser 未完成时，UI 使用 MockReaderCoreService 推进
+6. 真实 Core 接入时，不重写 UI
+7. 先完成非 JS 主链路
+8. JS / 登录 / 聚合搜索 / 云同步后置
+```
+
+主链路目标：
+
+```text
+导入书源 JSON
+  → 校验书源
+  → 搜索书籍
+  → 查看详情
+  → 查看目录
+  → 打开章节
+  → 阅读正文
+  → 加入书架
+  → 保存阅读进度
+```
+
+---
+
+# 3. Reader-Core Facade 依赖
+
+## 3.1 必须冻结的核心协议
+
+Reader-for-iOS 只依赖以下协议，不直接依赖 Parser 内部实现。
+
+```swift
+public protocol ReaderCoreService {
+    func validateBookSource(_ source: BookSource) async -> BookSourceValidationResult
+
+    func searchBooks(
+        source: BookSource,
+        keyword: String
+    ) async throws -> [BookSearchResult]
+
+    func getBookDetail(
+        source: BookSource,
+        bookUrl: String
+    ) async throws -> BookDetailResult
+
+    func getChapterList(
+        source: BookSource,
+        tocUrl: String
+    ) async throws -> [ChapterResult]
+
+    func getChapterContent(
+        source: BookSource,
+        chapterUrl: String
+    ) async throws -> ChapterContentResult
+}
+```
+
+## 3.2 必须明确的 DTO
+
+### BookSource
+
+用于承载导入后的书源基础信息。
+
+```swift
+public struct BookSource: Sendable, Codable, Equatable, Identifiable {
+    public let id: String
+    public let name: String
+    public let url: String?
+    public let rawJSON: String
+    public let version: String?
+    public let enabled: Bool
+}
+```
+
+最低要求：
+
+```text
+- 能保存原始 JSON
+- 能识别书源名称
+- 能作为后续 search/detail/toc/content 的输入
+- 不暴露 Parser 内部模型
+```
+
+---
+
+### BookSourceValidationResult
+
+用于表示书源能力校验结果。
+
+```swift
+public struct BookSourceValidationResult: Sendable, Codable, Equatable {
+    public let sourceID: String
+    public let status: BookSourceSupportStatus
+    public let warnings: [String]
+    public let errors: [ReaderError]
+}
+```
+
+建议支持状态：
+
+```swift
+public enum BookSourceSupportStatus: String, Sendable, Codable, Equatable {
+    case supported
+    case partial
+    case unsupported
+    case invalid
+}
+```
+
+---
+
+### BookSearchResult
+
+用于搜索结果列表。
+
+```swift
+public struct BookSearchResult: Sendable, Codable, Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let author: String?
+    public let coverURL: String?
+    public let bookURL: String
+    public let latestChapter: String?
+    public let sourceID: String
+}
+```
+
+最低要求：
+
+```text
+- title 必须存在
+- bookURL 必须存在
+- author / coverURL / latestChapter 可为空
+- UI 必须能处理字段缺失
+```
+
+---
+
+### BookDetailResult
+
+用于书籍详情页。
+
+```swift
+public struct BookDetailResult: Sendable, Codable, Equatable {
+    public let title: String
+    public let author: String?
+    public let coverURL: String?
+    public let intro: String?
+    public let latestChapter: String?
+    public let tocURL: String?
+    public let bookURL: String
+    public let sourceID: String
+    public let warnings: [String]
+}
+```
+
+最低要求：
+
+```text
+- title / bookURL / sourceID 必须存在
+- tocURL 可能为空
+- intro / cover / latestChapter 可能缺失
+- warnings 用于 partial 能力提示
+```
+
+---
+
+### ChapterResult
+
+用于目录页章节列表。
+
+```swift
+public struct ChapterResult: Sendable, Codable, Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let chapterURL: String
+    public let index: Int
+    public let isVIP: Bool?
+    public let isCached: Bool?
+}
+```
+
+最低要求：
+
+```text
+- title 必须存在
+- chapterURL 必须存在
+- index 必须稳定
+- VIP / cached 是 UI 扩展字段，可为空
+```
+
+---
+
+### ChapterContentResult
+
+用于阅读页正文。
+
+```swift
+public struct ChapterContentResult: Sendable, Codable, Equatable {
+    public let title: String?
+    public let content: String
+    public let chapterURL: String
+    public let nextChapterURL: String?
+    public let previousChapterURL: String?
+    public let warnings: [String]
+}
+```
+
+最低要求：
+
+```text
+- content 可以为空，但空正文必须由 UI 显示为空状态
+- next / previous 可为空
+- warnings 用于展示 partial 提醒
+```
+
+---
+
+### ReaderError
+
+ReaderError 必须是 iOS 可直接展示、可分类、可恢复的错误模型。
+
+```swift
+public enum ReaderError: Error, Sendable, Codable, Equatable {
+    case unsupportedRule(String)
+    case parserFailure(String)
+    case networkFailure(String)
+    case emptyResult(String)
+    case invalidBookSource(String)
+    case partialCapability(String)
+    case loginRequired(String)
+    case jsRequired(String)
+    case unknown(String)
+}
+```
+
+iOS 侧不得因为 Core 抛出错误而崩溃，所有错误必须进入统一状态模型。
+
+---
+
+# 4. iOS 模块划分
+
+建议目录结构：
+
+```text
+ReaderForiOS/
+├── App/
+│   ├── ReaderForiOSApp.swift
+│   ├── AppRouter.swift
+│   └── AppEnvironment.swift
+│
+├── CoreBridge/
+│   ├── ReaderCoreClient.swift
+│   ├── MockReaderCoreService.swift
+│   ├── ReaderCoreServiceProvider.swift
+│   └── ReaderCoreErrorMapper.swift
+│
+├── Features/
+│   ├── BookSources/
+│   │   ├── BookSourceListView.swift
+│   │   ├── BookSourceImportView.swift
+│   │   ├── BookSourceDetailView.swift
+│   │   └── BookSourceViewModel.swift
+│   │
+│   ├── Search/
+│   │   ├── SearchView.swift
+│   │   ├── SearchResultRow.swift
+│   │   └── SearchViewModel.swift
+│   │
+│   ├── BookDetail/
+│   │   ├── BookDetailView.swift
+│   │   └── BookDetailViewModel.swift
+│   │
+│   ├── ChapterList/
+│   │   ├── ChapterListView.swift
+│   │   ├── ChapterRow.swift
+│   │   └── ChapterListViewModel.swift
+│   │
+│   ├── Reader/
+│   │   ├── ReaderView.swift
+│   │   ├── ReaderToolbar.swift
+│   │   ├── ReaderSettingsPanel.swift
+│   │   └── ReaderViewModel.swift
+│   │
+│   └── Bookshelf/
+│       ├── BookshelfView.swift
+│       ├── BookshelfItemRow.swift
+│       └── BookshelfViewModel.swift
+│
+├── Models/
+│   ├── LoadState.swift
+│   ├── AppBookSource.swift
+│   ├── BookshelfItem.swift
+│   └── ReadingProgress.swift
+│
+├── Persistence/
+│   ├── BookSourceStore.swift
+│   ├── BookshelfStore.swift
+│   ├── ReadingProgressStore.swift
+│   └── CacheStore.swift
+│
+├── DesignSystem/
+│   ├── EmptyStateView.swift
+│   ├── ErrorStateView.swift
+│   ├── LoadingView.swift
+│   ├── UnsupportedStateView.swift
+│   └── PartialWarningView.swift
+│
+└── Tests/
+    ├── CoreBridgeTests/
+    ├── BookSourceFeatureTests/
+    ├── SearchFeatureTests/
+    └── ReaderFlowTests/
+```
+
+## 4.1 CoreBridge 职责
+
+`CoreBridge/` 是 iOS 和 Reader-Core 之间的唯一隔离层。
+
+职责：
+
+```text
+1. 统一注入 ReaderCoreService
+2. 屏蔽真实 Core 与 Mock Core 的差异
+3. 将 ReaderError 转换为 UI 可展示状态
+4. 保证 UI 不直接依赖 Parser / Scheduler / Engine
+5. 支持后续从 Mock 切换到 Real Core
+```
+
+## 4.2 禁止事项
+
+iOS App 层禁止：
+
+```swift
+import ReaderCoreParser
+import ReaderCoreJSRenderer
+import ReaderCoreNetwork
+```
+
+iOS UI 层禁止直接调用：
+
+```text
+NonJSRuleScheduler
+NonJSParserEngine
+SelectorEngine
+Parser 内部模型
+```
+
+允许：
+
+```swift
+import ReaderCoreModels
+import ReaderCoreServices
+```
+
+或者如果 Core 最终暴露统一 product：
+
+```swift
+import ReaderCore
+```
+
+---
+
+# 5. 统一 UI 状态模型
+
+建议在 iOS 侧定义统一状态：
+
+```swift
+enum LoadState<Value> {
+    case idle
+    case loading
+    case loaded(Value)
+    case empty
+    case failed(ReaderError)
+    case unsupported(String)
+    case partial(Value, warning: String)
+}
+```
+
+## 页面使用方式
+
+### 书源管理页
+
+```text
+idle：
+  初始状态，还未导入书源
+
+loading：
+  正在导入或校验书源
+
+loaded：
+  展示书源列表
+
+empty：
+  没有任何书源
+
+failed：
+  JSON 解析失败、本地保存失败
+
+unsupported：
+  书源结构不支持
+
+partial：
+  书源部分规则可用，但搜索 / 详情 / 目录 / 正文能力不完整
+```
+
+---
+
+### 搜索页
+
+```text
+idle：
+  用户尚未输入关键词
+
+loading：
+  正在搜索
+
+loaded：
+  展示搜索结果
+
+empty：
+  没有搜索结果
+
+failed：
+  网络失败、解析失败
+
+unsupported：
+  当前书源不支持搜索规则
+
+partial：
+  搜索结果可展示，但部分字段缺失，例如作者、封面、最新章节
+```
+
+---
+
+### 书籍详情页
+
+```text
+loading：
+  正在加载详情
+
+loaded：
+  展示书名、作者、简介、封面、最新章节
+
+failed：
+  detail 解析失败或网络失败
+
+unsupported：
+  当前书源不支持详情页规则
+
+partial：
+  详情可展示，但简介、封面、最新章节等字段缺失
+```
+
+---
+
+### 目录页
+
+```text
+loading：
+  正在加载章节列表
+
+loaded：
+  展示章节列表
+
+empty：
+  未解析出章节
+
+failed：
+  目录请求失败或解析失败
+
+unsupported：
+  当前书源不支持目录规则
+
+partial：
+  章节列表可展示，但部分章节字段不完整
+```
+
+---
+
+### 阅读页
+
+```text
+loading：
+  正在加载正文
+
+loaded：
+  展示正文
+
+empty：
+  正文为空
+
+failed：
+  正文解析失败或网络失败
+
+unsupported：
+  当前书源不支持正文规则
+
+partial：
+  正文可展示，但下一章 / 上一章 / 标题等信息不完整
+```
+
+---
+
+# 6. 错误处理策略
+
+Reader-for-iOS 必须将 ReaderError 映射为用户可理解的错误态。
+
+## 6.1 unsupportedRule
+
+含义：
+
+```text
+当前书源使用了 Reader-Core 暂不支持的规则。
+```
+
+UI 表现：
+
+```text
+- 展示“不支持该书源的部分规则”
+- 不崩溃
+- 保留返回上一页能力
+- 可以提示用户换书源
+```
+
+---
+
+## 6.2 parserFailure
+
+含义：
+
+```text
+Core 已执行解析，但解析过程中失败。
+```
+
+UI 表现：
+
+```text
+- 展示“解析失败”
+- 允许重试
+- 可显示简化错误原因
+- 记录日志
+```
+
+---
+
+## 6.3 networkFailure
+
+含义：
+
+```text
+网络请求失败、超时、DNS 失败、状态码异常等。
+```
+
+UI 表现：
+
+```text
+- 展示“网络连接失败”
+- 提供重试按钮
+- 不清空已有可用数据
+```
+
+---
+
+## 6.4 emptyResult
+
+含义：
+
+```text
+请求成功，但没有解析到结果。
+```
+
+UI 表现：
+
+```text
+- 搜索页显示“没有找到结果”
+- 目录页显示“暂无章节”
+- 阅读页显示“正文为空”
+```
+
+---
+
+## 6.5 invalidBookSource
+
+含义：
+
+```text
+导入的书源 JSON 结构无效。
+```
+
+UI 表现：
+
+```text
+- 导入页显示“书源格式无效”
+- 展示基础错误原因
+- 不保存无效书源，或者保存为 disabled 状态
+```
+
+---
+
+## 6.6 partialCapability
+
+含义：
+
+```text
+书源部分能力可用，部分能力不可用。
+```
+
+UI 表现：
+
+```text
+- 页面顶部展示 warning
+- 已解析出的内容继续展示
+- 不因字段缺失中断主流程
+```
+
+---
+
+## 6.7 loginRequired
+
+含义：
+
+```text
+该书源需要登录后访问。
+```
+
+UI 表现：
+
+```text
+- 当前阶段显示“该书源需要登录，暂不支持”
+- 不进入登录流程
+- 登录能力延后
+```
+
+---
+
+## 6.8 jsRequired
+
+含义：
+
+```text
+该书源依赖 JS 执行。
+```
+
+UI 表现：
+
+```text
+- 当前阶段显示“该书源需要 JS 支持，暂不支持”
+- 不尝试在 iOS UI 层自行执行 JS
+- 等 Core 后续提供统一能力
+```
+
+---
+
+# 7. 分阶段开发计划
+
+## Phase 0：Core 接入准备
+
+目标：
+
+```text
+建立 Reader-for-iOS 与 Reader-Core 的稳定边界。
+```
+
+任务：
+
+```text
+1. 配置 SPM 依赖 Reader-Core
+2. 验证 Reader-Core public products
+3. 建立 ReaderCoreService 协议依赖
+4. 新建 CoreBridge 模块
+5. 实现 ReaderCoreClient
+6. 实现 MockReaderCoreService
+7. 建立统一 LoadState
+8. 建立 ReaderError 到 UI 状态的映射
+9. 建立基础 AppEnvironment 依赖注入
+```
+
+交付物：
+
+```text
+CoreBridge/
+Models/LoadState.swift
+MockReaderCoreService.swift
+ReaderCoreClient.swift
+ReaderCoreServiceProvider.swift
+```
+
+验收标准：
+
+```text
+1. iOS 能成功 import Reader-Core public products
+2. iOS 无直接 import Parser 内部模块
+3. Mock ReaderCoreService 可驱动至少一个测试页面
+4. LoadState 能覆盖 loading / loaded / empty / failed / unsupported / partial
+5. App 可在无真实 Parser 完整能力的情况下启动
+```
+
+---
+
+## Phase 1：书源管理
+
+目标：
+
+```text
+完成书源导入、保存、列表展示、基础校验。
+```
+
+任务：
+
+```text
+1. 支持导入书源 JSON
+2. 解析为 BookSource DTO
+3. 本地保存书源
+4. 展示书源列表
+5. 调用 validateBookSource
+6. 展示 supported / partial / unsupported / invalid 状态
+7. 支持启用 / 禁用书源
+8. 支持删除书源
+```
+
+验收标准：
+
+```text
+1. 能导入一个 BookSource JSON
+2. 能展示书源名称
+3. 能保存并重新加载书源
+4. 能展示校验状态
+5. invalidBookSource 不导致 App 崩溃
+6. unsupported 状态可正常展示
+7. partial 状态可正常展示 warning
+```
+
+---
+
+## Phase 2：搜索流程
+
+目标：
+
+```text
+完成关键词搜索 UI 和结果展示。
+```
+
+任务：
+
+```text
+1. 建立 SearchView
+2. 建立 SearchViewModel
+3. 支持选择书源后输入关键词
+4. 调用 searchBooks
+5. 展示 BookSearchResult 列表
+6. 处理空结果
+7. 处理 unsupportedRule
+8. 处理 parserFailure
+9. 处理 networkFailure
+10. 支持 Mock 搜索数据
+```
+
+验收标准：
+
+```text
+1. Mock 搜索结果能完整展示
+2. 空搜索结果显示 empty state
+3. Core 返回 unsupported 时 UI 能展示 unsupported state
+4. Core 返回 parserFailure 时 UI 能展示错误态
+5. Core 返回 networkFailure 时 UI 能展示重试入口
+6. 搜索结果点击后可以进入详情页占位
+```
+
+---
+
+## Phase 3：书籍详情
+
+目标：
+
+```text
+完成搜索结果到书籍详情页的跳转和详情展示。
+```
+
+任务：
+
+```text
+1. 点击 BookSearchResult 进入 BookDetailView
+2. 调用 getBookDetail
+3. 展示书名、作者、简介、封面、最新章节
+4. 处理字段缺失
+5. 处理 detail unsupported
+6. 处理 detail parser failure
+7. 支持进入目录页
+```
+
+验收标准：
+
+```text
+1. Mock 数据能展示完整详情
+2. 字段缺失时 UI 不崩溃
+3. tocURL 缺失时，目录入口显示不可用
+4. detail unsupported 可展示明确错误
+5. real Core 可替换 mock service
+```
+
+---
+
+## Phase 4：目录页
+
+目标：
+
+```text
+完成章节列表展示和章节跳转。
+```
+
+任务：
+
+```text
+1. 从 BookDetailResult 获取 tocURL
+2. 调用 getChapterList
+3. 展示 ChapterResult 列表
+4. 支持章节点击
+5. 处理目录为空
+6. 处理目录 partial
+7. 处理目录解析失败
+```
+
+验收标准：
+
+```text
+1. Mock 章节列表能完整展示
+2. 章节顺序稳定
+3. 章节点击可进入 ReaderView
+4. toc 失败时 UI 不崩溃
+5. toc partial 时展示 warning
+6. real Core 可替换 mock service
+```
+
+---
+
+## Phase 5：阅读页
+
+目标：
+
+```text
+完成基础正文阅读体验。
+```
+
+任务：
+
+```text
+1. 调用 getChapterContent
+2. 展示章节正文
+3. 支持基础字体大小调整
+4. 支持基础背景切换
+5. 支持基础翻页或滚动阅读
+6. 处理正文为空
+7. 处理正文解析失败
+8. 处理网络失败
+9. 预留上一章 / 下一章入口
+```
+
+验收标准：
+
+```text
+1. Mock 正文能完整展示
+2. 正文为空时显示 empty state
+3. parserFailure 不导致崩溃
+4. networkFailure 可重试
+5. 字体大小调整可生效
+6. 背景设置可生效
+7. 搜索 → 详情 → 目录 → 阅读 mock 主链路打通
+8. real Core 可替换 mock service
+```
+
+---
+
+## Phase 6：本地书架
+
+目标：
+
+```text
+完成本地书架和阅读进度能力。
+```
+
+任务：
+
+```text
+1. 支持从详情页添加到书架
+2. 展示 BookshelfView
+3. 保存书名、作者、封面、sourceID、bookURL、tocURL
+4. 保存最近阅读章节
+5. 保存阅读进度
+6. 支持从书架继续阅读
+7. 设计章节缓存占位结构
+```
+
+验收标准：
+
+```text
+1. 书籍可加入书架
+2. App 重启后书架数据仍存在
+3. 最近阅读能恢复
+4. 阅读进度能保存
+5. 缓存结构有占位设计，但不强制实现完整离线缓存
+```
+
+---
+
+## Phase 7：稳定化
+
+目标：
+
+```text
+补齐状态、日志、测试和 Core regression 对齐。
+```
+
+任务：
+
+```text
+1. 补齐所有页面的 loading / empty / failed / unsupported / partial
+2. 建立统一错误展示组件
+3. 建立基础日志记录
+4. 建立 CoreBridge 单元测试
+5. 建立 ViewModel 测试
+6. 建立 mock 主链路 UI 测试
+7. 与 Reader-Core regression 输出对齐
+8. 建立真实 Core 替换 mock 的验证流程
+```
+
+验收标准：
+
+```text
+1. 所有核心页面都有完整状态展示
+2. 所有 ReaderError 都能被 UI 消费
+3. Mock 主链路测试通过
+4. ViewModel 不直接依赖 Parser 内部实现
+5. CoreBridge 可切换 mock / real service
+6. Core regression 中失败或 unsupported 的样本不会导致 iOS 崩溃
+```
+
+---
+
+# 8. 开发优先级
+
+## 第一优先级：CoreBridge + Mock Service
+
+必须最先完成。
+
+```text
+目标：
+让 iOS 不等待 Parser 完成，也能开发 UI 主链路。
+
+交付：
+- ReaderCoreService 注入
+- MockReaderCoreService
+- LoadState
+- ReaderError 映射
+- AppEnvironment
+```
+
+---
+
+## 第二优先级：书源管理 + 搜索 UI
+
+```text
+目标：
+完成用户进入 App 后的第一条真实路径。
+
+交付：
+- 导入书源
+- 保存书源
+- 书源状态展示
+- 搜索输入
+- 搜索结果列表
+- unsupported / partial / failed 状态
+```
+
+---
+
+## 第三优先级：详情 / 目录 / 阅读链路
+
+```text
+目标：
+打通小说阅读主流程。
+
+交付：
+- 详情页
+- 目录页
+- 阅读页
+- mock 主链路闭环
+- real Core 可替换验证
+```
+
+---
+
+## 第四优先级：书架 / 缓存 / 阅读体验
+
+```text
+目标：
+形成可日常使用的最小阅读 App。
+
+交付：
+- 本地书架
+- 阅读进度
+- 最近阅读
+- 章节缓存占位
+- 基础阅读设置
+```
+
+---
+
+## 延后项
+
+以下内容不进入第一阶段正式主链路：
+
+```text
+1. JS
+2. 登录
+3. 多书源聚合搜索
+4. 复杂阅读设置
+5. 云同步
+6. 高级缓存策略
+7. 复杂净化规则可视化
+8. 书源编辑器
+```
+
+---
+
+# 9. 风险与阻断点
+
+## 9.1 Parser 能力仍在迭代
+
+风险：
+
+```text
+真实书源成功率不稳定。
+```
+
+应对：
+
+```text
+iOS 不绑定具体 Parser 实现，只消费 Facade 返回的结果、错误、partial 状态。
+```
+
+---
+
+## 9.2 Facade API 未冻结会影响 iOS
+
+风险：
+
+```text
+如果 ReaderCoreService / DTO / ReaderError 频繁变更，iOS ViewModel 和 UI 会反复返工。
+```
+
+应对：
+
+```text
+优先冻结 Facade API。
+DTO 可以扩展字段，但不要破坏已存在字段。
+ReaderError 可以新增 case，但必须保持 UI 可兜底处理 unknown。
+```
+
+---
+
+## 9.3 iOS 误用 Parser 内部模块
+
+风险：
+
+```text
+UI 或 ViewModel 直接 import Parser，会导致边界破坏。
+```
+
+应对：
+
+```text
+建立 iOS boundary check。
+禁止 Reader-for-iOS 直接 import ReaderCoreParser / ReaderCoreJSRenderer。
+所有 Core 能力通过 CoreBridge 访问。
+```
+
+---
+
+## 9.4 unsupported / partial 状态未设计完整
+
+风险：
+
+```text
+真实书源解析失败时，用户看到空白页或 App 崩溃。
+```
+
+应对：
+
+```text
+所有页面必须使用 LoadState。
+所有 ReaderError 必须有 UI 展示。
+partial 数据必须允许继续展示。
+```
+
+---
+
+## 9.5 过早做复杂产品功能
+
+风险：
+
+```text
+JS、登录、云同步、聚合搜索会拖慢主链路闭环。
+```
+
+应对：
+
+```text
+第一阶段只做非 JS 主链路。
+复杂功能全部延后。
+```
+
+---
+
+# 10. 下一步建议
+
+建议立即进入 **Phase 0：Core 接入准备**。
+
+下一步执行目标：
+
+```text
+1. 在 Reader-for-iOS 中建立 CoreBridge 目录
+2. 添加 ReaderCoreClient
+3. 添加 MockReaderCoreService
+4. 添加 LoadState
+5. 添加 ReaderError UI 映射
+6. 配置 SPM 依赖 Reader-Core public products
+7. 建立一个最小页面，用 Mock Service 驱动搜索结果展示
+8. 增加边界检查，防止 iOS import Parser 内部模块
+```
+
+建议本地开发模型的执行方向：
+
+```text
+不要继续讨论 Parser 细节。
+不要等待 Parser 完全完成。
+不要让 UI 直接依赖 Parser 内部。
+不要先做 JS、登录、云同步。
+先落地 CoreBridge + Mock 主链路。
+```
+
+---
+
+# 11. 最终判断
+
+```text
+是否可以正式开始 iOS 开发：YES
+```
+
+但启动条件必须写入项目约束：
+
+```text
+Reader-for-iOS 正式开发可以开始；
+但 iOS 只能依赖 Reader-Core public Facade；
+Parser 能力不足必须通过 unsupported / partial / failed 状态表达；
+不得让 iOS UI 直接绑定 Parser 内部实现。
+```
