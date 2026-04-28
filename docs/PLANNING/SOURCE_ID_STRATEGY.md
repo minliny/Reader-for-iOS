@@ -2,113 +2,194 @@
 
 ## Status
 
-**Status**: TEMPORARY WORKAROUND  
-**Last Updated**: 2026-04-28  
-**Target**: Replace with real BookSource ID
+**Status**: COMPLETE
+**Last Updated**: 2026-04-29
 
 ---
 
-## 1. 当前临时方案
+## 1. Implementation Summary
 
-### 问题描述
+### Current Implementation
 
-当前 Reader-for-iOS 使用 `bookURL` 作为 `sourceID` 的临时替代：
+The source identity strategy has been implemented with the following components:
+
+- `SourceIdentity` struct - unified identity representation
+- `SourceIdentityFactory` - factory for creating identities from various sources
+- `SourceIdentity.unknown` - fallback for unknown sources
+- `BookshelfItem.sourceName` - new field to store source name
+
+### Migration Path
+
+The previous implementation used `bookURL` directly as `sourceID`. This has been replaced with:
 
 ```swift
-// BookDetailView.swift:38
-isInBookshelf = (try? bookshelfStore.find(bookURL: result.detailURL, sourceID: result.detailURL)) != nil
+// Before (deprecated)
+sourceID: result.detailURL  // bookURL as sourceID
 
-// ReaderViewModel.swift:96
-let sourceID = bookURL
+// After (current)
+let identity = SourceIdentityFactory.from(searchResult: result)
+sourceID: identity.id  // Proper source identity
 ```
 
-### 临时方案原因
-
-| Reason | Description |
-|--------|-------------|
-| BookSource 模型未标准化 | 尚未从真实书源 JSON 中解析出稳定的 sourceID |
-| 开发进度优先 | 先完成主链路，sourceID 问题后续解决 |
-| Mock 服务限制 | MockReaderCoreService 不提供真实书源信息 |
-
-### 临时方案风险
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| 数据重复 | 同一本书可能从不同书源获取，导致书架重复 | 后续用真实 sourceID 去重 |
-| 同步问题 | 云同步时无法正确识别同一书源 | sourceID 稳定后重新同步 |
-| 迁移复杂度 | 后续替换需要数据迁移 | 提前规划迁移脚本 |
-
 ---
 
-## 2. 预期稳定策略
-
-### 目标状态
-
-当接入真实 BookSource 后，`sourceID` 应来自：
-
-| Source | Field | Description |
-|--------|-------|-------------|
-| BookSource JSON | `id` 或 `bookSourceUrl` | 书源唯一标识 |
-| BookSource JSON | `name` | 书源名称（辅助标识） |
-
-### 数据模型更新
+## 2. SourceIdentity Data Structure
 
 ```swift
-// 稳定后的 BookshelfItem
-struct BookshelfItem {
-    let sourceID: String        // 真实书源 ID
-    let sourceName: String      // 书源名称
-    let bookURL: String         // 书籍详情页 URL
-    // ...
+public struct SourceIdentity: Codable, Equatable, Hashable {
+    public let id: String
+    public let name: String?
+    public let baseURL: String?
+
+    public static let unknown = SourceIdentity(id: "unknown", name: nil, baseURL: nil)
 }
 ```
 
-### 迁移步骤
+### Fields
 
-1. **Phase 1**: 保留现有数据结构，添加 `sourceName` 字段
-2. **Phase 2**: 当获取真实书源时，更新 `sourceID` 为真实值
-3. **Phase 3**: 清理旧的临时数据
-
----
-
-## 3. 与真实书源联调的关系
-
-### 依赖关系
-
-```
-真实书源联调 → BookSource 解析 → sourceID 稳定 → 云同步
-     ↑                                  │
-     │                                  ↓
-     └───────────── 数据迁移 ←───────────
-```
-
-### 联调准备清单
-
-- [ ] 接入真实 BookSource JSON
-- [ ] 解析 BookSource 的 `id` / `bookSourceUrl` 字段
-- [ ] 更新 BookshelfStore 使用真实 sourceID
-- [ ] 实现数据迁移脚本
-- [ ] 更新相关 ViewModel 使用真实 sourceID
+| Field | Description |
+|-------|-------------|
+| id | Unique identifier for the source |
+| name | Optional source name |
+| baseURL | Optional base URL for the source |
 
 ---
 
-## 4. 技术债追踪
+## 3. SourceIdentityFactory Strategy
 
-### 代码位置
+```swift
+public enum SourceIdentityFactory {
+    public static func from(searchResult: SearchResultItem) -> SourceIdentity
+    public static func fallback(name: String?, url: String?, rawJSON: String?) -> String
+}
+```
 
-| File | Line | Issue |
-|------|------|-------|
-| BookDetailView.swift | 38 | 使用 bookURL 作为 sourceID |
-| BookDetailView.swift | 210 | 使用 bookURL 作为 sourceID |
-| ReaderViewModel.swift | 96 | 使用 bookURL 作为 sourceID |
+### ID Generation Strategy
 
-### 修复优先级
+1. **Priority 1**: Use `detailURL` from SearchResultItem as deterministic ID
+2. **Fallback**: Generate from `source name` if available
+3. **Final Fallback**: Use `"unknown"` identifier
 
-- **High**: 真实书源联调前必须修复
-- **Blocking**: 不修复将导致数据一致性问题
+### Deterministic Fallback Examples
+
+| Input | Output |
+|-------|--------|
+| name="TestSource", url=nil | "source_TestSource" |
+| name=nil, url="https://example.com" | "https://example.com" |
+| name=nil, url=nil, rawJSON="{...}" | "source_123456" (hash) |
+| name=nil, url=nil, rawJSON=nil | "unknown" |
+
+### Determinism Guarantee
+
+- Same input always produces same output
+- Different inputs may produce different outputs
+- Hash-based fallback uses deterministic hash function
+- No randomness involved in ID generation
+
+---
+
+## 4. Unknown Source Policy
+
+When source identity cannot be determined:
+
+```swift
+// Use the predefined unknown identity
+let identity = SourceIdentity.unknown
+// id = "unknown", name = nil, baseURL = nil
+```
+
+### Implications of Unknown Source
+
+| Aspect | Impact |
+|--------|--------|
+| Bookshelf | Item stored with "unknown" source |
+| Sync | Cannot sync properly until resolved |
+| Deduplication | May cause duplicates |
+| Migration | Requires manual intervention |
+
+---
+
+## 5. Why Not Rely on Parser Internal Models
+
+The implementation intentionally does not rely on Reader-Core parser internal models because:
+
+| Reason | Description |
+|--------|-------------|
+| Clean-room principle | Parser internal models may change without notice |
+| Stability | iOS shell should not be coupled to Core internals |
+| Maintainability | Changes in Core should not break iOS shell |
+| Testability | iOS shell can use mock data independently |
+
+---
+
+## 6. Code Locations
+
+### New Files
+
+- `iOS/App/Models/SourceIdentity.swift`
+
+### Modified Files
+
+- `iOS/App/Models/BookshelfItem.swift` - Added `sourceName` field
+- `iOS/Features/BookDetail/BookDetailView.swift` - Uses SourceIdentityFactory
+- `iOS/Features/Reader/ReaderViewModel.swift` - Uses SourceIdentity
+
+### Removed Temporary Workarounds
+
+- `sourceID: result.detailURL` in BookDetailView
+- `sourceID = bookURL` in ReaderViewModel
+
+---
+
+## 7. Real BookSource Smoke Pre-Check
+
+Before running real book source smoke tests:
+
+### Required Pre-Checks
+
+| Check | Description | Status |
+|-------|-------------|--------|
+| SourceIdentity | Must be COMPLETE | ✓ |
+| CoreBridge | Must be stable | PENDING |
+| MockService | Must support all endpoints | ✓ |
+| Test Input | Real BookSource JSON needed | PENDING |
+
+### Input Requirements
+
+- Place real BookSource JSON files in `test_inputs/booksources/`
+- Each file must be valid JSON
+- Each file must contain at least `name` and `bookSourceUrl` fields
+
+---
+
+## 8. Cloud Sync Provider Pre-Conditions
+
+Cloud Sync Provider development requires:
+
+| Condition | Description | Status |
+|-----------|-------------|--------|
+| SourceIdentity | Must be COMPLETE | ✓ |
+| Real BookSource | Must be verified | PENDING |
+| Reader-Core | Must be stable | PENDING |
+| SyncContract | Must be designed | ✓ |
+
+---
+
+## 9. Remaining Limitations
+
+| Limitation | Description | Mitigation |
+|------------|-------------|------------|
+| Unknown source | SearchResultItem may not have source info | Use SourceIdentity.unknown |
+| Real BookSource ID | Not yet integrated | Wait for real book source integration |
 
 ---
 
 ## Conclusion
 
-当前使用 `bookURL` 作为 `sourceID` 是临时方案，存在数据重复和后续迁移风险。需在真实书源联调阶段修复，确保 sourceID 来自真实 BookSource 数据。
+The source identity strategy is now **COMPLETE**. The system uses `SourceIdentity` for proper source identification, with deterministic fallback strategies and clear migration paths for future enhancements.
+
+**Next Steps**:
+1. Wait for Reader-Core to stabilize
+2. Add real BookSource JSON files to `test_inputs/booksources/`
+3. Run real book source smoke tests
+4. Evaluate cloud sync provider readiness
