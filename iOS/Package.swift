@@ -39,6 +39,7 @@ let package = Package(
             path: ".",
             exclude: [
                 "App",
+                "AppSupport",
                 "Features",
                 "Modules",
                 "Navigation",
@@ -52,12 +53,19 @@ let package = Package(
             ]
         ),
         .target(
+            name: "ReaderAppSupport",
+            dependencies: [],
+            path: "AppSupport/Sources"
+        ),
+        .target(
             name: "ReaderApp",
             dependencies: [
-                "ReaderShellValidation"
+                "ReaderShellValidation",
+                "ReaderAppSupport"
             ],
             path: ".",
             exclude: [
+                "AppSupport",
                 "CoreIntegration",
                 "CoreBridge",
                 "Shell",
@@ -75,6 +83,7 @@ let package = Package(
             name: "ShellSmokeTests",
             dependencies: [
                 "ReaderShellValidation",
+                "ReaderAppSupport",
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
                 .product(name: "ReaderCoreParser", package: "Reader-Core"),
