@@ -237,11 +237,22 @@ ShellSmokeTests:
 
 | 项目 | 状态 |
 |------|------|
-| ReaderAppSupport target extraction | PLANNED_ONLY |
+| ReaderAppSupport target extraction | SKELETON_READY |
 | Persistence tests | BLOCKED |
-| 是否本轮实施 | NO |
+| 是否本轮实施 | YES (Step 1) |
 
-**推荐后续行动**：在独立的专项任务中完成 ReaderAppSupport target extraction。
+## Step 1 Skeleton Feasibility
+
+**完成情况**：
+- ✅ ReaderAppSupport skeleton 是否已新增：YES
+- ✅ 是否迁移 Models：NO
+- ✅ 是否迁移 Persistence：NO
+- ✅ 是否修改 ReaderApp 行为：NO
+- ✅ 是否允许 Persistence tests：NO，仍需后续迁移
+
+**下一步**：Step 2：Models migration feasibility
+
+**推荐后续行动**：继续 Step 2，验证 Models 可独立编译。
 
 ---
 
