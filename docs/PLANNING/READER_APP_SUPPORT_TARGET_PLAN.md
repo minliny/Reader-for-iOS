@@ -381,6 +381,47 @@ ShellSmokeTests:
 
 ---
 
+## Step 2A ReaderDisplaySettings Migration
+
+### 1. SearchResultItem 归属复核结果
+- SearchResultItem 属于 ReaderCoreModels（来自 ../Reader-Core/Core/Sources/ReaderCoreModels/ReadingFlowModels.swift）
+- 不属于 ReaderShellValidation / iOS Features / CoreBridge
+- SourceIdentityFactory 依赖 SearchResultItem，但 SearchResultItem 属于 ReaderCoreModels，不会导致 ReaderAppSupport 依赖 ReaderShellValidation
+
+### 2. SourceIdentity 拆分决策
+- SourceIdentity struct：可迁移到 ReaderAppSupport（纯 Foundation）
+- SourceIdentityFactory / Resolver：暂留 CoreBridge 或 ShellValidation（依赖 SearchResultItem，属于 ReaderCoreModels）
+
+### 3. ReaderDisplaySettings 迁移影响审查
+- ReaderDisplaySettings 只依赖 Foundation：YES
+- 引用文件：ReaderSettingsStore.swift, ReaderViewModel.swift, ReaderSettingsPanel.swift
+- 迁移后需要 import ReaderAppSupport：3 个文件
+- 不影响 ReaderAppSupport target 依赖（无需添加 ReaderCoreModels）
+- duplicate source 风险：NO
+
+### 4. ReaderDisplaySettings 是否已迁移：YES
+
+### 5. 修改文件列表
+- 移动：iOS/App/Models/ReaderDisplaySettings.swift → iOS/AppSupport/Sources/ReaderDisplaySettings.swift
+- 修改：iOS/Package.swift
+- 修改：iOS/App/Persistence/ReaderSettingsStore.swift
+- 修改：iOS/Features/Reader/ReaderViewModel.swift
+- 修改：iOS/Features/Reader/ReaderSettingsPanel.swift
+- 修改：docs/PLANNING/READER_APP_SUPPORT_TARGET_PLAN.md
+
+### 6. import 更新范围
+- ReaderSettingsStore.swift
+- ReaderViewModel.swift
+- ReaderSettingsPanel.swift
+
+### 7. 验证结果
+- CI SUCCESS (run id: 25117760791)
+- Boundary + Shell compile smoke: PASS
+
+### 8. 下一步是否可迁移 ReadingProgress：YES
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files)
