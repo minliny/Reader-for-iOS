@@ -17,8 +17,8 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertNotNil(coordinator.selectedChapter)
 
         let book = SearchResultItem(
-            detailURL: "https://example.com/book",
-            title: "Test Book"
+            title: "Test Book",
+            detailURL: "https://example.com/book"
         )
         await coordinator.selectBook(book)
 
@@ -73,8 +73,8 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertFalse(coordinator.isLoading)
 
         let book = SearchResultItem(
-            detailURL: "https://example.com/book",
-            title: "Test Book"
+            title: "Test Book",
+            detailURL: "https://example.com/book"
         )
         await coordinator.selectBook(book)
 

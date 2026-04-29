@@ -9,8 +9,8 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
         let book = SearchResultItem(
-            detailURL: "https://example.com/book/1",
             title: "凡人修仙传",
+            detailURL: "https://example.com/book/1",
             author: "忘语"
         )
         await coordinator.selectBook(book)
