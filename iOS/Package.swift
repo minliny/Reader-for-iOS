@@ -85,9 +85,7 @@ let package = Package(
                 "ReaderShellValidation",
                 "ReaderAppSupport",
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
-                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
-                .product(name: "ReaderCoreParser", package: "Reader-Core"),
-                .product(name: "ReaderCoreNetwork", package: "Reader-Core")
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core")
             ],
             path: "Tests/ShellSmokeTests"
         )
