@@ -2,9 +2,9 @@ import XCTest
 @testable import ReaderShellValidation
 import ReaderCoreModels
 
-@MainActor
 final class ReaderFlowHardeningTests: XCTestCase {
 
+    @MainActor
     func testSelectBookResetsTOCAndChapterState() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
@@ -17,8 +17,8 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertNotNil(coordinator.selectedChapter)
 
         let book = SearchResultItem(
-            title: "Test Book",
-            detailURL: "https://example.com/book"
+            detailURL: "https://example.com/book",
+            title: "Test Book"
         )
         await coordinator.selectBook(book)
 
@@ -28,6 +28,7 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertNil(coordinator.contentPage)
     }
 
+    @MainActor
     func testSelectChapterResetsContentState() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
@@ -48,6 +49,7 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertNil(coordinator.contentPage)
     }
 
+    @MainActor
     func testSearchWithoutSourceReturnsEmptyWithoutError() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
@@ -58,6 +60,7 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertFalse(coordinator.isLoading)
     }
 
+    @MainActor
     func testCoordinatorStateReflectsEmptyToLoadedTransition() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
@@ -70,8 +73,8 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertFalse(coordinator.isLoading)
 
         let book = SearchResultItem(
-            title: "Test Book",
-            detailURL: "https://example.com/book"
+            detailURL: "https://example.com/book",
+            title: "Test Book"
         )
         await coordinator.selectBook(book)
 
@@ -80,6 +83,7 @@ final class ReaderFlowHardeningTests: XCTestCase {
         XCTAssertNil(coordinator.currentError)
     }
 
+    @MainActor
     func testSearchAfterErrorClearsError() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         coordinator.currentError = ReaderError(code: .unknown, message: "Previous error")

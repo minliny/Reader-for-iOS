@@ -2,16 +2,16 @@ import XCTest
 @testable import ReaderShellValidation
 import ReaderCoreModels
 
-@MainActor
 final class ReaderFlowFunctionalValidationTests: XCTestCase {
 
+    @MainActor
     func testSelectBookPopulatesChapterList() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
         let book = SearchResultItem(
+            detailURL: "https://example.com/book/1",
             title: "凡人修仙传",
-            author: "忘语",
-            detailURL: "https://example.com/book/1"
+            author: "忘语"
         )
         await coordinator.selectBook(book)
 
@@ -20,6 +20,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
         XCTAssertNil(coordinator.currentError)
     }
 
+    @MainActor
     func testSelectChapterPopulatesContent() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
@@ -35,6 +36,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
         XCTAssertNil(coordinator.currentError)
     }
 
+    @MainActor
     func testUnsupportedCapabilityReturnsControlledError() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         coordinator.currentError = ReaderError(code: .unsupported, message: "JS required")
@@ -45,6 +47,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
         XCTAssertNotNil(coordinator.currentError)
     }
 
+    @MainActor
     func testCoordinatorStateReflectsInitialState() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
