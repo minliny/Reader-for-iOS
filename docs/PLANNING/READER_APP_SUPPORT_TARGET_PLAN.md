@@ -256,6 +256,131 @@ ShellSmokeTests:
 
 ---
 
+## Step 2 Models Migration Feasibility
+
+### 1. 当前状态确认
+| 检查项 | 状态 |
+|--------|------|
+| 工作区 clean | ✅ |
+| 当前 HEAD | dc6a883 |
+| boundary check | PASS (checked_files=54) |
+| CI status | GREEN |
+
+### 2. Models 文件清单
+共 5 个文件：
+- `iOS/App/Models/BookshelfItem.swift`
+- `iOS/App/Models/ChapterCacheEntry.swift`
+- `iOS/App/Models/ReaderDisplaySettings.swift`
+- `iOS/App/Models/ReadingProgress.swift`
+- `iOS/App/Models/SourceIdentity.swift`
+
+### 3. Models 依赖矩阵
+
+| 文件名 | 类型名 | import Foundation | import SwiftUI | import ReaderCoreModels | import ReaderCoreProtocols | import Parser/Network/JSRenderer | Codable | Equatable/Hashable | Identifiable | 依赖 App/Persistence | 依赖 Features | 可迁移到 ReaderAppSupport | 风险等级 | 备注 |
+|--------|--------|------------------|----------------|------------------------|-----------------------------|----------------------------------|---------|-------------------|--------------|---------------------|--------------|---------------------------|----------|------|
+| BookshelfItem.swift | BookshelfItem | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | YES | LOW | 纯 Foundation |
+| ChapterCacheEntry.swift | ChapterCacheEntry/ChapterCacheStatus | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | YES | LOW | 纯 Foundation |
+| ReaderDisplaySettings.swift | ReaderDisplaySettings/ReaderBackgroundMode | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | YES | LOW | 纯 Foundation |
+| ReadingProgress.swift | ReadingProgress | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | YES | LOW | 纯 Foundation |
+| SourceIdentity.swift | SourceIdentity/SourceIdentityFactory | ✅ | ❌ | ❌ (需要添加) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | PARTIAL | MEDIUM | SourceIdentityFactory 依赖 SearchResultItem |
+
+### 4. Models 引用位置摘要
+
+| Model | 引用文件数 | 主要引用位置 |
+|-------|-----------|-------------|
+| BookshelfItem | 4 | BookshelfStore, BookshelfViewModel, BookshelfView, BookshelfItemRowView |
+| ChapterCacheEntry | 1 | ChapterCacheStore |
+| ReaderDisplaySettings | 2 | ReaderSettingsStore, ReaderSettingsPanel |
+| ReadingProgress | 1 | ReadingProgressStore |
+| SourceIdentity | 0 (仅定义) | - |
+| SourceIdentityFactory | 1 | 仅自身定义 (from(searchResult:)) |
+
+### 5. ReaderAppSupport skeleton 审查结果
+
+| 检查项 | 状态 |
+|--------|------|
+| ReaderAppSupport path | `iOS/AppSupport/Sources` |
+| 当前 dependencies | `[]` (空) |
+| 是否可承载 Models | YES |
+| 需要新增 dependencies | YES (ReaderCoreModels) |
+| ReaderApp 是否依赖 ReaderAppSupport | YES |
+| ShellSmokeTests 是否依赖 ReaderAppSupport | YES |
+| duplicate sources 风险 | NO |
+
+### 6. SourceIdentity 专项结论
+
+| 检查项 | 结论 |
+|--------|------|
+| SourceIdentity 是否纯 Foundation | YES |
+| SourceIdentityFactory 是否依赖 SearchResultItem | YES |
+| SearchResultItem 属于哪个 target | ReaderCoreModels (来自 Reader-Core 独立仓库) |
+| ReaderAppSupport -> ReaderShellValidation 风险 | NO，SearchResultItem 属于 ReaderCoreModels |
+| 推荐方案 | **SourceIdentity model 可迁移，SourceIdentityFactory 保留在 CoreBridge/ShellValidation 并重命名为 SourceIdentityResolver** |
+
+具体建议：
+- 迁移 `SourceIdentity` struct 到 ReaderAppSupport
+- `SourceIdentityFactory` 保留在 CoreBridge（或 ShellValidation）并重命名为 `SourceIdentityResolver`
+- `SourceIdentityResolver` 只依赖 ReaderCoreModels（SearchResultItem），不依赖 ReaderAppSupport
+- 迁移后，CoreBridge/ShellValidation 可以 import ReaderAppSupport 获得 SourceIdentity 类型
+
+### 7. 推荐迁移顺序
+
+#### Step 2A：迁移纯 Foundation models
+顺序：
+1. `ReaderDisplaySettings.swift` - 最简单，无依赖
+2. `ReadingProgress.swift` - 纯数据模型
+3. `ChapterCacheEntry.swift` - 包含 enum，但仍纯 Foundation
+4. `BookshelfItem.swift` - Identifiable，但仍纯 Foundation
+
+#### Step 2B：SourceIdentity 拆分迁移
+- 迁移 `SourceIdentity` struct 到 ReaderAppSupport
+- `SourceIdentityFactory` 拆分：
+  - 保留 `from(searchResult:)` 到 CoreBridge/ShellValidation，重命名为 `SourceIdentityResolver.from(searchResult:)`
+  - 保留 `fallback(name:url:rawJSON:)` 也可随 SourceIdentity 迁移到 ReaderAppSupport（因为只依赖 Foundation）
+
+#### Step 2C：更新 imports
+需要更新的文件清单：
+- `iOS/App/Persistence/ReaderSettingsStore.swift`
+- `iOS/App/Persistence/ChapterCacheStore.swift`
+- `iOS/App/Persistence/ReadingProgressStore.swift`
+- `iOS/App/Persistence/BookshelfStore.swift`
+- `iOS/Features/Reader/ReaderViewModel.swift`
+- `iOS/Features/Reader/ReaderSettingsPanel.swift`
+- `iOS/Features/Bookshelf/BookshelfViewModel.swift`
+- `iOS/Features/Bookshelf/BookshelfView.swift`
+- `iOS/Features/Bookshelf/BookshelfItemRowView.swift`
+
+#### Step 2D：验证
+- `swift build --target ReaderAppSupport`
+- ShellSmokeTests
+- boundary check
+- CI
+
+### 8. 风险清单
+
+| # | 风险 | 严重程度 | 缓解措施 |
+|---|------|----------|----------|
+| R1 | SourceIdentityFactory 依赖 SearchResultItem | MEDIUM | 拆分 model 和 resolver |
+| R2 | ReaderAppSupport 需要新增 ReaderCoreModels 依赖 | LOW | Package.swift 中添加即可 |
+| R3 | import 修复范围较大 | MEDIUM | 分批更新，CI 验证 |
+| R4 | CI GREEN 被破坏 | HIGH | 先在本地验证，再提交 |
+| R5 | 回滚策略缺失 | MEDIUM | 使用 git 分支做迁移 |
+
+### 9. Step 2 是否可以进入实施：YES
+
+### 10. Step 2 实施前置条件
+- [x] 当前 CI GREEN
+- [x] Models 依赖矩阵已确认
+- [x] SourceIdentity 拆分方案已确认
+- [x] ReaderAppSupport skeleton 已就绪
+- [ ] 确认迁移分支已创建
+
+### 11. 回滚方案
+- git reset --hard dc6a883
+- git push -f origin main
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files)
