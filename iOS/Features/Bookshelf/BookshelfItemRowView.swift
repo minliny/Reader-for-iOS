@@ -1,4 +1,5 @@
 import SwiftUI
+import ReaderAppSupport
 
 public struct BookshelfItemRowView: View {
     let item: BookshelfItem

@@ -60,7 +60,8 @@ let package = Package(
             "ReaderAppSupportMarker.swift",
             "ReaderDisplaySettings.swift",
             "ReadingProgress.swift",
-            "ChapterCacheEntry.swift"
+            "ChapterCacheEntry.swift",
+            "BookshelfItem.swift"
         ]
     ),
         .target(

@@ -1,5 +1,6 @@
 import Foundation
 import ReaderCoreModels
+import ReaderAppSupport
 
 public enum BookshelfState: Equatable {
     case idle

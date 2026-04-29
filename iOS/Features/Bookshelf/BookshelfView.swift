@@ -1,4 +1,5 @@
 import SwiftUI
+import ReaderAppSupport
 
 public struct BookshelfView: View {
     @StateObject private var viewModel = BookshelfViewModel()

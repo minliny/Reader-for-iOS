@@ -1,4 +1,5 @@
 import Foundation
+import ReaderAppSupport
 
 public final class BookshelfStore: @unchecked Sendable {
     public static let shared = BookshelfStore()

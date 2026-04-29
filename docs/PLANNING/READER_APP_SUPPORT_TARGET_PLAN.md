@@ -533,20 +533,57 @@ ShellSmokeTests:
 
 ---
 
+## Step 2D BookshelfItem Migration Result
+
+### 1. BookshelfItem 已迁移：YES
+
+### 2. 修改文件清单
+- 移动：iOS/App/Models/BookshelfItem.swift → iOS/AppSupport/Sources/BookshelfItem.swift
+- 修改：iOS/Package.swift
+- 修改：iOS/App/Persistence/BookshelfStore.swift
+- 修改：iOS/Features/Bookshelf/BookshelfViewModel.swift
+- 修改：iOS/Features/Bookshelf/BookshelfView.swift
+- 修改：iOS/Features/Bookshelf/BookshelfItemRowView.swift
+- 修改：iOS/Features/BookDetail/BookDetailView.swift
+- 修改：docs/PLANNING/READER_APP_SUPPORT_TARGET_PLAN.md
+
+### 3. import 更新清单
+- iOS/App/Persistence/BookshelfStore.swift（添加 import ReaderAppSupport）
+- iOS/Features/Bookshelf/BookshelfViewModel.swift（添加 import ReaderAppSupport）
+- iOS/Features/Bookshelf/BookshelfView.swift（添加 import ReaderAppSupport）
+- iOS/Features/Bookshelf/BookshelfItemRowView.swift（添加 import ReaderAppSupport）
+- iOS/Features/BookDetail/BookDetailView.swift（添加 import ReaderAppSupport）
+
+### 4. Package.swift 更新摘要
+- ReaderAppSupport target sources 新增 "BookshelfItem.swift"
+- 不改变其他 target 配置
+
+### 5. 是否迁移其他 Models：NO
+
+### 6. 是否迁移 Persistence：NO
+
+### 7. 是否新增测试：NO
+
+### 8. 本地 build / test 结果
+- swift build --target ReaderAppSupport: PASS (5 files compiled, 0.49s)
+- swift test: ReaderApp target 有预存 SourceIdentity 编译错误，与本次迁移无关
+- Boundary check: PASS (checked_files=50)
+- 当前 HEAD: 01169c1
+
+### 9. 下一步是否可以规划 SourceIdentity 拆分/迁移：YES
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files)
 
-- `iOS/App/Models/BookshelfItem.swift`
-- `iOS/App/Models/ChapterCacheEntry.swift`
-- `iOS/App/Models/ReaderDisplaySettings.swift`
-- `iOS/App/Models/ReadingProgress.swift`
-- `iOS/App/Models/SourceIdentity.swift`
+- `iOS/AppSupport/Sources/BookshelfItem.swift` ✅ migrated
+- `iOS/AppSupport/Sources/ChapterCacheEntry.swift` ✅ migrated
+- `iOS/AppSupport/Sources/ReaderDisplaySettings.swift` ✅ migrated
+- `iOS/AppSupport/Sources/ReadingProgress.swift` ✅ migrated
+- `iOS/App/Models/SourceIdentity.swift` ⬜ pending
 
 ### Persistence (5 files)
 
 - `iOS/App/Persistence/BookSourceStore.swift`
-- `iOS/App/Persistence/BookshelfStore.swift`
-- `iOS/App/Persistence/ChapterCacheStore.swift`
-- `iOS/App/Persistence/ReaderSettingsStore.swift`
-- `iOS/App/Persistence/ReadingProgressStore.swift`
