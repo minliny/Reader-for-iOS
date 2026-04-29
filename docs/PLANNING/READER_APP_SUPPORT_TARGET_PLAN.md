@@ -500,6 +500,39 @@ ShellSmokeTests:
 
 ---
 
+## Step 2C ChapterCacheEntry Migration Result
+
+### 1. ChapterCacheEntry 已迁移：YES
+
+### 2. 修改文件清单
+- 移动：iOS/App/Models/ChapterCacheEntry.swift → iOS/AppSupport/Sources/ChapterCacheEntry.swift
+- 修改：iOS/Package.swift
+- 修改：iOS/App/Persistence/ChapterCacheStore.swift
+- 修改：docs/PLANNING/READER_APP_SUPPORT_TARGET_PLAN.md
+
+### 3. import 更新清单
+- iOS/App/Persistence/ChapterCacheStore.swift（添加 import ReaderAppSupport）
+
+### 4. Package.swift 更新摘要
+- ReaderAppSupport target sources 新增 "ChapterCacheEntry.swift"
+- 不改变其他 target 配置
+
+### 5. 是否迁移其他 Models：NO
+
+### 6. 是否迁移 Persistence：NO
+
+### 7. 是否新增测试：NO
+
+### 8. 本地 build / test 结果
+- swift build --target ReaderAppSupport: PASS (4 files compiled)
+- swift test: ReaderApp target 有预存 SourceIdentity 编译错误，与本次迁移无关
+- Boundary check: PASS (checked_files=51)
+- 当前 HEAD: 8254eef
+
+### 9. 下一步是否可以规划 BookshelfItem 迁移：YES
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files)
