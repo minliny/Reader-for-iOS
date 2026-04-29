@@ -422,6 +422,51 @@ ShellSmokeTests:
 
 ---
 
+## Step 2B ReadingProgress Migration Planning
+
+### 1. ReadingProgress 依赖审查
+- import：Foundation 仅
+- SwiftUI 依赖：NO
+- ReaderCoreModels/ReaderCoreProtocols 依赖：NO
+- ReaderCoreParser/ReaderCoreNetwork/ReaderCoreJSRenderer 依赖：NO
+- Codable：YES
+- Equatable：YES
+- Hashable：NO（未声明）
+- Identifiable：NO
+- 迁移到 ReaderAppSupport 的 blocker：NO
+
+### 2. 引用位置清单
+- iOS/App/Persistence/ReadingProgressStore.swift（ReaderApp target）
+- iOS/Features/Reader/ReaderViewModel.swift（ReaderApp target）
+
+### 3. 需要更新 import 的文件清单
+- iOS/App/Persistence/ReadingProgressStore.swift
+- iOS/Features/Reader/ReaderViewModel.swift
+
+### 4. Package.swift 预期修改
+- ReaderAppSupport target sources 新增 "ReadingProgress.swift"
+
+### 5. 风险评估
+- Risk Level：LOW
+- Risk Items：
+  - 无 SwiftUI 依赖
+  - 无 ReaderCoreParser/ReaderCoreNetwork 依赖
+  - 无跨 target 循环依赖
+  - ReaderDisplaySettings 迁移状态不受影响
+
+### 6. 是否可以进入 ReadingProgress 实施：YES
+
+### 7. 实施前置条件
+- [x] ReaderDisplaySettings 迁移已通过 CI
+- [x] ReadingProgress 依赖审查完成
+- [x] 引用位置明确
+
+### 8. 回滚方案
+- git reset --hard 332d85e
+- git push -f origin main
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files)
