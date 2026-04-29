@@ -10,6 +10,7 @@ readonly restricted_paths=(
   "iOS/Features"
   "iOS/Modules"
   "iOS/Shell"
+  "iOS/Tests"
 )
 
 readonly forbidden_modules=(

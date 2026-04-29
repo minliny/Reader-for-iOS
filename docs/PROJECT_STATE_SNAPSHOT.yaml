@@ -10,27 +10,30 @@ project:
 
 current_focus:
   primary_track:
-    - Reader-iOS Phase 0: Core 接入准备
-    - Reader-iOS Phase 1: 书源管理
-  active_milestone: Phase 0-1 development
+    - Reader-iOS Phase 0~7 主链路：已完成
+    - Reader Display Customization：FOUNDATION_COMPLETE
+    - Source ID Strategy：FOUNDATION_COMPLETE / NEEDS_REAL_SAMPLE_VALIDATION
+    - Cloud Sync：PLANNING_ONLY
+    - Real BookSource Smoke：PENDING_INPUT / PENDING_READER_CORE
+  active_milestone: Post-Phase-7 stabilization + boundary audit fix
   milestone_status: in_progress
-  milestone_detail: "建立 CoreBridge + Mock Service + 非 JS 主链路 UI"
-  next_best_task: "建立 CoreBridge 目录，添加 ReaderCoreClient 和 MockReaderCoreService"
+  milestone_detail: "修复测试边界违规，更新状态文档，清理 Parser 内部依赖"
+  next_best_task: "SourceIdentity fallback 真实样本验证，等待 Reader-Core 稳定和真实 JSON 输入"
 
 stabilized_samples: []
 
 recent_action:
-  summary: "项目规划已对齐《项目描述》：Reader-for-iOS 正式开发启动。"
-  category: active_development
+  summary: "修复 iOS/Tests 测试边界违规（移除 ReaderCoreParser/Network 直接导入），更新边界检查脚本覆盖 iOS/Tests，更新 PROJECT_STATE_SNAPSHOT.yaml 和 SOURCE_ID_STRATEGY.md 状态"
+  category: boundary_audit_fix
 
 change_scope:
-  this_update: alignment_with_project_description
+  this_update: boundary_audit_fix_and_state_sync
   samples_changed: false
   compat_matrix_changed: false
   failure_taxonomy_changed: false
   core_logic_touched: false
   ios_business_logic_touched: false
-  workflows_changed: false
-  scripts_changed: false
+  ios_test_logic_touched: true
+  ios_boundary_script_touched: true
   status_docs_changed: true
-  clean_room_statement: "本轮仅对齐文档与《项目描述》一致性；未开发新功能，未修改业务逻辑。"
+  clean_room_statement: "本轮修复测试边界违规，移除 Parser 内部依赖通过 ShellAssembly 公共表面验证，未开发新功能。"
