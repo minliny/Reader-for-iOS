@@ -1,4 +1,5 @@
 import SwiftUI
+import ReaderAppSupport
 
 public struct ReaderSettingsPanel: View {
     @Binding var displaySettings: ReaderDisplaySettings

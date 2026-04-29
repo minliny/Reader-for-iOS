@@ -53,10 +53,14 @@ let package = Package(
             ]
         ),
         .target(
-            name: "ReaderAppSupport",
-            dependencies: [],
-            path: "AppSupport/Sources"
-        ),
+        name: "ReaderAppSupport",
+        dependencies: [],
+        path: "AppSupport/Sources",
+        sources: [
+            "ReaderAppSupportMarker.swift",
+            "ReaderDisplaySettings.swift"
+        ]
+    ),
         .target(
             name: "ReaderApp",
             dependencies: [
