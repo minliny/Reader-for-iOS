@@ -574,6 +574,161 @@ ShellSmokeTests:
 
 ---
 
+## Step 2E SourceIdentity Split / Migration Planning
+
+**Status**: PLANNING_ONLY
+**Created**: 2026-04-30
+
+### 1. 当前 SourceIdentity 文件结构
+
+`iOS/App/Models/SourceIdentity.swift` (38 lines) 包含两个独立部分：
+
+| 部分 | 行 | 内容 | 依赖 |
+|------|-----|------|------|
+| SourceIdentity struct | 3-15 | Codable, Equatable, Hashable model | Foundation only |
+| SourceIdentityFactory enum | 17-38 | `from(searchResult:)` + `fallback(name:url:rawJSON:)` | SearchResultItem (ReaderCoreModels) |
+
+### 2. SourceIdentity struct 依赖审查
+
+| 检查项 | 结果 |
+|--------|------|
+| import Foundation | YES |
+| import SwiftUI | NO |
+| import ReaderCoreModels | NO |
+| import ReaderCoreProtocols | NO |
+| import ReaderCoreParser / Network / JSRenderer | NO |
+| Codable | YES |
+| Equatable | YES |
+| Hashable | YES |
+| 可独立迁移到 ReaderAppSupport | YES |
+| 是否需要新增 ReaderAppSupport 依赖 | NO |
+
+### 3. SourceIdentityFactory 依赖审查
+
+| 方法 | 依赖 | 调用方 |
+|------|------|--------|
+| `from(searchResult: SearchResultItem)` | SearchResultItem (ReaderCoreModels) | BookDetailView.swift:12 |
+| `fallback(name:url:rawJSON:)` | Foundation only | 无调用方（grep 未发现） |
+
+### 4. SearchResultItem 归属确认
+
+| 检查项 | 结果 |
+|--------|------|
+| 定义位置 | `Reader-Core/Core/Sources/ReaderCoreModels/ReadingFlowModels.swift:16` |
+| 所属 module | **ReaderCoreModels** |
+| ReaderAppSupport 是否应依赖 ReaderCoreModels | NO — ReaderAppSupport 设计为零外部依赖 |
+| swift test 当前阻断 | `SourceIdentity.swift:18:43: cannot find type 'SearchResultItem' in scope` |
+| 根因 | ReaderApp target 未直接依赖 ReaderCoreModels，SearchResultItem 不可见 |
+
+### 5. SourceIdentity 引用位置摘要
+
+| 文件 | Target | 引用的内容 |
+|------|--------|-----------|
+| SourceIdentity.swift | ReaderApp | 定义 struct + factory |
+| ReaderViewModel.swift:97 | ReaderApp | 直接构造 `SourceIdentity(id:bookURL,name:nil,baseURL:nil)` |
+| BookDetailView.swift:11-12 | ReaderApp | `SourceIdentityFactory.from(searchResult:)` → 返回 `SourceIdentity` |
+
+### 6. 三种方案对比
+
+#### 方案 A：整体迁移 SourceIdentity.swift 到 ReaderAppSupport
+
+- 做法：mv 整个文件，ReaderAppSupport 新增 `ReaderCoreModels` 依赖
+- 优点：单文件移动，改动量最小
+- 风险：ReaderAppSupport 失去零外部依赖属性；为一个 factory 方法引入整个 ReaderCoreModels 耦合
+- **推荐：NO**
+
+#### 方案 B：拆分文件（推荐）
+
+- 做法：
+  1. `SourceIdentity` struct → `iOS/AppSupport/Sources/SourceIdentity.swift`（ReaderAppSupport target）
+  2. `SourceIdentityFactory.from(searchResult:)` → `iOS/CoreBridge/SourceIdentityFactory.swift`（ReaderShellValidation target）
+  3. `fallback()` 当前无调用方 → 可随 struct 迁移或移除
+  4. ReaderShellValidation dependencies 新增 `"ReaderAppSupport"`（使 SourceIdentity 类型可见）
+- 优点：
+  - ReaderAppSupport 保持零外部依赖
+  - 关注点分离：model vs factory
+  - 修复 swift test 预存 `SearchResultItem` 不可见错误
+  - CoreBridge 已有 ReaderCoreModels import，SearchResultItem 天然可见
+- 风险：
+  - Package.swift 需新增 ReaderShellValidation → ReaderAppSupport 依赖
+  - BookDetailView 需确认 SourceIdentityFactory 在新位置可见
+- DAG 检查：ReaderShellValidation → ReaderAppSupport → (none)；ReaderApp → ReaderShellValidation + ReaderAppSupport。无循环。
+- **推荐：YES**
+
+#### 方案 C：暂不迁移 SourceIdentity
+
+- 做法：保持现状
+- 优点：零风险，零改动
+- 风险：swift test 持续 BLOCKED；App/Models 有残留；后续 Persistence tests 无法推进
+- **推荐：NO**（仅作短期过渡）
+
+### 7. 推荐方案：方案 B
+
+#### 文件变更
+
+```
+移动/拆分：
+  iOS/App/Models/SourceIdentity.swift  →  删除
+  iOS/AppSupport/Sources/SourceIdentity.swift  ←  SourceIdentity struct
+  iOS/CoreBridge/SourceIdentityFactory.swift   ←  SourceIdentityFactory enum (新增)
+
+修改：
+  iOS/Package.swift
+    - ReaderAppSupport sources 新增 "SourceIdentity.swift"
+    - ReaderShellValidation dependencies 新增 "ReaderAppSupport"
+```
+
+#### SourceIdentityFactory.swift 设计（CoreBridge）
+
+```swift
+import Foundation
+import ReaderCoreModels
+import ReaderAppSupport
+
+public enum SourceIdentityFactory {
+    public static func from(searchResult: SearchResultItem) -> SourceIdentity {
+        return SourceIdentity(
+            id: searchResult.detailURL,
+            name: nil,
+            baseURL: nil
+        )
+    }
+}
+```
+
+`fallback()` 方法当前无调用方，不迁移（删除）。
+
+### 8. 实施步骤草案
+
+1. 创建 `iOS/CoreBridge/SourceIdentityFactory.swift`（仅 `from(searchResult:)`）
+2. 移动 `SourceIdentity` struct 到 `iOS/AppSupport/Sources/SourceIdentity.swift`
+3. 更新 `Package.swift`：
+   - ReaderAppSupport sources 新增 `"SourceIdentity.swift"`
+   - ReaderShellValidation dependencies 新增 `"ReaderAppSupport"`
+4. 验证：`swift build --target ReaderAppSupport`
+5. 验证：`swift build --target ReaderShellValidation`
+6. 验证：`swift test`（预期 SourceIdentity 错误消失）
+7. 边界检查
+8. 提交
+
+### 9. 风险清单
+
+| # | 风险 | 严重程度 | 缓解措施 |
+|---|------|----------|----------|
+| R1 | ReaderShellValidation 新增 ReaderAppSupport 依赖引发循环 | LOW | 已验证 DAG 无循环 |
+| R2 | Swift 6 NSLock 警告增加 | LOW | CoreBridge 已有类似代码模式 |
+| R3 | BookDetailView 找不到 SourceIdentityFactory | LOW | BookDetailView 属于 ReaderApp target，ReaderApp 依赖 ReaderShellValidation |
+| R4 | 删除 fallback 后未来需要 | LOW | 可从 git 历史恢复 |
+
+### 10. 是否可以进入实施：YES
+
+### 11. 回滚方案
+
+- `git reset --hard 5870b3d`
+- 重新创建 SourceIdentityFactory 如有需要
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files)
@@ -582,7 +737,7 @@ ShellSmokeTests:
 - `iOS/AppSupport/Sources/ChapterCacheEntry.swift` ✅ migrated
 - `iOS/AppSupport/Sources/ReaderDisplaySettings.swift` ✅ migrated
 - `iOS/AppSupport/Sources/ReadingProgress.swift` ✅ migrated
-- `iOS/App/Models/SourceIdentity.swift` ⬜ pending
+- `iOS/App/Models/SourceIdentity.swift` ⬜ pending (split planned)
 
 ### Persistence (5 files)
 
