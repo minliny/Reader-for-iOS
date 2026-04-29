@@ -59,6 +59,16 @@ jobs:
           # iOS-only Features/UI stay outside this macOS-hosted SwiftPM validation scope.
           swift build --package-path iOS --target ReaderShellValidation 2>&1 | tee ios-shell-build.log
 
+      - name: Diagnose ReaderApp target compilation
+        shell: bash
+        run: |
+          set +e
+          # Diagnostic only: validate whether ReaderApp can be compiled as a test dependency.
+          # This step logs errors but does not fail the job.
+          swift build --package-path iOS --target ReaderApp 2>&1 | tee ios-readerapp-build.log
+          echo "=== ReaderApp compile diagnostic (non-failing) ==="
+          cat ios-readerapp-build.log
+
       - name: Run shell smoke validation
         shell: bash
         run: |
@@ -123,6 +133,7 @@ jobs:
           if-no-files-found: error
           path: |
             ios-shell-build.log
+            ios-readerapp-build.log
             ios-shell-smoke.log
             ios-reader-functional.log
             ios-reader-hardening.log
