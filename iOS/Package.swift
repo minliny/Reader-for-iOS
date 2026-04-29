@@ -58,7 +58,8 @@ let package = Package(
         path: "AppSupport/Sources",
         sources: [
             "ReaderAppSupportMarker.swift",
-            "ReaderDisplaySettings.swift"
+            "ReaderDisplaySettings.swift",
+            "ReadingProgress.swift"
         ]
     ),
         .target(
