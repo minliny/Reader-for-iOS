@@ -467,6 +467,39 @@ ShellSmokeTests:
 
 ---
 
+## Step 2B ReadingProgress Migration Result
+
+### 1. ReadingProgress 已迁移：YES
+
+### 2. 修改文件清单
+- 移动：iOS/App/Models/ReadingProgress.swift → iOS/AppSupport/Sources/ReadingProgress.swift
+- 修改：iOS/Package.swift
+- 修改：iOS/App/Persistence/ReadingProgressStore.swift
+- 修改：docs/PLANNING/READER_APP_SUPPORT_TARGET_PLAN.md
+
+### 3. import 更新清单
+- iOS/App/Persistence/ReadingProgressStore.swift（添加 import ReaderAppSupport）
+- iOS/Features/Reader/ReaderViewModel.swift（已存在 import ReaderAppSupport）
+
+### 4. Package.swift 更新摘要
+- ReaderAppSupport target sources 新增 "ReadingProgress.swift"
+- 不改变其他 target 配置
+
+### 5. 是否迁移其他 Models：NO
+
+### 6. 是否迁移 Persistence：NO
+
+### 7. 是否新增测试：NO
+
+### 8. CI 结果：SUCCESS
+- commit: 9f4acbb
+- run id: 25119142807
+- Boundary + Shell compile smoke: PASS
+
+### 9. 下一步是否可以规划 ChapterCacheEntry 迁移：YES
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files)
