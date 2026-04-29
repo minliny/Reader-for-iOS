@@ -8,6 +8,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
     func testSearchReturnsMockResults() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
+        await coordinator.importBookSource(from: minimalBookSourceJSON)
         await coordinator.search(keyword: "三体")
 
         XCTAssertFalse(coordinator.isLoading)
@@ -20,6 +21,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
     func testSelectBookPopulatesChapterList() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
+        await coordinator.importBookSource(from: minimalBookSourceJSON)
         await coordinator.search(keyword: "三体")
         let firstBook = try XCTUnwrap(coordinator.searchResults.first)
 
@@ -42,6 +44,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
     func testSelectChapterPopulatesContent() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
+        await coordinator.importBookSource(from: minimalBookSourceJSON)
         await coordinator.search(keyword: "三体")
         let firstBook = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
@@ -60,6 +63,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
     func testAddToBookshelfFlow() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
+        await coordinator.importBookSource(from: minimalBookSourceJSON)
         await coordinator.search(keyword: "三体")
         let firstBook = try XCTUnwrap(coordinator.searchResults.first)
 
@@ -74,6 +78,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
 
         coordinator.currentError = ReaderError(code: .unsupported, message: "JS required")
 
+        await coordinator.importBookSource(from: minimalBookSourceJSON)
         await coordinator.search(keyword: "test")
 
         XCTAssertTrue(coordinator.searchResults.isEmpty)
@@ -84,6 +89,7 @@ final class ReaderFlowFunctionalValidationTests: XCTestCase {
     func testContentStageReturnsControlledErrorWhen404() async throws {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
+        await coordinator.importBookSource(from: minimalBookSourceJSON)
         await coordinator.search(keyword: "三体")
         let firstBook = try XCTUnwrap(coordinator.searchResults.first)
         await coordinator.selectBook(firstBook)
