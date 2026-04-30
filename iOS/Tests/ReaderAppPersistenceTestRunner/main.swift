@@ -1,8 +1,9 @@
 import Foundation
 import ReaderAppSupport
 import ReaderAppPersistence
+import ReaderCoreModels
 
-func main() -> Int32 {
+func main() async -> Int32 {
     var failures = 0
 
     func assertEqual<T: Equatable>(_ got: T, _ expected: T, _ label: String) {
@@ -292,6 +293,73 @@ func main() -> Int32 {
         failures += 1
     }
 
+    // MARK: - BookSourceStore
+
+    do {
+        let fileURL = tempDir.appendingPathComponent("test_book_sources.json")
+        let store = BookSourceStore(storageURL: fileURL)
+
+        // 1. load returns empty when file missing
+        let empty = try await store.load()
+        if !empty.isEmpty {
+            fputs("FAIL: load returns empty when file missing — expected empty\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: load returns empty when file missing\n", stderr)
+        }
+
+        // 2. add then load returns saved source
+        let source = BookSource(bookSourceName: "Test Source")
+        try await store.add(source)
+        let sources = try await store.load()
+        if sources.isEmpty {
+            fputs("FAIL: add then load returns saved source — expected non-empty\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: add then load returns saved source\n", stderr)
+        }
+
+        // 3. added source has generated id
+        if let first = sources.first {
+            if first.id == nil {
+                fputs("FAIL: added source has generated id — expected non-nil\n", stderr)
+                failures += 1
+            } else {
+                fputs("PASS: added source has generated id\n", stderr)
+            }
+        }
+
+        // 4. update modifies existing source
+        if var firstSource = sources.first {
+            firstSource.bookSourceName = "Updated Source"
+            try await store.update(firstSource)
+            let reloaded = try await store.load()
+            assertEqual(reloaded.first?.bookSourceName, "Updated Source", "update modifies bookSourceName")
+        }
+
+        // 5. toggleEnabled changes enabled state
+        if let firstSource = sources.first, let sourceID = firstSource.id {
+            try await store.toggleEnabled(id: sourceID)
+            let toggled = try await store.load()
+            assertEqual(toggled.first?.enabled, false, "toggleEnabled changes enabled to false")
+        }
+
+        // 6. delete removes saved source
+        if let firstSource = sources.first, let sourceID = firstSource.id {
+            try await store.delete(id: sourceID)
+            let afterDelete = try await store.load()
+            if !afterDelete.isEmpty {
+                fputs("FAIL: delete removes saved source — expected empty\n", stderr)
+                failures += 1
+            } else {
+                fputs("PASS: delete removes saved source\n", stderr)
+            }
+        }
+    } catch {
+        fputs("FAIL: BookSourceStore — error: \(error)\n", stderr)
+        failures += 1
+    }
+
     if failures > 0 {
         fputs("\n\(failures) test(s) FAILED\n", stderr)
         return 1
@@ -300,4 +368,4 @@ func main() -> Int32 {
     return 0
 }
 
-exit(main())
+exit(await main())

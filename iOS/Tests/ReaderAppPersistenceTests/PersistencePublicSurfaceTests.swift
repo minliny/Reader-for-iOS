@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 import ReaderAppSupport
 import ReaderAppPersistence
+import ReaderCoreModels
 
 final class PersistencePublicSurfaceTests: XCTestCase {
 
@@ -226,6 +227,66 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         XCTAssertEqual(found?.readingProgress, 0.75)
         XCTAssertEqual(found?.lastReadChapterTitle, "Ch7")
         XCTAssertEqual(found?.lastReadChapterURL, "/ch/7")
+    }
+
+    // MARK: - BookSourceStore
+
+    func testBookSourceLoadEmptyWhenFileMissing() async throws {
+        let tempURL = makeTempFileURL(name: "test_sources_empty.json")
+        let store = BookSourceStore(storageURL: tempURL)
+        let sources = try await store.load()
+        XCTAssertTrue(sources.isEmpty)
+    }
+
+    func testBookSourceAddAndLoad() async throws {
+        let tempURL = makeTempFileURL(name: "test_sources_add.json")
+        let store = BookSourceStore(storageURL: tempURL)
+
+        let source = BookSource(bookSourceName: "Test Source")
+        try await store.add(source)
+
+        let sources = try await store.load()
+        XCTAssertFalse(sources.isEmpty)
+        XCTAssertNotNil(sources.first?.id)
+    }
+
+    func testBookSourceUpdate() async throws {
+        let tempURL = makeTempFileURL(name: "test_sources_update.json")
+        let store = BookSourceStore(storageURL: tempURL)
+
+        try await store.add(BookSource(bookSourceName: "Original"))
+        let sources = try await store.load()
+        var first = sources.first!
+        first.bookSourceName = "Modified"
+        try await store.update(first)
+
+        let reloaded = try await store.load()
+        XCTAssertEqual(reloaded.first?.bookSourceName, "Modified")
+    }
+
+    func testBookSourceToggleEnabled() async throws {
+        let tempURL = makeTempFileURL(name: "test_sources_toggle.json")
+        let store = BookSourceStore(storageURL: tempURL)
+
+        try await store.add(BookSource(bookSourceName: "Toggle Me"))
+        let sources = try await store.load()
+        let sourceID = sources.first!.id!
+
+        try await store.toggleEnabled(id: sourceID)
+        let toggled = try await store.load()
+        XCTAssertEqual(toggled.first?.enabled, false)
+    }
+
+    func testBookSourceDelete() async throws {
+        let tempURL = makeTempFileURL(name: "test_sources_delete.json")
+        let store = BookSourceStore(storageURL: tempURL)
+
+        try await store.add(BookSource(bookSourceName: "Delete Me"))
+        let sources = try await store.load()
+        try await store.delete(id: sources.first!.id!)
+
+        let afterDelete = try await store.load()
+        XCTAssertTrue(afterDelete.isEmpty)
     }
 
     // MARK: - Helpers

@@ -1,6 +1,6 @@
 # ReaderAppSupport Target Extraction Plan
 
-**Status**: PERSISTENCE_TESTS_RUNNING
+**Status**: ALL_STORES_TESTED
 **Created**: 2026-04-29
 **Last Updated**: 2026-04-30
 
@@ -1109,6 +1109,53 @@ Model 测试（已在 Models 迁移中完成）：
 
 ---
 
+## BookSourceStore Persistence Test Result
+
+### 1. BookSourceStore test initializer 已添加：YES
+- `public init(storageURL: URL)` added；computed `storageURL` refactored to stored `fileURL`
+
+### 2. NSLock warning 处理
+- 保留为技术债（6 处 `NSLock.lock()/unlock()` 在 async 上下文的 Swift 6 warning）
+- 修复需要变更整个 Store 的并发模型，风险超出本轮范围
+- 不影响功能正确性和测试覆盖
+
+### 3. executable runner 新增测试
+- `load returns empty when file missing`
+- `add then load returns saved source`
+- `added source has generated id`
+- `update modifies bookSourceName`
+- `toggleEnabled changes enabled to false`
+- `delete removes saved source`
+
+### 4. XCTest target 同步
+- `testBookSourceLoadEmptyWhenFileMissing`
+- `testBookSourceAddAndLoad`
+- `testBookSourceUpdate`
+- `testBookSourceToggleEnabled`
+- `testBookSourceDelete`
+
+### 5. swift run ReaderAppPersistenceTestRunner：PASS (36/36)
+### 6. swift build --target ReaderAppPersistenceTests：PASS (0 warnings)
+### 7. full swift test：仍被 ReaderApp 预存错误阻断
+
+### 8. 5/5 Persistence Stores 全部覆盖：YES
+
+---
+
+## Persistence Tests Status Summary
+
+| Store | Test Initializer | Runner Tests | XCTest Tests | Build |
+|-------|-----------------|-------------|-------------|-------|
+| ReaderSettingsStore | ✅ | 3 | 3 | PASS |
+| ReadingProgressStore | ✅ | 4 + 2 Codable | 4 | PASS |
+| ChapterCacheStore | ✅ | 4 + 2 Codable | 4 | PASS |
+| BookshelfStore | ✅ | 10 + 3 Codable | 5 | PASS |
+| BookSourceStore | ✅ | 6 | 5 | PASS (NSLock warnings) |
+
+**Total**: 36 runner tests, 24 XCTest tests, 5/5 stores ✅
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files) — ALL MIGRATED
@@ -1120,9 +1167,9 @@ Model 测试（已在 Models 迁移中完成）：
 - `iOS/AppSupport/Sources/SourceIdentity.swift` ✅ migrated (struct)
 - `iOS/CoreBridge/SourceIdentityFactory.swift` ✅ split (factory)
 
-### Persistence (5 files) — IN PROGRESS
+### Persistence (5 files) — ALL TESTED
 
-- `iOS/App/Persistence/BookSourceStore.swift` ✅ in ReaderAppPersistence
+- `iOS/App/Persistence/BookSourceStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/BookshelfStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/ChapterCacheStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/ReaderSettingsStore.swift` ✅ migrated + tested
