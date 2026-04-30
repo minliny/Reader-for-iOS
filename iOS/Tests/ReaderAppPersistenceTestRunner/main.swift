@@ -132,6 +132,71 @@ func main() -> Int32 {
         failures += 1
     }
 
+    // MARK: - ChapterCacheStore
+
+    do {
+        let fileURL = tempDir.appendingPathComponent("test_cache.json")
+        let store = ChapterCacheStore(storageURL: fileURL)
+
+        let entry = ChapterCacheEntry(
+            sourceID: "source-a",
+            bookURL: "https://example.com/book/2",
+            chapterURL: "https://example.com/book/2/chapter/5",
+            chapterTitle: "Chapter Five",
+            status: .cached
+        )
+
+        // 1. saveEntry then loadEntry returns saved value
+        try store.saveEntry(entry)
+        let loaded = try store.loadEntry(chapterURL: entry.chapterURL, sourceID: "source-a")
+        assertEqual(loaded?.chapterTitle, "Chapter Five", "saveEntry then loadEntry returns chapterTitle")
+        assertEqual(loaded?.status, .cached, "saveEntry then loadEntry returns status .cached")
+
+        // 2. removeEntry deletes saved value
+        try store.removeEntry(chapterURL: entry.chapterURL, sourceID: "source-a")
+        let afterRemove = try store.loadEntry(chapterURL: entry.chapterURL, sourceID: "source-a")
+        if afterRemove != nil {
+            fputs("FAIL: removeEntry deletes saved value — expected nil\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: removeEntry deletes saved value\n", stderr)
+        }
+
+        // 3. missing entry returns nil
+        let missing = try store.loadEntry(chapterURL: "/nonexistent", sourceID: "none")
+        if missing != nil {
+            fputs("FAIL: missing entry returns nil — expected nil\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: missing entry returns nil\n", stderr)
+        }
+
+        // 4. update entry status
+        var updated = entry
+        updated.status = .failed
+        try store.saveEntry(updated)
+        let reloaded = try store.loadEntry(chapterURL: entry.chapterURL, sourceID: "source-a")
+        assertEqual(reloaded?.status, .failed, "update entry status to .failed")
+    } catch {
+        fputs("FAIL: ChapterCacheStore — error: \(error)\n", stderr)
+        failures += 1
+    }
+
+    // MARK: - ChapterCacheEntry Codable round-trip
+    do {
+        let original = ChapterCacheEntry(
+            sourceID: "s1", bookURL: "b", chapterURL: "c",
+            chapterTitle: "t", status: .cached
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ChapterCacheEntry.self, from: data)
+        assertEqual(decoded.sourceID, "s1", "ChapterCacheEntry Codable round-trip sourceID")
+        assertEqual(decoded.status, .cached, "ChapterCacheEntry Codable round-trip status")
+    } catch {
+        fputs("FAIL: ChapterCacheEntry Codable — error: \(error)\n", stderr)
+        failures += 1
+    }
+
     if failures > 0 {
         fputs("\n\(failures) test(s) FAILED\n", stderr)
         return 1

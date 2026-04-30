@@ -14,6 +14,10 @@ public final class ChapterCacheStore: @unchecked Sendable {
         fileURL = documentsPath.appendingPathComponent("chapter_cache.json")
     }
 
+    public init(storageURL: URL) {
+        fileURL = storageURL
+    }
+
     private func loadAllEntries() throws -> [String: ChapterCacheEntry] {
         lock.lock()
         defer { lock.unlock() }

@@ -1047,6 +1047,34 @@ Model 测试（已在 Models 迁移中完成）：
 
 ---
 
+## ChapterCacheStore Persistence Test Result
+
+### 1. ChapterCacheStore test initializer 已添加：YES
+- `public init(storageURL: URL)` added
+
+### 2. executable runner 新增测试
+- `saveEntry then loadEntry returns chapterTitle`
+- `saveEntry then loadEntry returns status .cached`
+- `removeEntry deletes saved value`
+- `missing entry returns nil`
+- `update entry status to .failed`
+- `ChapterCacheEntry Codable round-trip sourceID`
+- `ChapterCacheEntry Codable round-trip status`
+
+### 3. XCTest target 同步
+- `testChapterCacheSaveAndLoadRoundtrip`
+- `testChapterCacheRemoveDeletesEntry`
+- `testChapterCacheMissingReturnsNil`
+- `testChapterCacheUpdateStatus`
+
+### 4. swift run ReaderAppPersistenceTestRunner：PASS (18/18)
+### 5. swift build --target ReaderAppPersistenceTests：PASS
+### 6. full swift test：仍被 ReaderApp 预存错误阻断
+
+### 7. 下一步是否可以测试 BookshelfStore：YES
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files) — ALL MIGRATED
@@ -1062,7 +1090,7 @@ Model 测试（已在 Models 迁移中完成）：
 
 - `iOS/App/Persistence/BookSourceStore.swift` ✅ in ReaderAppPersistence
 - `iOS/App/Persistence/BookshelfStore.swift` ✅ in ReaderAppPersistence
-- `iOS/App/Persistence/ChapterCacheStore.swift` ✅ in ReaderAppPersistence
+- `iOS/App/Persistence/ChapterCacheStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/ReaderSettingsStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/ReadingProgressStore.swift` ✅ migrated + tested
 

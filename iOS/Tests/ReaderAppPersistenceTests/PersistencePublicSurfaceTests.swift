@@ -98,6 +98,62 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         XCTAssertEqual(reloaded?.progressRatio, 0.9)
     }
 
+    // MARK: - ChapterCacheStore
+
+    func testChapterCacheSaveAndLoadRoundtrip() throws {
+        let tempURL = makeTempFileURL(name: "test_cache.json")
+        let store = ChapterCacheStore(storageURL: tempURL)
+
+        let entry = ChapterCacheEntry(
+            sourceID: "source-a",
+            bookURL: "https://example.com/book/2",
+            chapterURL: "https://example.com/book/2/chapter/5",
+            chapterTitle: "Chapter Five",
+            status: .cached
+        )
+
+        try store.saveEntry(entry)
+        let loaded = try store.loadEntry(chapterURL: entry.chapterURL, sourceID: "source-a")
+        XCTAssertEqual(loaded?.chapterTitle, "Chapter Five")
+        XCTAssertEqual(loaded?.status, .cached)
+    }
+
+    func testChapterCacheRemoveDeletesEntry() throws {
+        let tempURL = makeTempFileURL(name: "test_cache_remove.json")
+        let store = ChapterCacheStore(storageURL: tempURL)
+
+        let entry = ChapterCacheEntry(
+            sourceID: "s", bookURL: "b", chapterURL: "c",
+            chapterTitle: "t", status: .notCached
+        )
+        try store.saveEntry(entry)
+        try store.removeEntry(chapterURL: "c", sourceID: "s")
+        XCTAssertNil(try store.loadEntry(chapterURL: "c", sourceID: "s"))
+    }
+
+    func testChapterCacheMissingReturnsNil() throws {
+        let tempURL = makeTempFileURL(name: "test_cache_missing.json")
+        let store = ChapterCacheStore(storageURL: tempURL)
+        XCTAssertNil(try store.loadEntry(chapterURL: "/nope", sourceID: "none"))
+    }
+
+    func testChapterCacheUpdateStatus() throws {
+        let tempURL = makeTempFileURL(name: "test_cache_update.json")
+        let store = ChapterCacheStore(storageURL: tempURL)
+
+        var entry = ChapterCacheEntry(
+            sourceID: "s", bookURL: "b", chapterURL: "c",
+            chapterTitle: "t", status: .notCached
+        )
+        try store.saveEntry(entry)
+
+        entry.status = .failed
+        try store.saveEntry(entry)
+
+        let reloaded = try store.loadEntry(chapterURL: "c", sourceID: "s")
+        XCTAssertEqual(reloaded?.status, .failed)
+    }
+
     // MARK: - Helpers
 
     private func makeTempFileURL(name: String) -> URL {
