@@ -14,6 +14,10 @@ public final class ReadingProgressStore: @unchecked Sendable {
         fileURL = documentsPath.appendingPathComponent("reading_progress.json")
     }
 
+    public init(storageURL: URL) {
+        fileURL = storageURL
+    }
+
     private func loadAllProgress() throws -> [String: ReadingProgress] {
         lock.lock()
         defer { lock.unlock() }

@@ -66,6 +66,72 @@ func main() -> Int32 {
         failures += 1
     }
 
+    // MARK: - ReadingProgressStore
+
+    do {
+        let fileURL = tempDir.appendingPathComponent("test_progress.json")
+        let store = ReadingProgressStore(storageURL: fileURL)
+
+        let progress = ReadingProgress(
+            bookID: "book-1",
+            sourceID: "source-a",
+            bookURL: "https://example.com/book/1",
+            chapterURL: "https://example.com/book/1/chapter/3",
+            chapterTitle: "Chapter Three",
+            progressRatio: 0.5
+        )
+
+        // 1. saveProgress then loadProgress returns saved value
+        try store.saveProgress(progress)
+        let loaded = try store.loadProgress(bookID: "book-1")
+        assertEqual(loaded?.chapterTitle, "Chapter Three", "saveProgress then loadProgress returns chapterTitle")
+        assertEqual(loaded?.progressRatio, 0.5, "saveProgress then loadProgress returns progressRatio")
+
+        // 2. removeProgress deletes saved value
+        try store.removeProgress(bookID: "book-1")
+        let afterRemove = try store.loadProgress(bookID: "book-1")
+        if afterRemove != nil {
+            fputs("FAIL: removeProgress deletes saved value — expected nil\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: removeProgress deletes saved value\n", stderr)
+        }
+
+        // 3. missing progress returns nil
+        let missing = try store.loadProgress(bookID: "nonexistent")
+        if missing != nil {
+            fputs("FAIL: missing progress returns nil — expected nil\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: missing progress returns nil\n", stderr)
+        }
+
+        // 4. update existing progress
+        var updatedProgress = progress
+        updatedProgress.progressRatio = 0.75
+        try store.saveProgress(updatedProgress)
+        let reloaded = try store.loadProgress(bookID: "book-1")
+        assertEqual(reloaded?.progressRatio, 0.75, "update existing progressRatio to 0.75")
+    } catch {
+        fputs("FAIL: ReadingProgressStore — error: \(error)\n", stderr)
+        failures += 1
+    }
+
+    // MARK: - ReadingProgress Codable round-trip
+    do {
+        let original = ReadingProgress(
+            bookID: "b1", sourceID: "s1", bookURL: "b", chapterURL: "c",
+            chapterTitle: "t", progressRatio: 0.3
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ReadingProgress.self, from: data)
+        assertEqual(decoded.bookID, "b1", "ReadingProgress Codable round-trip bookID")
+        assertEqual(decoded.progressRatio, 0.3, "ReadingProgress Codable round-trip progressRatio")
+    } catch {
+        fputs("FAIL: ReadingProgress Codable — error: \(error)\n", stderr)
+        failures += 1
+    }
+
     if failures > 0 {
         fputs("\n\(failures) test(s) FAILED\n", stderr)
         return 1

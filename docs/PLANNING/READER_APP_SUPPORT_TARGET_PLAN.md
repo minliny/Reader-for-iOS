@@ -1002,10 +1002,10 @@ Model 测试（已在 Models 迁移中完成）：
 - `swift build --target ReaderShellValidation`: PASS
 - `swift build --target ShellSmokeTests`: PASS (1.54s, 4 test files incl. PersistencePublicSurfaceTests)
 - `swift test`: BLOCKED by pre-existing ReaderApp target errors (SPM builds all library products)
-- **Workaround**: `swift run ReaderAppPersistenceTestRunner` — PASS (4 tests)
-- Boundary check: PASS (checked_files=50)
+- **Workaround**: `swift run ReaderAppPersistenceTestRunner` — PASS (11 tests: 4 ReaderSettings + 5 ReadingProgress + 2 Codable)
+- Boundary check: PASS (checked_files=51)
 
-### 8. 下一步是否可以验证 ReadingProgressStore：YES
+### 8. 下一步是否可以验证 ChapterCacheStore：YES
 
 ### 9. Test Execution Architecture（Updated 2026-04-30）
 
@@ -1016,6 +1016,34 @@ Model 测试（已在 Models 迁移中完成）：
 - `ReaderAppPersistenceTestRunner`（executableTarget）：本地验证用，不依赖 XCTest/ReaderApp
 - 运行方式：`swift run ReaderAppPersistenceTestRunner`
 - 绕过 SPM library product 构建限制
+
+---
+
+## ReadingProgressStore Persistence Test Result
+
+### 1. ReadingProgressStore test initializer 已添加：YES
+- `public init(storageURL: URL)` added
+
+### 2. executable runner 新增测试
+- `saveProgress then loadProgress returns chapterTitle`
+- `saveProgress then loadProgress returns progressRatio`
+- `removeProgress deletes saved value`
+- `missing progress returns nil`
+- `update existing progressRatio`
+- `ReadingProgress Codable round-trip bookID`
+- `ReadingProgress Codable round-trip progressRatio`
+
+### 3. XCTest target 同步
+- `testReadingProgressSaveAndLoadRoundtrip`
+- `testReadingProgressRemoveDeletesEntry`
+- `testReadingProgressMissingReturnsNil`
+- `testReadingProgressUpdateExisting`
+
+### 4. swift run ReaderAppPersistenceTestRunner：PASS (11/11)
+### 5. swift build --target ReaderAppPersistenceTests：PASS
+### 6. full swift test：仍被 ReaderApp 预存错误阻断
+
+### 7. 下一步是否可以测试 ChapterCacheStore：YES
 
 ---
 
@@ -1036,7 +1064,7 @@ Model 测试（已在 Models 迁移中完成）：
 - `iOS/App/Persistence/BookshelfStore.swift` ✅ in ReaderAppPersistence
 - `iOS/App/Persistence/ChapterCacheStore.swift` ✅ in ReaderAppPersistence
 - `iOS/App/Persistence/ReaderSettingsStore.swift` ✅ migrated + tested
-- `iOS/App/Persistence/ReadingProgressStore.swift` ✅ in ReaderAppPersistence
+- `iOS/App/Persistence/ReadingProgressStore.swift` ✅ migrated + tested
 
 ### Test Targets (3)
 
