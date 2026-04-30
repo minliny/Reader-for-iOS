@@ -53,9 +53,9 @@ struct RootShellView: View {
                 environment: environment
             )
         case .bookSourceImport:
-            BookSourceImportView(coordinator: coordinator)
+            BookSourceImportView()
         case .search:
-            SearchView(coordinator: coordinator)
+            SearchView()
         case .toc(let bookTitle, let bookAuthor):
             if let book = coordinator.selectedBook {
                 TOCView(coordinator: coordinator, book: book)

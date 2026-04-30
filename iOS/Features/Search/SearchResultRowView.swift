@@ -27,8 +27,8 @@ public struct SearchResultRowView: View {
             }
 
             HStack {
-                if let latestChapter = result.latestChapter, !latestChapter.isEmpty {
-                    Text(latestChapter)
+                if let intro = result.intro, !intro.isEmpty {
+                    Text(intro)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

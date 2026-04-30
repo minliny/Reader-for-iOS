@@ -150,19 +150,7 @@ public struct BookDetailView: View {
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
 
-            if let latestChapter = detail.latestChapter, !latestChapter.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Latest Chapter")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Text(latestChapter)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if let bookDescription = detail.bookDescription, !bookDescription.isEmpty {
+            if let bookDescription = detail.intro, !bookDescription.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Description")
                         .font(.subheadline)
@@ -220,7 +208,7 @@ public struct BookDetailView: View {
             title: result.title,
             author: result.author,
             coverURL: result.coverURL,
-            latestChapter: result.latestChapter
+            latestChapter: nil
         )
         try? bookshelfStore.addOrUpdate(item)
         isInBookshelf = true

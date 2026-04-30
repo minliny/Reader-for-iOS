@@ -1,6 +1,6 @@
 # ReaderApp Target Compile Fix Plan
 
-**Status**: WAVE1_COMPLETE
+**Status**: WAVE2A_COMPLETE
 **Created**: 2026-04-30
 **Last Updated**: 2026-04-30
 
@@ -433,3 +433,40 @@ After Wave 2B:
 
 - Wave 2A: `git reset --hard 4eb2b7a`
 - Wave 2B: `git reset --hard <wave2a-commit>`
+
+---
+
+## Wave 2A Fix Result (2026-04-30)
+
+### Before: 15 errors across 12 files
+### After: 5 errors across 3 files (67% reduction in Wave 2A)
+
+### Changes Made
+
+| File | Change | Category |
+|------|--------|----------|
+| BookDetailView.swift | Removed `latestChapter` display block; `latestChapter: nil`; `bookDescription`→`intro` | C |
+| BookshelfViewModel.swift | `latestChapter: nil` | C |
+| SearchResultRowView.swift | `latestChapter`→`intro` | C |
+| ReaderFlowFeatureView.swift | `appEntry.appName`→`"Reader"`; `appEntry.minimumCoreVersion`→`"0.1.0"`; `BookSourceImportView()` | C + D |
+| BookSourceListView.swift | `BookSourceImportView()` | D |
+| ReaderApp.swift | `BookSourceImportView()`, `SearchView()` | D |
+| ChapterRowView.swift | `if let index`→`let index` | D |
+
+### Remaining: 5 errors — ALL Wave 2B (E-class Hashable)
+
+| # | File | Error | Root |
+|---|------|-------|------|
+| 1 | ChapterListView.swift:23 | `navigationDestination(for: TOCItem)` — not Hashable | E |
+| 2 | ChapterListView.swift:130 | `navigationPath.append(chapter)` — TOCItem not Hashable | E |
+| 3 | SearchView.swift:19 | `navigationDestination(item: SearchResultItem?)` — not Hashable | E |
+| 4 | SearchView.swift:31 | `Picker(selection: BookSource?)` — not Hashable | E |
+| 5 | SearchView.swift:32 | `BookSource?` must be unwrapped | E |
+
+### Verification
+- ReaderAppSupport: PASS
+- ReaderAppPersistence: PASS
+- ReaderShellValidation: PASS
+- Runner: 36/36 PASS
+- Boundary: PASS (checked_files=52)
+- ReaderApp: 5 errors remain (all E/Hashable)

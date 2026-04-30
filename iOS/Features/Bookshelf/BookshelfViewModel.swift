@@ -75,7 +75,7 @@ public final class BookshelfViewModel: ObservableObject {
                 title: result.title,
                 author: result.author,
                 coverURL: result.coverURL,
-                latestChapter: result.latestChapter,
+                latestChapter: nil,
                 addedAt: existingItem?.addedAt ?? Date(),
                 updatedAt: Date(),
                 lastReadChapterTitle: existingItem?.lastReadChapterTitle,

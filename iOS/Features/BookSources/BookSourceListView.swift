@@ -37,7 +37,7 @@ public struct BookSourceListView: View {
                 }
             }
             .sheet(isPresented: $showingImport) {
-                BookSourceImportView(coordinator: coordinator)
+                BookSourceImportView()
             }
             .task {
                 await loadSources()

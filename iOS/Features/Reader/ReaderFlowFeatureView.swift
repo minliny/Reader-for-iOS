@@ -26,7 +26,7 @@ public struct ReaderFlowFeatureView: View {
                 statusCard
 
                 if moduleBoundary.canImportBookSource {
-                    BookSourceImportView(coordinator: coordinator)
+                    BookSourceImportView()
                 }
 
                 if coordinator.selectedBook != nil || coordinator.selectedChapter != nil || coordinator.contentPage != nil {
@@ -38,14 +38,14 @@ public struct ReaderFlowFeatureView: View {
             .padding(20)
         }
         .background(Color(UIColor.systemGroupedBackground))
-        .navigationTitle(environment.appEntry.appName)
+        .navigationTitle("Reader")
     }
 
     private var statusCard: some View {
         ReaderStatusCardView(
             eyebrow: "Reader Flow",
             title: currentStageTitle,
-            subtitle: "Core >= \(environment.appEntry.minimumCoreVersion)",
+            subtitle: "Core >= 0.1.0",
             items: progressItems
         )
         .padding(.bottom, 8)

@@ -15,12 +15,11 @@ public struct ChapterRowView: View {
             onTap?()
         }) {
             HStack(spacing: 12) {
-                if let index = chapter.chapterIndex {
-                    Text("\(index + 1)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24, alignment: .leading)
-                }
+                let index = chapter.chapterIndex
+                Text("\(index + 1)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, alignment: .leading)
 
                 Text(chapter.chapterTitle)
                     .font(.body)
