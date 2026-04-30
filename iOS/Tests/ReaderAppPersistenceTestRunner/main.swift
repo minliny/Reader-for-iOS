@@ -197,6 +197,101 @@ func main() -> Int32 {
         failures += 1
     }
 
+    // MARK: - BookshelfStore
+
+    do {
+        let fileURL = tempDir.appendingPathComponent("test_bookshelf.json")
+        let store = BookshelfStore(storageURL: fileURL)
+
+        let item = BookshelfItem(
+            id: "shelf-1",
+            sourceID: "source-a",
+            bookURL: "https://example.com/book/3",
+            title: "Test Book",
+            author: "Author Name"
+        )
+
+        // 1. addOrUpdate then find returns saved item
+        try store.addOrUpdate(item)
+        let found = try store.find(bookURL: item.bookURL, sourceID: "source-a")
+        assertEqual(found?.title, "Test Book", "addOrUpdate then find returns title")
+        assertEqual(found?.author, "Author Name", "addOrUpdate then find returns author")
+
+        // 2. addOrUpdate with same bookURL/sourceID updates existing
+        let updated = BookshelfItem(
+            id: "shelf-1",
+            sourceID: "source-a",
+            bookURL: item.bookURL,
+            title: "Updated Title",
+            author: "New Author"
+        )
+        try store.addOrUpdate(updated)
+        let refound = try store.find(bookURL: item.bookURL, sourceID: "source-a")
+        assertEqual(refound?.title, "Updated Title", "addOrUpdate updates title for same bookURL/sourceID")
+        assertEqual(refound?.author, "New Author", "addOrUpdate updates author for same bookURL/sourceID")
+
+        // 3. remove deletes by id
+        try store.remove(id: "shelf-1")
+        let afterRemove = try store.find(bookURL: item.bookURL, sourceID: "source-a")
+        if afterRemove != nil {
+            fputs("FAIL: remove deletes saved item — expected nil\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: remove deletes saved item\n", stderr)
+        }
+
+        // 4. find missing returns nil
+        let missing = try store.find(bookURL: "/nonexistent", sourceID: "none")
+        if missing != nil {
+            fputs("FAIL: find missing returns nil — expected nil\n", stderr)
+            failures += 1
+        } else {
+            fputs("PASS: find missing returns nil\n", stderr)
+        }
+
+        // 5. updateProgress updates readingProgress and chapter info
+        let item2 = BookshelfItem(
+            id: "shelf-2",
+            sourceID: "source-b",
+            bookURL: "https://example.com/book/4",
+            title: "Book Four"
+        )
+        try store.addOrUpdate(item2)
+        try store.updateProgress(
+            bookID: "shelf-2",
+            progress: 0.66,
+            chapterTitle: "Chapter 6",
+            chapterURL: "/book/4/chapter/6"
+        )
+        let withProgress = try store.find(bookURL: item2.bookURL, sourceID: "source-b")
+        assertEqual(withProgress?.readingProgress, 0.66, "updateProgress sets readingProgress to 0.66")
+        assertEqual(withProgress?.lastReadChapterTitle, "Chapter 6", "updateProgress sets lastReadChapterTitle")
+        assertEqual(withProgress?.lastReadChapterURL, "/book/4/chapter/6", "updateProgress sets lastReadChapterURL")
+    } catch {
+        fputs("FAIL: BookshelfStore — error: \(error)\n", stderr)
+        failures += 1
+    }
+
+    // MARK: - BookshelfItem Codable round-trip
+    do {
+        let original = BookshelfItem(
+            id: "codable-1",
+            sourceID: "s1",
+            bookURL: "b",
+            title: "Codable Book",
+            author: "Author",
+            readingProgress: 0.42
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(BookshelfItem.self, from: data)
+        assertEqual(decoded.id, "codable-1", "BookshelfItem Codable round-trip id")
+        assertEqual(decoded.title, "Codable Book", "BookshelfItem Codable round-trip title")
+        assertEqual(decoded.readingProgress, 0.42, "BookshelfItem Codable round-trip readingProgress")
+    } catch {
+        fputs("FAIL: BookshelfItem Codable — error: \(error)\n", stderr)
+        failures += 1
+    }
+
     if failures > 0 {
         fputs("\n\(failures) test(s) FAILED\n", stderr)
         return 1

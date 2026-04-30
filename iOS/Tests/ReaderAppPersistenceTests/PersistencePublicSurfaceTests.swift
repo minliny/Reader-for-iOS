@@ -154,6 +154,80 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         XCTAssertEqual(reloaded?.status, .failed)
     }
 
+    // MARK: - BookshelfStore
+
+    func testBookshelfAddOrUpdateAndFind() throws {
+        let tempURL = makeTempFileURL(name: "test_bookshelf.json")
+        let store = BookshelfStore(storageURL: tempURL)
+
+        let item = BookshelfItem(
+            id: "shelf-1",
+            sourceID: "source-a",
+            bookURL: "https://example.com/book/3",
+            title: "Test Book",
+            author: "Author Name"
+        )
+        try store.addOrUpdate(item)
+        let found = try store.find(bookURL: item.bookURL, sourceID: "source-a")
+        XCTAssertEqual(found?.title, "Test Book")
+        XCTAssertEqual(found?.author, "Author Name")
+    }
+
+    func testBookshelfAddOrUpdateMergesByURL() throws {
+        let tempURL = makeTempFileURL(name: "test_bookshelf_update.json")
+        let store = BookshelfStore(storageURL: tempURL)
+
+        let item = BookshelfItem(
+            id: "shelf-1", sourceID: "s", bookURL: "b", title: "Old"
+        )
+        try store.addOrUpdate(item)
+
+        let updated = BookshelfItem(
+            id: "shelf-1", sourceID: "s", bookURL: "b", title: "New"
+        )
+        try store.addOrUpdate(updated)
+
+        let found = try store.find(bookURL: "b", sourceID: "s")
+        XCTAssertEqual(found?.title, "New")
+    }
+
+    func testBookshelfRemoveById() throws {
+        let tempURL = makeTempFileURL(name: "test_bookshelf_remove.json")
+        let store = BookshelfStore(storageURL: tempURL)
+
+        let item = BookshelfItem(
+            id: "shelf-1", sourceID: "s", bookURL: "b", title: "t"
+        )
+        try store.addOrUpdate(item)
+        try store.remove(id: "shelf-1")
+        XCTAssertNil(try store.find(bookURL: "b", sourceID: "s"))
+    }
+
+    func testBookshelfFindMissingReturnsNil() throws {
+        let tempURL = makeTempFileURL(name: "test_bookshelf_missing.json")
+        let store = BookshelfStore(storageURL: tempURL)
+        XCTAssertNil(try store.find(bookURL: "/nope", sourceID: "none"))
+    }
+
+    func testBookshelfUpdateProgress() throws {
+        let tempURL = makeTempFileURL(name: "test_bookshelf_progress.json")
+        let store = BookshelfStore(storageURL: tempURL)
+
+        let item = BookshelfItem(
+            id: "shelf-2", sourceID: "s", bookURL: "b", title: "t"
+        )
+        try store.addOrUpdate(item)
+        try store.updateProgress(
+            bookID: "shelf-2", progress: 0.75,
+            chapterTitle: "Ch7", chapterURL: "/ch/7"
+        )
+
+        let found = try store.find(bookURL: "b", sourceID: "s")
+        XCTAssertEqual(found?.readingProgress, 0.75)
+        XCTAssertEqual(found?.lastReadChapterTitle, "Ch7")
+        XCTAssertEqual(found?.lastReadChapterURL, "/ch/7")
+    }
+
     // MARK: - Helpers
 
     private func makeTempFileURL(name: String) -> URL {

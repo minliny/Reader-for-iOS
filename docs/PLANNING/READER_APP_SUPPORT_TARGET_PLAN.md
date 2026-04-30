@@ -1075,6 +1075,40 @@ Model 测试（已在 Models 迁移中完成）：
 
 ---
 
+## BookshelfStore Persistence Test Result
+
+### 1. BookshelfStore test initializer 已添加：YES
+- `public init(storageURL: URL)` added
+
+### 2. executable runner 新增测试
+- `addOrUpdate then find returns title`
+- `addOrUpdate then find returns author`
+- `addOrUpdate updates title for same bookURL/sourceID`
+- `addOrUpdate updates author for same bookURL/sourceID`
+- `remove deletes saved item`
+- `find missing returns nil`
+- `updateProgress sets readingProgress to 0.66`
+- `updateProgress sets lastReadChapterTitle`
+- `updateProgress sets lastReadChapterURL`
+- `BookshelfItem Codable round-trip id`
+- `BookshelfItem Codable round-trip title`
+- `BookshelfItem Codable round-trip readingProgress`
+
+### 3. XCTest target 同步
+- `testBookshelfAddOrUpdateAndFind`
+- `testBookshelfAddOrUpdateMergesByURL`
+- `testBookshelfRemoveById`
+- `testBookshelfFindMissingReturnsNil`
+- `testBookshelfUpdateProgress`
+
+### 4. swift run ReaderAppPersistenceTestRunner：PASS (30/30)
+### 5. swift build --target ReaderAppPersistenceTests：PASS
+### 6. full swift test：仍被 ReaderApp 预存错误阻断
+
+### 7. 下一步是否可以测试 BookSourceStore：YES
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files) — ALL MIGRATED
@@ -1089,7 +1123,7 @@ Model 测试（已在 Models 迁移中完成）：
 ### Persistence (5 files) — IN PROGRESS
 
 - `iOS/App/Persistence/BookSourceStore.swift` ✅ in ReaderAppPersistence
-- `iOS/App/Persistence/BookshelfStore.swift` ✅ in ReaderAppPersistence
+- `iOS/App/Persistence/BookshelfStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/ChapterCacheStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/ReaderSettingsStore.swift` ✅ migrated + tested
 - `iOS/App/Persistence/ReadingProgressStore.swift` ✅ migrated + tested

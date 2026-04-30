@@ -14,6 +14,10 @@ public final class BookshelfStore: @unchecked Sendable {
         fileURL = documentsPath.appendingPathComponent("bookshelf.json")
     }
 
+    public init(storageURL: URL) {
+        fileURL = storageURL
+    }
+
     public func loadItems() throws -> [BookshelfItem] {
         lock.lock()
         defer { lock.unlock() }
