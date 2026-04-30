@@ -262,3 +262,174 @@ After Step 1-3:
 - `swift run ReaderAppPersistenceTestRunner`: 36/36 PASS
 - Boundary check: PASS (checked_files=52)
 - `swift build --target ReaderApp`: 15 errors remain (all C/D/E)
+
+---
+
+## Wave 2 Planning
+
+**Status**: PLANNED
+**Created**: 2026-04-30
+
+### 1. Reader-Core Public API Audit
+
+| Type | Module | Hashable | Identifiable | Key Fields |
+|------|--------|----------|-------------|------------|
+| `SearchResultItem` | ReaderCoreModels | NO (Equatable only) | NO | title, detailURL, author, coverURL, intro |
+| `TOCItem` | ReaderCoreModels | NO (Equatable only) | NO | chapterTitle, chapterURL, chapterIndex(Int), isVip |
+| `BookSource` | ReaderCoreModels | NO (Equatable only) | NO | id(String?), bookSourceName, enabled, ... |
+| `ReaderShellEnvironment` | Shell (iOS) | — | — | supportsDebugOverlay(Bool) only |
+
+**Key findings**:
+- `SearchResultItem` has NO `latestChapter` field — removed from Reader-Core
+- `TOCItem.chapterIndex` is non-optional `Int` — type changed
+- `ReaderShellEnvironment` has NO `appEntry` field — removed/refactored
+- None of SearchResultItem/TOCItem/BookSource are `Hashable` or `Identifiable`
+
+### 2. Remaining Error Inventory
+
+#### C: Model/API Mismatch (5 errors, 4 files)
+
+| # | File | Line | Error | Analysis |
+|---|------|------|-------|----------|
+| C1 | BookDetailView.swift | 153 | `detail.latestChapter` not found | Field removed from Reader-Core. No replacement. |
+| C2 | BookDetailView.swift | 223 | `result.latestChapter` not found | Same as C1 |
+| C3 | BookshelfViewModel.swift | 78 | `result.latestChapter` not found | Same as C1 |
+| C4 | SearchResultRowView.swift | 30 | `result.latestChapter` not found | Same as C1 |
+| C5a | ReaderFlowFeatureView.swift | 41 | `environment.appEntry` not found | Field removed from Shell |
+| C5b | ReaderFlowFeatureView.swift | 48 | `environment.appEntry` not found | Same as C5a |
+
+#### D: Argument/Type Mismatch (5 errors, 4 files)
+
+| # | File | Line | Error | Analysis |
+|---|------|------|-------|----------|
+| D1 | ReaderApp.swift | 56 | `BookSourceImportView(coordinator:)` — takes no args | Init signature changed |
+| D2 | BookSourceListView.swift | 40 | `BookSourceImportView(coordinator:)` — takes no args | Same as D1 |
+| D3 | ReaderFlowFeatureView.swift | 29 | `BookSourceImportView(coordinator:)` — takes no args | Same as D1 |
+| D4 | ChapterRowView.swift | 18 | `if let index = chapter.chapterIndex` — `Int` not Optional | Type changed in Reader-Core |
+| D5 | ChapterListView.swift | 130 | `navigationPath.append(chapter)` — TOCItem not Hashable | Same root as E1 |
+
+#### E: SwiftUI Conformance (4 errors, 3 files)
+
+| # | File | Line | Error | Analysis |
+|---|------|------|-------|----------|
+| E1 | ChapterListView.swift | 23 | `navigationDestination(for: TOCItem.self)` — not Hashable | Need wrapper |
+| E2 | SearchView.swift | 19 | `navigationDestination(item: SearchResultItem?)` — not Hashable | Need wrapper or id |
+| E3 | SearchView.swift | 31 | `Picker(selection: BookSource?)` — not Hashable | Use String ID |
+| E4 | SearchView.swift | 32 | `value of optional type BookSource?` must be unwrapped | Same root as E3 |
+
+### 3. Fix Strategies
+
+#### C1-C4: SearchResultItem.latestChapter Removal
+
+**Options**:
+1. Remove all `latestChapter` display from UI (minimal)
+2. Replace with `intro` field fallback: `detail.intro ?? "No description"`
+3. Keep nil and conditionally hide the section
+
+**Recommendation**: Option 1 — remove the display since there's no direct replacement. Wrap in `#if false` or comment out the `latestChapter` display blocks for easy restoration if Reader-Core re-adds it.
+
+#### C5: appEntry Removal
+
+**Options**:
+1. Hardcode app name: `"Reader"`
+2. Use `Bundle.main.infoDictionary?["CFBundleName"]`
+3. Remove navigationTitle display
+
+**Recommendation**: Option 1 — hardcode `"Reader"` as app name. Minimal change, restored when ReaderShellEnvironment re-adds appEntry.
+
+#### D1-D3: BookSourceImportView Init
+
+**Root cause**: `BookSourceImportView.init()` changed from `init(coordinator:)` to `init()`.
+
+**Fix**: Change all call sites from `BookSourceImportView(coordinator: coordinator)` to `BookSourceImportView()`.
+
+#### D4: chapterIndex Type
+
+**Root cause**: `TOCItem.chapterIndex` changed from `Int?` to `Int`.
+
+**Fix**: Change `if let index = chapter.chapterIndex` to `let index = chapter.chapterIndex`.
+
+#### D5 + E1: TOCItem Navigation
+
+**Root cause**: `NavigationPath.append()` requires `Hashable`, TOCItem is not.
+
+**Fix**: Use a wrapper type or navigate by chapterURL string instead:
+```swift
+// Instead of: navigationPath.append(chapter)
+navigationPath.append(chapter.chapterURL)
+```
+
+For `navigationDestination(for: TOCItem.self)`:
+```swift
+// Instead of: .navigationDestination(for: TOCItem.self)
+.navigationDestination(for: String.self) { chapterURL in ... }
+```
+
+#### E2: SearchResultItem Navigation
+
+**Root cause**: `navigationDestination(item:)` requires `Hashable`.
+
+**Fix**: Use id-based routing:
+```swift
+// Instead of: .navigationDestination(item: $selectedResult)
+.navigationDestination(item: $selectedBookURL) { url in ... }
+```
+
+Store `selectedBookURL: String?` instead of `selectedResult: SearchResultItem?`.
+
+#### E3-E4: BookSource Picker
+
+**Root cause**: `BookSource` not `Hashable`; `selectedSource` is optional.
+
+**Fix**: Use `Picker(selection: String Binding, content: [BookSource])` with a tag-based approach:
+```swift
+Picker("Select source", selection: $selectedSourceID) {
+    ForEach(viewModel.sources, id: \.id) { source in
+        Text(source.displayName).tag(source.id)
+    }
+}
+```
+
+### 4. Wave 2 Implementation Plan
+
+#### Wave 2A: Simple Fixes (C + D, low risk)
+
+| Error | Files | Change | Risk |
+|-------|-------|--------|------|
+| C1-C4 | 4 files | Remove `latestChapter` references | LOW |
+| C5a-b | 1 file | Hardcode `"Reader"` for appEntry | LOW |
+| D1-D3 | 3 files | `BookSourceImportView()` no arg | LOW |
+| D4 | 1 file | `let index` instead of `if let index` | LOW |
+
+**Expected**: 9 errors eliminated, ~6 remain (D5+E1-E4).
+
+#### Wave 2B: Navigation/Conformance Fixes (E, medium risk)
+
+| Error | Files | Change | Risk |
+|-------|-------|--------|------|
+| D5+E1 | 1 file | Navigate by `chapterURL: String` instead of `TOCItem` | MEDIUM |
+| E2 | 1 file | Navigate by `detailURL: String` instead of `SearchResultItem` | MEDIUM |
+| E3-E4 | 1 file | Picker by `sourceID: String?` instead of `BookSource?` | MEDIUM |
+
+**Expected**: All remaining errors eliminated. ReaderApp build PASS.
+
+### 5. Files NOT Modified
+
+- Reader-Core: ZERO changes
+- ReaderAppSupport: ZERO changes
+- ReaderAppPersistence: ZERO changes
+- CoreBridge/ReaderCoreServiceProvider: ZERO changes
+
+### 6. Verification Criteria
+
+After Wave 2B:
+- `swift build --target ReaderApp` → 0 errors → PASS
+- `swift test` → ReaderApp library product builds → tests can run
+- All other targets: still PASS
+- Persistence runner: still 36/36 PASS
+- Boundary check: still PASS
+
+### 7. Rollback
+
+- Wave 2A: `git reset --hard 4eb2b7a`
+- Wave 2B: `git reset --hard <wave2a-commit>`
