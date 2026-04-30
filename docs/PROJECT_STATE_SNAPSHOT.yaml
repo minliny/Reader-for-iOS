@@ -14,21 +14,23 @@ current_focus:
     - ReaderAppSupport target extraction: COMPLETE (6 model files)
     - ReaderAppPersistence target: COMPLETE (5 store files)
     - SourceIdentity split: COMPLETE (struct→AppSupport, factory→CoreBridge)
-    - Persistence tests: RUNNING_ALL_STORES (36/36 via runner)
+    - Persistence tests: RUNNING_ALL_STORES (36/36 runner + 24/24 XCTest)
     - Reader Display Customization: FOUNDATION_COMPLETE
     - Source ID Strategy: FOUNDATION_COMPLETE / NEEDS_REAL_SAMPLE_VALIDATION
     - Cloud Sync: PLANNING_ONLY
     - Real BookSource Smoke: PENDING_INPUT / PENDING_READER_CORE
-  active_milestone: Persistence migration complete — post-migration stabilization
-  milestone_status: persistence_migration_complete
-  milestone_detail: "All 5 App/Models migrated to ReaderAppSupport. ReaderAppPersistence target created with 36 runner tests passing. full swift test blocked by pre-existing ReaderApp compile errors."
-  next_best_task: "Fix ReaderApp target compile errors to enable full swift test"
+    - ReaderApp compile: PASS (0 errors)
+    - swift test: PASS (35/35)
+  active_milestone: ReaderApp compile fix complete — all tests passing
+  milestone_status: all_tests_passing
+  milestone_detail: "ReaderApp target compiles with 0 errors. 35/35 tests pass including 24 PersistencePublicSurfaceTests. NSLock warnings in BookSourceStore are tracked as tech debt."
+  next_best_task: "Address BookSourceStore NSLock warnings or begin Real BookSource Smoke planning"
 
 stabilized_samples: []
 
 recent_action:
-  summary: "Completed ReaderAppSupport/ReaderAppPersistence target extraction and all-store persistence test coverage. 5/5 Models migrated, 5/5 Stores tested, 36/36 runner tests pass. Boundary check PASS."
-  category: target_extraction_and_test_coverage
+  summary: "Fixed ReaderApp target compile errors across 3 waves (~45→0). Fixed 2 test failures. swift test now 35/35 PASS. ReaderApp compile PASS. All targets build clean."
+  category: readerapp_compile_fix_and_test_stabilization
 
 change_scope:
   this_update: persistence_migration_closure

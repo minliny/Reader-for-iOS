@@ -90,7 +90,8 @@ final class PublicSurfaceFunctionalSmokeTests: XCTestCase {
             chapterIndex: 1
         )
         await coordinator.selectChapter(chapter)
-        
+
+        coordinator.selectedSource = BookSource(bookSourceName: "Test Source")
         await coordinator.search(keyword: "another")
         
         XCTAssertNil(coordinator.selectedBook)
