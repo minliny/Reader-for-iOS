@@ -1,6 +1,7 @@
 import Foundation
 import ReaderCoreModels
 import ReaderAppPersistence
+import ReaderShellValidation
 
 public enum SearchState: Equatable {
     case idle

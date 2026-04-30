@@ -4,7 +4,7 @@ import ReaderCoreModels
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
     @State private var showSettings = false
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.dismiss) private var dismiss
 
     public init(chapterURL: String, chapterTitle: String) {
         self._viewModel = StateObject(wrappedValue: ReaderViewModel(chapterURL: chapterURL, chapterTitle: chapterTitle))
@@ -21,7 +21,9 @@ public struct ReaderView: View {
                 }
             }
             .navigationTitle(viewModel.chapterTitle)
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {

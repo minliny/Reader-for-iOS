@@ -1,5 +1,6 @@
 import Foundation
 import ReaderCoreModels
+import ReaderShellValidation
 
 public enum BookDetailState: Equatable {
     case idle

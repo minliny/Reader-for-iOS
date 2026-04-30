@@ -1,6 +1,6 @@
 # ReaderApp Target Compile Fix Plan
 
-**Status**: FAILED_DIAGNOSED
+**Status**: WAVE1_COMPLETE
 **Created**: 2026-04-30
 **Last Updated**: 2026-04-30
 
@@ -225,3 +225,40 @@ After Step 1-3:
 ## 9. Rollback
 
 - `git reset --hard 6fbf87a` restores pre-fix state
+
+---
+
+## Wave 1 Result (2026-04-30)
+
+### Before: ~45 errors across ~30 files
+### After: 15 errors across 12 files (67% reduction)
+
+### Changes Made
+
+| File | Change | Category |
+|------|--------|----------|
+| ChapterListViewModel.swift | +`import ReaderShellValidation` | A |
+| BookDetailViewModel.swift | +`import ReaderShellValidation` | A |
+| ReaderViewModel.swift | +`import ReaderShellValidation` | A |
+| SearchViewModel.swift | +`import ReaderShellValidation` | A |
+| BookDetailView.swift | +`import ReaderShellValidation` | A |
+| ReaderView.swift | `@SwiftUI.Environment` qualifier + `#if os(iOS)` guard | F + B |
+| BookSourceImportView.swift | `#if os(iOS)` guard for navigationBarTitleDisplayMode | B |
+| Color+PlatformCompat.swift | NEW: macOS Color/UIColor/CGColor/View/ToolbarItemPlacement compat | B |
+
+### Remaining Errors (all C/D/E — out of scope for Wave 1)
+
+| Category | Errors | Files | Root Cause |
+|----------|--------|-------|------------|
+| C: Model mismatch | 5 | 4 files | `SearchResultItem.latestChapter` removed, `appEntry` removed |
+| D: Argument mismatch | 5 | 4 files | Init signatures changed, `append` mismatch, `chapterIndex` type change |
+| E: SwiftUI conformance | 4 | 3 files | `SearchResultItem`, `TOCItem`, `BookSource` missing `Hashable` |
+
+### Verification
+
+- `swift build --target ReaderAppSupport`: PASS
+- `swift build --target ReaderAppPersistence`: PASS
+- `swift build --target ReaderShellValidation`: PASS
+- `swift run ReaderAppPersistenceTestRunner`: 36/36 PASS
+- Boundary check: PASS (checked_files=52)
+- `swift build --target ReaderApp`: 15 errors remain (all C/D/E)

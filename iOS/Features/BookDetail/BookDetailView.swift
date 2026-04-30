@@ -2,6 +2,7 @@ import SwiftUI
 import ReaderCoreModels
 import ReaderAppSupport
 import ReaderAppPersistence
+import ReaderShellValidation
 
 public struct BookDetailView: View {
     @StateObject private var viewModel: BookDetailViewModel

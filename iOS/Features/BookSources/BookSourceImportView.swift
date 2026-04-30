@@ -35,7 +35,9 @@ public struct BookSourceImportView: View {
             }
             .padding()
             .navigationTitle("Import")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
