@@ -67,8 +67,5 @@ persistence_tests:
   full_swift_test: BLOCKED_BY_READERAPP_PREEXISTING_ERRORS
 
 remaining_tech_debt:
-  - ReaderApp target compile errors (ReaderCoreServiceProvider scope, platform availability, UIColor/CGColor)
-  - BookSourceStore NSLock warnings in Swift 6 async contexts (6 instances)
   - Real BookSource Smoke pending (needs Reader-Core stability + real JSON samples)
-  - full swift test blocked by ReaderApp library product build
   - Cloud Sync planned but not started

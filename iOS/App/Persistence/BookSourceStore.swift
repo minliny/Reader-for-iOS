@@ -28,13 +28,16 @@ public final class BookSourceStore: @unchecked Sendable {
         decoder.dateDecodingStrategy = .iso8601
     }
 
-    public func load() async throws -> [BookSource] {
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()
-        if let cached = cache {
-            lock.unlock()
+        defer { lock.unlock() }
+        return try body()
+    }
+
+    public func load() async throws -> [BookSource] {
+        if let cached = withLock({ cache }) {
             return cached
         }
-        lock.unlock()
 
         guard fileManager.fileExists(atPath: fileURL.path) else {
             return []
@@ -53,17 +56,13 @@ public final class BookSourceStore: @unchecked Sendable {
             }
         }
 
-        lock.lock()
-        cache = sources
-        lock.unlock()
+        withLock { cache = sources }
 
         return sources
     }
 
     public func save(_ sources: [BookSource]) async throws {
-        lock.lock()
-        cache = sources
-        lock.unlock()
+        withLock { cache = sources }
 
         let data = try encoder.encode(sources)
         try data.write(to: fileURL, options: [.atomic])
@@ -96,21 +95,19 @@ public final class BookSourceStore: @unchecked Sendable {
     public func toggleEnabled(id: String) async throws {
         var sources = try await load()
         if let index = sources.firstIndex(where: { $0.id == id }) {
-            sources[index].enabled = !(sources[index].enabled ?? true)
+            sources[index].enabled = !sources[index].enabled
             try await save(sources)
         }
     }
 
     public func clearCache() {
-        lock.lock()
-        cache = nil
-        lock.unlock()
+        withLock { cache = nil }
     }
 }
 
 extension BookSource {
     public var displayName: String {
-        bookSourceName ?? "Unnamed Source"
+        bookSourceName
     }
 
     public var displayURL: String {

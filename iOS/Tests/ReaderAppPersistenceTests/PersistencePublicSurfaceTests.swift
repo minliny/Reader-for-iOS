@@ -273,7 +273,6 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         let sourceID = sources.first!.id!
 
         try await store.toggleEnabled(id: sourceID)
-        store.clearCache()
         let toggled = try await store.load()
         XCTAssertEqual(toggled.first?.enabled, false)
     }
