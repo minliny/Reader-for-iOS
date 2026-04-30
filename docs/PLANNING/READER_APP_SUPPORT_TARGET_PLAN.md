@@ -1,8 +1,8 @@
 # ReaderAppSupport Target Extraction Plan
 
-**Status**: PLANNED_ONLY
+**Status**: MODELS_MIGRATED
 **Created**: 2026-04-29
-**Last Updated**: 2026-04-29
+**Last Updated**: 2026-04-30
 
 ---
 
@@ -729,15 +729,58 @@ public enum SourceIdentityFactory {
 
 ---
 
+## Step 2E SourceIdentity Split Migration Result
+
+### 1. SourceIdentity struct 已迁移：YES
+
+### 2. SourceIdentityFactory 已拆出：YES
+- 新位置：`iOS/CoreBridge/SourceIdentityFactory.swift`（ReaderShellValidation target）
+- `fallback()` 方法移除（零调用方）
+
+### 3. 修改文件清单
+- 新增：`iOS/AppSupport/Sources/SourceIdentity.swift`
+- 新增：`iOS/CoreBridge/SourceIdentityFactory.swift`
+- 删除：`iOS/App/Models/SourceIdentity.swift`
+- 修改：`iOS/Package.swift`
+- 修改：`docs/PLANNING/READER_APP_SUPPORT_TARGET_PLAN.md`
+
+### 4. import 更新清单
+- 无需更新（ReaderViewModel.swift 和 BookDetailView.swift 已有 `import ReaderAppSupport`）
+
+### 5. Package.swift 更新摘要
+- ReaderAppSupport sources 新增 `"SourceIdentity.swift"`（现共 6 文件）
+- ReaderShellValidation dependencies 新增 `"ReaderAppSupport"`
+
+### 6. 是否迁移 Persistence：NO
+
+### 7. 是否新增 Persistence tests：NO
+
+### 8. 本地 build / test 结果
+- `swift build --target ReaderAppSupport`: PASS (6 files, 0.51s)
+- `swift build --target ReaderShellValidation`: PASS (0.65s)
+- `swift test`: ReaderApp target 仍有预存错误（ReaderCoreServiceProvider scope, platform availability），与本次迁移无关
+- **SourceIdentity `SearchResultItem` 错误已消除** ✅
+- Boundary check: PASS (checked_files=49)
+- App/Models 目录：空
+
+### 9. Models 迁移阶段是否解除阻断：YES
+- 所有 5 个 App/Models 已全部处理（4 迁移 + 1 拆分）
+- ReaderAppSupport 不再有外部依赖
+
+### 10. 下一步是否可以规划 Persistence migration / tests：YES
+
+---
+
 ## 附录：相关文件清单
 
-### Models (5 files)
+### Models (5 files) — ALL MIGRATED
 
 - `iOS/AppSupport/Sources/BookshelfItem.swift` ✅ migrated
 - `iOS/AppSupport/Sources/ChapterCacheEntry.swift` ✅ migrated
 - `iOS/AppSupport/Sources/ReaderDisplaySettings.swift` ✅ migrated
 - `iOS/AppSupport/Sources/ReadingProgress.swift` ✅ migrated
-- `iOS/App/Models/SourceIdentity.swift` ⬜ pending (split planned)
+- `iOS/AppSupport/Sources/SourceIdentity.swift` ✅ migrated (struct)
+- `iOS/CoreBridge/SourceIdentityFactory.swift` ✅ split (factory)
 
 ### Persistence (5 files)
 

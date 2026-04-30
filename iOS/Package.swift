@@ -29,6 +29,7 @@ let package = Package(
         .target(
             name: "ReaderShellValidation",
             dependencies: [
+                "ReaderAppSupport",
                 .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
@@ -61,7 +62,8 @@ let package = Package(
             "ReaderDisplaySettings.swift",
             "ReadingProgress.swift",
             "ChapterCacheEntry.swift",
-            "BookshelfItem.swift"
+            "BookshelfItem.swift",
+            "SourceIdentity.swift"
         ]
     ),
         .target(
