@@ -16,12 +16,14 @@ public struct ChapterListView: View {
             }
             .padding()
             .navigationTitle("Table of Contents")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .onAppear {
                 Task { await viewModel.loadChapters() }
             }
-            .navigationDestination(for: TOCItem.self) { chapter in
-                ReaderView(chapterURL: chapter.chapterURL, chapterTitle: chapter.chapterTitle)
+            .navigationDestination(for: String.self) { chapterURL in
+                ReaderView(chapterURL: chapterURL, chapterTitle: chapterURL)
             }
         }
     }
@@ -127,6 +129,6 @@ public struct ChapterListView: View {
     }
 
     private func showChapterAction(chapter: TOCItem) {
-        navigationPath.append(chapter)
+        navigationPath.append(chapter.chapterURL)
     }
 }
