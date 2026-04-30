@@ -1,6 +1,6 @@
 # ReaderAppSupport Target Extraction Plan
 
-**Status**: ALL_STORES_TESTED
+**Status**: PERSISTENCE_MIGRATION_COMPLETE
 **Created**: 2026-04-29
 **Last Updated**: 2026-04-30
 
@@ -1180,3 +1180,78 @@ Model 测试（已在 Models 迁移中完成）：
 - `ShellSmokeTests` — Shell validation, depends on ReaderShellValidation
 - `ReaderAppPersistenceTests` — XCTest target for CI (depends on ReaderAppPersistence)
 - `ReaderAppPersistenceTestRunner` — executable runner for local verification
+
+---
+
+## Persistence Migration Closure
+
+**Date**: 2026-04-30
+**Status**: COMPLETE
+
+### ReaderAppSupport Models Migration — COMPLETE
+
+| Model | Location | Status |
+|-------|----------|--------|
+| BookshelfItem | AppSupport/Sources | ✅ |
+| ChapterCacheEntry | AppSupport/Sources | ✅ |
+| ReaderDisplaySettings | AppSupport/Sources | ✅ |
+| ReadingProgress | AppSupport/Sources | ✅ |
+| SourceIdentity | AppSupport/Sources | ✅ (struct) |
+| SourceIdentityFactory | CoreBridge | ✅ (split) |
+
+App/Models directory: **EMPTY** — all models migrated.
+
+### ReaderAppPersistence Target — COMPLETE
+
+| Store | Test Init | Runner | XCTest | Notes |
+|-------|----------|--------|--------|-------|
+| ReaderSettingsStore | ✅ | 3 | 3 | |
+| ReadingProgressStore | ✅ | 6 | 4 | |
+| ChapterCacheStore | ✅ | 6 | 4 | |
+| BookshelfStore | ✅ | 13 | 5 | |
+| BookSourceStore | ✅ | 6 | 5 | NSLock warnings: TECH_DEBT |
+| **TOTAL** | **5/5** | **36** | **24** | |
+
+### Local Verification
+
+```
+cd iOS
+swift build --target ReaderAppSupport      # PASS
+swift build --target ReaderAppPersistence   # PASS
+swift build --target ReaderAppPersistenceTestRunner  # PASS
+swift run ReaderAppPersistenceTestRunner    # PASS 36/36
+swift build --target ReaderAppPersistenceTests       # PASS
+```
+
+### Current Blockers
+
+| Blocker | Status | Impact |
+|---------|--------|--------|
+| ReaderApp target compile errors | PREEXISTING | `swift test` blocked |
+| BookSourceStore NSLock warnings | TECH_DEBT | Warnings only, not errors |
+| Real BookSource Smoke | PENDING_INPUT / PENDING_READER_CORE | Needs Reader-Core + real JSON samples |
+| Cloud Sync | PLANNING_ONLY | — |
+
+### Next Phase Suggestions
+
+1. **ReaderApp target compile fix**: 修复 `ReaderCoreServiceProvider` scope / platform availability 等预存错误，解除 `swift test` 阻断
+2. **NSLock warning cleanup**: 迁移 BookSourceStore 到 `NSLock.withLock` 或 `actor` 模式
+3. **Real BookSource Smoke**: 等待 Reader-Core 稳定 + 真实书源 JSON 输入
+4. **Cloud Sync**: 仍 PLANNING_ONLY
+
+### Commit History (Persistence Phase)
+
+```
+29689da test: add BookSourceStore persistence coverage
+4c0e0d3 test: add BookshelfStore persistence coverage
+15035b1 test: add ChapterCacheStore persistence coverage
+6701e3f test: add ReadingProgressStore persistence coverage
+3fc77d4 test: isolate ReaderAppPersistence tests as executable runner
+53cd6b1 chore: migrate ReaderSettingsStore to ReaderAppPersistence
+d266fe4 docs: plan ReaderApp persistence migration
+7c4c4c1 chore: split SourceIdentity into ReaderAppSupport
+d11bed5 docs: plan SourceIdentity split migration
+5870b3d chore: migrate BookshelfItem to ReaderAppSupport
+01169c1 chore: migrate ChapterCacheEntry to ReaderAppSupport
+9f4acbb chore: migrate ReadingProgress to ReaderAppSupport
+84dcd08 chore: migrate ReaderDisplaySettings to ReaderAppSupport
