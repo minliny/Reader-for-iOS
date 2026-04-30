@@ -14,6 +14,10 @@ public final class ReaderSettingsStore: @unchecked Sendable {
         fileURL = documentsPath.appendingPathComponent("reader_settings.json")
     }
 
+    public init(storageURL: URL) {
+        fileURL = storageURL
+    }
+
     public func loadSettings() throws -> ReaderDisplaySettings {
         lock.lock()
         defer { lock.unlock() }

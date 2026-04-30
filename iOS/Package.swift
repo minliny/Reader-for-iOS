@@ -67,13 +67,22 @@ let package = Package(
         ]
     ),
         .target(
+        name: "ReaderAppPersistence",
+        dependencies: [
+            "ReaderAppSupport"
+        ],
+        path: "App/Persistence"
+    ),
+        .target(
             name: "ReaderApp",
             dependencies: [
                 "ReaderShellValidation",
-                "ReaderAppSupport"
+                "ReaderAppSupport",
+                "ReaderAppPersistence"
             ],
             path: ".",
             exclude: [
+                "App/Persistence",
                 "AppSupport",
                 "CoreIntegration",
                 "CoreBridge",
@@ -93,6 +102,7 @@ let package = Package(
             dependencies: [
                 "ReaderShellValidation",
                 "ReaderAppSupport",
+                "ReaderAppPersistence",
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core")
             ],

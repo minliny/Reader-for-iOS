@@ -1,6 +1,7 @@
 import SwiftUI
 import ReaderCoreModels
 import ReaderShellValidation
+import ReaderAppPersistence
 
 public struct BookSourceListView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator

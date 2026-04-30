@@ -1,6 +1,7 @@
 import Foundation
 import ReaderCoreModels
 import ReaderAppSupport
+import ReaderAppPersistence
 
 public enum ReaderState: Equatable {
     case idle

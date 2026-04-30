@@ -1,6 +1,7 @@
 import Foundation
 import ReaderCoreModels
 import ReaderShellValidation
+import ReaderAppPersistence
 
 public enum BookSourceImportState: Equatable {
     case idle

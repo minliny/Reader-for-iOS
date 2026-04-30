@@ -1,6 +1,6 @@
 # ReaderAppSupport Target Extraction Plan
 
-**Status**: PERSISTENCE_PLANNED
+**Status**: PERSISTENCE_TARGET_CREATED
 **Created**: 2026-04-29
 **Last Updated**: 2026-04-30
 
@@ -966,6 +966,48 @@ Model 测试（已在 Models 迁移中完成）：
 
 ---
 
+## Step 3A ReaderSettingsStore Migration Result
+
+### 1. ReaderAppPersistence target 已新增：YES
+
+### 2. ReaderSettingsStore 已迁移到 ReaderAppPersistence
+- 连同其他 4 个 Store 一起归入 `App/Persistence` path（SPM target path 特性）
+- 新增加 `public init(storageURL: URL)` test initializer
+
+### 3. Package.swift 更新摘要
+- 新增 `ReaderAppPersistence` target: path `"App/Persistence"`, deps `["ReaderAppSupport"]`
+- `ReaderApp` exclude 新增 `"App/Persistence"`
+- `ReaderApp` deps 新增 `"ReaderAppPersistence"`
+- `ShellSmokeTests` deps 新增 `"ReaderAppPersistence"`
+
+### 4. import 更新清单
+- ReaderViewModel.swift（添加 `import ReaderAppPersistence`）
+- SearchViewModel.swift（添加 `import ReaderAppPersistence`）
+- BookSourceListView.swift（添加 `import ReaderAppPersistence`）
+- BookSourceViewModel.swift（添加 `import ReaderAppPersistence`）
+- BookshelfViewModel.swift（添加 `import ReaderAppPersistence`）
+- BookDetailView.swift（添加 `import ReaderAppPersistence`）
+
+### 5. 新增测试
+- `PersistencePublicSurfaceTests.swift` — 3 tests:
+  - `testReaderSettingsLoadDefaultWhenFileMissing`
+  - `testReaderSettingsSaveAndLoadRoundtrip`
+  - `testReaderSettingsResetToDefaults`
+
+### 6. 是否迁移其他 Store：NO（同一 target skeleton 包含但未单独验证）
+
+### 7. 本地 build / test 结果
+- `swift build --target ReaderAppSupport`: PASS
+- `swift build --target ReaderAppPersistence`: PASS (0.57s, 5 files)
+- `swift build --target ReaderShellValidation`: PASS
+- `swift build --target ShellSmokeTests`: PASS (1.54s, 4 test files incl. PersistencePublicSurfaceTests)
+- `swift test`: BLOCKED by pre-existing ReaderApp target errors (ReaderCoreServiceProvider, platform)
+- Boundary check: PASS (checked_files=50)
+
+### 8. 下一步是否可以验证 ReadingProgressStore：YES
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files) — ALL MIGRATED
@@ -977,10 +1019,10 @@ Model 测试（已在 Models 迁移中完成）：
 - `iOS/AppSupport/Sources/SourceIdentity.swift` ✅ migrated (struct)
 - `iOS/CoreBridge/SourceIdentityFactory.swift` ✅ split (factory)
 
-### Persistence (5 files) — PLANNED
+### Persistence (5 files) — IN PROGRESS
 
-- `iOS/App/Persistence/BookSourceStore.swift` ⬜ pending (Step 3E)
-- `iOS/App/Persistence/BookshelfStore.swift` ⬜ pending (Step 3D)
-- `iOS/App/Persistence/ChapterCacheStore.swift` ⬜ pending (Step 3C)
-- `iOS/App/Persistence/ReaderSettingsStore.swift` ⬜ pending (Step 3A)
-- `iOS/App/Persistence/ReadingProgressStore.swift` ⬜ pending (Step 3B)
+- `iOS/App/Persistence/BookSourceStore.swift` ✅ in ReaderAppPersistence (Step 3E verify)
+- `iOS/App/Persistence/BookshelfStore.swift` ✅ in ReaderAppPersistence (Step 3D verify)
+- `iOS/App/Persistence/ChapterCacheStore.swift` ✅ in ReaderAppPersistence (Step 3C verify)
+- `iOS/App/Persistence/ReaderSettingsStore.swift` ✅ migrated + tested (Step 3A)
+- `iOS/App/Persistence/ReadingProgressStore.swift` ✅ in ReaderAppPersistence (Step 3B verify)
