@@ -1,6 +1,6 @@
 # ReaderAppSupport Target Extraction Plan
 
-**Status**: MODELS_MIGRATED
+**Status**: PERSISTENCE_PLANNED
 **Created**: 2026-04-29
 **Last Updated**: 2026-04-30
 
@@ -771,6 +771,201 @@ public enum SourceIdentityFactory {
 
 ---
 
+## Step 3 Persistence Migration Planning
+
+**Status**: PLANNING_ONLY
+**Created**: 2026-04-30
+
+### 1. Persistence 文件清单
+
+共 5 个文件，全部位于 `iOS/App/Persistence/`：
+
+| # | 文件名 | 类型 | 行数 |
+|---|--------|------|------|
+| 1 | BookSourceStore.swift | class (singleton) | 116 |
+| 2 | BookshelfStore.swift | class (singleton) | ~80 |
+| 3 | ChapterCacheStore.swift | class (singleton) | 58 |
+| 4 | ReaderSettingsStore.swift | class (singleton) | 40 |
+| 5 | ReadingProgressStore.swift | class (singleton) | 53 |
+
+### 2. Persistence 依赖矩阵
+
+| 文件 | import Foundation | import SwiftUI | import ReaderAppSupport | import ReaderCoreModels | import ReaderCoreProtocols | import Parser/Network/JSRenderer | 依赖的 Model | 文件系统 | UserDefaults | 可迁到新 target | 风险 |
+|------|-----------------|---------------|----------------------|------------------------|-----------------------------|------|-------------|--------|--------------|---------|------|
+| BookSourceStore | ✅ | ❌ | ❌ | ✅ (BookSource) | ❌ | ❌ | BookSource (ReaderCoreModels) | YES (AppSupport dir) | NO | YES (需 ReaderCoreModels dep) | MEDIUM |
+| BookshelfStore | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | BookshelfItem | YES (Documents dir) | NO | YES | LOW |
+| ChapterCacheStore | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ChapterCacheEntry | YES (Documents dir) | NO | YES | LOW |
+| ReaderSettingsStore | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ReaderDisplaySettings | YES (Documents dir) | NO | YES | LOW |
+| ReadingProgressStore | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ReadingProgress | YES (Documents dir) | NO | YES | LOW |
+
+**结论**：4/5 stores 仅依赖 Foundation + ReaderAppSupport。BookSourceStore 是唯一需要 ReaderCoreModels 的 store。
+
+### 3. Persistence 引用位置摘要
+
+| Store | 消费者 | 消费者所在 Target |
+|-------|--------|------------------|
+| BookSourceStore | BookSourceListView, BookSourceViewModel, SearchViewModel | ReaderApp (Features) |
+| BookshelfStore | ReaderViewModel, BookDetailView, BookshelfViewModel | ReaderApp (Features) |
+| ChapterCacheStore | **无直接消费者** | — |
+| ReaderSettingsStore | ReaderViewModel | ReaderApp (Features) |
+| ReadingProgressStore | **无直接消费者** | — |
+
+ChapterCacheStore 和 ReadingProgressStore 当前无 Feature 层直接引用，可能通过其他 store 间接使用或预留给未来功能。
+
+### 4. ReaderAppSupport 当前配置审查
+
+| 检查项 | 状态 |
+|--------|------|
+| Sources | 6 文件 (Marker + 5 Models) |
+| Dependencies | `[]` (零外部依赖) |
+| 是否适合承载 Persistence | YES (但会引入 ReaderCoreModels + 文件系统) |
+| 放入 Persistence 是否改变 target 定位 | YES — 从 models/support 变成 models+storage |
+
+**评估**：ReaderAppSupport 应该保持 models-only 定位。Persistence 存储属于不同关注点，建议分离 target。
+
+### 5. 方案对比
+
+#### 方案 A：把 Persistence 直接迁入 ReaderAppSupport
+
+- 做法：5 个 Store 文件移动到 AppSupport/Sources/，ReaderAppSupport 新增 ReaderCoreModels 依赖
+- 优点：少一个 target，改动量较小
+- 风险：
+  - ReaderAppSupport 从零依赖变成依赖 ReaderCoreModels
+  - 混入文件系统 I/O 代码，模糊 models 和 storage 边界
+  - 后续 Persistence tests 依赖 ReaderAppSupport 时也间接依赖了所有 models
+  - 未来 Models 修改可能触发 Persistence 不必要重编译
+- **推荐：NO**
+
+#### 方案 B：新增 ReaderAppPersistence target（推荐）
+
+- 做法：
+  - 新增 `ReaderAppPersistence` target
+  - path: `App/Persistence`
+  - dependencies: `"ReaderAppSupport"`, `ReaderCoreModels`
+  - 5 个 Store 文件归入此 target
+  - ReaderApp target 新增 `"ReaderAppPersistence"` 依赖
+  - ShellSmokeTests 新增 `"ReaderAppPersistence"` 依赖（为 tests 做准备）
+- 优点：
+  - ReaderAppSupport 保持零依赖 models-only
+  - Persistence 关注点隔离，职责清晰
+  - Persistence tests 可独立运行，只依赖 ReaderAppPersistence
+  - 后续可轻松扩展（CloudSyncStore 等）
+- 风险：
+  - Package.swift 多一个 target
+  - ReaderApp target 需要新增依赖
+- DAG：ReaderAppPersistence → ReaderAppSupport + ReaderCoreModels。ReaderApp → ReaderAppPersistence。无循环。
+- **推荐：YES**
+
+### 6. 推荐方案：方案 B
+
+#### Package.swift 变更草案
+
+```swift
+.target(
+    name: "ReaderAppPersistence",
+    dependencies: [
+        "ReaderAppSupport",
+        .product(name: "ReaderCoreModels", package: "Reader-Core")
+    ],
+    path: "App/Persistence"
+),
+```
+
+ReaderApp target dependencies 新增 `"ReaderAppPersistence"`。
+
+#### 源文件归属
+
+| 文件 | 当前位置 | 新位置 |
+|------|----------|--------|
+| BookSourceStore.swift | App/Persistence | App/Persistence (不变) |
+| BookshelfStore.swift | App/Persistence | App/Persistence (不变) |
+| ChapterCacheStore.swift | App/Persistence | App/Persistence (不变) |
+| ReaderSettingsStore.swift | App/Persistence | App/Persistence (不变) |
+| ReadingProgressStore.swift | App/Persistence | App/Persistence (不变) |
+
+文件无需移动 — 只需在 Package.swift 中将 `App/Persistence` 从 ReaderApp sources 划归到新 `ReaderAppPersistence` target。
+
+### 7. 推荐迁移顺序
+
+| Step | Store | 风险 | 理由 |
+|------|-------|------|------|
+| 3A | ReaderSettingsStore | LOWEST | 最简 store，1 消费者，纯 Foundation + ReaderAppSupport |
+| 3B | ReadingProgressStore | LOW | 0 直接消费者，纯 Foundation + ReaderAppSupport |
+| 3C | ChapterCacheStore | LOW | 0 直接消费者，纯 Foundation + ReaderAppSupport |
+| 3D | BookshelfStore | LOW-MEDIUM | 3 消费者，需更新多个 import |
+| 3E | BookSourceStore | MEDIUM | 需 ReaderCoreModels，3 消费者，Swift 6 NSLock 警告 |
+
+Step 3A-3D 可以在一个 PR 中一起完成（都只需要 ReaderAppPersistence target skeleton），Step 3E 可能需要单独处理 ReaderCoreModels 依赖。
+
+### 8. 测试策略
+
+#### 8.1 Store 可测试性改造
+
+每个 Store 都需要增加 test storage URL 注入能力：
+
+```swift
+// Example: ReaderSettingsStore
+public final class ReaderSettingsStore: @unchecked Sendable {
+    public static let shared = ReaderSettingsStore()
+
+    private let fileURL: URL
+
+    // Production init
+    private init() {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        fileURL = documentsPath.appendingPathComponent("reader_settings.json")
+    }
+
+    // Test init — injectable
+    public init(storageURL: URL) {
+        fileURL = storageURL
+    }
+}
+```
+
+#### 8.2 PersistencePublicSurfaceTests 覆盖范围
+
+每个 Store 测试 CRUD：
+- Save + Load round-trip
+- Update existing entry
+- Remove entry
+- Load from empty state (no file)
+- Concurrency safety (serial access via lock)
+
+Model 测试（已在 Models 迁移中完成）：
+- Codable round-trip
+- Equatable conformance
+- Default values
+
+#### 8.3 测试约束
+
+- ✅ 使用 temporary directory (`FileManager.default.temporaryDirectory`)
+- ✅ 仅依赖 ReaderAppPersistence + ReaderAppSupport
+- ❌ 不测试真实网络
+- ❌ 不测试 Parser
+- ❌ 不依赖完整 ReaderApp target
+- ❌ 不测试 UI
+
+### 9. 风险清单
+
+| # | 风险 | 严重程度 | 缓解措施 |
+|---|------|----------|----------|
+| R1 | BookSourceStore 需要 ReaderCoreModels | MEDIUM | ReaderAppPersistence 声明式依赖，不引入新耦合 |
+| R2 | Feature 文件需要新增 import ReaderAppPersistence | MEDIUM | 分批更新，逐个 Feature 验证 |
+| R3 | SPM 不允许同一文件属于两个 target | HIGH | Persistence 从 ReaderApp sources 中移除，归入 ReaderAppPersistence |
+| R4 | Store 硬编码文件路径，测试时文件冲突 | LOW | 增加 test initializer with injectable storageURL |
+| R5 | Swift 6 NSLock 异步上下文警告 | LOW | 预存警告，不在本轮修复范围 |
+| R6 | ChapterCacheStore / ReadingProgressStore 无消费者但仍有价值 | LOW | 保留迁移，预留给后续 cache/progress 功能 |
+
+### 10. 是否可以进入 Step 3A ReaderSettingsStore 实施：YES
+
+### 11. 回滚方案
+
+- `git reset --hard 7c4c4c1`
+- Package.swift 恢复原状
+
+---
+
 ## 附录：相关文件清单
 
 ### Models (5 files) — ALL MIGRATED
@@ -782,6 +977,10 @@ public enum SourceIdentityFactory {
 - `iOS/AppSupport/Sources/SourceIdentity.swift` ✅ migrated (struct)
 - `iOS/CoreBridge/SourceIdentityFactory.swift` ✅ split (factory)
 
-### Persistence (5 files)
+### Persistence (5 files) — PLANNED
 
-- `iOS/App/Persistence/BookSourceStore.swift`
+- `iOS/App/Persistence/BookSourceStore.swift` ⬜ pending (Step 3E)
+- `iOS/App/Persistence/BookshelfStore.swift` ⬜ pending (Step 3D)
+- `iOS/App/Persistence/ChapterCacheStore.swift` ⬜ pending (Step 3C)
+- `iOS/App/Persistence/ReaderSettingsStore.swift` ⬜ pending (Step 3A)
+- `iOS/App/Persistence/ReadingProgressStore.swift` ⬜ pending (Step 3B)
