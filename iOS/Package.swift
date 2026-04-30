@@ -69,7 +69,8 @@ let package = Package(
         .target(
         name: "ReaderAppPersistence",
         dependencies: [
-            "ReaderAppSupport"
+            "ReaderAppSupport",
+            .product(name: "ReaderCoreModels", package: "Reader-Core")
         ],
         path: "App/Persistence"
     ),
@@ -102,11 +103,26 @@ let package = Package(
             dependencies: [
                 "ReaderShellValidation",
                 "ReaderAppSupport",
-                "ReaderAppPersistence",
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core")
             ],
             path: "Tests/ShellSmokeTests"
+        ),
+        .testTarget(
+            name: "ReaderAppPersistenceTests",
+            dependencies: [
+                "ReaderAppPersistence",
+                "ReaderAppSupport"
+            ],
+            path: "Tests/ReaderAppPersistenceTests"
+        ),
+        .executableTarget(
+            name: "ReaderAppPersistenceTestRunner",
+            dependencies: [
+                "ReaderAppPersistence",
+                "ReaderAppSupport"
+            ],
+            path: "Tests/ReaderAppPersistenceTestRunner"
         )
     ]
 )

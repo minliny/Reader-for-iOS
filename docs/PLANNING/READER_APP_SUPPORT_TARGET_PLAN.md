@@ -1,6 +1,6 @@
 # ReaderAppSupport Target Extraction Plan
 
-**Status**: PERSISTENCE_TARGET_CREATED
+**Status**: PERSISTENCE_TESTS_RUNNING
 **Created**: 2026-04-29
 **Last Updated**: 2026-04-30
 
@@ -1001,10 +1001,21 @@ Model 测试（已在 Models 迁移中完成）：
 - `swift build --target ReaderAppPersistence`: PASS (0.57s, 5 files)
 - `swift build --target ReaderShellValidation`: PASS
 - `swift build --target ShellSmokeTests`: PASS (1.54s, 4 test files incl. PersistencePublicSurfaceTests)
-- `swift test`: BLOCKED by pre-existing ReaderApp target errors (ReaderCoreServiceProvider, platform)
+- `swift test`: BLOCKED by pre-existing ReaderApp target errors (SPM builds all library products)
+- **Workaround**: `swift run ReaderAppPersistenceTestRunner` — PASS (4 tests)
 - Boundary check: PASS (checked_files=50)
 
 ### 8. 下一步是否可以验证 ReadingProgressStore：YES
+
+### 9. Test Execution Architecture（Updated 2026-04-30）
+
+`swift test` 阻塞根因：Package.swift 中 `.library(name: "ReaderApp", targets: ["ReaderApp"])` 导致 SPM 在所有测试运行前构建 ReaderApp target，而 ReaderApp 有预存编译错误。
+
+**解决方案**：
+- `ReaderAppPersistenceTests`（testTarget）：供 CI 使用（需 ReaderApp 编译通过）
+- `ReaderAppPersistenceTestRunner`（executableTarget）：本地验证用，不依赖 XCTest/ReaderApp
+- 运行方式：`swift run ReaderAppPersistenceTestRunner`
+- 绕过 SPM library product 构建限制
 
 ---
 
@@ -1021,8 +1032,14 @@ Model 测试（已在 Models 迁移中完成）：
 
 ### Persistence (5 files) — IN PROGRESS
 
-- `iOS/App/Persistence/BookSourceStore.swift` ✅ in ReaderAppPersistence (Step 3E verify)
-- `iOS/App/Persistence/BookshelfStore.swift` ✅ in ReaderAppPersistence (Step 3D verify)
-- `iOS/App/Persistence/ChapterCacheStore.swift` ✅ in ReaderAppPersistence (Step 3C verify)
-- `iOS/App/Persistence/ReaderSettingsStore.swift` ✅ migrated + tested (Step 3A)
-- `iOS/App/Persistence/ReadingProgressStore.swift` ✅ in ReaderAppPersistence (Step 3B verify)
+- `iOS/App/Persistence/BookSourceStore.swift` ✅ in ReaderAppPersistence
+- `iOS/App/Persistence/BookshelfStore.swift` ✅ in ReaderAppPersistence
+- `iOS/App/Persistence/ChapterCacheStore.swift` ✅ in ReaderAppPersistence
+- `iOS/App/Persistence/ReaderSettingsStore.swift` ✅ migrated + tested
+- `iOS/App/Persistence/ReadingProgressStore.swift` ✅ in ReaderAppPersistence
+
+### Test Targets (3)
+
+- `ShellSmokeTests` — Shell validation, depends on ReaderShellValidation
+- `ReaderAppPersistenceTests` — XCTest target for CI (depends on ReaderAppPersistence)
+- `ReaderAppPersistenceTestRunner` — executable runner for local verification
