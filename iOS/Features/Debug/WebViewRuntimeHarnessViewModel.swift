@@ -121,8 +121,7 @@ public final class WebViewRuntimeHarnessViewModel: ObservableObject {
                 self.savedSnapshotPath = "Snapshot: \(snapshotId)"
             }
 
-            self.warnings = result.warnings
-            self.auditEvents = result.auditEvents.map { "[\($0.eventType.rawValue)] \($0.reason)" }
+            self.warnings = []
 
             self.statusMessage = "Success"
         } else {
@@ -148,11 +147,13 @@ public final class WebViewRuntimeHarnessViewModel: ObservableObject {
             securityRiskLevel: .high,
             authorization: RuntimeAuthorization(
                 authorizationId: "auth_webview_single_url_test",
-                capabilityAllowlist: [.webView],
-                allowedHosts: [allowedHost],
+                sourceId: "qianfanxs_user_provided",
+                sourceName: "千帆小说",
                 grantedBy: "user",
                 grantedAt: Date(),
                 expiresAt: Date().addingTimeInterval(3600),
+                allowedHosts: [allowedHost],
+                capabilityAllowlist: [.webView],
                 revoked: false
             )
         )

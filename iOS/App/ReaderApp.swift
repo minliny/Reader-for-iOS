@@ -1,26 +1,54 @@
 import SwiftUI
 import ReaderShellValidation
 
+#if DEBUG && canImport(WebKit)
+import WebKit
+#endif
+
 @main
 public struct ReaderApp: App {
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
     private let environment: ReaderShellEnvironment
 
+    #if DEBUG && canImport(WebKit)
+    @State private var autorunConfiguration: WebViewRuntimeAutorunConfiguration?
+    #endif
+
     public init() {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         _coordinator = StateObject(wrappedValue: coordinator)
         _navigationState = StateObject(wrappedValue: AppNavigationState())
         environment = ReaderShellEnvironment()
+
+        #if DEBUG && canImport(WebKit)
+        // 解析 autorun 配置
+        let config = WebViewRuntimeAutorunConfiguration.parse(CommandLine.arguments)
+        if config.isEnabled && config.isValid {
+            _autorunConfiguration = State(wrappedValue: config)
+        }
+        #endif
     }
 
     public var body: some Scene {
         WindowGroup {
+            #if DEBUG && canImport(WebKit)
+            if let config = autorunConfiguration, config.isEnabled && config.isValid {
+                WebViewRuntimeAutorunView(configuration: config)
+            } else {
+                RootShellView(
+                    coordinator: coordinator,
+                    navigationState: navigationState,
+                    environment: environment
+                )
+            }
+            #else
             RootShellView(
                 coordinator: coordinator,
                 navigationState: navigationState,
                 environment: environment
             )
+            #endif
         }
     }
 }
