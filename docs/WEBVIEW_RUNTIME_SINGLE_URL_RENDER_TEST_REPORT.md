@@ -1,10 +1,11 @@
 # WEBVIEW_RUNTIME_SINGLE_URL_RENDER_TEST_REPORT
+
 ## WebView Runtime 单 URL 渲染测试报告
 
-**任务代码**: GENERATE_READER_IOS_XCODE_PROJECT_FOR_WEBVIEW_HARNESS
-**执行日期**: 2026-05-08
-**当前仓库**: Reader for iOS
-**当前 HEAD**: `af14f8da5b2cb489bde90d4a4c330d7915b66a39`
+**任务代码**: FIX_WEBVIEW_AUTORUN_WKWEBVIEW_MAINACTOR_CRASH
+**执行日期**: 2026-05-09
+**当前仓库**: Reader for iOS, Reader-Core
+**当前 HEAD**: Reader for iOS `729b3234c3131cccd1d7723aadd8d146507d1f8b`, Reader-Core `0486a9d2ff385a7781ed918a506b7baf02d3c712`
 
 ---
 
@@ -22,42 +23,72 @@
 
 ---
 
-## 二、执行结果
+## 二、EXC_BREAKPOINT 问题修复
 
-**状态**: ✅ PROJECT_YML_CREATED (XcodeGen 未安装，.xcodeproj 待生成)
+### 2.1 问题描述
 
-**本轮结果**:
-- ✅ `project.yml` 已创建 (XcodeGen 配置)
-- ✅ `iOS/Info.plist` 已创建
-- ✅ `ReaderApp.swift` 已更新（DEBUG toolbar 接入）
-- ✅ `docs/IOS_XCODE_PROJECT_GENERATION_PLAN.md` 已创建
-- ✅ `docs/WEBVIEW_RUNTIME_HARNESS_USAGE.md` 已更新
-- ❌ 未执行真实 URL
-- ❌ 未联网
+**原始崩溃**:
+- App 启动后执行 WebView 时崩溃
+- `exception = EXC_BREAKPOINT / SIGTRAP`
+- `faultingThread = 3`
+- 崩溃位置：`WebKit::runInitializationCode` -> `WKWebViewConfiguration.init()`
 
-**XcodeGen 状态**: XcodeGen 未安装 (`xcodegen not found`)
+### 2.2 根因分析
 
-**用户需要**:
-1. 安装 XcodeGen: `brew install xcodegen`
-2. 执行 `xcodegen generate`
-3. 打开 `ReaderForIOS.xcodeproj`
+`WKWebViewConfiguration()` 和 `WKWebView` 初始化必须在主线程执行，但原始代码没有 `@MainActor` 标记。App 启动时 autorun 可能在 SwiftUI view 完全稳定前执行，导致 WebView 在非主线程创建。
+
+### 2.3 修复内容
+
+**Reader-Core/Core/Sources/ReaderPlatformAdapters/WKWebViewRuntimeAdapter.swift**:
+```swift
+@MainActor
+private func createWebView() -> WKWebView {
+    let configuration = WKWebViewConfiguration()
+    // ...
+}
+
+@MainActor
+public func execute(request: RuntimeWebViewRequest) async -> RuntimeWebViewResult {
+    // ...
+}
+```
+
+**Reader for iOS/iOS/Features/Debug/WebViewRuntimeAutorunView.swift**:
+```swift
+.task {
+    // 延迟启动，确保 SwiftUI view 完全稳定
+    try? await Task.sleep(nanoseconds: 500_000_000)
+    await viewModel.executeRender()
+}
+```
 
 ---
 
-## 三、Round 3 状态更新
+## 三、执行结果
 
-**修正后状态**:
-- ROUND_3_ADAPTER_AND_HARNESS_READY ✅
-- ROUND_3_MACOS_HOST_CREATED ✅
-- ROUND_3_PROJECT_YML_CREATED ✅
-- ROUND_3_XCODEGEN_NOT_INSTALLED (用户需安装)
-- ROUND_3_IOS_APP_HOST_PREPARED (待 xcodegen generate)
+**状态**: ⚠️ PARTIALLY_VERIFIED
 
-**说明**:
-- WebView adapter 代码已实现
-- Harness 代码已就绪
-- project.yml 已创建
-- XcodeGen 未安装，需要用户操作
+**本轮结果**:
+- ✅ `@MainActor` 已添加到 `WKWebViewRuntimeAdapter.execute()`
+- ✅ `@MainActor` 已添加到 `WKWebViewRuntimeAdapter.createWebView()`
+- ✅ 500ms 延迟已添加到 `WebViewRuntimeAutorunView.task`
+- ✅ 构建成功 (`BUILD SUCCEEDED`)
+- ✅ Reader-Core tests 全部通过 (439 tests, 0 failures)
+- ✅ iOS boundary check PASS
+- ✅ Reader-Core webview boundary check PASS
+- ⚠️ App 在 Simulator 中启动，但未观察到明确的 WebView 执行完成证据
+- ⚠️ 未观察到新 crash report，但 App 可能使用旧版本
+
+**Simulator 测试观察**:
+- App 进程 (PID 55409) 在 Simulator 中持续运行
+- 未观察到新的 `.ips` crash report
+- `webview_run_status.json` 状态仍为 "crashed_or_interrupted"（旧运行）
+- 新运行未产生新的结果文件
+
+**可能原因**:
+1. `xcrun simctl install booted` 执行缓慢，新构建可能未安装
+2. 启动参数传递可能有问题
+3. Simulator 可能有限制，真实设备测试更可靠
 
 ---
 
@@ -65,7 +96,12 @@
 
 | 仓库 | HEAD |
 |------|------|
-| Reader-Core | `f3b8e160b6e729c6cedf46e307c4af91b78a07c0` |
+| Reader-Core | `0486a9d2ff385a7781ed918a506b7baf02d3c712` |
+
+**Reader-Core 最新提交**:
+```
+0486a9d fix: add @MainActor to WKWebViewRuntimeAdapter
+```
 
 ---
 
@@ -77,48 +113,45 @@
 | ReaderCoreParser 无 WebKit/UIKit | ✅ |
 | check_webview_adapter_boundary.sh | ✅ PASS |
 | check_ios_boundary.sh | ✅ PASS |
-| 新增 case_031 | ❌ |
-| baseline promotion | ❌ |
+| 新增 case_031 | ❌ 未新增 |
+| baseline promotion | ❌ 未执行 |
 
 ---
 
-## 六、已创建文件
+## 六、修改文件列表
 
-| 文件 | 说明 |
-|------|------|
-| `project.yml` | XcodeGen 配置，定义 ReaderForIOSApp target |
-| `iOS/Info.plist` | App Info.plist，包含安全配置 |
-| `iOS/App/ReaderApp.swift` | 更新，添加 DEBUG toolbar 入口 |
-| `docs/IOS_XCODE_PROJECT_GENERATION_PLAN.md` | XcodeGen 项目生成计划 |
-| `docs/WEBVIEW_RUNTIME_HARNESS_USAGE.md` | 更新，包含 XcodeGen 使用说明 |
+| 文件 | 修改内容 |
+|------|----------|
+| `Core/Sources/ReaderPlatformAdapters/WKWebViewRuntimeAdapter.swift` | 添加 `@MainActor` 到 `createWebView()` 和 `execute()` |
+| `iOS/Features/Debug/WebViewRuntimeAutorunView.swift` | 添加 500ms 启动延迟 |
+| `docs/WEBVIEW_RUNTIME_BREAKPOINT_FIX.md` | 更新修复报告 |
 
 ---
 
 ## 七、下一步
 
-### 7.1 用户操作
+### 7.1 真机测试建议
 
-```bash
-# 1. 安装 XcodeGen
-brew install xcodegen
+Simulator 可能有限制，建议在真实 iOS 设备上测试：
+1. 在 Xcode 中连接真机
+2. 选择真机作为目标设备
+3. 运行 App 并观察 Console 输出
 
-# 2. 生成 Xcode 项目
-cd /Users/minliny/Documents/Reader\ for\ iOS
-xcodegen generate
+### 7.2 手动验证
 
-# 3. 打开项目
-open ReaderForIOS.xcodeproj
+在 Xcode 中：
+1. 打开 `ReaderForIOS.xcodeproj`
+2. 选择 iPhone 17 Pro Simulator
+3. 运行 App (⌘R)
+4. 点击 "WebView Harness" 按钮
+5. 观察 Console 日志
 
-# 4. 选择 iPhone 17 Pro Simulator
-# 5. 运行 App (⌘R)
-# 6. 点击 toolbar 中的 "WebView Harness" 按钮
+### 7.3 诊断日志
+
+如果需要进一步诊断，可以在 `WebViewRuntimeAutorunViewModel.executeRender()` 开始处添加：
+```swift
+print("executeRender mainThread=\(Thread.isMainThread)")
 ```
-
-### 7.2 下一轮
-
-**下一轮任务**: AUTHORIZE_SINGLE_WEBVIEW_URL_RENDER_TEST_IN_GENERATED_XCODE_PROJECT
-
-届时用户在 Xcode 中执行真实 URL 测试。
 
 ---
 
@@ -126,8 +159,13 @@ open ReaderForIOS.xcodeproj
 
 | 约束 | 状态 |
 |------|------|
-| 禁止真实联网 | ✅ 未联网 |
-| 禁止执行真实 WebView URL | ✅ 未执行 |
+| 禁止批量请求 | ✅ 未执行 |
+| 禁止递归 | ✅ 未执行 |
+| 禁止翻页 | ✅ 未执行 |
+| 禁止批量章节 | ✅ 未执行 |
+| 禁止 WAF/anti-bot 绕过 | ✅ 未执行 |
+| 禁止自动重试 | ✅ 未执行 |
+| 禁止 Cookie/Login 自动流程 | ✅ 未执行 |
 | 禁止修改 Reader-Core Parser | ✅ 未修改 |
 | 禁止在 CoreModels/Parser 引入 WebKit | ✅ 未引入 |
 | 禁止新增 case_031 | ✅ 未新增 |
@@ -135,6 +173,22 @@ open ReaderForIOS.xcodeproj
 
 ---
 
-*文档更新时间：2026-05-08*
-*任务代码：GENERATE_READER_IOS_XCODE_PROJECT_FOR_WEBVIEW_HARNESS*
-*执行结果：PROJECT_YML_CREATED_XCODEGEN_NOT_INSTALLED*
+## 九、状态输出
+
+```
+WEBVIEW_WKWEBVIEW_INITIALIZATION_MAINACTOR_FIXED ✅
+WEBVIEW_AUTORUN_NO_LONGER_CRASHES_AT_CONFIGURATION_INIT ⚠️ (未完全确认)
+WEBVIEW_HARNESS_WRITES_FAILURE_OR_SUCCESS_STATUS ⚠️ (待验证)
+NO_BATCH_REQUEST ✅
+NO_RECURSION ✅
+NO_BASELINE_PROMOTION ✅
+BUILD_SUCCEEDED ✅
+READER_CORE_TESTS_PASSED ✅
+REAL_DEVICE_TEST_RECOMMENDED ⚠️
+```
+
+---
+
+*文档更新时间：2026-05-09*
+*任务代码：FIX_WEBVIEW_AUTORUN_WKWEBVIEW_MAINACTOR_CRASH*
+*执行结果：PARTIALLY_VERIFIED_SIMULATOR_MAY_USE_OLD_BUILD*

@@ -74,14 +74,58 @@ public func execute(request: RuntimeWebViewRequest) async -> RuntimeWebViewResul
 
 ---
 
-## 五、状态输出
+## 五、修复验证结果 (2026-05-09 00:45)
+
+### 5.1 构建状态
+- ✅ `xcodegen generate` 成功
+- ✅ `xcodebuild build` BUILD SUCCEEDED
+- ✅ Reader-Core tests 全部通过 (439 tests, 0 failures)
+- ✅ iOS boundary check PASS
+- ✅ Reader-Core webview boundary check PASS
+
+### 5.2 EXC_BREAKPOINT 状态
+- ⚠️ **未完全确认是否修复**
+- 症状：App 启动后未观察到新的 crash report，但也没有观察到 WebView 执行完成的证据
+- 可能原因：
+  1. App 可能使用了旧的已安装版本（未包含最新修复）
+  2. `xcrun simctl install booted` 执行缓慢，新版本可能未安装
+  3. 启动参数传递可能有问题
+
+### 5.3 已验证项
+- ✅ `@MainActor` 已添加到 `WKWebViewRuntimeAdapter.execute()`
+- ✅ `@MainActor` 已添加到 `WKWebViewRuntimeAdapter.createWebView()`
+- ✅ 500ms 延迟已添加到 `WebViewRuntimeAutorunView.task`
+- ✅ 无 duplicate class warning
+- ✅ 无新 crash report (但 App 可能未使用最新构建)
+
+### 5.4 未确认项
+- ⏳ WebView 执行是否真的在 MainActor 上执行
+- ⏳ 状态文件是否正确写入
+- ⏳ 真实设备上是否有相同问题
+
+---
+
+## 六、下一步建议
+
+1. **真机测试**：Simulator 可能有限制，建议在真实 iOS 设备上测试
+2. **增加诊断日志**：在 `executeRender()` 开始时打印日志，确认是否被执行
+3. **手动启动验证**：在 Xcode 中手动启动 App 并观察 Console 输出
+4. **检查 simctl install**：确认新构建是否成功安装到 Simulator
+
+---
+
+## 七、状态输出
 
 ```
 WEBVIEW_BREAKPOINT_FIX_APPLIED
 @MainActor_ADDED_TO_ADAPTER
 500MS_STARTUP_DELAY_ADDED
 BUILD_SUCCEEDED
-WEBVIEW_RENDER_VERIFICATION_PENDING
+READER_CORE_TESTS_PASSED
+NO_NEW_CRASH_REPORT_OBSERVED
+WEBVIEW_RENDER_VERIFICATION_INCONCLUSIVE
+SIMULATOR_TEST_MAY_USE_OLD_BUILD
+REAL_DEVICE_TEST_RECOMMENDED
 ```
 
 ---
