@@ -12,21 +12,51 @@ packages:
     from: "0.1.0"
 
 targets:
-  ReaderForIOSApp:
-    type: application
+  ReaderAppPersistence:
+    type: framework
     platform: iOS
     deploymentTarget: "18.0"
     sources:
-      - path: iOS/App
-      - path: iOS/Features
-      - path: iOS/Navigation
-      - path: iOS/Modules
-      - path: iOS/Surface
-      - path: iOS/CoreBridge
-      - path: iOS/CoreIntegration
-      - path: iOS/Shell
-      - path: iOS/AppSupport
+      - path: iOS/App/Persistence
     dependencies:
+      - target: ReaderAppSupport
+      - package: ReaderCore
+        product: ReaderCoreModels
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+
+  ReaderAppSupport:
+    type: framework
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iOS/AppSupport/Sources
+    dependencies: []
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+
+  ReaderShellValidation:
+    type: framework
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iOS/CoreIntegration
+      - path: iOS/CoreBridge
+      - path: iOS/Shell
+    dependencies:
+      - target: ReaderAppSupport
+      - package: ReaderCore
+        product: ReaderCoreFoundation
       - package: ReaderCore
         product: ReaderCoreModels
       - package: ReaderCore
@@ -37,6 +67,29 @@ targets:
         product: ReaderCoreNetwork
       - package: ReaderCore
         product: ReaderPlatformAdapters
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+
+  ReaderForIOSApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iOS/App
+      - path: iOS/Features
+      - path: iOS/Navigation
+      - path: iOS/Modules
+      - path: iOS/Surface
+      - path: iOS/AppSupport
+    dependencies:
+      - target: ReaderShellValidation
+      - target: ReaderAppSupport
+      - target: ReaderAppPersistence
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.reader.ios

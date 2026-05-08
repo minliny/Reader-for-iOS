@@ -10,7 +10,7 @@ public struct BookDetailView: View {
     @State private var isInBookshelf = false
     let result: SearchResultItem
     private let bookshelfStore = BookshelfStore.shared
-    private var sourceIdentity: SourceIdentity {
+    private var sourceIdentity: ReaderAppSupport.SourceIdentity {
         SourceIdentityFactory.from(searchResult: result)
     }
 
