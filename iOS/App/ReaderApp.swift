@@ -40,6 +40,16 @@ struct RootShellView: View {
             .navigationDestination(for: Route.self) { route in
                 destinationView(for: route)
             }
+            .toolbar {
+                #if DEBUG
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(destination: WebViewRuntimeHarnessView()) {
+                        Text("WebView Harness")
+                            .font(.caption)
+                    }
+                }
+                #endif
+            }
         }
     }
 

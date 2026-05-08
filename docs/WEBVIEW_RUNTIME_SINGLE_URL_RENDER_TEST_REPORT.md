@@ -1,10 +1,10 @@
 # WEBVIEW_RUNTIME_SINGLE_URL_RENDER_TEST_REPORT
 ## WebView Runtime 单 URL 渲染测试报告
 
-**任务代码**: AUTHORIZE_SINGLE_WEBVIEW_URL_RENDER_TEST_IN_SIMULATOR
+**任务代码**: GENERATE_READER_IOS_XCODE_PROJECT_FOR_WEBVIEW_HARNESS
 **执行日期**: 2026-05-08
 **当前仓库**: Reader for iOS
-**当前 HEAD**: `84e8ef5731a7b29b7ec6ac501b10c8424260767c`
+**当前 HEAD**: `af14f8da5b2cb489bde90d4a4c330d7915b66a39`
 
 ---
 
@@ -24,35 +24,40 @@
 
 ## 二、执行结果
 
-**状态**: 🔲 BLOCKED_BY_IOS_SIMULATOR_ENVIRONMENT
+**状态**: ✅ PROJECT_YML_CREATED (XcodeGen 未安装，.xcodeproj 待生成)
 
-**原因**: Reader for iOS 是纯 Swift Package 项目，没有 .xcodeproj/.xcworkspace 文件，无法在 iOS Simulator 中运行。
+**本轮结果**:
+- ✅ `project.yml` 已创建 (XcodeGen 配置)
+- ✅ `iOS/Info.plist` 已创建
+- ✅ `ReaderApp.swift` 已更新（DEBUG toolbar 接入）
+- ✅ `docs/IOS_XCODE_PROJECT_GENERATION_PLAN.md` 已创建
+- ✅ `docs/WEBVIEW_RUNTIME_HARNESS_USAGE.md` 已更新
+- ❌ 未执行真实 URL
+- ❌ 未联网
 
-**具体问题**:
-1. `find *.xcodeproj *.xcworkspace` 无结果
-2. 无法通过 `open Package.swift` 打开 Xcode
-3. iOS Simulator 需要通过 Xcode IDE 启动应用
+**XcodeGen 状态**: XcodeGen 未安装 (`xcodegen not found`)
 
-**已验证**:
-- ✅ `WKWebViewRuntimeAdapter` 已实现于 ReaderPlatformAdapters
-- ✅ 使用 `#if canImport(WebKit)` 条件编译
-- ✅ 提供 `@available(*, unavailable)` stub 给非 Apple 平台
-- ✅ check_ios_boundary.sh: PASS
-- ✅ 安全策略（HTTPS 检查、host 白名单、popup 阻止）
-- ✅ WebViewRuntimeHarnessViewModel.swift 已创建（DEBUG + canImport(WebKit)）
-- ✅ WebViewRuntimeHarnessView.swift 已创建
+**用户需要**:
+1. 安装 XcodeGen: `brew install xcodegen`
+2. 执行 `xcodegen generate`
+3. 打开 `ReaderForIOS.xcodeproj`
 
 ---
 
-## 三、Round 3 状态
+## 三、Round 3 状态更新
 
-**状态**: WEBVIEW_SINGLE_URL_RENDER_TEST_ATTEMPTED_BUT_BLOCKED
+**修正后状态**:
+- ROUND_3_ADAPTER_AND_HARNESS_READY ✅
+- ROUND_3_MACOS_HOST_CREATED ✅
+- ROUND_3_PROJECT_YML_CREATED ✅
+- ROUND_3_XCODEGEN_NOT_INSTALLED (用户需安装)
+- ROUND_3_IOS_APP_HOST_PREPARED (待 xcodegen generate)
 
 **说明**:
 - WebView adapter 代码已实现
 - Harness 代码已就绪
-- 但 Reader for iOS 无 Xcode 项目，无法在 iOS Simulator 中运行
-- 需要 XcodeGen 生成项目或手动创建 .xcodeproj
+- project.yml 已创建
+- XcodeGen 未安装，需要用户操作
 
 ---
 
@@ -60,7 +65,7 @@
 
 | 仓库 | HEAD |
 |------|------|
-| Reader-Core | `5d80c6874a3ade5fe74d473da7d474489f6b1e2d` |
+| Reader-Core | `f3b8e160b6e729c6cedf46e307c4af91b78a07c0` |
 
 ---
 
@@ -77,44 +82,59 @@
 
 ---
 
-## 六、iOS Simulator 状态
+## 六、已创建文件
 
-```
--- iOS 26.4 --
-    iPhone 17 Pro (Shutdown)
-    iPhone 17 Pro Max (Shutdown)
-    iPhone 17e (Shutdown)
-    iPhone Air (Shutdown)
-    iPhone 17 (Shutdown)
-    iPad Pro 13-inch (M5) (Shutdown)
-    iPad Pro 11-inch (M5) (Shutdown)
-    iPad mini (17 Pro) (Shutdown)
-```
-
-所有设备 Shutdown，无法启动。
+| 文件 | 说明 |
+|------|------|
+| `project.yml` | XcodeGen 配置，定义 ReaderForIOSApp target |
+| `iOS/Info.plist` | App Info.plist，包含安全配置 |
+| `iOS/App/ReaderApp.swift` | 更新，添加 DEBUG toolbar 入口 |
+| `docs/IOS_XCODE_PROJECT_GENERATION_PLAN.md` | XcodeGen 项目生成计划 |
+| `docs/WEBVIEW_RUNTIME_HARNESS_USAGE.md` | 更新，包含 XcodeGen 使用说明 |
 
 ---
 
 ## 七、下一步
 
-1. **XcodeGen 生成项目**（需要用户授权）:
-   - 在 Reader for iOS 添加 `project.yml`
-   - 执行 `xcodegen generate`
-   - 打开生成的 `.xcodeproj`
-   - 在 iOS Simulator 中运行 WebView Harness
+### 7.1 用户操作
 
-2. **手动创建 .xcodeproj**（需要用户授权）:
-   - 使用 Xcode 创建 iOS 项目
-   - 添加 Swift Package 依赖
-   - 配置 WebView Harness target
+```bash
+# 1. 安装 XcodeGen
+brew install xcodegen
 
-3. **接受 Blocked 状态**:
-   - WebView adapter boundary 已验证
-   - Harness 代码已就绪
-   - 真实渲染需要 Xcode 项目环境
+# 2. 生成 Xcode 项目
+cd /Users/minliny/Documents/Reader\ for\ iOS
+xcodegen generate
+
+# 3. 打开项目
+open ReaderForIOS.xcodeproj
+
+# 4. 选择 iPhone 17 Pro Simulator
+# 5. 运行 App (⌘R)
+# 6. 点击 toolbar 中的 "WebView Harness" 按钮
+```
+
+### 7.2 下一轮
+
+**下一轮任务**: AUTHORIZE_SINGLE_WEBVIEW_URL_RENDER_TEST_IN_GENERATED_XCODE_PROJECT
+
+届时用户在 Xcode 中执行真实 URL 测试。
+
+---
+
+## 八、本轮约束遵守情况
+
+| 约束 | 状态 |
+|------|------|
+| 禁止真实联网 | ✅ 未联网 |
+| 禁止执行真实 WebView URL | ✅ 未执行 |
+| 禁止修改 Reader-Core Parser | ✅ 未修改 |
+| 禁止在 CoreModels/Parser 引入 WebKit | ✅ 未引入 |
+| 禁止新增 case_031 | ✅ 未新增 |
+| 禁止 baseline promotion | ✅ 未执行 |
 
 ---
 
 *文档更新时间：2026-05-08*
-*任务代码：AUTHORIZE_SINGLE_WEBVIEW_URL_RENDER_TEST_IN_SIMULATOR*
-*执行结果：BLOCKED_BY_IOS_SIMULATOR_ENVIRONMENT*
+*任务代码：GENERATE_READER_IOS_XCODE_PROJECT_FOR_WEBVIEW_HARNESS*
+*执行结果：PROJECT_YML_CREATED_XCODEGEN_NOT_INSTALLED*

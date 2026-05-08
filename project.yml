@@ -1,0 +1,84 @@
+name: ReaderForIOS
+options:
+  bundleIdPrefix: com.reader
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+
+packages:
+  ReaderCore:
+    path: ../Reader-Core/Core
+    from: "0.1.0"
+
+targets:
+  ReaderForIOSApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: iOS/App
+      - path: iOS/Features
+      - path: iOS/Navigation
+      - path: iOS/Modules
+      - path: iOS/Surface
+      - path: iOS/CoreBridge
+      - path: iOS/CoreIntegration
+      - path: iOS/Shell
+      - path: iOS/AppSupport
+    dependencies:
+      - package: ReaderCore
+        product: ReaderCoreModels
+      - package: ReaderCore
+        product: ReaderCoreProtocols
+      - package: ReaderCore
+        product: ReaderCoreParser
+      - package: ReaderCore
+        product: ReaderCoreNetwork
+      - package: ReaderCore
+        product: ReaderPlatformAdapters
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.reader.ios
+        INFOPLIST_FILE: iOS/Info.plist
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_BITCODE: NO
+        DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
+    info:
+      path: iOS/Info.plist
+      properties:
+        CFBundleDisplayName: Reader
+        CFBundleName: ReaderForIOS
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen:
+          UIColorName: ""
+          UIImageName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+          NSExceptionDomains:
+            www.qianfanxs.com:
+              NSExceptionAllowsInsecureHTTPLoads: false
+              NSIncludesSubdomains: true
+
+schemes:
+  ReaderForIOSApp:
+    build:
+      targets:
+        ReaderForIOSApp: all
+    run:
+      config: Debug
+    archive:
+      config: Release

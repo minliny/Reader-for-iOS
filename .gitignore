@@ -2,8 +2,8 @@
 .build/
 build/
 DerivedData/
-*.xcodeproj/xcuserdata/
-*.xcworkspace/xcuserdata/
+*.xcodeproj/
+*.xcworkspace/
 xcuserdata/
 
 # Swift Package Manager
@@ -41,3 +41,7 @@ __pycache__/
 # Misc temp files
 *.log
 *.tmp
+
+# XcodeGen (generated from project.yml)
+# Do NOT commit *.xcodeproj or *.xcworkspace - generate with xcodegen
+# See docs/IOS_XCODE_PROJECT_GENERATION_PLAN.md for instructions
