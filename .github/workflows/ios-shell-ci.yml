@@ -1,10 +1,4 @@
 name: iOS Shell CI
-# Core Asset Migration patch (2026-04-15):
-# Reader-iOS is now independent. Reader-Core dependency resolved via:
-#   iOS/Package.swift: .package(path: "../Reader-Core")
-# The path is relative to iOS/Package.swift, so CI must materialize Reader-Core
-# at <workspace>/Reader-Core, not outside GITHUB_WORKSPACE.
-# Canonical remote: https://github.com/minliny/Reader-Core.git exact:0.1.0
 
 on:
   workflow_dispatch:
@@ -13,7 +7,6 @@ on:
       - ".github/workflows/ios-shell-ci.yml"
       - "iOS/**"
       - "scripts/check_ios_boundary.sh"
-      - "docs/ios_shell_ci_gate.yml"
   push:
     branches:
       - "**"
@@ -35,11 +28,6 @@ jobs:
       - name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
         shell: bash
         run: |
-          # iOS/Package.swift: .package(path: "../Reader-Core")
-          # Path is relative to the iOS/ directory, so Reader-Core must land at
-          # <workspace>/Reader-Core (sibling of iOS/ within the checkout).
-          # actions/checkout@v4 forbids paths outside $GITHUB_WORKSPACE, so we
-          # use git clone which writes to the path relative to $GITHUB_WORKSPACE.
           git clone --depth 1 https://github.com/minliny/Reader-Core.git Reader-Core
 
       - name: Protect iOS Shell boundary
@@ -51,94 +39,57 @@ jobs:
       - name: Show Swift toolchain
         run: swift --version
 
-      - name: Compile iOS Shell composition root
+      - name: Compile ReaderAppSupport
         shell: bash
         run: |
           set -euo pipefail
-          # Interim compile gate validates only the host-compilable shell composition root.
-          # iOS-only Features/UI stay outside this macOS-hosted SwiftPM validation scope.
-          swift build --package-path iOS --target ReaderShellValidation 2>&1 | tee ios-shell-build.log
+          swift build --package-path iOS --target ReaderAppSupport 2>&1
 
-      - name: Diagnose ReaderApp target compilation
+      - name: Compile ReaderIOSPlatformAdapters
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --package-path iOS --target ReaderIOSPlatformAdapters 2>&1
+
+      - name: Compile ReaderShellValidation
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --package-path iOS --target ReaderShellValidation 2>&1
+
+      - name: Run PlatformAdapterTests
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path iOS --filter PlatformAdapterTests 2>&1
+
+      - name: Run LinuxValidationTests
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path iOS --filter LinuxValidationTests 2>&1
+
+      - name: Run ShellSmokeTests
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path iOS --filter ShellSmokeTests 2>&1
+
+      - name: Run ShellSmokeTests (PublicSurfaceFunctional)
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path iOS --filter PublicSurfaceFunctionalSmokeTests 2>&1
+
+      - name: Run ShellSmokeTests (ReaderAppSupportSkeleton)
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path iOS --filter ReaderAppSupportSkeletonTests 2>&1
+
+      - name: Diagnose ReaderApp target (SwiftUI, diagnostic only)
         shell: bash
         run: |
           set +e
-          # Diagnostic only: validate whether ReaderApp can be compiled as a test dependency.
-          # This step logs errors but does not fail the job.
-          swift build --package-path iOS --target ReaderApp 2>&1 | tee ios-readerapp-build.log
-          echo "=== ReaderApp compile diagnostic (non-failing) ==="
-          cat ios-readerapp-build.log
-
-      - name: Run shell smoke validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Construction-only smoke stays bound to the isolated shell validation test product.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
-
-      - name: Run reader functional validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Functional validation reuses fixture-backed sources without widening the ReaderShellValidation compile target.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderFlowFunctionalValidationTests 2>&1 | tee ios-reader-functional.log
-
-      - name: Run reader hardening validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Hardening validation stays on the same isolated test product and only checks state-transition consistency.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderFlowHardeningTests 2>&1 | tee ios-reader-hardening.log
-
-      - name: Run reader UX foundation validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # UX foundation validation is additive and only checks state-driven presentation surfaces on the minimal reader path.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderUXFoundationStateTests 2>&1 | tee ios-reader-ux-foundation.log
-
-      - name: Run reader interaction foundation validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Interaction validation tests minimal interactions like retry and reload without full UI automation.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderInteractionValidationTests 2>&1 | tee ios-reader-interaction-foundation.log
-
-      - name: Run reader session polish validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Session polish validation tests session continuity and minimal resume affordances.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderSessionValidationTests 2>&1 | tee ios-reader-session-polish.log
-
-      - name: Run reader navigation and progress foundation validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Navigation validation tests chapter position awareness and progress features
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderNavigationValidationTests 2>&1 | tee ios-reader-navigation-foundation.log
-
-      - name: Run reader presentation polish validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Presentation validation tests consistency of surfaces across the reader feature
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderPresentationValidationTests 2>&1 | tee ios-reader-presentation-polish.log
-
-      - name: Upload iOS Shell logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-shell-ci-logs
-          if-no-files-found: error
-          path: |
-            ios-shell-build.log
-            ios-readerapp-build.log
-            ios-shell-smoke.log
-            ios-reader-functional.log
-            ios-reader-hardening.log
-            ios-reader-ux-foundation.log
-            ios-reader-interaction-foundation.log
-            ios-reader-session-polish.log
-            ios-reader-navigation-foundation.log
-            ios-reader-presentation-polish.log
+          swift build --package-path iOS --target ReaderApp 2>&1
+          echo "=== ReaderApp compile diagnostic (SwiftUI-only, expected to fail on non-Apple platforms) ==="

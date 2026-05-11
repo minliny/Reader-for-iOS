@@ -19,100 +19,122 @@
 | ReaderCoreFoundation | Foundation 扩展 / 工具 | ✅ 可用 |
 | ReaderCoreNetwork | 网络层协议 | ✅ 可用 |
 
-## 2. 当前可 import 的 Public Modules
+## 2. iOS 侧已就绪的组件
 
-从 Reader-iOS 侧可安全 import:
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| `ReaderCoreServiceProvider` + `ServiceMode` | ✅ 就绪 | 入口已预留 `.real` 模式 |
+| `BookSourceRepository` | ✅ 已实现 | `InMemoryBookSourceRepository` (actor) |
+| `BookSourceDecoder` | ✅ 已实现 | `DefaultBookSourceDecoder` |
+| PlatformAdapters | ✅ 已实现 | HTTP/Storage/Keychain/Logger/Snapshot |
+| `ShellAssembly` DI | ✅ 已就绪 | 可根据 `ServiceMode` 装配 |
 
-- `ReaderCoreModels`
-- `ReaderCoreProtocols`
-- `ReaderCoreFoundation`
-- `ReaderCoreNetwork`
+## 3. iOS 侧禁止依赖（强制约束）
 
-## 3. ReaderCoreService Real Mode 需要的 Public API
+以下模块禁止在 iOS 源码中直接 import 或依赖：
 
-### 3.1 模型层 (ReaderCoreModels)
+| 禁止模块 | 原因 |
+|----------|------|
+| `CSSExecutor` | Reader-Core internal，不公开 |
+| `SelectorEngine` | Reader-Core internal，不公开 |
+| `NonJSParserEngine` | Reader-Core internal，不公开 |
+| `ReaderCoreParser` internal types | 非 public facade |
+| `JavaScriptCore` | 动态 JS Runtime，Phase 1 OUT_OF_SCOPE |
+| `QuickJS` / `Hermes` | 动态 JS Runtime，Phase 1 OUT_OF_SCOPE |
+| `WKWebView` | 动态书源运行时，Phase 1 OUT_OF_SCOPE |
+| `WebDAV` production sync | Phase 1 OUT_OF_SCOPE |
 
-| 类型 | 用途 | 当前状态 |
-|------|------|----------|
-| `BookSource` | 书源定义 | ✅ 可用 |
-| `SearchQuery` | 搜索查询 | ✅ 可用 |
-| `SearchResultItem` | 搜索结果 | ✅ 可用 |
-| `TOCItem` | 目录项 | ✅ 可用 |
-| `ContentPage` | 正文页 | ✅ 可用 |
-| `ReaderError` | 错误模型 | ✅ 可用 |
-| `FailureRecord` | 失败记录 | ✅ 可用 |
-| `CompatibilityMark` | 兼容标记 | ✅ 可用 |
-| `HTTPRequest` | 网络请求 DTO | ✅ 可用 |
-| `HTTPResponse` | 网络响应 DTO | ✅ 可用 |
-| `CacheEntry` | 缓存条目 | ✅ 可用 |
-| `CacheScope` | 缓存作用域 | ✅ 可用 |
+边界检查入口: `scripts/check_ios_boundary.sh`
 
-### 3.2 协议层 (ReaderCoreProtocols)
+## 4. Reader-Core 需要提供的最小 Public API
 
-| 协议 | 用途 | 当前状态 |
-|------|------|----------|
-| `BookSourceRepository` | 书源存储 | ✅ 可用 |
-| `BookSourceDecoder` | 书源 JSON 解码 | ✅ 可用 |
-| `HTTPClient` | HTTP 客户端 | ✅ 可用 |
-| `RequestBuilder` | 请求构建 | ✅ 可用 |
-| `CacheStore` | 缓存存储 | ✅ 可用 |
-| `CacheRepository` | 缓存仓库 | ✅ 可用 |
-| `ErrorMapper` | 错误映射 | ✅ 可用 |
-| `PlatformAdapter` | 平台适配器基协议 | ✅ 可用 |
+### 4.1 Protocol / Facade 清单
 
-### 3.3 Reader-iOS 侧已实现的适配器
+```swift
+// 1. BookSource 加载
+public protocol BookSourceLoader {
+    func loadBookSource(from url: String) async throws -> BookSource
+}
 
-| 适配器 | 协议 | 状态 |
-|--------|------|------|
-| `IOSHTTPAdapter` | `HTTPClientProtocol` / `HTTPClient` | ✅ 已实现 |
-| `IOSStorageAdapter` | `LocalStorageProtocol` | ✅ 已实现 |
-| `IOSKeychainCredentialStore` | `CredentialStoreProtocol` | ✅ 已实现 (Apple-only) |
-| `IOSLoggerAdapter` | `AppLoggerProtocol` | ✅ 已实现 |
-| `IOSSnapshotStore` | `SnapshotStoreProtocol` | ✅ 已实现 |
+// 2. 搜索编排
+public protocol SearchPipeline {
+    func execute(query: SearchQuery, source: BookSource) async throws -> [SearchResultItem]
+}
 
-## 4. 当前缺失或不确定的 API
+// 3. 书籍详情编排
+public protocol BookDetailPipeline {
+    func execute(url: String, source: BookSource) async throws -> SearchResultItem
+}
 
-| 需求 | 说明 | 风险等级 |
-|------|------|----------|
-| `ReaderCoreParser` public facade | 当前 Reader-Core 无独立 Parser public product | 🔴 高 |
-| Search / TOC / Content 编排 Service | Reader-Core 是否提供高层 pipeline service？ | 🟡 中 |
-| Capability Matrix 查询 API | 书源能力矩阵如何在 iOS 侧查询？ | 🟡 中 |
-| Cookie 管理公共协议 | 当前为内部实现，iOS 侧需适配 | 🟡 中 |
-| JS Runtime 公共协议 | 当前 OUT_OF_SCOPE，但未来需协议占位 | 🟢 低 |
+// 4. 目录编排
+public protocol TOCPipeline {
+    func execute(detailURL: String, source: BookSource) async throws -> [TOCItem]
+}
+
+// 5. 正文编排
+public protocol ContentPipeline {
+    func execute(chapterURL: String, source: BookSource) async throws -> ContentPage
+}
+
+// 6. 错误映射扩展（Reader-Core ErrorMapper 已部分支持）
+public protocol BookErrorMapper: ErrorMapper {
+    // 需扩展为支持书源解析特有错误
+}
+```
+
+### 4.2 DTO 清单（已有，不需要额外提供）
+
+| 类型 | 用途 | 来源 |
+|------|------|------|
+| `BookSource` | 书源定义 | ReaderCoreModels |
+| `SearchQuery` | 搜索查询 | ReaderCoreModels |
+| `SearchResultItem` | 搜索结果 | ReaderCoreModels |
+| `TOCItem` | 目录项 | ReaderCoreModels |
+| `ContentPage` | 正文页 | ReaderCoreModels |
+| `ReaderError` | 错误模型 | ReaderCoreModels |
+| `FailureRecord` | 失败记录 | ReaderCoreModels |
+| `CompatibilityMark` | 兼容标记 | ReaderCoreModels |
+| `HTTPRequest` | 网络请求 DTO | ReaderCoreModels |
+| `HTTPResponse` | 网络响应 DTO | ReaderCoreModels |
+| `CacheEntry` | 缓存条目 | ReaderCoreModels |
+| `CacheScope` | 缓存作用域 | ReaderCoreModels |
+| `BookSourceRepository` | 书源存储 | ReaderCoreProtocols |
+| `BookSourceDecoder` | 书源 JSON 解码 | ReaderCoreProtocols |
+| `HTTPClient` | HTTP 客户端 | ReaderCoreProtocols |
+| `RequestBuilder` | 请求构建 | ReaderCoreProtocols |
+| `CacheStore` | 缓存存储 | ReaderCoreProtocols |
+| `CacheRepository` | 缓存仓库 | ReaderCoreProtocols |
+| `ErrorMapper` | 错误映射 | ReaderCoreProtocols |
+| `PlatformAdapter` | 平台适配器基协议 | ReaderCoreProtocols |
 
 ## 5. Compile Probe 结果
 
 探测文件: `iOS/CoreIntegration/ReaderCoreRealModeProbe.swift`
 
-验证内容:
-- ✅ `BookSource` 可构造
-- ✅ `SearchQuery` / `SearchResultItem` 可构造
-- ✅ `TOCItem` / `ContentPage` 可构造
-- ✅ `BookSourceRepository` / `BookSourceDecoder` 协议可实现
-- ✅ `HTTPClient` / `RequestBuilder` 协议可实现
-- ✅ `CacheStore` / `CacheRepository` 协议可实现
-- ✅ `ErrorMapper` 相关类型可见
-- ✅ `ReaderPlatformAdapters` 中类型可满足 `HTTPClientProtocol` 等本地协议
+| 验证内容 | 结果 |
+|----------|------|
+| `BookSource` 可构造 | ✅ |
+| `SearchQuery` / `SearchResultItem` 可构造 | ✅ |
+| `TOCItem` / `ContentPage` 可构造 | ✅ |
+| `BookSourceRepository` 协议可实现 | ✅ |
+| `BookSourceDecoder` 协议可实现 | ✅ |
+| `HTTPClient` / `RequestBuilder` 协议可实现 | ✅ |
+| `CacheStore` / `CacheRepository` 协议可实现 | ✅ |
+| `ErrorMapper` 相关类型可见 | ✅ |
+| `ReaderPlatformAdapters` 类型满足本地协议 | ✅ |
 
-## 6. 下一步真实接入建议
+## 6. 接入路线图
 
-### 阶段 A: Facade 对齐 (当前)
-- 保持 `ReaderCoreServiceProvider` 作为唯一入口
-- `ServiceMode` 已预留 `.real`，待 Reader-Core 提供 public pipeline service 后切换
+### 阶段 A: Facade 对齐（当前，iOS 侧已完成）
+- `ReaderCoreServiceProvider` 作为唯一入口
+- `ServiceMode` 已预留 `.real`，待 Core facade 后切换
 
-### 阶段 B: Parser Public Facade (依赖 Reader-Core)
-- 需要 Reader-Core 提供 `ReaderCoreParser` public product 或等效 facade
-- iOS 侧不得直接依赖 `CSSExecutor` / `SelectorEngine` / `NonJSParserEngine`
+### 阶段 B: Parser Public Facade（依赖 Reader-Core upstream）
+- Reader-Core 提供 `BookSourceLoader` / `SearchPipeline` / `TOCPipeline` / `ContentPipeline` public protocols
+- iOS 侧实现 `ReaderCoreService` real mode wiring
 
-### 阶段 C: Pipeline Service (依赖 Reader-Core)
-- 需要 Reader-Core 提供高层编排服务:
-  - `SearchPipeline.execute(query:source:)`
-  - `TOCPipeline.execute(detailURL:source:)`
-  - `ContentPipeline.execute(chapterURL:source:)`
-- iOS 侧通过 `ReaderCoreService` 调用，不直接调用 pipeline 内部
-
-### 阶段 D: Real Mode 切换
-- 在 `ShellAssembly` 中根据 `ServiceMode` 装配 real services
+### 阶段 C: Real Mode 切换
+- `ShellAssembly` 根据 `ServiceMode` 装配 real services
 - 保留 mock mode 用于 UI 开发和测试
 
 ## 7. Clean-Room 声明
