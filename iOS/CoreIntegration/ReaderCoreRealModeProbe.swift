@@ -61,22 +61,18 @@ public enum ReaderCoreRealModeProbe {
 
 // MARK: - Stub implementations for compile probe only
 
-final class ProbeInMemoryBookSourceRepository: BookSourceRepository, @unchecked Sendable {
+actor ProbeInMemoryBookSourceRepository: BookSourceRepository {
     private var sources: [String: BookSource] = [:]
-    private let lock = NSLock()
 
     func save(_ source: BookSource) async throws {
-        lock.lock(); defer { lock.unlock() }
         sources[source.id ?? UUID().uuidString] = source
     }
 
     func allSources() async throws -> [BookSource] {
-        lock.lock(); defer { lock.unlock() }
         return Array(sources.values)
     }
 
     func source(id: String) async throws -> BookSource? {
-        lock.lock(); defer { lock.unlock() }
         return sources[id]
     }
 }
@@ -101,27 +97,22 @@ final class ProbeHTTPClient: HTTPClient, Sendable {
     }
 }
 
-final class InMemoryCacheStore: CacheStore, @unchecked Sendable {
+actor InMemoryCacheStore: CacheStore {
     private var entries: [String: CacheEntry] = [:]
-    private let lock = NSLock()
 
     func get(scope: CacheScope, key: String) async throws -> CacheEntry? {
-        lock.lock(); defer { lock.unlock() }
         return entries["\(scope.rawValue)_\(key)"]
     }
 
     func set(_ entry: CacheEntry) async throws {
-        lock.lock(); defer { lock.unlock() }
         entries["\(entry.scope.rawValue)_\(entry.key)"] = entry
     }
 
     func remove(scope: CacheScope, key: String) async throws {
-        lock.lock(); defer { lock.unlock() }
         entries.removeValue(forKey: "\(scope.rawValue)_\(key)")
     }
 
     func clear(scope: CacheScope?) async throws {
-        lock.lock(); defer { lock.unlock() }
         if let scope = scope {
             let prefix = "\(scope.rawValue)_"
             entries = entries.filter { !$0.key.hasPrefix(prefix) }
@@ -131,42 +122,34 @@ final class InMemoryCacheStore: CacheStore, @unchecked Sendable {
     }
 }
 
-final class InMemoryCacheRepository: CacheRepository, @unchecked Sendable {
+actor InMemoryCacheRepository: CacheRepository {
     private var data: [String: Data] = [:]
-    private let lock = NSLock()
 
     func getSearchResponse(key: String) async throws -> Data? {
-        lock.lock(); defer { lock.unlock() }
         return data["search_\(key)"]
     }
 
     func setSearchResponse(key: String, payload: Data, ttlSeconds: Int) async throws {
-        lock.lock(); defer { lock.unlock() }
         data["search_\(key)"] = payload
     }
 
     func getTOCResponse(key: String) async throws -> Data? {
-        lock.lock(); defer { lock.unlock() }
         return data["toc_\(key)"]
     }
 
     func setTOCResponse(key: String, payload: Data, ttlSeconds: Int) async throws {
-        lock.lock(); defer { lock.unlock() }
         data["toc_\(key)"] = payload
     }
 
     func getContentResponse(key: String) async throws -> Data? {
-        lock.lock(); defer { lock.unlock() }
         return data["content_\(key)"]
     }
 
     func setContentResponse(key: String, payload: Data, ttlSeconds: Int) async throws {
-        lock.lock(); defer { lock.unlock() }
         data["content_\(key)"] = payload
     }
 
     func clear(scope: CacheScope?) async throws {
-        lock.lock(); defer { lock.unlock() }
         if let scope = scope {
             let prefix = "\(scope.rawValue)_"
             data = data.filter { !$0.key.hasPrefix(prefix) }

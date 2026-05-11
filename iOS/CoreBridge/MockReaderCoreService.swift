@@ -12,23 +12,23 @@ public enum MockScenario {
     case loginRequired
 }
 
-public final class MockReaderCoreService: Sendable {
+public final class MockReaderCoreService {
     public static let shared = MockReaderCoreService()
 
     private var scenario: MockScenario = .success
-    private let lock = NSLock()
+    private let scenarioLock = NSLock()
 
     private init() {}
 
     public func setScenario(_ scenario: MockScenario) {
-        lock.lock()
-        defer { lock.unlock() }
+        scenarioLock.lock()
+        defer { scenarioLock.unlock() }
         self.scenario = scenario
     }
 
     public func reset() {
-        lock.lock()
-        defer { lock.unlock() }
+        scenarioLock.lock()
+        defer { scenarioLock.unlock() }
         self.scenario = .success
     }
 

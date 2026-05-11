@@ -40,6 +40,15 @@ struct RootShellView: View {
             .navigationDestination(for: Route.self) { route in
                 destinationView(for: route)
             }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        navigationState.navigate(to: .settings)
+                    } label: {
+                        Image(systemName: "gear")
+                    }
+                }
+            }
         }
     }
 
@@ -68,6 +77,8 @@ struct RootShellView: View {
             } else {
                 Text("章节信息不可用")
             }
+        case .settings:
+            SettingsView()
         }
     }
 }

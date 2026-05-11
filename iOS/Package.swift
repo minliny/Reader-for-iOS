@@ -114,6 +114,17 @@ let package = Package(
                 "ReaderIOSPlatformAdapters"
             ],
             path: "Tests/PlatformAdapterTests"
+        ),
+        .testTarget(
+            name: "LinuxValidationTests",
+            dependencies: [
+                "ReaderShellValidation",
+                "ReaderIOSPlatformAdapters",
+                "ReaderAppSupport",
+                .product(name: "ReaderCoreModels", package: "Reader-Core"),
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core")
+            ],
+            path: "Tests/LinuxValidationTests"
         )
     ]
 )

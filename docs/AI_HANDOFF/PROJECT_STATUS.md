@@ -6,70 +6,84 @@
 - 当前仓库角色：`Reader-iOS 主仓`
 - 依赖上游仓：`Reader-Core`
 - 当前主线：`Reader-for-iOS 正式开发启动阶段`
-- 当前阶段：`Phase 0-1 development`
+- 当前阶段：`Phase 1: CoreBridge + Mock Service + non-JS UI` — READY_CANDIDATE
+- 当前状态：`READY_CANDIDATE`
 - 当前是否允许继续推进新功能：`yes`
-- 判断原因：Reader-for-iOS 正式开发已启动，当前阶段为 Phase 0-1：Core 接入准备与书源管理。
 
-## 当前审计批次
+## Phase 1 完成情况
 
-### Batch 1: Reader-Core 独立性验证
+### Phase 1A (implicit)
+- iOS 目录结构建立
+- App Shell 骨架（AppDelegate, SceneDelegate, RootShellView）
+- Package.swift 基础 targets
+- 边界检查脚本 `scripts/check_ios_boundary.sh`
 
-- fresh clone：`complete`
-- 独立 Package.swift：`present`
-- 最新 GitHub Actions core-swift-tests：`failure`
-- 结论：Reader-Core 尚未达到独立 green 稳态
+### Phase 1B: PlatformAdapters + Real Mode Probe
+| 产出 | 状态 |
+|------|------|
+| ReaderIOSPlatformAdapters target（5 adapter files） | ✅ 编译通过 |
+| PlatformAdapterTests target | ✅ 编译通过 |
+| ReaderCoreRealModeProbe.swift | ✅ actor-based stub |
+| docs/READER_CORE_REAL_MODE_PROBE.md | ✅ |
+| SettingsView.swift + SettingsViewModel.swift | ✅ |
+| Package.swift 修改（2 targets） | ✅ |
+| check_ios_boundary.sh 更新 | ✅ |
 
-### Batch 2: Reader-iOS 依赖策略审计
+### Phase 1C: Linux Test Decoupling + Swift 6 Warning Cleanup
+| 产出 | 状态 |
+|------|------|
+| LinuxValidationTests target（8 tests） | ✅ 编译通过 |
+| Route.swift `.settings` case | ✅ |
+| ReaderApp.swift settings 入口（toolbar gear） | ✅ |
+| MockReaderCoreService Swift 6 修复 | ✅ |
+| InMemoryBookSourceRepository NSLock → actor | ✅ |
+| ShellAssemblySmokeTests + LinuxValidationTests `nonisolatedIs` | ✅ |
+| 所有非 SwiftUI targets 零 warning 编译 | ✅ |
+| SwiftPM Linux `swift test` blocker 文档化 | ✅ |
 
-- 当前模式：`path dependency`
-- 依赖方向：`Reader-iOS -> Reader-Core public package/products only`
-- 结论：方向正确，但 path dependency 不适合作为长期 canonical mode
+## Linux 验证结果
 
-### Batch 3: Boundary Gate 加固
+```bash
+swift build --target ReaderAppSupport           # ✅ 0 warning
+swift build --target ReaderIOSPlatformAdapters  # ✅ 0 warning
+swift build --target ReaderShellValidation      # ✅ 0 warning
+swift build --target LinuxValidationTests       # ✅ 0 warning
+swift build --target PlatformAdapterTests       # ✅ 0 warning
+swift test --filter LinuxValidationTests       # ❌ SwiftPM blocker
+scripts/check_ios_boundary.sh                  # ✅ PASS (62 files)
+```
 
-- `scripts/check_ios_boundary.sh`：`patched`
-- 新增校验：
-  - forbidden root paths
-  - forbidden core workflows
-  - forbidden core docs
-  - legacy local Core path references
+**Linux swift test blocker**: SwiftPM 编译 ALL test targets 依赖图，`--filter` 只影响执行阶段。
+Solution: Linux CI 用 `swift build --target`，macOS CI 用 `swift test`。
 
-### Batch 4: Docs Semantic Audit
+## Reader-Core Real Mode Blocker
 
-- 发现：当前仓仍残留 `Reader-Core transition host` 语义
-- 处理：主状态文档、handoff、prompt governance、docs split index 已回写为 Reader-iOS 主仓语义
+详见 `docs/READER_CORE_REAL_MODE_PROBE.md`。
 
-### Batch 5: CI Audit
-
-- Reader-Core 最新 `Reader Core Swift Tests`：`failure`
-- Reader-iOS 最新 `iOS Shell CI`：`failure`
-- Reader-iOS 阻断原因：checkout path 在 workspace 之外
-- 处理：本仓 workflow 已改为 `path: Reader-Core`
+**核心发现**：ReaderCoreParser product 存在但无 public pipeline facade。
+**阻塞点**：需要 Reader-Core 提供高于 Parser internal 实现层的 public Facade API。
+**后续任务**：M-IOS-5（upstream Reader-Core 侧任务）。
 
 ## 最近一次动作
 
-- 已完成：`Post-Split Stabilization Audit`
-- 已完成：Reader-iOS `ios-shell-ci` checkout path 修复
-- 已完成：Reader-iOS boundary gate 加固
-- 已完成：Reader-iOS 状态文档去除 transition-host 漂移
+- Phase 1C: Linux Test Decoupling + Swift 6 Warning Cleanup
+- InMemoryBookSourceRepository: NSLock → actor
+- MockReaderCoreService: 移除 `Sendable`，重命名 `scenarioLock`
+- 三份状态文件同步更新
+- SwiftPM Linux blocker 文档化
 
 ## 下一步唯一最优任务
 
-```yaml
-current_repo_role: Reader-iOS
-reverse_split_bootstrap_complete: true
-core_asset_migration_complete: true
-current_repo_role_switched_to_reader_ios: true
-dual_repo_consistency_complete: true
-```
+**Phase 2 入口条件**：
+1. macOS `swift test` 验证（非 SwiftUI 测试通过）
+2. Reader-Core public Parser facade 完成（upstream）
 
-- 本仓保留资产：iOS/**、scripts/check_ios_boundary.sh、.github/workflows/ios-shell-ci.yml、iOS docs/handoff
-- 本仓已移除：Core/**、samples/**、tools/**、Adapters/**、Platforms/**、10 Core workflows、Core docs
-- 远端：https://github.com/minliny/Reader-iOS
-- Reader-Core 远端：https://github.com/minliny/Reader-Core，commit b4dffc4，tag 0.1.0
-- Reader-iOS 依赖：`../Reader-Core` (local)，canonical: `https://github.com/minliny/Reader-Core.git`
+**推荐路径**：
+1. 在 macOS runner 执行 `swift test` 验证 Phase 1 测试通过
+2. 在 Reader-Core 侧推动 public Parser pipeline facade
 
 ## Clean-Room 状态
 
 - Clean-room maintained: `yes`
 - External GPL code copied: `no`
+- Legado Android source referenced: `no`

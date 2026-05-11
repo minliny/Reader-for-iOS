@@ -2,6 +2,10 @@ import XCTest
 @testable import ReaderShellValidation
 import ReaderCoreModels
 
+private func nonisolatedIs<T>(_ value: Any, _ type: T.Type) -> Bool {
+    return value is T
+}
+
 final class ShellAssemblySmokeTests: XCTestCase {
     @MainActor
     func testShellAssemblyBuildsDefaultCoordinator() {
@@ -18,7 +22,7 @@ final class ShellAssemblySmokeTests: XCTestCase {
     func testShellAssemblyWiresExpectedCoreIntegrationTypes() {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
 
-        XCTAssertTrue(coordinator.bookSourceRepository is InMemoryBookSourceRepository)
+        XCTAssertTrue(nonisolatedIs(coordinator.bookSourceRepository, InMemoryBookSourceRepository.self))
         XCTAssertTrue(coordinator.bookSourceDecoder is DefaultBookSourceDecoder)
         XCTAssertTrue(coordinator.searchService is MockSearchService)
         XCTAssertTrue(coordinator.tocService is MockTOCService)
