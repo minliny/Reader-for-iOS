@@ -34,7 +34,8 @@ let package = Package(
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
                 .product(name: "ReaderCoreParser", package: "Reader-Core"),
                 .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
-                .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
+                .product(name: "ReaderPlatformAdapters", package: "Reader-Core"),
+                "ReaderIOSPlatformAdapters"
             ],
             path: ".",
             exclude: [
@@ -45,6 +46,7 @@ let package = Package(
                 "Navigation",
                 "Surface",
                 "Tests",
+                "PlatformAdapters"
             ],
             sources: [
                 "CoreIntegration",
@@ -84,6 +86,18 @@ let package = Package(
                 "Surface"
             ]
         ),
+        .target(
+            name: "ReaderIOSPlatformAdapters",
+            dependencies: [],
+            path: "PlatformAdapters",
+            sources: [
+                "IOSHTTPAdapter.swift",
+                "IOSStorageAdapter.swift",
+                "IOSKeychainCredentialStore.swift",
+                "IOSLoggerAdapter.swift",
+                "IOSSnapshotStore.swift"
+            ]
+        ),
         .testTarget(
             name: "ShellSmokeTests",
             dependencies: [
@@ -93,6 +107,13 @@ let package = Package(
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core")
             ],
             path: "Tests/ShellSmokeTests"
+        ),
+        .testTarget(
+            name: "PlatformAdapterTests",
+            dependencies: [
+                "ReaderIOSPlatformAdapters"
+            ],
+            path: "Tests/PlatformAdapterTests"
         )
     ]
 )

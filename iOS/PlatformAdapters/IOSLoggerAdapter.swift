@@ -1,5 +1,4 @@
 import Foundation
-import os.log
 
 public protocol AppLoggerProtocol: Sendable {
     func debug(_ message: String)
@@ -7,6 +6,9 @@ public protocol AppLoggerProtocol: Sendable {
     func warning(_ message: String)
     func error(_ message: String)
 }
+
+#if canImport(os)
+import os.log
 
 public final class IOSLoggerAdapter: AppLoggerProtocol, Sendable {
     private let logger: Logger
@@ -31,3 +33,31 @@ public final class IOSLoggerAdapter: AppLoggerProtocol, Sendable {
         logger.error("\(message)")
     }
 }
+
+#else
+
+public final class IOSLoggerAdapter: AppLoggerProtocol, Sendable {
+    private let category: String
+
+    public init(subsystem: String = "com.reader.app", category: String = "default") {
+        self.category = category
+    }
+
+    public func debug(_ message: String) {
+        print("[DEBUG][\(category)] \(message)")
+    }
+
+    public func info(_ message: String) {
+        print("[INFO][\(category)] \(message)")
+    }
+
+    public func warning(_ message: String) {
+        print("[WARN][\(category)] \(message)")
+    }
+
+    public func error(_ message: String) {
+        print("[ERROR][\(category)] \(message)")
+    }
+}
+
+#endif

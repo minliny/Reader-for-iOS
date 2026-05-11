@@ -6,6 +6,9 @@ public protocol CredentialStoreProtocol: Sendable {
     func deleteCredential(for key: String) async throws
 }
 
+#if canImport(Security)
+import Security
+
 public final class IOSKeychainCredentialStore: CredentialStoreProtocol, @unchecked Sendable {
     private let service: String
     private let lock = NSLock()
@@ -64,3 +67,28 @@ public enum KeychainError: Error {
     case loadFailed(status: OSStatus)
     case deleteFailed(status: OSStatus)
 }
+
+#else
+
+public final class IOSKeychainCredentialStore: CredentialStoreProtocol, @unchecked Sendable {
+    private let service: String
+    public init(service: String = "com.reader.app") { self.service = service }
+    public func saveCredential(_ credential: String, for key: String) async throws {
+        throw KeychainError.unavailable
+    }
+    public func loadCredential(for key: String) async throws -> String? {
+        throw KeychainError.unavailable
+    }
+    public func deleteCredential(for key: String) async throws {
+        throw KeychainError.unavailable
+    }
+}
+
+public enum KeychainError: Error {
+    case saveFailed(status: Int32)
+    case loadFailed(status: Int32)
+    case deleteFailed(status: Int32)
+    case unavailable
+}
+
+#endif

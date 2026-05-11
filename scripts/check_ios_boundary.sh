@@ -30,6 +30,10 @@ readonly forbidden_patterns=(
   "ReaderCoreParser.*internal"
   "WKWebView"
   "JS experimental runtime"
+  "QuickJS"
+  "Hermes"
+  "JavaScriptCore"
+  "WebDAV production sync"
 )
 
 readonly forbidden_root_paths=(

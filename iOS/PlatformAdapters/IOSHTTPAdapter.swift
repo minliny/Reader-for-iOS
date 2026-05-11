@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public protocol HTTPClientProtocol: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, URLResponse)
@@ -8,7 +11,7 @@ public final class IOSHTTPAdapter: HTTPClientProtocol, @unchecked Sendable {
     private let session: URLSession
     private let lock = NSLock()
 
-    public init(session: URLSession = .shared) {
+    public init(session: URLSession = URLSession.shared) {
         self.session = session
     }
 
