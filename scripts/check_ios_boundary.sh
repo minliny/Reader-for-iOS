@@ -11,6 +11,7 @@ readonly restricted_paths=(
   "iOS/Modules"
   "iOS/Shell"
   "iOS/Tests"
+  "iOS/PlatformAdapters"
 )
 
 readonly forbidden_modules=(
@@ -18,6 +19,17 @@ readonly forbidden_modules=(
   "ReaderCoreParser"
   "ReaderCoreCache"
   "ReaderCoreExecution"
+)
+
+readonly forbidden_patterns=(
+  "CSSExecutor"
+  "SelectorEngine"
+  "NonJSParserEngine"
+  "Fixture helper"
+  "Test-only helper"
+  "ReaderCoreParser.*internal"
+  "WKWebView"
+  "JS experimental runtime"
 )
 
 readonly forbidden_root_paths=(
@@ -61,6 +73,11 @@ check_file() {
     while IFS= read -r line; do
       violations+=("${file}:${line}:${module}")
     done < <(grep -nE "^[[:space:]]*import[[:space:]]+${module}([[:space:]]|$)" "$file" || true)
+  done
+  for pattern in "${forbidden_patterns[@]}"; do
+    while IFS= read -r line; do
+      violations+=("${file}:${line}:pattern:${pattern}")
+    done < <(grep -nE "${pattern}" "$file" || true)
   done
 }
 
@@ -140,6 +157,11 @@ if (( ${#violations[@]} > 0 )); then
     fi
     if [[ "${violation}" == workflow:* ]]; then
       echo "violation kind=forbidden_workflow file=.github/workflows/${violation#workflow:}"
+      continue
+    fi
+    if [[ "${violation}" == *:pattern:* ]]; then
+      IFS=":" read -r file line_no _ pattern <<< "${violation}"
+      echo "violation file=${file#${repo_root}/} line=${line_no} marker=pattern pattern=${pattern}"
       continue
     fi
     IFS=":" read -r file line_no module <<< "${violation}"
