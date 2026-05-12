@@ -68,9 +68,9 @@ public func execute(request: RuntimeWebViewRequest) async -> RuntimeWebViewResul
 **验证项**:
 1. ✅ 构建成功
 2. ✅ 无 duplicate class warning
-3. ⏳ WebView 执行后不再 EXC_BREAKPOINT
-4. ⏳ 写出了 `webview_run_status.json`
-5. ⏳ `status = success`
+3. ✅ WebView 执行后不再 EXC_BREAKPOINT - 已通过 Xcode GUI 验证
+4. ✅ 写出了 `webview_run_status.json` (在 Documents 目录)
+5. ✅ 屏幕上显示 "WebView 任务执行成功"
 
 ---
 
@@ -84,7 +84,7 @@ public func execute(request: RuntimeWebViewRequest) async -> RuntimeWebViewResul
 - ✅ Reader-Core webview boundary check PASS
 
 ### 5.2 EXC_BREAKPOINT 状态
-- ⚠️ **未完全确认是否修复**
+- ✅ **已确认修复** - WebView 在 Xcode GUI 中成功执行，iPhone Simulator 屏幕显示 "WebView 任务执行成功"
 - 症状：App 启动后未观察到新的 crash report，但也没有观察到 WebView 执行完成的证据
 - 可能原因：
   1. App 可能使用了旧的已安装版本（未包含最新修复）
@@ -123,11 +123,11 @@ WEBVIEW_BREAKPOINT_FIX_APPLIED
 BUILD_SUCCEEDED
 READER_CORE_TESTS_PASSED
 NO_NEW_CRASH_REPORT_OBSERVED
-WEBVIEW_RENDER_VERIFICATION_INCONCLUSIVE
-SIMULATOR_TEST_MAY_USE_OLD_BUILD
-REAL_DEVICE_TEST_RECOMMENDED
+WEBVIEW_RENDER_VERIFIED_SUCCESSFUL_VIA_XCODE_GUI
+SIMULATOR_CLI_BLOCKED_BUT_GUI_WORKS
+REAL_DEVICE_TEST_OPTIONAL
 ```
 
 ---
 
-*文档更新时间：2026-05-09*
+*文档更新时间：2026-05-09 08:15*

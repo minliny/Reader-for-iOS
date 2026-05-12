@@ -92,8 +92,10 @@ public struct WebViewRuntimeAutorunView: View {
             }
         }
         .task {
+            print("[WebViewHarness] autorun view appeared")
             // 延迟启动，确保 SwiftUI view 完全稳定
             try? await Task.sleep(nanoseconds: 500_000_000)
+            print("[WebViewHarness] executeRender scheduled")
             await viewModel.executeRender()
         }
     }
@@ -128,9 +130,12 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
 
         // 创建默认 output directory
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: "/tmp")
+        print("[WebViewHarness] init documentsDirectory=\(documentsPath.path)")
         self.outputDirectory = configuration.outputDirectory.isEmpty
             ? documentsPath.appendingPathComponent("WebViewHarnessRuns/\(runId)").path
             : "\(configuration.outputDirectory)/\(runId)"
+        print("[WebViewHarness] init outputDirectory=\(self.outputDirectory)")
+        print("[WebViewHarness] init status file will be at=\(self.outputDirectory)/webview_run_status.json")
 
         // 创建 adapter（严格配置）
         self.adapter = WKWebViewRuntimeAdapter.strict(
@@ -143,10 +148,15 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
     public func executeRender() async {
         guard !isLoading else { return }
 
+        print("[WebViewHarness] executeRender called mainThread=\(Thread.isMainThread)")
+        print("[WebViewHarness] runId=\(runId)")
+        print("[WebViewHarness] outputDirectory=\(outputDirectory)")
+
         // 创建输出目录
         try? FileManager.default.createDirectory(atPath: outputDirectory, withIntermediateDirectories: true)
 
         // 写入初始状态
+        print("[WebViewHarness] writing initial status=running")
         writeRunStatus(status: "running", errorMessage: nil)
 
         isLoading = true
@@ -156,7 +166,9 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         let request = createAuthorizedRequest()
 
         // 执行 - adapter.execute 现在是 @MainActor
+        print("[WebViewHarness] adapter execute started")
         let result = await adapter.execute(request: request)
+        print("[WebViewHarness] adapter execute returned finalUrl=\(result.finalUrl) navigationCount=1 htmlSize=\(result.html.utf8.count)")
 
         let executionTime = Int(Date().timeIntervalSince(startTime) * 1000)
         self.executionTimeMs = executionTime
@@ -173,14 +185,18 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
             }
 
             // 写入结果文件
+            print("[WebViewHarness] writing result files")
             writeResultFiles(result: result)
 
             // 更新状态
+            print("[WebViewHarness] writing final status=success")
             writeRunStatus(status: "success", errorMessage: nil)
         } else {
             self.errorMessage = result.errorMessage ?? "Unknown error"
+            print("[WebViewHarness] execute failed phase=result_processing error=\(result.errorMessage ?? "unknown")")
 
             // 写入失败状态
+            print("[WebViewHarness] writing failed status")
             writeRunStatus(status: "failed", errorMessage: result.errorMessage ?? "Unknown error")
         }
 
@@ -234,10 +250,12 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         }
         """
         let resultPath = "\(outputDirectory)/webview_result.json"
+        print("[WebViewHarness] writing webview_result.json path=\(resultPath)")
         try? resultJson.write(toFile: resultPath, atomically: true, encoding: .utf8)
 
         // rendered_detail.html
         let htmlPath = "\(outputDirectory)/rendered_detail.html"
+        print("[WebViewHarness] writing rendered_detail.html path=\(htmlPath) bytes=\(result.html.utf8.count)")
         try? result.html.write(toFile: htmlPath, atomically: true, encoding: .utf8)
 
         // snapshot metadata
@@ -249,7 +267,9 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         }
         """
         let snapshotMetaPath = "\(outputDirectory)/webview_snapshot_metadata.json"
+        print("[WebViewHarness] writing webview_snapshot_metadata.json path=\(snapshotMetaPath)")
         try? snapshotMeta.write(toFile: snapshotMetaPath, atomically: true, encoding: .utf8)
+        print("[WebViewHarness] write completed")
     }
 
     private func writeRunStatus(status: String, errorMessage: String?) {

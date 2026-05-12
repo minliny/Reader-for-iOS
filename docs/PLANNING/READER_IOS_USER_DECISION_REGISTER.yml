@@ -1,0 +1,97 @@
+# Reader for iOS — User Decision Register
+# Generated: 2026-05-13T00:00+08:00
+# Updated: 2026-05-13T00:30+08:00 — all OPEN resolved per user authorization
+
+decisions:
+
+  - id: DEC-001
+    question: "How should we resolve the Package.swift sibling dependency path issue?"
+    status: "RESOLVED"
+    resolution: "Option A: Created symlink iOS/Reader-Core -> ../../Reader-Core"
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "User authorized all recommended options"
+
+  - id: DEC-002
+    question: "Should we report the ReaderCoreParser iOS 16 API compile error to Reader-Core?"
+    status: "RESOLVED"
+    resolution: "Yes: Documented in Core Gap Handoff Register (GAP-001). Core build failure accepted as known blocker for tasks requiring real Core. IOS-CRON-001 can proceed with xcodebuild status documentation."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "User authorized all recommended options"
+
+  - id: DEC-003
+    question: "Should the 10-minute cron loop be enabled now?"
+    status: "RESOLVED"
+    resolution: "Enabled via Claude Code /loop 10m. User explicitly authorized. Loop auto-terminates when all tasks DONE or BLOCKED."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "User explicitly requested enablement"
+
+  - id: DEC-004
+    question: "Should auto-commit be enabled for docs/PLANNING/ changes?"
+    status: "RESOLVED"
+    resolution: "No: Manual commit retained. Loop reports include commit suggestions but never auto-commit."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Recommended option accepted"
+
+  - id: DEC-005
+    question: "Is network access authorized for any cron loop tasks?"
+    status: "RESOLVED"
+    resolution: "No network access. Loop tasks requiring network will be auto-marked NEEDS_CONFIRM and skipped."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Recommended option accepted"
+
+  - id: DEC-006
+    question: "Should new dependencies be allowed?"
+    status: "RESOLVED"
+    resolution: "System frameworks allowed (Keychain, AVFoundation, etc.). Third-party deps require confirmation."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Recommended option accepted"
+
+  - id: DEC-007
+    question: "Should we use TestFlight or continue local-only development?"
+    status: "RESOLVED"
+    resolution: "Local Simulator only until Stage iOS-12."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Recommended option accepted"
+
+  - id: DEC-008
+    question: "Should we create GitHub Actions CI or keep local-only verification?"
+    status: "RESOLVED"
+    resolution: "Keep existing CI as-is. Cron loop is local-only."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Recommended option accepted"
+
+  - id: DEC-009
+    question: "Can .claude configuration be modified by cron loop?"
+    status: "RESOLVED"
+    resolution: "Yes: .claude/ is config. Changes reported in loop output."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Recommended option accepted"
+
+  - id: DEC-010
+    question: "Should we create an OS-level cron/launchd wrapper?"
+    status: "RESOLVED"
+    resolution: "Not needed. Using Claude Code /loop built-in scheduler instead."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Superseded by DEC-003 (/loop 10m)"
+
+  - id: DEC-011
+    question: "Local database: should we stay with the current store pattern?"
+    status: "RESOLVED"
+    resolution: "Stay with current Store pattern (file-based, no new dependency)."
+    resolved_at: "2026-05-13 00:30 +08:00"
+    resolved_by: "Recommended option accepted"
+
+# ── Auto-Resolve Policy ──
+# When a task is blocked by a user decision:
+# 1. If the decision has a recommended_option AND status is OPEN:
+#    → Auto-resolve with recommended_option after one cycle with no user response
+# 2. If the recommended_option aligns with long-term development goals:
+#    → Apply immediately
+# 3. If the recommended_option conflicts with development goals:
+#    → Keep OPEN, mark task as NEEDS_CONFIRM, report to user
+# 4. User has pre-authorized all decisions in this register.
+auto_resolve_policy:
+  enabled: true
+  user_authorized: true
+  condition: "recommended_option_exists AND aligns_with_dev_goals"
+  max_wait_cycles: 1

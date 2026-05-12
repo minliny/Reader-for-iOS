@@ -24,6 +24,10 @@ public struct ReaderApp: App {
         #if DEBUG && canImport(WebKit)
         // 解析 autorun 配置
         let config = WebViewRuntimeAutorunConfiguration.parse(CommandLine.arguments)
+        print("[WebViewHarness] autorun args parsed enabled=\(config.isEnabled) valid=\(config.isValid)")
+        print("[WebViewHarness] bundleId=com.reader.ios")
+        let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        print("[WebViewHarness] documentsDirectory=\(docsDir?.path ?? "nil")")
         if config.isEnabled && config.isValid {
             _autorunConfiguration = State(wrappedValue: config)
         }

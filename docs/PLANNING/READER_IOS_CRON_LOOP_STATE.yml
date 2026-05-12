@@ -1,0 +1,126 @@
+# Reader for iOS — Cron Loop State
+# Generated: 2026-05-13T00:00+08:00
+# Updated: 2026-05-13T00:30+08:00 — loop enabled, decisions resolved, symlink created
+
+current_head: "6a25beb"
+current_branch: "main"
+working_tree_status: "MODIFIED"
+detected_stage: "iOS-1"
+validation_status: "FAILED"
+core_dependency_status: "RESOLVED_BUT_BUILD_FAILED"
+public_api_integration_status: "MOCK_ONLY"
+boundary_violation_status: "PASS"
+
+# ── Cron Loop Configuration ──
+cron_loop_enabled: true
+cron_interval_minutes: 10
+trigger_method: "/loop 10m /reader-ios-cron-loop"
+
+# ── Final State ──
+loop_terminated: true
+loop_job_id: "0b3feab8"
+termination_reason: "ALL_TASKS_EXHAUSTED"
+terminated_at: "2026-05-13 00:48 +08:00"
+
+# ── Final Summary ──
+total_cycles: 11
+tasks_completed: 19
+tasks_blocked: 6
+tasks_moved_to_core: 2
+stages_completed: "iOS-0 through iOS-12 (planning phase)"
+cron_loop_enabled: false
+next_recommended_task_title: "Bookshelf MVP plan"
+
+# ── Stage Progress ──
+stage_ios_1_progress: "4/4 DONE — public API audit, boundary rules, boundary script, CoreBridge inventory"
+stage_ios_2_progress: "2/2 DONE — route inventory, navigation plan"
+
+# ── Consecutive STOPs ──
+consecutive_stop_cycles: 0
+
+# ── Recent Resolutions ──
+resolved_this_session:
+  - "DEC-001: Symlink iOS/Reader-Core -> ../../Reader-Core created"
+  - "DEC-002: Core build failure documented as GAP-001"
+  - "DEC-003: Loop enabled via /loop 10m"
+  - "DEC-004 through DEC-011: All resolved per user authorization"
+
+# ── Blockers ──
+active_blockers:
+  - id: BLOCK-CRON-001
+    description: "ReaderCoreParser iOS 16 API in SimpleXPathEvaluator.swift:293"
+    impact: "xcodebuild fails; real Core integration blocked"
+    owner: "Reader-Core"
+    status: "ACTIVE_ACCEPTED"
+    accepted: true
+    note: "Accepted as known Core gap. Mock-driven development continues."
+
+  - id: BLOCK-CRON-003
+    description: "ReaderCoreServiceProvider only has mock mode"
+    impact: "All features mock-driven"
+    owner: "Reader for iOS"
+    status: "DEPENDS_ON_BLOCK_001"
+    accepted: true
+    note: "Acceptable for current stage. Real mode after Core build fix."
+
+# ── User Decisions ──
+user_decisions_needed: []
+
+# ── Core Gaps ──
+moved_to_core_items:
+  - "CORE-GAP-CRON-001: ReaderCoreParser iOS 16 API (REPORTED)"
+  - "CORE-GAP-CRON-002: Package.swift path (RESOLVED via symlink)"
+
+# ── Failed Validations ──
+failed_validations:
+  - check: "xcodebuild ReaderForIOSApp"
+    status: "FAILED"
+    reason: "ReaderCoreParser SimpleXPathEvaluator iOS 16 API (Core-side)"
+    date: "2026-05-12"
+    accepted: true
+
+  - check: "swift test (macOS host)"
+    status: "PARTIAL"
+    reason: "199/199 files compile; fails at link with iOS-only API on macOS destination. Need iOS Simulator target for full test pass."
+    date: "2026-05-13"
+
+  - check: "scripts/check_ios_boundary.sh"
+    status: "PASS"
+    date: "2026-05-13"
+
+# ── Symlink Status ──
+symlink:
+  path: "Reader-Core (repo root)"
+  target: "../Reader-Core"
+  resolves_to: "/Users/minliny/Documents/Reader-Core"
+  status: "CREATED_AND_WORKING"
+
+# ── File Tracking ──
+modified_files:
+  - ".claude/reader-ios-cron-loop.yml"
+  - ".claude/commands/reader-ios-cron-loop.md"
+  - "docs/PLANNING/READER_IOS_USER_DECISION_REGISTER.yml"
+  - "docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml"
+
+new_files:
+  - "iOS/Reader-Core (symlink -> ../../Reader-Core)"
+
+allowed_next_files:
+  - "docs/PLANNING/"
+  - ".claude/"
+  - "scripts/"
+
+# ── Auto-Terminate State ──
+consecutive_stop_cycles: 0
+auto_terminate_enabled: true
+auto_terminate_conditions:
+  all_tasks_done_or_blocked: false
+  fatal_blocker_present: false
+
+# ── Policy ──
+network_access: false
+dependency_changes: false
+code_changes: false
+commit_performed: false
+
+generated_at_local: "2026-05-13 00:30 +08:00"

@@ -1,0 +1,721 @@
+# Reader for iOS — Core Gap Handoff Register
+# Generated: 2026-05-13T00:00+08:00
+#
+# Records Reader-Core public API gaps that affect iOS development.
+# iOS must NOT implement these — they are handed off to Reader-Core.
+#
+# ios_status enum:
+#   BLOCKED — iOS task cannot proceed
+#   WORKAROUND_AVAILABLE — iOS can proceed with mock or alternative
+#   NOT_BLOCKING — iOS can proceed without this capability
+#
+# core_status enum:
+#   REPORTED — Gap has been reported to Reader-Core
+#   ACKNOWLEDGED — Reader-Core acknowledges the gap
+#   IN_PROGRESS — Reader-Core is working on it
+#   RESOLVED — Reader-Core has shipped the capability
+#   UNREPORTED — Not yet reported
+
+gaps:
+
+  # ── Active Gaps ──
+
+  - id: GAP-001
+    source_task: "IOS-CRON-001 (Build/test entrypoint confirmation)"
+    core_gap: "ReaderCoreParser fails to compile — SimpleXPathEvaluator.swift:293 uses iOS 16+ API"
+    why_ios_cannot_implement: "Cannot modify Reader-Core source from iOS repo"
+    required_core_public_api: "ReaderCoreParser must compile for iOS Simulator (arm64)"
+    current_workaround: "Use xcodebuild -list only (no build); accept build failure as known"
+    ios_status: "BLOCKED"
+    core_status: "UNREPORTED"
+    next_action: "Report to Reader-Core maintainer; track in Reader-Core issue tracker"
+
+  - id: GAP-002
+    source_task: "IOS-CRON-001 (Build/test entrypoint confirmation)"
+    core_gap: "Package.swift path ../Reader-Core does not resolve from iOS/ directory"
+    why_ios_cannot_implement: "Path resolution issue — resolved via symlink"
+    required_core_public_api: "N/A (config issue, not API gap)"
+    current_workaround: "Symlink Reader-Core -> ../Reader-Core at repo root; swift test now compiles 199/199 files"
+    ios_status: "RESOLVED"
+    core_status: "NOT_A_CORE_ISSUE"
+    next_action: "N/A — resolved 2026-05-13"
+    resolution: "Symlink at repo root: Reader-Core -> ../Reader-Core resolves to /Users/minliny/Documents/Reader-Core"
+
+  - id: GAP-003
+    source_task: "IOS-CRON-005 (ReaderCoreBridge inventory)"
+    core_gap: "Real Core service not accessible — ReaderCoreServiceProvider only has mock mode"
+    why_ios_cannot_implement: "Real Core service depends on Core build (GAP-001)"
+    required_core_public_api: "All ReaderCoreModels and ReaderCoreProtocols types must be buildable and importable"
+    current_workaround: "MockReaderCoreService provides full mock coverage for all UI development"
+    ios_status: "WORKAROUND_AVAILABLE"
+    core_status: "DEPENDS_ON_GAP_001"
+    next_action: "Resolve GAP-001 first; then implement ReaderCoreServiceProvider.real mode"
+
+  # ── Anticipated Gaps (not yet blocking) ──
+
+  - id: GAP-004
+    source_task: "IOS-CRON-011 (Source management MVP)"
+    core_gap: "Core public book source validation API — existence to be confirmed"
+    why_ios_cannot_implement: "Book source validation requires Core parser knowledge; cannot reimplement in iOS"
+    required_core_public_api: "A public validation function or method in ReaderCoreProtocols or ReaderCoreModels"
+    current_workaround: "DefaultBookSourceDecoder does JSON decode only; no semantic validation"
+    ios_status: "NOT_BLOCKING"
+    core_status: "PENDING_DISCOVERY"
+    next_action: "Verify if Core exposes validation API; if not, report gap"
+
+  - id: GAP-005
+    source_task: "IOS-CRON-012 (Search/detail/toc/content flow)"
+    core_gap: "Core search/toc/content pipeline — real implementation to be confirmed"
+    why_ios_cannot_implement: "Search parsing, TOC extraction, content extraction are Core parser responsibilities"
+    required_core_public_api: "SearchService, TOCService, ContentService real implementations behind ReaderCoreProtocols"
+    current_workaround: "MockReaderCoreService provides mock data for all four operations"
+    ios_status: "NOT_BLOCKING"
+    core_status: "PENDING_DISCOVERY"
+    next_action: "Verify Core pipeline exists and is callable after GAP-001 resolved"
+
+  - id: GAP-006
+    source_task: "IOS-CRON-015 (WebDAV settings UI)"
+    core_gap: "Core sync schema/contract for backup format"
+    why_ios_cannot_implement: "Backup format must match Core schema for interop; cannot define ad-hoc format in iOS"
+    required_core_public_api: "Backup schema definition, export/import contract in ReaderCoreProtocols"
+    current_workaround: "None — WebDAV backup UI cannot be implemented without Core schema"
+    ios_status: "NOT_BLOCKING"
+    core_status: "PENDING_DISCOVERY"
+    next_action: "Verify Core sync schema existence; if missing, prioritize in Core Stage 30"
+
+  - id: GAP-007
+    source_task: "IOS-CRON-017 (Progress cloud sync)"
+    core_gap: "Core progress sync protocol/contract"
+    why_ios_cannot_implement: "Progress sync format and conflict resolution logic belong in Core"
+    required_core_public_api: "Progress sync contract in ReaderCoreProtocols"
+    current_workaround: "Local ReadingProgressStore works; cloud sync deferred"
+    ios_status: "NOT_BLOCKING"
+    core_status: "PENDING_DISCOVERY"
+    next_action: "Verify Core progress sync contract; if missing, add to Core Stage 30 planning"
+
+  - id: GAP-008
+    source_task: "IOS-CRON-019 (Local book import)"
+    core_gap: "Core local book parser contract for TXT/EPUB"
+    why_ios_cannot_implement: "TXT/EPUB parsing belongs in Core; iOS only provides file access"
+    required_core_public_api: "Local book parser contract in ReaderCoreProtocols"
+    current_workaround: "None — local book import cannot be implemented without Core contract"
+    ios_status: "NOT_BLOCKING"
+    core_status: "PENDING_DISCOVERY"
+    next_action: "Verify Core local book contract; if missing, add to Core Stage 30 planning"
+
+  - id: GAP-009
+    source_task: "IOS-CRON-020 (WKWebView adapter)"
+    core_gap: "Core Dynamic Runtime contract for WKWebView adapter"
+    why_ios_cannot_implement: "Runtime behavior must follow Core contract; iOS only wraps WKWebView lifecycle"
+    required_core_public_api: "Dynamic Runtime contract in ReaderPlatformAdapters or ReaderCoreProtocols"
+    current_workaround: "Debug harness exists but follows simplified security policy"
+    ios_status: "NOT_BLOCKING"
+    core_status: "PENDING_DISCOVERY"
+    next_action: "Verify Core Dynamic Runtime contract; coordinate with ReaderPlatformAdapters"
+
+# ── Final P3 Plans (IOS-CRON-021 through IOS-CRON-024) ──
+
+tts_reader_ux_plan:
+  ios_native: true
+  no_core_dependency: true
+  actions:
+    - "AVSpeechSynthesizer: play/pause/speed/skip controls"
+    - "Theme manager: 4+ color schemes (light, dark, sepia, green)"
+    - "Page turn modes: scroll, curl, horizontal swipe"
+    - "Advanced settings: margins, paragraph spacing, font size range"
+  forbidden: "Do NOT modify Core DTOs; extend ReaderAppSupport.ReaderDisplaySettings if needed"
+
+release_readiness_checklist:
+  items:
+    - "Full app smoke test (all screens reachable)"
+    - "Boundary check PASS (automated)"
+    - "xcodebuild PASS (or Core failure documented)"
+    - "No Swift source warnings (fix existing)"
+    - "Crash/error handling: all error codes have UI"
+    - "WebDAV: manual acceptance with test server"
+    - "Local book: TXT/EPUB import acceptance"
+
+app_store_review_risks:
+  risks:
+    - "WebView usage → must document single-URL policy, no arbitrary browsing"
+    - "Network access → must justify for book source fetching"
+    - "File access → must justify for local book import"
+    - "Background tasks → must justify for backup scheduling"
+    - "Privacy labels → data collected: reading progress, book metadata"
+  status: "PRELIMINARY — not for submission"
+
+testflight_readiness:
+  prerequisites:
+    - "Apple Developer account"
+    - "App ID + provisioning profile"
+    - "Info.plist complete"
+    - "Build configuration: Release"
+    - "Internal testing group defined"
+  status: "NOT_STARTED — deferred to Stage iOS-12"
+
+# ── Reader Page + Progress Plans (IOS-CRON-013, IOS-CRON-014) ──
+
+reader_mvp_plan:
+  existing: ["ReaderView + ViewModel (mock)", "ReaderSettingsPanel (font/bg/spacing)", "ReaderSettingsStore", "ReaderFlowFeatureView (flow hub)", "ReaderProgressSurfaceView", "ReaderSessionSummaryView", "ReaderStageActionBar", "ReaderStatusCardView"]
+  gaps: ["Chapter prev/next nav not fully wired", "Scroll position not tracked", "ReaderDisplaySettings not fully applied from persistence"]
+  blocks: "NONE for settings/UX; real content needs Core GAP-001"
+
+reading_progress_plan:
+  existing: ["ReadingProgressStore (file-based, load/save by bookID)", "ReadingProgress model (chapterIndex, page, timestamp)", "updateProgress on BookshelfStore"]
+  gaps: ["Progress update trigger on exit-reader not wired to ReaderView", "Bookshelf progress bar updates only on manual refresh"]
+  blocks: "NONE for local persistence; cloud sync needs Core GAP-007"
+
+# ── Search/Detail/TOC/Content Flow Plan (IOS-CRON-012) ──
+# Generated: 2026-05-13 during cron loop cycle #9
+
+search_flow_plan:
+  existing:
+    search: ["SearchView + ViewModel (mock)", "SearchResultRowView", "DefaultSearchService (mock adapter)"]
+    detail: ["BookDetailView + ViewModel (mock)", "uses coordinator.selectedBook"]
+    toc: ["TOCView (mock)", "ChapterListView + ViewModel (mock)", "DefaultTOCService (mock adapter)"]
+    content: ["ContentView (mock)", "DefaultContentService (mock adapter)"]
+    orchestrator: "ReadingFlowCoordinator (manages full flow state)"
+  mock_coverage: "FULL — all 4 stages have mock implementations"
+  real_core_needed: "Core search/toc/content pipeline (BLOCKED by GAP-001)"
+  gaps:
+    - "Search pagination not implemented"
+    - "No search history"
+    - "BookDetail only shows basic info from SearchResultItem"
+    - "No chapter content caching (ChapterCacheStore exists but not wired)"
+
+# ── Source Management MVP Plan (IOS-CRON-011) ──
+# Generated: 2026-05-13 during cron loop cycle #8
+
+source_management_mvp_plan:
+  generated_at: "2026-05-13 00:47 +08:00"
+
+  existing:
+    - "BookSourceListView: list with enable/disable toggle"
+    - "BookSourceViewModel: load from store, toggle enabled"
+    - "BookSourceRowView: name, URL, enabled toggle"
+    - "BookSourceImportView: text editor for JSON paste + import button"
+    - "BookSourceStore: CRUD + persistence for BookSource array"
+    - "DefaultBookSourceDecoder: JSON decode BookSource from Data (no semantic validation)"
+    - "InMemoryBookSourceRepository: runtime BookSource storage"
+
+  works_with_mock:
+    - "JSON import (decode only, no Core validation)"
+    - "List display with enable/disable"
+    - "Persistence across restarts"
+
+  needs_real_core:
+    - "Semantic validation of BookSource JSON (rule syntax, URL patterns, etc.)"
+    - "Real Core validation API call on import"
+
+  gap_actions:
+    - action: "Add BookSource grouping UI"
+      priority: "P2"
+    - action: "Add BookSource export (share JSON)"
+      priority: "P3"
+
+  forbidden:
+    - "Do NOT implement book source parser/validator"
+    - "Do NOT validate JSON rules manually"
+    - "Do NOT modify Core validation logic"
+
+# ── Bookshelf MVP Plan (IOS-CRON-010) ──
+# Generated: 2026-05-13 during cron loop cycle #7
+
+bookshelf_mvp_plan:
+  generated_at: "2026-05-13 00:45 +08:00"
+
+  existing:
+    - component: "BookshelfView"
+      status: "EXISTS (mock-driven)"
+      renders: "List of BookshelfItemRowView with swipe-to-delete"
+    - component: "BookshelfViewModel"
+      status: "EXISTS (mock-driven)"
+      states: "idle / loaded([BookshelfItem]) / error"
+      has_add_to_bookshelf: true
+      add_method: "addSampleBook() — hardcoded sample, not from search result"
+    - component: "BookshelfItemRowView"
+      status: "EXISTS"
+      displays: "title, author, readingProgress bar, cover placeholder"
+    - component: "BookshelfStore"
+      status: "EXISTS (file-based persistence)"
+      operations: "loadItems, saveItems, addOrUpdate, updateProgress, find, delete"
+    - component: "ReadingProgressStore"
+      status: "EXISTS (file-based persistence)"
+      operations: "loadProgress(bookID:), saveProgress(_:), allProgress"
+    - component: "BookshelfItem (AppSupport)"
+      status: "EXISTS"
+      fields: "id, title, author, coverURL, sourceID, bookURL, readingProgress, lastReadAt, addedAt"
+
+  works_with_mock:
+    - "Book list display with progress bars"
+    - "Swipe to delete"
+    - "Add sample book"
+    - "Progress update (via updateProgress on store)"
+    - "Persistence across app restarts"
+
+  needs_real_core:
+    - "Real book metadata from Core search/detail pipeline"
+    - "Add-to-bookshelf from search result (needs SearchResultItem → BookshelfItem mapping)"
+    - "Cover image loading from book source"
+    - "Reading progress sync (Stage iOS-8)"
+
+  gap_actions:
+    - action: "Wire add-to-bookshelf from search result"
+      description: "SearchViewModel or BookDetailViewModel calls BookshelfViewModel.addItem(from: SearchResultItem)"
+      blocks: "BLOCK-CRON-001 (Core build) — search results are mock-only"
+      priority: "P1"
+
+    - action: "Add BookshelfItemFactory"
+      description: "Create BookshelfItem from SearchResultItem + BookSource metadata"
+      location: "iOS/CoreBridge/ or iOS/AppSupport/"
+      blocks: "NONE — can create factory with mock data"
+      priority: "P1"
+
+    - action: "Add recently-read sorting"
+      description: "Sort bookshelf by lastReadAt descending"
+      location: "BookshelfViewModel"
+      priority: "P2"
+
+    - action: "Add reading progress display on bookshelf rows"
+      description: "Progress bar already exists; verify it updates when returning from reader"
+      priority: "P2"
+
+  forbidden:
+    - "Do NOT hardcode book data as production logic"
+    - "Do NOT implement book source parsing"
+    - "Do NOT create alternative book DTO"
+
+# ── Navigation Skeleton Plan (IOS-CRON-009) ──
+# Generated: 2026-05-13 during cron loop cycle #6
+
+navigation_plan:
+  generated_at: "2026-05-13 00:44 +08:00"
+  current_state: "Single linear NavigationStack flow (no tabs)"
+
+  short_term:
+    - action: "Add TabView with 3 tabs"
+      tabs:
+        - tab: "书架 (Bookshelf)"
+          icon: "books.vertical"
+          view: "BookshelfView"
+          route: ".bookshelf"
+        - tab: "搜索 (Search)"
+          icon: "magnifyingglass"
+          view: "SearchView"
+          route: ".search"
+        - tab: "设置 (Settings)"
+          icon: "gear"
+          view: "ReaderSettingsPanel (or new SettingsView)"
+          route: ".settings"
+      priority: "P1"
+      blocks: "NONE — can be done with mock data"
+
+    - action: "Add missing Route cases"
+      routes:
+        - ".bookDetail(book: SearchResultItem)"
+        - ".reader(chapter: TOCItem)"
+        - ".bookshelf"
+        - ".bookSources"
+        - ".settings"
+      priority: "P1"
+
+    - action: "Decide canonical reader view"
+      options:
+        - "Merge ReaderView and ContentView into single ReaderView"
+        - "Keep ContentView as inline, ReaderView as full-screen"
+      recommendation: "Merge into single ReaderView with inline/full-screen modes"
+      priority: "P2"
+
+  medium_term:
+    - action: "Add Discover tab (Stage iOS-5+)"
+      view: "New DiscoverView (book source browsing)"
+      priority: "P3"
+
+    - action: "Add navigation deep links"
+      description: "Support URL scheme or widget-based deep linking into specific books/chapters"
+      priority: "P3"
+
+  long_term:
+    - action: "iPad sidebar navigation"
+      description: "Use NavigationSplitView for iPad with sidebar + detail layout"
+      priority: "P3"
+
+  forbidden:
+    - "Do NOT hardcode navigation for sample data"
+    - "Do NOT remove existing routes"
+    - "Do NOT change NavigationStack pattern (add TabView as parent, keep NavigationStack per tab)"
+
+# ── App Shell Route Inventory (IOS-CRON-008) ──
+# Generated: 2026-05-13 during cron loop cycle #5
+
+route_inventory:
+  generated_at: "2026-05-13 00:43 +08:00"
+  source_files:
+    - "iOS/Navigation/Route.swift"
+    - "iOS/Navigation/AppNavigationState.swift"
+    - "iOS/App/ReaderApp.swift"
+    - "iOS/Features/Reader/ReaderFlowFeatureView.swift"
+
+  defined_routes:
+    - route: ".home"
+      title: "首页"
+      destination_view: "ReaderFlowFeatureView"
+      view_exists: true
+      params: "none"
+      navigation_source: "Root + NavigationLink"
+
+    - route: ".bookSourceImport"
+      title: "导入书源"
+      destination_view: "BookSourceImportView"
+      view_exists: true
+      params: "none"
+      navigation_source: "Inline button in ReaderFlowFeatureView"
+
+    - route: ".search"
+      title: "搜索"
+      destination_view: "SearchView"
+      view_exists: true
+      params: "none"
+      navigation_source: "ReaderFlowFeatureView button"
+
+    - route: ".toc(bookTitle:, bookAuthor:)"
+      title: "dynamic (bookTitle)"
+      destination_view: "TOCView(coordinator:, book:)"
+      view_exists: true
+      params: "bookTitle: String, bookAuthor: String?"
+      navigation_source: "ReaderFlowFeatureView session summary"
+
+    - route: ".content(chapterTitle:)"
+      title: "dynamic (chapterTitle)"
+      destination_view: "ContentView(coordinator:, chapter:)"
+      view_exists: true
+      params: "chapterTitle: String"
+      navigation_source: "ReaderFlowFeatureView session summary"
+
+  existing_views_without_routes:
+    - view: "BookshelfView / BookshelfViewModel"
+      status: "NOT_IN_NAVIGATION_STACK"
+      note: "Exists as feature but not yet wired to a Route case. Accessed separately or not yet."
+
+    - view: "BookSourceListView / BookSourceViewModel"
+      status: "NOT_IN_NAVIGATION_STACK"
+      note: "Exists as feature but accessed via bookSourceImport flow, not separate route."
+
+    - view: "BookDetailView / BookDetailViewModel"
+      status: "NO_ROUTE"
+      note: "Search results may navigate to detail inline rather than via NavigationStack route."
+
+    - view: "ReaderView / ReaderViewModel"
+      status: "NO_ROUTE"
+      note: "Content is displayed via .content route → ContentView, not ReaderView. ReaderView may be a future/different reader mode."
+
+    - view: "ReaderSettingsPanel"
+      status: "NO_ROUTE"
+      note: "Accessed inline/modally from reader, not via NavigationStack route."
+
+    - view: "ChapterListView / ChapterListViewModel"
+      status: "REDUNDANT"
+      note: "Similar to TOCView. May be an alternative or legacy view."
+
+  missing_routes_for_legado_parity:
+    - route: ".bookDetail"
+      needed_for: "Navigate from search result to book detail before TOC"
+      view: "BookDetailView exists"
+      priority: "P1"
+
+    - route: ".reader"
+      needed_for: "Full-screen reader experience (distinct from ContentView)"
+      view: "ReaderView exists"
+      priority: "P2"
+
+    - route: ".readerSettings"
+      needed_for: "Reader settings modal/page"
+      view: "ReaderSettingsPanel exists"
+      priority: "P3"
+
+    - route: ".bookshelf"
+      needed_for: "Tab-based bookshelf (separate from linear flow)"
+      view: "BookshelfView exists"
+      priority: "P1"
+
+    - route: ".bookSources"
+      needed_for: "Book source management list"
+      view: "BookSourceListView exists"
+      priority: "P1"
+
+  navigation_architecture:
+    pattern: "Linear flow (NavigationStack with push/pop)"
+    tabs: "NONE (no TabView implemented)"
+    root_view: "ReaderFlowFeatureView (single flow hub)"
+    state_management: "AppNavigationState (ObservableObject) + ReadingFlowCoordinator"
+
+  gaps:
+    - gap: "No TabView — single linear flow only"
+      impact: "Cannot switch between Bookshelf, Search, Discover, Settings independently"
+      severity: "MEDIUM"
+      action: "Add TabView in Stage iOS-2 completion"
+
+    - gap: "Bookshelf, BookSourceList, BookDetail, ReaderView exist but have no Route cases"
+      impact: "Navigation to these views is limited or not possible via standard navigation"
+      severity: "MEDIUM"
+      action: "Add Route cases or integrate into existing flow"
+
+    - gap: "ReaderView is separate from ContentView — unclear which is the canonical reader"
+      impact: "Two reader implementations may diverge"
+      severity: "LOW"
+      action: "Decide canonical reader view; remove or merge the other"
+
+  compliance:
+    all_routes_have_views: true
+    orphan_views_without_routes: 4
+    nav_stack_state_management: "AppNavigationState (ObservableObject) — clean"
+
+# ── Error Mapping Inventory (IOS-CRON-007) ──
+# Generated: 2026-05-13 during cron loop cycle #4
+
+error_mapping_inventory:
+  generated_at: "2026-05-13 00:41 +08:00"
+
+  app_reader_error_codes:
+    - code: "unknown"
+      used_in: "ShellAssembly fallback (all 3 mock services)"
+      maps_from: "Unexpected LoadState cases"
+    - code: "network"
+      used_in: "MockReaderCoreService (networkFailure scenario)"
+      maps_from: "Core network errors"
+    - code: "parser"
+      used_in: "MockReaderCoreService (parserFailure scenario)"
+      maps_from: "Core parser errors"
+    - code: "jsRequired"
+      used_in: "MockReaderCoreService (jsRequired scenario)"
+      maps_from: "Core JS-required errors"
+    - code: "loginRequired"
+      used_in: "MockReaderCoreService (loginRequired scenario)"
+      maps_from: "Core login-required errors"
+    - code: "unsupported"
+      used_in: "ShellAssembly (all 3 mock services), MockReaderCoreService"
+      maps_from: "Core unsupported-operation errors"
+    - code: "notFound"
+      used_in: "ShellAssembly MockContentService (.empty → .notFound)"
+      maps_from: "Empty content result"
+    - code: "partial"
+      used_in: "NONE (defined but never thrown as error)"
+      maps_from: "LoadState.partial is a success-with-warning state, not an error"
+    - code: "timeout"
+      used_in: "NONE (defined, no mapping to LoadState or Core error)"
+      maps_from: "No LoadState case for timeout"
+    - code: "invalidResponse"
+      used_in: "NONE (defined, no mapping to LoadState)"
+      maps_from: "No LoadState case for invalid response"
+
+  load_state_to_error_mapping:
+    - load_state: ".failed(AppReaderError)"
+      mapped_by: "ShellAssembly → throw error directly"
+      coverage: "parser, network, jsRequired, loginRequired (4/10 codes)"
+    - load_state: ".unsupported(String)"
+      mapped_by: "ShellAssembly → throw AppReaderError(code: .unsupported)"
+      coverage: "unsupported (1/10 codes)"
+    - load_state: ".empty"
+      mapped_by: "ShellAssembly: SearchService → return []; TOCService → return []; ContentService → throw .notFound"
+      coverage: "notFound (1/10 codes, ContentService only)"
+    - load_state: ".partial(Value, warning)"
+      mapped_by: "ShellAssembly → return value (warning discarded)"
+      coverage: "No error thrown"
+    - load_state: ".loading"
+      mapped_by: "UI directly — no error mapping needed"
+      coverage: "N/A (not an error state)"
+    - load_state: ".idle"
+      mapped_by: "UI directly — no error mapping needed"
+      coverage: "N/A (not an error state)"
+    - load_state: ".loaded(Value)"
+      mapped_by: "UI directly — no error mapping needed"
+      coverage: "N/A (not an error state)"
+
+  gaps:
+    - gap: "timeout code defined but no LoadState case or Core mapping for timeouts"
+      severity: "LOW"
+      action: "Add timeout handling when real Core service is wired"
+    - gap: "invalidResponse code defined but no LoadState case for malformed responses"
+      severity: "LOW"
+      action: "Add invalidResponse handling when real Core parsing is wired"
+    - gap: ".partial warning is discarded by ShellAssembly (no user-visible warning)"
+      severity: "MEDIUM"
+      action: "Surface warnings to UI; add warning display to relevant views"
+    - gap: ".empty handling is inconsistent: SearchService returns [], TOCService returns [], ContentService throws .notFound"
+      severity: "LOW"
+      action: "Standardize empty-result handling across services"
+
+  coverage_summary:
+    error_codes_defined: 10
+    error_codes_mapped: 5  # network, parser, jsRequired, loginRequired, unsupported
+    error_codes_unused: 3  # partial (not an error), timeout, invalidResponse
+    error_codes_context_specific: 2  # notFound (ContentService only), unknown (fallback)
+    load_states_covered: "7/7 (all LoadState cases have defined behavior)"
+
+# ── Core DTO Mapping Inventory (IOS-CRON-006) ──
+# Generated: 2026-05-13 during cron loop cycle #3
+
+core_dto_inventory:
+  generated_at: "2026-05-13 00:39 +08:00"
+  files_importing_reader_core_models: 40
+  files_importing_reader_core_protocols: 7
+  dtos:
+    - type: "BookSource"
+      source: "ReaderCoreModels"
+      used_in: ["CoreBridge", "CoreIntegration", "Features/BookSources", "Features/BookDetail", "Features/Bookshelf"]
+      usage_pattern: "Read-only consumption; decoded from JSON; stored in InMemoryBookSourceRepository; displayed in book source list"
+      ios_alternatives: "NONE"
+      notes: "Core DTO — iOS does not define alternatives"
+
+    - type: "SearchResultItem"
+      source: "ReaderCoreModels"
+      used_in: ["CoreBridge", "CoreIntegration", "Features/Search", "Features/BookDetail"]
+      usage_pattern: "Read-only display in search results and book detail; mock data in MockReaderCoreService"
+      ios_alternatives: "NONE"
+      notes: "Fields used: title, detailURL, author"
+
+    - type: "TOCItem"
+      source: "ReaderCoreModels"
+      used_in: ["CoreBridge", "CoreIntegration", "Features/ChapterList", "Features/Reader"]
+      usage_pattern: "Read-only display in chapter list; navigation target in reader"
+      ios_alternatives: "NONE"
+      notes: "Fields used: chapterTitle, chapterURL, chapterIndex"
+
+    - type: "ContentPage"
+      source: "ReaderCoreModels"
+      used_in: ["CoreBridge", "CoreIntegration", "Features/Content", "Features/Reader"]
+      usage_pattern: "Read-only display in content/reader views; mock content in MockReaderCoreService"
+      ios_alternatives: "NONE"
+      notes: "Fields used: title, content, chapterURL, nextChapterURL"
+
+    - type: "ReaderError"
+      source: "ReaderCoreModels"
+      used_in: ["CoreIntegration", "Features/Common", "Surface"]
+      usage_pattern: "Error display in ErrorView and AppErrorSurface; error logging in ReadingFlowCoordinator"
+      ios_alternatives: "AppReaderError (wrapper, NOT alternative — adds iOS-specific codes)"
+      notes: "AppReaderError wraps ReaderError; does NOT replace it"
+
+    - type: "SearchQuery"
+      source: "ReaderCoreModels"
+      used_in: ["CoreIntegration/ReadingFlowCoordinator", "CoreIntegration/DefaultSearchService"]
+      usage_pattern: "Parameter object for search requests"
+      ios_alternatives: "NONE"
+      notes: "Fields: keyword, page"
+
+  protocols:
+    - protocol: "BookSourceDecoder"
+      source: "ReaderCoreProtocols"
+      impl: "DefaultBookSourceDecoder (iOS/CoreIntegration)"
+      usage: "JSON decode BookSource from Data"
+
+    - protocol: "BookSourceRepository"
+      source: "ReaderCoreProtocols"
+      impl: "InMemoryBookSourceRepository (iOS/CoreIntegration)"
+      usage: "CRUD for BookSource objects"
+
+    - protocol: "SearchService"
+      source: "ReaderCoreProtocols"
+      impl: "MockSearchService (iOS/Shell/ShellAssembly)"
+      usage: "Search books via Core pipeline (mock currently)"
+
+    - protocol: "TOCService"
+      source: "ReaderCoreProtocols"
+      impl: "MockTOCService (iOS/Shell/ShellAssembly)"
+      usage: "Fetch chapter list via Core pipeline (mock currently)"
+
+    - protocol: "ContentService"
+      source: "ReaderCoreProtocols"
+      impl: "MockContentService (iOS/Shell/ShellAssembly)"
+      usage: "Fetch chapter content via Core pipeline (mock currently)"
+
+  compliance:
+    ios_alternatives_found: 0
+    core_dto_replaced: 0
+    reader_error_wrapped_not_replaced: true
+    read_only_consumption: true
+    boundary_violations: 0
+
+# ── CoreBridge Inventory (IOS-CRON-005) ──
+# Generated: 2026-05-13 during cron loop cycle #2
+
+corebridge_inventory:
+  generated_at: "2026-05-13 00:36 +08:00"
+  files:
+    - file: "iOS/CoreBridge/ReaderCoreServiceProvider.swift"
+      role: "Singleton facade for all Core operations"
+      mode: "MOCK_ONLY (real mode not implemented)"
+      methods:
+        - name: "validateBookSource(from: Data) -> LoadState<BookSource>"
+          real_core_counterpart: "UNKNOWN — Core public validation API TBD"
+          mock_coverage: "FULL (all 8 MockScenarios)"
+        - name: "searchBooks(keyword: String, page: Int) -> LoadState<[SearchResultItem]>"
+          real_core_counterpart: "ReaderCoreProtocols.SearchService"
+          mock_coverage: "FULL (all 8 MockScenarios)"
+        - name: "getBookDetail(bookURL: String) -> LoadState<SearchResultItem>"
+          real_core_counterpart: "ReaderCoreProtocols (detail parser)"
+          mock_coverage: "FULL (all 8 MockScenarios)"
+        - name: "getChapterList(bookURL: String) -> LoadState<[TOCItem]>"
+          real_core_counterpart: "ReaderCoreProtocols.TOCService"
+          mock_coverage: "FULL (all 8 MockScenarios)"
+        - name: "getChapterContent(chapterURL: String) -> LoadState<ContentPage>"
+          real_core_counterpart: "ReaderCoreProtocols.ContentService"
+          mock_coverage: "FULL (all 8 MockScenarios)"
+      missing_methods:
+        - "No real mode implementation"
+        - "No cookie/session management pass-through"
+        - "No error recovery/retry logic"
+        - "No book source export method"
+        - "No batch validation method"
+
+    - file: "iOS/CoreBridge/MockReaderCoreService.swift"
+      role: "Full mock implementation with scenario control"
+      scenarios_covered:
+        - success
+        - partial(warning:)
+        - unsupported(reason:)
+        - empty
+        - parserFailure
+        - networkFailure
+        - jsRequired
+        - loginRequired
+      mock_data:
+        - "3 mock search results (Chinese web novel samples)"
+        - "5 mock TOC items"
+        - "1 mock ContentPage (~300 chars)"
+        - "1 mock BookSource"
+
+    - file: "iOS/CoreBridge/AppReaderError.swift"
+      role: "iOS-side error wrapper"
+      codes: ["unknown", "network", "parser", "jsRequired", "loginRequired", "unsupported", "partial", "timeout", "notFound", "invalidResponse"]
+      maps_from: "ReaderCoreModels.ReaderError (Core DTO)"
+      coverage: "Covers all known Core error categories + iOS-specific codes"
+
+    - file: "iOS/CoreBridge/LoadState.swift"
+      role: "Generic async load state enum"
+      cases: ["idle", "loading", "loaded(Value)", "empty", "failed(AppReaderError)", "unsupported(String)", "partial(Value, warning:)"]
+      coverage: "Covers all UI states: loading, success, empty, error, unsupported, partial"
+
+    - file: "iOS/CoreBridge/SourceIdentityFactory.swift"
+      role: "Creates SourceIdentity from SearchResultItem"
+      input: "ReaderCoreModels.SearchResultItem"
+      output: "ReaderAppSupport.SourceIdentity"
+      note: "Thin mapping — no business logic"
+
+  summary:
+    total_methods: 5
+    mock_covered: 5
+    real_counterpart_exists: 0
+    real_counterpart_confirmed: 0
+    missing_real_methods: 5
+    error_codes: 10
+    mock_scenarios: 8
+
+# ── Summary ──
+summary:
+  total_gaps: 9
+  blocking_gaps: 1  # GAP-001 (Core compile error)
+  workaround_available: 1  # GAP-003 (mock)
+  not_blocking: 6  # GAP-004 through GAP-009
+  resolved: 1  # GAP-002 (symlink)
+  unconfirmed_gaps: 6
+  reported_to_core: 0
