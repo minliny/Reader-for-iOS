@@ -5,49 +5,64 @@ public struct SearchResultRowView: View {
     let result: SearchResultItem
     let sourceName: String
     let onTap: (() -> Void)?
+    let onAddToBookshelf: (() -> Void)?
 
-    public init(result: SearchResultItem, sourceName: String, onTap: (() -> Void)? = nil) {
+    public init(
+        result: SearchResultItem,
+        sourceName: String,
+        onTap: (() -> Void)? = nil,
+        onAddToBookshelf: (() -> Void)? = nil
+    ) {
         self.result = result
         self.sourceName = sourceName
         self.onTap = onTap
+        self.onAddToBookshelf = onAddToBookshelf
     }
 
     public var body: some View {
         Button(action: {
             onTap?()
         }) {
-            VStack(alignment: .leading, spacing: 8) {
-            Text(result.title)
-                .font(.headline)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(result.title)
+                        .font(.headline)
 
-            if let author = result.author, !author.isEmpty {
-                Text("by \(author)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+                    if let author = result.author, !author.isEmpty {
+                        Text("by \(author)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
 
-            HStack {
-                if let intro = result.intro, !intro.isEmpty {
-                    Text(intro)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    HStack {
+                        if let intro = result.intro, !intro.isEmpty {
+                            Text(intro)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Text(sourceName)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                    }
                 }
 
-                Spacer()
-
-                Text(sourceName)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                if let onAddToBookshelf = onAddToBookshelf {
+                    Button(action: onAddToBookshelf) {
+                        Image(systemName: "plus.circle")
+                            .font(.title3)
+                    }
+                    .buttonStyle(.borderless)
+                }
             }
         }
         .padding()
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(12)
-        }
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
         .buttonStyle(.plain)
     }
 }

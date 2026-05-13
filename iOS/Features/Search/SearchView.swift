@@ -12,6 +12,7 @@ public struct SearchView: View {
     @State private var selectedSourceID: String?
     @AppStorage("search_history") private var historyData: Data = Data()
     @State private var searchHistory: [String] = []
+    @StateObject private var bookshelfVM = BookshelfViewModel()
 
     public init() {}
 
@@ -135,6 +136,16 @@ public struct SearchView: View {
                         onTap: {
                             selectedResult = result
                             bookRoute = BookDetailRoute(detailURL: result.detailURL)
+                        },
+                        onAddToBookshelf: {
+                            let sourceID = viewModel.selectedSource?.id ?? "unknown"
+                            Task {
+                                await bookshelfVM.addOrUpdateItem(
+                                    from: result,
+                                    sourceID: sourceID,
+                                    sourceName: viewModel.selectedSource?.bookSourceName
+                                )
+                            }
                         }
                     )
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -211,6 +222,16 @@ public struct SearchView: View {
                             onTap: {
                                 selectedResult = result
                                 bookRoute = BookDetailRoute(detailURL: result.detailURL)
+                            },
+                            onAddToBookshelf: {
+                                let sourceID = viewModel.selectedSource?.id ?? "unknown"
+                                Task {
+                                    await bookshelfVM.addOrUpdateItem(
+                                        from: result,
+                                        sourceID: sourceID,
+                                        sourceName: viewModel.selectedSource?.bookSourceName
+                                    )
+                                }
                             }
                         )
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
