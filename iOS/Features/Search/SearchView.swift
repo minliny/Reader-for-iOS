@@ -173,6 +173,14 @@ public struct SearchView: View {
             }
             .listStyle(.plain)
 
+            if viewModel.hasMorePages {
+                Button("Load More...") {
+                    Task { await viewModel.loadMore() }
+                }
+                .buttonStyle(.bordered)
+                .padding(.horizontal)
+            }
+
         case .empty:
             VStack(spacing: 16) {
                 Image(systemName: "magnifyingglass")

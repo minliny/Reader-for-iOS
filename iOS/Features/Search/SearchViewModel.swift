@@ -44,6 +44,8 @@ public final class SearchViewModel: ObservableObject {
     @Published public var selectedSource: BookSource?
     @Published public var searchState: SearchState = .idle
     @Published public var sources: [BookSource] = []
+    @Published public var currentPage = 1
+    @Published public var hasMorePages = false
 
     private let store = BookSourceStore.shared
     private let provider = ReaderCoreServiceProvider.shared
@@ -76,19 +78,22 @@ public final class SearchViewModel: ObservableObject {
         }
 
         searchState = .loading
+        currentPage = 1
 
         do {
-            let state = await provider.searchBooks(keyword: trimmed, page: 1)
+            let state = await provider.searchBooks(keyword: trimmed, page: currentPage)
             switch state {
             case .loaded(let results):
                 if results.isEmpty {
                     searchState = .empty
                 } else {
                     searchState = .success(results: results)
+                    hasMorePages = results.count >= 5
                 }
 
             case .partial(let results, let warning):
                 searchState = .partial(results: results, warnings: [warning])
+                hasMorePages = results.count >= 5
 
             case .unsupported(let reason):
                 searchState = .unsupported(reason: reason)
@@ -104,6 +109,26 @@ public final class SearchViewModel: ObservableObject {
             }
         } catch {
             searchState = .failed(message: "Search failed: \(error.localizedDescription)")
+        }
+    }
+
+    public func loadMore() async {
+        guard hasMorePages, case .success(let existing) = searchState else { return }
+
+        currentPage += 1
+        let state = await provider.searchBooks(keyword: keyword.trimmingCharacters(in: .whitespacesAndNewlines), page: currentPage)
+
+        switch state {
+        case .loaded(let results):
+            let combined = existing + results
+            searchState = .success(results: combined)
+            hasMorePages = results.count >= 5
+        case .partial(let results, let warning):
+            let combined = existing + results
+            searchState = .partial(results: combined, warnings: [warning])
+            hasMorePages = false
+        default:
+            hasMorePages = false
         }
     }
 

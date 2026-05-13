@@ -72,7 +72,7 @@ public struct BookSourceListView: View {
 #endif
                             }
                         }
-                        ToolbarItem(placement: .navigationBarLeading) {
+                        ToolbarItem(placement: .navigationBarTrailing) {
                             Button("Done") { showShare = false }
                         }
                     }
