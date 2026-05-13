@@ -1,8 +1,8 @@
 # Reader for iOS — Cron Loop State
 # Generated: 2026-05-13T00:00+08:00
-# Updated: 2026-05-13T20:05+08:00 — dev mode enabled, loop restarted
+# Updated: 2026-05-13T20:15+08:00 — post-cron-config audit, loop pending first trigger
 
-current_head: "cbc022b"
+current_head: "7c4ec57"
 current_branch: "main"
 working_tree_status: "MODIFIED (.claude/settings.local.json only)"
 detected_stage: "iOS-7"
@@ -10,6 +10,8 @@ validation_status: "PASS (boundary)"
 core_dependency_status: "RESOLVED_BUT_BUILD_FAILED (accepted)"
 public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
+last_audit_at: "2026-05-13 20:15 +08:00"
+loop_status: "PENDING_FIRST_RUN"
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true
@@ -110,6 +112,16 @@ allowed_next_files:
   - "docs/PLANNING/"
   - ".claude/"
   - "scripts/"
+  - "iOS/App/"
+  - "iOS/AppSupport/"
+  - "iOS/Features/"
+  - "iOS/Modules/"
+  - "iOS/Navigation/"
+  - "iOS/Surface/"
+  - "iOS/Shell/"
+  - "iOS/CoreBridge/"
+  - "iOS/CoreIntegration/"
+  - "iOS/Tests/"
 
 # ── Auto-Terminate State ──
 consecutive_stop_cycles: 0
@@ -121,7 +133,8 @@ auto_terminate_conditions:
 # ── Policy ──
 network_access: false
 dependency_changes: false
-code_changes: false
-commit_performed: false
+code_changes: true
+commit_performed: true
+last_commit: "7c4ec57 (chore: configure cron loop for mock-driven iOS development)"
 
-generated_at_local: "2026-05-13 00:30 +08:00"
+generated_at_local: "2026-05-13 20:15 +08:00"
