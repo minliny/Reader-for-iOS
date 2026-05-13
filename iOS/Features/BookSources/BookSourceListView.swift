@@ -18,14 +18,29 @@ public struct BookSourceListView: View {
 
     public var body: some View {
         NavigationStack {
-            Group {
-                if isLoading {
-                    ProgressView("Loading sources...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if sources.isEmpty {
-                    emptyStateView
-                } else {
-                    sourceListContent
+            VStack(spacing: 0) {
+                if let error = errorMessage {
+                    HStack {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                        Spacer()
+                        Button("Dismiss") { errorMessage = nil }
+                            .font(.caption)
+                    }
+                    .padding(12)
+                    .background(Color.red.opacity(0.1))
+                }
+
+                Group {
+                    if isLoading {
+                        ProgressView("Loading sources...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if sources.isEmpty {
+                        emptyStateView
+                    } else {
+                        sourceListContent
+                    }
                 }
             }
             .navigationTitle("Book Sources")
