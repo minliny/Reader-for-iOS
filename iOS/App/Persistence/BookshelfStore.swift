@@ -1,7 +1,7 @@
 import Foundation
 import ReaderAppSupport
 
-public final class BookshelfStore: @unchecked Sendable {
+public final class BookshelfStore: @unchecked Sendable, BookshelfProgressing {
     public static let shared = BookshelfStore()
 
     private let fileURL: URL
@@ -72,5 +72,13 @@ public final class BookshelfStore: @unchecked Sendable {
     public func find(bookURL: String, sourceID: String) throws -> BookshelfItem? {
         let items = (try? loadItems()) ?? []
         return items.first { $0.bookURL == bookURL && $0.sourceID == sourceID }
+    }
+    
+    public func loadProgressSummary(bookID: String) throws -> (progress: Double, chapterTitle: String?, chapterURL: String?)? {
+        let items = (try? loadItems()) ?? []
+        guard let item = items.first(where: { $0.id == bookID }) else {
+            return nil
+        }
+        return (item.readingProgress, item.lastReadChapterTitle, item.lastReadChapterURL)
     }
 }

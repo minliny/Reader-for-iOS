@@ -1,7 +1,7 @@
 import Foundation
 import ReaderAppSupport
 
-public final class ChapterCacheStore: @unchecked Sendable {
+public final class ChapterCacheStore: @unchecked Sendable, ChapterCaching {
     public static let shared = ChapterCacheStore()
 
     private let fileURL: URL

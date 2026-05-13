@@ -1,7 +1,7 @@
 import Foundation
 import ReaderAppSupport
 
-public final class ReadingProgressStore: @unchecked Sendable {
+public final class ReadingProgressStore: @unchecked Sendable, ReadingProgressing {
     public static let shared = ReadingProgressStore()
 
     private let fileURL: URL

@@ -4,6 +4,7 @@ import Combine
 #endif
 import ReaderCoreModels
 import ReaderCoreProtocols
+import ReaderAppSupport
 
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 @MainActor
@@ -24,7 +25,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
     public let contentService: ContentService
     public let errorLogger: ErrorLogger
     
-    private var chapterCacheStore: ChapterCacheStore?
+    private var chapterCache: ChapterCaching?
     
     public init(
         bookSourceRepository: BookSourceRepository,
@@ -33,7 +34,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
         tocService: TOCService,
         contentService: ContentService,
         errorLogger: ErrorLogger,
-        chapterCacheStore: ChapterCacheStore? = nil
+        chapterCache: ChapterCaching? = nil
     ) {
         self.bookSourceRepository = bookSourceRepository
         self.bookSourceDecoder = bookSourceDecoder
@@ -41,11 +42,11 @@ public final class ReadingFlowCoordinator: ObservableObject {
         self.tocService = tocService
         self.contentService = contentService
         self.errorLogger = errorLogger
-        self.chapterCacheStore = chapterCacheStore
+        self.chapterCache = chapterCache
     }
     
-    public func setChapterCacheStore(_ store: ChapterCacheStore?) {
-        self.chapterCacheStore = store
+    public func setChapterCache(_ cache: ChapterCaching?) {
+        self.chapterCache = cache
     }
     
     public func importBookSource(from data: Data) async {
@@ -133,7 +134,35 @@ public final class ReadingFlowCoordinator: ObservableObject {
         defer { isLoading = false }
 
         do {
+            // Try cache first
+            if let cache = chapterCache,
+               let cachedContent = try? cache.loadContent(chapterURL: chapter.chapterURL, sourceID: source.id ?? ""),
+               let html = cachedContent.html, !html.isEmpty {
+                // Cache hit - use cached content
+                contentPage = ContentPage(
+                    title: chapter.chapterTitle,
+                    content: html,
+                    chapterURL: chapter.chapterURL,
+                    nextChapterURL: nil
+                )
+                return
+            }
+            
+            // Cache miss - fetch from service
             contentPage = try await contentService.fetchContent(source: source, chapterURL: chapter.chapterURL)
+            
+            // Save to cache if successful
+            if let cache = chapterCache,
+               let content = contentPage {
+                try? cache.saveContent(
+                    chapterURL: chapter.chapterURL,
+                    sourceID: source.id ?? "",
+                    bookURL: selectedBook?.detailURL ?? "",
+                    chapterTitle: chapter.chapterTitle,
+                    html: content.content,
+                    markdown: nil
+                )
+            }
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "CONTENT")
@@ -327,7 +356,34 @@ public final class ReadingFlowCoordinator {
         defer { isLoading = false }
 
         do {
+            // Try cache first
+            if let cache = chapterCache,
+               let cachedContent = try? cache.loadContent(chapterURL: chapter.chapterURL, sourceID: source.id ?? ""),
+               let html = cachedContent.html, !html.isEmpty {
+                contentPage = ContentPage(
+                    title: chapter.chapterTitle,
+                    content: html,
+                    chapterURL: chapter.chapterURL,
+                    nextChapterURL: nil
+                )
+                return
+            }
+            
+            // Cache miss - fetch from service
             contentPage = try await contentService.fetchContent(source: source, chapterURL: chapter.chapterURL)
+            
+            // Save to cache if successful
+            if let cache = chapterCache,
+               let content = contentPage {
+                try? cache.saveContent(
+                    chapterURL: chapter.chapterURL,
+                    sourceID: source.id ?? "",
+                    bookURL: selectedBook?.detailURL ?? "",
+                    chapterTitle: chapter.chapterTitle,
+                    html: content.content,
+                    markdown: nil
+                )
+            }
         } catch let error as ReaderError {
             currentError = error
             await logError(error, stage: "CONTENT")

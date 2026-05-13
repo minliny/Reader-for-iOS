@@ -294,6 +294,61 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         XCTAssertEqual(found?.lastReadChapterTitle, "Ch7")
         XCTAssertEqual(found?.lastReadChapterURL, "/ch/7")
     }
+    
+    func testBookshelfLoadProgressSummary() throws {
+        let tempURL = makeTempFileURL(name: "test_bookshelf_summary.json")
+        let store = BookshelfStore(storageURL: tempURL)
+
+        let item = BookshelfItem(
+            id: "shelf-3", sourceID: "s", bookURL: "b", title: "t"
+        )
+        try store.addOrUpdate(item)
+        try store.updateProgress(
+            bookID: "shelf-3", progress: 0.60,
+            chapterTitle: "Ch5", chapterURL: "/ch/5"
+        )
+
+        let summary = try store.loadProgressSummary(bookID: "shelf-3")
+        XCTAssertEqual(summary?.progress, 0.60)
+        XCTAssertEqual(summary?.chapterTitle, "Ch5")
+        XCTAssertEqual(summary?.chapterURL, "/ch/5")
+    }
+    
+    func testUnifiedProgressManagerSavesToBothStores() throws {
+        let progressTempURL = makeTempFileURL(name: "test_unified_progress.json")
+        let bookshelfTempURL = makeTempFileURL(name: "test_unified_bookshelf.json")
+        
+        let progressStore = ReadingProgressStore(storageURL: progressTempURL)
+        let bookshelfStore = BookshelfStore(storageURL: bookshelfTempURL)
+        
+        let item = BookshelfItem(
+            id: "book-1", sourceID: "s", bookURL: "b", title: "Test Book"
+        )
+        try bookshelfStore.addOrUpdate(item)
+        
+        let unifiedManager = UnifiedProgressManager(
+            readingProgressStore: progressStore,
+            bookshelfProgressStore: bookshelfStore
+        )
+        
+        try unifiedManager.saveCurrentProgress(
+            bookID: "book-1",
+            sourceID: "s",
+            bookURL: "b",
+            chapterURL: "/ch/10",
+            chapterTitle: "Chapter Ten",
+            progressRatio: 0.85
+        )
+        
+        let preciseProgress = try unifiedManager.loadCurrentProgress(bookID: "book-1")
+        XCTAssertEqual(preciseProgress?.chapterURL, "/ch/10")
+        XCTAssertEqual(preciseProgress?.chapterTitle, "Chapter Ten")
+        XCTAssertEqual(preciseProgress?.progressRatio, 0.85)
+        
+        let summary = try bookshelfStore.loadProgressSummary(bookID: "book-1")
+        XCTAssertEqual(summary?.progress, 0.85)
+        XCTAssertEqual(summary?.chapterTitle, "Chapter Ten")
+    }
 
     // MARK: - BookSourceStore
 
