@@ -18,9 +18,25 @@ public enum ShellAssembly {
         )
     }
 
+    public static func makePlaceholderReadingFlowCoordinator() -> ReadingFlowCoordinator {
+        return ReadingFlowCoordinator(
+            bookSourceRepository: InMemoryBookSourceRepository(),
+            bookSourceDecoder: DefaultBookSourceDecoder(),
+            searchService: PlaceholderSearchService(),
+            tocService: PlaceholderTOCService(),
+            contentService: PlaceholderContentService(),
+            errorLogger: InMemoryErrorLogger()
+        )
+    }
+
     public static func makeDefaultReadingFlowCoordinator() -> ReadingFlowCoordinator {
-        let coordinator = makeMockReadingFlowCoordinator()
-        return coordinator
+        let provider = ReaderCoreServiceProvider.shared
+        switch provider.currentMode {
+        case .mock:
+            return makeMockReadingFlowCoordinator()
+        case .real:
+            return makePlaceholderReadingFlowCoordinator()
+        }
     }
 }
 

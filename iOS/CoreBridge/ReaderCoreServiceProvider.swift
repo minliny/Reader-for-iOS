@@ -30,23 +30,68 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     }
 
     public func validateBookSource(from data: Data) async -> LoadState<BookSource> {
-        await mockService.validateBookSource(from: data)
+        lock.lock()
+        let currentMode = self.mode
+        lock.unlock()
+
+        switch currentMode {
+        case .mock:
+            return await mockService.validateBookSource(from: data)
+        case .real:
+            return .unsupported(reason: "Real Core service not available in placeholder implementation")
+        }
     }
 
     public func searchBooks(keyword: String, page: Int) async -> LoadState<[SearchResultItem]> {
-        await mockService.searchBooks(keyword: keyword, page: page)
+        lock.lock()
+        let currentMode = self.mode
+        lock.unlock()
+
+        switch currentMode {
+        case .mock:
+            return await mockService.searchBooks(keyword: keyword, page: page)
+        case .real:
+            return .unsupported(reason: "Real Core service not available in placeholder implementation")
+        }
     }
 
     public func getBookDetail(bookURL: String) async -> LoadState<SearchResultItem> {
-        await mockService.getBookDetail(bookURL: bookURL)
+        lock.lock()
+        let currentMode = self.mode
+        lock.unlock()
+
+        switch currentMode {
+        case .mock:
+            return await mockService.getBookDetail(bookURL: bookURL)
+        case .real:
+            return .unsupported(reason: "Real Core service not available in placeholder implementation")
+        }
     }
 
     public func getChapterList(bookURL: String) async -> LoadState<[TOCItem]> {
-        await mockService.getChapterList(bookURL: bookURL)
+        lock.lock()
+        let currentMode = self.mode
+        lock.unlock()
+
+        switch currentMode {
+        case .mock:
+            return await mockService.getChapterList(bookURL: bookURL)
+        case .real:
+            return .unsupported(reason: "Real Core service not available in placeholder implementation")
+        }
     }
 
     public func getChapterContent(chapterURL: String) async -> LoadState<ContentPage> {
-        await mockService.getChapterContent(chapterURL: chapterURL)
+        lock.lock()
+        let currentMode = self.mode
+        lock.unlock()
+
+        switch currentMode {
+        case .mock:
+            return await mockService.getChapterContent(chapterURL: chapterURL)
+        case .real:
+            return .unsupported(reason: "Real Core service not available in placeholder implementation")
+        }
     }
 
     public func setMockScenario(_ scenario: MockScenario) {
