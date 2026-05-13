@@ -57,9 +57,18 @@ public final class SearchViewModel: ObservableObject {
     public func loadSources() async {
         do {
             sources = try await store.load()
-            selectedSource = sources.first(where: { $0.enabled ?? true })
+            
+            if let resolved = await store.resolveSelectedSource(from: sources) {
+                selectedSource = resolved
+            } else if let firstEnabled = sources.first(where: { $0.enabled ?? true }) {
+                selectedSource = firstEnabled
+            } else if let first = sources.first {
+                selectedSource = first
+            } else {
+                selectedSource = nil
+            }
         } catch {
-            searchState = .failed(message: "Failed to load sources")
+            selectedSource = nil
         }
     }
 
