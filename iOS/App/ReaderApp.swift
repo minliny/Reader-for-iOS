@@ -75,6 +75,13 @@ struct RootShellView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        navigationState.push(.bookshelf)
+                    } label: {
+                        Image(systemName: "books.vertical")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         navigationState.push(.webdavSettings)
                     } label: {
                         Image(systemName: "gearshape")
@@ -119,6 +126,8 @@ struct RootShellView: View {
             }
         case .webdavSettings:
             WebDAVSettingsView()
+        case .bookshelf:
+            BookshelfView()
         }
     }
 }

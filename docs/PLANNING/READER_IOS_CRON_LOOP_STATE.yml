@@ -11,17 +11,12 @@ core_dependency_status: "RESOLVED_BUT_BUILD_FAILED (accepted)"
 public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 last_audit_at: "2026-05-13 20:15 +08:00"
-loop_status: "TERMINATED"
-loop_terminated: true
-termination_reason: "NO_READY_TASK — all PENDING tasks blocked by Core gaps (GAP-001/005/006/007) or ENV_TEST_BLOCKED"
-terminated_at: "2026-05-13 20:30 +08:00"
-last_cycle_started_at: "2026-05-13 20:16 +08:00"
-last_cycle_finished_at: "2026-05-13 20:17 +08:00"
-last_cycle_task: "IOS-11A (page turn mode)"
-last_cycle_result: "PageTurnMode enum (scroll/paginated) in ReaderDisplaySettings; segmented picker in settings; IOS-11A → DONE"
-total_cycles_this_session: 9
-tasks_completed_this_session: ["IOS-7A (4 cycles)", "IOS-7B (1 cycle)", "IOS-11A (4 cycles)"]
-pending_blocked_tasks: ["IOS-1D (ENV_TEST_BLOCKED)", "IOS-3A/4A/5A (LOCKED by CORE-GAP-001)", "IOS-8A (CORE-GAP-005)", "IOS-9A (CORE-GAP-006)", "IOS-10A (CORE-GAP-007)", "IOS-12A (needs prior stages)"]
+loop_status: "RUNNING"
+loop_terminated: false
+loop_restarted_at: "2026-05-13 20:35 +08:00"
+last_cycle_task: "NAV-001 (add .bookshelf route)"
+last_cycle_result: "Route.bookshelf + destinationView handler + toolbar button; ReaderApp build OK"
+total_cycles_this_session: 10
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true
