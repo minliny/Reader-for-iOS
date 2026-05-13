@@ -12,7 +12,8 @@ public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "READY_FOR_CRON_LOOP"
-cron_loop_enabled: false
+cron_loop_enabled: true
+loop_job_id: "5c5ea752"
 loop_terminated: false
 xcodebuild_status: "BUILD SUCCEEDED (iOS 26.5, iPhone 17 Pro)"
 xcodebuild_verified_at: "2026-05-14"
