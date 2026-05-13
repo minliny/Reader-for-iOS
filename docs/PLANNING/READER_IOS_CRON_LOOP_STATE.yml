@@ -1,13 +1,13 @@
 # Reader for iOS — Cron Loop State
 # Generated: 2026-05-13T00:00+08:00
-# Updated: 2026-05-13T19:45+08:00 — IOS-6A hardened, cron loop terminated
+# Updated: 2026-05-13T20:05+08:00 — dev mode enabled, loop restarted
 
-current_head: "89f2e74"
+current_head: "cbc022b"
 current_branch: "main"
-working_tree_status: "MODIFIED"
-detected_stage: "iOS-1"
-validation_status: "FAILED"
-core_dependency_status: "RESOLVED_BUT_BUILD_FAILED"
+working_tree_status: "MODIFIED (.claude/settings.local.json only)"
+detected_stage: "iOS-7"
+validation_status: "PASS (boundary)"
+core_dependency_status: "RESOLVED_BUT_BUILD_FAILED (accepted)"
 public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 
@@ -16,20 +16,21 @@ cron_loop_enabled: true
 cron_interval_minutes: 10
 trigger_method: "/loop 10m /reader-ios-cron-loop"
 
-# ── Final State ──
-loop_terminated: true
-loop_job_id: "0b3feab8"
-termination_reason: "ALL_TASKS_EXHAUSTED"
-terminated_at: "2026-05-13 00:48 +08:00"
+# ── Final State (prior session) ──
+loop_terminated: false
+previous_termination_reason: "ALL_TASKS_EXHAUSTED (prior session, pre-IOS-6A)"
+previous_terminated_at: "2026-05-13 00:48 +08:00"
 
-# ── Final Summary ──
-total_cycles: 11
-tasks_completed: 19
-tasks_blocked: 6
-tasks_moved_to_core: 2
-stages_completed: "iOS-0 through iOS-12 (planning phase)"
-cron_loop_enabled: false
-next_recommended_task_title: "Bookshelf MVP plan"
+# ── New Session State ──
+loop_restarted: true
+loop_restarted_at: "2026-05-13 20:05 +08:00"
+loop_mode: "dev"
+loop_allows_code_changes: true
+loop_allows_mock_only: true
+loop_job_id: "bc3a235d"
+
+next_recommended_task: "IOS-7A"
+next_recommended_task_title: "WebDAV settings and backup UI plan"
 
 # ── Stage Progress ──
 stage_ios_1_progress: "4/4 DONE — public API audit, boundary rules, boundary script, CoreBridge inventory"

@@ -32,7 +32,12 @@ tasks:
   - id: IOS-0B
     title: "Build/test entrypoint confirmation"
     stage: iOS-0
-    status: READY
+    status: DONE_CANDIDATE
+    note: >
+      Resolved 2026-05-13. Symlink Reader-Core -> ../Reader-Core created.
+      swift test compiles 199/199 but fails macOS link (iOS-only API — ENV_TEST_BLOCKED).
+      xcodebuild blocked by Core SimpleXPathEvaluator iOS 16 API (CORE-GAP-001).
+      All build status documented.
     implementation_scope: >
       Fix Package.swift sibling dependency path so `swift test` works from iOS/ directory.
       Option A: Add symlink iOS/Reader-Core -> ../../Reader-Core.
@@ -230,7 +235,7 @@ tasks:
   - id: IOS-7A
     title: "WebDAV settings and backup UI plan"
     stage: iOS-7
-    status: PENDING
+    status: READY
     implementation_scope: >
       Build WebDAV settings view with server URL, username, password.
       Implement Keychain credential storage.
