@@ -9,6 +9,7 @@ public enum Route: Hashable {
     case content(chapterTitle: String)
     case webdavSettings
     case bookshelf
+    case bookSources
 
     public var title: String {
         switch self {
@@ -26,6 +27,8 @@ public enum Route: Hashable {
             return "WebDAV 备份"
         case .bookshelf:
             return "书架"
+        case .bookSources:
+            return "书源管理"
         }
     }
 }

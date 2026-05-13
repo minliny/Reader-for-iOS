@@ -128,6 +128,8 @@ struct RootShellView: View {
             WebDAVSettingsView()
         case .bookshelf:
             BookshelfView()
+        case .bookSources:
+            BookSourceListView()
         }
     }
 }
