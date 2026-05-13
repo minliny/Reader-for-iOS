@@ -65,22 +65,14 @@ public final class BookshelfViewModel: ObservableObject {
         }
     }
 
-    public func addOrUpdateItem(from result: SearchResultItem, sourceID: String) async {
+    public func addOrUpdateItem(from result: SearchResultItem, sourceID: String, sourceName: String? = nil) async {
         do {
             let existingItem = try store.find(bookURL: result.detailURL, sourceID: sourceID)
-            let item = BookshelfItem(
-                id: existingItem?.id ?? UUID().uuidString,
+            let item = BookshelfItemFactory.makeOrUpdate(
+                from: result,
                 sourceID: sourceID,
-                bookURL: result.detailURL,
-                title: result.title,
-                author: result.author,
-                coverURL: result.coverURL,
-                latestChapter: nil,
-                addedAt: existingItem?.addedAt ?? Date(),
-                updatedAt: Date(),
-                lastReadChapterTitle: existingItem?.lastReadChapterTitle,
-                lastReadChapterURL: existingItem?.lastReadChapterURL,
-                readingProgress: existingItem?.readingProgress ?? 0.0
+                sourceName: sourceName,
+                existing: existingItem
             )
             try store.addOrUpdate(item)
             await loadItems()
