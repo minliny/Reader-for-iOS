@@ -16,9 +16,9 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-1C | S1 | P0 | DONE | Boundary check script validation | Script | PASS, 56 files, 0 violations | — |
 | IOS-1D | S1 | P1 | PENDING | CoreBridge inventory and smoke tests | ShellSmokeTests mock coverage | All mock scenarios tested | ENV_TEST_BLOCKED |
 | IOS-2A | S2 | P0 | DONE | App shell route inventory | Route audit | All routes documented | — |
-| IOS-3A | S3 | P1 | READY | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real book data displayed | CORE-GAP-001 (resolved 2026-05-14) |
-| IOS-4A | S4 | P1 | READY | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | CORE-GAP-001 (resolved 2026-05-14) |
-| IOS-5A | S5 | P1 | READY | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | CORE-GAP-001 (resolved 2026-05-14) |
+| IOS-3A | S3 | P1 | BLOCKED | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real book data displayed | GAP-005 (no real Core SearchService impl) |
+| IOS-4A | S4 | P1 | BLOCKED | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | GAP-004 (no Core validation API) |
+| IOS-5A | S5 | P1 | BLOCKED | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | GAP-005 (no real Core pipeline impl) |
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
 | IOS-7A | S7 | P1 | DONE | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test; backup export mock | — |
 | IOS-7B | S7 | P2 | DONE | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
