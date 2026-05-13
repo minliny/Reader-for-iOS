@@ -13,12 +13,30 @@ public struct SearchView: View {
     @AppStorage("search_history") private var historyData: Data = Data()
     @State private var searchHistory: [String] = []
     @StateObject private var bookshelfVM = BookshelfViewModel()
+    @State private var toastMessage: String?
+    private func showToast(_ message: String) {
+        toastMessage = message
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            toastMessage = nil
+        }
+    }
 
     public init() {}
 
     public var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
+                if let toast = toastMessage {
+                    Text(toast)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.green, in: RoundedRectangle(cornerRadius: 8))
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.easeInOut, value: toastMessage)
+                }
                 sourceSelectionView
                 searchInputView
                 searchStateView
@@ -145,6 +163,7 @@ public struct SearchView: View {
                                     sourceID: sourceID,
                                     sourceName: viewModel.selectedSource?.bookSourceName
                                 )
+                                showToast("Added \"\(result.title)\" to Bookshelf")
                             }
                         }
                     )
@@ -231,6 +250,7 @@ public struct SearchView: View {
                                         sourceID: sourceID,
                                         sourceName: viewModel.selectedSource?.bookSourceName
                                     )
+                                    showToast("Added \"\(result.title)\" to Bookshelf")
                                 }
                             }
                         )

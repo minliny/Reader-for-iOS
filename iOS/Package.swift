@@ -63,7 +63,8 @@ let package = Package(
             "ReadingProgress.swift",
             "ChapterCacheEntry.swift",
             "BookshelfItem.swift",
-            "SourceIdentity.swift"
+            "SourceIdentity.swift",
+            "BookshelfItemFactory.swift"
         ]
     ),
         .target(
