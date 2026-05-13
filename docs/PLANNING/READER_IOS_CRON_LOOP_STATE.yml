@@ -14,8 +14,8 @@ last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "RUNNING"
 loop_terminated: false
 loop_restarted_at: "2026-05-13 20:35 +08:00"
-last_cycle_task: "NAV-002 (add .bookSources route)"
-last_cycle_result: "Route.bookSources + destinationView handler; BookSourceListView accessible via navigation"
+last_cycle_task: "SRCH-001 (search history)"
+last_cycle_result: "SearchView: @AppStorage-persisted history (max 10), tappable chips on idle state, dedup + trim"
 total_cycles_this_session: 10
 
 # ── Cron Loop Configuration ──

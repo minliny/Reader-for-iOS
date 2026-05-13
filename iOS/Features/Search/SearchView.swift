@@ -10,6 +10,8 @@ public struct SearchView: View {
     @State private var selectedResult: SearchResultItem?
     @State private var bookRoute: BookDetailRoute?
     @State private var selectedSourceID: String?
+    @AppStorage("search_history") private var historyData: Data = Data()
+    @State private var searchHistory: [String] = []
 
     public init() {}
 
@@ -65,6 +67,7 @@ public struct SearchView: View {
                 .textFieldStyle(.roundedBorder)
 
             Button(action: {
+                saveSearchHistory(viewModel.keyword)
                 Task { await viewModel.search() }
             }) {
                 Image(systemName: "magnifyingglass")
@@ -74,15 +77,41 @@ public struct SearchView: View {
                     .cornerRadius(8)
             }
         }
+        .onAppear {
+            loadSearchHistory()
+        }
     }
 
     @ViewBuilder
     private var searchStateView: some View {
         switch viewModel.searchState {
         case .idle:
-            Text("Enter a keyword and select a book source to search")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Enter a keyword and select a book source to search")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if !searchHistory.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Recent Searches")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(searchHistory, id: \.self) { keyword in
+                                    Button(keyword) {
+                                        viewModel.keyword = keyword
+                                        saveSearchHistory(keyword)
+                                        Task { await viewModel.search() }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
         case .loading:
             ProgressView("Searching...")
@@ -182,5 +211,22 @@ public struct SearchView: View {
                 .listStyle(.plain)
             }
         }
+    }
+
+    // MARK: - Search History
+
+    private func loadSearchHistory() {
+        searchHistory = (try? JSONDecoder().decode([String].self, from: historyData)) ?? []
+    }
+
+    private func saveSearchHistory(_ keyword: String) {
+        let trimmed = keyword.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        var history = searchHistory
+        history.removeAll { $0 == trimmed }
+        history.insert(trimmed, at: 0)
+        if history.count > 10 { history = Array(history.prefix(10)) }
+        searchHistory = history
+        historyData = (try? JSONEncoder().encode(history)) ?? Data()
     }
 }

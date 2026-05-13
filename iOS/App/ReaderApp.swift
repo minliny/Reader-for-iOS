@@ -129,7 +129,7 @@ struct RootShellView: View {
         case .bookshelf:
             BookshelfView()
         case .bookSources:
-            BookSourceListView()
+            BookSourceListView(coordinator: coordinator)
         }
     }
 }
