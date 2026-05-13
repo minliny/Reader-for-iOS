@@ -1,8 +1,8 @@
 # Reader for iOS — Cron Loop State
 # Generated: 2026-05-13T00:00+08:00
-# Updated: 2026-05-13T00:30+08:00 — loop enabled, decisions resolved, symlink created
+# Updated: 2026-05-13T19:45+08:00 — IOS-6A hardened, cron loop terminated
 
-current_head: "6a25beb"
+current_head: "89f2e74"
 current_branch: "main"
 working_tree_status: "MODIFIED"
 detected_stage: "iOS-1"

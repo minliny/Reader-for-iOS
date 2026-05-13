@@ -202,7 +202,7 @@ tasks:
   - id: IOS-6A
     title: "Reader page MVP plan"
     stage: iOS-6
-    status: PENDING
+    status: HARDENED_MOCK_DRIVEN
     implementation_scope: >
       Complete chapter navigation (prev/next).
       Implement scroll position tracking.
@@ -216,6 +216,14 @@ tasks:
     validation: "Manual read flow test"
     next_on_success: IOS-7A
     stop_conditions: []
+    note: >
+      2026-05-13: Mock-driven hardening complete.
+      ReaderViewModel now supports chapter list, prev/next nav, progress save/restore (ReadingProgressStore),
+      settings load/save (ReaderSettingsStore), chapter cache (ChapterCacheStore), injectable stores.
+      ReaderView integrates ReaderStageActionBar + ReaderProgressSurfaceView.
+      All states rendered: idle/loading/loaded/empty/failed/unsupported/partial.
+      Tests written in ReaderAppTests target (blocked by macOS link — iOS-only API in Debug harness).
+      Remaining gap: real ContentPage from Core (BLOCKED by Core build).
 
   # ── Stage iOS-7: WebDAV Settings and Backup UI ──
 

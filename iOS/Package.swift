@@ -123,6 +123,17 @@ let package = Package(
                 "ReaderAppSupport"
             ],
             path: "Tests/ReaderAppPersistenceTestRunner"
+        ),
+        .testTarget(
+            name: "ReaderAppTests",
+            dependencies: [
+                "ReaderApp",
+                "ReaderAppSupport",
+                "ReaderAppPersistence",
+                "ReaderShellValidation",
+                .product(name: "ReaderCoreModels", package: "Reader-Core")
+            ],
+            path: "Tests/ReaderAppTests"
         )
     ]
 )
