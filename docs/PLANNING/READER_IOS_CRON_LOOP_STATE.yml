@@ -14,8 +14,8 @@ last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "RUNNING"
 last_cycle_started_at: "2026-05-13 20:16 +08:00"
 last_cycle_finished_at: "2026-05-13 20:17 +08:00"
-last_cycle_task: "IOS-11A (TTS player model)"
-last_cycle_result: "ReaderTTSPlayer wraps AVSpeechSynthesizer; play/pause/resume/stop/togglePlayPause; speechRate; zh-CN voice; delegate handlers"
+last_cycle_task: "IOS-11A (TTS control UI)"
+last_cycle_result: "ReaderTTSControlView with play/pause/stop/speed slider; wired into ReaderView toolbar + safeAreaInset overlay"
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true

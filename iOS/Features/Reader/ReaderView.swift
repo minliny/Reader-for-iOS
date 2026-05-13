@@ -3,7 +3,9 @@ import ReaderCoreModels
 
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
+    @StateObject private var ttsPlayer = ReaderTTSPlayer()
     @State private var showSettings = false
+    @State private var showTTS = false
     @State private var scrollOffset: CGFloat = 0
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
@@ -43,6 +45,11 @@ public struct ReaderView: View {
 #endif
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showTTS.toggle() }) {
+                        Image(systemName: "speaker.wave.2")
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showSettings.toggle() }) {
                         Image(systemName: "textformat.size")
                     }
@@ -63,7 +70,27 @@ public struct ReaderView: View {
             }
             .onDisappear {
                 viewModel.saveSettings()
+                ttsPlayer.stop()
             }
+            .safeAreaInset(edge: .bottom) {
+                if showTTS {
+                    ReaderTTSControlView(
+                        player: ttsPlayer,
+                        contentText: currentContentText
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                }
+            }
+        }
+    }
+
+    private var currentContentText: String {
+        switch viewModel.readerState {
+        case .loaded(let content), .partial(let content, _):
+            return content.content
+        default:
+            return ""
         }
     }
 
