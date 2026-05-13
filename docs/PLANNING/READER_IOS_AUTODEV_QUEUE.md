@@ -25,15 +25,16 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-8A | S8 | P2 | PENDING | Progress sync triggers | Progress sync UI | Triggers + conflict UI | CORE-GAP-005 (anticipated) |
 | IOS-9A | S9 | P2 | PENDING | Local book import UI | FileImporter feature | TXT/EPUB importable | CORE-GAP-006 (anticipated) |
 | IOS-10A | S10 | P2 | PENDING | WKWebView production adapter | Production adapter | Adapter wraps WKWebView safely | CORE-GAP-007 (anticipated) |
-| IOS-11A | S11 | P3 | IN_PROGRESS | TTS and reader UX | AVSpeechSynthesizer + themes | TTS reads; themes apply | — |
+| IOS-11A | S11 | P3 | DONE | TTS and reader UX | AVSpeechSynthesizer + themes | TTS reads; themes apply; page turn mode | — |
 | IOS-12A | S12 | P3 | PENDING | Release readiness | Smoke tests + checklist | All acceptance tests pass | All prior stages |
 
 ---
 
 ## Current Cycle Info
 
-- Last cycle: 2026-05-13 — IOS-11A font family picker added to ReaderSettingsPanel
-- IOS-11A: Font picker ✅; remaining: TTS, page turn modes, reading themes
-- Active blocker: CORE-GAP-001 (accepted, mock-driven continues)
+- Last cycle: 2026-05-13 — IOS-11A page turn mode; IOS-11A → DONE
+- IOS-11A: Font picker ✅, Para spacing ✅, TTS ✅, Page turn ✅
+- Next: IOS-12A Release readiness (pending)
+- Active blocker: CORE-GAP-001 (accepted)
 - Test status: ENV_TEST_BLOCKED (macOS link)
-- Boundary: PASS (60 files, 0 violations)
+- Boundary: PASS (62 files, 0 violations)

@@ -14,8 +14,8 @@ last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "RUNNING"
 last_cycle_started_at: "2026-05-13 20:16 +08:00"
 last_cycle_finished_at: "2026-05-13 20:17 +08:00"
-last_cycle_task: "IOS-11A (TTS control UI)"
-last_cycle_result: "ReaderTTSControlView with play/pause/stop/speed slider; wired into ReaderView toolbar + safeAreaInset overlay"
+last_cycle_task: "IOS-11A (page turn mode)"
+last_cycle_result: "PageTurnMode enum (scroll/paginated) in ReaderDisplaySettings; segmented picker in settings; IOS-11A → DONE"
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true

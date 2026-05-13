@@ -158,6 +158,19 @@ public struct ReaderSettingsPanel: View {
                 }
             }
 
+            VStack(spacing: 12) {
+                Text("Page Turn")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Picker("Mode", selection: $displaySettings.pageTurnMode) {
+                    ForEach(PageTurnMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue.capitalized).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
             Spacer()
         }
         .padding()

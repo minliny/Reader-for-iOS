@@ -22,6 +22,11 @@ public enum ReaderBackgroundMode: String, Codable, CaseIterable {
     }
 }
 
+public enum PageTurnMode: String, Codable, CaseIterable {
+    case scroll
+    case paginated
+}
+
 public struct ReaderDisplaySettings: Codable, Equatable {
     public var fontSize: Int
     public var fontFamily: String
@@ -30,6 +35,7 @@ public struct ReaderDisplaySettings: Codable, Equatable {
     public var horizontalPadding: Double
     public var verticalPadding: Double
     public var backgroundMode: ReaderBackgroundMode
+    public var pageTurnMode: PageTurnMode
 
     public init(
         fontSize: Int = 18,
@@ -38,7 +44,8 @@ public struct ReaderDisplaySettings: Codable, Equatable {
         paragraphSpacing: Double = 16.0,
         horizontalPadding: Double = 16.0,
         verticalPadding: Double = 16.0,
-        backgroundMode: ReaderBackgroundMode = .light
+        backgroundMode: ReaderBackgroundMode = .light,
+        pageTurnMode: PageTurnMode = .scroll
     ) {
         self.fontSize = fontSize
         self.fontFamily = fontFamily
@@ -47,6 +54,7 @@ public struct ReaderDisplaySettings: Codable, Equatable {
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.backgroundMode = backgroundMode
+        self.pageTurnMode = pageTurnMode
     }
 
     public static let `default` = ReaderDisplaySettings()
