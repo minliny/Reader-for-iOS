@@ -260,6 +260,11 @@ tasks:
       Settings UI skeleton with server URL, username, password, backup schedule picker,
       retention count stepper, mock connection test, save button. All mock-driven.
       Next: Keychain credential storage (IOS-7B) or real Keychain integration.
+      2026-05-13 cycle 2: WebDAVKeychainStore created (Security framework).
+      Real Keychain save/load/delete for WebDAVCredentials (serverURL, username, password).
+      WebDAVSettingsViewModel wired to Keychain — auto-loads on init, saves on demand.
+      iOS-only View modifiers guarded with #if os(iOS).
+      Next: backup export mock or route integration.
 
   # ── Stage iOS-8: Progress Cloud Sync ──
 

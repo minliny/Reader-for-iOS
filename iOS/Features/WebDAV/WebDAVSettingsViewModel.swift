@@ -24,6 +24,14 @@ public final class WebDAVSettingsViewModel: ObservableObject {
     @Published public var connectionTestResult: ConnectionTestResult = .idle
     @Published public var lastBackupDate: Date? = nil
     @Published public var isSaving: Bool = false
+    @Published public var isLoaded: Bool = false
+
+    private let keychain: WebDAVKeychainStore
+
+    public init(keychain: WebDAVKeychainStore = .shared) {
+        self.keychain = keychain
+        loadCredentials()
+    }
 
     public var isValid: Bool {
         guard let url = URL(string: serverURL.trimmingCharacters(in: .whitespaces)) else {
@@ -31,6 +39,35 @@ public final class WebDAVSettingsViewModel: ObservableObject {
         }
         return url.scheme == "http" || url.scheme == "https"
     }
+
+    // MARK: - Keychain Persistence
+
+    private func loadCredentials() {
+        guard let creds = try? keychain.load() else { return }
+        serverURL = creds.serverURL
+        username = creds.username
+        password = creds.password
+        isLoaded = true
+    }
+
+    public func saveCredentials() async {
+        isSaving = true
+        defer { isSaving = false }
+
+        let credentials = WebDAVCredentials(
+            serverURL: serverURL.trimmingCharacters(in: .whitespaces),
+            username: username.trimmingCharacters(in: .whitespaces),
+            password: password
+        )
+
+        do {
+            try keychain.save(credentials)
+        } catch {
+            connectionTestResult = .failed(message: "Save failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Connection Test (mock)
 
     public func testConnection() async {
         connectionTestResult = .testing
@@ -43,11 +80,5 @@ public final class WebDAVSettingsViewModel: ObservableObject {
         } else {
             connectionTestResult = .success(message: "Connection successful (mock)")
         }
-    }
-
-    public func saveCredentials() async {
-        isSaving = true
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        isSaving = false
     }
 }

@@ -14,8 +14,8 @@ last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "RUNNING"
 last_cycle_started_at: "2026-05-13 20:16 +08:00"
 last_cycle_finished_at: "2026-05-13 20:17 +08:00"
-last_cycle_task: "IOS-7A"
-last_cycle_result: "WebDAVSettingsView + WebDAVSettingsViewModel created; 58 files boundary PASS; ReaderApp build OK"
+last_cycle_task: "IOS-7B"
+last_cycle_result: "WebDAVKeychainStore created (Security framework); ViewModel wired to real Keychain; 59 files boundary PASS; ReaderApp build OK"
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true

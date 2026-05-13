@@ -34,9 +34,11 @@ public struct WebDAVSettingsView: View {
     private var serverSection: some View {
         Section("Server") {
             TextField("https://example.com/webdav", text: $viewModel.serverURL)
+#if os(iOS)
                 .keyboardType(.URL)
                 .autocapitalization(.none)
                 .disableAutocorrection(true)
+#endif
         }
     }
 
@@ -45,8 +47,10 @@ public struct WebDAVSettingsView: View {
     private var credentialSection: some View {
         Section("Credentials") {
             TextField("Username", text: $viewModel.username)
+#if os(iOS)
                 .autocapitalization(.none)
                 .disableAutocorrection(true)
+#endif
 
             SecureField("Password", text: $viewModel.password)
         }
