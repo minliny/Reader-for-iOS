@@ -2,14 +2,17 @@
 
 ## 1. 本轮结论
 
-**结论**: `SEARCH_CAPABILITY_READY_ENV_UNVERIFIED`
+**结论**: `READY_WITH_GAPS`
 
 **说明**:
 - 搜索流程能力层已形成本仓 Mock 闭环
 - SearchService 接口契约清晰
-- Mock/Placeholder/Real 路由已实现
+- Mock/Placeholder 路由已实现
 - 状态流与错误映射完整
 - 边界检查通过
+- **当前 real mode 是 PlaceholderSearchService，不代表真实 Reader-Core 搜索能力**
+- **DefaultSearchService 存在，但真实 Core 依赖未验证、未装配**
+- **selectedSourceId 与搜索流程连接为部分实现**
 - Swift 编译在 Trae 环境未验证
 
 ## 2. 审计范围
@@ -44,7 +47,7 @@
 | 能力项 | 状态 | 说明 |
 |--------|------|------|
 | 搜索关键词输入 | ✅ 已实现 | SearchViewModel.keyword |
-| selectedSourceId 需求 | ✅ 已实现 | 需 BookSource |
+| selectedSourceId 需求 | ⚠️ 部分实现 | 需 BookSource，但未从 BookSourceStore.loadSelectedSourceId() 读取 |
 | 指定书源搜索 | ✅ 已实现 | selectedSource |
 | 空关键词处理 | ✅ 已实现 | 抛出 failed |
 | 无书源处理 | ✅ 已实现 | 抛出 failed |
@@ -53,7 +56,8 @@
 | loading 状态 | ✅ 已实现 | SearchState.loading |
 | loaded/empty/failed 状态 | ✅ 已实现 | SearchState |
 | unsupported 状态 | ✅ 已实现 | SearchState.unsupported |
-| Mock/Placeholder/Real 可区分 | ✅ 已实现 | via ReaderCoreServiceProvider.mode |
+| Mock/Placeholder 可区分 | ✅ 已实现 | via ReaderCoreServiceProvider.mode |
+| real mode 真实搜索 | ❌ 未实现 | 当前返回 unsupported |
 
 ## 5. SearchService 契约
 
