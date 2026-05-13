@@ -70,19 +70,42 @@ public struct BookSourceListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var enabledSources: [BookSource] {
+        sources.filter { $0.enabled }
+    }
+
+    private var disabledSources: [BookSource] {
+        sources.filter { !$0.enabled }
+    }
+
     private var sourceListContent: some View {
         List {
-            ForEach(sources, id: \.id) { source in
-                BookSourceRowView(
-                    source: source,
-                    onToggle: { Task { await toggleSource(source) } },
-                    onDelete: { Task { await deleteSource(source) } }
-                )
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                .listRowSeparator(.hidden)
+            if !enabledSources.isEmpty {
+                Section("Enabled (\(enabledSources.count))") {
+                    ForEach(enabledSources, id: \.id) { source in
+                        sourceRow(source: source)
+                    }
+                }
+            }
+            if !disabledSources.isEmpty {
+                Section("Disabled (\(disabledSources.count))") {
+                    ForEach(disabledSources, id: \.id) { source in
+                        sourceRow(source: source)
+                    }
+                }
             }
         }
         .listStyle(.plain)
+    }
+
+    private func sourceRow(source: BookSource) -> some View {
+        BookSourceRowView(
+            source: source,
+            onToggle: { Task { await toggleSource(source) } },
+            onDelete: { Task { await deleteSource(source) } }
+        )
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .listRowSeparator(.hidden)
     }
 
     private func loadSources() async {
