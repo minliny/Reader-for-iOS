@@ -16,9 +16,9 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-1C | S1 | P0 | DONE | Boundary check script validation | Script | PASS, 56 files, 0 violations | — |
 | IOS-1D | S1 | P1 | PENDING | CoreBridge inventory and smoke tests | ShellSmokeTests mock coverage | All mock scenarios tested | ENV_TEST_BLOCKED |
 | IOS-2A | S2 | P0 | DONE | App shell route inventory | Route audit | All routes documented | — |
-| IOS-3A | S3 | P1 | LOCKED | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real book data displayed | CORE-GAP-001 |
-| IOS-4A | S4 | P1 | LOCKED | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | CORE-GAP-001 |
-| IOS-5A | S5 | P1 | LOCKED | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | CORE-GAP-001 |
+| IOS-3A | S3 | P1 | READY_CANDIDATE | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real book data displayed | CORE-GAP-001 (resolved 2026-05-14) |
+| IOS-4A | S4 | P1 | READY_CANDIDATE | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | CORE-GAP-001 (resolved 2026-05-14) |
+| IOS-5A | S5 | P1 | READY_CANDIDATE | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | CORE-GAP-001 (resolved 2026-05-14) |
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
 | IOS-7A | S7 | P1 | DONE | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test; backup export mock | — |
 | IOS-7B | S7 | P2 | DONE | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
@@ -32,8 +32,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- Loop TERMINATED: no READY task available
-- All PENDING tasks blocked by Core gaps or ENV_TEST_BLOCKED
-- Resume after CORE-GAP-001 resolved
-- Active blocker: CORE-GAP-001 (accepted)
+- CORE-GAP-001 RESOLVED 2026-05-14 (Reader-Core 31715d2)
+- IOS-3A/4A/5A: LOCKED → READY_CANDIDATE
+- Next: re-run xcodebuild, then promote IOS-3A to READY
+- Active blocker: none (CORE-GAP-001 resolved)
 - Boundary: PASS (62 files, 0 violations)

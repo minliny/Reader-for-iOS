@@ -25,10 +25,11 @@ gaps:
     core_gap: "ReaderCoreParser fails to compile — SimpleXPathEvaluator.swift:293 uses iOS 16+ API"
     why_ios_cannot_implement: "Cannot modify Reader-Core source from iOS repo"
     required_core_public_api: "ReaderCoreParser must compile for iOS Simulator (arm64)"
-    current_workaround: "Use xcodebuild -list only (no build); accept build failure as known"
-    ios_status: "BLOCKED"
-    core_status: "UNREPORTED"
-    next_action: "Report to Reader-Core maintainer; track in Reader-Core issue tracker"
+    current_workaround: "FIXED 2026-05-14: split(separator:) → components(separatedBy:) in Reader-Core commit 31715d2"
+    ios_status: "RESOLVED_PENDING_IOS_RECHECK"
+    core_status: "RESOLVED"
+    next_action: "Re-run xcodebuild from iOS repo to confirm; update blocked tasks to READY_CANDIDATE"
+    resolution: "Reader-Core commit 31715d2: replaced String.split(separator:) with components(separatedBy:) in SimpleXPathEvaluator.swift for iOS 15 compatibility"
 
   - id: GAP-002
     source_task: "IOS-CRON-001 (Build/test entrypoint confirmation)"
