@@ -90,6 +90,8 @@ targets:
       - target: ReaderShellValidation
       - target: ReaderAppSupport
       - target: ReaderAppPersistence
+      - package: ReaderCore
+        product: ReaderCoreModels
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.reader.ios

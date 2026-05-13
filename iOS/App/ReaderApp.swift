@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderShellValidation
+import ReaderCoreModels
 
 #if DEBUG && canImport(WebKit)
 import WebKit
