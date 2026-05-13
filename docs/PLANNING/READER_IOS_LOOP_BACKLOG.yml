@@ -265,6 +265,8 @@ tasks:
       WebDAVSettingsViewModel wired to Keychain — auto-loads on init, saves on demand.
       iOS-only View modifiers guarded with #if os(iOS).
       Next: backup export mock or route integration.
+      2026-05-13 cycle 3: Route.webdavSettings added; ReaderApp toolbar gear button
+      navigates to WebDAVSettingsView; destinationView handles .webdavSettings case.
 
   # ── Stage iOS-8: Progress Cloud Sync ──
 

@@ -32,9 +32,9 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- Last cycle: 2026-05-13 — IOS-7B Keychain credential storage done
-- IOS-7A remaining: backup export mock, route integration
-- Next READY: IOS-7A backup export or IOS-8A (pending)
+- Last cycle: 2026-05-13 — IOS-7A route integration done
+- IOS-7A: Settings UI ✅, Keychain ✅, Route ✅; remaining: backup export mock
+- Next READY: IOS-7A backup export mock or IOS-8A (pending)
 - Active blocker: CORE-GAP-001 (accepted, mock-driven continues)
 - Test status: ENV_TEST_BLOCKED (macOS link)
 - Boundary: PASS (59 files, 0 violations)

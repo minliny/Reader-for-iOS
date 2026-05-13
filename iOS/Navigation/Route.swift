@@ -7,6 +7,7 @@ public enum Route: Hashable {
     case search
     case toc(bookTitle: String, bookAuthor: String?)
     case content(chapterTitle: String)
+    case webdavSettings
 
     public var title: String {
         switch self {
@@ -20,6 +21,8 @@ public enum Route: Hashable {
             return bookTitle
         case .content(let chapterTitle):
             return chapterTitle
+        case .webdavSettings:
+            return "WebDAV 备份"
         }
     }
 }

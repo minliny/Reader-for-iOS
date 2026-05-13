@@ -73,6 +73,13 @@ struct RootShellView: View {
                 destinationView(for: route)
             }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        navigationState.push(.webdavSettings)
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
                 #if DEBUG
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink(destination: WebViewRuntimeHarnessView()) {
@@ -110,6 +117,8 @@ struct RootShellView: View {
             } else {
                 Text("章节信息不可用")
             }
+        case .webdavSettings:
+            WebDAVSettingsView()
         }
     }
 }
