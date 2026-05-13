@@ -11,12 +11,12 @@ core_dependency_status: "RESOLVED_BUT_BUILD_FAILED (accepted)"
 public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 last_audit_at: "2026-05-13 20:15 +08:00"
-loop_status: "RUNNING"
-loop_terminated: false
-loop_restarted_at: "2026-05-13 20:35 +08:00"
-last_cycle_task: "NAV-004 (TabView)"
-last_cycle_result: "RootShellView: 4-tab TabView (Home/Bookshelf/Search/Settings); per-tab NavigationStack; removed toolbar nav buttons"
-total_cycles_this_session: 10
+loop_status: "TERMINATED"
+loop_terminated: true
+termination_reason: "ALL_TASKS_EXHAUSTED — 11 formal DONE, 8 BLOCKED, all mock gap-register items addressed"
+terminated_at: "2026-05-14"
+total_cycles_this_session: 20
+tasks_completed: ["IOS-7A (4 cycles)", "IOS-7B", "IOS-11A (4 cycles)", "NAV-001~004 (4 cycles)", "BS-001~002", "SRCH-001~002", "SRC-001~002"]
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true
