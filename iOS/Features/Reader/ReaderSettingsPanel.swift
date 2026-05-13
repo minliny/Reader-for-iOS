@@ -48,6 +48,19 @@ public struct ReaderSettingsPanel: View {
             }
 
             VStack(spacing: 12) {
+                Text("Font Family")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Picker("Font", selection: $displaySettings.fontFamily) {
+                    ForEach(ReaderSettingsPanel.availableFonts, id: \.self) { font in
+                        Text(font).tag(font)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            VStack(spacing: 12) {
                 Text("Line Spacing")
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -116,6 +129,16 @@ public struct ReaderSettingsPanel: View {
         .frame(maxWidth: .infinity)
         .background(Color(.systemBackground))
     }
+
+    public static let availableFonts: [String] = [
+        "SF Pro Display",
+        "SF Pro Text",
+        "Georgia",
+        "Palatino",
+        "Times New Roman",
+        "Avenir",
+        "Helvetica Neue"
+    ]
 }
 
 extension Color {

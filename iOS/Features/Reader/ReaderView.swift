@@ -284,7 +284,7 @@ public struct ReaderView: View {
 
     private func contentText(text: String) -> some View {
         Text(text)
-            .font(.system(size: CGFloat(viewModel.displaySettings.fontSize)))
+            .font(.custom(viewModel.displaySettings.fontFamily, size: CGFloat(viewModel.displaySettings.fontSize)))
             .foregroundColor(Color(hex: viewModel.displaySettings.backgroundMode.textColor))
             .lineSpacing(CGFloat(viewModel.displaySettings.lineSpacing))
             .padding(EdgeInsets(
