@@ -14,8 +14,8 @@ last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "RUNNING"
 loop_terminated: false
 loop_restarted_at: "2026-05-13 20:35 +08:00"
-last_cycle_task: "SRC-001 (source grouping)"
-last_cycle_result: "BookSourceListView: Section headers by enabled/disabled with count badges"
+last_cycle_task: "SRCH-002 (clear search history)"
+last_cycle_result: "SearchView: Clear button in Recent Searches header resets history + @AppStorage"
 total_cycles_this_session: 10
 
 # ── Cron Loop Configuration ──

@@ -93,9 +93,18 @@ public struct SearchView: View {
 
                 if !searchHistory.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Recent Searches")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        HStack {
+                            Text("Recent Searches")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Clear") {
+                                searchHistory = []
+                                historyData = Data()
+                            }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                        }
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(searchHistory, id: \.self) { keyword in
