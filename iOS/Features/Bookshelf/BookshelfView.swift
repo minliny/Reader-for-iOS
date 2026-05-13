@@ -17,6 +17,9 @@ public struct BookshelfView: View {
             .onAppear {
                 Task { await viewModel.loadItems() }
             }
+            .refreshable {
+                await viewModel.loadItems()
+            }
             .sheet(item: $selectedItem) { item in
                 BookshelfItemDetailView(item: item)
                     .presentationDetents([.medium])
