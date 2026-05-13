@@ -165,6 +165,40 @@ public final class ReadingFlowCoordinator: ObservableObject {
         selectedChapter = nil
         contentPage = nil
     }
+    
+    public var canMoveToPreviousChapter: Bool {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL })
+        else { return false }
+        return currentIndex > 0
+    }
+    
+    public var canMoveToNextChapter: Bool {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL })
+        else { return false }
+        return currentIndex < tocItems.count - 1
+    }
+    
+    public func moveToPreviousChapter() async {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL }),
+              currentIndex > 0
+        else { return }
+        
+        let previousChapter = tocItems[currentIndex - 1]
+        await selectChapter(previousChapter)
+    }
+    
+    public func moveToNextChapter() async {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL }),
+              currentIndex < tocItems.count - 1
+        else { return }
+        
+        let nextChapter = tocItems[currentIndex + 1]
+        await selectChapter(nextChapter)
+    }
 }
 #else
 public final class ReadingFlowCoordinator {
@@ -324,6 +358,40 @@ public final class ReadingFlowCoordinator {
     private func resetChapterSelectionState() {
         selectedChapter = nil
         contentPage = nil
+    }
+    
+    public var canMoveToPreviousChapter: Bool {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL })
+        else { return false }
+        return currentIndex > 0
+    }
+    
+    public var canMoveToNextChapter: Bool {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL })
+        else { return false }
+        return currentIndex < tocItems.count - 1
+    }
+    
+    public func moveToPreviousChapter() async {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL }),
+              currentIndex > 0
+        else { return }
+        
+        let previousChapter = tocItems[currentIndex - 1]
+        await selectChapter(previousChapter)
+    }
+    
+    public func moveToNextChapter() async {
+        guard let selectedChapter = selectedChapter,
+              let currentIndex = tocItems.firstIndex(where: { $0.chapterURL == selectedChapter.chapterURL }),
+              currentIndex < tocItems.count - 1
+        else { return }
+        
+        let nextChapter = tocItems[currentIndex + 1]
+        await selectChapter(nextChapter)
     }
 }
 #endif

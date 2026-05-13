@@ -2,17 +2,20 @@
 
 ## 1. 本轮结论
 
-**结论**: `READING_CAPABILITY_READY_ENV_UNVERIFIED`
+**结论**: `READY_WITH_GAPS + ENV_COMPILE_UNVERIFIED`
 
 **说明**:
-- 阅读流程能力层已形成本仓 Mock 闭环
+- 本阶段是审计通过，不是能力完全 READY
 - ReadingProgressStore 进度保存/读取能力已具备
 - ReaderSettingsStore 阅读设置保存/读取能力已具备
 - ChapterCacheStore 独立缓存能力已具备，流程接入待补强
 - BookshelfStore 书架管理能力已具备，进度更新已覆盖
 - ReaderViewModel 提供完整阅读状态流
+- ReadingFlowCoordinator 已维护 selectedChapter/contentPage/isLoading/currentError 等正文状态
+- 上一章/下一章显式 API、缓存接入、进度 source of truth 仍需 S6.P1 补强
 - **当前 real mode 是 Placeholder，不代表真实 Reader-Core 能力**
-- **ChapterCacheStore 未接入 ContentService / ReadingFlowCoordinator**
+- **ChapterCacheStore 是独立缓存能力，尚未形成正文流程缓存闭环**
+- 已发现多项持久化测试定义，但当前未通过 swift test 编译验证
 - Swift 编译在 Trae 环境未验证
 
 ## 2. 审计范围

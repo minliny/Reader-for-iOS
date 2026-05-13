@@ -118,6 +118,26 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         XCTAssertEqual(loaded?.chapterTitle, "Chapter Five")
         XCTAssertEqual(loaded?.status, .cached)
     }
+    
+    func testChapterCacheWithContent() throws {
+        let tempURL = makeTempFileURL(name: "test_cache_content.json")
+        let store = ChapterCacheStore(storageURL: tempURL)
+
+        let entry = ChapterCacheEntry(
+            sourceID: "source-a",
+            bookURL: "https://example.com/book/3",
+            chapterURL: "https://example.com/book/3/chapter/7",
+            chapterTitle: "Chapter Seven",
+            status: .cached,
+            contentHTML: "<p>Test content</p>",
+            contentMarkdown: "Test content"
+        )
+
+        try store.saveEntry(entry)
+        let loaded = try store.loadEntry(chapterURL: entry.chapterURL, sourceID: "source-a")
+        XCTAssertEqual(loaded?.contentHTML, "<p>Test content</p>")
+        XCTAssertEqual(loaded?.contentMarkdown, "Test content")
+    }
 
     func testChapterCacheRemoveDeletesEntry() throws {
         let tempURL = makeTempFileURL(name: "test_cache_remove.json")
