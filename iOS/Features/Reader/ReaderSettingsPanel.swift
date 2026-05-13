@@ -96,6 +96,41 @@ public struct ReaderSettingsPanel: View {
             }
 
             VStack(spacing: 12) {
+                Text("Paragraph Spacing")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                HStack(spacing: 16) {
+                    Button(action: {
+                        if displaySettings.paragraphSpacing > 2 {
+                            displaySettings.paragraphSpacing -= 2
+                        }
+                    }) {
+                        Image(systemName: "minus")
+                            .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    Text(String(format: "%.0f", displaySettings.paragraphSpacing))
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .frame(width: 60)
+
+                    Button(action: {
+                        if displaySettings.paragraphSpacing < 48 {
+                            displaySettings.paragraphSpacing += 2
+                        }
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+
+            VStack(spacing: 12) {
                 Text("Background")
                     .font(.subheadline)
                     .fontWeight(.semibold)

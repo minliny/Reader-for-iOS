@@ -290,7 +290,7 @@ public struct ReaderView: View {
             .padding(EdgeInsets(
                 top: viewModel.displaySettings.verticalPadding,
                 leading: viewModel.displaySettings.horizontalPadding,
-                bottom: viewModel.displaySettings.verticalPadding,
+                bottom: viewModel.displaySettings.verticalPadding + viewModel.displaySettings.paragraphSpacing,
                 trailing: viewModel.displaySettings.horizontalPadding
             ))
             .frame(maxWidth: .infinity)

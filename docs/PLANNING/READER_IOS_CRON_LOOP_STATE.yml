@@ -14,8 +14,8 @@ last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "RUNNING"
 last_cycle_started_at: "2026-05-13 20:16 +08:00"
 last_cycle_finished_at: "2026-05-13 20:17 +08:00"
-last_cycle_task: "IOS-11A (font family picker)"
-last_cycle_result: "ReaderSettingsPanel font family Picker with 7 fonts; ReaderView applies fontFamily via .custom(); IOS-11A→IN_PROGRESS"
+last_cycle_task: "IOS-11A (paragraph spacing)"
+last_cycle_result: "ReaderSettingsPanel paragraphSpacing +/- stepper; ReaderView applies paragraphSpacing as extra bottom padding"
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true
