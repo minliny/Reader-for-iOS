@@ -78,7 +78,12 @@ public final class BookSourceStore: @unchecked Sendable {
         if newSource.id == nil {
             newSource.id = UUID().uuidString
         }
-        sources.append(newSource)
+        
+        if let existingIndex = sources.firstIndex(where: { $0.id == newSource.id }) {
+            sources[existingIndex] = newSource
+        } else {
+            sources.append(newSource)
+        }
         try await save(sources)
     }
 
