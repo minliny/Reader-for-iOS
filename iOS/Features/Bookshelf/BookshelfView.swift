@@ -3,12 +3,12 @@ import ReaderAppSupport
 
 public struct BookshelfView: View {
     @StateObject private var viewModel = BookshelfViewModel()
-    @State private var navigationPath = NavigationPath()
+    @State private var selectedItem: BookshelfItem?
 
     public init() {}
 
     public var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 bookshelfStateView
             }
@@ -16,6 +16,10 @@ public struct BookshelfView: View {
             .navigationTitle("Bookshelf")
             .onAppear {
                 Task { await viewModel.loadItems() }
+            }
+            .sheet(item: $selectedItem) { item in
+                BookshelfItemDetailView(item: item)
+                    .presentationDetents([.medium])
             }
         }
     }
@@ -83,5 +87,48 @@ public struct BookshelfView: View {
     }
 
     private func navigateToDetail(item: BookshelfItem) {
+        selectedItem = item
+    }
+}
+
+struct BookshelfItemDetailView: View {
+    let item: BookshelfItem
+    @SwiftUI.Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Book Info") {
+                    LabeledContent("Title", value: item.title)
+                    if let author = item.author {
+                        LabeledContent("Author", value: author)
+                    }
+                    if let source = item.sourceName {
+                        LabeledContent("Source", value: source)
+                    }
+                }
+
+                Section("Reading Progress") {
+                    LabeledContent("Progress") {
+                        Text("\(Int(item.readingProgress * 100))%")
+                    }
+                    if let chapter = item.lastReadChapterTitle {
+                        LabeledContent("Last Chapter", value: chapter)
+                    }
+                    LabeledContent("Added") {
+                        Text(item.addedAt, style: .date)
+                    }
+                }
+            }
+            .navigationTitle(item.title)
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
