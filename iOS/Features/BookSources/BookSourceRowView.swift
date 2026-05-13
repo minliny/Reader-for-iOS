@@ -5,15 +5,18 @@ public struct BookSourceRowView: View {
     let source: BookSource
     let onToggle: () -> Void
     let onDelete: () -> Void
+    let onShare: (() -> Void)?
 
     public init(
         source: BookSource,
         onToggle: @escaping () -> Void,
-        onDelete: @escaping () -> Void
+        onDelete: @escaping () -> Void,
+        onShare: (() -> Void)? = nil
     ) {
         self.source = source
         self.onToggle = onToggle
         self.onDelete = onDelete
+        self.onShare = onShare
     }
 
     public var body: some View {
@@ -43,6 +46,14 @@ public struct BookSourceRowView: View {
                     Label("Saved", systemImage: "checkmark.circle.fill")
                         .font(.caption2)
                         .foregroundStyle(.green)
+                }
+
+                if let onShare = onShare {
+                    Button(action: onShare) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
                 }
 
                 Spacer()

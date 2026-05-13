@@ -9,6 +9,8 @@ public struct BookSourceListView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingImport = false
+    @State private var shareText: String = ""
+    @State private var showShare = false
 
     private let store = BookSourceStore.shared
 
@@ -53,6 +55,28 @@ public struct BookSourceListView: View {
             }
             .sheet(isPresented: $showingImport) {
                 BookSourceImportView()
+            }
+            .sheet(isPresented: $showShare) {
+                NavigationStack {
+                    ScrollView {
+                        Text(shareText)
+                            .font(.caption.monospaced())
+                            .padding()
+                    }
+                    .navigationTitle("Book Source JSON")
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Copy") {
+#if os(iOS)
+                                UIPasteboard.general.string = shareText
+#endif
+                            }
+                        }
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Done") { showShare = false }
+                        }
+                    }
+                }
             }
             .task {
                 await loadSources()
@@ -117,7 +141,14 @@ public struct BookSourceListView: View {
         BookSourceRowView(
             source: source,
             onToggle: { Task { await toggleSource(source) } },
-            onDelete: { Task { await deleteSource(source) } }
+            onDelete: { Task { await deleteSource(source) } },
+            onShare: {
+                if let data = try? JSONEncoder().encode(source),
+                   let json = String(data: data, encoding: .utf8) {
+                    shareText = json
+                    showShare = true
+                }
+            }
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .listRowSeparator(.hidden)
