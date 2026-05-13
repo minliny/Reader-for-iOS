@@ -23,14 +23,17 @@ public final class ReadingFlowCoordinator: ObservableObject {
     public let tocService: TOCService
     public let contentService: ContentService
     public let errorLogger: ErrorLogger
-
+    
+    private var chapterCacheStore: ChapterCacheStore?
+    
     public init(
         bookSourceRepository: BookSourceRepository,
         bookSourceDecoder: BookSourceDecoder,
         searchService: SearchService,
         tocService: TOCService,
         contentService: ContentService,
-        errorLogger: ErrorLogger
+        errorLogger: ErrorLogger,
+        chapterCacheStore: ChapterCacheStore? = nil
     ) {
         self.bookSourceRepository = bookSourceRepository
         self.bookSourceDecoder = bookSourceDecoder
@@ -38,6 +41,11 @@ public final class ReadingFlowCoordinator: ObservableObject {
         self.tocService = tocService
         self.contentService = contentService
         self.errorLogger = errorLogger
+        self.chapterCacheStore = chapterCacheStore
+    }
+    
+    public func setChapterCacheStore(_ store: ChapterCacheStore?) {
+        self.chapterCacheStore = store
     }
     
     public func importBookSource(from data: Data) async {

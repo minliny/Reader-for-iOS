@@ -98,6 +98,28 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         let reloaded = try store.loadProgress(bookID: "book-3")
         XCTAssertEqual(reloaded?.progressRatio, 0.9)
     }
+    
+    func testReadingProgressStoresDetailedChapterInfo() throws {
+        let tempURL = makeTempFileURL(name: "test_progress_detailed.json")
+        let store = ReadingProgressStore(storageURL: tempURL)
+
+        let progress = ReadingProgress(
+            bookID: "book-detail",
+            sourceID: "source-detail",
+            bookURL: "https://example.com/book/detail",
+            chapterURL: "https://example.com/book/detail/chapter/5",
+            chapterTitle: "Chapter Five",
+            progressRatio: 0.75
+        )
+
+        try store.saveProgress(progress)
+        let loaded = try store.loadProgress(bookID: "book-detail")
+
+        XCTAssertEqual(loaded?.chapterURL, "https://example.com/book/detail/chapter/5")
+        XCTAssertEqual(loaded?.chapterTitle, "Chapter Five")
+        XCTAssertEqual(loaded?.progressRatio, 0.75)
+        XCTAssertEqual(loaded?.sourceID, "source-detail")
+    }
 
     // MARK: - ChapterCacheStore
 
@@ -137,6 +159,30 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         let loaded = try store.loadEntry(chapterURL: entry.chapterURL, sourceID: "source-a")
         XCTAssertEqual(loaded?.contentHTML, "<p>Test content</p>")
         XCTAssertEqual(loaded?.contentMarkdown, "Test content")
+    }
+    
+    func testChapterCacheLegacyJSONCompatibility() throws {
+        let tempURL = makeTempFileURL(name: "test_cache_legacy.json")
+        
+        let legacyJSON = """
+        {
+            "sourceID": "legacy-source",
+            "bookURL": "https://example.com/book/legacy",
+            "chapterURL": "https://example.com/book/legacy/chapter/1",
+            "chapterTitle": "Legacy Chapter",
+            "cachedAt": "2024-01-01T00:00:00Z",
+            "status": "cached"
+        }
+        """.data(using: .utf8)!
+        
+        let entries: [String: ChapterCacheEntry] = try JSONDecoder().decode([String: ChapterCacheEntry].self, from: legacyJSON)
+        let key = "legacy-source_https://example.com/book/legacy/chapter/1"
+        
+        XCTAssertTrue(entries.keys.contains(key))
+        let entry = entries[key]
+        XCTAssertEqual(entry?.chapterTitle, "Legacy Chapter")
+        XCTAssertNil(entry?.contentHTML)
+        XCTAssertNil(entry?.contentMarkdown)
     }
 
     func testChapterCacheRemoveDeletesEntry() throws {

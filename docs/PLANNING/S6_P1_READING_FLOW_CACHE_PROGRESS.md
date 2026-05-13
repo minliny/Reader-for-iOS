@@ -2,13 +2,14 @@
 
 ## 1. 本轮结论
 
-**结论**: `CONTENT_CONTRACT_READY_ENV_UNVERIFIED`
+**结论**: `READY_WITH_REMAINING_GAPS + ENV_COMPILE_UNVERIFIED`
 
 **说明**:
 - 已完成 ReadingFlowCoordinator 上一章/下一章显式 API 能力补强
 - 已完成 ChapterCacheEntry 数据模型扩展，支持正文内容缓存
-- 已完成 ReadingProgressStore 与 BookshelfStore 职责边界文档化
 - 已完成测试覆盖，包括 ReadingFlow 契约和 ChapterCacheEntry 扩展
+- **ChapterCacheStore 尚未接入 ContentService / ReadingFlowCoordinator 正文加载流程**
+- **Progress source of truth 仍需 S6.P2 明确**
 - 边界检查通过
 - Swift 编译在 Trae 环境未验证
 - 缓存接入正文流程作为后续任务（S6.P2+）
