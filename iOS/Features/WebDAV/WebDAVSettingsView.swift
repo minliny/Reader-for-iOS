@@ -81,6 +81,35 @@ public struct WebDAVSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            Button {
+                Task { await viewModel.exportBackup() }
+            } label: {
+                HStack {
+                    Text("Export Backup Now")
+                    Spacer()
+                    if case .testing = viewModel.exportResult {
+                        ProgressView()
+                    }
+                }
+            }
+
+            switch viewModel.exportResult {
+            case .idle:
+                EmptyView()
+            case .testing:
+                HStack {
+                    ProgressView()
+                    Text("Exporting...")
+                        .foregroundStyle(.secondary)
+                }
+            case .success(let message):
+                Label(message, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .failed(let message):
+                Label(message, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
         }
     }
 

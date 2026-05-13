@@ -235,7 +235,7 @@ tasks:
   - id: IOS-7A
     title: "WebDAV settings and backup UI plan"
     stage: iOS-7
-    status: IN_PROGRESS
+    status: DONE_CANDIDATE
     implementation_scope: >
       Build WebDAV settings view with server URL, username, password.
       Implement Keychain credential storage.
@@ -267,6 +267,9 @@ tasks:
       Next: backup export mock or route integration.
       2026-05-13 cycle 3: Route.webdavSettings added; ReaderApp toolbar gear button
       navigates to WebDAVSettingsView; destinationView handles .webdavSettings case.
+      2026-05-13 cycle 4: WebDAVBackupExporter created — exports BookshelfStore items
+      to JSON backup file; export button + result display in settings view.
+      IOS-7A → DONE_CANDIDATE. Remaining real Core gap: Core sync schema/contract.
 
   # ── Stage iOS-8: Progress Cloud Sync ──
 

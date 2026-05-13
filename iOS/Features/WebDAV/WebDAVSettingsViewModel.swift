@@ -25,11 +25,17 @@ public final class WebDAVSettingsViewModel: ObservableObject {
     @Published public var lastBackupDate: Date? = nil
     @Published public var isSaving: Bool = false
     @Published public var isLoaded: Bool = false
+    @Published public var exportResult: ConnectionTestResult = .idle
 
     private let keychain: WebDAVKeychainStore
+    private let exporter: WebDAVBackupExporter
 
-    public init(keychain: WebDAVKeychainStore = .shared) {
+    public init(
+        keychain: WebDAVKeychainStore = .shared,
+        exporter: WebDAVBackupExporter = .shared
+    ) {
         self.keychain = keychain
+        self.exporter = exporter
         loadCredentials()
     }
 
@@ -64,6 +70,21 @@ public final class WebDAVSettingsViewModel: ObservableObject {
             try keychain.save(credentials)
         } catch {
             connectionTestResult = .failed(message: "Save failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Backup Export (mock)
+
+    public func exportBackup() async {
+        exportResult = .testing
+        try? await Task.sleep(nanoseconds: 800_000_000)
+
+        do {
+            let url = try exporter.exportBackup()
+            lastBackupDate = Date()
+            exportResult = .success(message: "Exported to \(url.lastPathComponent)")
+        } catch {
+            exportResult = .failed(message: "Export failed: \(error.localizedDescription)")
         }
     }
 

@@ -20,7 +20,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-4A | S4 | P1 | LOCKED | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | CORE-GAP-001 |
 | IOS-5A | S5 | P1 | LOCKED | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | CORE-GAP-001 |
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
-| IOS-7A | S7 | P1 | IN_PROGRESS | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test | — |
+| IOS-7A | S7 | P1 | DONE | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test; backup export mock | — |
 | IOS-7B | S7 | P2 | DONE | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
 | IOS-8A | S8 | P2 | PENDING | Progress sync triggers | Progress sync UI | Triggers + conflict UI | CORE-GAP-005 (anticipated) |
 | IOS-9A | S9 | P2 | PENDING | Local book import UI | FileImporter feature | TXT/EPUB importable | CORE-GAP-006 (anticipated) |
@@ -32,9 +32,9 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- Last cycle: 2026-05-13 — IOS-7A route integration done
-- IOS-7A: Settings UI ✅, Keychain ✅, Route ✅; remaining: backup export mock
-- Next READY: IOS-7A backup export mock or IOS-8A (pending)
+- Last cycle: 2026-05-13 — IOS-7A backup export mock done; IOS-7A → DONE
+- IOS-7A complete: Settings UI ✅, Keychain ✅, Route ✅, Backup export ✅
+- Next READY: IOS-8A Progress sync triggers (pending, CORE-GAP-005 anticipated)
 - Active blocker: CORE-GAP-001 (accepted, mock-driven continues)
 - Test status: ENV_TEST_BLOCKED (macOS link)
 - Boundary: PASS (59 files, 0 violations)
