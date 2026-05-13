@@ -5,13 +5,14 @@
 **结论**: `CONTENT_CONTRACT_READY_ENV_UNVERIFIED`
 
 **说明**:
-- ContentService Mock/Placeholder 路由契约已验证
-- ReadingFlowCoordinator 正文流程已测试
-- 上一章/下一章边界已测试
-- ChapterCacheStore 缓存边界已测试
+- ContentService Mock/Placeholder 路由契约已定义测试
+- ReadingFlowCoordinator 正文流程已定义测试
+- 上一章/下一章边界逻辑已定义测试（无显式 API）
+- ChapterCacheStore 缓存边界已定义测试
 - **当前 real mode 仍为 Placeholder，不代表真实 Reader-Core 正文能力**
-- **ContentService 测试已新增（35 个测试）**
-- **ChapterCacheStore 已测试但未接入正文加载流程**
+- **ContentService 测试已新增（32 个测试定义）**
+- **ChapterCacheStore 已定义测试但未接入正文加载流程**
+- **TEST_TARGET_COMPILE_UNVERIFIED**
 - Swift 编译在 Trae 环境未验证
 
 ## 2. S5.P0 结论修正
@@ -218,7 +219,7 @@ guard currentIndex < coordinator.tocItems.count - 1 else { return nil }
 | 检查项 | 结果 |
 |--------|------|
 | 边界检查脚本 | ✅ PASS (checked_files=65) |
-| 新增测试文件 | ✅ ContentServiceContractTests.swift (35 个测试) |
+| 新增测试文件 | ✅ ContentServiceContractTests.swift (32 个测试定义) |
 | Swift 编译 | ⚠️ ENV_COMPILE_UNVERIFIED |
 
 ### 测试统计
@@ -233,7 +234,9 @@ guard currentIndex < coordinator.tocItems.count - 1 else { return nil }
 | ReadingFlowCoordinator | 6 |
 | Chapter Navigation | 3 |
 | ChapterCacheStore | 5 |
-| **总计** | **35** |
+| **总计** | **32** |
+
+**注意**: 测试数量为代码定义数量，实际执行需本地编译验证 (TEST_TARGET_COMPILE_UNVERIFIED)。
 
 ## 11. 剩余 P0 / P1 / P2 缺口
 
