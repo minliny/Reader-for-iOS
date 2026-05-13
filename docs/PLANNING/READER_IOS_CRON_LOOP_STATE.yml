@@ -11,16 +11,18 @@ core_dependency_status: "RESOLVED_BUT_BUILD_FAILED (accepted)"
 public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 last_audit_at: "2026-05-13 20:15 +08:00"
-loop_status: "READY_FOR_CRON_LOOP"
-cron_loop_enabled: false
+loop_status: "RUNNING"
+cron_loop_enabled: true
 loop_terminated: false
-termination_reason: ""
-terminated_at: ""
+loop_job_id: "ae47f36f"
+xcodebuild_gate_job_id: "0a701ff9"
+xcodebuild_gate_at: "2026-05-14 04:57 local"
+loop_mode: "dev"
+loop_allows_mock_only: true
 total_cycles_this_session: 20
-tasks_completed: ["IOS-7A (4 cycles)", "IOS-7B", "IOS-11A (4 cycles)", "NAV-001~004 (4 cycles)", "BS-001~002", "SRCH-001~002", "SRC-001~002"]
-next_action: "Install iOS 26.5 platform in Xcode → Settings → Components; then restart cron: /loop 10m /reader-ios-cron-loop"
-next_task: "IOS-3A"
-blocked_reason: "ENV_XCODE_SIMULATOR_BLOCKED (iOS 26.5 platform not installed for Xcode 26.5); cron disabled until xcodebuild passes"
+next_action: "Cron loop active; xcodebuild gate check at 04:57; if PASS, unblock real Core tasks"
+next_task: "IOS-3A (Bookshelf MVP mock sub-tasks)"
+blocked_reason: "ENV_XCODE_SIMULATOR_BLOCKED (iOS 26.5 pending); mock sub-tasks proceed; xcodebuild gate at 04:57"
 
 # ── Cron Loop Configuration ──
 cron_loop_enabled: true
