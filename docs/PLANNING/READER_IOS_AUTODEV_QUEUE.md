@@ -32,9 +32,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- Last cycle: 2026-05-13 — IOS-11A page turn mode; IOS-11A → DONE
-- IOS-11A: Font picker ✅, Para spacing ✅, TTS ✅, Page turn ✅
-- Next: IOS-12A Release readiness (pending)
+- Loop TERMINATED: no READY task available
+- All PENDING tasks blocked by Core gaps or ENV_TEST_BLOCKED
+- Resume after CORE-GAP-001 resolved
 - Active blocker: CORE-GAP-001 (accepted)
-- Test status: ENV_TEST_BLOCKED (macOS link)
 - Boundary: PASS (62 files, 0 violations)
