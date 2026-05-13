@@ -130,6 +130,12 @@ struct RootShellView: View {
             BookshelfView()
         case .bookSources:
             BookSourceListView(coordinator: coordinator)
+        case .bookDetail(let bookURL, let title, let author):
+            BookDetailView(result: SearchResultItem(
+                title: title,
+                detailURL: bookURL,
+                author: author
+            ))
         }
     }
 }
