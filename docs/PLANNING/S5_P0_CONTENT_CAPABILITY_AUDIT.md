@@ -2,7 +2,7 @@
 
 ## 1. 本轮结论
 
-**结论**: `CONTENT_CAPABILITY_READY_ENV_UNVERIFIED`
+**结论**: `READY_WITH_GAPS + ENV_COMPILE_UNVERIFIED`
 
 **说明**:
 - 正文能力层已形成本仓 Mock 闭环
@@ -13,6 +13,9 @@
 - 上一章/下一章导航能力已实现
 - **当前 real mode 是 PlaceholderContentService，不代表真实 Reader-Core 正文能力**
 - **DefaultContentService 存在但未装配**
+- **ContentService 测试缺失，因此不能宣称完全 READY**
+- **ChapterCacheStore 仅为缓存能力边界，是否接入正文加载流程需后续测试确认**
+- **正文加载职责归属 ContentService / ReadingFlowCoordinator，TOCService 负责目录加载**
 - Swift 编译在 Trae 环境未验证
 
 ## 2. 审计范围
