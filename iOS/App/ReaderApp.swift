@@ -61,41 +61,56 @@ struct RootShellView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
     @ObservedObject var navigationState: AppNavigationState
     let environment: ReaderShellEnvironment
+    @State private var selectedTab = 0
 
     var body: some View {
-        NavigationStack(path: $navigationState.navigationPath) {
-            ReaderFlowFeatureView(
-                coordinator: coordinator,
-                navigationState: navigationState,
-                environment: environment
-            )
-            .navigationDestination(for: Route.self) { route in
-                destinationView(for: route)
+        TabView(selection: $selectedTab) {
+            NavigationStack(path: $navigationState.navigationPath) {
+                ReaderFlowFeatureView(
+                    coordinator: coordinator,
+                    navigationState: navigationState,
+                    environment: environment
+                )
+                .navigationDestination(for: Route.self) { route in
+                    destinationView(for: route)
+                }
+                .toolbar {
+                    #if DEBUG
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink(destination: WebViewRuntimeHarnessView()) {
+                            Text("WebView Harness")
+                                .font(.caption)
+                        }
+                    }
+                    #endif
+                }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        navigationState.push(.bookshelf)
-                    } label: {
-                        Image(systemName: "books.vertical")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        navigationState.push(.webdavSettings)
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                }
-                #if DEBUG
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(destination: WebViewRuntimeHarnessView()) {
-                        Text("WebView Harness")
-                            .font(.caption)
-                    }
-                }
-                #endif
+            .tabItem {
+                Label("Home", systemImage: "house")
             }
+            .tag(0)
+
+            BookshelfView()
+                .tabItem {
+                    Label("Bookshelf", systemImage: "books.vertical")
+                }
+                .tag(1)
+
+            NavigationStack {
+                SearchView()
+            }
+            .tabItem {
+                Label("Search", systemImage: "magnifyingglass")
+            }
+            .tag(2)
+
+            NavigationStack {
+                WebDAVSettingsView()
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .tag(3)
         }
     }
 
