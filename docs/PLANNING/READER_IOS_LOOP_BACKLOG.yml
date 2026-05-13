@@ -235,7 +235,7 @@ tasks:
   - id: IOS-7A
     title: "WebDAV settings and backup UI plan"
     stage: iOS-7
-    status: READY
+    status: IN_PROGRESS
     implementation_scope: >
       Build WebDAV settings view with server URL, username, password.
       Implement Keychain credential storage.
@@ -255,6 +255,11 @@ tasks:
     next_on_success: IOS-8A
     stop_conditions:
       - "Core sync schema not available → document BLOCKED"
+    note: >
+      2026-05-13 cycle 1: WebDAVSettingsView + WebDAVSettingsViewModel created.
+      Settings UI skeleton with server URL, username, password, backup schedule picker,
+      retention count stepper, mock connection test, save button. All mock-driven.
+      Next: Keychain credential storage (IOS-7B) or real Keychain integration.
 
   # ── Stage iOS-8: Progress Cloud Sync ──
 

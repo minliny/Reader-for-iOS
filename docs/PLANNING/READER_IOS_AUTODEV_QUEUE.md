@@ -20,8 +20,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-4A | S4 | P1 | LOCKED | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | CORE-GAP-001 |
 | IOS-5A | S5 | P1 | LOCKED | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | CORE-GAP-001 |
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
-| IOS-7A | S7 | P1 | READY | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test | — |
-| IOS-7B | S7 | P2 | PENDING | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
+| IOS-7A | S7 | P1 | IN_PROGRESS | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test | — |
+| IOS-7B | S7 | P2 | READY | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
 | IOS-8A | S8 | P2 | PENDING | Progress sync triggers | Progress sync UI | Triggers + conflict UI | CORE-GAP-005 (anticipated) |
 | IOS-9A | S9 | P2 | PENDING | Local book import UI | FileImporter feature | TXT/EPUB importable | CORE-GAP-006 (anticipated) |
 | IOS-10A | S10 | P2 | PENDING | WKWebView production adapter | Production adapter | Adapter wraps WKWebView safely | CORE-GAP-007 (anticipated) |
@@ -32,7 +32,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- Next READY task: **IOS-7A** (WebDAV settings and backup UI)
+- Last cycle: 2026-05-13 ~20:15 — IOS-7A WebDAV settings UI skeleton created
+- Next READY task: **IOS-7B** (Keychain credential storage)
 - Active blocker: CORE-GAP-001 (accepted, mock-driven continues)
 - Test status: ENV_TEST_BLOCKED (macOS link)
-- Boundary: PASS
+- Boundary: PASS (58 files, 0 violations)
