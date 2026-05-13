@@ -25,6 +25,21 @@ public struct ReaderFlowFeatureView: View {
             VStack(alignment: .leading, spacing: 24) {
                 statusCard
 
+                if let warning = coordinator.lastWarning {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                        Text(warning)
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Button("Dismiss") { coordinator.lastWarning = nil }
+                            .font(.caption)
+                    }
+                    .padding(12)
+                    .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                }
+
                 if moduleBoundary.canImportBookSource {
                     BookSourceImportView()
                 }

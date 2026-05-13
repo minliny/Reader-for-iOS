@@ -8,7 +8,7 @@ public enum ShellAssembly {
     public static func makeMockReadingFlowCoordinator() -> ReadingFlowCoordinator {
         let serviceProvider = ReaderCoreServiceProvider.shared
 
-        return ReadingFlowCoordinator(
+        let coordinator = ReadingFlowCoordinator(
             bookSourceRepository: InMemoryBookSourceRepository(),
             bookSourceDecoder: DefaultBookSourceDecoder(),
             searchService: MockSearchService(provider: serviceProvider),
@@ -16,6 +16,24 @@ public enum ShellAssembly {
             contentService: MockContentService(provider: serviceProvider),
             errorLogger: InMemoryErrorLogger()
         )
+
+        if let searchService = coordinator.searchService as? MockSearchService {
+            searchService.onWarning = { [weak coordinator] warning in
+                coordinator?.lastWarning = warning
+            }
+        }
+        if let tocService = coordinator.tocService as? MockTOCService {
+            tocService.onWarning = { [weak coordinator] warning in
+                coordinator?.lastWarning = warning
+            }
+        }
+        if let contentService = coordinator.contentService as? MockContentService {
+            contentService.onWarning = { [weak coordinator] warning in
+                coordinator?.lastWarning = warning
+            }
+        }
+
+        return coordinator
     }
 
     public static func makeDefaultReadingFlowCoordinator() -> ReadingFlowCoordinator {
@@ -26,9 +44,11 @@ public enum ShellAssembly {
 
 public final class MockSearchService: SearchService {
     private let provider: ReaderCoreServiceProvider
+    public var onWarning: ((String) -> Void)?
 
-    public init(provider: ReaderCoreServiceProvider) {
+    public init(provider: ReaderCoreServiceProvider, onWarning: ((String) -> Void)? = nil) {
         self.provider = provider
+        self.onWarning = onWarning
     }
 
     public func search(source: BookSource, query: SearchQuery) async throws -> [SearchResultItem] {
@@ -42,7 +62,8 @@ public final class MockSearchService: SearchService {
             throw error
         case .unsupported(let reason):
             throw AppReaderError(code: .unsupported, message: reason, stage: "SEARCH")
-        case .partial(let items, _):
+        case .partial(let items, let warning):
+            onWarning?(warning)
             return items
         default:
             throw AppReaderError(code: .unknown, message: "Unexpected state", stage: "SEARCH")
@@ -52,9 +73,11 @@ public final class MockSearchService: SearchService {
 
 public final class MockTOCService: TOCService {
     private let provider: ReaderCoreServiceProvider
+    public var onWarning: ((String) -> Void)?
 
-    public init(provider: ReaderCoreServiceProvider) {
+    public init(provider: ReaderCoreServiceProvider, onWarning: ((String) -> Void)? = nil) {
         self.provider = provider
+        self.onWarning = onWarning
     }
 
     public func fetchTOC(source: BookSource, detailURL: String) async throws -> [TOCItem] {
@@ -68,7 +91,8 @@ public final class MockTOCService: TOCService {
             throw error
         case .unsupported(let reason):
             throw AppReaderError(code: .unsupported, message: reason, stage: "TOC")
-        case .partial(let items, _):
+        case .partial(let items, let warning):
+            onWarning?(warning)
             return items
         default:
             throw AppReaderError(code: .unknown, message: "Unexpected state", stage: "TOC")
@@ -78,9 +102,11 @@ public final class MockTOCService: TOCService {
 
 public final class MockContentService: ContentService {
     private let provider: ReaderCoreServiceProvider
+    public var onWarning: ((String) -> Void)?
 
-    public init(provider: ReaderCoreServiceProvider) {
+    public init(provider: ReaderCoreServiceProvider, onWarning: ((String) -> Void)? = nil) {
         self.provider = provider
+        self.onWarning = onWarning
     }
 
     public func fetchContent(source: BookSource, chapterURL: String) async throws -> ContentPage {
@@ -94,7 +120,8 @@ public final class MockContentService: ContentService {
             throw error
         case .unsupported(let reason):
             throw AppReaderError(code: .unsupported, message: reason, stage: "CONTENT")
-        case .partial(let page, _):
+        case .partial(let page, let warning):
+            onWarning?(warning)
             return page
         default:
             throw AppReaderError(code: .unknown, message: "Unexpected state", stage: "CONTENT")

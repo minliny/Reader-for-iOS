@@ -16,6 +16,7 @@ public final class ReadingFlowCoordinator: ObservableObject {
     @Published public var contentPage: ContentPage?
     @Published public var isLoading = false
     @Published public var currentError: ReaderError?
+    @Published public var lastWarning: String?
     
     public let bookSourceRepository: BookSourceRepository
     public let bookSourceDecoder: BookSourceDecoder
