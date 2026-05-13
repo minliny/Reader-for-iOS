@@ -11,14 +11,13 @@ core_dependency_status: "RESOLVED_BUT_BUILD_FAILED (accepted)"
 public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 last_audit_at: "2026-05-13 20:15 +08:00"
-loop_status: "TERMINATED"
+loop_status: "READY_FOR_CRON_LOOP"
 cron_loop_enabled: false
-loop_terminated: true
-termination_reason: "ALL_MOCK_TASKS_EXHAUSTED — all READY tasks have mock sub-tasks complete; remaining work requires xcodebuild (iOS 26.5)"
-terminated_at: "2026-05-14"
-loop_job_id: "ae47f36f"
-xcodebuild_gate_job_id: "0a701ff9"
+loop_terminated: false
+xcodebuild_status: "BUILD SUCCEEDED (iOS 26.5, iPhone 17 Pro)"
+xcodebuild_verified_at: "2026-05-14"
 total_cycles_this_session: 26
+next_task: "IOS-3A (Bookshelf MVP — real Core data)"
 tasks_completed: ["IOS-3A (3 mock cycles)", "IOS-4A (1 cycle)", "IOS-5A (1 cycle)", "Warning surfacing (1 cycle)"]
 next_action: "Install iOS 26.5 platform; re-run xcodebuild; restart cron with /loop 10m /reader-ios-cron-loop"
 blocked_reason: "ENV_XCODE_SIMULATOR_BLOCKED (iOS 26.5 not installed); all mock work complete"
