@@ -34,7 +34,7 @@ loop_restarted_at: "2026-05-13 20:05 +08:00"
 loop_mode: "dev"
 loop_allows_code_changes: true
 loop_allows_mock_only: true
-loop_job_id: "bc3a235d"
+loop_job_id: "192e22d8"
 
 next_recommended_task: "IOS-7A"
 next_recommended_task_title: "WebDAV settings and backup UI plan"
