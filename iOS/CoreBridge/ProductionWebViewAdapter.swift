@@ -6,23 +6,34 @@ import WebKit
 import UIKit
 
 /// Production WKWebView adapter conforming to RuntimeWebViewExecutorProtocol.
-/// Wraps WKWebView lifecycle; execute returns error until security gate is configured.
+/// Execution is gated by WebViewSecurityGate; defaults to disabled (safe).
 @MainActor
 public final class ProductionWebViewAdapter: RuntimeWebViewExecutorProtocol, @unchecked Sendable {
 
     public let executorId = "ios.production.webview"
     public let executorName = "Production WKWebView Adapter"
 
+    private let securityGate: WebViewSecurityGate
     private var webView: WKWebView?
+    private(set) var lastSnapshot: WebViewExecutionSnapshot?
 
-    public init() {
+    public init(securityGate: WebViewSecurityGate = WebViewSecurityGate()) {
+        self.securityGate = securityGate
         if Thread.isMainThread {
             let config = WKWebViewConfiguration()
             config.websiteDataStore = .nonPersistent()
             self.webView = WKWebView(frame: .zero, configuration: config)
-        } else {
-            self.webView = nil
         }
+    }
+
+    // MARK: - Policy
+
+    public func updatePolicy(_ policy: WebViewSecurityPolicy) {
+        securityGate.updatePolicy(policy)
+    }
+
+    public var currentPolicy: WebViewSecurityPolicy {
+        securityGate.policy
     }
 
     // MARK: - RuntimeWebViewExecutorProtocol
@@ -46,7 +57,28 @@ public final class ProductionWebViewAdapter: RuntimeWebViewExecutorProtocol, @un
     }
 
     public func execute(request: RuntimeWebViewRequest) async -> RuntimeWebViewResult {
-        RuntimeWebViewResult(
+        if let rejection = securityGate.validate(request: request) {
+            lastSnapshot = rejection
+            return RuntimeWebViewResult(
+                requestId: request.requestId,
+                sourceId: request.sourceId,
+                sourceName: request.sourceName,
+                originalUrl: request.url,
+                finalUrl: request.url,
+                stage: request.stage,
+                success: false,
+                errorMessage: rejection.errorMessage ?? "Security policy rejected",
+                errorType: .authorizationMissing,
+                html: "",
+                title: nil,
+                metadata: RuntimeWebViewMetadata(),
+                snapshotId: nil,
+                snapshotFilePath: nil
+            )
+        }
+
+        lastSnapshot = securityGate.allowedSnapshot(for: request)
+        return RuntimeWebViewResult(
             requestId: request.requestId,
             sourceId: request.sourceId,
             sourceName: request.sourceName,
@@ -54,7 +86,7 @@ public final class ProductionWebViewAdapter: RuntimeWebViewExecutorProtocol, @un
             finalUrl: request.url,
             stage: request.stage,
             success: false,
-            errorMessage: "Production adapter initialized; security gate pending",
+            errorMessage: "Execution not yet implemented; security gate passed",
             errorType: .configurationError,
             html: "",
             title: nil,
