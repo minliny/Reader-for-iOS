@@ -59,7 +59,25 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Book Source Validation
 
     public func validateBookSource(from data: Data) async -> LoadState<BookSource> {
-        await mockService.validateBookSource(from: data)
+        do {
+            var source = try JSONDecoder().decode(BookSource.self, from: data)
+            if source.id == nil || source.id?.isEmpty == true {
+                source.id = UUID().uuidString
+            }
+            return .loaded(source)
+        } catch let error as DecodingError {
+            return .failed(AppReaderError(
+                code: .unsupported,
+                message: "Invalid book source JSON: \(error.localizedDescription)",
+                stage: "VALIDATE"
+            ))
+        } catch {
+            return .failed(AppReaderError(
+                code: .unknown,
+                message: error.localizedDescription,
+                stage: "VALIDATE"
+            ))
+        }
     }
 
     // MARK: - Search

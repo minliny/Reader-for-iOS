@@ -17,7 +17,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-1D | S1 | P1 | PENDING | CoreBridge inventory and smoke tests | ShellSmokeTests mock coverage | All mock scenarios tested | ENV_TEST_BLOCKED |
 | IOS-2A | S2 | P0 | DONE | App shell route inventory | Route audit | All routes documented | — |
 | IOS-3A | S3 | P1 | DONE | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real/mock toggle + factory + smoke tests | ReaderCoreServices wired (4ecb3c2) |
-| IOS-4A | S4 | P1 | READY | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | ReaderCoreServices wired (4ecb3c2) |
+| IOS-4A | S4 | P1 | DONE | Source management with real validation | BookSourceView + BookSourceStore | Real JSON decode validation (validateBookSource) | ReaderCoreServices wired (4ecb3c2) |
 | IOS-5A | S5 | P1 | READY | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | ReaderCoreServices wired (4ecb3c2) |
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
 | IOS-7A | S7 | P1 | DONE | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test; backup export mock | — |
@@ -37,8 +37,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 ## Current Cycle Info
 
 - IOS-3A DONE: Real/mock toggle + factory + 10 smoke tests + offline replay (4 tests)
-- IOS-3A-NET-001 DONE: Book source JSON + HTML fixtures (auto_09966b3b 天涯书库)
-- IOS-3A-FIXTURE-001 DONE: RealServiceOfflineReplayTests (search/TOC/content + factory)
-- Next: IOS-4A Source management with real validation (BookSourceView + BookSourceStore)
+- IOS-4A DONE: Real JSON decode validation (validateBookSource no longer mock-only)
+- Next: IOS-5A Search/detail/TOC real Core pipeline (SearchView + TOCView + ContentView)
 - Network E2E policy: docs/PLANNING/READER_IOS_NETWORK_E2E_POLICY.md
 - Boundary: PASS

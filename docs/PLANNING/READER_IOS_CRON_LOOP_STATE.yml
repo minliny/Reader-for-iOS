@@ -8,7 +8,7 @@ core_dependency_status: RESOLVED_BUT_BUILD_FAILED (accepted)
 public_api_integration_status: MOCK_ONLY
 boundary_violation_status: PASS
 last_audit_at: 2026-05-13 20:15 +08:00
-loop_status: NEEDS_USER_APPROVAL_SOURCE
+loop_status: ACTIVE
 cron_loop_enabled: true
 loop_job_id: 192e22d8
 current_task: IOS-3A-NET-001
@@ -114,7 +114,6 @@ code_changes: true
 commit_performed: true
 last_commit: '7c4ec57 (chore: configure cron loop for mock-driven iOS development)'
 generated_at_local: 2026-05-13 20:15 +08:00
-next_task: IOS-4A (Source management with real validation)
-last_run_summary: 'IOS-3A-NET-001 DONE: book source JSON + HTML fixtures + 4 offline
-  replay tests. next=IOS-4A.'
-updated_at: '2026-05-14T22:27:34+0800'
+next_task: IOS-5A (Search/detail/TOC real Core pipeline)
+last_run_summary: 'IOS-4A DONE: validateBookSource now does real JSON decode. next=IOS-5A.'
+updated_at: '2026-05-14T22:31:10+0800'
