@@ -130,6 +130,46 @@ targets:
               NSExceptionAllowsInsecureHTTPLoads: false
               NSIncludesSubdomains: true
 
+  ShellSmokeTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iOS/Tests/ShellSmokeTests
+    dependencies:
+      - target: ReaderShellValidation
+      - target: ReaderAppSupport
+      - package: ReaderCore
+        product: ReaderCoreModels
+      - package: ReaderCore
+        product: ReaderCoreProtocols
+      - package: ReaderCore
+        product: ReaderCoreParser
+      - package: ReaderCore
+        product: ReaderCoreNetwork
+      - package: ReaderCore
+        product: ReaderCoreServices
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+  ReaderAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iOS/Tests/ReaderAppTests
+    dependencies:
+      - target: ReaderForIOSApp
+      - target: ReaderShellValidation
+      - target: ReaderAppSupport
+      - target: ReaderAppPersistence
+      - package: ReaderCore
+        product: ReaderCoreModels
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   ReaderForIOSApp:
     build:
@@ -137,5 +177,9 @@ schemes:
         ReaderForIOSApp: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - ShellSmokeTests
     archive:
       config: Release
