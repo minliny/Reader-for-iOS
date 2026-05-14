@@ -24,7 +24,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-7B | S7 | P2 | DONE | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
 | IOS-8A | S8 | P2 | READY | Progress sync triggers | Progress sync UI | Triggers + conflict UI | Core Phase 2: SyncWebDAVModels + WebDAVAdapter protocol |
 | IOS-9A | S9 | P2 | DONE | Local book import UI | FileImporter feature | FileImportView + ViewModel + Bookshelf toolbar | S33 contracts frozen (LocalBook models exist) |
-| IOS-10A | S10 | P2 | READY | WKWebView production adapter | Production adapter | Adapter wraps WKWebView safely | Core Phase 2: CredentialStorageAdapter + FileAccessAdapter + iOSRuntimeWebViewExecutor |
+| IOS-10A | S10 | P2 | DONE | WKWebView production adapter | Production adapter | Adapter + security gate + 16 smoke tests, 44 total, 0 failures | — |
 | IOS-11A | S11 | P3 | DONE | TTS and reader UX | AVSpeechSynthesizer + themes | TTS reads; themes apply; page turn mode | — |
 | IOS-12A | S12 | P3 | PENDING | Release readiness | Smoke tests + checklist | All acceptance tests pass | All prior stages |
 | IOS-3A-NET-001 | S3 | P1 | DONE | Real search snapshot | Book source JSON + offline fixtures (auto_09966b3b) | Snapshot saved, 4 fixture files in test_inputs/fixtures/ | — |
@@ -37,7 +37,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 ## Current Cycle Info
 
 - Reader-Core Phase 2 DONE (e6f5af1): 1546 tests, P2.J1+P2.I1+P2.H1+P2.H2
-- IOS-8A → READY: SyncWebDAVModels + WebDAVAdapter + CredentialStorageAdapter
-- IOS-10A → READY: CredentialStorageAdapter + iOSRuntimeWebViewExecutor
-- Next: IOS-10A (adapter baseline), then IOS-8A (depends on platform adapters)
-- Boundary: PASS (65 files, 0 violations)
+- IOS-10A DONE: adapter + security gate + 16 smoke tests (44 total, 0 failures)
+- IOS-8A → next READY: SyncWebDAVModels + WebDAVAdapter protocol
+- Next: IOS-8A step 1 (progress sync triggers UI skeleton)
+- Boundary: PASS
