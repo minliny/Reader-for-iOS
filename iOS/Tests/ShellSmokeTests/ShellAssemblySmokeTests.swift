@@ -124,11 +124,42 @@ final class ShellAssemblySmokeTests: XCTestCase {
 
     @MainActor
     func testMockTOCServiceAvailableForUITests() {
-        // Verify that the mock TOC path still works for UI development
         let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
         let tocService = coordinator.tocService
 
         XCTAssertTrue(tocService is MockTOCService,
                       "Mock TOCService should be available when real mode is off")
+    }
+
+    // MARK: - IOS-5A: Real Content Service
+
+    @MainActor
+    func testRealContentCoordinatorWired() {
+        let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
+
+        XCTAssertNotNil(coordinator.contentService)
+        XCTAssertFalse(coordinator.contentService is MockContentService,
+                       "Real coordinator should use real ContentService, not mock")
+    }
+
+    @MainActor
+    func testAllRealServicesAreNonMock() {
+        let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
+
+        XCTAssertFalse(coordinator.searchService is MockSearchService,
+                       "Search should be real")
+        XCTAssertFalse(coordinator.tocService is MockTOCService,
+                       "TOC should be real")
+        XCTAssertFalse(coordinator.contentService is MockContentService,
+                       "Content should be real")
+    }
+
+    @MainActor
+    func testAllMockServicesAreMock() {
+        let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
+
+        XCTAssertTrue(coordinator.searchService is MockSearchService)
+        XCTAssertTrue(coordinator.tocService is MockTOCService)
+        XCTAssertTrue(coordinator.contentService is MockContentService)
     }
 }
