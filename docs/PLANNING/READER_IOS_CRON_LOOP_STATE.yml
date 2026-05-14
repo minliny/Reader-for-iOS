@@ -8,9 +8,16 @@ core_dependency_status: RESOLVED (Core Phase 2, 4ecb3c2)
 public_api_integration_status: REAL + MOCK (dual-mode)
 boundary_violation_status: PASS
 last_audit_at: 2026-05-15 00:18 +08:00
-loop_status: RELEASE_CANDIDATE_FINAL
+loop_status: AUTODEV_COMPLETE
 cron_loop_enabled: false
-loop_job_id: none (deleted)
+loop_job_id: none
+foundation_rc_tag: reader-ios-rc1
+foundation_rc_status: READY
+product_ui_source: STITCH_EXTERNAL
+product_ui_status: EXTERNAL_IN_PROGRESS
+ios_ui_development_scope: NOT_IN_CURRENT_LOOP
+remaining_ready: 0
+blocked_reason: null
 current_task: IOS-3A-NET-001
 blocked_reason: ENV_XCODE_SIMULATOR_BLOCKED (iOS 26.5 not installed); all mock work
   complete

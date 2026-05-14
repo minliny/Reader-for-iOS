@@ -40,5 +40,5 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 - IOS-10A DONE, IOS-8A DONE
 - IOS-12A → READY: all prior stages complete
 - 54 tests, 0 failures
-- RELEASE CANDIDATE — 18/18 DONE, 2 DEFERRED (manual network), 54 tests, 0 failures
+- FOUNDATION RC1 — 18/18 DONE, 2 DEFERRED. UI: STITCH_EXTERNAL. 54 tests, 0 failures.
 - Boundary: PASS
