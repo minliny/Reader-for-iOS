@@ -66,6 +66,8 @@ targets:
       - package: ReaderCore
         product: ReaderCoreNetwork
       - package: ReaderCore
+        product: ReaderCoreServices
+      - package: ReaderCore
         product: ReaderPlatformAdapters
     settings:
       base:
