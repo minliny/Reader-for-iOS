@@ -36,8 +36,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- IOS-3A DONE: Real/mock toggle + factory + 10 smoke tests + offline replay (4 tests)
-- IOS-4A DONE: Real JSON decode validation (validateBookSource no longer mock-only)
-- Next: IOS-5A Search/detail/TOC real Core pipeline (SearchView + TOCView + ContentView)
-- Network E2E policy: docs/PLANNING/READER_IOS_NETWORK_E2E_POLICY.md
+- IOS-3A/4A/5A DONE: Real search→read Core pipeline complete
+- READY: IOS-9A (Local book import UI) — only unblocked task remaining
+- PENDING: IOS-1D (ENV_TEST_BLOCKED), IOS-8A (S34), IOS-10A (S35), IOS-12A (prior stages)
+- Network E2E: IOS-4A-NET-001/IOS-5A-NET-001 pending (more book source fixtures needed)
 - Boundary: PASS
