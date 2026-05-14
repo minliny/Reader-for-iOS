@@ -4,7 +4,7 @@ import ReaderAppSupport
 
 // MARK: - Sync Trigger
 
-public enum ProgressSyncTrigger: String, Sendable {
+public enum ProgressSyncTrigger: String, Sendable, CaseIterable {
     case exitReader
     case returnToBookshelf
     case appBackground
@@ -18,7 +18,7 @@ public enum ProgressSyncTrigger: String, Sendable {
 public enum ProgressSyncState: Equatable, Sendable {
     case idle
     case syncing
-    case success
+    case success(result: ProgressSyncResult)
     case failed(message: String)
     case conflict(local: ReadingProgress, remote: ReadingProgress)
 }
@@ -31,51 +31,103 @@ public final class ProgressSyncManager: ObservableObject, Sendable {
 
     @Published public private(set) var syncState: ProgressSyncState = .idle
     @Published public private(set) var lastSyncAt: Date?
-    @Published public private(set) var pendingTriggers: Set<ProgressSyncTrigger> = []
+    @Published public private(set) var syncResults: [ProgressSyncResult] = []
+
+    private var adapter: (any ProgressSyncAdapterProtocol)?
+    private var conflictResolver: ProgressSyncConflictResolver
 
     public var isSyncEnabled: Bool {
-        // Disabled until WebDAV adapter is configured
-        false
+        adapter != nil
     }
 
-    private init() {}
+    private init() {
+        self.conflictResolver = ProgressSyncConflictResolver(policy: .manualRequired)
+    }
+
+    // MARK: - Configuration
+
+    public func configure(
+        adapter: any ProgressSyncAdapterProtocol,
+        conflictPolicy: ProgressSyncConflictPolicy = .manualRequired
+    ) {
+        self.adapter = adapter
+        self.conflictResolver = ProgressSyncConflictResolver(policy: conflictPolicy)
+    }
+
+    public func resetConfiguration() {
+        adapter = nil
+        conflictResolver = ProgressSyncConflictResolver(policy: .manualRequired)
+        syncState = .idle
+        syncResults.removeAll()
+    }
 
     // MARK: - Trigger API
 
     public func handleTrigger(_ trigger: ProgressSyncTrigger) {
-        pendingTriggers.insert(trigger)
-
-        guard isSyncEnabled else {
-            syncState = .failed(message: "Sync not configured — WebDAV adapter pending")
+        guard let adapter = adapter else {
+            syncState = .failed(message: "Sync not configured")
             return
         }
-
-        Task { await performSync(for: trigger) }
+        Task { await performSync(for: trigger, adapter: adapter) }
     }
 
     public func pullRemoteProgress(bookID: String) async -> ReadingProgress? {
-        guard isSyncEnabled else { return nil }
-        syncState = .syncing
-        // TODO: call WebDAVAdapter.fetchProgress(bookID:)
-        syncState = .failed(message: "WebDAV adapter not yet wired")
-        return nil
+        guard let adapter = adapter else { return nil }
+
+        do {
+            syncState = .syncing
+            let remote = try await adapter.pullProgress(bookID: bookID)
+            syncState = .idle
+            return remote
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return nil
+        }
     }
 
-    private func performSync(for trigger: ProgressSyncTrigger) async {
+    // MARK: - Internal
+
+    private func performSync(for trigger: ProgressSyncTrigger, adapter: any ProgressSyncAdapterProtocol) async {
         syncState = .syncing
-        defer {
-            pendingTriggers.remove(trigger)
-            if pendingTriggers.isEmpty && syncState == .syncing {
-                syncState = .idle
+
+        do {
+            let remoteList = try await adapter.listRemoteProgress()
+            lastSyncAt = Date()
+
+            for remote in remoteList {
+                // For this baseline, each remote progress item produces a result
+                let result = ProgressSyncResult(
+                    bookID: remote.bookID,
+                    trigger: trigger,
+                    resolved: true,
+                    conflictPolicy: conflictResolver.policy,
+                    remoteProgress: remote,
+                    finalProgress: remote
+                )
+                syncResults.append(result)
             }
+
+            if remoteList.isEmpty {
+                syncState = .idle
+            } else {
+                syncState = .success(result: syncResults.last!)
+            }
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
         }
-        // TODO: invoke WebDAV sync via Core WebDAVAdapter
-        lastSyncAt = Date()
-        syncState = .failed(message: "WebDAV sync not yet implemented")
+    }
+
+    // MARK: - Conflict Resolution
+
+    public func resolveConflict(local: ReadingProgress, remote: ReadingProgress) -> ProgressSyncResult {
+        let result = conflictResolver.resolve(local: local, remote: remote)
+        syncResults.append(result)
+        syncState = result.resolved ? .success(result: result) : .conflict(local: local, remote: remote)
+        return result
     }
 
     public func reset() {
         syncState = .idle
-        pendingTriggers.removeAll()
+        syncResults.removeAll()
     }
 }

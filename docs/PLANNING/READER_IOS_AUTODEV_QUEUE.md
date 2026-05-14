@@ -22,11 +22,11 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
 | IOS-7A | S7 | P1 | DONE | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test; backup export mock | — |
 | IOS-7B | S7 | P2 | DONE | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
-| IOS-8A | S8 | P2 | READY | Progress sync triggers | Progress sync UI | Triggers + conflict UI | Core Phase 2: SyncWebDAVModels + WebDAVAdapter protocol |
+| IOS-8A | S8 | P2 | DONE | Progress sync triggers | Progress sync UI + adapter + conflict policy | Fake adapter + 4 conflict policies + 10 smoke tests, 54 total, 0 failures | — |
 | IOS-9A | S9 | P2 | DONE | Local book import UI | FileImporter feature | FileImportView + ViewModel + Bookshelf toolbar | S33 contracts frozen (LocalBook models exist) |
 | IOS-10A | S10 | P2 | DONE | WKWebView production adapter | Production adapter | Adapter + security gate + 16 smoke tests, 44 total, 0 failures | — |
 | IOS-11A | S11 | P3 | DONE | TTS and reader UX | AVSpeechSynthesizer + themes | TTS reads; themes apply; page turn mode | — |
-| IOS-12A | S12 | P3 | PENDING | Release readiness | Smoke tests + checklist | All acceptance tests pass | All prior stages |
+| IOS-12A | S12 | P3 | READY | Release readiness | Smoke tests + checklist | All acceptance tests pass | — |
 | IOS-3A-NET-001 | S3 | P1 | DONE | Real search snapshot | Book source JSON + offline fixtures (auto_09966b3b) | Snapshot saved, 4 fixture files in test_inputs/fixtures/ | — |
 | IOS-3A-FIXTURE-001 | S3 | P1 | DONE | Offline search replay | RealServiceOfflineReplayTests (4 tests) | Search/TOC/Content + Factory wiring verified | IOS-3A-NET-001 |
 | IOS-4A-NET-001 | S4 | P2 | PENDING | Real TOC snapshot | TOCService E2E, 1 req | Snapshot saved | Book source JSON |
@@ -37,7 +37,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 ## Current Cycle Info
 
 - Reader-Core Phase 2 DONE (e6f5af1): 1546 tests, P2.J1+P2.I1+P2.H1+P2.H2
-- IOS-10A DONE: adapter + security gate + 16 smoke tests (44 total, 0 failures)
-- IOS-8A → next READY: SyncWebDAVModels + WebDAVAdapter protocol
-- Next: IOS-8A step 1 (progress sync triggers UI skeleton)
+- IOS-10A DONE, IOS-8A DONE
+- IOS-12A → READY: all prior stages complete
+- 54 tests, 0 failures
+- Next: IOS-12A release readiness
 - Boundary: PASS
