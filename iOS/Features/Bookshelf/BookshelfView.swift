@@ -4,6 +4,7 @@ import ReaderAppSupport
 public struct BookshelfView: View {
     @StateObject private var viewModel = BookshelfViewModel()
     @State private var selectedItem: BookshelfItem?
+    @State private var showFileImport = false
 
     public init() {}
 
@@ -14,6 +15,15 @@ public struct BookshelfView: View {
             }
             .padding()
             .navigationTitle("Bookshelf")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showFileImport = true
+                    } label: {
+                        Image(systemName: "doc.badge.plus")
+                    }
+                }
+            }
             .onAppear {
                 Task { await viewModel.loadItems() }
             }
@@ -23,6 +33,9 @@ public struct BookshelfView: View {
             .sheet(item: $selectedItem) { item in
                 BookshelfItemDetailView(item: item)
                     .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showFileImport) {
+                FileImportView()
             }
         }
     }

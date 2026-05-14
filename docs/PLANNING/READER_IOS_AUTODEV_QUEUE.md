@@ -23,7 +23,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-7A | S7 | P1 | DONE | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test; backup export mock | — |
 | IOS-7B | S7 | P2 | DONE | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
 | IOS-8A | S8 | P2 | PENDING | Progress sync triggers | Progress sync UI | Triggers + conflict UI | S34 Sync/WebDAV inventoried (contract exists) |
-| IOS-9A | S9 | P2 | READY | Local book import UI | FileImporter feature | TXT/EPUB importable | S33 contracts frozen (LocalBook models exist) |
+| IOS-9A | S9 | P2 | DONE | Local book import UI | FileImporter feature | FileImportView + ViewModel + Bookshelf toolbar | S33 contracts frozen (LocalBook models exist) |
 | IOS-10A | S10 | P2 | PENDING | WKWebView production adapter | Production adapter | Adapter wraps WKWebView safely | S35 Adapter protocol inventoried |
 | IOS-11A | S11 | P3 | DONE | TTS and reader UX | AVSpeechSynthesizer + themes | TTS reads; themes apply; page turn mode | — |
 | IOS-12A | S12 | P3 | PENDING | Release readiness | Smoke tests + checklist | All acceptance tests pass | All prior stages |
@@ -36,8 +36,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- IOS-3A/4A/5A DONE: Real search→read Core pipeline complete
-- READY: IOS-9A (Local book import UI) — only unblocked task remaining
-- PENDING: IOS-1D (ENV_TEST_BLOCKED), IOS-8A (S34), IOS-10A (S35), IOS-12A (prior stages)
-- Network E2E: IOS-4A-NET-001/IOS-5A-NET-001 pending (more book source fixtures needed)
+- IOS-3A/4A/5A/9A DONE: All unblocked tasks complete
+- IOS-9A DONE: FileImportView + FileImportViewModel + Bookshelf toolbar integration
+- PENDING: IOS-8A (S34 Sync/WebDAV), IOS-10A (S35 Adapter), IOS-12A (prior stages)
+- ALL_READY_TASKS_EXHAUSTED: No executable tasks remain
 - Boundary: PASS

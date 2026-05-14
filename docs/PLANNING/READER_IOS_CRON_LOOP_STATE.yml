@@ -8,7 +8,7 @@ core_dependency_status: RESOLVED_BUT_BUILD_FAILED (accepted)
 public_api_integration_status: MOCK_ONLY
 boundary_violation_status: PASS
 last_audit_at: 2026-05-13 20:15 +08:00
-loop_status: ACTIVE
+loop_status: STOPPED_NO_READY_TASK
 cron_loop_enabled: true
 loop_job_id: 192e22d8
 current_task: IOS-3A-NET-001
@@ -114,7 +114,7 @@ code_changes: true
 commit_performed: true
 last_commit: '7c4ec57 (chore: configure cron loop for mock-driven iOS development)'
 generated_at_local: 2026-05-13 20:15 +08:00
-next_task: IOS-9A (Local book import UI)
-last_run_summary: 'IOS-5A DONE: real search uses BookSource param; getBookDetail real
-  path. next=IOS-9A.'
-updated_at: '2026-05-14T22:34:43+0800'
+next_task:
+last_run_summary: 'IOS-9A DONE: FileImportView + FileImportViewModel + Bookshelf toolbar.
+  All unblocked tasks exhausted.'
+updated_at: '2026-05-14T22:58:52+0800'
