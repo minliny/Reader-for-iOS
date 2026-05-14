@@ -115,6 +115,6 @@ commit_performed: true
 last_commit: '7c4ec57 (chore: configure cron loop for mock-driven iOS development)'
 generated_at_local: 2026-05-13 20:15 +08:00
 next_task: IOS-4A (Source management with real validation)
-last_run_summary: 'IOS-3A DONE: Bookshelf MVP with real/mock toggle, factory, smoke
-  tests. next=IOS-4A.'
-updated_at: '2026-05-14T22:15:57+0800'
+last_run_summary: 'IOS-3A-NET-001 DONE: book source JSON + HTML fixtures + 4 offline
+  replay tests. next=IOS-4A.'
+updated_at: '2026-05-14T22:27:34+0800'
