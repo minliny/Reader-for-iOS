@@ -1,9 +1,12 @@
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
+import ReaderCoreServices
 
 @MainActor
 public enum ShellAssembly {
+
+    // MARK: - Mock
 
     public static func makeMockReadingFlowCoordinator() -> ReadingFlowCoordinator {
         let serviceProvider = ReaderCoreServiceProvider.shared
@@ -35,6 +38,27 @@ public enum ShellAssembly {
 
         return coordinator
     }
+
+    // MARK: - Real
+
+    public static func makeRealReadingFlowCoordinator() -> ReadingFlowCoordinator {
+        let httpClient = URLSessionHTTPClient()
+        let factory = ReaderCoreServiceFactory(httpClient: httpClient)
+        let realSearchService = factory.makeSearchService()
+        let realTOCService = factory.makeTOCService()
+        let realContentService = factory.makeContentService()
+
+        return ReadingFlowCoordinator(
+            bookSourceRepository: InMemoryBookSourceRepository(),
+            bookSourceDecoder: DefaultBookSourceDecoder(),
+            searchService: realSearchService,
+            tocService: realTOCService,
+            contentService: realContentService,
+            errorLogger: InMemoryErrorLogger()
+        )
+    }
+
+    // MARK: - Default
 
     public static func makeDefaultReadingFlowCoordinator() -> ReadingFlowCoordinator {
         let coordinator = makeMockReadingFlowCoordinator()
