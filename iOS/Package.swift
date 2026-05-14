@@ -35,6 +35,7 @@ let package = Package(
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
                 .product(name: "ReaderCoreParser", package: "Reader-Core"),
                 .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
+                .product(name: "ReaderCoreServices", package: "Reader-Core"),
                 .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
             ],
             path: ".",
