@@ -29,8 +29,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-12A | S12 | P3 | DONE | Release readiness | Smoke tests + checklist | 54 tests, 0 failures, 6 suites, boundary PASS | — |
 | IOS-3A-NET-001 | S3 | P1 | DONE | Real search snapshot | Book source JSON + offline fixtures (auto_09966b3b) | Snapshot saved, 4 fixture files in test_inputs/fixtures/ | — |
 | IOS-3A-FIXTURE-001 | S3 | P1 | DONE | Offline search replay | RealServiceOfflineReplayTests (4 tests) | Search/TOC/Content + Factory wiring verified | IOS-3A-NET-001 |
-| IOS-4A-NET-001 | S4 | P2 | PENDING | Real TOC snapshot | TOCService E2E, 1 req | Snapshot saved | Book source JSON |
-| IOS-5A-NET-001 | S5 | P2 | PENDING | Real content snapshot | ContentService E2E, 1 req | Snapshot saved | Book source JSON |
+| IOS-4A-NET-001 | S4 | P2 | DEFERRED | Real TOC snapshot | TOCService E2E, 1 req | Requires manual network session | Book source JSON exists |
+| IOS-5A-NET-001 | S5 | P2 | DEFERRED | Real content snapshot | ContentService E2E, 1 req | Requires manual network session | Book source JSON exists |
 
 ---
 
@@ -40,5 +40,5 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 - IOS-10A DONE, IOS-8A DONE
 - IOS-12A → READY: all prior stages complete
 - 54 tests, 0 failures
-- ALL TASKS DONE — 18/18 complete, 54 tests, 0 failures
+- RELEASE CANDIDATE — 18/18 DONE, 2 DEFERRED (manual network), 54 tests, 0 failures
 - Boundary: PASS
