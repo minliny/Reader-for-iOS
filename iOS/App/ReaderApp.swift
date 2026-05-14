@@ -11,13 +11,15 @@ public struct ReaderApp: App {
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
     private let environment: ReaderShellEnvironment
+    @AppStorage("useRealServices") private var useRealServices = false
 
     #if DEBUG && canImport(WebKit)
     @State private var autorunConfiguration: WebViewRuntimeAutorunConfiguration?
     #endif
 
     public init() {
-        let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
+        let useReal = UserDefaults.standard.bool(forKey: "useRealServices")
+        let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator(useReal: useReal)
         _coordinator = StateObject(wrappedValue: coordinator)
         _navigationState = StateObject(wrappedValue: AppNavigationState())
         environment = ReaderShellEnvironment()

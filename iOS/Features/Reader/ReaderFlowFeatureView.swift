@@ -7,6 +7,7 @@ public struct ReaderFlowFeatureView: View {
     public var navigationState: AppNavigationState
     public let environment: ReaderShellEnvironment
     public let moduleBoundary: ReaderModuleBoundary
+    @AppStorage("useRealServices") private var useRealServices = false
 
     public init(
         coordinator: ReadingFlowCoordinator,
@@ -49,6 +50,8 @@ public struct ReaderFlowFeatureView: View {
                 }
 
                 readerActions
+
+                serviceModeToggle
             }
             .padding(20)
         }
@@ -210,6 +213,19 @@ public struct ReaderFlowFeatureView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private var serviceModeToggle: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle("Real Core Services", isOn: $useRealServices)
+                .font(.subheadline)
+            Text(useRealServices ? "Using real Reader-Core search/TOC/content" : "Using mock data for development")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color.platformSecondaryGroupedBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func actionRow(title: String, subtitle: String) -> some View {

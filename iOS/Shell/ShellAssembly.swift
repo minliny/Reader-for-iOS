@@ -60,9 +60,11 @@ public enum ShellAssembly {
 
     // MARK: - Default
 
-    public static func makeDefaultReadingFlowCoordinator() -> ReadingFlowCoordinator {
-        let coordinator = makeMockReadingFlowCoordinator()
-        return coordinator
+    public static func makeDefaultReadingFlowCoordinator(useReal: Bool = false) -> ReadingFlowCoordinator {
+        if useReal {
+            return makeRealReadingFlowCoordinator()
+        }
+        return makeMockReadingFlowCoordinator()
     }
 }
 
