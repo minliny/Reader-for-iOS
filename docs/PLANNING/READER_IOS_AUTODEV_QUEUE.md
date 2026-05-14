@@ -16,7 +16,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-1C | S1 | P0 | DONE | Boundary check script validation | Script | PASS, 56 files, 0 violations | — |
 | IOS-1D | S1 | P1 | PENDING | CoreBridge inventory and smoke tests | ShellSmokeTests mock coverage | All mock scenarios tested | ENV_TEST_BLOCKED |
 | IOS-2A | S2 | P0 | DONE | App shell route inventory | Route audit | All routes documented | — |
-| IOS-3A | S3 | P1 | READY | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real book data displayed | ReaderCoreServices wired (4ecb3c2) |
+| IOS-3A | S3 | P1 | DONE | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real/mock toggle + factory + smoke tests | ReaderCoreServices wired (4ecb3c2) |
 | IOS-4A | S4 | P1 | READY | Source management with real validation | BookSourceView + BookSourceStore | Real JSON import validated | ReaderCoreServices wired (4ecb3c2) |
 | IOS-5A | S5 | P1 | READY | Search/detail/TOC real Core pipeline | SearchView + TOCView + ContentView | Real search→read flow | ReaderCoreServices wired (4ecb3c2) |
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
@@ -36,8 +36,8 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- ReaderCoreServices wired: coordinator smoke tests DONE (10 ShellAssembly tests)
+- IOS-3A DONE: Real/mock toggle + ReadingFlowCoordinator factory + 10 ShellAssembly smoke tests
 - IOS-3A-NET-001: NEEDS_USER_APPROVAL_SOURCE (book source JSON missing)
+- Next: IOS-4A Source management with real validation (BookSourceView + BookSourceStore)
 - Network E2E policy: docs/PLANNING/READER_IOS_NETWORK_E2E_POLICY.md
-- Next: user provides qianfanxs book source JSON → unblock IOS-3A-NET-001
 - Boundary: PASS (62 files, 0 violations)
