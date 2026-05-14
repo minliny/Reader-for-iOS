@@ -52,4 +52,35 @@ final class ShellAssemblySmokeTests: XCTestCase {
         XCTAssertNil(coordinator.contentPage)
         XCTAssertNil(coordinator.currentError)
     }
+
+    // MARK: - Real Coordinator
+
+    @MainActor
+    func testRealCoordinatorFactoryBuildsSuccessfully() {
+        let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
+
+        XCTAssertNil(coordinator.selectedSource)
+        XCTAssertTrue(coordinator.searchResults.isEmpty)
+        XCTAssertTrue(coordinator.tocItems.isEmpty)
+        XCTAssertNil(coordinator.contentPage)
+        XCTAssertNil(coordinator.currentError)
+    }
+
+    @MainActor
+    func testRealCoordinatorHasNonMockServices() {
+        let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
+
+        XCTAssertFalse(coordinator.searchService is MockSearchService)
+        XCTAssertFalse(coordinator.tocService is MockTOCService)
+        XCTAssertFalse(coordinator.contentService is MockContentService)
+    }
+
+    @MainActor
+    func testMockCoordinatorStillWorks() {
+        let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
+
+        XCTAssertTrue(coordinator.searchService is MockSearchService)
+        XCTAssertTrue(coordinator.tocService is MockTOCService)
+        XCTAssertTrue(coordinator.contentService is MockContentService)
+    }
 }
