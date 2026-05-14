@@ -27,14 +27,17 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-10A | S10 | P2 | PENDING | WKWebView production adapter | Production adapter | Adapter wraps WKWebView safely | S35 Adapter protocol inventoried |
 | IOS-11A | S11 | P3 | DONE | TTS and reader UX | AVSpeechSynthesizer + themes | TTS reads; themes apply; page turn mode | — |
 | IOS-12A | S12 | P3 | PENDING | Release readiness | Smoke tests + checklist | All acceptance tests pass | All prior stages |
+| IOS-3A-NET-001 | S3 | P1 | NEEDS_USER_APPROVAL_SOURCE | Real search snapshot | SearchService E2E, 1 req, snapshot | Snapshot saved, metadata recorded | Book source JSON |
+| IOS-3A-FIXTURE-001 | S3 | P1 | PENDING | Offline search replay | Fixture replay, no network | Search mapping verified offline | IOS-3A-NET-001 |
+| IOS-4A-NET-001 | S4 | P2 | PENDING | Real TOC snapshot | TOCService E2E, 1 req | Snapshot saved | Book source JSON |
+| IOS-5A-NET-001 | S5 | P2 | PENDING | Real content snapshot | ContentService E2E, 1 req | Snapshot saved | Book source JSON |
 
 ---
 
 ## Current Cycle Info
 
-- ReaderCoreServices wired (4ecb3c2): real SearchService/TOCService/ContentService
-- IOS-3A/4A/5A: BLOCKED → READY
-- URLSessionHTTPClient + ReaderCoreServiceProvider.real mode active
-- ENV: iOS 26.5 installed, xcodebuild BUILD SUCCEEDED
-- Next: IOS-3A Bookshelf MVP with real search data
+- ReaderCoreServices wired: coordinator smoke tests DONE (10 ShellAssembly tests)
+- IOS-3A-NET-001: NEEDS_USER_APPROVAL_SOURCE (book source JSON missing)
+- Network E2E policy: docs/PLANNING/READER_IOS_NETWORK_E2E_POLICY.md
+- Next: user provides qianfanxs book source JSON → unblock IOS-3A-NET-001
 - Boundary: PASS (62 files, 0 violations)
