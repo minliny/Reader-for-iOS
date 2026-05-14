@@ -2,12 +2,11 @@ import XCTest
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
-import ReaderCoreParser
-import ReaderCoreNetwork
 import ReaderCoreServices
 
-/// Offline replay E2E: uses local HTML fixtures (fetched from real sites)
-/// with ReaderCoreServices to verify the full search→TOC→content pipeline.
+/// Offline replay E2E: uses local HTML fixtures with ReaderCoreServices
+/// to verify the full search→TOC→content pipeline via ReaderCoreServiceFactory.
+/// No direct imports of ReaderCoreParser/ReaderCoreNetwork (boundary-safe).
 final class RealServiceOfflineReplayTests: XCTestCase {
 
     private var bookSource: BookSource!
@@ -34,14 +33,12 @@ final class RealServiceOfflineReplayTests: XCTestCase {
 
     func testRealSearchOfflineReplay_returnsSearchResults() async throws {
         let fixtureClient = FixtureHTTPClient(responseData: searchHTML, statusCode: 200)
-        let policyLayer = NetworkPolicyLayer(httpClient: fixtureClient)
-        let engine = NonJSParserEngine()
-        let service = DefaultSearchService(policyLayer: policyLayer, engine: engine)
+        let factory = ReaderCoreServiceFactory(httpClient: fixtureClient)
+        let service = factory.makeSearchService()
 
         let results = try await service.search(source: bookSource, query: SearchQuery(keyword: "test"))
 
         XCTAssertFalse(results.isEmpty, "Should find search results from real fixture")
-        // Verify DTO structure
         for result in results {
             XCTAssertFalse(result.title.isEmpty, "Each result must have a title")
             XCTAssertFalse(result.detailURL.isEmpty, "Each result must have a detail URL")
@@ -52,9 +49,8 @@ final class RealServiceOfflineReplayTests: XCTestCase {
 
     func testRealTOCOfflineReplay_returnsChapterList() async throws {
         let fixtureClient = FixtureHTTPClient(responseData: tocHTML, statusCode: 200)
-        let policyLayer = NetworkPolicyLayer(httpClient: fixtureClient)
-        let engine = NonJSParserEngine()
-        let service = DefaultTOCService(policyLayer: policyLayer, engine: engine)
+        let factory = ReaderCoreServiceFactory(httpClient: fixtureClient)
+        let service = factory.makeTOCService()
 
         let chapters = try await service.fetchTOC(source: bookSource, detailURL: "https://www.tianyabooks.com/book/1")
 
@@ -69,9 +65,8 @@ final class RealServiceOfflineReplayTests: XCTestCase {
 
     func testRealContentOfflineReplay_returnsContentPage() async throws {
         let fixtureClient = FixtureHTTPClient(responseData: contentHTML, statusCode: 200)
-        let policyLayer = NetworkPolicyLayer(httpClient: fixtureClient)
-        let engine = NonJSParserEngine()
-        let service = DefaultContentService(policyLayer: policyLayer, engine: engine)
+        let factory = ReaderCoreServiceFactory(httpClient: fixtureClient)
+        let service = factory.makeContentService()
 
         let page = try await service.fetchContent(source: bookSource, chapterURL: "https://www.tianyabooks.com/book/1/chapter/1")
 
@@ -84,13 +79,9 @@ final class RealServiceOfflineReplayTests: XCTestCase {
         let fixtureClient = FixtureHTTPClient(responseData: Data(), statusCode: 200)
         let factory = ReaderCoreServiceFactory(httpClient: fixtureClient)
 
-        let searchService = factory.makeSearchService()
-        let tocService = factory.makeTOCService()
-        let contentService = factory.makeContentService()
-
-        XCTAssertNotNil(searchService)
-        XCTAssertNotNil(tocService)
-        XCTAssertNotNil(contentService)
+        XCTAssertNotNil(factory.makeSearchService())
+        XCTAssertNotNil(factory.makeTOCService())
+        XCTAssertNotNil(factory.makeContentService())
     }
 }
 
