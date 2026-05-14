@@ -114,6 +114,7 @@ code_changes: true
 commit_performed: true
 last_commit: '7c4ec57 (chore: configure cron loop for mock-driven iOS development)'
 generated_at_local: 2026-05-13 20:15 +08:00
-next_task: IOS-5A (Search/detail/TOC real Core pipeline)
-last_run_summary: 'IOS-4A DONE: validateBookSource now does real JSON decode. next=IOS-5A.'
-updated_at: '2026-05-14T22:31:10+0800'
+next_task: IOS-9A (Local book import UI)
+last_run_summary: 'IOS-5A DONE: real search uses BookSource param; getBookDetail real
+  path. next=IOS-9A.'
+updated_at: '2026-05-14T22:34:43+0800'

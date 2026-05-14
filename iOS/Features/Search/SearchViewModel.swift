@@ -81,7 +81,7 @@ public final class SearchViewModel: ObservableObject {
         currentPage = 1
 
         do {
-            let state = await provider.searchBooks(keyword: trimmed, page: currentPage)
+            let state = await provider.searchBooks(keyword: trimmed, page: currentPage, source: source)
             switch state {
             case .loaded(let results):
                 if results.isEmpty {
@@ -116,7 +116,7 @@ public final class SearchViewModel: ObservableObject {
         guard hasMorePages, case .success(let existing) = searchState else { return }
 
         currentPage += 1
-        let state = await provider.searchBooks(keyword: keyword.trimmingCharacters(in: .whitespacesAndNewlines), page: currentPage)
+        let state = await provider.searchBooks(keyword: keyword.trimmingCharacters(in: .whitespacesAndNewlines), page: currentPage, source: selectedSource)
 
         switch state {
         case .loaded(let results):

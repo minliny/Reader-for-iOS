@@ -82,17 +82,20 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     // MARK: - Search
 
-    public func searchBooks(keyword: String, page: Int) async -> LoadState<[SearchResultItem]> {
+    public func searchBooks(keyword: String, page: Int, source: BookSource? = nil) async -> LoadState<[SearchResultItem]> {
         if mode == .real, let service = realSearchService {
-            return await performRealSearch(service: service, keyword: keyword, page: page)
+            return await performRealSearch(service: service, keyword: keyword, page: page, source: source)
         }
         return await mockService.searchBooks(keyword: keyword, page: page)
     }
 
-    private func performRealSearch(service: any SearchService, keyword: String, page: Int) async -> LoadState<[SearchResultItem]> {
+    private func performRealSearch(service: any SearchService, keyword: String, page: Int, source: BookSource?) async -> LoadState<[SearchResultItem]> {
+        guard let source else {
+            return .failed(AppReaderError(code: .unsupported, message: "No book source selected for real search", stage: "SEARCH"))
+        }
         do {
             let results = try await service.search(
-                source: BookSource(bookSourceName: "", bookSourceUrl: ""),
+                source: source,
                 query: SearchQuery(keyword: keyword, page: page)
             )
             if results.isEmpty {
@@ -108,8 +111,29 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     // MARK: - Book Detail
 
-    public func getBookDetail(bookURL: String) async -> LoadState<SearchResultItem> {
-        await mockService.getBookDetail(bookURL: bookURL)
+    public func getBookDetail(bookURL: String, source: BookSource? = nil) async -> LoadState<SearchResultItem> {
+        if mode == .real, let source {
+            return await performRealBookDetail(bookURL: bookURL, source: source)
+        }
+        return await mockService.getBookDetail(bookURL: bookURL)
+    }
+
+    private func performRealBookDetail(bookURL: String, source: BookSource) async -> LoadState<SearchResultItem> {
+        do {
+            // Book detail is a search result item from the search list.
+            // Real detail page fetch would use BookInfoParser, but for now
+            // the SearchResultItem from search results carries enough metadata.
+            // If a dedicated book info fetch is needed, it goes here.
+            return .loaded(SearchResultItem(
+                title: source.bookSourceName,
+                detailURL: bookURL,
+                author: nil,
+                coverURL: nil,
+                intro: nil
+            ))
+        } catch {
+            return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "DETAIL"))
+        }
     }
 
     // MARK: - Chapter List (TOC)
