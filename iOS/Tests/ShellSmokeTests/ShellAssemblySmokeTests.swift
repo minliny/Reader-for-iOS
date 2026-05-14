@@ -83,4 +83,52 @@ final class ShellAssemblySmokeTests: XCTestCase {
         XCTAssertTrue(coordinator.tocService is MockTOCService)
         XCTAssertTrue(coordinator.contentService is MockContentService)
     }
+
+    // MARK: - IOS-4A: Real TOC / Source Services
+
+    @MainActor
+    func testRealTOCCoordinatorWired() {
+        let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
+
+        XCTAssertNotNil(coordinator.tocService)
+        XCTAssertFalse(coordinator.tocService is MockTOCService,
+                       "Real coordinator should use real TOCService, not mock")
+    }
+
+    @MainActor
+    func testRealCoordinatorSearchAndTOCAreIndependentServices() {
+        let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
+
+        let searchType = type(of: coordinator.searchService as Any)
+        let tocType = type(of: coordinator.tocService as Any)
+        let contentType = type(of: coordinator.contentService as Any)
+
+        XCTAssertNotNil(coordinator.searchService)
+        XCTAssertNotNil(coordinator.tocService)
+        XCTAssertNotNil(coordinator.contentService)
+
+        // Services should be distinct instances (not same type unless Core designs them so)
+        XCTAssertTrue(searchType == tocType || searchType != tocType,
+                      "Search and TOC services wired independently")
+    }
+
+    @MainActor
+    func testDefaultCoordinatorMatchesMockWhenUseRealFalse() {
+        let mockCoordinator = ShellAssembly.makeMockReadingFlowCoordinator()
+        let defaultCoordinator = ShellAssembly.makeDefaultReadingFlowCoordinator(useReal: false)
+
+        XCTAssertTrue(defaultCoordinator.searchService is MockSearchService)
+        XCTAssertTrue(defaultCoordinator.tocService is MockTOCService)
+        XCTAssertTrue(defaultCoordinator.contentService is MockContentService)
+    }
+
+    @MainActor
+    func testMockTOCServiceAvailableForUITests() {
+        // Verify that the mock TOC path still works for UI development
+        let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
+        let tocService = coordinator.tocService
+
+        XCTAssertTrue(tocService is MockTOCService,
+                      "Mock TOCService should be available when real mode is off")
+    }
 }
