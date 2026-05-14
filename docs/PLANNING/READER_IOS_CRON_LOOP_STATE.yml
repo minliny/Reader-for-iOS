@@ -12,7 +12,8 @@ public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 last_audit_at: "2026-05-13 20:15 +08:00"
 loop_status: "READY_FOR_LOOP_RESTART"
-cron_loop_enabled: false
+cron_loop_enabled: true
+loop_job_id: "e3bcbdd1"
 loop_terminated: false
 xcodebuild_status: "BUILD SUCCEEDED"
 reader_core_commit: "4ecb3c2 (ReaderCoreServices wired)"
