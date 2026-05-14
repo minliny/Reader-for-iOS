@@ -22,9 +22,9 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-6A | S6 | P0 | DONE | Reader page MVP hardening | ReaderViewModel + ReaderView | Chapter nav, progress, settings | — |
 | IOS-7A | S7 | P1 | DONE | WebDAV settings and backup UI | New WebDAV settings feature | URL/credentials persisted; mock connection test; backup export mock | — |
 | IOS-7B | S7 | P2 | DONE | Keychain credential storage | Security framework integration | Credentials secure; read/write works | — |
-| IOS-8A | S8 | P2 | PENDING | Progress sync triggers | Progress sync UI | Triggers + conflict UI | CORE-GAP-005 (anticipated) |
-| IOS-9A | S9 | P2 | PENDING | Local book import UI | FileImporter feature | TXT/EPUB importable | CORE-GAP-006 (anticipated) |
-| IOS-10A | S10 | P2 | PENDING | WKWebView production adapter | Production adapter | Adapter wraps WKWebView safely | CORE-GAP-007 (anticipated) |
+| IOS-8A | S8 | P2 | PENDING | Progress sync triggers | Progress sync UI | Triggers + conflict UI | S34 Sync/WebDAV inventoried (contract exists) |
+| IOS-9A | S9 | P2 | READY | Local book import UI | FileImporter feature | TXT/EPUB importable | S33 contracts frozen (LocalBook models exist) |
+| IOS-10A | S10 | P2 | PENDING | WKWebView production adapter | Production adapter | Adapter wraps WKWebView safely | S35 Adapter protocol inventoried |
 | IOS-11A | S11 | P3 | DONE | TTS and reader UX | AVSpeechSynthesizer + themes | TTS reads; themes apply; page turn mode | — |
 | IOS-12A | S12 | P3 | PENDING | Release readiness | Smoke tests + checklist | All acceptance tests pass | All prior stages |
 
@@ -32,8 +32,9 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 
 ## Current Cycle Info
 
-- CORE-GAP-001 RESOLVED (Reader-Core 31715d2), xcodebuild package resolve OK
-- IOS-3A/4A/5A: READY_CANDIDATE → READY (2026-05-14 recheck)
-- ENV_XCODE_SIMULATOR_BLOCKED: iOS 26.5 platform not installed
-- Cron: disabled until env resolved (xcodebuild needed for real Core integration)
+- Reader-Core Phase 1 CLOSED (b9ea6f2): 1487 tests, 62 open gaps
+- IOS-3A/4A/5A: BLOCKED (no real service impls in Core, GAP-005)
+- IOS-9A → READY: LocalBook models/protocols now in ReaderCoreModels/Protocols
+- ENV: iOS 26.5 installed, xcodebuild BUILD SUCCEEDED
+- Next: IOS-9A local book import UI (mock with real Core models)
 - Boundary: PASS (62 files, 0 violations)

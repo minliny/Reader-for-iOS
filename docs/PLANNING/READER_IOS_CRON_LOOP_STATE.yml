@@ -11,13 +11,13 @@ core_dependency_status: "RESOLVED_BUT_BUILD_FAILED (accepted)"
 public_api_integration_status: "MOCK_ONLY"
 boundary_violation_status: "PASS"
 last_audit_at: "2026-05-13 20:15 +08:00"
-loop_status: "TERMINATED"
+loop_status: "READY_FOR_CRON_LOOP"
 cron_loop_enabled: false
-loop_terminated: true
-termination_reason: "GAP_005_BLOCKED — Reader-Core has no real SearchService/TOCService/ContentService implementations. IOS-3A/4A/5A re-blocked. Mock work complete."
+loop_terminated: false
 xcodebuild_status: "BUILD SUCCEEDED"
+reader_core_phase1: "CLOSED (b9ea6f2, 1487 tests, 62 gaps)"
+next_task: "IOS-9A (Local book import UI with Core LocalBook models)"
 total_cycles_this_session: 27
-next_action: "Implement real services in Reader-Core (GAP-005); then restart cron"
 tasks_completed: ["IOS-3A (3 mock cycles)", "IOS-4A (1 cycle)", "IOS-5A (1 cycle)", "Warning surfacing (1 cycle)"]
 next_action: "Install iOS 26.5 platform; re-run xcodebuild; restart cron with /loop 10m /reader-ios-cron-loop"
 blocked_reason: "ENV_XCODE_SIMULATOR_BLOCKED (iOS 26.5 not installed); all mock work complete"
