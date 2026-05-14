@@ -14,7 +14,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-1A | S1 | P0 | DONE | Public API dependency audit | Import audit | No illegal imports | — |
 | IOS-1B | S1 | P0 | DONE | Core boundary rules documentation | Docs | Boundary rules doc exists | — |
 | IOS-1C | S1 | P0 | DONE | Boundary check script validation | Script | PASS, 56 files, 0 violations | — |
-| IOS-1D | S1 | P1 | PENDING | CoreBridge inventory and smoke tests | ShellSmokeTests mock coverage | All mock scenarios tested | ENV_TEST_BLOCKED |
+| IOS-1D | S1 | P1 | DONE | CoreBridge inventory and smoke tests | ShellSmokeTests mock + real coverage | 28 tests, 0 failures (xcodebuild test, iOS Sim) | — |
 | IOS-2A | S2 | P0 | DONE | App shell route inventory | Route audit | All routes documented | — |
 | IOS-3A | S3 | P1 | DONE | Bookshelf MVP with real data | BookshelfView + BookshelfStore | Real/mock toggle + factory + smoke tests | ReaderCoreServices wired (4ecb3c2) |
 | IOS-4A | S4 | P1 | DONE | Source management with real validation | BookSourceView + BookSourceStore | Real JSON decode validation (validateBookSource) | ReaderCoreServices wired (4ecb3c2) |
