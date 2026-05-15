@@ -30,7 +30,7 @@ Status enum: READY | IN_PROGRESS | DONE | BLOCKED | SKIPPED | NEEDS_USER_DECISIO
 | IOS-3A-NET-001 | S3 | P1 | DONE | Real search snapshot | Book source JSON + offline fixtures (auto_09966b3b) | Snapshot saved, 4 fixture files in test_inputs/fixtures/ | — |
 | IOS-3A-FIXTURE-001 | S3 | P1 | DONE | Offline search replay | RealServiceOfflineReplayTests (4 tests) | Search/TOC/Content + Factory wiring verified | IOS-3A-NET-001 |
 | IOS-4A-NET-001 | S4 | P2 | DONE_OFFLINE_REPLAY | Real search replay | xmanhua.com search fixture + 3 replay tests | Search→parse verified offline | — |
-| IOS-5A-NET-001 | S5 | P2 | PARTIAL_TOC_REPLAY | Real TOC+content replay | Detail(96 chapters)+chapter fixtures exist | Content JS-rendered (S26.6) | Detail OK, content blocked by JS |
+| IOS-5A-NET-001 | S5 | P2 | PARTIAL_TOC_REPLAY | Real TOC+content replay | S26.6 unlocked, gate+snapshot ready | Content needs App runtime WKWebView | APP_RUNTIME_WEBVIEW_VALIDATION |
 
 ---
 
