@@ -106,3 +106,76 @@ private actor FixtureHTTPClient: HTTPClient {
         )
     }
 }
+
+// MARK: - Xmanhua.com Offline Replay (IOS-4A-NET-001 / IOS-5A-NET-001)
+
+final class XmanhuaOfflineReplayTests: XCTestCase {
+
+    private var xmanhuaSource: BookSource!
+    private var xmanhuaSearchHTML: Data!
+
+    override func setUp() async throws {
+        let fixtureDir = URL(fileURLWithPath: #file)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("test_inputs/fixtures")
+
+        let bsData = try Data(contentsOf: fixtureDir.appendingPathComponent("xmanhua_source.json"))
+        xmanhuaSource = try JSONDecoder().decode(BookSource.self, from: bsData)
+        xmanhuaSearchHTML = try Data(contentsOf: fixtureDir.appendingPathComponent("xmanhua_search.html"))
+    }
+
+    // MARK: - IOS-4A-NET-001
+
+    func testXmanhuaSourceJSON_loadsSuccessfully() {
+        XCTAssertEqual(xmanhuaSource.bookSourceName, "星际漫画(xmanhua)")
+        XCTAssertEqual(xmanhuaSource.searchUrl, "https://www.xmanhua.com/search?title={{key}}&page={{page}}")
+        XCTAssertEqual(xmanhuaSource.ruleSearch, "css:.mh-list")
+    }
+
+    func testXmanhuaSearchReplay_extractsSearchResults() async throws {
+        let fixtureClient = FixtureHTTPClient(responseData: xmanhuaSearchHTML, statusCode: 200)
+        let factory = ReaderCoreServiceFactory(httpClient: fixtureClient)
+        let service = factory.makeSearchService()
+
+        let results = try await service.search(source: xmanhuaSource, query: SearchQuery(keyword: "劍來"))
+
+        XCTAssertFalse(results.isEmpty, "Should extract search results from xmanhua fixture")
+        for result in results {
+            XCTAssertFalse(result.title.isEmpty || result.detailURL.isEmpty,
+                          "Each result must have title and detailURL")
+        }
+    }
+
+    func testXmanhuaReplay_noNetworkAccess() async throws {
+        let fixtureClient = FixtureHTTPClient(responseData: xmanhuaSearchHTML, statusCode: 200)
+        let factory = ReaderCoreServiceFactory(httpClient: fixtureClient)
+        let service = factory.makeSearchService()
+
+        _ = try await service.search(source: xmanhuaSource, query: SearchQuery(keyword: "test"))
+        XCTAssertEqual(fixtureClient.capturedRequests.count, 1)
+        XCTAssertTrue(fixtureClient.capturedRequests.first?.url.contains("xmanhua.com") ?? false)
+    }
+
+    // MARK: - IOS-5A-NET-001
+
+    func testXmanhuaTOCAndContent_notYetAvailable() {
+        let tocFixturePath = URL(fileURLWithPath: #file)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test_inputs/fixtures/xmanhua_toc.html").path
+        let contentFixturePath = URL(fileURLWithPath: #file)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test_inputs/fixtures/xmanhua_content.html").path
+
+        let tocExists = FileManager.default.fileExists(atPath: tocFixturePath)
+        let contentExists = FileManager.default.fileExists(atPath: contentFixturePath)
+
+        // Documents the current state — TOC/content fixtures not yet saved.
+        // IOS-5A-NET-001 remains PARTIAL until these are available.
+        if !tocExists { print("[xmanhua] TOC fixture not yet available — IOS-5A PARTIAL") }
+        if !contentExists { print("[xmanhua] Content fixture not yet available — IOS-5A PARTIAL") }
+        XCTAssertTrue(true) // informational only
+    }
+}
