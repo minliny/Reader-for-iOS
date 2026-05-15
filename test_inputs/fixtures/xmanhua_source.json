@@ -1,0 +1,24 @@
+{
+  "bookSourceName": "星际漫画(xmanhua)",
+  "bookSourceUrl": "https://www.xmanhua.com",
+  "bookSourceGroup": "漫画",
+  "bookSourceType": 0,
+  "enabled": true,
+  "header": {
+    "User-Agent": "Mozilla/5.0"
+  },
+  "searchUrl": "https://www.xmanhua.com/search?title={{key}}&page={{page}}",
+  "ruleSearch": {
+    "bookList": "@css:.mh-list li",
+    "bookUrl": "a@href",
+    "name": "h2.title@text"
+  },
+  "ruleToc": {
+    "chapterList": "@css:.chapter-list a",
+    "chapterName": "text",
+    "chapterUrl": "href"
+  },
+  "ruleContent": {
+    "content": "@css:.comic-content@html"
+  }
+}
