@@ -120,7 +120,8 @@ code_changes: true
 commit_performed: true
 last_commit: '7c4ec57 (chore: configure cron loop for mock-driven iOS development)'
 generated_at_local: 2026-05-13 20:15 +08:00
-next_task: S26.6.2-WEBVIEW-SNAPSHOT-RUNTIME-BASELINE
-last_run_summary: S26.6 unlocked by user. WebView runtime planning active.
-updated_at: '2026-05-15T23:55:08+0800'
-s26_6_status: UNLOCKED_PLANNING
+next_task: S26.6.3-XMANHUA-CONTENT-REPLAY
+last_run_summary: 'S26.6.2 done: RuntimeContractMapping + Core RuntimeExecutorProtocol
+  conformance. next=S26.6.3.'
+updated_at: '2026-05-16T00:18:30+0800'
+s26_6_status: UNLOCKED_CONTRACT_READY
