@@ -543,7 +543,6 @@ struct BookDetailTOCPrototype: View {
 struct ReaderBasePrototype: View {
     @State private var pageProgress: Double = 0.25
     @State private var brightness: Double = 0.6
-    @State private var dock: BrightnessDock = .left
     var isNight: Bool = false
 
     var colors: (bg: Color, text: Color, ink: Color, pri: Color, float: Color, quick: Color, bar: Color) {
@@ -646,32 +645,23 @@ struct ReaderBasePrototype: View {
                 .background(colors.bar)
             }
         }
-        .overlay(alignment: .leading) {
-            VStack(spacing: 12) {
-                Button {
-                    // auto-brightness toggle placeholder
-                } label: {
-                    Image(systemName: "circle.lefthalf.filled")
-                        .font(.caption).foregroundColor(colors.ink)
-                }
-                ZStack {
-                    Capsule().fill(colors.ink.opacity(0.16)).frame(width: 4, height: 180)
-                    VStack { Spacer()
-                        Capsule().fill(colors.pri).frame(width: 4, height: 180 * brightness)
-                    }
-                    .clipShape(Capsule())
-                }
-                Button {
-                    dock = dock == .left ? .right : .left
-                } label: {
-                    Image(systemName: dock == .left ? "chevron.right" : "chevron.left")
-                        .font(.caption2).foregroundColor(colors.ink)
-                }
+        .overlay(alignment: .top) {
+            // Brightness — compact horizontal control row, limited height
+            HStack(spacing: 10) {
+                Image(systemName: "sun.min")
+                    .font(.caption).foregroundColor(colors.ink)
+                Slider(value: $brightness, in: 0...1)
+                    .tint(colors.pri)
+                Image(systemName: "sun.max.fill")
+                    .font(.caption).foregroundColor(colors.ink)
+                Text("系统")
+                    .font(.system(size: 11)).foregroundColor(colors.ink.opacity(0.6))
             }
-            .frame(width: 40)
-            .padding(.vertical, 16)
-            .background(colors.float).clipShape(Capsule())
-            .padding(.leading, ReaderControlMetrics.brightnessInset)
+            .frame(height: 44)
+            .padding(.horizontal, 16)
+            .background(colors.float, in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 20)
+            .padding(.top, 56 + 48 + 8)  // topBar + metaRow + gap
         }
     }
 }
