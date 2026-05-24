@@ -28,62 +28,60 @@ public struct ReaderView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            ZStack {
-                contentBackground
-                    .ignoresSafeArea()
+        ZStack {
+            contentBackground
+                .ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    progressSurface
-                    readerStateView
-                    actionBar
-                }
+            VStack(spacing: 0) {
+                progressSurface
+                readerStateView
+                actionBar
             }
-            .navigationTitle(viewModel.chapterTitle)
+        }
+        .navigationTitle(viewModel.chapterTitle)
 #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.inline)
 #endif
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showTTS.toggle() }) {
-                        Image(systemName: "speaker.wave.2")
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showSettings.toggle() }) {
-                        Image(systemName: "textformat.size")
-                    }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showTTS.toggle() }) {
+                    Image(systemName: "speaker.wave.2")
                 }
             }
-            .sheet(isPresented: $showSettings) {
-                ReaderSettingsPanel(
-                    displaySettings: $viewModel.displaySettings,
-                    onDismiss: {
-                        viewModel.saveSettings()
-                        showSettings = false
-                    }
-                )
-                .presentationDetents([.medium])
-            }
-            .onAppear {
-                Task { await viewModel.loadContent() }
-            }
-            .onDisappear {
-                viewModel.saveSettings()
-                ttsPlayer.stop()
-            }
-            .safeAreaInset(edge: .bottom) {
-                if showTTS {
-                    ReaderTTSControlView(
-                        player: ttsPlayer,
-                        contentText: currentContentText
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showSettings.toggle() }) {
+                    Image(systemName: "textformat.size")
                 }
             }
         }
         .toolbar(.hidden, for: .tabBar)
+        .sheet(isPresented: $showSettings) {
+            ReaderSettingsPanel(
+                displaySettings: $viewModel.displaySettings,
+                onDismiss: {
+                    viewModel.saveSettings()
+                    showSettings = false
+                }
+            )
+            .presentationDetents([.medium])
+        }
+        .onAppear {
+            Task { await viewModel.loadContent() }
+        }
+        .onDisappear {
+            viewModel.saveSettings()
+            ttsPlayer.stop()
+        }
+        .safeAreaInset(edge: .bottom) {
+            if showTTS {
+                ReaderTTSControlView(
+                    player: ttsPlayer,
+                    contentText: currentContentText
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+        }
     }
 
     private var currentContentText: String {
@@ -235,19 +233,8 @@ public struct ReaderView: View {
 
             ScrollView {
                 contentText(text: content.content)
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: geo.frame(in: .named("scroll")).minY
-                            )
-                        }
-                    )
             }
-            .coordinateSpace(name: "scroll")
-            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                trackScrollProgress(offset: offset)
-            }
+            .frame(maxHeight: .infinity)
         }
     }
 
