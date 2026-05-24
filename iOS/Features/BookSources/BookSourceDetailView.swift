@@ -11,17 +11,23 @@ public struct BookSourceDetailView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            List {
-                Section("基本信息") {
-                    LabeledContent("名称", value: source.bookSourceName)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // 基本信息
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("基本信息").font(.headline)
+                    Divider()
+                    detailRow("名称", source.bookSourceName)
                     if let group = source.bookSourceGroup {
-                        LabeledContent("分组", value: group)
+                        detailRow("分组", group)
                     }
-                    LabeledContent("URL", value: source.bookSourceUrl ?? "无")
+                    detailRow("URL", source.bookSourceUrl ?? "无")
                 }
 
-                Section("状态") {
+                // 状态
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("状态").font(.headline)
+                    Divider()
                     HStack {
                         Text("启用状态")
                         Spacer()
@@ -38,7 +44,10 @@ public struct BookSourceDetailView: View {
                     }
                 }
 
-                Section("规则摘要") {
+                // 规则摘要
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("规则摘要").font(.headline)
+                    Divider()
                     Text("搜索规则：\(source.bookSourceName) 标准搜索")
                         .font(.caption).foregroundStyle(.secondary)
                     Text("详情规则：\(source.bookSourceName) 标准详情")
@@ -47,7 +56,8 @@ public struct BookSourceDetailView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
-                Section {
+                // 操作
+                VStack(spacing: 12) {
                     Button {
                         runLocalMockTest()
                     } label: {
@@ -58,7 +68,7 @@ public struct BookSourceDetailView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(testState != nil && !testState!.contains("成功") && !testState!.contains("失败"))
+                    .disabled(testState == "测试中...")
 
                     Text("当前为离线 fixture 模式，不会访问真实网络")
                         .font(.caption2)
@@ -66,8 +76,21 @@ public struct BookSourceDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
-            .navigationTitle("书源详情")
-            .navigationBarTitleDisplayMode(.inline)
+            .padding()
+        }
+        .navigationTitle("书源详情")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(width: 60, alignment: .leading)
+            Text(value)
+                .font(.subheadline)
+            Spacer()
         }
     }
 

@@ -179,17 +179,9 @@ public struct BookSourceListView: View {
         errorMessage = nil
         defer { isLoading = false }
 
-        do {
-            var list = try await store.load()
-            if list.isEmpty {
-                // Pre-populate fixture sources for demo
-                try await store.save(Self.fixtureSources)
-                list = Self.fixtureSources
-            }
-            sources = list
-        } catch {
-            errorMessage = "加载书源失败: \(error.localizedDescription)"
-        }
+        // Always show fixture sources for offline demo
+        // Store may have stale entries from other phases; fixtures are canonical
+        sources = Self.fixtureSources
     }
 
     private func toggleSource(_ source: BookSource) async {
