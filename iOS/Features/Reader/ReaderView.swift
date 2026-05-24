@@ -83,6 +83,7 @@ public struct ReaderView: View {
                 }
             }
         }
+        .toolbar(.hidden, for: .tabBar)
     }
 
     private var currentContentText: String {

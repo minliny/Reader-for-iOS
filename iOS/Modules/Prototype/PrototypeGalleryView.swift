@@ -605,31 +605,6 @@ struct ReaderBasePrototype: View {
             // Top bar
             VStack { ReaderBaseTopBar(); Spacer() }
 
-            // Brightness bar (left, auto-brightness + dock arrow)
-            VStack {
-                Spacer()
-                HStack {
-                    VStack(spacing: 12) {
-                        Image(systemName: "circle.lefthalf.filled").font(.caption).foregroundColor(colors.ink)
-                        ZStack {
-                            Capsule().fill(colors.ink.opacity(0.16)).frame(width: 4, height: 180)
-                            VStack { Spacer()
-                                Capsule().fill(colors.pri).frame(width: 4, height: 180 * brightness)
-                            }
-                            .clipShape(Capsule())
-                        }
-                        Image(systemName: dock == .left ? "chevron.right" : "chevron.left")
-                            .font(.caption2).foregroundColor(colors.ink)
-                    }
-                    .frame(width: 40)
-                    .padding(.vertical, 16)
-                    .background(colors.float).clipShape(Capsule())
-                    Spacer()
-                }
-                .padding(.leading, ReaderControlMetrics.brightnessInset)
-                Spacer()
-            }
-
             // Quick actions (no text labels)
             VStack { Spacer()
                 HStack(spacing: ReaderControlMetrics.quickCircleGap) {
@@ -670,6 +645,33 @@ struct ReaderBasePrototype: View {
                 .frame(height: ReaderControlMetrics.bottomBarHeight)
                 .background(colors.bar)
             }
+        }
+        .overlay(alignment: .leading) {
+            VStack(spacing: 12) {
+                Button {
+                    // auto-brightness toggle placeholder
+                } label: {
+                    Image(systemName: "circle.lefthalf.filled")
+                        .font(.caption).foregroundColor(colors.ink)
+                }
+                ZStack {
+                    Capsule().fill(colors.ink.opacity(0.16)).frame(width: 4, height: 180)
+                    VStack { Spacer()
+                        Capsule().fill(colors.pri).frame(width: 4, height: 180 * brightness)
+                    }
+                    .clipShape(Capsule())
+                }
+                Button {
+                    dock = dock == .left ? .right : .left
+                } label: {
+                    Image(systemName: dock == .left ? "chevron.right" : "chevron.left")
+                        .font(.caption2).foregroundColor(colors.ink)
+                }
+            }
+            .frame(width: 40)
+            .padding(.vertical, 16)
+            .background(colors.float).clipShape(Capsule())
+            .padding(.leading, ReaderControlMetrics.brightnessInset)
         }
     }
 }
