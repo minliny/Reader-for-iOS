@@ -99,6 +99,25 @@ final class MockDataFlowTests: XCTestCase {
         // 此处只验证 ViewModel 可正常构造，不测试 parser 边界
     }
 
+    // MARK: - Mock BookDetail
+
+    func testMockDetailLoadsFromSearchResult() async {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMockScenario(.success)
+
+        // BookDetailViewModel uses provider.getBookDetail(bookURL:)
+        let state = await provider.getBookDetail(bookURL: "https://example.com/book/1")
+        if case .loaded(let detail) = state {
+            XCTAssertEqual(detail.title, "凡人修仙传")
+            XCTAssertEqual(detail.author, "忘语")
+            XCTAssertFalse(detail.detailURL.isEmpty)
+        } else {
+            XCTFail("Expected mock book detail, got \(state)")
+        }
+
+        provider.resetMock()
+    }
+
     // MARK: - Provider default is mock
 
     func testProviderDefaultsToMockMode() {

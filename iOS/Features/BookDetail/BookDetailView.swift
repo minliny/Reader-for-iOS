@@ -20,23 +20,24 @@ public struct BookDetailView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    detailStateView
-                }
-                .padding()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                detailStateView
             }
-            .navigationTitle("Book Detail")
-            .onAppear {
-                Task {
-                    await viewModel.loadDetail()
-                    checkBookshelfStatus()
-                }
+            .padding()
+        }
+        .navigationTitle("书籍详情")
+#if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+#endif
+        .onAppear {
+            Task {
+                await viewModel.loadDetail()
+                checkBookshelfStatus()
             }
-            .navigationDestination(isPresented: $showChapterList) {
-                ChapterListView(bookURL: result.detailURL, bookTitle: result.title)
-            }
+        }
+        .sheet(isPresented: $showChapterList) {
+            ChapterListView(bookURL: result.detailURL, bookTitle: result.title)
         }
     }
 
