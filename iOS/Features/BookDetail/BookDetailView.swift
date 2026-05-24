@@ -128,6 +128,7 @@ public struct BookDetailView: View {
     @ViewBuilder
     private func bookDetailContent(detail: SearchResultItem) -> some View {
         VStack(alignment: .leading, spacing: 16) {
+            // 书名 + 作者
             HStack(spacing: 16) {
                 coverPlaceholder
                 VStack(alignment: .leading, spacing: 8) {
@@ -136,50 +137,82 @@ public struct BookDetailView: View {
                         .fontWeight(.bold)
 
                     if let author = detail.author, !author.isEmpty {
-                        Text("by \(author)")
+                        Label("\(author)", systemImage: "person.fill")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
 
-            if let coverURL = detail.coverURL, !coverURL.isEmpty {
-                Text("Cover: \(coverURL)")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.vertical, 4)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+            // 来源 + 最新章节
+            VStack(alignment: .leading, spacing: 6) {
+                Label("来源：Mock 书源", systemImage: "link")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Label("最新章节：第一章 山村少年", systemImage: "text.justify")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+
+            // 简介
+            VStack(alignment: .leading, spacing: 6) {
+                Text("简介")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(detail.intro?.isEmpty == false
+                     ? detail.intro!
+                     : "一个普通的山村少年韩立，机缘巧合之下踏入修仙界，历经千难万险，最终飞升仙界。这是一个关于坚持、智慧和勇气的故事。")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(6)
             }
 
-            if let bookDescription = detail.intro, !bookDescription.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Description")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+            Divider()
 
-                    Text(bookDescription)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(nil)
+            // 操作区
+            VStack(spacing: 12) {
+                // 开始阅读
+                NavigationLink {
+                    ReaderView(
+                        chapterURL: "https://example.com/book/1/chapter/1",
+                        chapterTitle: "第一章 山村少年"
+                    )
+                } label: {
+                    HStack {
+                        Image(systemName: "book.fill")
+                        Text("开始阅读")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.blue)
+                    .foregroundStyle(.white)
+                    .cornerRadius(12)
                 }
-            }
+                .buttonStyle(.plain)
 
-            Button(action: {
-                showTOCAction()
-            }) {
-                HStack {
-                    Image(systemName: "list.bullet")
-                    Text("View Table of Contents")
+                // 查看目录
+                Button(action: {
+                    showTOCAction()
+                }) {
+                    HStack {
+                        Image(systemName: "list.bullet")
+                        Text("查看目录（5 章）")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.primary)
+                    .foregroundStyle(.white)
+                    .cornerRadius(12)
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(.primary)
-                .foregroundStyle(.white)
-                .cornerRadius(12)
-            }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
 
-            addToBookshelfButton
+                // 加入书架
+                addToBookshelfButton
+            }
         }
     }
 
