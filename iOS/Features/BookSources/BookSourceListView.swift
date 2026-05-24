@@ -1,20 +1,29 @@
 import SwiftUI
 import ReaderCoreModels
 import ReaderShellValidation
-import ReaderAppPersistence
+
+/// 用于统一 sheet 分发的标记类型
+enum BookSourceSheet: Identifiable {
+    case importSheet
+    case shareSheet
+    case detail(BookSource)
+
+    var id: String {
+        switch self {
+        case .importSheet: return "import"
+        case .shareSheet: return "share"
+        case .detail: return "detail"
+        }
+    }
+}
 
 public struct BookSourceListView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
     @State private var sources: [BookSource] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var showingImport = false
     @State private var shareText: String = ""
-    @State private var showShare = false
-    @State private var selectedDetail: BookSource?
-    @State private var showDetail = false
-
-    private let store = BookSourceStore.shared
+    @State private var activeSheet: BookSourceSheet?
 
     public init(coordinator: ReadingFlowCoordinator) {
         self.coordinator = coordinator
@@ -59,34 +68,38 @@ public struct BookSourceListView: View {
             .navigationTitle("书源")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showingImport = true }) {
+                    Button(action: { activeSheet = .importSheet }) {
                         Image(systemName: "plus")
                     }
                 }
             }
-            .sheet(isPresented: $showingImport) {
-                BookSourceImportView()
-            }
-            .sheet(isPresented: $showShare) {
-                NavigationStack {
-                    ScrollView {
-                        Text(shareText)
-                            .font(.caption.monospaced())
-                            .padding()
-                    }
-                    .navigationTitle("书源 JSON")
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("复制") {
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .importSheet:
+                    BookSourceImportView()
+                case .shareSheet:
+                    NavigationStack {
+                        ScrollView {
+                            Text(shareText)
+                                .font(.caption.monospaced())
+                                .padding()
+                        }
+                        .navigationTitle("书源 JSON")
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("复制") {
 #if os(iOS)
-                                UIPasteboard.general.string = shareText
+                                    UIPasteboard.general.string = shareText
 #endif
+                                }
+                            }
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("完成") { activeSheet = nil }
                             }
                         }
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("完成") { showShare = false }
-                        }
                     }
+                case .detail(let source):
+                    BookSourceDetailSheet(source: source)
                 }
             }
             .task {
@@ -94,11 +107,6 @@ public struct BookSourceListView: View {
             }
             .refreshable {
                 await loadSources()
-            }
-            .sheet(isPresented: $showDetail) {
-                if let source = selectedDetail {
-                    BookSourceDetailView(source: source)
-                }
             }
         }
     }
@@ -118,7 +126,7 @@ public struct BookSourceListView: View {
                 .foregroundStyle(.secondary)
 
             Button("导入书源") {
-                showingImport = true
+                activeSheet = .importSheet
             }
             .buttonStyle(.borderedProminent)
         }
@@ -156,18 +164,17 @@ public struct BookSourceListView: View {
     private func sourceRow(source: BookSource) -> some View {
         BookSourceRowView(
             source: source,
-            onToggle: { Task { await toggleSource(source) } },
-            onDelete: { Task { await deleteSource(source) } },
+            onToggle: { toggleSource(source) },
+            onDelete: { deleteSource(source) },
             onShare: {
                 if let data = try? JSONEncoder().encode(source),
                    let json = String(data: data, encoding: .utf8) {
                     shareText = json
-                    showShare = true
+                    activeSheet = .shareSheet
                 }
             },
             onTapDetail: {
-                selectedDetail = source
-                showDetail = true
+                activeSheet = .detail(source)
             }
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -184,25 +191,15 @@ public struct BookSourceListView: View {
         sources = Self.fixtureSources
     }
 
-    private func toggleSource(_ source: BookSource) async {
+    private func toggleSource(_ source: BookSource) {
         guard let id = source.id else { return }
-
-        do {
-            try await store.toggleEnabled(id: id)
-            await loadSources()
-        } catch {
-            errorMessage = "切换书源失败: \(error.localizedDescription)"
+        if let idx = sources.firstIndex(where: { $0.id == id }) {
+            sources[idx].enabled.toggle()
         }
     }
 
-    private func deleteSource(_ source: BookSource) async {
+    private func deleteSource(_ source: BookSource) {
         guard let id = source.id else { return }
-
-        do {
-            try await store.delete(id: id)
-            await loadSources()
-        } catch {
-            errorMessage = "删除书源失败: \(error.localizedDescription)"
-        }
+        sources.removeAll { $0.id == id }
     }
 }
