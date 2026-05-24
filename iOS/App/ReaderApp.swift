@@ -68,58 +68,46 @@ struct RootShellView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            NavigationStack(path: $navigationState.navigationPath) {
-                ReaderFlowFeatureView(
-                    coordinator: coordinator,
-                    navigationState: navigationState,
-                    environment: environment
-                )
-                .navigationDestination(for: Route.self) { route in
-                    destinationView(for: route)
-                }
-                .toolbar {
-                    #if DEBUG
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink(destination: PrototypeGalleryView()) {
-                            Text("[DEBUG] Prototype Gallery")
-                                .font(.caption)
+            // Tab 0: 书架
+            NavigationStack {
+                BookshelfView()
+                    .navigationTitle("书架")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            NavigationLink(destination: SearchView()) {
+                                Image(systemName: "magnifyingglass")
+                            }
                         }
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink(destination: WebViewRuntimeHarnessView()) {
-                            Text("WebView Harness")
-                                .font(.caption)
-                        }
-                    }
-                    #endif
-                }
             }
             .tabItem {
-                Label("Home", systemImage: "house")
+                Label("书架", systemImage: "books.vertical")
             }
             .tag(0)
 
-            BookshelfView()
+            // Tab 1: 发现
+            DiscoverHomeShellView()
                 .tabItem {
-                    Label("Bookshelf", systemImage: "books.vertical")
+                    Label("发现", systemImage: "safari")
                 }
                 .tag(1)
 
+            // Tab 2: 书源
             NavigationStack {
-                SearchView()
+                BookSourceListView(coordinator: coordinator)
+                    .navigationTitle("书源")
             }
             .tabItem {
-                Label("Search", systemImage: "magnifyingglass")
+                Label("书源", systemImage: "doc.text.magnifyingglass")
             }
             .tag(2)
 
-            NavigationStack {
-                WebDAVSettingsView()
-            }
-            .tabItem {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .tag(3)
+            // Tab 3: 我的
+            MineTabView()
+                .tabItem {
+                    Label("我的", systemImage: "person.circle")
+                }
+                .tag(3)
         }
     }
 
