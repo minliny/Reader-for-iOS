@@ -237,3 +237,22 @@ public final class ReaderViewModel: ObservableObject {
         return chapterURL
     }
 }
+
+#if DEBUG
+extension ReaderViewModel {
+    /// Debug-only fixture init — pre-loaded content, no network, no Reader-Core runtime
+    public convenience init(
+        chapterURL: String,
+        chapterTitle: String,
+        fixtureContent: String
+    ) {
+        self.init(chapterURL: chapterURL, chapterTitle: chapterTitle)
+        let page = ContentPage(
+            title: chapterTitle,
+            content: fixtureContent,
+            chapterURL: chapterURL
+        )
+        self.readerState = .loaded(content: page)
+    }
+}
+#endif

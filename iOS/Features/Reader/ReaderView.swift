@@ -339,3 +339,16 @@ private struct ScrollOffsetPreferenceKey: PreferenceKey {
         value = nextValue()
     }
 }
+
+#if DEBUG
+extension ReaderView {
+    /// Debug-only fixture init — for tab bar hiding verification
+    public init(fixtureChapterTitle: String, fixtureContent: String) {
+        self._viewModel = StateObject(wrappedValue: ReaderViewModel(
+            chapterURL: "debug://fixture/chapter",
+            chapterTitle: fixtureChapterTitle,
+            fixtureContent: fixtureContent
+        ))
+    }
+}
+#endif

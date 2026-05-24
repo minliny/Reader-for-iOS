@@ -14,7 +14,7 @@ public struct BookshelfView: View {
                 bookshelfStateView
             }
             .padding()
-            .navigationTitle("Bookshelf")
+            .navigationTitle("书架")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -44,12 +44,12 @@ public struct BookshelfView: View {
     private var bookshelfStateView: some View {
         switch viewModel.bookshelfState {
         case .idle:
-            Text("Loading...")
+            Text("加载中...")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
         case .loading:
-            ProgressView("Loading...")
+            ProgressView("加载中...")
                 .frame(maxWidth: .infinity, minHeight: 200)
 
         case .loaded(let items):
@@ -76,11 +76,11 @@ public struct BookshelfView: View {
                     .font(.system(size: 48))
                     .foregroundStyle(.secondary)
 
-                Text("Empty Bookshelf")
+                Text("书架为空")
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("Add books from search results")
+                Text("从搜索结果添加书籍")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -88,7 +88,7 @@ public struct BookshelfView: View {
 
         case .failed(let message):
             VStack(alignment: .leading, spacing: 8) {
-                Label("Error", systemImage: "xmark.circle.fill")
+                Label("错误", systemImage: "xmark.circle.fill")
                     .foregroundStyle(.red)
                     .font(.subheadline.weight(.semibold))
 
@@ -114,24 +114,24 @@ struct BookshelfItemDetailView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Book Info") {
-                    LabeledContent("Title", value: item.title)
+                Section("书籍信息") {
+                    LabeledContent("书名", value: item.title)
                     if let author = item.author {
-                        LabeledContent("Author", value: author)
+                        LabeledContent("作者", value: author)
                     }
                     if let source = item.sourceName {
-                        LabeledContent("Source", value: source)
+                        LabeledContent("来源", value: source)
                     }
                 }
 
-                Section("Reading Progress") {
-                    LabeledContent("Progress") {
+                Section("阅读进度") {
+                    LabeledContent("进度") {
                         Text("\(Int(item.readingProgress * 100))%")
                     }
                     if let chapter = item.lastReadChapterTitle {
-                        LabeledContent("Last Chapter", value: chapter)
+                        LabeledContent("最后阅读", value: chapter)
                     }
-                    LabeledContent("Added") {
+                    LabeledContent("添加时间") {
                         Text(item.addedAt, style: .date)
                     }
                 }
@@ -142,7 +142,7 @@ struct BookshelfItemDetailView: View {
 #endif
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("完成") { dismiss() }
                 }
             }
         }

@@ -27,7 +27,7 @@ public struct BookSourceListView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                         Spacer()
-                        Button("Dismiss") { errorMessage = nil }
+                        Button("关闭") { errorMessage = nil }
                             .font(.caption)
                     }
                     .padding(12)
@@ -36,7 +36,7 @@ public struct BookSourceListView: View {
 
                 Group {
                     if isLoading {
-                        ProgressView("Loading sources...")
+                        ProgressView("加载书源中...")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if sources.isEmpty {
                         emptyStateView
@@ -45,7 +45,7 @@ public struct BookSourceListView: View {
                     }
                 }
             }
-            .navigationTitle("Book Sources")
+            .navigationTitle("书源")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showingImport = true }) {
@@ -63,17 +63,17 @@ public struct BookSourceListView: View {
                             .font(.caption.monospaced())
                             .padding()
                     }
-                    .navigationTitle("Book Source JSON")
+                    .navigationTitle("书源 JSON")
                     .toolbar {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Copy") {
+                            Button("复制") {
 #if os(iOS)
                                 UIPasteboard.general.string = shareText
 #endif
                             }
                         }
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") { showShare = false }
+                            Button("完成") { showShare = false }
                         }
                     }
                 }
@@ -93,15 +93,15 @@ public struct BookSourceListView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
 
-            Text("No Book Sources")
+            Text("暂无书源")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Import a book source to get started")
+            Text("导入书源以开始使用")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Button("Import Book Source") {
+            Button("导入书源") {
                 showingImport = true
             }
             .buttonStyle(.borderedProminent)
@@ -120,14 +120,14 @@ public struct BookSourceListView: View {
     private var sourceListContent: some View {
         List {
             if !enabledSources.isEmpty {
-                Section("Enabled (\(enabledSources.count))") {
+                Section("已启用 (\(enabledSources.count))") {
                     ForEach(enabledSources, id: \.id) { source in
                         sourceRow(source: source)
                     }
                 }
             }
             if !disabledSources.isEmpty {
-                Section("Disabled (\(disabledSources.count))") {
+                Section("已禁用 (\(disabledSources.count))") {
                     ForEach(disabledSources, id: \.id) { source in
                         sourceRow(source: source)
                     }
@@ -162,7 +162,7 @@ public struct BookSourceListView: View {
         do {
             sources = try await store.load()
         } catch {
-            errorMessage = "Failed to load sources: \(error.localizedDescription)"
+            errorMessage = "加载书源失败: \(error.localizedDescription)"
         }
     }
 
@@ -173,7 +173,7 @@ public struct BookSourceListView: View {
             try await store.toggleEnabled(id: id)
             await loadSources()
         } catch {
-            errorMessage = "Failed to toggle source: \(error.localizedDescription)"
+            errorMessage = "切换书源失败: \(error.localizedDescription)"
         }
     }
 
@@ -184,7 +184,7 @@ public struct BookSourceListView: View {
             try await store.delete(id: id)
             await loadSources()
         } catch {
-            errorMessage = "Failed to delete source: \(error.localizedDescription)"
+            errorMessage = "删除书源失败: \(error.localizedDescription)"
         }
     }
 }
