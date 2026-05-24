@@ -1,14 +1,8 @@
 import SwiftUI
 import ReaderCoreModels
 
-private struct BookDetailRoute: Hashable {
-    let detailURL: String
-}
-
 public struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
-    @State private var selectedResult: SearchResultItem?
-    @State private var bookRoute: BookDetailRoute?
     @State private var selectedSourceID: String?
     @AppStorage("search_history") private var historyData: Data = Data()
     @State private var searchHistory: [String] = []
@@ -43,13 +37,6 @@ public struct SearchView: View {
             }
             .padding()
             .navigationTitle("搜索")
-#if os(iOS)
-            .navigationDestination(item: $bookRoute) { _ in
-                if let result = selectedResult {
-                    BookDetailView(result: result)
-                }
-            }
-#endif
         }
     }
 
@@ -148,25 +135,26 @@ public struct SearchView: View {
         case .success(let results):
             List {
                 ForEach(results, id: \.detailURL) { result in
-                    SearchResultRowView(
-                        result: result,
-                        sourceName: viewModel.selectedSource?.displayName ?? "",
-                        onTap: {
-                            selectedResult = result
-                            bookRoute = BookDetailRoute(detailURL: result.detailURL)
-                        },
-                        onAddToBookshelf: {
-                            let sourceID = viewModel.selectedSource?.id ?? "unknown"
-                            Task {
-                                await bookshelfVM.addOrUpdateItem(
-                                    from: result,
-                                    sourceID: sourceID,
-                                    sourceName: viewModel.selectedSource?.bookSourceName
-                                )
-                                showToast("Added \"\(result.title)\" to Bookshelf")
+                    NavigationLink {
+                        BookDetailView(result: result)
+                    } label: {
+                        SearchResultRowView(
+                            result: result,
+                            sourceName: viewModel.selectedSource?.displayName ?? "",
+                            onTap: {},
+                            onAddToBookshelf: {
+                                let sourceID = viewModel.selectedSource?.id ?? "unknown"
+                                Task {
+                                    await bookshelfVM.addOrUpdateItem(
+                                        from: result,
+                                        sourceID: sourceID,
+                                        sourceName: viewModel.selectedSource?.bookSourceName
+                                    )
+                                    showToast("Added \"\(result.title)\" to Bookshelf")
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowSeparator(.hidden)
                 }
@@ -243,25 +231,26 @@ public struct SearchView: View {
 
                 List {
                     ForEach(results, id: \.detailURL) { result in
-                        SearchResultRowView(
-                            result: result,
-                            sourceName: viewModel.selectedSource?.displayName ?? "",
-                            onTap: {
-                                selectedResult = result
-                                bookRoute = BookDetailRoute(detailURL: result.detailURL)
-                            },
-                            onAddToBookshelf: {
-                                let sourceID = viewModel.selectedSource?.id ?? "unknown"
-                                Task {
-                                    await bookshelfVM.addOrUpdateItem(
-                                        from: result,
-                                        sourceID: sourceID,
-                                        sourceName: viewModel.selectedSource?.bookSourceName
-                                    )
-                                    showToast("Added \"\(result.title)\" to Bookshelf")
+                        NavigationLink {
+                            BookDetailView(result: result)
+                        } label: {
+                            SearchResultRowView(
+                                result: result,
+                                sourceName: viewModel.selectedSource?.displayName ?? "",
+                                onTap: {},
+                                onAddToBookshelf: {
+                                    let sourceID = viewModel.selectedSource?.id ?? "unknown"
+                                    Task {
+                                        await bookshelfVM.addOrUpdateItem(
+                                            from: result,
+                                            sourceID: sourceID,
+                                            sourceName: viewModel.selectedSource?.bookSourceName
+                                        )
+                                        showToast("Added \"\(result.title)\" to Bookshelf")
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowSeparator(.hidden)
                     }
