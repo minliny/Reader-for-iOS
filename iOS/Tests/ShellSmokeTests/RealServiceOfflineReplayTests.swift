@@ -155,8 +155,9 @@ final class XmanhuaOfflineReplayTests: XCTestCase {
         let service = factory.makeSearchService()
 
         _ = try await service.search(source: xmanhuaSource, query: SearchQuery(keyword: "test"))
-        XCTAssertEqual(fixtureClient.capturedRequests.count, 1)
-        XCTAssertTrue(fixtureClient.capturedRequests.first?.url.contains("xmanhua.com") ?? false)
+        let requests = await fixtureClient.capturedRequests
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertTrue(requests.first?.url.contains("xmanhua.com") ?? false)
     }
 
     // MARK: - IOS-5A-NET-001

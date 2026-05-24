@@ -80,6 +80,12 @@ struct RootShellView: View {
                 .toolbar {
                     #if DEBUG
                     ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink(destination: PrototypeGalleryView()) {
+                            Text("[DEBUG] Prototype Gallery")
+                                .font(.caption)
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink(destination: WebViewRuntimeHarnessView()) {
                             Text("WebView Harness")
                                 .font(.caption)
@@ -146,6 +152,8 @@ struct RootShellView: View {
             WebDAVSettingsView()
         case .bookshelf:
             BookshelfView()
+        case .prototypeGallery:
+            PrototypeGalleryView()
         case .bookSources:
             BookSourceListView(coordinator: coordinator)
         case .bookDetail(let bookURL, let title, let author):
@@ -154,6 +162,8 @@ struct RootShellView: View {
                 detailURL: bookURL,
                 author: author
             ))
+        default:
+            Text("\(route.title) — 待实现")
         }
     }
 }

@@ -13,7 +13,7 @@ public final class ProductionWebViewAdapter: RuntimeWebViewExecutorProtocol, @un
     public let executorId = "ios.production.webview"
     public let executorName = "Production WKWebView Adapter"
 
-    private let securityGate: WebViewSecurityGate
+    let securityGate: WebViewSecurityGate
     private var webView: WKWebView?
     private(set) var lastSnapshot: WebViewExecutionSnapshot?
 
@@ -32,7 +32,7 @@ public final class ProductionWebViewAdapter: RuntimeWebViewExecutorProtocol, @un
         securityGate.updatePolicy(policy)
     }
 
-    public var currentPolicy: WebViewSecurityPolicy {
+    public var webViewPolicy: WebViewSecurityPolicy {
         securityGate.policy
     }
 

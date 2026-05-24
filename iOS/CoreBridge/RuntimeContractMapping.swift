@@ -62,8 +62,8 @@ extension RuntimeResult {
     /// Create denied result with error code.
     public static func denied(requestId: String, errorCode: RuntimeErrorCode, snapshot: RuntimeSnapshot? = nil) -> RuntimeResult {
         RuntimeResult(
-            requestId: requestId, status: .denied, errorCode: errorCode,
-            snapshot: snapshot, finishedAt: Date()
+            requestId: requestId, status: .denied,
+            snapshot: snapshot, errorCode: errorCode, finishedAt: Date()
         )
     }
 
@@ -71,7 +71,7 @@ extension RuntimeResult {
     public static func unavailable(requestId: String, snapshot: RuntimeSnapshot? = nil) -> RuntimeResult {
         RuntimeResult(
             requestId: requestId, status: .failed,
-            errorCode: .executionUnavailable, snapshot: snapshot, finishedAt: Date()
+            snapshot: snapshot, errorCode: .executionUnavailable, finishedAt: Date()
         )
     }
 }
@@ -80,7 +80,7 @@ extension RuntimeResult {
 
 #if canImport(WebKit) && canImport(UIKit)
 
-extension ProductionWebViewAdapter: RuntimeExecutorProtocol {
+extension ProductionWebViewAdapter: @preconcurrency RuntimeExecutorProtocol {
 
     public func execute(request: RuntimeRequest) async throws -> RuntimeResult {
         // 1. Map Core policy to iOS policy for gate check
@@ -98,7 +98,6 @@ extension ProductionWebViewAdapter: RuntimeExecutorProtocol {
             resolvedHost: hostFromURL(request.url),
             policyEnabled: iosPolicy.enableWebViewRuntime,
             jsAllowed: iosPolicy.allowJavaScriptExecution,
-            timestamp: Date(),
             executionState: gateResult.isDenied ? .policyRejected : .notStarted,
             errorMessage: gateResult.isDenied ? mapDenialReason(gateResult, policy: iosPolicy) : nil,
             htmlMetadata: nil
@@ -120,7 +119,11 @@ extension ProductionWebViewAdapter: RuntimeExecutorProtocol {
     }
 
     public func isHostAllowed(_ host: String) -> Bool {
-        currentPolicy.allowsHost(host)
+        webViewPolicy.allowsHost(host)
+    }
+
+    public var currentPolicy: RuntimePolicy {
+        RuntimePolicy.from(securityGate.policy)
     }
 
     // MARK: - Helpers
@@ -146,7 +149,7 @@ extension ProductionWebViewAdapter: RuntimeExecutorProtocol {
 }
 
 /// Minimal gate evaluation result bridging.
-private struct GateEvaluation {
+struct GateEvaluation {
     let isDenied: Bool
     let host: String?
 }

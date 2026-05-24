@@ -56,7 +56,9 @@ let package = Package(
         ),
         .target(
         name: "ReaderAppSupport",
-        dependencies: [],
+        dependencies: [
+            .product(name: "ReaderCoreModels", package: "Reader-Core")
+        ],
         path: "AppSupport/Sources",
         sources: [
             "ReaderAppSupportMarker.swift",

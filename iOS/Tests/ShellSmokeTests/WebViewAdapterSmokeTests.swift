@@ -121,7 +121,7 @@ final class WebViewAdapterSmokeTests: XCTestCase {
             requestedURL: "https://www.xmanhua.com/m298163/",
             resolvedHost: "www.xmanhua.com",
             policyEnabled: true, jsAllowed: true,
-            timestamp: Date(), executionState: .notStarted,
+            executionState: .notStarted,
             errorMessage: nil, htmlMetadata: nil
         )
         let encoded = try? JSONEncoder().encode(snapshot)
@@ -172,6 +172,7 @@ final class WebViewAdapterSmokeTests: XCTestCase {
     }
 }
 
+#if os(iOS)
     func testGateUpdatePolicyChangesBehavior() {
         let gate = WebViewSecurityGate(policy: .disabled)
         let request = RuntimeWebViewRequest(
@@ -210,7 +211,7 @@ final class WebViewAdapterSmokeTests: XCTestCase {
     func testAdapterDefaultsToDisabled() {
         let adapter = ProductionWebViewAdapter()
         XCTAssertEqual(adapter.executorId, "ios.production.webview")
-        XCTAssertFalse(adapter.currentPolicy.enableWebViewRuntime)
+        XCTAssertFalse(adapter.webViewPolicy.enableWebViewRuntime)
     }
 
     @MainActor
@@ -269,4 +270,4 @@ final class WebViewAdapterSmokeTests: XCTestCase {
         XCTAssertFalse(result.success) // execution not yet implemented
         XCTAssertEqual(result.errorType, .configurationError)
     }
-}
+#endif
