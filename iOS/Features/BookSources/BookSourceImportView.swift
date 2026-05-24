@@ -10,7 +10,7 @@ public struct BookSourceImportView: View {
     public var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Import Book Source")
+                Text("导入书源")
                     .font(.headline)
 
                 TextEditor(text: $viewModel.jsonInput)
@@ -24,7 +24,7 @@ public struct BookSourceImportView: View {
                 }) {
                     HStack {
                         Image(systemName: "doc.text")
-                        Text("Import from Text")
+                        Text("从文本导入")
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -34,13 +34,13 @@ public struct BookSourceImportView: View {
                 importStateView
             }
             .padding()
-            .navigationTitle("Import")
+            .navigationTitle("导入书源")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
 #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("取消") {
                         dismiss()
                     }
                 }
@@ -55,12 +55,12 @@ public struct BookSourceImportView: View {
             EmptyView()
 
         case .loading:
-            ProgressView("Importing...")
+            ProgressView("导入中...")
                 .frame(maxWidth: .infinity, minHeight: 120)
 
         case .success(let source):
             VStack(alignment: .leading, spacing: 8) {
-                Label("Import Successful", systemImage: "checkmark.circle.fill")
+                Label("导入成功", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.subheadline.weight(.semibold))
 
@@ -74,7 +74,7 @@ public struct BookSourceImportView: View {
 
         case .failed(let message):
             VStack(alignment: .leading, spacing: 8) {
-                Label("Import Failed", systemImage: "xmark.circle.fill")
+                Label("导入失败", systemImage: "xmark.circle.fill")
                     .foregroundStyle(.red)
                     .font(.subheadline.weight(.semibold))
 
@@ -88,7 +88,7 @@ public struct BookSourceImportView: View {
 
         case .unsupported(let reason):
             VStack(alignment: .leading, spacing: 8) {
-                Label("Unsupported", systemImage: "exclamationmark.triangle.fill")
+                Label("不支持", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .font(.subheadline.weight(.semibold))
 
@@ -102,7 +102,7 @@ public struct BookSourceImportView: View {
 
         case .partial(let source, let warnings):
             VStack(alignment: .leading, spacing: 8) {
-                Label("Partially Imported", systemImage: "exclamationmark.circle.fill")
+                Label("部分导入", systemImage: "exclamationmark.circle.fill")
                     .foregroundStyle(.yellow)
                     .font(.subheadline.weight(.semibold))
 

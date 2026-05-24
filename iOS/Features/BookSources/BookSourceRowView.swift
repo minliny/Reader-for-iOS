@@ -6,17 +6,20 @@ public struct BookSourceRowView: View {
     let onToggle: () -> Void
     let onDelete: () -> Void
     let onShare: (() -> Void)?
+    let onTapDetail: (() -> Void)?
 
     public init(
         source: BookSource,
         onToggle: @escaping () -> Void,
         onDelete: @escaping () -> Void,
-        onShare: (() -> Void)? = nil
+        onShare: (() -> Void)? = nil,
+        onTapDetail: (() -> Void)? = nil
     ) {
         self.source = source
         self.onToggle = onToggle
         self.onDelete = onDelete
         self.onShare = onShare
+        self.onTapDetail = onTapDetail
     }
 
     public var body: some View {
@@ -35,18 +38,17 @@ public struct BookSourceRowView: View {
                 Spacer()
 
                 Toggle("", isOn: Binding(
-                    get: { source.enabled ?? true },
+                    get: { source.enabled },
                     set: { _ in onToggle() }
                 ))
                 .labelsHidden()
             }
 
             HStack {
-                if source.id != nil {
-                    Label("Saved", systemImage: "checkmark.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.green)
-                }
+                Label(source.enabled ? "已启用" : "已禁用",
+                      systemImage: source.enabled ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(source.enabled ? .green : .secondary)
 
                 if let onShare = onShare {
                     Button(action: onShare) {
@@ -59,7 +61,7 @@ public struct BookSourceRowView: View {
                 Spacer()
 
                 Button(role: .destructive, action: onDelete) {
-                    Label("Delete", systemImage: "trash")
+                    Label("删除", systemImage: "trash")
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
@@ -68,5 +70,8 @@ public struct BookSourceRowView: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
+        .onTapGesture {
+            onTapDetail?()
+        }
     }
 }

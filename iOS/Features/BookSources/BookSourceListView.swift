@@ -11,12 +11,23 @@ public struct BookSourceListView: View {
     @State private var showingImport = false
     @State private var shareText: String = ""
     @State private var showShare = false
+    @State private var selectedDetail: BookSource?
+    @State private var showDetail = false
 
     private let store = BookSourceStore.shared
 
     public init(coordinator: ReadingFlowCoordinator) {
         self.coordinator = coordinator
     }
+
+    /// 本地 fixture 书源 — 仅用于演示，不接真实网络
+    static let fixtureSources: [BookSource] = [
+        BookSource(id: "fixture-001", bookSourceName: "笔趣阁", bookSourceUrl: "https://www.biquge.com", bookSourceGroup: "在线书源", enabled: true),
+        BookSource(id: "fixture-002", bookSourceName: "全本书屋", bookSourceUrl: "https://www.quanben.com", bookSourceGroup: "在线书源", enabled: true),
+        BookSource(id: "fixture-003", bookSourceName: "千帆小说", bookSourceUrl: "https://www.qianfanxs.com", bookSourceGroup: "在线书源", enabled: false),
+        BookSource(id: "fixture-004", bookSourceName: "起点中文", bookSourceUrl: "https://www.qidian.com", bookSourceGroup: "在线书源", enabled: true),
+        BookSource(id: "fixture-005", bookSourceName: "本地书源示例", bookSourceUrl: "file:///local/sample.json", bookSourceGroup: "本地书源", enabled: false),
+    ]
 
     public var body: some View {
         NavigationStack {
@@ -84,6 +95,11 @@ public struct BookSourceListView: View {
             .refreshable {
                 await loadSources()
             }
+            .sheet(isPresented: $showDetail) {
+                if let source = selectedDetail {
+                    BookSourceDetailView(source: source)
+                }
+            }
         }
     }
 
@@ -148,6 +164,10 @@ public struct BookSourceListView: View {
                     shareText = json
                     showShare = true
                 }
+            },
+            onTapDetail: {
+                selectedDetail = source
+                showDetail = true
             }
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -160,7 +180,13 @@ public struct BookSourceListView: View {
         defer { isLoading = false }
 
         do {
-            sources = try await store.load()
+            var list = try await store.load()
+            if list.isEmpty {
+                // Pre-populate fixture sources for demo
+                try await store.save(Self.fixtureSources)
+                list = Self.fixtureSources
+            }
+            sources = list
         } catch {
             errorMessage = "加载书源失败: \(error.localizedDescription)"
         }
