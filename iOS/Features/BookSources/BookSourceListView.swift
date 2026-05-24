@@ -2,17 +2,17 @@ import SwiftUI
 import ReaderCoreModels
 import ReaderShellValidation
 
-/// 用于统一 sheet 分发的标记类型
+/// 用于统一 sheet 分发的标记类型 — detail 使用 source ID 保证唯一性
 enum BookSourceSheet: Identifiable {
     case importSheet
     case shareSheet
-    case detail(BookSource)
+    case detail(source: BookSource, id: String)
 
     var id: String {
         switch self {
         case .importSheet: return "import"
         case .shareSheet: return "share"
-        case .detail: return "detail"
+        case .detail(_, let sourceId): return "detail-\(sourceId)"
         }
     }
 }
@@ -98,15 +98,12 @@ public struct BookSourceListView: View {
                             }
                         }
                     }
-                case .detail(let source):
+                case .detail(let source, _):
                     BookSourceDetailSheet(source: source)
                 }
             }
             .task {
-                await loadSources()
-            }
-            .refreshable {
-                await loadSources()
+                loadSources()
             }
         }
     }
@@ -116,15 +113,10 @@ public struct BookSourceListView: View {
             Image(systemName: "books.vertical")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-
             Text("暂无书源")
-                .font(.title2)
-                .fontWeight(.semibold)
-
+                .font(.title2).fontWeight(.semibold)
             Text("导入书源以开始使用")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
+                .font(.subheadline).foregroundStyle(.secondary)
             Button("导入书源") {
                 activeSheet = .importSheet
             }
@@ -133,28 +125,19 @@ public struct BookSourceListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var enabledSources: [BookSource] {
-        sources.filter { $0.enabled }
-    }
-
-    private var disabledSources: [BookSource] {
-        sources.filter { !$0.enabled }
-    }
+    private var enabledSources: [BookSource] { sources.filter { $0.enabled } }
+    private var disabledSources: [BookSource] { sources.filter { !$0.enabled } }
 
     private var sourceListContent: some View {
         List {
             if !enabledSources.isEmpty {
                 Section("已启用 (\(enabledSources.count))") {
-                    ForEach(enabledSources, id: \.id) { source in
-                        sourceRow(source: source)
-                    }
+                    ForEach(enabledSources, id: \.id) { source in sourceRow(source: source) }
                 }
             }
             if !disabledSources.isEmpty {
                 Section("已禁用 (\(disabledSources.count))") {
-                    ForEach(disabledSources, id: \.id) { source in
-                        sourceRow(source: source)
-                    }
+                    ForEach(disabledSources, id: \.id) { source in sourceRow(source: source) }
                 }
             }
         }
@@ -174,28 +157,26 @@ public struct BookSourceListView: View {
                 }
             },
             onTapDetail: {
-                activeSheet = .detail(source)
+                activeSheet = .detail(source: source, id: source.id ?? UUID().uuidString)
             }
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .listRowSeparator(.hidden)
     }
 
-    private func loadSources() async {
+    private func loadSources() {
         isLoading = true
-        errorMessage = nil
         defer { isLoading = false }
-
-        // Always show fixture sources for offline demo
-        // Store may have stale entries from other phases; fixtures are canonical
         sources = Self.fixtureSources
     }
 
     private func toggleSource(_ source: BookSource) {
-        guard let id = source.id else { return }
-        if let idx = sources.firstIndex(where: { $0.id == id }) {
-            sources[idx].enabled.toggle()
-        }
+        guard let id = source.id,
+              let idx = sources.firstIndex(where: { $0.id == id }) else { return }
+        // @State 数组必须整体替换才能触发 UI 刷新
+        var copy = sources
+        copy[idx].enabled.toggle()
+        sources = copy
     }
 
     private func deleteSource(_ source: BookSource) {
