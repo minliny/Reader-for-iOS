@@ -59,23 +59,32 @@ public final class SearchViewModel: ObservableObject {
     public func loadSources() async {
         do {
             sources = try await store.load()
-            selectedSource = sources.first(where: { $0.enabled ?? true })
+            if sources.isEmpty {
+                // Pre-populate a mock source for fixture-only search
+                let mockSource = BookSource(
+                    id: "mock-source-001",
+                    bookSourceName: "Mock 书源",
+                    bookSourceUrl: "https://example.com",
+                    enabled: true
+                )
+                try? await store.add(mockSource)
+                sources = [mockSource]
+            }
+            selectedSource = sources.first(where: { $0.enabled })
         } catch {
-            searchState = .failed(message: "Failed to load sources")
+            searchState = .failed(message: "加载书源失败")
         }
     }
 
     public func search() async {
         let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            searchState = .failed(message: "Keyword cannot be empty")
+            searchState = .failed(message: "请输入关键词")
             return
         }
 
-        guard let source = selectedSource else {
-            searchState = .failed(message: "No book source selected")
-            return
-        }
+        // Mock mode allows search without a real source; provider routes to mock data
+        let source = selectedSource
 
         searchState = .loading
         currentPage = 1

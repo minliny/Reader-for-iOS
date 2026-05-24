@@ -1,6 +1,11 @@
 import SwiftUI
 import ReaderCoreModels
 
+struct ChapterNavigation: Hashable {
+    let chapterURL: String
+    let chapterTitle: String
+}
+
 public struct ChapterListView: View {
     @StateObject private var viewModel: ChapterListViewModel
     @State private var navigationPath = NavigationPath()
@@ -15,15 +20,18 @@ public struct ChapterListView: View {
                 listStateView
             }
             .padding()
-            .navigationTitle("Table of Contents")
+            .navigationTitle("目录")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
 #endif
             .onAppear {
                 Task { await viewModel.loadChapters() }
             }
-            .navigationDestination(for: String.self) { chapterURL in
-                ReaderView(chapterURL: chapterURL, chapterTitle: chapterURL)
+            .navigationDestination(for: ChapterNavigation.self) { nav in
+                ReaderView(
+                    chapterURL: nav.chapterURL,
+                    chapterTitle: nav.chapterTitle
+                )
             }
         }
     }
@@ -129,6 +137,9 @@ public struct ChapterListView: View {
     }
 
     private func showChapterAction(chapter: TOCItem) {
-        navigationPath.append(chapter.chapterURL)
+        navigationPath.append(ChapterNavigation(
+            chapterURL: chapter.chapterURL,
+            chapterTitle: chapter.chapterTitle
+        ))
     }
 }

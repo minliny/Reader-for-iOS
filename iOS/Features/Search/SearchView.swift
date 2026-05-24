@@ -42,7 +42,7 @@ public struct SearchView: View {
                 searchStateView
             }
             .padding()
-            .navigationTitle("Search")
+            .navigationTitle("搜索")
 #if os(iOS)
             .navigationDestination(item: $bookRoute) { _ in
                 if let result = selectedResult {
@@ -55,7 +55,7 @@ public struct SearchView: View {
 
     private var sourceSelectionView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Book Source")
+            Text("书源")
                 .font(.subheadline)
                 .fontWeight(.semibold)
 
