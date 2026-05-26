@@ -5,6 +5,7 @@ import ReaderCoreServices
 
 public enum ServiceMode: Sendable {
     case mock
+    case offlineReplay
     case real
 }
 
@@ -15,6 +16,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     private var mode: ServiceMode = .mock
     private let lock = NSLock()
     private let mockService: MockReaderCoreService
+    private let offlineReplayService: OfflineReplayService
 
     private var realSearchService: (any SearchService)?
     private var realTOCService: (any TOCService)?
@@ -22,6 +24,14 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     private init() {
         self.mockService = MockReaderCoreService.shared
+        self.offlineReplayService = OfflineReplayService.shared
+    }
+
+    /// 切换到 offline replay 模式（不需要 RealNetworkGate）
+    public func enableOfflineReplay() {
+        lock.lock()
+        defer { lock.unlock() }
+        self.mode = .offlineReplay
     }
 
     public var currentMode: ServiceMode {
@@ -102,6 +112,9 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realSearchService {
             return await performRealSearch(service: service, keyword: keyword, page: page, source: source)
         }
+        if mode == .offlineReplay {
+            return await offlineReplayService.searchBooks(keyword: keyword, page: page)
+        }
         return await mockService.searchBooks(keyword: keyword, page: page)
     }
 
@@ -131,6 +144,9 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let source {
             return await performRealBookDetail(bookURL: bookURL, source: source)
         }
+        if mode == .offlineReplay {
+            return await offlineReplayService.getBookDetail(bookURL: bookURL)
+        }
         return await mockService.getBookDetail(bookURL: bookURL)
     }
 
@@ -158,6 +174,9 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realTOCService {
             return await performRealTOC(service: service, bookURL: bookURL)
         }
+        if mode == .offlineReplay {
+            return await offlineReplayService.getChapterList(bookURL: bookURL)
+        }
         return await mockService.getChapterList(bookURL: bookURL)
     }
 
@@ -183,6 +202,9 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     public func getChapterContent(chapterURL: String) async -> LoadState<ContentPage> {
         if canUseRealService, let service = realContentService {
             return await performRealContent(service: service, chapterURL: chapterURL)
+        }
+        if mode == .offlineReplay {
+            return await offlineReplayService.getChapterContent(chapterURL: chapterURL)
         }
         return await mockService.getChapterContent(chapterURL: chapterURL)
     }
