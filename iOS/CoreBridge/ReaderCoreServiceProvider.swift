@@ -38,7 +38,15 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     // MARK: - Real Mode Initialization
 
+    /// 尝试启用 real mode。必须先通过 RealNetworkGate 检查。
+    /// 返回 true 表示 real service 已配置并可用。
     public func configureRealMode() -> Bool {
+        let gate = DefaultRealNetworkGate()
+        let policy = RealNetworkPolicyStore.shared.current
+        guard case .allowed = gate.evaluate(policy) else {
+            print("[RealNetworkGate] configureRealMode denied: \(policy.denialReason ?? "disabled")")
+            return false
+        }
         let httpClient = URLSessionHTTPClient()
         let factory = ReaderCoreServiceFactory(httpClient: httpClient)
         lock.lock()
@@ -54,6 +62,14 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return realSearchService != nil && realTOCService != nil && realContentService != nil
+    }
+
+    /// 当前是否允许使用 real service（需要 mode == .real 且 gate 允许）
+    private var canUseRealService: Bool {
+        guard mode == .real, isRealModeAvailable else { return false }
+        let gate = DefaultRealNetworkGate()
+        let policy = RealNetworkPolicyStore.shared.current
+        return gate.evaluate(policy) == .allowed
     }
 
     // MARK: - Book Source Validation
@@ -83,7 +99,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Search
 
     public func searchBooks(keyword: String, page: Int, source: BookSource? = nil) async -> LoadState<[SearchResultItem]> {
-        if mode == .real, let service = realSearchService {
+        if canUseRealService, let service = realSearchService {
             return await performRealSearch(service: service, keyword: keyword, page: page, source: source)
         }
         return await mockService.searchBooks(keyword: keyword, page: page)
@@ -112,7 +128,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Book Detail
 
     public func getBookDetail(bookURL: String, source: BookSource? = nil) async -> LoadState<SearchResultItem> {
-        if mode == .real, let source {
+        if canUseRealService, let source {
             return await performRealBookDetail(bookURL: bookURL, source: source)
         }
         return await mockService.getBookDetail(bookURL: bookURL)
@@ -139,7 +155,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Chapter List (TOC)
 
     public func getChapterList(bookURL: String) async -> LoadState<[TOCItem]> {
-        if mode == .real, let service = realTOCService {
+        if canUseRealService, let service = realTOCService {
             return await performRealTOC(service: service, bookURL: bookURL)
         }
         return await mockService.getChapterList(bookURL: bookURL)
@@ -165,7 +181,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Chapter Content
 
     public func getChapterContent(chapterURL: String) async -> LoadState<ContentPage> {
-        if mode == .real, let service = realContentService {
+        if canUseRealService, let service = realContentService {
             return await performRealContent(service: service, chapterURL: chapterURL)
         }
         return await mockService.getChapterContent(chapterURL: chapterURL)
