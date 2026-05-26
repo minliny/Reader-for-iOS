@@ -6,6 +6,7 @@ import ReaderCoreServices
 public enum ServiceMode: Sendable {
     case mock
     case offlineReplay
+    case controlledOnlineDryRun
     case real
 }
 
@@ -17,6 +18,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     private let lock = NSLock()
     private let mockService: MockReaderCoreService
     private let offlineReplayService: OfflineReplayService
+    private let networkController: NetworkAccessController
 
     private var realSearchService: (any SearchService)?
     private var realTOCService: (any TOCService)?
@@ -25,13 +27,21 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     private init() {
         self.mockService = MockReaderCoreService.shared
         self.offlineReplayService = OfflineReplayService.shared
+        self.networkController = NetworkAccessController()
     }
 
-    /// 切换到 offline replay 模式（不需要 RealNetworkGate）
+    /// 切换到 offline replay 模式
     public func enableOfflineReplay() {
         lock.lock()
         defer { lock.unlock() }
         self.mode = .offlineReplay
+    }
+
+    /// 切换到 controlledOnlineDryRun 模式（dry-run，不执行真实网络）
+    public func enableControlledOnlineDryRun() {
+        lock.lock()
+        defer { lock.unlock() }
+        self.mode = .controlledOnlineDryRun
     }
 
     public var currentMode: ServiceMode {
@@ -112,10 +122,29 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realSearchService {
             return await performRealSearch(service: service, keyword: keyword, page: page, source: source)
         }
+        if mode == .controlledOnlineDryRun {
+            return await performControlledOnlineSearch(keyword: keyword, page: page, source: source)
+        }
         if mode == .offlineReplay {
             return await offlineReplayService.searchBooks(keyword: keyword, page: page)
         }
         return await mockService.searchBooks(keyword: keyword, page: page)
+    }
+
+    /// controlledOnlineDryRun: 通过 NetworkAccessController 检查，allowed 时返回 offline replay 结果
+    private func performControlledOnlineSearch(keyword: String, page: Int, source: BookSource?) async -> LoadState<[SearchResultItem]> {
+        let sourcePolicy = SourceNetworkPolicy.fixture()
+        let userPref = UserNetworkPreference.productDefault
+        let decision = networkController.evaluate(userPreference: userPref, sourcePolicy: sourcePolicy, operation: .search)
+        switch decision {
+        case .allowed, .fallbackToCache:
+            return await offlineReplayService.searchBooks(keyword: keyword, page: page)
+        case .denied(_, let fallback):
+            if fallback == .offlineReplay || fallback == .mock {
+                return await offlineReplayService.searchBooks(keyword: keyword, page: page)
+            }
+            return await mockService.searchBooks(keyword: keyword, page: page)
+        }
     }
 
     private func performRealSearch(service: any SearchService, keyword: String, page: Int, source: BookSource?) async -> LoadState<[SearchResultItem]> {
@@ -144,7 +173,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let source {
             return await performRealBookDetail(bookURL: bookURL, source: source)
         }
-        if mode == .offlineReplay {
+        if mode == .controlledOnlineDryRun || mode == .offlineReplay {
             return await offlineReplayService.getBookDetail(bookURL: bookURL)
         }
         return await mockService.getBookDetail(bookURL: bookURL)
@@ -174,7 +203,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realTOCService {
             return await performRealTOC(service: service, bookURL: bookURL)
         }
-        if mode == .offlineReplay {
+        if mode == .controlledOnlineDryRun || mode == .offlineReplay {
             return await offlineReplayService.getChapterList(bookURL: bookURL)
         }
         return await mockService.getChapterList(bookURL: bookURL)
@@ -203,7 +232,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realContentService {
             return await performRealContent(service: service, chapterURL: chapterURL)
         }
-        if mode == .offlineReplay {
+        if mode == .controlledOnlineDryRun || mode == .offlineReplay {
             return await offlineReplayService.getChapterContent(chapterURL: chapterURL)
         }
         return await mockService.getChapterContent(chapterURL: chapterURL)
