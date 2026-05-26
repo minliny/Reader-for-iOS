@@ -7,6 +7,7 @@ public enum ServiceMode: Sendable {
     case mock
     case offlineReplay
     case controlledOnlineDryRun
+    case controlledOnline
     case real
 }
 
@@ -42,6 +43,20 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         self.mode = .controlledOnlineDryRun
+    }
+
+    /// 切换到 controlledOnline 模式（通过 NetworkAccessController + real service）
+    public func enableControlledOnline() {
+        lock.lock()
+        defer { lock.unlock() }
+        self.mode = .controlledOnline
+    }
+
+    /// 为 controlledOnline 注入 real search service（测试用 fake/spy）
+    public func setControlledOnlineSearchService(_ service: any SearchService) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.realSearchService = service
     }
 
     public var currentMode: ServiceMode {
@@ -122,8 +137,11 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realSearchService {
             return await performRealSearch(service: service, keyword: keyword, page: page, source: source)
         }
+        if mode == .controlledOnline {
+            return await performControlledOnlineSearch(keyword: keyword, page: page, source: source, useRealService: true)
+        }
         if mode == .controlledOnlineDryRun {
-            return await performControlledOnlineSearch(keyword: keyword, page: page, source: source)
+            return await performControlledOnlineSearch(keyword: keyword, page: page, source: source, useRealService: false)
         }
         if mode == .offlineReplay {
             return await offlineReplayService.searchBooks(keyword: keyword, page: page)
@@ -131,13 +149,23 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         return await mockService.searchBooks(keyword: keyword, page: page)
     }
 
-    /// controlledOnlineDryRun: 通过 NetworkAccessController 检查，allowed 时返回 offline replay 结果
-    private func performControlledOnlineSearch(keyword: String, page: Int, source: BookSource?) async -> LoadState<[SearchResultItem]> {
+    /// controlledOnline / controlledOnlineDryRun: 通过 NetworkAccessController 检查
+    private func performControlledOnlineSearch(keyword: String, page: Int, source: BookSource?, useRealService: Bool) async -> LoadState<[SearchResultItem]> {
         let sourcePolicy = SourceNetworkPolicy.fixture()
-        let userPref = UserNetworkPreference.productDefault
+        let userPref = useRealService ? UserNetworkPreference.productDefault : UserNetworkPreference.safeDefault
         let decision = networkController.evaluate(userPreference: userPref, sourcePolicy: sourcePolicy, operation: .search)
         switch decision {
-        case .allowed, .fallbackToCache:
+        case .allowed:
+            if useRealService, let svc = realSearchService {
+                do {
+                    let results = try await svc.search(source: source ?? BookSource(bookSourceName: "", bookSourceUrl: ""), query: SearchQuery(keyword: keyword, page: page))
+                    return results.isEmpty ? .empty : .loaded(results)
+                } catch {
+                    return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "SEARCH"))
+                }
+            }
+            return await offlineReplayService.searchBooks(keyword: keyword, page: page)
+        case .fallbackToCache:
             return await offlineReplayService.searchBooks(keyword: keyword, page: page)
         case .denied(_, let fallback):
             if fallback == .offlineReplay || fallback == .mock {
