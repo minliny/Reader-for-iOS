@@ -72,6 +72,24 @@ public final class SnapshotStore: Sendable {
         }
     }
 
+    // MARK: - Content Save (Phase 4E-next: authorized fetch only)
+
+    /// 保存实际快照内容（仅 Phase 4E-next 授权 fetch 后使用）
+    public func saveContent(_ relativePath: String, jsonData: Data) -> Result<String, Error> {
+        guard validatePathInsideSnapshotRoot(relativePath) else {
+            return .failure(SnapshotStoreError.invalidPath(relativePath))
+        }
+        let fileURL = snapshotRoot.appendingPathComponent(relativePath)
+        let dir = fileURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        do {
+            try jsonData.write(to: fileURL, options: .atomic)
+            return .success(relativePath)
+        } catch {
+            return .failure(error)
+        }
+    }
+
     // MARK: - Helpers
 
     private func sanitize(_ input: String) -> String {

@@ -190,48 +190,55 @@ public struct ManualLiveProbeExecutor: Sendable {
         }
     }
 
-    // MARK: - Execute (always denied — Phase 4D-next does not allow real fetch)
+    // MARK: - Execute
 
+    /// 执行真实 fetch（需用户授权 + 所有 gate 通过）
+    @MainActor
+    public func executeAuthorized(
+        request: ManualFetchRequest,
+        authorization: LiveFetchAuthorization,
+        provider: ReaderCoreServiceProvider = .shared
+    ) async -> LiveFetchResult {
+        let fetchExecutor = LiveFetchExecutor(gate: gate, snapshotStore: snapshotStore, rateLimiter: gate.rateLimiter)
+        return await fetchExecutor.authorizedFetch(request: request, authorization: authorization, provider: provider)
+    }
+
+    /// 无授权 execute — 拒绝真实网络
     public func execute(request: ManualFetchRequest) -> Result<LiveProbeAuditRecord, Error> {
         let result = dryRun(request: request)
-
         let audit = LiveProbeAuditRecord(
             requestId: request.id,
             candidateId: request.candidate.id,
             operation: request.manifest.operation.rawValue,
-            decision: result.wouldPassGate ? "denied_by_executor" : "denied_by_gate",
+            decision: result.wouldPassGate ? "denied_no_authorization" : "denied_by_gate",
             deniedReason: result.wouldPassGate
-                ? "Phase 4D-next 不允许真实 fetch。需用户明确授权。"
+                ? "需用户明确授权 + executeAuthorized()"
                 : "gate denied: \(result.gateDecision)",
             dryRunOnly: true,
             networkExecuted: false,
             snapshotPath: nil
         )
-
-        return .failure(ManualExecutorError.fetchNotAllowedInPhase4DNext(audit))
+        return .failure(ManualExecutorError.requiresAuthorization(audit))
     }
 
     // MARK: - Validation
 
-    public func validateNoNetwork() -> Bool {
-        // Always true in Phase 4D-next — executor never uses network
-        true
-    }
+    public func validateNoNetwork() -> Bool { true }
 }
 
 public enum ManualExecutorError: Error, LocalizedError {
-    case fetchNotAllowedInPhase4DNext(LiveProbeAuditRecord)
+    case requiresAuthorization(LiveProbeAuditRecord)
 
     public var errorDescription: String? {
         switch self {
-        case .fetchNotAllowedInPhase4DNext(let audit):
-            return "Phase 4D-next 不允许真实 fetch：\(audit.decision) — \(audit.deniedReason ?? "无原因")"
+        case .requiresAuthorization(let audit):
+            return "需用户明确授权：\(audit.decision) — \(audit.deniedReason ?? "无原因")"
         }
     }
 
     public var auditRecord: LiveProbeAuditRecord {
         switch self {
-        case .fetchNotAllowedInPhase4DNext(let record): return record
+        case .requiresAuthorization(let record): return record
         }
     }
 }
