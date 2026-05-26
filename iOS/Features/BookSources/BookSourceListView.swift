@@ -145,9 +145,21 @@ public struct BookSourceListView: View {
     }
 
     private func sourceRow(source: BookSource) -> some View {
-        BookSourceRowView(
-            source: source,
-            onToggle: { toggleSource(source) },
+        let sourceId = source.id ?? UUID().uuidString
+        return BookSourceRowView(
+            name: source.bookSourceName,
+            url: source.bookSourceUrl ?? "",
+            group: source.bookSourceGroup,
+            enabled: Binding<Bool>(
+                get: { sources.first(where: { $0.id == sourceId })?.enabled ?? false },
+                set: { newValue in
+                    if let idx = sources.firstIndex(where: { $0.id == sourceId }) {
+                        var copy = sources
+                        copy[idx].enabled = newValue
+                        sources = copy
+                    }
+                }
+            ),
             onDelete: { deleteSource(source) },
             onShare: {
                 if let data = try? JSONEncoder().encode(source),
@@ -157,7 +169,7 @@ public struct BookSourceListView: View {
                 }
             },
             onTapDetail: {
-                activeSheet = .detail(source: source, id: source.id ?? UUID().uuidString)
+                activeSheet = .detail(source: source, id: sourceId)
             }
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -168,15 +180,6 @@ public struct BookSourceListView: View {
         isLoading = true
         defer { isLoading = false }
         sources = Self.fixtureSources
-    }
-
-    private func toggleSource(_ source: BookSource) {
-        guard let id = source.id,
-              let idx = sources.firstIndex(where: { $0.id == id }) else { return }
-        // @State 数组必须整体替换才能触发 UI 刷新
-        var copy = sources
-        copy[idx].enabled.toggle()
-        sources = copy
     }
 
     private func deleteSource(_ source: BookSource) {

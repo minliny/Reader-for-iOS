@@ -9,7 +9,7 @@
 | P2 | 0 |
 | P3 | 0 |
 
-代码侧 P1 全部修复。等待 Codex 设备端最终复核 P1-004。
+代码侧 P1 已修复，设备端收口完成。
 
 ## 设备端复测问题
 
@@ -18,4 +18,4 @@
 | BOOKSOURCE-P2-P1-001 | P1 | DEVICE_VERIFIED_RESOLVED |
 | BOOKSOURCE-P2-P1-002 | P1 | DEVICE_VERIFIED_RESOLVED |
 | BOOKSOURCE-P2-P1-003 | P1 | DEVICE_VERIFIED_RESOLVED |
-| BOOKSOURCE-P2-P1-004 | P1 | READY_FOR_CODEX_VERIFY（Toggle → Button("启用"/"停用")，消除手势冲突） |
+| BOOKSOURCE-P2-P1-004 | P1 | DEVICE_VERIFIED_RESOLVED（fresh binary + fresh install 后，按钮版 UI 生效，状态可切换并切回） |
