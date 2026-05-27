@@ -60,15 +60,15 @@ public final class SearchViewModel: ObservableObject {
         do {
             sources = try await store.load()
             if sources.isEmpty {
-                // Pre-populate a mock source for fixture-only search
-                let mockSource = BookSource(
-                    id: "mock-source-001",
-                    bookSourceName: "Mock 书源",
-                    bookSourceUrl: "https://example.com",
+                // M1.4: Pre-populate with M1 candidate for controlledOnline search
+                let m1Source = BookSource(
+                    id: "candidate-xingxingxsw",
+                    bookSourceName: "⭐ 星星小说网",
+                    bookSourceUrl: "https://www.xingxingxsw.com",
                     enabled: true
                 )
-                try? await store.add(mockSource)
-                sources = [mockSource]
+                try? await store.add(m1Source)
+                sources = [m1Source]
             }
             selectedSource = sources.first(where: { $0.enabled })
         } catch {
