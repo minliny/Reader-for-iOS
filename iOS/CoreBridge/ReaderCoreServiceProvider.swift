@@ -20,6 +20,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     private let mockService: MockReaderCoreService
     private let offlineReplayService: OfflineReplayService
     private let networkController: NetworkAccessController
+    private let snapshotStore: SnapshotStore
 
     private var realSearchService: (any SearchService)?
     private var realTOCService: (any TOCService)?
@@ -28,6 +29,9 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     private init() {
         self.mockService = MockReaderCoreService.shared
         self.offlineReplayService = OfflineReplayService.shared
+        let snapRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("ReaderApp/Snapshots", isDirectory: true)
+        self.snapshotStore = SnapshotStore(snapshotRoot: snapRoot)
         self.networkController = NetworkAccessController()
     }
 
@@ -176,6 +180,15 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
             if useRealService, let svc = realSearchService {
                 do {
                     let results = try await svc.search(source: source ?? BookSource(bookSourceName: "", bookSourceUrl: ""), query: SearchQuery(keyword: keyword, page: page))
+                    // M1.3: Save search snapshot
+                    if !results.isEmpty {
+                        let snapItems = results.map { SearchSnapshotItem(from: $0) }
+                        _ = snapshotStore.saveSearchSnapshot(
+                            sourceId: sourcePolicy.sourceId, sourceName: sourcePolicy.sourceName,
+                            host: sourcePolicy.host, keyword: keyword,
+                            results: snapItems, networkTriggered: true
+                        )
+                    }
                     return results.isEmpty ? .empty : .loaded(results)
                 } catch {
                     return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "SEARCH"))
