@@ -59,6 +59,23 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         self.realSearchService = service
     }
 
+    /// M1.2: 通过 NetworkAccessController 创建真实 SearchService（不走 RealNetworkGate）
+    public func prepareControlledOnlineSearchService() -> Bool {
+        let policy = SourceNetworkPolicy.m1Candidate
+        let userPref = UserNetworkPreference.productDefault
+        let decision = networkController.evaluate(userPreference: userPref, sourcePolicy: policy, operation: .search)
+        guard case .allowed = decision else {
+            print("[M1.2] controlledOnline service denied: \(decision)")
+            return false
+        }
+        let httpClient = URLSessionHTTPClient()
+        let factory = ReaderCoreServiceFactory(httpClient: httpClient)
+        lock.lock()
+        realSearchService = factory.makeSearchService()
+        lock.unlock()
+        return realSearchService != nil
+    }
+
     public var currentMode: ServiceMode {
         lock.lock()
         defer { lock.unlock() }

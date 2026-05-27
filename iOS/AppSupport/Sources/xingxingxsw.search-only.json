@@ -1,0 +1,42 @@
+{
+  "bookSourceName": "星星小说网",
+  "bookSourceGroup": "M1候选源",
+  "bookSourceUrl": "https://www.xingxingxsw.com",
+  "bookSourceType": 0,
+  "enabled": true,
+  "searchUrl": "https://www.xingxingxsw.com/search.php?key={{key}}",
+  "ruleSearch": {
+    "bookList": ".leftBox >ul >li",
+    "name": "h1@text",
+    "author": ".s2@text",
+    "bookUrl": "h1>a@href##\\.html$##\\/",
+    "coverUrl": "img@data-original",
+    "intro": ".c@text",
+    "kind": ".tips@text&&.s6@text",
+    "lastChapter": "a.3@text",
+    "wordCount": ".s4@text"
+  },
+  "ruleBookInfo": {},
+  "ruleToc": {
+    "chapterList": "#newlist >dd",
+    "chapterName": "a@text",
+    "chapterUrl": "a@href"
+  },
+  "ruleContent": {
+    "content": "#txt@html"
+  },
+  "ruleExplore": {
+    "bookList": ".con li",
+    "name": ".font1 > a@text",
+    "author": ".font2@text##\\|.+",
+    "bookUrl": ".font1 > a@href##\\.html$##\\/",
+    "coverUrl": "img@data-original",
+    "intro": ".font3@text",
+    "kind": ".font2@text##.*\\|",
+    "lastChapter": "a:nth-child(2)@text"
+  },
+  "exploreUrl": "",
+  "header": "{\"accept-language\": \"zh-CN,zh;q=0.9\"}",
+  "respondTime": 180000,
+  "weight": 0
+}
