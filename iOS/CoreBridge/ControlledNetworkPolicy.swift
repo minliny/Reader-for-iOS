@@ -84,6 +84,21 @@ public struct SourceNetworkPolicy: Sendable, Equatable {
         )
     }
 
+    /// M1 候选源：星星小说网 — 真实搜索 MVP
+    public static let m1Candidate = SourceNetworkPolicy(
+        sourceId: "candidate-xingxingxsw",
+        sourceName: "星星小说网",
+        host: "www.xingxingxsw.com",
+        isEnabled: true,
+        allowSearch: true,
+        allowDetail: false,
+        allowTOC: false,
+        allowContent: false,
+        cooldownSeconds: 10,
+        lastRequestAt: nil,
+        riskLevel: .low
+    )
+
     public init(
         sourceId: String, sourceName: String, host: String,
         isEnabled: Bool, allowSearch: Bool, allowDetail: Bool, allowTOC: Bool, allowContent: Bool,

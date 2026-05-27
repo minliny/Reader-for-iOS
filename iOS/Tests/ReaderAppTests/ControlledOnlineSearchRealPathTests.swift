@@ -117,6 +117,33 @@ final class ControlledOnlineSearchRealPathTests: XCTestCase {
         XCTAssertTrue(audit.networkTriggered)
     }
 
+    // MARK: - M1 candidate source
+
+    func testM1CandidateSourcePolicy() {
+        let policy = SourceNetworkPolicy.m1Candidate
+        XCTAssertEqual(policy.sourceName, "星星小说网")
+        XCTAssertEqual(policy.host, "www.xingxingxsw.com")
+        XCTAssertTrue(policy.isEnabled)
+        XCTAssertTrue(policy.allowSearch)
+        XCTAssertFalse(policy.allowDetail, "M1 only allows search")
+        XCTAssertFalse(policy.allowTOC)
+        XCTAssertFalse(policy.allowContent)
+        XCTAssertEqual(policy.cooldownSeconds, 10)
+        XCTAssertEqual(policy.riskLevel, .low)
+    }
+
+    func testM1CandidateAllowsSearchInController() {
+        let ctrl = NetworkAccessController()
+        var pref = UserNetworkPreference.productDefault
+        pref.cacheFirst = false
+        pref.preferOfflineReplay = false
+        let result = ctrl.evaluate(userPreference: pref, sourcePolicy: .m1Candidate, operation: .search)
+        guard case .allowed = result else {
+            XCTFail("M1 candidate should allow search with product default")
+            return
+        }
+    }
+
     // MARK: - Provider reset
 
     func testProviderResetsToMockAfterTests() {

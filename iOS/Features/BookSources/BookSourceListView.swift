@@ -29,12 +29,13 @@ public struct BookSourceListView: View {
         self.coordinator = coordinator
     }
 
-    /// 本地 fixture 书源 — 仅用于演示，不接真实网络
+    /// 书源列表 — fixture + 真实候选源
     static let fixtureSources: [BookSource] = [
-        BookSource(id: "fixture-001", bookSourceName: "笔趣阁", bookSourceUrl: "https://www.biquge.com", bookSourceGroup: "在线书源", enabled: true),
-        BookSource(id: "fixture-002", bookSourceName: "全本书屋", bookSourceUrl: "https://www.quanben.com", bookSourceGroup: "在线书源", enabled: true),
+        BookSource(id: "candidate-xingxingxsw", bookSourceName: "⭐ 星星小说网", bookSourceUrl: "https://www.xingxingxsw.com", bookSourceGroup: "在线书源", enabled: true),
+        BookSource(id: "fixture-001", bookSourceName: "笔趣阁", bookSourceUrl: "https://www.biquge.com", bookSourceGroup: "在线书源", enabled: false),
+        BookSource(id: "fixture-002", bookSourceName: "全本书屋", bookSourceUrl: "https://www.quanben.com", bookSourceGroup: "在线书源", enabled: false),
         BookSource(id: "fixture-003", bookSourceName: "千帆小说", bookSourceUrl: "https://www.qianfanxs.com", bookSourceGroup: "在线书源", enabled: false),
-        BookSource(id: "fixture-004", bookSourceName: "起点中文", bookSourceUrl: "https://www.qidian.com", bookSourceGroup: "在线书源", enabled: true),
+        BookSource(id: "fixture-004", bookSourceName: "起点中文", bookSourceUrl: "https://www.qidian.com", bookSourceGroup: "在线书源", enabled: false),
         BookSource(id: "fixture-005", bookSourceName: "本地书源示例", bookSourceUrl: "file:///local/sample.json", bookSourceGroup: "本地书源", enabled: false),
     ]
 

@@ -151,7 +151,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     /// controlledOnline / controlledOnlineDryRun: 通过 NetworkAccessController 检查
     private func performControlledOnlineSearch(keyword: String, page: Int, source: BookSource?, useRealService: Bool) async -> LoadState<[SearchResultItem]> {
-        let sourcePolicy = SourceNetworkPolicy.fixture()
+        let sourcePolicy = SourceNetworkPolicy.m1Candidate
         let userPref = useRealService ? UserNetworkPreference.productDefault : UserNetworkPreference.safeDefault
         let decision = networkController.evaluate(userPreference: userPref, sourcePolicy: sourcePolicy, operation: .search)
         switch decision {
