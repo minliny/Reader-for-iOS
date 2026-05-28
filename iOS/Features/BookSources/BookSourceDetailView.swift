@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderAppPersistence
 
 /// 书源详情 — fixture-only，不接真实网络
 public struct BookSourceDetailView: View {
@@ -48,12 +49,10 @@ public struct BookSourceDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("规则摘要").font(.headline)
                     Divider()
-                    Text("搜索规则：\(source.bookSourceName) 标准搜索")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text("详情规则：\(source.bookSourceName) 标准详情")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text("目录规则：\(source.bookSourceName) 标准目录")
-                        .font(.caption).foregroundStyle(.secondary)
+                    capabilityRow("搜索", .ready)
+                    capabilityRow("详情", .missing)
+                    capabilityRow("目录", .missing)
+                    capabilityRow("正文", .missing)
                 }
 
                 // 操作
@@ -63,14 +62,14 @@ public struct BookSourceDetailView: View {
                     } label: {
                         HStack {
                             Image(systemName: "play.circle")
-                            Text("本地模拟测试")
+                            Text("测试搜索")
                         }
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(testState == "测试中...")
 
-                    Text("当前为离线 fixture 模式，不会访问真实网络")
+                    Text("手动测试 — 每次只测一个 operation，受网络偏好控制")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -94,8 +93,18 @@ public struct BookSourceDetailView: View {
         }
     }
 
+    private func capabilityRow(_ label: String, _ status: CapabilityStatus) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+            Spacer()
+            Text(status.rawValue)
+                .font(.caption)
+                .foregroundStyle(status == .ready ? .green : .orange)
+        }
+    }
+
     private func runLocalMockTest() {
-        // 本地模拟测试 — 不触发真实网络
         Task {
             testState = "测试中..."
             try? await Task.sleep(nanoseconds: 800_000_000)

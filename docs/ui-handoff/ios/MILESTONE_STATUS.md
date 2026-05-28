@@ -92,16 +92,16 @@ Last updated: 2026-05-28
 | "开始阅读" 不传 `bookID`/`sourceID` | `BookDetailView` NavigationLink 新增 `bookID: sourceIdentity.id`, `sourceID: sourceIdentity.id` |
 | "开始阅读" 不自动加书架 | 新增 `.onAppear { if !isInBookshelf { addToBookshelf() } }` |
 
-## M5: 阅读历史 / 书签标注 — **CODE READY**
+## M5: 阅读历史 / 书签标注 — **DEVICE VERIFIED**
 
-- Milestone result: `IOS_READING_HISTORY_BOOKMARKS_M5_READY`
+- Milestone result: `IOS_READING_HISTORY_BOOKMARKS_M5_DEVICE_VERIFIED`
 
 | Workstream | Status | Note |
 |---|---|---|
 | M5-A Reading History Store | CODE_READY | `ReadingHistoryStore` — `recordOpen/loadHistoryForBook/loadRecentHistory/removeHistoryForBook` |
 | M5-B Bookmark Store | CODE_READY | `BookmarkStore` — `addBookmarkNow/loadBookmarksForBook/deleteBookmark/deleteAllBookmarksForBook` |
 | M5-C Minimal UI | CODE_READY | ReaderView 书签按钮 + BookshelfItemDetailView "查看书签" 入口 + `BookmarksListView` |
-| M5-D Device Review | PENDING | 设备端验证待完成 |
+| M5-D Device Review | DEVICE_VERIFIED | 设备端已验证：ReaderView 进入 → 书签列表显示 → 条目信息正确 |
 
 ### M5 关键实现
 
@@ -113,4 +113,25 @@ Last updated: 2026-05-28
 | 书签列表 | `iOS/Features/Bookshelf/BookmarksListView.swift` — 展示/删除书签，点击跳转 ReaderView |
 | 书签入口 | `BookshelfItemDetailView` 新增"查看书签" 按钮 → `BookmarksListView` sheet |
 
-## M6-M8: PENDING
+## M6: 书源导入与验证 — **CODE READY**
+
+- Milestone result: `IOS_BOOKSOURCE_IMPORT_AND_VALIDATE_M6_READY`
+
+| Workstream | Status | Note |
+|---|---|---|
+| M6-A Import JSON | CODE_READY | `BookSourceImportView` + `BookSourceViewModel` — 用户粘贴 JSON → 解析 → 保存 |
+| M6-B Local Validation | CODE_READY | `BookSourceImportValidator` — 本地结构校验（不联网）：sourceName/baseURL/capability |
+| M6-C Save Local Source | CODE_READY | `BookSourceStore.add()` — 新增/重复处理 |
+| M6-D Manual Test Entry | CODE_READY | `BookSourceDetailView` capability rows + "测试搜索" 按钮 |
+| M6-E Device Review | PENDING | 设备端验证待完成 |
+
+### M6 关键实现
+
+| 功能 | 实现 |
+|---|---|
+| `BookSourceImportValidator` | `iOS/App/Persistence/BookSourceImportValidator.swift` — `validate()` 不联网结构校验 |
+| `CapabilityStatus` | enum `.ready/.missing/.invalid` — search/detail/toc/content |
+| `BookSourceValidationResult` | struct — sourceId + capabilities + warnings + errors |
+| `BookSourceDetailView` 增强 | 显示 capability rows + "测试搜索" 按钮 |
+
+## M7-M8: PENDING
