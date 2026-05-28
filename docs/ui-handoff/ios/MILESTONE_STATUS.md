@@ -115,28 +115,28 @@ Last updated: 2026-05-28
 
 ## M6: 书源导入与验证 — **CODE READY**
 
-- Milestone result: `IOS_BOOKSOURCE_IMPORT_OBJECT_RULE_COMPAT_READY`
+- Milestone result: `IOS_BOOKSOURCE_IMPORT_HEADER_COMPAT_READY`
 
 | Workstream | Status | Note |
 |---|---|---|
-| M6-A Import JSON | CODE_READY | `BookSourceImportNormalizer` — object-shaped rule → JSON string before decode |
+| M6-A Import JSON | CODE_READY | `BookSourceImportNormalizer` — object-shaped rules + header normalization |
 | M6-B Local Validation | CODE_READY | `BookSourceImportValidator` — 本地结构校验（不联网） |
 | M6-C Save Local Source | CODE_READY | `BookSourceStore.add()` — 新增/重复处理 |
 | M6-D Manual Test Entry | CODE_READY | `BookSourceDetailView` capability rows + "测试搜索" 按钮 |
-| M6-E Device Review | RETRY_PENDING | M6-P1-001 已修复，等待 Codex 设备端复测 |
+| M6-E Device Review | RETRY_PENDING | M6-P1-001 + M6-P1-002 均已修复，等待 Codex 设备端复测 |
 
 ### M6 关键修复
 
 | 问题 | 修复 |
 |---|---|
-| `M6-P1-001`: object-shaped rule fields decode 失败 | 新增 `BookSourceImportNormalizer` — object → JSON string，兼容 Legado 格式 |
-| `xingxingxsw.search-only.json` 导入失败 | normalizer 处理后 decode 成功，capability 显示正确 |
+| `M6-P1-001`: object-shaped rule fields decode 失败 | `BookSourceImportNormalizer` — object → JSON string，兼容 Legado 格式 |
+| `M6-P1-002`: `header` 为 JSON object string decode 失败 | normalizer 将 header 转为 `[String: String]` dict |
 
 ### M6 关键实现
 
 | 功能 | 实现 |
 |---|---|
-| `BookSourceImportNormalizer` | `iOS/App/Persistence/BookSourceImportNormalizer.swift` — `normalize()` object→string |
+| `BookSourceImportNormalizer` | `iOS/App/Persistence/BookSourceImportNormalizer.swift` — `normalize()` — rules + header |
 | `BookSourceImportValidator` | `iOS/App/Persistence/BookSourceImportValidator.swift` — `validate()` 不联网结构校验 |
 | `CapabilityStatus` | enum `.ready/.missing/.invalid` — search/detail/toc/content |
 | `BookSourceValidationResult` | struct — sourceId + capabilities + warnings + errors |

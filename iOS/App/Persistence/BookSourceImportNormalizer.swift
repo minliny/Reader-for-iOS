@@ -46,13 +46,43 @@ public struct BookSourceImportNormalizer {
             }
         }
 
-        // Header can be either String or Object (sometimes a JSON string, sometimes a dict)
+        // Header: can be [String: Any] dict, JSON object string, or missing
+        // BookSource.header is [String: String], so we must produce a dict, not a string
         if let headerValue = dict["header"] {
             if let headerDict = headerValue as? [String: Any] {
-                let compactData = try JSONSerialization.data(withJSONObject: headerDict, options: [])
-                if let s = String(data: compactData, encoding: .utf8) {
-                    dict["header"] = s
+                // Object/dict → convert all values to String → [String: String]
+                var stringDict: [String: String] = [:]
+                for (k, v) in headerDict {
+                    if let s = v as? String {
+                        stringDict[k] = s
+                    } else if let n = v as? NSNumber {
+                        stringDict[k] = n.stringValue
+                    } else {
+                        stringDict[k] = "\(v)"
+                    }
                 }
+                dict["header"] = stringDict
+            } else if let headerString = headerValue as? String {
+                // JSON object string like "{\"Accept-Language\": \"zh-CN\"}"
+                if let jsonData = headerString.data(using: .utf8),
+                   let parsed = try? JSONSerialization.jsonObject(with: jsonData, options: []),
+                   let parsedDict = parsed as? [String: Any] {
+                    var stringDict: [String: String] = [:]
+                    for (k, v) in parsedDict {
+                        if let s = v as? String {
+                            stringDict[k] = s
+                        } else if let n = v as? NSNumber {
+                            stringDict[k] = n.stringValue
+                        } else {
+                            stringDict[k] = "\(v)"
+                        }
+                    }
+                    dict["header"] = stringDict
+                } else if headerString.isEmpty {
+                    // Empty string → treat as empty dict
+                    dict["header"] = [:]
+                }
+                // Plain text non-JSON string → leave as-is (validation will catch it)
             }
         }
 
