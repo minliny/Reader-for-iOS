@@ -59,8 +59,18 @@ public final class BookSourceViewModel: ObservableObject {
     public func importFromData(_ data: Data) async {
         importState = .loading
 
+        // M6 fix: normalize object-shaped rule fields before decode
+        let normalizer = BookSourceImportNormalizer()
+        let normalizedData: Data
         do {
-            let state = await provider.validateBookSource(from: data)
+            normalizedData = try normalizer.normalize(data)
+        } catch {
+            importState = .failed(message: "JSON format error: \(error.localizedDescription)")
+            return
+        }
+
+        do {
+            let state = await provider.validateBookSource(from: normalizedData)
             switch state {
             case .loaded(let source):
                 try await store.add(source)
