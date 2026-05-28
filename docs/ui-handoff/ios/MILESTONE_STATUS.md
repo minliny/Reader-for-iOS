@@ -37,7 +37,7 @@ Last updated: 2026-05-28
 
 **P0 阻塞已解决**: B1, B2, B4, B7 全部在 M2-A 中修复。
 
-## M3: 缓存、离线阅读、继续阅读 — **IN PROGRESS (1/3)**
+## M3: 缓存、离线阅读、继续阅读 — **IN PROGRESS**
 
 - Milestone result: `IOS_M3_READING_CACHE_PROGRESS_CODE_READY`
 
@@ -45,7 +45,8 @@ Last updated: 2026-05-28
 |---|---|---|
 | M3-A Cache Store | CODE_READY | `saveChapterContentSnapshot/loadChapterContentSnapshot` — 按 sourceId+chapterURL 索引 |
 | M3-B Reading Progress | CODE_READY | `ReadingProgressStore` + `BookshelfStore.updateProgress` + `saveReadingProgress()` 均已工作 |
-| M3-C Continue Reading UI | CODE_READY | `BookshelfItemDetailView` "继续阅读" 按钮 → ReaderView |
+| M3-C Continue Reading UI | CODE_READY | `BookshelfItemDetailView` "继续阅读" 按钮 → ReaderView — **设备端验证待完成** |
+| M3 smoke tests | TOOLING_BLOCKED_PREEXISTING | ReaderAppTests/ShellSmokeTests 受 Xcode 26.5 深层模块解析 bug 影响 |
 
 ### M3 关键修复
 
