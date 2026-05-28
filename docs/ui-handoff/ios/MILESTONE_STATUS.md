@@ -4,18 +4,20 @@ Last updated: 2026-05-28
 
 ## M1: 单书源真实搜索 MVP — **CLOSED**
 
-M1.1-M1.5 全部完成。Device verified. → `IOS_M1_SINGLE_SOURCE_SEARCH_MVP_CLOSED`
+## M2: 单书源真实阅读闭环 — IN PROGRESS (0/3)
 
-## M2: 单书源真实阅读闭环 — IN PROGRESS (2/5)
-
-| Task | Status | Note |
+| Task | Status | Blocked By |
 |---|---|---|
-| M2.1 Book Detail | CODE_READY | sourceName passed; latestChapter placeholder; M2.2 pending |
-| M2.2 TOC | CODE_READY | sourceName passed; TOCSnapshot save/load; 5 chapters from mock; Content NOT reached |
-| M2.3 Content | PENDING | — |
-| M2.4 ReaderView | PENDING | — |
-| M2.5 Device review | PENDING | — |
+| M2-A Provider controlledOnline detail/toc/content path | PENDING | — |
+| M2-B SnapshotStore detail/content + BookSource JSON 补全 | PENDING | M2-A |
+| M2-C Integration tests + ViewModel verification | PENDING | M2-A, M2-B |
 
-## M3-M7: PENDING
+**阻塞分析**:
+- B1: detail/toc/content dispatcher 缺 controlledOnline branch → M2-A 解决
+- B2: 只创建 SearchService → M2-A 解决
+- B3: ruleBookInfo 为空 → 接受（搜索结果数据够用）
+- B4: canUseRealService 走 RealNetworkGate → controlledOnline 走 NetworkAccessController
 
-## M2-M7: PENDING
+**Cron Loops**: 健康检查 (daily 9:03) + 进度更新 (daily 17:57) + 全量测试 (daily 2:07)
+
+## M3-M8: PENDING
