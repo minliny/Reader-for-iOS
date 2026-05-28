@@ -9,8 +9,10 @@ struct ChapterNavigation: Hashable {
 public struct ChapterListView: View {
     @StateObject private var viewModel: ChapterListViewModel
     @State private var navigationPath = NavigationPath()
+    let sourceName: String
 
-    public init(bookURL: String, bookTitle: String) {
+    public init(bookURL: String, bookTitle: String, sourceName: String = "") {
+        self.sourceName = sourceName
         self._viewModel = StateObject(wrappedValue: ChapterListViewModel(bookURL: bookURL, bookTitle: bookTitle))
     }
 

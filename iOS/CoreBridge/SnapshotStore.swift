@@ -1,5 +1,30 @@
 import Foundation
 
+// MARK: - TOC Snapshot Model (M2.2)
+
+public struct TOCSnapshot: Codable, Sendable {
+    public let sourceId: String
+    public let sourceName: String
+    public let host: String
+    public let bookURL: String
+    public let chapterCount: Int
+    public let requestedAt: String
+    public let chapters: [TOCSnapshotItem]
+
+    public init(sourceId: String, sourceName: String, host: String, bookURL: String, chapterCount: Int, chapters: [TOCSnapshotItem]) {
+        self.sourceId = sourceId; self.sourceName = sourceName; self.host = host
+        self.bookURL = bookURL; self.chapterCount = chapterCount
+        self.requestedAt = ISO8601DateFormatter().string(from: Date())
+        self.chapters = chapters
+    }
+}
+
+public struct TOCSnapshotItem: Codable, Sendable {
+    public let chapterTitle: String
+    public let chapterURL: String
+    public let index: Int
+}
+
 // MARK: - Search Snapshot Model
 
 public struct SearchSnapshot: Codable, Sendable {
@@ -117,6 +142,35 @@ public final class SnapshotStore: Sendable {
               let snapshot = try? JSONDecoder().decode(SearchSnapshot.self, from: data)
         else { return nil }
         return snapshot
+    }
+
+    // MARK: - M2.2 TOC Snapshot
+
+    public func saveTOCSnapshot(sourceId: String, sourceName: String, host: String, bookURL: String, chapters: [TOCSnapshotItem]) -> Result<String, Error> {
+        let relativePath = makeSnapshotPath(candidateId: sourceId, operation: "toc")
+        guard validatePathInsideSnapshotRoot(relativePath) else {
+            return .failure(SnapshotStoreError.invalidPath(relativePath))
+        }
+        let toc = TOCSnapshot(sourceId: sourceId, sourceName: sourceName, host: host, bookURL: bookURL, chapterCount: chapters.count, chapters: chapters)
+        let fileURL = snapshotRoot.appendingPathComponent(relativePath)
+        let dir = fileURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        do {
+            let data = try JSONEncoder().encode(toc)
+            try data.write(to: fileURL, options: .atomic)
+            return .success(relativePath)
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    public func loadTOCSnapshot(candidateId: String) -> TOCSnapshot? {
+        let relativePath = makeSnapshotPath(candidateId: candidateId, operation: "toc")
+        guard validatePathInsideSnapshotRoot(relativePath),
+              let data = try? Data(contentsOf: snapshotRoot.appendingPathComponent(relativePath)),
+              let toc = try? JSONDecoder().decode(TOCSnapshot.self, from: data)
+        else { return nil }
+        return toc
     }
 
     // MARK: - Placeholder

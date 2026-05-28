@@ -39,7 +39,7 @@ public struct BookDetailView: View {
             }
         }
         .sheet(isPresented: $showChapterList) {
-            ChapterListView(bookURL: result.detailURL, bookTitle: result.title)
+            ChapterListView(bookURL: result.detailURL, bookTitle: result.title, sourceName: sourceName)
         }
     }
 
