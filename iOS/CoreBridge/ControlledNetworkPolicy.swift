@@ -91,9 +91,9 @@ public struct SourceNetworkPolicy: Sendable, Equatable {
         host: "www.xingxingxsw.com",
         isEnabled: true,
         allowSearch: true,
-        allowDetail: false,
-        allowTOC: false,
-        allowContent: false,
+        allowDetail: true,
+        allowTOC: true,
+        allowContent: true,
         cooldownSeconds: 10,
         lastRequestAt: nil,
         riskLevel: .low

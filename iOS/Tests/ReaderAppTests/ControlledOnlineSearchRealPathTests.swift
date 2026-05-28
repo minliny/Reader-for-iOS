@@ -125,9 +125,9 @@ final class ControlledOnlineSearchRealPathTests: XCTestCase {
         XCTAssertEqual(policy.host, "www.xingxingxsw.com")
         XCTAssertTrue(policy.isEnabled)
         XCTAssertTrue(policy.allowSearch)
-        XCTAssertFalse(policy.allowDetail, "M1 only allows search")
-        XCTAssertFalse(policy.allowTOC)
-        XCTAssertFalse(policy.allowContent)
+        XCTAssertTrue(policy.allowDetail, "M2: allows detail")
+        XCTAssertTrue(policy.allowTOC)
+        XCTAssertTrue(policy.allowContent)
         XCTAssertEqual(policy.cooldownSeconds, 10)
         XCTAssertEqual(policy.riskLevel, .low)
     }

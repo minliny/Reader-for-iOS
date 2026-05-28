@@ -2,7 +2,7 @@ import XCTest
 @testable import ReaderApp
 import ReaderCoreModels
 
-/// M1.2: controlledOnline real search service factory 测试
+/// M2: controlledOnline real service factory 测试
 @MainActor
 final class ControlledOnlineRealBookSourceFactoryTests: XCTestCase {
 
@@ -18,12 +18,12 @@ final class ControlledOnlineRealBookSourceFactoryTests: XCTestCase {
 
     // MARK: - Candidate policy
 
-    func testM1CandidateOnlyAllowsSearch() {
+    func testM2CandidateAllowsAllOperations() {
         let policy = SourceNetworkPolicy.m1Candidate
         XCTAssertTrue(policy.allowSearch)
-        XCTAssertFalse(policy.allowDetail, "M1 search-only")
-        XCTAssertFalse(policy.allowTOC)
-        XCTAssertFalse(policy.allowContent)
+        XCTAssertTrue(policy.allowDetail, "M2: allow detail")
+        XCTAssertTrue(policy.allowTOC)
+        XCTAssertTrue(policy.allowContent)
         XCTAssertEqual(policy.riskLevel, .low)
     }
 
@@ -43,14 +43,11 @@ final class ControlledOnlineRealBookSourceFactoryTests: XCTestCase {
         XCTAssertNotEqual(provider.currentMode, .controlledOnline)
     }
 
-    // MARK: - prepareControlledOnlineSearchService
+    // MARK: - prepareControlledOnlineAllServices
 
-    func testPrepareControlledOnlineSearchService_allowedByController() {
-        // NetworkAccessController allows M1 candidate with product default
+    func testPrepareControlledOnlineAllServices_allowedByController() {
         let provider = ReaderCoreServiceProvider.shared
-        let result = provider.prepareControlledOnlineSearchService()
-        // Result depends on network availability, but gate evaluation should pass
-        // If network unavailable, factory creation may fail, but gate check passes
+        let result = provider.prepareControlledOnlineAllServices()
         XCTAssertTrue(result || !result, "should not crash")
         provider.setMode(.mock)
     }

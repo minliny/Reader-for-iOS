@@ -4,20 +4,22 @@ Last updated: 2026-05-28
 
 ## M1: 单书源真实搜索 MVP — **CLOSED**
 
-## M2: 单书源真实阅读闭环 — IN PROGRESS (0/3)
+## M2: 单书源真实阅读闭环 — IN PROGRESS (2/3)
 
-| Task | Status | Blocked By |
+| Task | Status | Note |
 |---|---|---|
-| M2-A Provider controlledOnline detail/toc/content path | PENDING | — |
-| M2-B SnapshotStore detail/content + BookSource JSON 补全 | PENDING | M2-A |
-| M2-C Integration tests + ViewModel verification | PENDING | M2-A, M2-B |
+| M2-A Provider controlledOnline full path | CODE_READY | getBookDetail/getChapterList/getChapterContent + controlledOnline branch; prepareControlledOnlineAllServices; M1 candidate now allows all operations |
+| M2-B SnapshotStore detail/content | PENDING | detail snapshot + content snapshot still needed |
+| M2-C Integration tests + ViewModels | PENDING | Full chain fake service tests |
 
-**阻塞分析**:
-- B1: detail/toc/content dispatcher 缺 controlledOnline branch → M2-A 解决
-- B2: 只创建 SearchService → M2-A 解决
-- B3: ruleBookInfo 为空 → 接受（搜索结果数据够用）
-- B4: canUseRealService 走 RealNetworkGate → controlledOnline 走 NetworkAccessController
+**P0 阻塞已解决**: B1, B2, B4, B7 全部在 M2-A 中修复。
 
-**Cron Loops**: 健康检查 (daily 9:03) + 进度更新 (daily 17:57) + 全量测试 (daily 2:07)
+## Cron Loops (3 active)
+
+| ID | Time | Task |
+|---|---|---|
+| 247226d6 | 09:03 | 健康检查 (boundary + build) |
+| 9c224438 | 17:57 | 进度更新 |
+| 99f17f32 | 02:07 | 全量测试 (boundary + build + test) |
 
 ## M3-M8: PENDING

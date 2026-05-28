@@ -63,21 +63,23 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         self.realSearchService = service
     }
 
-    /// M1.2: 通过 NetworkAccessController 创建真实 SearchService（不走 RealNetworkGate）
-    public func prepareControlledOnlineSearchService() -> Bool {
+    /// M2: 通过 NetworkAccessController 创建全部 real service（不走 RealNetworkGate）
+    public func prepareControlledOnlineAllServices() -> Bool {
         let policy = SourceNetworkPolicy.m1Candidate
         let userPref = UserNetworkPreference.productDefault
         let decision = networkController.evaluate(userPreference: userPref, sourcePolicy: policy, operation: .search)
         guard case .allowed = decision else {
-            print("[M1.2] controlledOnline service denied: \(decision)")
+            print("[M2] controlledOnline services denied: \(decision)")
             return false
         }
         let httpClient = URLSessionHTTPClient()
         let factory = ReaderCoreServiceFactory(httpClient: httpClient)
         lock.lock()
         realSearchService = factory.makeSearchService()
+        realTOCService = factory.makeTOCService()
+        realContentService = factory.makeContentService()
         lock.unlock()
-        return realSearchService != nil
+        return realSearchService != nil && realTOCService != nil && realContentService != nil
     }
 
     public var currentMode: ServiceMode {
@@ -231,7 +233,14 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let source {
             return await performRealBookDetail(bookURL: bookURL, source: source)
         }
-        if mode == .controlledOnlineDryRun || mode == .offlineReplay {
+        if mode == .controlledOnline, let svc = realSearchService {
+            let policy = SourceNetworkPolicy.m1Candidate
+            let decision = networkController.evaluate(userPreference: .productDefault, sourcePolicy: policy, operation: .detail)
+            if case .allowed = decision {
+                return await performRealBookDetail(bookURL: bookURL, source: BookSource(bookSourceName: policy.sourceName, bookSourceUrl: ""))
+            }
+        }
+        if mode == .controlledOnlineDryRun || mode == .controlledOnline || mode == .offlineReplay {
             return await offlineReplayService.getBookDetail(bookURL: bookURL)
         }
         return await mockService.getBookDetail(bookURL: bookURL)
@@ -261,7 +270,19 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realTOCService {
             return await performRealTOC(service: service, bookURL: bookURL)
         }
-        if mode == .controlledOnlineDryRun || mode == .offlineReplay {
+        if mode == .controlledOnline, let service = realTOCService {
+            let policy = SourceNetworkPolicy.m1Candidate
+            let decision = networkController.evaluate(userPreference: .productDefault, sourcePolicy: policy, operation: .toc)
+            if case .allowed = decision {
+                let result = await performRealTOC(service: service, bookURL: bookURL)
+                if case .loaded(let chapters) = result, !chapters.isEmpty {
+                    let items = chapters.map { TOCSnapshotItem(chapterTitle: $0.chapterTitle, chapterURL: $0.chapterURL, index: $0.chapterIndex) }
+                    _ = snapshotStore.saveTOCSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, bookURL: bookURL, chapters: items)
+                }
+                return result
+            }
+        }
+        if mode == .controlledOnlineDryRun || mode == .controlledOnline || mode == .offlineReplay {
             return await offlineReplayService.getChapterList(bookURL: bookURL)
         }
         return await mockService.getChapterList(bookURL: bookURL)
@@ -290,7 +311,19 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let service = realContentService {
             return await performRealContent(service: service, chapterURL: chapterURL)
         }
-        if mode == .controlledOnlineDryRun || mode == .offlineReplay {
+        if mode == .controlledOnline, let service = realContentService {
+            let policy = SourceNetworkPolicy.m1Candidate
+            let decision = networkController.evaluate(userPreference: .productDefault, sourcePolicy: policy, operation: .content)
+            if case .allowed = decision {
+                let result = await performRealContent(service: service, chapterURL: chapterURL)
+                if case .loaded(let page) = result {
+                    let items = [TOCSnapshotItem(chapterTitle: page.title, chapterURL: page.chapterURL, index: 0)]
+                    _ = snapshotStore.saveTOCSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, bookURL: page.chapterURL, chapters: items)
+                }
+                return result
+            }
+        }
+        if mode == .controlledOnlineDryRun || mode == .controlledOnline || mode == .offlineReplay {
             return await offlineReplayService.getChapterContent(chapterURL: chapterURL)
         }
         return await mockService.getChapterContent(chapterURL: chapterURL)
