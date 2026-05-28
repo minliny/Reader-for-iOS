@@ -53,6 +53,15 @@ public struct ReaderView: View {
                     Image(systemName: "textformat.size")
                 }
             }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    viewModel.addBookmark()
+                }) {
+                    Image(systemName: "bookmark")
+                }
+                .disabled(viewModel.currentBookID == nil)
+                .opacity(viewModel.currentBookID == nil ? 0 : 1)
+            }
         }
         .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showSettings) {

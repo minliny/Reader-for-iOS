@@ -92,6 +92,25 @@ Last updated: 2026-05-28
 | "开始阅读" 不传 `bookID`/`sourceID` | `BookDetailView` NavigationLink 新增 `bookID: sourceIdentity.id`, `sourceID: sourceIdentity.id` |
 | "开始阅读" 不自动加书架 | 新增 `.onAppear { if !isInBookshelf { addToBookshelf() } }` |
 
-## M5: 阅读历史 / 书签标注 — **PENDING**
+## M5: 阅读历史 / 书签标注 — **CODE READY**
+
+- Milestone result: `IOS_READING_HISTORY_BOOKMARKS_M5_READY`
+
+| Workstream | Status | Note |
+|---|---|---|
+| M5-A Reading History Store | CODE_READY | `ReadingHistoryStore` — `recordOpen/loadHistoryForBook/loadRecentHistory/removeHistoryForBook` |
+| M5-B Bookmark Store | CODE_READY | `BookmarkStore` — `addBookmarkNow/loadBookmarksForBook/deleteBookmark/deleteAllBookmarksForBook` |
+| M5-C Minimal UI | CODE_READY | ReaderView 书签按钮 + BookshelfItemDetailView "查看书签" 入口 + `BookmarksListView` |
+| M5-D Device Review | PENDING | 设备端验证待完成 |
+
+### M5 关键实现
+
+| 功能 | 实现 |
+|---|---|
+| `ReadingHistoryStore` | `iOS/App/Persistence/ReadingHistoryStore.swift` — `recordOpen/loadHistoryForBook/loadRecentHistory` |
+| `BookmarkStore` | `iOS/App/Persistence/BookmarkStore.swift` — `addBookmarkNow/loadBookmarksForBook/deleteBookmark` |
+| ReaderView 书签入口 | `ReaderView.swift` 导航栏书签按钮，调用 `viewModel.addBookmark()` |
+| 书签列表 | `iOS/Features/Bookshelf/BookmarksListView.swift` — 展示/删除书签，点击跳转 ReaderView |
+| 书签入口 | `BookshelfItemDetailView` 新增"查看书签" 按钮 → `BookmarksListView` sheet |
 
 ## M6-M8: PENDING

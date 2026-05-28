@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderAppSupport
+import ReaderAppPersistence
 
 public struct BookshelfView: View {
     @StateObject private var viewModel = BookshelfViewModel()
@@ -110,6 +111,7 @@ public struct BookshelfView: View {
 struct BookshelfItemDetailView: View {
     let item: BookshelfItem
     @State private var navigateToReader = false
+    @State private var showBookmarks = false
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -135,6 +137,19 @@ struct BookshelfItemDetailView: View {
                     LabeledContent("添加时间") {
                         Text(item.addedAt, style: .date)
                     }
+                }
+
+                Section {
+                    Button {
+                        showBookmarks = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "bookmark")
+                            Text("查看书签")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
 
                 if item.lastReadChapterURL != nil {
@@ -168,6 +183,9 @@ struct BookshelfItemDetailView: View {
                     bookID: item.id,
                     sourceID: item.sourceID
                 )
+            }
+            .sheet(isPresented: $showBookmarks) {
+                BookmarksListView(bookId: item.id, sourceId: item.sourceID, bookTitle: item.title)
             }
         }
     }

@@ -58,9 +58,14 @@ public final class ReaderViewModel: ObservableObject {
     private let cacheStore: ChapterCacheStore
     private let bookshelfStore: BookshelfStore
     private let snapshotStore: SnapshotStore
+    private let historyStore: ReadingHistoryStore
+    private let bookmarkStore: BookmarkStore
 
     private var bookID: String?
     private var sourceID: String?
+
+    public var currentBookID: String? { bookID }
+    public var currentSourceID: String? { sourceID }
 
     public init(
         chapterURL: String,
@@ -74,7 +79,9 @@ public final class ReaderViewModel: ObservableObject {
         settingsStore: ReaderSettingsStore = .shared,
         cacheStore: ChapterCacheStore = .shared,
         bookshelfStore: BookshelfStore = .shared,
-        snapshotStore: SnapshotStore? = nil
+        snapshotStore: SnapshotStore? = nil,
+        historyStore: ReadingHistoryStore = .shared,
+        bookmarkStore: BookmarkStore = .shared
     ) {
         self.chapterURL = chapterURL
         self.chapterTitle = chapterTitle
@@ -91,6 +98,8 @@ public final class ReaderViewModel: ObservableObject {
         let snapRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent("ReaderApp/Snapshots", isDirectory: true)
         self.snapshotStore = snapshotStore ?? SnapshotStore(snapshotRoot: snapRoot)
+        self.historyStore = historyStore
+        self.bookmarkStore = bookmarkStore
         loadSettings()
         restoreReadingProgress()
     }
@@ -185,6 +194,42 @@ public final class ReaderViewModel: ObservableObject {
         currentChapterIndex = index
         readingProgress = 0.0
         Task { await loadContent() }
+    }
+
+    // MARK: - Reading History (M5-A)
+
+    /// Records the current chapter as a reading history event.
+    public func recordHistoryEvent() {
+        guard let bid = bookID, let sid = sourceID else { return }
+        try? historyStore.recordOpen(
+            bookId: bid,
+            sourceId: sid,
+            sourceName: nil,
+            title: chapterTitle,
+            author: nil,
+            chapterURL: chapterURL,
+            chapterTitle: chapterTitle,
+            progress: readingProgress
+        )
+    }
+
+    // MARK: - Bookmark (M5-B)
+
+    /// Adds a bookmark at the current reading position.
+    public func addBookmark(snippet: String? = nil, note: String? = nil) {
+        guard let bid = bookID, let sid = sourceID else { return }
+        try? bookmarkStore.addBookmarkNow(
+            bookId: bid,
+            sourceId: sid,
+            sourceName: nil,
+            title: chapterTitle,
+            author: nil,
+            chapterURL: chapterURL,
+            chapterTitle: chapterTitle,
+            progress: readingProgress,
+            snippet: snippet,
+            note: note
+        )
     }
 
     // MARK: - Progress
