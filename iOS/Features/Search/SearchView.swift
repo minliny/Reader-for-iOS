@@ -136,7 +136,7 @@ public struct SearchView: View {
             List {
                 ForEach(results, id: \.detailURL) { result in
                     NavigationLink {
-                        BookDetailView(result: result)
+                        BookDetailView(result: result, sourceName: viewModel.selectedSource?.displayName ?? "")
                     } label: {
                         SearchResultRowView(
                             result: result,
@@ -232,7 +232,7 @@ public struct SearchView: View {
                 List {
                     ForEach(results, id: \.detailURL) { result in
                         NavigationLink {
-                            BookDetailView(result: result)
+                            BookDetailView(result: result, sourceName: viewModel.selectedSource?.displayName ?? "")
                         } label: {
                             SearchResultRowView(
                                 result: result,

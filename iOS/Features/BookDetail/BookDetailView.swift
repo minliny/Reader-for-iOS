@@ -9,13 +9,15 @@ public struct BookDetailView: View {
     @State private var showChapterList = false
     @State private var isInBookshelf = false
     let result: SearchResultItem
+    let sourceName: String
     private let bookshelfStore = BookshelfStore.shared
     private var sourceIdentity: ReaderAppSupport.SourceIdentity {
         SourceIdentityFactory.from(searchResult: result)
     }
 
-    public init(result: SearchResultItem) {
+    public init(result: SearchResultItem, sourceName: String = "") {
         self.result = result
+        self.sourceName = sourceName
         self._viewModel = StateObject(wrappedValue: BookDetailViewModel(bookURL: result.detailURL))
     }
 
@@ -146,10 +148,10 @@ public struct BookDetailView: View {
 
             // 来源 + 最新章节
             VStack(alignment: .leading, spacing: 6) {
-                Label("来源：Mock 书源", systemImage: "link")
+                Label("来源：\(sourceName.isEmpty ? "未知书源" : sourceName)", systemImage: "link")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Label("最新章节：第一章 山村少年", systemImage: "text.justify")
+                Label(detail.latestChapterLabel, systemImage: "text.justify")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -262,5 +264,12 @@ public struct BookDetailView: View {
 
     private func showTOCAction() {
         showChapterList = true
+    }
+}
+
+extension SearchResultItem {
+    var latestChapterLabel: String {
+        if let next = nextPageUrl, !next.isEmpty { return "最新章节：\(next)" }
+        return "最新章节：待接入（M2.2）"
     }
 }
