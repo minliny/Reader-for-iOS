@@ -1,876 +1,220 @@
 # Reader for iOS — Cron Loop Backlog
-# Generated: 2026-05-13T00:00+08:00
+# Updated: 2026-05-28
+# Real source full flow: M2 → M3 → M4 → M5
 #
-# Status enum:
-#   READY, PENDING, LOCKED, BLOCKED, NEEDS_CONFIRM,
-#   MOVED_TO_CORE, MOVED_TO_ADAPTER, DONE, DONE_CANDIDATE
-#
-# Priority: P0 (critical) > P1 (high) > P2 (medium) > P3 (low)
-#
-# Only ONE task should be READY at a time.
-# Cron loop executes the single READY task per cycle.
+# Status: READY / PENDING / DONE / BLOCKED / MOVED_TO_CORE
+# Only ONE task READY at a time.
 
 tasks:
 
   # ═══════════════════════════════════════════════════════════
-  # Stage iOS-0: Repository Baseline Audit
+  # M2: 单书源真实阅读闭环
   # ═══════════════════════════════════════════════════════════
 
-  - id: IOS-CRON-000
-    title: "Repository baseline audit refresh"
-    stage: iOS-0
-    status: DONE_CANDIDATE
+  - id: RS-M2-B-001
+    title: "SnapshotStore detail/content save/load + BookSource JSON"
+    stage: M2-B
+    status: READY
     priority: P0
     implementation_scope: >
-      Verify repository structure unchanged since last audit.
-      Re-run boundary check, check git status, check HEAD.
-      Confirm dependency resolution status.
-      Refresh loop state if needed.
-    core_dependency: "None (read-only)"
-    app_deliverable: "Current state reflected in READER_IOS_CRON_LOOP_STATE.yml"
+      1. SnapshotStore 增加 saveDetailSnapshot / loadDetailSnapshot
+      2. SnapshotStore 增加 saveContentSnapshot / loadContentSnapshot
+      3. Provider getBookDetail / getChapterContent controlledOnline 分支保存 snapshot
+      4. 补全 xingxingxsw BookSource JSON ruleBookInfo（如需要 CSS selector）
+      5. 新增 6-8 个 snapshot detail/content 测试
+      6. boundary + build 通过
     allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
+      - iOS/CoreBridge/SnapshotStore.swift
+      - iOS/CoreBridge/ReaderCoreServiceProvider.swift
+      - iOS/AppSupport/Sources/xingxingxsw.search-only.json
+      - iOS/Tests/ReaderAppTests/
+      - docs/ui-handoff/ios/
     forbidden_actions:
-      - "No code changes"
-      - "No dependency changes"
-      - "No network access"
-      - "No Core modification"
-    preflight_checks:
-      - "pwd is Reader for iOS repo root"
-      - "git status shows only expected modifications"
-      - "boundary check passes"
-    blocker_detection:
-      - "Unexpected dirty files in worktree"
-      - "Boundary check failure"
-      - "HEAD mismatch with expected"
-    user_decision_detection:
-      - "Uncommitted changes unrelated to loop"
-    acceptance: "Loop state accurately reflects current repo state"
-    validation: "Manual review of loop state vs reality"
-    next_on_success: IOS-CRON-001
-    stop_conditions:
-      - "Unrelated dirty files → STOP, ask user"
-      - "Boundary violation → STOP, fix first"
-    handoff_if_blocked: "N/A (read-only audit)"
+      - "不修改 Reader-Core"
+      - "不执行真实网络请求"
+      - "不新增依赖"
+      - "不改 UI"
+    acceptance: "detail/content snapshot save/load 通过测试"
+    next_on_success: RS-M2-C-001
 
-  - id: IOS-CRON-001
-    title: "Build/test entrypoint confirmation"
-    stage: iOS-0
-    status: DONE_CANDIDATE
+  - id: RS-M2-C-001
+    title: "M2 集成测试：全链路 fake service Search → Detail → TOC → ReaderView"
+    stage: M2-C
+    status: PENDING
     priority: P0
     implementation_scope: >
-      Resolve Package.swift sibling dependency path issue.
-      Option A: Create symlink iOS/Reader-Core -> ../../Reader-Core.
-      Option B: Change .package(path:) to absolute path.
-      Option C: Document that swift test requires xcodegen project.
-      Option D: Check if xcodebuild can serve as primary validation path.
-
-      Then: verify xcodebuild status (accept Core-side failure with documentation).
-      Run swift test if path resolved.
-      Update loop state with current build/test status.
-    core_dependency: "Reader-Core at /Users/minliny/Documents/Reader-Core must be accessible"
-    app_deliverable: "Documented build/test entrypoint with clear status"
+      1. 新增 M2IntegrationTests.swift：controlledOnline 全链路测试
+      2. FakeSearchService + FakeTOCService + FakeContentService 注入 provider
+      3. 验证 Search → BookDetail → TOC → ReaderView 全链路
+      4. 验证 denied fallback offlineReplay
+      5. 验证 snapshot save/load 全链路
+      6. 10-12 个高价值测试
+      7. boundary + build + test 通过
     allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
-      - docs/PLANNING/READER_IOS_CORE_GAP_HANDOFF_REGISTER.yml
+      - iOS/Tests/ReaderAppTests/
+      - docs/ui-handoff/ios/
     forbidden_actions:
-      - "Do NOT modify Reader-Core source"
-      - "Do NOT change Package.swift dependency products"
-      - "Do NOT add new dependencies"
-      - "Do NOT modify Swift source"
-      - "Do NOT auto-commit"
-    preflight_checks:
-      - "Reader-Core repo exists at /Users/minliny/Documents/Reader-Core"
-      - "Boundary check passes"
-      - "No unresolved user decisions blocking config changes"
-    blocker_detection:
-      - "Reader-Core not found at expected path"
-      - "Package.swift modification requires user approval"
-      - "Symlink creation requires user approval"
-    user_decision_detection:
-      - "Should we create symlink or modify Package.swift?"
-      - "Is xcodebuild sufficient as primary validation?"
-    acceptance: "Clear build/test path documented; Core-side failure attributed correctly"
-    validation: "bash scripts/check_ios_boundary.sh && (swift test || xcodebuild build -scheme ReaderForIOSApp -destination '...')"
-    next_on_success: IOS-CRON-003
-    stop_conditions:
-      - "Reader-Core compile error blocks build → document as Core gap"
-      - "User decision needed on approach → STOP, ask user"
-    handoff_if_blocked: "If Core compile error: add to CORE_GAP_HANDOFF_REGISTER, mark as MOVED_TO_CORE"
+      - "不修改 Reader-Core"
+      - "不执行真实网络"
+      - "不改 UI"
+      - "不修改 provider 核心逻辑"
+    acceptance: "全链路 fake service 测试通过"
+    next_on_success: RS-M3-A-001
 
   # ═══════════════════════════════════════════════════════════
-  # Stage iOS-1: Core Integration Boundary
+  # M3: 缓存、离线阅读、继续阅读
   # ═══════════════════════════════════════════════════════════
 
-  - id: IOS-CRON-002
-    title: "Reader-Core public API dependency audit"
-    stage: iOS-1
-    status: DONE_CANDIDATE
+  - id: RS-M3-A-001
+    title: "Search/Detail/TOC/Content 缓存优先策略 + 离线读取"
+    stage: M3
+    status: PENDING
     priority: P1
     implementation_scope: >
-      Audit all import statements in iOS Swift files.
-      Verify only ReaderCoreModels, ReaderCoreProtocols, ReaderCoreFoundation,
-      ReaderAppSupport, ReaderPlatformAdapters are imported in restricted paths.
-      Document any new imports since last audit.
-    core_dependency: "Reader-Core public API surface (read-only check)"
-    app_deliverable: "Updated import audit in loop state"
+      1. SnapshotStore 增加 hasFreshSnapshot / loadIfFresh 方法
+      2. Provider 在 controlledOnline 下先查缓存，命中直接返回
+      3. 缓存过期才走 real service
+      4. 所有路径 write-through 缓存
+      5. 离线时自动回退 snapshot
+      6. 8-10 个缓存测试
     allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
+      - iOS/CoreBridge/SnapshotStore.swift
+      - iOS/CoreBridge/ReaderCoreServiceProvider.swift
+      - iOS/Tests/ReaderAppTests/
     forbidden_actions:
-      - "No code changes"
-    preflight_checks:
-      - "Boundary check passes"
-    blocker_detection:
-      - "New forbidden imports found"
-    user_decision_detection: []
-    acceptance: "0 illegal imports; all imports documented"
-    validation: "grep + boundary script"
-    next_on_success: IOS-CRON-003
-    stop_conditions:
-      - "Illegal import found → STOP, mark BLOCKED"
-    handoff_if_blocked: "N/A"
+      - "不修改 Reader-Core"
+      - "不执行真实网络"
+      - "不改 UI"
+    acceptance: "缓存命中不触发网络；离线可读取"
+    next_on_success: RS-M3-B-001
 
-  - id: IOS-CRON-003
-    title: "Core/internal boundary rules hardening"
-    stage: iOS-1
-    status: DONE_CANDIDATE
+  - id: RS-M3-B-001
+    title: "阅读进度记录 + 继续阅读入口"
+    stage: M3
+    status: PENDING
     priority: P1
     implementation_scope: >
-      Review READER_IOS_CORE_BOUNDARY_RULES.md for completeness.
-      Verify forbidden_modules list in check_ios_boundary.sh matches reality.
-      Ensure any new Core products are properly classified as allowed/forbidden.
-      Update documentation if Reader-Core has added new public products.
-    core_dependency: "None"
-    app_deliverable: "Updated boundary rules document"
+      1. ReadingProgressStore 接入 ReaderViewModel
+      2. 进入章节时恢复进度
+      3. 退出时保存进度
+      4. 我的/书架增加「继续阅读」入口
+      5. 6-8 个进度测试
     allowed_files:
-      - docs/PLANNING/READER_IOS_CORE_BOUNDARY_RULES.md
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
+      - iOS/Features/Reader/ReaderViewModel.swift
+      - iOS/Features/Reader/ReaderView.swift
+      - iOS/Features/Bookshelf/
+      - iOS/Features/Mine/
+      - iOS/App/Persistence/
+      - iOS/Tests/ReaderAppTests/
     forbidden_actions:
-      - "Do NOT weaken boundary rules"
-      - "Do NOT remove modules from forbidden list"
-      - "Do NOT modify Swift source"
-    preflight_checks:
-      - "Current boundary rules document exists"
-      - "Boundary script exists and runs"
-    blocker_detection:
-      - "New Reader-Core product not classified"
-    user_decision_detection:
-      - "If new Core product needs classification, ask user"
-    acceptance: "Boundary rules cover all Core products; no gaps"
-    validation: "Manual review of boundary rules vs Core Package.swift products"
-    next_on_success: IOS-CRON-004
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
+      - "不修改 Reader-Core"
+      - "不执行真实网络"
+      - "不做云同步"
+    acceptance: "阅读进度保存后可恢复"
+    next_on_success: RS-M4-A-001
 
-  - id: IOS-CRON-004
-    title: "Boundary check script validation"
-    stage: iOS-1
-    status: DONE_CANDIDATE
+  # ═══════════════════════════════════════════════════════════
+  # M4: 书架与阅读资产
+  # ═══════════════════════════════════════════════════════════
+
+  - id: RS-M4-A-001
+    title: "真实搜索结果加入书架 + 书架书籍打开阅读"
+    stage: M4
+    status: PENDING
     priority: P1
     implementation_scope: >
-      Run boundary check script.
-      Verify it covers all restricted paths.
-      Verify it catches known violation patterns.
-      Verify checked file count matches expectation.
-      If gaps found, propose script improvements (do not implement without user approval).
-    core_dependency: "None"
-    app_deliverable: "Validated boundary check script"
+      1. Search result「加入书架」已存在，验证真实搜索结果可用
+      2. 书架 item 关联 sourceId/ bookURL
+      3. 书架点击进入 BookDetail → TOC → ReaderView
+      4. 书架显示最后阅读章节/进度
+      5. 更新/删除书架 item
+      6. 8-10 个书架测试
     allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
+      - iOS/Features/Bookshelf/
+      - iOS/Features/Search/
+      - iOS/Features/BookDetail/
+      - iOS/App/Persistence/
+      - iOS/Tests/ReaderAppTests/
     forbidden_actions:
-      - "Do NOT modify boundary script without user approval"
-      - "Do NOT weaken checks"
-    preflight_checks:
-      - "Boundary script exists"
-    blocker_detection:
-      - "Script fails to run"
-    user_decision_detection:
-      - "Script improvements needed → ask user"
-    acceptance: "Script runs, PASS, covers all restricted paths"
-    validation: "bash scripts/check_ios_boundary.sh"
-    next_on_success: IOS-CRON-005
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
+      - "不修改 Reader-Core"
+      - "不执行真实网络"
+    acceptance: "搜索结果可加入书架，书架可打开阅读"
+    next_on_success: RS-M5-A-001
 
-  - id: IOS-CRON-005
-    title: "ReaderCoreBridge inventory and gap report"
-    stage: iOS-1
-    status: DONE_CANDIDATE
-    priority: P1
-    implementation_scope: >
-      Inventory all ReaderCoreServiceProvider methods.
-      Compare with Core public API surface.
-      Document which methods have real Core counterparts.
-      Document which methods are mock-only.
-      Generate gap report for missing Core APIs.
-    core_dependency: "ReaderCoreModels, ReaderCoreProtocols (must be readable)"
-    app_deliverable: "CoreBridge gap report in CORE_GAP_HANDOFF_REGISTER.yml"
-    allowed_files:
-      - docs/PLANNING/READER_IOS_CORE_GAP_HANDOFF_REGISTER.yml
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
-    forbidden_actions:
-      - "Do NOT implement real Core service if Core not buildable"
-      - "Do NOT modify Core source"
-      - "Do NOT modify Swift source"
-    preflight_checks:
-      - "ReaderCoreServiceProvider.swift exists and is readable"
-      - "Core public API can be inspected (Package.swift readable)"
-    blocker_detection:
-      - "Core not accessible → document BLOCKED reason"
-    user_decision_detection: []
-    acceptance: "All CoreBridge methods mapped to Core public API or marked as gap"
-    validation: "Manual review of gap report against Core source"
-    next_on_success: IOS-CRON-006
-    stop_conditions:
-      - "Core not buildable → document, do not implement"
-    handoff_if_blocked: "Add Core API gaps to CORE_GAP_HANDOFF_REGISTER"
+  # ═══════════════════════════════════════════════════════════
+  # M5: 多书源搜索
+  # ═══════════════════════════════════════════════════════════
 
-  - id: IOS-CRON-006
-    title: "Core DTO mapping inventory"
-    stage: iOS-1
-    status: DONE_CANDIDATE
+  - id: RS-M5-A-001
+    title: "多书源搜索：多 enabled source 并发搜索 + 去重 + 源标识"
+    stage: M5
+    status: PENDING
     priority: P2
     implementation_scope: >
-      Inventory all Core DTO types used in iOS (BookSource, SearchResultItem, TOCItem, ContentPage, ReaderError).
-      Verify each DTO usage is read-only consumption.
-      Verify no iOS-side DTO alternatives exist.
-      Document any DTO fields that are unused or unclear.
-    core_dependency: "ReaderCoreModels (readable)"
-    app_deliverable: "DTO mapping document"
+      1. BookSourceListView 多个 enabled source
+      2. Provider 支持多源并发搜索
+      3. 搜索结果按 source 标识
+      4. 基础去重（按 title + author）
+      5. 单源失败不影响其他源
+      6. per-source cooldown
     allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
+      - iOS/CoreBridge/ReaderCoreServiceProvider.swift
+      - iOS/Features/Search/
+      - iOS/Features/BookSources/
+      - iOS/Tests/ReaderAppTests/
     forbidden_actions:
-      - "Do NOT create alternative DTO types"
-      - "Do NOT modify Core DTOs"
-      - "Do NOT modify Swift source"
-    preflight_checks:
-      - "Core DTO types are accessible"
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "All Core DTO usages documented; no iOS alternatives found"
-    validation: "grep for Core DTO type usage across iOS Swift files"
-    next_on_success: IOS-CRON-007
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
+      - "不修改 Reader-Core"
+      - "不做复杂去重算法"
+      - "不做源评分"
+    acceptance: "多源搜索结果按源分开展示"
+    next_on_success: RS-M6-A-001
 
-  - id: IOS-CRON-007
-    title: "Integration error mapping inventory"
-    stage: iOS-1
-    status: DONE_CANDIDATE
+  # ═══════════════════════════════════════════════════════════
+  # M6: 书源导入与验证
+  # ═══════════════════════════════════════════════════════════
+
+  - id: RS-M6-A-001
+    title: "Legado JSON 书源导入 + 本地校验 + 手动测试"
+    stage: M6
+    status: PENDING
     priority: P2
     implementation_scope: >
-      Inventory AppReaderError codes and their mapping to ReaderError.
-      Verify all Core error types have corresponding AppReaderError codes.
-      Verify error mapping in ShellAssembly covers all LoadState cases.
-      Document any missing error mappings.
-    core_dependency: "ReaderCoreModels (ReaderError type)"
-    app_deliverable: "Error mapping inventory"
+      1. BookSourceImportView 支持导入真实 Legado JSON
+      2. 本地 schema 校验
+      3. 导入后加入书源列表
+      4. 手动测试按钮（不自动触发网络）
+      5. 测试受 NetworkAccessController 控制
     allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
+      - iOS/Features/BookSources/
+      - iOS/CoreBridge/ReaderCoreServiceProvider.swift
+      - iOS/Tests/ReaderAppTests/
     forbidden_actions:
-      - "Do NOT modify error types"
-      - "Do NOT modify Swift source"
-    preflight_checks:
-      - "AppReaderError.swift exists"
-      - "MockReaderCoreService.swift exists"
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "All error paths mapped; gaps documented"
-    validation: "Code review of AppReaderError + LoadState + ShellAssembly error handling"
-    next_on_success: IOS-CRON-008
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
+      - "不修改 Reader-Core"
+      - "不做自动批量验证"
+      - "不做真实源站爬取"
+    acceptance: "真实 JSON 可导入并出现在书源列表"
+    next_on_success: RS-M7-A-001
 
   # ═══════════════════════════════════════════════════════════
-  # Stage iOS-2: App Shell and Navigation
+  # M7: 产品体验打磨
   # ═══════════════════════════════════════════════════════════
 
-  - id: IOS-CRON-008
-    title: "App shell route inventory"
-    stage: iOS-2
-    status: DONE_CANDIDATE
+  - id: RS-M7-A-001
+    title: "产品体验打磨：loading/error/重试/缓存提示/夜间模式"
+    stage: M7
+    status: PENDING
     priority: P2
     implementation_scope: >
-      Inventory all navigation routes from Route.swift and AppNavigationState.swift.
-      Verify all routes have corresponding views.
-      Document missing routes or dead-end routes.
-    core_dependency: "ReaderCoreModels (for route param types)"
-    app_deliverable: "Route inventory document"
+      1. Search/Detail/TOC/ReaderView 加 loading 动画
+      2. 错误状态加重试按钮
+      3. 缓存命中时显示提示
+      4. 夜间模式 toggle（已有 prototype）
+      5. 字体/行距/页边距设置接入 ReaderView
     allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
+      - iOS/Features/
+      - iOS/Modules/
     forbidden_actions:
-      - "No new route implementation"
-      - "No Swift source changes"
-    preflight_checks:
-      - "Route.swift exists"
-      - "AppNavigationState.swift exists"
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "All routes documented; coverage complete"
-    validation: "Code review of route definitions vs view files"
-    next_on_success: IOS-CRON-009
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-  - id: IOS-CRON-009
-    title: "Navigation skeleton plan"
-    stage: iOS-2
-    status: DONE_CANDIDATE
-    priority: P3
-    implementation_scope: >
-      Review navigation architecture.
-      Verify tab structure is correct.
-      Document any missing navigation flows.
-      Propose improvements without implementing.
-    core_dependency: "None"
-    app_deliverable: "Navigation architecture review"
-    allowed_files:
-      - docs/PLANNING/READER_IOS_CRON_LOOP_STATE.yml
-    forbidden_actions:
-      - "No navigation code changes"
-      - "No Swift source changes"
-    preflight_checks: []
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "Navigation architecture documented"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-010
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-3: Bookshelf MVP
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-010
-    title: "Bookshelf MVP plan"
-    stage: iOS-3
-    status: DONE_CANDIDATE
-    priority: P2
-    implementation_scope: >
-      Review existing BookshelfView, BookshelfViewModel, BookshelfStore.
-      Document what works with mock data.
-      Identify what needs real Core integration.
-      Plan add-to-bookshelf flow from search results.
-      Do NOT implement changes.
-    core_dependency: "ReaderCoreModels (BookSource), ReaderAppSupport (BookshelfItem)"
-    app_deliverable: "Bookshelf MVP plan document"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT hardcode book data"
-      - "Do NOT implement book source parsing"
-      - "Do NOT modify Swift source without plan approval"
-    preflight_checks:
-      - "BookshelfView.swift exists"
-      - "BookshelfStore.swift exists"
-    blocker_detection:
-      - "Real Core data not available → document as dependency"
-    user_decision_detection: []
-    acceptance: "Bookshelf plan complete; gaps identified"
-    validation: "Manual review of plan vs current code"
-    next_on_success: IOS-CRON-011
-    stop_conditions: []
-    handoff_if_blocked: "If Core book DTO changes needed: add to CORE_GAP_HANDOFF_REGISTER"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-4: Source Management MVP
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-011
-    title: "Source management MVP plan"
-    stage: iOS-4
-    status: DONE_CANDIDATE
-    priority: P2
-    implementation_scope: >
-      Review existing BookSourceListView, BookSourceViewModel, BookSourceImportView, BookSourceStore.
-      Document mock-driven features.
-      Identify Core public validation API requirements.
-      Plan real JSON import flow.
-      Do NOT implement changes.
-    core_dependency: "Core public book source validation API"
-    app_deliverable: "Source management MVP plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement book source parser"
-      - "Do NOT validate JSON manually"
-      - "Do NOT modify Swift source without plan approval"
-    preflight_checks:
-      - "BookSourceStore.swift exists"
-      - "BookSourceImportView.swift exists"
-    blocker_detection:
-      - "Core validation API not available → document BLOCKED"
-    user_decision_detection: []
-    acceptance: "Source management plan complete"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-012
-    stop_conditions: []
-    handoff_if_blocked: "If Core validation API missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-5: Search / Detail / TOC / Content Flow
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-012
-    title: "Search/detail/toc/content flow plan"
-    stage: iOS-5
-    status: DONE_CANDIDATE
-    priority: P2
-    implementation_scope: >
-      Review existing SearchView, BookDetailView, ChapterListView, ContentView.
-      Review ReadingFlowCoordinator flow orchestration.
-      Document mock-driven features.
-      Plan real Core pipeline integration.
-      Do NOT implement changes.
-    core_dependency: "Core search/toc/content pipeline"
-    app_deliverable: "Search/detail/toc/content flow plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement search parser"
-      - "Do NOT implement TOC parser"
-      - "Do NOT implement content extractor"
-      - "Do NOT modify Swift source without plan approval"
-    preflight_checks:
-      - "SearchView.swift, BookDetailView.swift, ChapterListView.swift, ContentView.swift exist"
-    blocker_detection:
-      - "Core pipeline not available → document BLOCKED"
-    user_decision_detection: []
-    acceptance: "Flow plan complete; Core integration points identified"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-013
-    stop_conditions: []
-    handoff_if_blocked: "If Core pipeline missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-6: Reader Page MVP
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-013
-    title: "Reader page MVP plan"
-    stage: iOS-6
-    status: DONE_CANDIDATE
-    priority: P2
-    implementation_scope: >
-      Review ReaderView, ReaderViewModel, ReaderSettingsPanel, ReaderSettingsStore.
-      Plan chapter navigation, scroll position tracking.
-      Plan ReaderDisplaySettings persistence application.
-      Identify what needs real Core content.
-      Do NOT implement changes.
-    core_dependency: "Core ContentPage DTO, ReaderAppSupport (ReaderDisplaySettings)"
-    app_deliverable: "Reader page MVP plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement content parsing"
-      - "Do NOT modify Swift source without plan approval"
-    preflight_checks:
-      - "ReaderView.swift exists"
-      - "ReaderSettingsStore.swift exists"
-    blocker_detection:
-      - "Real Core content not available → document as dependency"
-    user_decision_detection: []
-    acceptance: "Reader page plan complete"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-014
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-6b: Reading Progress
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-014
-    title: "Reading progress local persistence plan"
-    stage: iOS-6
-    status: DONE_CANDIDATE
-    priority: P2
-    implementation_scope: >
-      Review ReadingProgressStore and ReadingProgress model.
-      Verify progress save/load works.
-      Plan exit-reader progress update trigger.
-      Plan progress display on bookshelf.
-      Do NOT implement changes unless trivial bug fix.
-    core_dependency: "ReaderAppSupport (ReadingProgress)"
-    app_deliverable: "Reading progress persistence plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement progress sync (that's iOS-8)"
-      - "Do NOT modify Swift source without plan approval"
-    preflight_checks:
-      - "ReadingProgressStore.swift exists"
-      - "ReadingProgress.swift exists"
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "Progress persistence flow documented"
-    validation: "Code review"
-    next_on_success: IOS-CRON-015
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-7: WebDAV Settings and Backup UI
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-015
-    title: "WebDAV settings UI plan"
-    stage: iOS-7
-    status: BLOCKED
-    priority: P2
-    implementation_scope: >
-      Design WebDAV settings view layout.
-      Plan Keychain credential storage.
-      Plan connection test flow.
-      Plan backup schedule UI (daily/weekly/manual).
-      Plan retentionCount configuration.
-      Do NOT implement without plan approval.
-    core_dependency: "Core sync schema/contract; iOS Keychain API"
-    app_deliverable: "WebDAV settings UI plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement WebDAV protocol"
-      - "Do NOT auto-sync on progress change"
-      - "Do NOT mix backup with progress sync"
-      - "Do NOT implement without Core sync schema"
-    preflight_checks:
-      - "Core sync schema reference available"
-    blocker_detection:
-      - "Core sync schema not available → document BLOCKED"
-    user_decision_detection:
-      - "WebDAV server for testing?"
-    acceptance: "WebDAV settings UI plan complete"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-016
-    stop_conditions: []
-    handoff_if_blocked: "If Core sync schema missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  - id: IOS-CRON-016
-    title: "WebDAV backup policy plan"
-    stage: iOS-7
-    status: BLOCKED
-    priority: P3
-    implementation_scope: >
-      Define backup policy: daily/weekly/manual, full backup each time.
-      Define retentionCount behavior.
-      Define local book file exclusion (user opt-in).
-      Document backup format expectation from Core.
-      Do NOT implement.
-    core_dependency: "Core backup format contract"
-    app_deliverable: "Backup policy document"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement backup without Core contract"
-      - "Do NOT auto-backup local books"
-    preflight_checks: []
-    blocker_detection:
-      - "Core backup format not defined → document BLOCKED"
-    user_decision_detection:
-      - "Default retention count?"
-      - "Default backup frequency?"
-    acceptance: "Backup policy documented"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-017
-    stop_conditions: []
-    handoff_if_blocked: "If Core backup format missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-8: Progress Cloud Sync
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-017
-    title: "Progress cloud sync trigger plan"
-    stage: iOS-8
-    status: BLOCKED
-    priority: P2
-    implementation_scope: >
-      Define progress sync trigger points:
-      - exitReader, returnToBookshelf, appBackground, appWillTerminate, manual.
-      Define pull-on-open behavior.
-      Plan progress comparison UI.
-      Plan conflict resolution dialog.
-      Ensure NO polling, NO real-time sync, NO high-frequency PUT.
-      Do NOT implement.
-    core_dependency: "Core progress sync contract"
-    app_deliverable: "Progress sync trigger plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement sync without Core contract"
-      - "Do NOT design polling-based sync"
-      - "Do NOT mix with backup"
-    preflight_checks: []
-    blocker_detection:
-      - "Core progress sync contract not available → document BLOCKED"
-    user_decision_detection:
-      - "Sync frequency preferences?"
-    acceptance: "Progress sync plan complete; no polling design"
-    validation: "Manual review of sync design for polling patterns"
-    next_on_success: IOS-CRON-018
-    stop_conditions: []
-    handoff_if_blocked: "If Core progress contract missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  - id: IOS-CRON-018
-    title: "Remote WebDAV books boundary plan"
-    stage: iOS-8
-    status: BLOCKED
-    priority: P3
-    implementation_scope: >
-      Define remote WebDAV books as independent capability.
-      Ensure clean separation from Backup and Progress Sync.
-      Define UI and data flow boundaries.
-      Do NOT implement.
-    core_dependency: "Core remote books contract (future)"
-    app_deliverable: "Remote WebDAV books boundary plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT mix remote books with backup"
-      - "Do NOT mix remote books with progress sync"
-      - "Do NOT implement without Core contract"
-    preflight_checks: []
-    blocker_detection:
-      - "Core remote books contract not available → document BLOCKED"
-    user_decision_detection: []
-    acceptance: "Remote books boundary clearly separated"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-019
-    stop_conditions: []
-    handoff_if_blocked: "If Core contract missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-9: Local Book Import
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-019
-    title: "Local book import plan"
-    stage: iOS-9
-    status: BLOCKED
-    priority: P2
-    implementation_scope: >
-      Design FileImporter UI for TXT/EPUB.
-      Plan file permission handling.
-      Plan metadata extraction via Core contract.
-      Plan local book → bookshelf mapping.
-      Do NOT implement.
-    core_dependency: "Core local book parser contract"
-    app_deliverable: "Local book import plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT implement TXT/EPUB parser in iOS"
-      - "Do NOT bypass Core local book contract"
-    preflight_checks: []
-    blocker_detection:
-      - "Core local book contract not available → document BLOCKED"
-    user_decision_detection:
-      - "Supported file formats beyond TXT/EPUB?"
-    acceptance: "Local book import plan complete"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-020
-    stop_conditions: []
-    handoff_if_blocked: "If Core local book contract missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-10: Dynamic Runtime Adapter
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-020
-    title: "WKWebView runtime adapter boundary plan"
-    stage: iOS-10
-    status: BLOCKED
-    priority: P2
-    implementation_scope: >
-      Review existing Debug WebView harness.
-      Design production WKWebView adapter.
-      Define adapter lifecycle (create, load, destroy).
-      Define Core Dynamic Runtime contract integration points.
-      Ensure security boundary: no arbitrary JS, single URL only, allowed_host required.
-      Do NOT implement production adapter without plan approval.
-    core_dependency: "Core Dynamic Runtime contract; ReaderPlatformAdapters"
-    app_deliverable: "WKWebView adapter boundary plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT execute arbitrary JS"
-      - "Do NOT bypass Core security gate"
-      - "Do NOT implement custom runtime behavior"
-    preflight_checks:
-      - "WebViewRuntimeHarnessView.swift exists (reference)"
-      - "ReaderPlatformAdapters import available"
-    blocker_detection:
-      - "Core Dynamic Runtime contract not available → document BLOCKED"
-    user_decision_detection:
-      - "Production WebView testing policy?"
-    acceptance: "Adapter boundary plan complete; security constraints defined"
-    validation: "Manual review against Core WebView security policy"
-    next_on_success: IOS-CRON-021
-    stop_conditions: []
-    handoff_if_blocked: "If Core Dynamic Runtime contract missing: add to CORE_GAP_HANDOFF_REGISTER"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-11: TTS and Reader UX
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-021
-    title: "TTS and Reader UX expansion plan"
-    stage: iOS-11
-    status: DONE_CANDIDATE
-    priority: P3
-    implementation_scope: >
-      Design AVSpeechSynthesizer integration.
-      Design reading theme manager.
-      Design page turn mode selector.
-      Design advanced reader settings UI.
-      All features are Core-independent (iOS-native).
-    core_dependency: "ReaderAppSupport (ReaderDisplaySettings — may need extension)"
-    app_deliverable: "TTS and Reader UX expansion plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT modify Core DTOs"
-      - "Do NOT implement without plan approval"
-    preflight_checks: []
-    blocker_detection: []
-    user_decision_detection:
-      - "TTS language preferences?"
-      - "Theme customization scope?"
-    acceptance: "TTS and UX plan complete"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-022
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-  # ═══════════════════════════════════════════════════════════
-  # Stage iOS-12: Release Readiness
-  # ═══════════════════════════════════════════════════════════
-
-  - id: IOS-CRON-022
-    title: "Release readiness checklist"
-    stage: iOS-12
-    status: DONE_CANDIDATE
-    priority: P3
-    implementation_scope: >
-      Create release readiness checklist.
-      Define smoke test criteria.
-      Define Core integration test criteria.
-      Define WebDAV acceptance criteria.
-      Define local book acceptance criteria.
-      Define crash/error handling review criteria.
-    core_dependency: "All prior stages"
-    app_deliverable: "Release readiness checklist"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT ship checklist as actual release approval"
-    preflight_checks: []
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "Checklist complete"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-023
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-  - id: IOS-CRON-023
-    title: "App Store review risk checklist"
-    stage: iOS-12
-    status: DONE_CANDIDATE
-    priority: P3
-    implementation_scope: >
-      Identify App Store review risks:
-      - WebView usage justification
-      - Network access justification
-      - File access justification
-      - Background task justification
-      - Privacy labels
-      Do NOT submit to App Store.
-    core_dependency: "None"
-    app_deliverable: "App Store review risk document"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT submit to App Store"
-      - "Do NOT make compliance claims"
-    preflight_checks: []
-    blocker_detection: []
-    user_decision_detection:
-      - "App Store listing decisions"
-    acceptance: "Risk checklist complete"
-    validation: "Manual review"
-    next_on_success: IOS-CRON-024
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-  - id: IOS-CRON-024
-    title: "TestFlight readiness plan"
-    stage: iOS-12
-    status: DONE_CANDIDATE
-    priority: P3
-    implementation_scope: >
-      Define TestFlight readiness criteria.
-      Plan internal testing group.
-      Plan build configuration for TestFlight.
-      Do NOT upload to App Store Connect.
-    core_dependency: "All prior stages DONE"
-    app_deliverable: "TestFlight readiness plan"
-    allowed_files:
-      - docs/PLANNING/
-    forbidden_actions:
-      - "Do NOT upload to App Store Connect"
-      - "Do NOT configure provisioning profiles"
-    preflight_checks: []
-    blocker_detection: []
-    user_decision_detection:
-      - "Apple Developer account setup?"
-      - "TestFlight internal group?"
-    acceptance: "TestFlight plan complete"
-    validation: "Manual review"
+      - "不做 UI 重构"
+      - "不改导航结构"
+    acceptance: "loading/error/cache 提示可见"
     next_on_success: null
-    stop_conditions: []
-    handoff_if_blocked: "N/A"
-
-# ═══════════════════════════════════════════════════════════
-# Core Gap Handoff Items
-# ═══════════════════════════════════════════════════════════
-
-  - id: CORE-GAP-CRON-001
-    title: "Fix ReaderCoreParser iOS 16 API availability in SimpleXPathEvaluator"
-    stage: MOVED_TO_CORE
-    status: MOVED_TO_CORE
-    priority: P0
-    implementation_scope: "Fix split(separator:maxSplits:omittingEmptySubsequences:) availability annotation"
-    core_dependency: "N/A (Core fix)"
-    app_deliverable: "N/A"
-    allowed_files: []
-    forbidden_actions: []
-    preflight_checks: []
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "xcodebuild ReaderForIOSApp succeeds"
-    validation: "xcodebuild build -scheme ReaderForIOSApp"
-    next_on_success: null
-    stop_conditions: []
-    handoff_if_blocked: "Already moved to Core"
-
-  - id: CORE-GAP-CRON-002
-    title: "Align Package.swift sibling path with actual Reader-Core location"
-    stage: MOVED_TO_CORE
-    status: MOVED_TO_CORE
-    priority: P0
-    implementation_scope: "Resolve ../Reader-Core path resolution from iOS/ directory"
-    core_dependency: "N/A (config fix)"
-    app_deliverable: "N/A"
-    allowed_files: []
-    forbidden_actions: []
-    preflight_checks: []
-    blocker_detection: []
-    user_decision_detection: []
-    acceptance: "swift test succeeds from iOS/ directory"
-    validation: "cd iOS && swift test"
-    next_on_success: null
-    stop_conditions: []
-    handoff_if_blocked: "Already moved to Core"
