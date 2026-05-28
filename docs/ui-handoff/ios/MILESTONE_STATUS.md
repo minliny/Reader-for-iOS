@@ -65,4 +65,33 @@ Last updated: 2026-05-28
 | 9c224438 | 17:57 | 进度更新 |
 | 99f17f32 | 02:07 | 全量测试 (boundary + build + test) |
 
-## M4-M8: PENDING
+## M4: 书架与阅读资产整理 — **DEVICE VERIFIED**
+
+- Milestone result: `IOS_M4_BOOKSHELF_REAL_ASSET_DEVICE_VERIFIED`
+
+| Workstream | Status | Note |
+|---|---|---|
+| M4-A BookshelfStore persistence | CODE_READY | `addOrUpdate/updateProgress/find` 全部正确 |
+| M4-B Add to Bookshelf / Auto Add | CODE_READY | "开始阅读"传入`bookID`/`sourceID` + onAppear自动加书架 |
+| M4-C Continue Reading | DEVICE_VERIFIED | M3设备端已确认 |
+| M4-D Empty state | CODE_READY | 书架空状态已处理 |
+
+| Checkpoint | Status | Note |
+|---|---|---|
+| M4.1 BookIdentity stable key | DONE | `SourceIdentityFactory` → `detailURL` 作为稳定 key |
+| M4.2 Add to Bookshelf | DONE | SearchView row + BookDetailView button |
+| M4.3 Auto-add on Start Reading | DONE | BookDetailView "开始阅读" onAppear 自动加入书架 |
+| M4.4 Progress → Bookshelf | DONE | `ReaderViewModel.saveReadingProgress()` dual-write |
+| M4.5 Continue Reading | DONE | `BookshelfItemDetailView` "继续阅读" 设备端已验证 |
+| M4.6 M1-M3 regression | DONE | 无回归 |
+
+### M4 关键修复
+
+| 问题 | 修复 |
+|---|---|
+| "开始阅读" 不传 `bookID`/`sourceID` | `BookDetailView` NavigationLink 新增 `bookID: sourceIdentity.id`, `sourceID: sourceIdentity.id` |
+| "开始阅读" 不自动加书架 | 新增 `.onAppear { if !isInBookshelf { addToBookshelf() } }` |
+
+## M5: 阅读历史 / 书签标注 — **PENDING**
+
+## M6-M8: PENDING

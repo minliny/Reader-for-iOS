@@ -181,7 +181,9 @@ public struct BookDetailView: View {
                 NavigationLink {
                     ReaderView(
                         chapterURL: viewModel.firstChapter?.chapterURL ?? result.detailURL,
-                        chapterTitle: viewModel.firstChapter?.chapterTitle ?? "第一章"
+                        chapterTitle: viewModel.firstChapter?.chapterTitle ?? "第一章",
+                        bookID: sourceIdentity.id,
+                        sourceID: sourceIdentity.id
                     )
                 } label: {
                     HStack {
@@ -195,6 +197,12 @@ public struct BookDetailView: View {
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
+                .onAppear {
+                    // Auto-add to bookshelf when "开始阅读" is shown, if not already added
+                    if !isInBookshelf {
+                        addToBookshelf()
+                    }
+                }
 
                 // 查看目录
                 Button(action: {
