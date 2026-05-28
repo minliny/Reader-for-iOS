@@ -25,6 +25,36 @@ public struct TOCSnapshotItem: Codable, Sendable {
     public let index: Int
 }
 
+// MARK: - M2-B Detail Snapshot Model
+
+public struct DetailSnapshot: Codable, Sendable {
+    public let sourceId: String; public let sourceName: String; public let host: String
+    public let bookURL: String; public let title: String; public let author: String?
+    public let intro: String?; public let coverURL: String?
+    public let requestedAt: String
+    public init(sourceId: String, sourceName: String, host: String, bookURL: String, title: String, author: String?, intro: String?, coverURL: String?) {
+        self.sourceId = sourceId; self.sourceName = sourceName; self.host = host
+        self.bookURL = bookURL; self.title = title; self.author = author
+        self.intro = intro; self.coverURL = coverURL
+        self.requestedAt = ISO8601DateFormatter().string(from: Date())
+    }
+}
+
+// MARK: - M2-B Content Snapshot Model
+
+public struct ContentSnapshot: Codable, Sendable {
+    public let sourceId: String; public let sourceName: String; public let host: String
+    public let chapterURL: String; public let chapterTitle: String
+    public let content: String; public let nextChapterURL: String?
+    public let requestedAt: String
+    public init(sourceId: String, sourceName: String, host: String, chapterURL: String, chapterTitle: String, content: String, nextChapterURL: String?) {
+        self.sourceId = sourceId; self.sourceName = sourceName; self.host = host
+        self.chapterURL = chapterURL; self.chapterTitle = chapterTitle
+        self.content = content; self.nextChapterURL = nextChapterURL
+        self.requestedAt = ISO8601DateFormatter().string(from: Date())
+    }
+}
+
 // MARK: - Search Snapshot Model
 
 public struct SearchSnapshot: Codable, Sendable {
@@ -171,6 +201,42 @@ public final class SnapshotStore: Sendable {
               let toc = try? JSONDecoder().decode(TOCSnapshot.self, from: data)
         else { return nil }
         return toc
+    }
+
+    // MARK: - M2-B Detail Snapshot
+
+    public func saveDetailSnapshot(sourceId: String, sourceName: String, host: String, bookURL: String, title: String, author: String?, intro: String?, coverURL: String?) -> Result<String, Error> {
+        let relativePath = makeSnapshotPath(candidateId: sourceId, operation: "detail")
+        guard validatePathInsideSnapshotRoot(relativePath) else { return .failure(SnapshotStoreError.invalidPath(relativePath)) }
+        let snap = DetailSnapshot(sourceId: sourceId, sourceName: sourceName, host: host, bookURL: bookURL, title: title, author: author, intro: intro, coverURL: coverURL)
+        let fileURL = snapshotRoot.appendingPathComponent(relativePath)
+        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        do { let data = try JSONEncoder().encode(snap); try data.write(to: fileURL, options: .atomic); return .success(relativePath) }
+        catch { return .failure(error) }
+    }
+
+    public func loadDetailSnapshot(candidateId: String) -> DetailSnapshot? {
+        let relativePath = makeSnapshotPath(candidateId: candidateId, operation: "detail")
+        guard validatePathInsideSnapshotRoot(relativePath), let data = try? Data(contentsOf: snapshotRoot.appendingPathComponent(relativePath)), let snap = try? JSONDecoder().decode(DetailSnapshot.self, from: data) else { return nil }
+        return snap
+    }
+
+    // MARK: - M2-B Content Snapshot
+
+    public func saveContentSnapshot(sourceId: String, sourceName: String, host: String, chapterURL: String, chapterTitle: String, content: String, nextChapterURL: String?) -> Result<String, Error> {
+        let relativePath = makeSnapshotPath(candidateId: sourceId, operation: "content")
+        guard validatePathInsideSnapshotRoot(relativePath) else { return .failure(SnapshotStoreError.invalidPath(relativePath)) }
+        let snap = ContentSnapshot(sourceId: sourceId, sourceName: sourceName, host: host, chapterURL: chapterURL, chapterTitle: chapterTitle, content: content, nextChapterURL: nextChapterURL)
+        let fileURL = snapshotRoot.appendingPathComponent(relativePath)
+        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        do { let data = try JSONEncoder().encode(snap); try data.write(to: fileURL, options: .atomic); return .success(relativePath) }
+        catch { return .failure(error) }
+    }
+
+    public func loadContentSnapshot(candidateId: String) -> ContentSnapshot? {
+        let relativePath = makeSnapshotPath(candidateId: candidateId, operation: "content")
+        guard validatePathInsideSnapshotRoot(relativePath), let data = try? Data(contentsOf: snapshotRoot.appendingPathComponent(relativePath)), let snap = try? JSONDecoder().decode(ContentSnapshot.self, from: data) else { return nil }
+        return snap
     }
 
     // MARK: - Placeholder

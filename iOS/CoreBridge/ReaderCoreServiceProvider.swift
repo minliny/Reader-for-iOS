@@ -237,7 +237,11 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
             let policy = SourceNetworkPolicy.m1Candidate
             let decision = networkController.evaluate(userPreference: .productDefault, sourcePolicy: policy, operation: .detail)
             if case .allowed = decision {
-                return await performRealBookDetail(bookURL: bookURL, source: BookSource(bookSourceName: policy.sourceName, bookSourceUrl: ""))
+                let result = await performRealBookDetail(bookURL: bookURL, source: BookSource(bookSourceName: policy.sourceName, bookSourceUrl: ""))
+                if case .loaded(let detail) = result {
+                    _ = snapshotStore.saveDetailSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, bookURL: bookURL, title: detail.title, author: detail.author, intro: detail.intro, coverURL: detail.coverURL)
+                }
+                return result
             }
         }
         if mode == .controlledOnlineDryRun || mode == .controlledOnline || mode == .offlineReplay {
@@ -317,8 +321,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
             if case .allowed = decision {
                 let result = await performRealContent(service: service, chapterURL: chapterURL)
                 if case .loaded(let page) = result {
-                    let items = [TOCSnapshotItem(chapterTitle: page.title, chapterURL: page.chapterURL, index: 0)]
-                    _ = snapshotStore.saveTOCSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, bookURL: page.chapterURL, chapters: items)
+                    _ = snapshotStore.saveContentSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, chapterURL: page.chapterURL, chapterTitle: page.title, content: page.content, nextChapterURL: page.nextChapterURL)
                 }
                 return result
             }
