@@ -12,12 +12,14 @@ public enum ReaderState: Equatable {
     case failed(message: String)
     case unsupported(reason: String)
     case partial(content: ContentPage, warnings: [String])
+    case cached(content: ContentPage)  // M3: loaded from local cache, no network
 
     public static func == (lhs: ReaderState, rhs: ReaderState) -> Bool {
         switch (lhs, rhs) {
         case (.idle, .idle): return true
         case (.loading, .loading): return true
         case (.loaded(let a), .loaded(let b)): return a.chapterURL == b.chapterURL
+        case (.cached(let a), .cached(let b)): return a.chapterURL == b.chapterURL
         case (.empty, .empty): return true
         case (.failed(let a), .failed(let b)): return a == b
         case (.unsupported(let a), .unsupported(let b)): return a == b
@@ -55,6 +57,7 @@ public final class ReaderViewModel: ObservableObject {
     private let settingsStore: ReaderSettingsStore
     private let cacheStore: ChapterCacheStore
     private let bookshelfStore: BookshelfStore
+    private let snapshotStore: SnapshotStore
 
     private var bookID: String?
     private var sourceID: String?
@@ -70,7 +73,8 @@ public final class ReaderViewModel: ObservableObject {
         progressStore: ReadingProgressStore = .shared,
         settingsStore: ReaderSettingsStore = .shared,
         cacheStore: ChapterCacheStore = .shared,
-        bookshelfStore: BookshelfStore = .shared
+        bookshelfStore: BookshelfStore = .shared,
+        snapshotStore: SnapshotStore? = nil
     ) {
         self.chapterURL = chapterURL
         self.chapterTitle = chapterTitle
@@ -84,6 +88,9 @@ public final class ReaderViewModel: ObservableObject {
         self.settingsStore = settingsStore
         self.cacheStore = cacheStore
         self.bookshelfStore = bookshelfStore
+        let snapRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("ReaderApp/Snapshots", isDirectory: true)
+        self.snapshotStore = snapshotStore ?? SnapshotStore(snapshotRoot: snapRoot)
         loadSettings()
         restoreReadingProgress()
     }
@@ -100,17 +107,32 @@ public final class ReaderViewModel: ObservableObject {
         try? settingsStore.saveSettings(displaySettings)
     }
 
-    // MARK: - Content Loading
+    // MARK: - Content Loading (M3: cache-first)
 
     public func loadContent() async {
         readerState = .loading
 
-        if let cached = try? cacheStore.loadEntry(chapterURL: chapterURL, sourceID: sourceID ?? "unknown") {
-            if cached.status == .cached {
-                // Cache hit — still go through mock for content, but mark as fast path
+        // M3: Try reading cache first (offline-capable)
+        if let sid = sourceID, !sid.isEmpty {
+            if let cached = snapshotStore.loadChapterContentSnapshot(sourceId: sid, chapterURL: chapterURL) {
+                let page = ContentPage(
+                    title: cached.chapterTitle,
+                    content: cached.content,
+                    chapterURL: cached.chapterURL,
+                    nextChapterURL: cached.nextChapterURL
+                )
+                readerState = .cached(content: page)
+                // Restore scroll progress silently
+                if let bookID = bookID,
+                   let saved = try? progressStore.loadProgress(bookID: bookID),
+                   saved.chapterURL == chapterURL {
+                    readingProgress = saved.progressRatio
+                }
+                return
             }
         }
 
+        // Network / provider fallback
         let state = await provider.getChapterContent(chapterURL: chapterURL)
         switch state {
         case .loaded(let content):
@@ -201,17 +223,31 @@ public final class ReaderViewModel: ObservableObject {
         )
     }
 
-    // MARK: - Chapter Cache
+    // MARK: - Chapter Cache (M3: SnapshotStore + ChapterCacheStore)
 
     private func cacheChapterContent(_ content: ContentPage) async {
+        guard let sid = sourceID, !sid.isEmpty else { return }
+
+        // ChapterCacheStore: metadata only
         let entry = ChapterCacheEntry(
-            sourceID: sourceID ?? "unknown",
+            sourceID: sid,
             bookURL: extractBookURL(from: chapterURL),
             chapterURL: chapterURL,
             chapterTitle: chapterTitle,
             status: .cached
         )
         try? cacheStore.saveEntry(entry)
+
+        // SnapshotStore: actual content text (M3 new)
+        _ = snapshotStore.saveChapterContentSnapshot(
+            sourceId: sid,
+            sourceName: "",
+            host: "",
+            chapterURL: chapterURL,
+            chapterTitle: chapterTitle,
+            content: content.content,
+            nextChapterURL: content.nextChapterURL
+        )
     }
 
     // MARK: - Font Size Quick Actions

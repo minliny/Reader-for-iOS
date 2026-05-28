@@ -109,6 +109,7 @@ public struct BookshelfView: View {
 
 struct BookshelfItemDetailView: View {
     let item: BookshelfItem
+    @State private var navigateToReader = false
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -135,6 +136,21 @@ struct BookshelfItemDetailView: View {
                         Text(item.addedAt, style: .date)
                     }
                 }
+
+                if item.lastReadChapterURL != nil {
+                    Section {
+                        Button {
+                            navigateToReader = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "book.fill")
+                                Text("继续阅读")
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
             }
             .navigationTitle(item.title)
 #if os(iOS)
@@ -144,6 +160,14 @@ struct BookshelfItemDetailView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { dismiss() }
                 }
+            }
+            .navigationDestination(isPresented: $navigateToReader) {
+                ReaderView(
+                    chapterURL: item.lastReadChapterURL ?? item.bookURL,
+                    chapterTitle: item.lastReadChapterTitle ?? "继续阅读",
+                    bookID: item.id,
+                    sourceID: item.sourceID
+                )
             }
         }
     }

@@ -16,24 +16,45 @@ Last updated: 2026-05-28
 | M1.4 Search UI 展示真实结果 | CODE_READY | Search UI displays title/author/sourceName/results |
 | M1.5 Codex 设备端验证 | DEVICE_VERIFIED | 星星小说网真实搜索 UI 结果已设备端确认 |
 
-## M2: 单书源真实阅读闭环 — **IN PROGRESS (2/3)**
+## M2: 单书源真实阅读闭环 — **DEVICE VERIFIED**
+
+- Milestone result: `IOS_SINGLE_SOURCE_READING_FLOW_DEVICE_VERIFIED`
 
 | Workstream | Status | Note |
 |---|---|---|
 | M2-A Provider controlledOnline full path | CODE_READY | `getBookDetail/getChapterList/getChapterContent` + controlledOnline branch + `prepareControlledOnlineAllServices()` |
 | M2-B SnapshotStore detail/content | DONE | detail/content snapshot save-load path already merged |
-| M2-C Integration tests + ViewModels | READY | full-chain fake service tests / device follow-up ready |
+| M2-C Integration tests + ViewModels | DEVICE_VERIFIED | full-chain fake service tests + M2.4 device validation completed |
 
 ### M2 User-Facing Checkpoints
 
 | Checkpoint | Status | Note |
 |---|---|---|
-| M2.1 Book Detail | CODE_READY | Book Detail shell and real path ready |
-| M2.2 TOC | CODE_READY | TOC shell and real path ready |
-| M2.3 Real Content | CODE_READY | content path verified, "开始阅读" fixed to use first chapter from TOC |
-| M2.4 Full Reading Flow Device Review | PENDING | Search → Detail → TOC → Content → ReaderView device validation |
+| M2.1 Book Detail | DEVICE_VERIFIED | Book Detail shell and real path verified on device |
+| M2.2 TOC | DEVICE_VERIFIED | TOC shell and real path verified on device |
+| M2.3 Real Content | DEVICE_VERIFIED | content path verified, "开始阅读" uses first chapter from TOC |
+| M2.4 Full Reading Flow Device Review | DEVICE_VERIFIED | Search → Detail → TOC → Content → ReaderView verified on device |
 
 **P0 阻塞已解决**: B1, B2, B4, B7 全部在 M2-A 中修复。
+
+## M3: 缓存、离线阅读、继续阅读 — **IN PROGRESS (1/3)**
+
+- Milestone result: `IOS_M3_READING_CACHE_PROGRESS_CODE_READY`
+
+| Workstream | Status | Note |
+|---|---|---|
+| M3-A Cache Store | CODE_READY | `saveChapterContentSnapshot/loadChapterContentSnapshot` — 按 sourceId+chapterURL 索引 |
+| M3-B Reading Progress | CODE_READY | `ReadingProgressStore` + `BookshelfStore.updateProgress` + `saveReadingProgress()` 均已工作 |
+| M3-C Continue Reading UI | CODE_READY | `BookshelfItemDetailView` "继续阅读" 按钮 → ReaderView |
+
+### M3 关键修复
+
+| 问题 | 修复 |
+|---|---|
+| `SnapshotStore.loadContentSnapshot` 仅按 sourceId 索引 | 新增 `loadChapterContentSnapshot(sourceId, chapterURL)` |
+| `ReaderViewModel.loadContent()` 从未真正从缓存读取正文 | 新增 cache-first 路径：先查 SnapshotStore，返回 `.cached` 状态 |
+| `ReaderViewModel.cacheChapterContent()` 仅保存元数据 | 同时写 ChapterCacheStore + SnapshotStore 正文 |
+| `BookshelfItemDetailView` 无继续阅读入口 | 新增"继续阅读"按钮 → `ReaderView(lastReadChapterURL, lastReadChapterTitle, bookID, sourceID)` |
 
 ## Cron Loops (3 active)
 
@@ -43,4 +64,4 @@ Last updated: 2026-05-28
 | 9c224438 | 17:57 | 进度更新 |
 | 99f17f32 | 02:07 | 全量测试 (boundary + build + test) |
 
-## M3-M8: PENDING
+## M4-M8: PENDING

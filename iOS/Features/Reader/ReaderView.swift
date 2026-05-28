@@ -86,7 +86,7 @@ public struct ReaderView: View {
 
     private var currentContentText: String {
         switch viewModel.readerState {
-        case .loaded(let content), .partial(let content, _):
+        case .loaded(let content), .cached(let content), .partial(let content, _):
             return content.content
         default:
             return ""
@@ -122,7 +122,7 @@ public struct ReaderView: View {
         case .loading:
             loadingStateView
 
-        case .loaded(let content):
+        case .loaded(let content), .cached(let content):
             loadedContentView(content)
 
         case .empty:
@@ -141,7 +141,10 @@ public struct ReaderView: View {
 
     @ViewBuilder
     private var actionBar: some View {
-        if case .loaded = viewModel.readerState {
+        switch viewModel.readerState {
+        case .loaded, .cached:
+            actionBarContent
+        case .partial:
             ReaderStageActionBar(
                 onPrevious: viewModel.canGoPreviousChapter
                     ? { viewModel.goPreviousChapter() } : nil,
@@ -151,17 +154,7 @@ public struct ReaderView: View {
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
-        } else if case .partial = viewModel.readerState {
-            ReaderStageActionBar(
-                onPrevious: viewModel.canGoPreviousChapter
-                    ? { viewModel.goPreviousChapter() } : nil,
-                onNext: viewModel.canGoNextChapter
-                    ? { viewModel.goNextChapter() } : nil,
-                onReload: { Task { await viewModel.reload() } }
-            )
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-        } else if case .failed = viewModel.readerState {
+        case .failed:
             ReaderStageActionBar(
                 onPrevious: nil,
                 onNext: nil,
@@ -169,7 +162,7 @@ public struct ReaderView: View {
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
-        } else if case .empty = viewModel.readerState {
+        case .empty:
             ReaderStageActionBar(
                 onPrevious: viewModel.canGoPreviousChapter
                     ? { viewModel.goPreviousChapter() } : nil,
@@ -179,7 +172,23 @@ public struct ReaderView: View {
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
+        case .idle, .loading:
+            EmptyView()
+        case .unsupported:
+            EmptyView()
         }
+    }
+
+    private var actionBarContent: some View {
+        ReaderStageActionBar(
+            onPrevious: viewModel.canGoPreviousChapter
+                ? { viewModel.goPreviousChapter() } : nil,
+            onNext: viewModel.canGoNextChapter
+                ? { viewModel.goNextChapter() } : nil,
+            onReload: { Task { await viewModel.reload() } }
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     // MARK: - State Views

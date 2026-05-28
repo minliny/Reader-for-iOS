@@ -239,6 +239,55 @@ public final class SnapshotStore: Sendable {
         return snap
     }
 
+    // MARK: - M3: Chapter-URL-keyed Content Snapshot (for reading cache)
+
+    /// Save chapter content keyed by sourceId + chapterURL, enabling per-chapter cache lookup.
+    public func saveChapterContentSnapshot(
+        sourceId: String,
+        sourceName: String,
+        host: String,
+        chapterURL: String,
+        chapterTitle: String,
+        content: String,
+        nextChapterURL: String?
+    ) -> Result<String, Error> {
+        let relativePath = chapterSnapshotPath(sourceId: sourceId, chapterURL: chapterURL)
+        guard validatePathInsideSnapshotRoot(relativePath) else {
+            return .failure(SnapshotStoreError.invalidPath(relativePath))
+        }
+        let snap = ContentSnapshot(
+            sourceId: sourceId, sourceName: sourceName, host: host,
+            chapterURL: chapterURL, chapterTitle: chapterTitle,
+            content: content, nextChapterURL: nextChapterURL
+        )
+        let fileURL = snapshotRoot.appendingPathComponent(relativePath)
+        let dir = fileURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        do {
+            let data = try JSONEncoder().encode(snap)
+            try data.write(to: fileURL, options: .atomic)
+            return .success(relativePath)
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// Load chapter content by sourceId + chapterURL. Returns nil if not cached.
+    public func loadChapterContentSnapshot(sourceId: String, chapterURL: String) -> ContentSnapshot? {
+        let relativePath = chapterSnapshotPath(sourceId: sourceId, chapterURL: chapterURL)
+        guard validatePathInsideSnapshotRoot(relativePath),
+              let data = try? Data(contentsOf: snapshotRoot.appendingPathComponent(relativePath)),
+              let snap = try? JSONDecoder().decode(ContentSnapshot.self, from: data)
+        else { return nil }
+        return snap
+    }
+
+    private func chapterSnapshotPath(sourceId: String, chapterURL: String) -> String {
+        let safeId = sanitize(sourceId)
+        let safeURL = sanitize(chapterURL)
+        return "\(safeId)/chapter/\(safeURL)"
+    }
+
     // MARK: - Placeholder
 
     public func saveSnapshotPlaceholder(candidateId: String, operation: String, host: String) -> Result<String, Error> {
