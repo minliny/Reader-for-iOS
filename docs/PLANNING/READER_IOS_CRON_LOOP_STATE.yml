@@ -1,5 +1,5 @@
 ---
-current_head: 125c412
+current_head: 17987b5
 current_branch: main
 working_tree_status: MODIFIED (backlog update only)
 detected_stage: M2_REAL_SOURCE_FULL_FLOW
@@ -9,10 +9,10 @@ loop_status: ACTIVE
 cron_loop_enabled: true
 loop_job_id: c713f751
 remaining_ready: 1
-remaining_pending: 8
+remaining_pending: 7
 total_tasks: 9
-current_task: RS-M2-B-001
-current_task_title: "SnapshotStore detail/content save/load + BookSource JSON"
+current_task: RS-M2-C-001
+current_task_title: "M2 集成测试：全链路 fake service"
 next_recommended_task: RS-M2-C-001
 blockers: []
 active_blockers: []

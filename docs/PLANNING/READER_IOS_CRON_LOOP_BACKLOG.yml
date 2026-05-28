@@ -14,7 +14,7 @@ tasks:
   - id: RS-M2-B-001
     title: "SnapshotStore detail/content save/load + BookSource JSON"
     stage: M2-B
-    status: READY
+    status: DONE
     priority: P0
     implementation_scope: >
       1. SnapshotStore 增加 saveDetailSnapshot / loadDetailSnapshot
