@@ -180,8 +180,8 @@ public struct BookDetailView: View {
                 // 开始阅读
                 NavigationLink {
                     ReaderView(
-                        chapterURL: "https://example.com/book/1/chapter/1",
-                        chapterTitle: "第一章 山村少年"
+                        chapterURL: viewModel.firstChapter?.chapterURL ?? result.detailURL,
+                        chapterTitle: viewModel.firstChapter?.chapterTitle ?? "第一章"
                     )
                 } label: {
                     HStack {

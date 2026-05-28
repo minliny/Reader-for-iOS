@@ -30,7 +30,7 @@ Last updated: 2026-05-28
 |---|---|---|
 | M2.1 Book Detail | CODE_READY | Book Detail shell and real path ready |
 | M2.2 TOC | CODE_READY | TOC shell and real path ready |
-| M2.3 Real Content | NEXT | content path is next validation focus |
+| M2.3 Real Content | CODE_READY | content path verified, "开始阅读" fixed to use first chapter from TOC |
 | M2.4 Full Reading Flow Device Review | PENDING | Search → Detail → TOC → Content → ReaderView device validation |
 
 **P0 阻塞已解决**: B1, B2, B4, B7 全部在 M2-A 中修复。

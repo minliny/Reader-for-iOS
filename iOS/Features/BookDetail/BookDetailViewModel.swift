@@ -36,6 +36,7 @@ public enum BookDetailState: Equatable {
 @MainActor
 public final class BookDetailViewModel: ObservableObject {
     @Published public var detailState: BookDetailState = .idle
+    @Published public var chapters: [TOCItem] = []
 
     private let bookURL: String
     private let provider = ReaderCoreServiceProvider.shared
@@ -44,9 +45,20 @@ public final class BookDetailViewModel: ObservableObject {
         self.bookURL = bookURL
     }
 
+    public var firstChapter: (chapterURL: String, chapterTitle: String)? {
+        guard let first = chapters.first else { return nil }
+        return (chapterURL: first.chapterURL, chapterTitle: first.chapterTitle)
+    }
+
     public func loadDetail() async {
         detailState = .loading
 
+        async let detailTask: Void = loadDetailOnly()
+        async let chaptersTask: Void = loadChapters()
+        _ = await (detailTask, chaptersTask)
+    }
+
+    private func loadDetailOnly() async {
         do {
             let state = await provider.getBookDetail(bookURL: bookURL)
             switch state {
@@ -70,6 +82,18 @@ public final class BookDetailViewModel: ObservableObject {
             }
         } catch {
             detailState = .failed(message: "Load detail failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func loadChapters() async {
+        let state = await provider.getChapterList(bookURL: bookURL)
+        switch state {
+        case .loaded(let items):
+            chapters = items
+        case .partial(let items, _):
+            chapters = items
+        default:
+            chapters = []
         }
     }
 }
