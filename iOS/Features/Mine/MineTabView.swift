@@ -48,6 +48,9 @@ public struct MineTabView: View {
                     )) {
                         Label("[DEBUG] ReaderView Fixture", systemImage: "eye")
                     }
+                    NavigationLink(destination: RealNetworkVerifyView()) {
+                        Label("[验证] 星星小说网真实搜索", systemImage: "network")
+                    }
                 }
                 #endif
             }
