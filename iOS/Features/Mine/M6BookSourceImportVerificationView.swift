@@ -19,51 +19,27 @@ struct M6BookSourceImportVerificationView: View {
     @State private var storeSources: [BookSource] = []
     @State private var searchTestResult: String?
 
-    // Bundled xingxingxsw.search-only.json content (embedded to avoid bundle-resource dependency)
-    private static let xingxingxswJSON = """
-    {
-      "bookSourceName": "星星小说网",
-      "bookSourceGroup": "M1候选源",
-      "bookSourceUrl": "https://www.xingxingxsw.com",
-      "bookSourceType": 0,
-      "enabled": true,
-      "searchUrl": "https://www.xingxingxsw.com/search.php?key={{key}}",
-      "ruleSearch": {
-        "bookList": ".leftBox >ul >li",
-        "name": "h1@text",
-        "author": ".s2@text",
-        "bookUrl": "h1>a@href##\\.html$##\\/",
-        "coverUrl": "img@data-original",
-        "intro": ".c@text",
-        "kind": ".tips@text&&.s6@text",
-        "lastChapter": "a.3@text",
-        "wordCount": ".s4@text"
-      },
-      "ruleBookInfo": {},
-      "ruleToc": {
-        "chapterList": "#newlist >dd",
-        "chapterName": "a@text",
-        "chapterUrl": "a@href"
-      },
-      "ruleContent": {
-        "content": "#txt@html"
-      },
-      "ruleExplore": {
-        "bookList": ".con li",
-        "name": ".font1 > a@text",
-        "author": ".font2@text##\\|.+",
-        "bookUrl": ".font1 > a@href##\\.html$##\\/",
-        "coverUrl": "img@data-original",
-        "intro": ".font3@text",
-        "kind": ".font2@text##.*\\|",
-        "lastChapter": "a:nth-child(2)@text"
-      },
-      "exploreUrl": "",
-      "header": "{\\"accept-language\\": \\"zh-CN,zh;q=0.9\\"}",
-      "respondTime": 180000,
-      "weight": 0
+    @State private var jsonSourceLabel: String = "未加载"
+    @State private var manualJSONText: String = ""
+    @State private var jsonLoadError: String?
+
+    // MARK: - JSON Loading
+
+    private func loadBundledXingxingJSON() -> (text: String, source: String)? {
+        // Try AppSupport/Sources subdirectory
+        if let url = Bundle.main.url(forResource: "xingxingxsw.search-only", withExtension: "json", subdirectory: "AppSupport/Sources"),
+           let data = try? Data(contentsOf: url),
+           let text = String(data: data, encoding: .utf8) {
+            return (text, "bundled: AppSupport/Sources/xingxingxsw.search-only.json")
+        }
+        // Fallback: direct in bundle root
+        if let url = Bundle.main.url(forResource: "xingxingxsw.search-only", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let text = String(data: data, encoding: .utf8) {
+            return (text, "bundled: xingxingxsw.search-only.json (root)")
+        }
+        return nil
     }
-    """
 
     var body: some View {
         List {
@@ -192,15 +168,30 @@ struct M6BookSourceImportVerificationView: View {
         searchTestResult = nil
 
         Task {
-            // Step 1: Load JSON
-            addStep("1. 加载 JSON 文本") { true }
+            // Step 1: Load JSON from bundled resource
+            addStep("1. 查找 bundled xingxingxsw JSON") {
+                if let result = loadBundledXingxingJSON() {
+                    jsonSourceLabel = result.source
+                    return true
+                }
+                return false
+            }
 
-            guard let data = Self.xingxingxswJSON.data(using: .utf8) else {
+            guard let (jsonText, sourceTag) = loadBundledXingxingJSON() else {
                 addStep("1. JSON → Data 编码") { false }
+                addStep("错误", detail: "Missing xingxingxsw.search-only.json in bundle. Check project.yml ReaderForIOSApp sources.") { false }
                 isRunning = false
                 return
             }
-            addStep("1. JSON → Data 编码") { true }
+            jsonSourceLabel = sourceTag
+            addStep("1a. JSON source", detail: jsonSourceLabel) { true }
+
+            guard let data = jsonText.data(using: .utf8) else {
+                addStep("1b. JSON text → Data 编码") { false }
+                isRunning = false
+                return
+            }
+            addStep("1b. JSON text → Data 编码") { true }
 
             // Step 2: Normalize (M6-P1-001 object rules, M6-P1-002 header)
             let normalizer = BookSourceImportNormalizer()

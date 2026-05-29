@@ -113,25 +113,26 @@ Last updated: 2026-05-29
 | 书签列表 | `iOS/Features/Bookshelf/BookmarksListView.swift` — 展示/删除书签，点击跳转 ReaderView |
 | 书签入口 | `BookshelfItemDetailView` 新增"查看书签" 按钮 → `BookmarksListView` sheet |
 
-## M6: 书源导入与验证 — **CODE READY / DEVICE REVIEW BLOCKED BY UI AUTOMATION**
+## M6: 书源导入与验证 — **DEVICE REVIEW RETRY_PENDING**
 
-- Milestone result: `IOS_BOOKSOURCE_IMPORT_CODE_READY_DEVICE_REVIEW_BLOCKED_BY_UI_AUTOMATION`
+- Milestone result: `IOS_M6_HARNESS_JSON_INPUT_FIX_READY`
 
 | Workstream | Status | Note |
 |---|---|---|
-| M6-A Import JSON | CODE_READY | Normalizer → Decode → Validate 链完整，代码路径已验证 |
-| M6-B Local Validation | CODE_READY_WITH_UI_NOTE | Validator 逻辑完整；Import View 未展示 per-capability 状态 |
-| M6-C Save Local Source | CODE_READY | `loadSources()` async 合并 fixture + `BookSourceStore` 本地导入源，按 id 去重 |
-| M6-D Manual Test Entry | CODE_READY_WITH_UI_NOTE | Detail View 显示 "测试搜索" 按钮；当前为本地 mock，非真实 controlledOnline search |
-| M6-E Device Review | BLOCKED_BY_UI_AUTOMATION | CGEvent/AX/osascript 均无法穿透 Simulator touch 转发层，无法自动化 GUI 点击导入链路 |
+| M6-A Import JSON | CODE_READY | `M6-HARNESS-P1-004` 已修复 harness JSON 输入 |
+| M6-B Local Validation | CODE_READY | normalizer + validator 完整 |
+| M6-C Save Local Source | CODE_READY | store.add() + load() merge path 完整 |
+| M6-D Manual Test Entry | CODE_READY | 独立按钮，controlledOnline 受控 |
+| M6-E Device Review | RETRY_PENDING | harness 修复后待 Codex 复测 |
 
 ### M6 关键修复
 
 | 问题 | 状态 | 修复 |
 |---|---|---|
-| `M6-P1-001`: object-shaped rule fields decode 失败 | CODE_VERIFIED / DEVICE_RETRY_PENDING | `BookSourceImportNormalizer` — object → JSON string |
-| `M6-P1-002`: `header` 为 JSON object string decode 失败 | CODE_VERIFIED / DEVICE_RETRY_PENDING | normalizer 将 header 转为 `[String: String]` dict |
-| `M6-P1-003`: 导入成功后列表不显示导入后本地源 | CODE_VERIFIED / DEVICE_RETRY_PENDING | `BookSourceListView.loadSources()` 改为 async 并合并 `BookSourceStore` 本地导入源 |
+| `M6-P1-001`: object-shaped rule fields decode 失败 | CODE_READY_DEVICE_REVIEW_BLOCKED_BY_HARNESS | `BookSourceImportNormalizer` — object → JSON string |
+| `M6-P1-002`: `header` 为 JSON object string decode 失败 | CODE_READY_DEVICE_REVIEW_BLOCKED_BY_HARNESS | normalizer 将 header 转为 `[String: String]` dict |
+| `M6-P1-003`: 导入成功后列表不显示导入后本地源 | CODE_READY_DEVICE_REVIEW_BLOCKED_BY_HARNESS | `BookSourceListView.loadSources()` 改为 async 并合并 `BookSourceStore` 本地导入源 |
+| `M6-HARNESS-P1-004`: Debug harness 内嵌 JSON normalize 失败 | **READY_FOR_CODEX_VERIFY** | 移除 hardcoded escaped JSON，改为从 Bundle resource 加载 `xingxingxsw.search-only.json` |
 
 ### M6 关键实现
 
