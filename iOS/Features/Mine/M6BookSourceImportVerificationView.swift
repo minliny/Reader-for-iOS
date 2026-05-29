@@ -312,8 +312,8 @@ struct M6BookSourceImportVerificationView: View {
         Task {
             let provider = ReaderCoreServiceProvider.shared
             let ready = provider.prepareControlledOnlineAllServices()
-            guard ready else {
-                searchTestResult = "⚠️ 无法创建 real services（NetworkAccessController denied）"
+            if !ready {
+                searchTestResult = "⚠️ 网络访问未启用（受 NetworkAccessController 控制）\n提示：需要在设置中开启受控联网以执行真实搜索"
                 return
             }
             provider.enableControlledOnline()
@@ -321,13 +321,13 @@ struct M6BookSourceImportVerificationView: View {
             let state = await provider.searchBooks(keyword: "测试", page: 1)
             switch state {
             case .loaded(let items):
-                searchTestResult = "搜索成功：\(items.count) 条结果"
+                searchTestResult = "✅ 搜索成功：\(items.count) 条结果"
             case .empty:
-                searchTestResult = "搜索返回空（可能是真实网络不可达）"
+                searchTestResult = "📭 搜索返回空（可能是真实网络不可达，或书源无可用内容）"
             case .failed(let err):
-                searchTestResult = "搜索失败：\(err.message)"
+                searchTestResult = "❌ 搜索失败：\(err.message)\n提示：检查网络连接或稍后重试"
             default:
-                searchTestResult = "意外状态"
+                searchTestResult = "⚠️ 意外状态，请稍后重试"
             }
         }
     }

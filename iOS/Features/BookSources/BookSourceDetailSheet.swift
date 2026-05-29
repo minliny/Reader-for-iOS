@@ -1,10 +1,12 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderAppPersistence
 
 /// 书源详情 Sheet — ScrollView+VStack，避免 NavigationStack+List 在 sheet 中空白
 public struct BookSourceDetailSheet: View {
     let source: BookSource
     @State private var testState: String?
+    @State private var validationResult: BookSourceValidationResult?
 
     public init(source: BookSource) {
         self.source = source
@@ -13,6 +15,18 @@ public struct BookSourceDetailSheet: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // 来源标识
+                if isImportedSource {
+                    HStack(spacing: 6) {
+                        Label("本地导入", systemImage: "square.and.arrow.down")
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.15))
+                            .cornerRadius(6)
+                        Spacer()
+                    }
+                }
+
                 // 标题
                 Text("书源详情")
                     .font(.title2).fontWeight(.bold)
@@ -36,6 +50,19 @@ public struct BookSourceDetailSheet: View {
                         Text(source.enabled ? "已启用" : "已禁用")
                             .foregroundStyle(source.enabled ? .green : .secondary)
                     }
+                    if let validation = validationResult {
+                        capabilityDetailRow("搜索", validation.searchCapability, hint: searchHint(for: validation.searchCapability))
+                        capabilityDetailRow("详情", validation.detailCapability, hint: detailHint(for: validation.detailCapability))
+                        capabilityDetailRow("目录", validation.tocCapability, hint: tocHint(for: validation.tocCapability))
+                        capabilityDetailRow("正文", validation.contentCapability, hint: contentHint(for: validation.contentCapability))
+                    } else {
+                        HStack {
+                            Text("功能支持")
+                            Spacer()
+                            Text("加载中...")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     if let msg = testState {
                         HStack {
                             Text("测试结果")
@@ -44,15 +71,6 @@ public struct BookSourceDetailSheet: View {
                                 .foregroundStyle(msg.contains("成功") ? .green : .orange)
                         }
                     }
-                }
-
-                // 规则摘要
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("规则摘要").font(.headline)
-                    Divider()
-                    summaryRow("搜索规则", "\(source.bookSourceName) 标准搜索")
-                    summaryRow("详情规则", "\(source.bookSourceName) 标准详情")
-                    summaryRow("目录规则", "\(source.bookSourceName) 标准目录")
                 }
 
                 // 操作区
@@ -73,7 +91,7 @@ public struct BookSourceDetailSheet: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(testState == "测试中...")
 
-                    Text("当前为离线 fixture 模式，不会访问真实网络")
+                    Text("离线模式 — 不会访问真实网络")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -82,6 +100,18 @@ public struct BookSourceDetailSheet: View {
             .padding()
         }
         .background(Color(.systemBackground))
+        .onAppear { loadValidation() }
+    }
+
+    private var isImportedSource: Bool {
+        // Imported sources have IDs starting with "m6-verify-" or not in fixture list
+        let fixtureIDs = ["candidate-xingxingxsw", "fixture-001", "fixture-002", "fixture-003", "fixture-004", "fixture-005"]
+        return source.id != nil && !fixtureIDs.contains(source.id!)
+    }
+
+    private func loadValidation() {
+        let validator = BookSourceImportValidator()
+        validationResult = validator.validate(source)
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {
@@ -94,16 +124,60 @@ public struct BookSourceDetailSheet: View {
         }
     }
 
-    private func summaryRow(_ label: String, _ value: String) -> some View {
-        Text("\(label)：\(value)")
-            .font(.caption).foregroundStyle(.secondary)
+    private func capabilityDetailRow(_ label: String, _ status: CapabilityStatus, hint: String?) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .font(.caption)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(status.rawValue)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(status == .ready ? .green : .orange)
+                if let hint = hint {
+                    Text(hint)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func searchHint(for status: CapabilityStatus) -> String? {
+        switch status {
+        case .ready: return "支持搜索"
+        case .missing: return "仅支持搜索测试"
+        case .invalid: return "搜索规则异常"
+        }
+    }
+
+    private func detailHint(for status: CapabilityStatus) -> String? {
+        switch status {
+        case .ready: return "支持获取详情"
+        case .missing: return "详情功能不可用"
+        case .invalid: return "详情规则异常"
+        }
+    }
+
+    private func tocHint(for status: CapabilityStatus) -> String? {
+        switch status {
+        case .ready: return "支持获取目录"
+        case .missing: return "目录功能不可用"
+        case .invalid: return "目录规则异常"
+        }
+    }
+
+    private func contentHint(for status: CapabilityStatus) -> String? {
+        switch status {
+        case .ready: return "支持阅读正文"
+        case .missing: return "正文功能不可用"
+        case .invalid: return "正文规则异常"
+        }
     }
 
     private func runLocalMockTest() {
         Task {
             testState = "测试中..."
             try? await Task.sleep(nanoseconds: 1_000_000_000)
-            // deterministic — 始终返回成功，避免随机结果复测不稳定
             testState = "测试成功：本地 fixture 可用"
         }
     }

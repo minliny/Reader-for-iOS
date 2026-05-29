@@ -113,26 +113,26 @@ Last updated: 2026-05-29
 | 书签列表 | `iOS/Features/Bookshelf/BookmarksListView.swift` — 展示/删除书签，点击跳转 ReaderView |
 | 书签入口 | `BookshelfItemDetailView` 新增"查看书签" 按钮 → `BookmarksListView` sheet |
 
-## M6: 书源导入与验证 — **DEVICE REVIEW RETRY_PENDING**
+## M6: 书源导入与验证 — **DEVICE VERIFIED**
 
-- Milestone result: `IOS_M6_HARNESS_JSON_INPUT_FIX_READY`
+- Milestone result: `IOS_BOOKSOURCE_IMPORT_AND_VALIDATE_M6_DEVICE_VERIFIED`
 
 | Workstream | Status | Note |
 |---|---|---|
-| M6-A Import JSON | CODE_READY | `M6-HARNESS-P1-004` 已修复 harness JSON 输入 |
-| M6-B Local Validation | CODE_READY | normalizer + validator 完整 |
-| M6-C Save Local Source | CODE_READY | store.add() + load() merge path 完整 |
-| M6-D Manual Test Entry | CODE_READY | 独立按钮，controlledOnline 受控 |
-| M6-E Device Review | RETRY_PENDING | harness 修复后待 Codex 复测 |
+| M6-A Import JSON | DEVICE_VERIFIED | Debug harness 读取 bundled `xingxingxsw.search-only.json` 并完成导入 |
+| M6-B Local Validation | DEVICE_VERIFIED | validation result 可见，`validation errors = 0` |
+| M6-C Save Local Source | DEVICE_VERIFIED | `BookSourceStore.add()` 后 reload/list 可见导入源 |
+| M6-D Manual Test Entry | DEVICE_VERIFIED | 独立按钮可见，可手动触发 controlledOnline 并显示受控错误 |
+| M6-E Device Review | DEVICE_VERIFIED | Codex Simulator 设备端复测通过 |
 
 ### M6 关键修复
 
 | 问题 | 状态 | 修复 |
 |---|---|---|
-| `M6-P1-001`: object-shaped rule fields decode 失败 | CODE_READY_DEVICE_REVIEW_BLOCKED_BY_HARNESS | `BookSourceImportNormalizer` — object → JSON string |
-| `M6-P1-002`: `header` 为 JSON object string decode 失败 | CODE_READY_DEVICE_REVIEW_BLOCKED_BY_HARNESS | normalizer 将 header 转为 `[String: String]` dict |
-| `M6-P1-003`: 导入成功后列表不显示导入后本地源 | CODE_READY_DEVICE_REVIEW_BLOCKED_BY_HARNESS | `BookSourceListView.loadSources()` 改为 async 并合并 `BookSourceStore` 本地导入源 |
-| `M6-HARNESS-P1-004`: Debug harness 内嵌 JSON normalize 失败 | **READY_FOR_CODEX_VERIFY** | 移除 hardcoded escaped JSON，改为从 Bundle resource 加载 `xingxingxsw.search-only.json` |
+| `M6-P1-001`: object-shaped rule fields decode 失败 | DEVICE_VERIFIED_RESOLVED | `BookSourceImportNormalizer` — object → JSON string |
+| `M6-P1-002`: `header` 为 JSON object string decode 失败 | DEVICE_VERIFIED_RESOLVED | normalizer 将 header 转为 `[String: String]` dict |
+| `M6-P1-003`: 导入成功后列表不显示导入后本地源 | DEVICE_VERIFIED_RESOLVED | `BookSourceListView.loadSources()` 改为 async 并合并 `BookSourceStore` 本地导入源 |
+| `M6-HARNESS-P1-004`: Debug harness 内嵌 JSON normalize 失败 | DEVICE_VERIFIED_RESOLVED | 移除 hardcoded escaped JSON，改为从 Bundle resource 加载 `xingxingxsw.search-only.json` |
 
 ### M6 关键实现
 
@@ -145,4 +145,35 @@ Last updated: 2026-05-29
 | `BookSourceDetailView` 增强 | 显示 capability rows + "测试搜索" 按钮 |
 | `BookSourceListView` 本地源合并 | `loadSources()` async 合并 fixture + `BookSourceStore` 本地导入源 |
 
-## M7-M8: PENDING
+## M7: 产品体验打磨 — **IN PROGRESS**
+
+- Milestone result: `IOS_PRODUCT_EXPERIENCE_POLISH_M7_IN_PROGRESS`
+
+| Workstream | Status | Note |
+|---|---|---|
+| M7-A Import Experience | CODE_READY | `BookSourceDetailSheet` 显示"本地导入"标识 + capability 详情 + 用户可理解 hint 文案 |
+| M7-B Network Policy Messaging | CODE_READY | `M6BookSourceImportVerificationView` 测试失败文案从 `NetworkAccessController denied` 改为"网络访问未启用（受 NetworkAccessController 控制）" |
+| M7-C Search/Bookshelf/Reader Feedback | CODE_READY | SearchView 已有多状态文案（idle/loading/success/empty/failed/unsupported/partial）；ReaderView 已有多状态视图 |
+| M7-D Debug Tools Boundary | CODE_READY | Debug harness 保持 `#if DEBUG`，文案明确"离线模式"和"验证路径" |
+| M7-E Bookmark P2 Follow-up | DEFERRED | `ReaderView` 书签按钮 `disabled(bookID == nil)` — bookID 从 Search→Detail→Reader 传递链完整，低风险可延至 M8+ |
+| M7-F Device Review | PENDING | 待 Codex 设备端复测 |
+
+### M7 关键实现
+
+| 功能 | 实现 |
+|---|---|
+| `BookSourceDetailSheet` 增强 | 显示"本地导入"标识 + `BookSourceImportValidator` 实时验证 + per-capability hint 文案 |
+| 手动测试文案优化 | 从 `NetworkAccessController denied` 改为"网络访问未启用（受 NetworkAccessController 控制）" + 行动提示 |
+| Search 状态视图 | `SearchView` 已有 `.idle/.loading/.success/.empty/.failed/.unsupported/.partial` 七种状态文案 |
+| Reader 状态视图 | `ReaderView` 已有 `.idle/.loading/.loaded/.cached/.empty/.failed/.unsupported/.partial` 状态视图 |
+| Debug-only 边界 | `M6BookSourceImportVerificationView` + `MineTabView` Developer Tools 入口均为 `#if DEBUG` |
+
+## M8: PENDING
+
+M8 候选方向（待产品优先级决策）：
+- 多书源聚合搜索
+- WebDAV / RSS / Sync
+- 阅读数据导出
+- 其他产品需求
+
+## M9: PENDING
