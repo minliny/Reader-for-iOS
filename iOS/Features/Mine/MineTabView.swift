@@ -51,6 +51,9 @@ public struct MineTabView: View {
                     NavigationLink(destination: RealNetworkVerifyView()) {
                         Label("[验证] 星星小说网真实搜索", systemImage: "network")
                     }
+                    NavigationLink(destination: M6BookSourceImportVerificationView()) {
+                        Label("[验证] M6 书源导入链路", systemImage: "arrow.triangle.branch")
+                    }
                 }
                 #endif
             }
