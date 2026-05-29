@@ -115,22 +115,23 @@ Last updated: 2026-05-28
 
 ## M6: 书源导入与验证 — **CODE READY**
 
-- Milestone result: `IOS_BOOKSOURCE_IMPORT_HEADER_COMPAT_READY`
+- Milestone result: `IOS_BOOKSOURCE_IMPORTED_SOURCE_LIST_READY`
 
 | Workstream | Status | Note |
 |---|---|---|
-| M6-A Import JSON | CODE_READY | `BookSourceImportNormalizer` — object-shaped rules + header normalization |
-| M6-B Local Validation | CODE_READY | `BookSourceImportValidator` — 本地结构校验（不联网） |
-| M6-C Save Local Source | CODE_READY | `BookSourceStore.add()` — 新增/重复处理 |
-| M6-D Manual Test Entry | CODE_READY | `BookSourceDetailView` capability rows + "测试搜索" 按钮 |
-| M6-E Device Review | RETRY_PENDING | M6-P1-001 + M6-P1-002 均已修复，等待 Codex 设备端复测 |
+| M6-A Import JSON | DEVICE_VERIFIED | xingxingxsw JSON 设备端可粘贴并导入成功 |
+| M6-B Local Validation | DEVICE_VERIFIED_WITH_UI_NOTE | 导入页显示成功；详情页显示规则摘要，capability rows 未完整展示 |
+| M6-C Save Local Source | CODE_READY | `loadSources()` 合并 `BookSourceStore` 本地导入源 + fixture/candidate 源 |
+| M6-D Manual Test Entry | CODE_READY | 导入源详情显示 "测试搜索" 按钮 |
+| M6-E Device Review | RETRY_PENDING | M6-P1-001/002/003 均已修复，等待 Codex 设备端复测 |
 
 ### M6 关键修复
 
 | 问题 | 修复 |
 |---|---|
-| `M6-P1-001`: object-shaped rule fields decode 失败 | `BookSourceImportNormalizer` — object → JSON string，兼容 Legado 格式 |
+| `M6-P1-001`: object-shaped rule fields decode 失败 | `BookSourceImportNormalizer` — object → JSON string |
 | `M6-P1-002`: `header` 为 JSON object string decode 失败 | normalizer 将 header 转为 `[String: String]` dict |
+| `M6-P1-003`: 导入成功后列表不显示导入后本地源 | `BookSourceListView.loadSources()` 改为 async 并合并 `BookSourceStore` 本地导入源 |
 
 ### M6 关键实现
 
@@ -141,5 +142,6 @@ Last updated: 2026-05-28
 | `CapabilityStatus` | enum `.ready/.missing/.invalid` — search/detail/toc/content |
 | `BookSourceValidationResult` | struct — sourceId + capabilities + warnings + errors |
 | `BookSourceDetailView` 增强 | 显示 capability rows + "测试搜索" 按钮 |
+| `BookSourceListView` 本地源合并 | `loadSources()` async 合并 fixture + `BookSourceStore` 本地导入源 |
 
 ## M7-M8: PENDING

@@ -1,6 +1,7 @@
 import SwiftUI
 import ReaderCoreModels
 import ReaderShellValidation
+import ReaderAppPersistence
 
 /// 用于统一 sheet 分发的标记类型 — detail 使用 source ID 保证唯一性
 enum BookSourceSheet: Identifiable {
@@ -104,7 +105,7 @@ public struct BookSourceListView: View {
                 }
             }
             .task {
-                loadSources()
+                await loadSources()
             }
         }
     }
@@ -177,10 +178,24 @@ public struct BookSourceListView: View {
         .listRowSeparator(.hidden)
     }
 
-    private func loadSources() {
+    private func loadSources() async {
         isLoading = true
         defer { isLoading = false }
-        sources = Self.fixtureSources
+
+        // Load fixture/candidate sources
+        var allSources = Self.fixtureSources
+
+        // Merge imported local sources from BookSourceStore
+        if let storeSources = try? await BookSourceStore.shared.load() {
+            for storeSource in storeSources {
+                // Only add if not already present (by id)
+                if !allSources.contains(where: { $0.id == storeSource.id }) {
+                    allSources.append(storeSource)
+                }
+            }
+        }
+
+        sources = allSources
     }
 
     private func deleteSource(_ source: BookSource) {
