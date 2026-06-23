@@ -145,18 +145,18 @@ Last updated: 2026-05-29
 | `BookSourceDetailView` 增强 | 显示 capability rows + "测试搜索" 按钮 |
 | `BookSourceListView` 本地源合并 | `loadSources()` async 合并 fixture + `BookSourceStore` 本地导入源 |
 
-## M7: 产品体验打磨 — **IN PROGRESS**
+## M7: 产品体验打磨 — **DEVICE VERIFIED**
 
-- Milestone result: `IOS_PRODUCT_EXPERIENCE_POLISH_M7_IN_PROGRESS`
+- Milestone result: `IOS_PRODUCT_EXPERIENCE_POLISH_M7_DEVICE_VERIFIED`
 
 | Workstream | Status | Note |
 |---|---|---|
-| M7-A Import Experience | CODE_READY | `BookSourceDetailSheet` 显示"本地导入"标识 + capability 详情 + 用户可理解 hint 文案 |
-| M7-B Network Policy Messaging | CODE_READY | `M6BookSourceImportVerificationView` 测试失败文案从 `NetworkAccessController denied` 改为"网络访问未启用（受 NetworkAccessController 控制）" |
-| M7-C Search/Bookshelf/Reader Feedback | CODE_READY | SearchView 已有多状态文案（idle/loading/success/empty/failed/unsupported/partial）；ReaderView 已有多状态视图 |
-| M7-D Debug Tools Boundary | CODE_READY | Debug harness 保持 `#if DEBUG`，文案明确"离线模式"和"验证路径" |
+| M7-A Import Experience | DEVICE_VERIFIED | 设备端可见"本地导入"标识 + capability 详情 + 用户可理解 hint 文案 |
+| M7-B Network Policy Messaging | DEVICE_VERIFIED | 设备端确认显示"网络访问未启用（受 NetworkAccessController 控制）"和行动提示 |
+| M7-C Search/Bookshelf/Reader Feedback | DEVICE_VERIFIED | Search/Bookshelf/Reader 现有状态反馈未回归，书源正式页无 Debug 验证入口 |
+| M7-D Debug Tools Boundary | DEVICE_VERIFIED | Debug harness 保持在“我的 / Developer Tools”，正式页面不暴露验证入口 |
 | M7-E Bookmark P2 Follow-up | DEFERRED | `ReaderView` 书签按钮 `disabled(bookID == nil)` — bookID 从 Search→Detail→Reader 传递链完整，低风险可延至 M8+ |
-| M7-F Device Review | PENDING | 待 Codex 设备端复测 |
+| M7-F Device Review | DEVICE_VERIFIED | Codex Simulator 设备端复测通过 |
 
 ### M7 关键实现
 

@@ -21,15 +21,13 @@
 - 迁移 `iOS/**`
 - 迁移 iOS docs / workflows / scripts
 - 接入 Reader-Core public package/products
-- 建立 Reader-iOS handoff / status / governance docs
+- 建立 Reader-iOS status / build / testing docs
 
 ## Required Initial Paths
 
 - `README.md`
-- `AGENTS.md`
 - `iOS/`
 - `docs/`
-- `docs/AI_HANDOFF/`
 - `.github/workflows/`
 - `scripts/`
 

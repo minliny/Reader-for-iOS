@@ -62,4 +62,4 @@ IOS_BOOKSOURCE_TOGGLE_FRESH_BINARY_REVIEW_READY
 
 ## 10. 是否建议下一步
 
-建议交回 Claude Code 做 Phase 1/2/3 统一收口。
+建议进入 Phase 1/2/3 统一收口。

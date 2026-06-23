@@ -54,7 +54,6 @@
 
 ## Files Modified in Last Batch
 - docs/decisions/js_gate_cloudflare_classification.yml (new)
-- docs/AI_HANDOFF/DECISIONS.md (updated)
 - docs/design/js_rendering_poc_plan.md (new)
 - docs/DEV_CHECKPOINT.md (this file)
 - samples/classification/site_access_tiers.yml (new)

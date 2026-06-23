@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 import ReaderCoreModels
 
 /// M2.1: Book Detail from search result — no real network
@@ -16,6 +17,13 @@ final class SingleSourceBookDetailM2Tests: XCTestCase {
     func testBookDetailViewReceivesSourceName() {
         let view = BookDetailView(result: sampleResult, sourceName: "⭐ 星星小说网")
         XCTAssertEqual(view.sourceName, "⭐ 星星小说网")
+    }
+
+    func testBookDetailViewReceivesSourceContext() {
+        let source = BookSource(id: "source-x", bookSourceName: "真实书源", bookSourceUrl: "https://source.example")
+        let view = BookDetailView(result: sampleResult, sourceName: "真实书源", source: source)
+        XCTAssertEqual(view.source?.id, "source-x")
+        XCTAssertEqual(view.source?.bookSourceUrl, "https://source.example")
     }
 
     func testBookDetailViewDefaultSourceNameIsEmpty() {

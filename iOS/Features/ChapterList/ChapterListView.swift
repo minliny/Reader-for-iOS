@@ -4,16 +4,32 @@ import ReaderCoreModels
 struct ChapterNavigation: Hashable {
     let chapterURL: String
     let chapterTitle: String
+    let chapterIndex: Int
+
+    init(chapterURL: String, chapterTitle: String, chapterIndex: Int = 0) {
+        self.chapterURL = chapterURL
+        self.chapterTitle = chapterTitle
+        self.chapterIndex = chapterIndex
+    }
 }
 
 public struct ChapterListView: View {
     @StateObject private var viewModel: ChapterListViewModel
     @State private var navigationPath = NavigationPath()
     let sourceName: String
+    let source: BookSource?
+    private var resolvedBookID: String { viewModel.bookURL }
+    private var resolvedSourceID: String {
+        if let id = source?.id, !id.isEmpty {
+            return id
+        }
+        return viewModel.bookURL
+    }
 
-    public init(bookURL: String, bookTitle: String, sourceName: String = "") {
+    public init(bookURL: String, bookTitle: String, sourceName: String = "", source: BookSource? = nil) {
         self.sourceName = sourceName
-        self._viewModel = StateObject(wrappedValue: ChapterListViewModel(bookURL: bookURL, bookTitle: bookTitle))
+        self.source = source
+        self._viewModel = StateObject(wrappedValue: ChapterListViewModel(bookURL: bookURL, bookTitle: bookTitle, source: source))
     }
 
     public var body: some View {
@@ -32,7 +48,12 @@ public struct ChapterListView: View {
             .navigationDestination(for: ChapterNavigation.self) { nav in
                 ReaderView(
                     chapterURL: nav.chapterURL,
-                    chapterTitle: nav.chapterTitle
+                    chapterTitle: nav.chapterTitle,
+                    chapterList: viewModel.chaptersForReader,
+                    currentChapterIndex: nav.chapterIndex,
+                    bookID: resolvedBookID,
+                    sourceID: resolvedSourceID,
+                    source: source
                 )
             }
         }
@@ -51,17 +72,7 @@ public struct ChapterListView: View {
                 .frame(maxWidth: .infinity, minHeight: 200)
 
         case .loaded(let chapters):
-            List {
-                ForEach(chapters, id: \.chapterURL) { chapter in
-                    ChapterRowView(
-                        chapter: chapter,
-                        onTap: {
-                            showChapterAction(chapter: chapter)
-                        }
-                    )
-                }
-            }
-            .listStyle(.plain)
+            chapterList(chapters)
 
         case .empty:
             VStack(spacing: 16) {
@@ -123,25 +134,30 @@ public struct ChapterListView: View {
                 .padding()
                 .background(Color.yellow.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
 
-                List {
-                    ForEach(chapters, id: \.chapterURL) { chapter in
-                        ChapterRowView(
-                            chapter: chapter,
-                            onTap: {
-                                showChapterAction(chapter: chapter)
-                            }
-                        )
-                    }
-                }
-                .listStyle(.plain)
+                chapterList(chapters)
             }
         }
     }
 
-    private func showChapterAction(chapter: TOCItem) {
+    private func chapterList(_ chapters: [TOCItem]) -> some View {
+        List {
+            ForEach(Array(chapters.enumerated()), id: \.element.chapterURL) { index, chapter in
+                ChapterRowView(
+                    chapter: chapter,
+                    onTap: {
+                        showChapterAction(chapter: chapter, index: index)
+                    }
+                )
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    private func showChapterAction(chapter: TOCItem, index: Int) {
         navigationPath.append(ChapterNavigation(
             chapterURL: chapter.chapterURL,
-            chapterTitle: chapter.chapterTitle
+            chapterTitle: chapter.chapterTitle,
+            chapterIndex: index
         ))
     }
 }

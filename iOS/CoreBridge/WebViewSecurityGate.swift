@@ -13,11 +13,11 @@ public struct WebViewSecurityPolicy: Equatable, Sendable {
     public var userAgent: String?
 
     public init(
-        enableWebViewRuntime: Bool = false,
-        allowJavaScriptExecution: Bool = false,
+        enableWebViewRuntime: Bool = true,
+        allowJavaScriptExecution: Bool = true,
         allowedHosts: Set<String> = [],
-        allowNetworkNavigation: Bool = false,
-        allowLocalSnapshotOnly: Bool = true,
+        allowNetworkNavigation: Bool = true,
+        allowLocalSnapshotOnly: Bool = false,
         timeoutSeconds: TimeInterval = 30,
         userAgent: String? = nil
     ) {
@@ -30,24 +30,30 @@ public struct WebViewSecurityPolicy: Equatable, Sendable {
         self.userAgent = userAgent
     }
 
-    /// Strictest policy: all disabled (safe default).
-    public static let disabled = WebViewSecurityPolicy()
+    /// Explicit opt-out policy. Defaults remain unrestricted.
+    public static let disabled = WebViewSecurityPolicy(
+        enableWebViewRuntime: false,
+        allowJavaScriptExecution: false,
+        allowedHosts: [],
+        allowNetworkNavigation: false,
+        allowLocalSnapshotOnly: true
+    )
 
-    /// Test-only: single-host, no JS, no network nav, snapshot only.
+    /// Test helper: single-host policy with runtime/network/JS enabled.
     public static func testPolicy(allowedHost: String) -> WebViewSecurityPolicy {
         WebViewSecurityPolicy(
             enableWebViewRuntime: true,
-            allowJavaScriptExecution: false,
+            allowJavaScriptExecution: true,
             allowedHosts: [allowedHost],
-            allowNetworkNavigation: false,
-            allowLocalSnapshotOnly: true,
+            allowNetworkNavigation: true,
+            allowLocalSnapshotOnly: false,
             timeoutSeconds: 15
         )
     }
 
     public func allowsHost(_ host: String) -> Bool {
         guard enableWebViewRuntime else { return false }
-        if allowedHosts.isEmpty { return false }
+        if allowedHosts.isEmpty { return true }
         return allowedHosts.contains(host)
     }
 }
@@ -98,7 +104,7 @@ public struct WebViewExecutionSnapshot: Codable, Equatable, Sendable {
 public final class WebViewSecurityGate: Sendable {
     public private(set) var policy: WebViewSecurityPolicy
 
-    public init(policy: WebViewSecurityPolicy = .disabled) {
+    public init(policy: WebViewSecurityPolicy = WebViewSecurityPolicy()) {
         self.policy = policy
     }
 

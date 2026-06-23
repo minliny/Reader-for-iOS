@@ -21,7 +21,7 @@
 - Reader-iOS dependency direction：`correct`
 - Reader-iOS active dependency mode：`path dependency, not yet stable as long-term mode`
 - Reader-iOS ios-shell-ci：`存在 checkout path 风险，已在本仓修复`
-- Reader-iOS docs semantics：`存在 transition-host 漂移，已在本仓回写`
+- Reader-iOS docs semantics：`旧 agent / prompt / handoff 配置已清理`
 
 ## 仓库角色说明
 
@@ -44,7 +44,7 @@
 
 - Reader-Core 最新 `Reader Core Swift Tests` 失败，说明双仓还未达到真正稳态。
 - Reader-iOS 仍以 path dependency 作为活动依赖模式，不适合长期 CI/发布稳态。
-- 历史拆仓治理文档仍有部分 retained-for-history 语义，需要与当前主线严格区分。
+- 历史拆仓文档仍有 retained-for-history 语义，需要与当前主线严格区分。
 
 ## 推荐下一步
 

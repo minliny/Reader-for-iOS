@@ -1,7 +1,9 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// M2-B: Detail/Content snapshot save/load
+@MainActor
 final class DetailContentSnapshotM2BTests: XCTestCase {
     var root: URL!
 

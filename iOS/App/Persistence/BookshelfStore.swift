@@ -34,6 +34,7 @@ public final class BookshelfStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
+        try ensureParentDirectoryExists()
         let data = try encoder.encode(items)
         try data.write(to: fileURL)
     }
@@ -72,5 +73,10 @@ public final class BookshelfStore: @unchecked Sendable {
     public func find(bookURL: String, sourceID: String) throws -> BookshelfItem? {
         let items = (try? loadItems()) ?? []
         return items.first { $0.bookURL == bookURL && $0.sourceID == sourceID }
+    }
+
+    private func ensureParentDirectoryExists() throws {
+        let directoryURL = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     }
 }

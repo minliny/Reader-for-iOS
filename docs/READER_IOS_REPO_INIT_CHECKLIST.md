@@ -17,14 +17,14 @@
 ## Checklist
 
 1. create `Reader-iOS` repository
-2. initialize `README.md`, `AGENTS.md`, `docs/`, `docs/AI_HANDOFF/`, `.github/workflows/`, `scripts/`
+2. initialize `README.md`, `docs/`, `.github/workflows/`, `scripts/`
 3. migrate `iOS/**` and `iOS/Package.swift`
 4. migrate iOS docs listed in `docs/READER_IOS_MIGRATION_MANIFEST.md`
 5. migrate `ios-shell-ci.yml` and `check_ios_boundary.sh`
 6. configure Reader-Core dependency using validated public products
 7. patch workflow checkout and package reference assumptions
 8. verify `ios-shell-ci` green baseline in Reader-iOS
-9. verify docs/handoff landing pages in Reader-iOS
+9. verify docs landing pages in Reader-iOS
 10. leave history pointers and migration notes in Reader-Core
 
 ## Done Definition

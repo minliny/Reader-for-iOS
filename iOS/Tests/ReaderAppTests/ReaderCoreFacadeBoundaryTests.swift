@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// ReaderCore facade 边界测试 — 验证 UI 不引用 parser internals，默认 mock，no network
 @MainActor

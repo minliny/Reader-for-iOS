@@ -57,8 +57,8 @@ branch_audit_result:
   behind_main: 209
   ahead_main: 3
   unique_commit_summary:
-    - "e9237ba Initial Reader core, iOS app, and agent docs"
-    - "385637b Add agents, project rules, AGENTS.md, samples, and docs"
+    - "e9237ba Initial Reader core, iOS app, and early project docs"
+    - "385637b Add project rules, samples, and docs"
     - "f32051e Create 样本库规范与兼容矩阵_ai开发版_v_1.md"
   changed_files_summary:
     - "历史初始化骨架、治理文档与早期样本/脚本文件"

@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 import ReaderCoreModels
 
 /// M2: controlledOnline real service factory 测试

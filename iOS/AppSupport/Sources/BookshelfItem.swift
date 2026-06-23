@@ -1,4 +1,5 @@
 import Foundation
+import ReaderCoreModels
 
 public struct BookshelfItem: Codable, Identifiable, Equatable {
     public let id: String
@@ -14,6 +15,7 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
     public var lastReadChapterTitle: String?
     public var lastReadChapterURL: String?
     public var readingProgress: Double
+    public var localChapterList: [TOCItem]?
 
     public init(
         id: String = UUID().uuidString,
@@ -28,7 +30,8 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
         updatedAt: Date = Date(),
         lastReadChapterTitle: String? = nil,
         lastReadChapterURL: String? = nil,
-        readingProgress: Double = 0.0
+        readingProgress: Double = 0.0,
+        localChapterList: [TOCItem]? = nil
     ) {
         self.id = id
         self.sourceID = sourceID
@@ -43,5 +46,6 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
         self.lastReadChapterTitle = lastReadChapterTitle
         self.lastReadChapterURL = lastReadChapterURL
         self.readingProgress = readingProgress
+        self.localChapterList = localChapterList
     }
 }

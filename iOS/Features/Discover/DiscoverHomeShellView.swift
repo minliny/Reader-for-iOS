@@ -40,7 +40,9 @@ public struct DiscoverHomeShellView: View {
 
                 // RSS 入口
                 Section("订阅") {
-                    Label("RSS 订阅", systemImage: "dot.radiowaves.left.and.right")
+                    NavigationLink(destination: RSSFeedView()) {
+                        Label("RSS 订阅", systemImage: "dot.radiowaves.left.and.right")
+                    }
                 }
             }
             .navigationTitle("发现")

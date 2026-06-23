@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ReadingProgress: Codable, Equatable {
+public struct ReadingProgress: Codable, Equatable, Sendable {
     public let bookID: String
     public let sourceID: String
     public let bookURL: String

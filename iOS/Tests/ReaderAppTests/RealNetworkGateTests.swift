@@ -1,21 +1,22 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// Phase 4A: Real Network Gate 防误触测试
+@MainActor
 final class RealNetworkGateTests: XCTestCase {
 
     // MARK: - Policy defaults
 
-    func testDefaultPolicyIsDisabled() {
+    func testDefaultPolicyIsUnrestricted() {
         let policy = RealNetworkPolicy.default
-        XCTAssertEqual(policy.mode, .disabled)
-        XCTAssertFalse(policy.isNetworkAllowed)
+        XCTAssertEqual(policy.mode, .unrestricted)
+        XCTAssertTrue(policy.isNetworkAllowed)
     }
 
-    func testDefaultPolicyHasDenialReason() {
+    func testDefaultPolicyHasNoDenialReason() {
         let policy = RealNetworkPolicy.default
-        XCTAssertNotNil(policy.denialReason)
-        XCTAssertTrue(policy.denialReason!.contains("禁用"))
+        XCTAssertNil(policy.denialReason)
     }
 
     func testDefaultPolicyDoesNotRequireUserAction() {
@@ -25,25 +26,18 @@ final class RealNetworkGateTests: XCTestCase {
 
     // MARK: - Gate decisions
 
-    func testGateDeniesDefaultPolicy() {
+    func testGateAllowsDefaultPolicy() {
         let gate = DefaultRealNetworkGate()
         let decision = gate.evaluate(.default)
-        guard case .denied(let reason) = decision else {
-            XCTFail("default policy should be denied")
-            return
-        }
-        XCTAssertFalse(reason.isEmpty)
+        XCTAssertEqual(decision, .allowed)
     }
 
-    func testGateDeniesLiveProbePlanned() {
+    func testGateAllowsLiveProbePlanned() {
         let gate = DefaultRealNetworkGate()
         var policy = RealNetworkPolicy.default
         policy = RealNetworkPolicy(mode: .liveProbePlanned, lastChangedAt: Date(), changedBy: "test")
         let decision = gate.evaluate(policy)
-        guard case .denied = decision else {
-            XCTFail("liveProbePlanned should be denied (not executed yet)")
-            return
-        }
+        XCTAssertEqual(decision, .allowed)
     }
 
     // MARK: - Provider defaults
@@ -53,33 +47,32 @@ final class RealNetworkGateTests: XCTestCase {
         XCTAssertEqual(provider.currentMode, .mock)
     }
 
-    func testProviderRealModeNotAvailableByDefault() {
+    func testProviderRealModeAvailableByDefault() {
         let provider = ReaderCoreServiceProvider.shared
-        XCTAssertFalse(provider.isRealModeAvailable)
+        XCTAssertTrue(provider.isRealModeAvailable)
     }
 
-    func testConfigureRealModeFailsUnderDisabledPolicy() {
-        // Reset policy to default disabled
+    func testConfigureRealModeSucceedsUnderDefaultPolicy() {
         RealNetworkPolicyStore.shared.reset()
 
         let provider = ReaderCoreServiceProvider.shared
         let result = provider.configureRealMode()
-        XCTAssertFalse(result, "configureRealMode should fail when policy is disabled")
-        XCTAssertFalse(provider.isRealModeAvailable)
+        XCTAssertTrue(result, "configureRealMode should succeed when network restrictions are lifted")
+        XCTAssertTrue(provider.isRealModeAvailable)
     }
 
     // MARK: - Store
 
-    func testPolicyStoreDefaultsToDisabled() {
+    func testPolicyStoreDefaultsToUnrestricted() {
         RealNetworkPolicyStore.shared.reset()
         let policy = RealNetworkPolicyStore.shared.current
-        XCTAssertEqual(policy.mode, .disabled)
+        XCTAssertEqual(policy.mode, .unrestricted)
     }
 
     func testPolicyStoreResetRestoresDefault() {
         let store = RealNetworkPolicyStore.shared
         store.reset()
-        XCTAssertEqual(store.current.mode, .disabled)
+        XCTAssertEqual(store.current.mode, .unrestricted)
     }
 
     // MARK: - Mock flow unaffected
@@ -115,7 +108,7 @@ final class RealNetworkGateTests: XCTestCase {
 
     func testRealNetworkPolicyDoesNotImportParserInternals() {
         let policy = RealNetworkPolicy.default
-        XCTAssertEqual(policy.mode, .disabled)
+        XCTAssertEqual(policy.mode, .unrestricted)
         // Compile-time: RealNetworkPolicy has no parser dependencies
     }
 

@@ -85,7 +85,7 @@ getChapterContent: canUseRealService → (controlledOnlineDryRun|offlineReplay) 
 
 ## 4. 开发 Loop 规划
 
-### Session Loop（每次 Claude Code session 执行）
+### Session Loop（每次开发会话执行）
 
 ```
 Session Start

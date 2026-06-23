@@ -63,6 +63,20 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         self.realSearchService = service
     }
 
+    /// 为 controlledOnline 注入 real TOC service（测试用 fake/spy）
+    public func setControlledOnlineTOCService(_ service: any TOCService) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.realTOCService = service
+    }
+
+    /// 为 controlledOnline 注入 real content service（测试用 fake/spy）
+    public func setControlledOnlineContentService(_ service: any ContentService) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.realContentService = service
+    }
+
     /// M2: 通过 NetworkAccessController 创建全部 real service（不走 RealNetworkGate）
     public func prepareControlledOnlineAllServices() -> Bool {
         let policy = SourceNetworkPolicy.m1Candidate
@@ -174,14 +188,15 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     /// controlledOnline / controlledOnlineDryRun: 通过 NetworkAccessController 检查
     private func performControlledOnlineSearch(keyword: String, page: Int, source: BookSource?, useRealService: Bool) async -> LoadState<[SearchResultItem]> {
-        let sourcePolicy = SourceNetworkPolicy.m1Candidate
+        let sourcePolicy = networkPolicy(for: source, fallback: .m1Candidate)
         let userPref = useRealService ? UserNetworkPreference.productDefault : UserNetworkPreference.safeDefault
         let decision = networkController.evaluate(userPreference: userPref, sourcePolicy: sourcePolicy, operation: .search)
         switch decision {
         case .allowed:
             if useRealService, let svc = realSearchService {
                 do {
-                    let results = try await svc.search(source: source ?? BookSource(bookSourceName: "", bookSourceUrl: ""), query: SearchQuery(keyword: keyword, page: page))
+                    let resolvedSource = source ?? bookSource(from: sourcePolicy)
+                    let results = try await svc.search(source: resolvedSource, query: SearchQuery(keyword: keyword, page: page))
                     // M1.3: Save search snapshot
                     if !results.isEmpty {
                         let snapItems = results.map { SearchSnapshotItem(from: $0) }
@@ -233,11 +248,11 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         if canUseRealService, let source {
             return await performRealBookDetail(bookURL: bookURL, source: source)
         }
-        if mode == .controlledOnline, let svc = realSearchService {
-            let policy = SourceNetworkPolicy.m1Candidate
+        if mode == .controlledOnline, realSearchService != nil {
+            let policy = networkPolicy(for: source, fallback: .m1Candidate)
             let decision = networkController.evaluate(userPreference: .productDefault, sourcePolicy: policy, operation: .detail)
             if case .allowed = decision {
-                let result = await performRealBookDetail(bookURL: bookURL, source: BookSource(bookSourceName: policy.sourceName, bookSourceUrl: ""))
+                let result = await performRealBookDetail(bookURL: bookURL, source: source ?? bookSource(from: policy))
                 if case .loaded(let detail) = result {
                     _ = snapshotStore.saveDetailSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, bookURL: bookURL, title: detail.title, author: detail.author, intro: detail.intro, coverURL: detail.coverURL)
                 }
@@ -251,34 +266,31 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     }
 
     private func performRealBookDetail(bookURL: String, source: BookSource) async -> LoadState<SearchResultItem> {
-        do {
-            // Book detail is a search result item from the search list.
-            // Real detail page fetch would use BookInfoParser, but for now
-            // the SearchResultItem from search results carries enough metadata.
-            // If a dedicated book info fetch is needed, it goes here.
-            return .loaded(SearchResultItem(
-                title: source.bookSourceName,
-                detailURL: bookURL,
-                author: nil,
-                coverURL: nil,
-                intro: nil
-            ))
-        } catch {
-            return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "DETAIL"))
-        }
+        // Book detail is a search result item from the search list. A dedicated
+        // book info fetch can be introduced here once that Core API is wired.
+        return .loaded(SearchResultItem(
+            title: source.bookSourceName,
+            detailURL: bookURL,
+            author: nil,
+            coverURL: nil,
+            intro: nil
+        ))
     }
 
     // MARK: - Chapter List (TOC)
 
-    public func getChapterList(bookURL: String) async -> LoadState<[TOCItem]> {
+    public func getChapterList(bookURL: String, source: BookSource? = nil) async -> LoadState<[TOCItem]> {
         if canUseRealService, let service = realTOCService {
-            return await performRealTOC(service: service, bookURL: bookURL)
+            guard let source else {
+                return .failed(AppReaderError(code: .unsupported, message: "No book source selected for real TOC", stage: "TOC"))
+            }
+            return await performRealTOC(service: service, bookURL: bookURL, source: source)
         }
         if mode == .controlledOnline, let service = realTOCService {
-            let policy = SourceNetworkPolicy.m1Candidate
+            let policy = networkPolicy(for: source, fallback: .m1Candidate)
             let decision = networkController.evaluate(userPreference: .productDefault, sourcePolicy: policy, operation: .toc)
             if case .allowed = decision {
-                let result = await performRealTOC(service: service, bookURL: bookURL)
+                let result = await performRealTOC(service: service, bookURL: bookURL, source: source ?? bookSource(from: policy))
                 if case .loaded(let chapters) = result, !chapters.isEmpty {
                     let items = chapters.map { TOCSnapshotItem(chapterTitle: $0.chapterTitle, chapterURL: $0.chapterURL, index: $0.chapterIndex) }
                     _ = snapshotStore.saveTOCSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, bookURL: bookURL, chapters: items)
@@ -292,10 +304,10 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         return await mockService.getChapterList(bookURL: bookURL)
     }
 
-    private func performRealTOC(service: any TOCService, bookURL: String) async -> LoadState<[TOCItem]> {
+    private func performRealTOC(service: any TOCService, bookURL: String, source: BookSource) async -> LoadState<[TOCItem]> {
         do {
             let items = try await service.fetchTOC(
-                source: BookSource(bookSourceName: "", bookSourceUrl: ""),
+                source: source,
                 detailURL: bookURL
             )
             if items.isEmpty {
@@ -311,15 +323,18 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     // MARK: - Chapter Content
 
-    public func getChapterContent(chapterURL: String) async -> LoadState<ContentPage> {
+    public func getChapterContent(chapterURL: String, source: BookSource? = nil) async -> LoadState<ContentPage> {
         if canUseRealService, let service = realContentService {
-            return await performRealContent(service: service, chapterURL: chapterURL)
+            guard let source else {
+                return .failed(AppReaderError(code: .unsupported, message: "No book source selected for real content", stage: "CONTENT"))
+            }
+            return await performRealContent(service: service, chapterURL: chapterURL, source: source)
         }
         if mode == .controlledOnline, let service = realContentService {
-            let policy = SourceNetworkPolicy.m1Candidate
+            let policy = networkPolicy(for: source, fallback: .m1Candidate)
             let decision = networkController.evaluate(userPreference: .productDefault, sourcePolicy: policy, operation: .content)
             if case .allowed = decision {
-                let result = await performRealContent(service: service, chapterURL: chapterURL)
+                let result = await performRealContent(service: service, chapterURL: chapterURL, source: source ?? bookSource(from: policy))
                 if case .loaded(let page) = result {
                     _ = snapshotStore.saveContentSnapshot(sourceId: policy.sourceId, sourceName: policy.sourceName, host: policy.host, chapterURL: page.chapterURL, chapterTitle: page.title, content: page.content, nextChapterURL: page.nextChapterURL)
                 }
@@ -332,10 +347,10 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         return await mockService.getChapterContent(chapterURL: chapterURL)
     }
 
-    private func performRealContent(service: any ContentService, chapterURL: String) async -> LoadState<ContentPage> {
+    private func performRealContent(service: any ContentService, chapterURL: String, source: BookSource) async -> LoadState<ContentPage> {
         do {
             let page = try await service.fetchContent(
-                source: BookSource(bookSourceName: "", bookSourceUrl: ""),
+                source: source,
                 chapterURL: chapterURL
             )
             return .loaded(page)
@@ -344,6 +359,45 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         } catch {
             return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "CONTENT"))
         }
+    }
+
+    private func networkPolicy(for source: BookSource?, fallback: SourceNetworkPolicy) -> SourceNetworkPolicy {
+        guard let source else { return fallback }
+        return SourceNetworkPolicy(
+            sourceId: source.id?.isEmpty == false ? source.id! : fallback.sourceId,
+            sourceName: source.bookSourceName.isEmpty ? fallback.sourceName : source.bookSourceName,
+            host: host(for: source) ?? fallback.host,
+            isEnabled: source.enabled,
+            allowSearch: true,
+            allowDetail: true,
+            allowTOC: true,
+            allowContent: true,
+            cooldownSeconds: fallback.cooldownSeconds,
+            lastRequestAt: nil,
+            riskLevel: fallback.riskLevel
+        )
+    }
+
+    private func bookSource(from policy: SourceNetworkPolicy) -> BookSource {
+        BookSource(
+            id: policy.sourceId,
+            bookSourceName: policy.sourceName,
+            bookSourceUrl: "https://\(policy.host)",
+            enabled: policy.isEnabled
+        )
+    }
+
+    private func host(for source: BookSource) -> String? {
+        guard let sourceURL = source.bookSourceUrl, !sourceURL.isEmpty else { return nil }
+        if let host = URL(string: sourceURL)?.host, !host.isEmpty {
+            return host
+        }
+        return sourceURL
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+            .split(separator: "/")
+            .first
+            .map(String.init)
     }
 
     // MARK: - Mock Scenario Control

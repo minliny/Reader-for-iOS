@@ -1,12 +1,16 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import ReaderCoreModels
+import ReaderShellValidation
 
 public struct FileImportView: View {
     @StateObject private var viewModel = FileImportViewModel()
     @State private var showFilePicker = false
+    private let onImported: ((CoreLocalBookImportSummary) -> Void)?
 
-    public init() {}
+    public init(onImported: ((CoreLocalBookImportSummary) -> Void)? = nil) {
+        self.onImported = onImported
+    }
 
     public var body: some View {
         NavigationStack {
@@ -18,8 +22,8 @@ public struct FileImportView: View {
                     EmptyView()
                 case .importing(let name):
                     importingView(name: name)
-                case .imported(let book):
-                    importedView(book: book)
+                case .imported(let summary):
+                    importedView(summary: summary)
                 case .failed(let message):
                     failedView(message: message)
                 }
@@ -54,7 +58,7 @@ public struct FileImportView: View {
             Text("Import a Local Book")
                 .font(.title2.bold())
 
-            Text("Select a TXT or EPUB file to add to your bookshelf.")
+            Text("Select a local book file to add to your bookshelf.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -62,6 +66,7 @@ public struct FileImportView: View {
             VStack(spacing: 4) {
                 Label("TXT files — plain text novels", systemImage: "doc.text")
                 Label("EPUB files — standard ebook format", systemImage: "book")
+                Label("PDF, MOBI, UMD, ZIP/TAR archives — Core-detected metadata", systemImage: "doc.zipper")
             }
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -88,8 +93,9 @@ public struct FileImportView: View {
         }
     }
 
-    private func importedView(book: LocalBook) -> some View {
-        VStack(spacing: 16) {
+    private func importedView(summary: CoreLocalBookImportSummary) -> some View {
+        let book = summary.book
+        return VStack(spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.green)
@@ -106,11 +112,39 @@ public struct FileImportView: View {
                 if let size = book.fileSize {
                     infoRow("Size", ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
                 }
+                infoRow("Chapters", "\(summary.chapterCount)")
+                if let encoding = summary.detectedEncoding {
+                    infoRow("Encoding", encoding)
+                }
             }
             .padding()
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
 
+            if !summary.diagnostics.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Core Diagnostics")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(summary.diagnostics.prefix(3), id: \.self) { diagnostic in
+                        Text(diagnostic)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             HStack(spacing: 16) {
+                if let onImported {
+                    Button {
+                        onImported(summary)
+                    } label: {
+                        Label("Add to Bookshelf", systemImage: "books.vertical")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
                 Button {
                     viewModel.reset()
                 } label: {

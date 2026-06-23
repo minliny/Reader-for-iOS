@@ -1,7 +1,9 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// Phase 4D-next: Manual First Fetch Snapshot 准备测试 — 不执行真实网络
+@MainActor
 final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
 
     let candidate = LiveProbeCandidate(
@@ -39,11 +41,11 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
         XCTAssertNotNil(result.wouldWriteMetadataPath)
     }
 
-    func testDryRunDenied_whenGateBlocked() {
+    func testDryRunAllowed_whenManifestNotApprovedAfterRestrictionsLifted() {
         let ex = makeExecutor()
         let req = makeRequest(approved: false)
         let result = ex.dryRun(request: req)
-        XCTAssertFalse(result.wouldPassGate)
+        XCTAssertTrue(result.wouldPassGate)
         XCTAssertFalse(result.networkExecuted)
     }
 
@@ -71,7 +73,7 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
             XCTFail("execute must fail in Phase 4D-next")
             return
         }
-        XCTAssertTrue(error.localizedDescription.contains("不允许"))
+        XCTAssertTrue(error.localizedDescription.contains("明确授权"))
     }
 
     func testExecuteAuditRecordNetworkExecutedFalse() {
@@ -79,11 +81,12 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
         let req = makeRequest(approved: false)
         let result = ex.execute(request: req)
         if case .failure(let error) = result,
-           case .fetchNotAllowedInPhase4DNext(let audit) = error {
+           let manualError = error as? ManualExecutorError,
+           case .requiresAuthorization(let audit) = manualError {
             XCTAssertFalse(audit.networkExecuted)
             XCTAssertTrue(audit.dryRunOnly)
         } else {
-            XCTFail("Expected fetchNotAllowed error with audit record")
+            XCTFail("Expected requiresAuthorization error with audit record")
         }
     }
 
@@ -133,7 +136,7 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
 
     // MARK: - Gate integration
 
-    func testGateDeniedWithRateLimit_showsInDryRun() {
+    func testGateRateLimitAllowedAfterRestrictionsLifted_showsInDryRun() {
         let limiter = LiveProbeRateLimiter()
         limiter.recordPlannedRequest(host: "test.example.com", date: Date())
         let gate = LiveProbeGate(policy: .default, rateLimiter: limiter)
@@ -141,7 +144,8 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
         let ex = ManualLiveProbeExecutor(gate: gate, snapshotStore: SnapshotStore(snapshotRoot: root))
         let req = makeRequest()
         let result = ex.dryRun(request: req)
-        XCTAssertFalse(result.wouldPassGate)
+        XCTAssertTrue(result.wouldPassGate)
+        XCTAssertFalse(result.networkExecuted)
     }
 
     // MARK: - Provider defaults

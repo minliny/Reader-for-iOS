@@ -1,7 +1,9 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// Phase 4E-next: LiveFetchExecutor 受控 fetch 测试
+@MainActor
 final class LiveFetchExecutorPhase4ETests: XCTestCase {
 
     let candidate = LiveProbeCandidate(

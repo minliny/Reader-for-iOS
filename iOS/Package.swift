@@ -15,7 +15,7 @@ import PackageDescription
 let package = Package(
     name: "ReaderApp",
     platforms: [
-        .iOS(.v15),
+        .iOS(.v17),
         .macOS(.v13)
     ],
     products: [
@@ -36,6 +36,7 @@ let package = Package(
                 .product(name: "ReaderCoreParser", package: "Reader-Core"),
                 .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
                 .product(name: "ReaderCoreServices", package: "Reader-Core"),
+                .product(name: "ReaderCoreAPI", package: "Reader-Core"),
                 .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
             ],
             path: ".",

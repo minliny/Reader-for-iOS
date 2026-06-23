@@ -10,15 +10,23 @@ public struct BookDetailView: View {
     @State private var isInBookshelf = false
     let result: SearchResultItem
     let sourceName: String
+    let source: BookSource?
     private let bookshelfStore = BookshelfStore.shared
     private var sourceIdentity: ReaderAppSupport.SourceIdentity {
         SourceIdentityFactory.from(searchResult: result)
     }
+    private var resolvedSourceID: String {
+        if let id = source?.id, !id.isEmpty {
+            return id
+        }
+        return sourceIdentity.id
+    }
 
-    public init(result: SearchResultItem, sourceName: String = "") {
+    public init(result: SearchResultItem, sourceName: String = "", source: BookSource? = nil) {
         self.result = result
         self.sourceName = sourceName
-        self._viewModel = StateObject(wrappedValue: BookDetailViewModel(bookURL: result.detailURL))
+        self.source = source
+        self._viewModel = StateObject(wrappedValue: BookDetailViewModel(bookURL: result.detailURL, source: source))
     }
 
     public var body: some View {
@@ -39,12 +47,12 @@ public struct BookDetailView: View {
             }
         }
         .sheet(isPresented: $showChapterList) {
-            ChapterListView(bookURL: result.detailURL, bookTitle: result.title, sourceName: sourceName)
+            ChapterListView(bookURL: result.detailURL, bookTitle: result.title, sourceName: sourceName, source: source)
         }
     }
 
     private func checkBookshelfStatus() {
-        isInBookshelf = (try? bookshelfStore.find(bookURL: result.detailURL, sourceID: sourceIdentity.id)) != nil
+        isInBookshelf = (try? bookshelfStore.find(bookURL: result.detailURL, sourceID: resolvedSourceID)) != nil
     }
 
     @ViewBuilder
@@ -182,8 +190,11 @@ public struct BookDetailView: View {
                     ReaderView(
                         chapterURL: viewModel.firstChapter?.chapterURL ?? result.detailURL,
                         chapterTitle: viewModel.firstChapter?.chapterTitle ?? "第一章",
+                        chapterList: viewModel.chapters,
+                        currentChapterIndex: 0,
                         bookID: sourceIdentity.id,
-                        sourceID: sourceIdentity.id
+                        sourceID: resolvedSourceID,
+                        source: source
                     )
                 } label: {
                     HStack {
@@ -246,8 +257,8 @@ public struct BookDetailView: View {
     private func addToBookshelf() {
         let identity = sourceIdentity
         let item = BookshelfItem(
-            sourceID: identity.id,
-            sourceName: identity.name,
+            sourceID: resolvedSourceID,
+            sourceName: source?.bookSourceName ?? identity.name,
             bookURL: result.detailURL,
             title: result.title,
             author: result.author,

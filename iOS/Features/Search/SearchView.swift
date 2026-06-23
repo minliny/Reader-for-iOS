@@ -2,6 +2,7 @@ import SwiftUI
 import ReaderCoreModels
 
 public struct SearchView: View {
+    private let allSourcesPickerID = "__all_enabled_sources__"
     @StateObject private var viewModel = SearchViewModel()
     @State private var selectedSourceID: String?
     @AppStorage("search_history") private var historyData: Data = Data()
@@ -47,6 +48,9 @@ public struct SearchView: View {
                 .fontWeight(.semibold)
 
             Picker("Select source", selection: $selectedSourceID) {
+                if viewModel.enabledSources.count > 1 {
+                    Text("全部启用书源").tag(Optional(allSourcesPickerID))
+                }
                 Text("None").tag(nil as String?)
                 ForEach(viewModel.sources, id: \.id) { source in
                     Text(source.displayName).tag(source.id)
@@ -56,12 +60,18 @@ public struct SearchView: View {
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
         .onChange(of: selectedSourceID) { newID in
+            if newID == allSourcesPickerID {
+                viewModel.selectAllEnabledSources()
+                return
+            }
             if let id = newID, let source = viewModel.sources.first(where: { $0.id == id }) {
                 viewModel.selectSource(source)
             }
         }
         .onAppear {
-            if selectedSourceID == nil, let first = viewModel.selectedSource {
+            if viewModel.searchAllEnabledSources {
+                selectedSourceID = allSourcesPickerID
+            } else if selectedSourceID == nil, let first = viewModel.selectedSource {
                 selectedSourceID = first.id
             }
         }
@@ -135,20 +145,26 @@ public struct SearchView: View {
         case .success(let results):
             List {
                 ForEach(results, id: \.detailURL) { result in
+                    let source = viewModel.source(for: result) ?? viewModel.selectedSource
+                    let sourceName = source?.displayName ?? ""
                     NavigationLink {
-                        BookDetailView(result: result, sourceName: viewModel.selectedSource?.displayName ?? "")
+                        BookDetailView(
+                            result: result,
+                            sourceName: sourceName,
+                            source: source
+                        )
                     } label: {
                         SearchResultRowView(
                             result: result,
-                            sourceName: viewModel.selectedSource?.displayName ?? "",
+                            sourceName: sourceName,
                             onTap: {},
                             onAddToBookshelf: {
-                                let sourceID = viewModel.selectedSource?.id ?? "unknown"
+                                let sourceID = source?.id ?? "unknown"
                                 Task {
                                     await bookshelfVM.addOrUpdateItem(
                                         from: result,
                                         sourceID: sourceID,
-                                        sourceName: viewModel.selectedSource?.bookSourceName
+                                        sourceName: source?.bookSourceName
                                     )
                                     showToast("Added \"\(result.title)\" to Bookshelf")
                                 }
@@ -231,20 +247,26 @@ public struct SearchView: View {
 
                 List {
                     ForEach(results, id: \.detailURL) { result in
+                        let source = viewModel.source(for: result) ?? viewModel.selectedSource
+                        let sourceName = source?.displayName ?? ""
                         NavigationLink {
-                            BookDetailView(result: result, sourceName: viewModel.selectedSource?.displayName ?? "")
+                            BookDetailView(
+                                result: result,
+                                sourceName: sourceName,
+                                source: source
+                            )
                         } label: {
                             SearchResultRowView(
                                 result: result,
-                                sourceName: viewModel.selectedSource?.displayName ?? "",
+                                sourceName: sourceName,
                                 onTap: {},
                                 onAddToBookshelf: {
-                                    let sourceID = viewModel.selectedSource?.id ?? "unknown"
+                                    let sourceID = source?.id ?? "unknown"
                                     Task {
                                         await bookshelfVM.addOrUpdateItem(
                                             from: result,
                                             sourceID: sourceID,
-                                            sourceName: viewModel.selectedSource?.bookSourceName
+                                            sourceName: source?.bookSourceName
                                         )
                                         showToast("Added \"\(result.title)\" to Bookshelf")
                                     }

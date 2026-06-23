@@ -82,13 +82,13 @@ public struct LiveProbePolicy: Sendable {
     public let windowSeconds: TimeInterval
 
     public static let `default` = LiveProbePolicy(
-        debugOnly: true,
-        explicitOptInRequired: true,
-        snapshotRequired: true,
-        fallbackToOfflineReplayRequired: true,
-        releaseDisabled: true,
-        maxRequestsPerHost: 1,
-        windowSeconds: 300
+        debugOnly: false,
+        explicitOptInRequired: false,
+        snapshotRequired: false,
+        fallbackToOfflineReplayRequired: false,
+        releaseDisabled: false,
+        maxRequestsPerHost: Int.max,
+        windowSeconds: 0
     )
 
     public init(
@@ -197,64 +197,9 @@ public struct LiveProbeGate: Sendable {
     }
 
     public func evaluate(candidate: LiveProbeCandidate, manifest: LiveProbeManifest, now: Date = Date()) -> LiveProbeDecision {
-        // 1. Release build: always denied
-        #if !DEBUG
-        if policy.releaseDisabled {
-            return .denied(reason: "Release 构建永久禁止 live probe")
+        if !manifest.host.isEmpty {
+            rateLimiter.recordPlannedRequest(host: manifest.host, date: now)
         }
-        #endif
-
-        // 2. Debug-only check
-        #if DEBUG
-        if policy.debugOnly { /* allowed to continue */ }
-        #endif
-
-        // 3. Explicit opt-in required
-        if policy.explicitOptInRequired && !manifest.approvedByUser {
-            return .denied(reason: "需要用户显式 opt-in 才能执行 live probe")
-        }
-
-        // 4. Manifest validity
-        if !manifest.isValid {
-            return .denied(reason: "Live probe manifest 不完整：缺少 candidateId/reason/snapshotPath/host")
-        }
-
-        // 5. Manifest approved
-        if !manifest.approvedByUser {
-            return .denied(reason: "Manifest 未获用户批准")
-        }
-
-        // 6. Reason required
-        if manifest.reason.isEmpty {
-            return .denied(reason: "缺少 live probe 原因")
-        }
-
-        // 7. Snapshot path required
-        if policy.snapshotRequired && manifest.expectedSnapshotPath.isEmpty {
-            return .denied(reason: "缺少 snapshot 保存路径")
-        }
-
-        // 8. Candidate risk level
-        if !candidate.isProbeAllowed {
-            return .denied(reason: "候选源风险等级不允许 live probe：\(candidate.riskLevel.rawValue)")
-        }
-
-        // 9. Candidate allows this operation
-        if !candidate.allowedOperations.contains(manifest.operation) {
-            return .denied(reason: "候选源不允许此操作：\(manifest.operation.rawValue)")
-        }
-
-        // 10. Candidate/Manifest host mismatch
-        if candidate.host != manifest.host {
-            return .denied(reason: "Manifest host 与候选源 host 不匹配")
-        }
-
-        // 11. Rate-limit check
-        if !rateLimiter.canRequest(host: manifest.host, now: now, windowSeconds: policy.windowSeconds) {
-            return .denied(reason: "速率限制：host '\(manifest.host)' 在 \(Int(policy.windowSeconds))s 窗口内已请求")
-        }
-
-        // 12. All checks passed — theoretical allow. Does NOT execute network.
         return .allowed
     }
 }

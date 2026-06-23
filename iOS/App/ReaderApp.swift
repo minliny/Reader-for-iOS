@@ -138,6 +138,8 @@ struct RootShellView: View {
             }
         case .webdavSettings:
             WebDAVSettingsView()
+        case .rssList:
+            RSSFeedView()
         case .bookshelf:
             BookshelfView()
         case .prototypeGallery:

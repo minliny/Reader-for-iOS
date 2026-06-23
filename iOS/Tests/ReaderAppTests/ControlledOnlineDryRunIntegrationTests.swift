@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// Phase 5B: controlledOnline dry-run integration — minimal, no live network
 @MainActor

@@ -39,10 +39,12 @@ public final class BookDetailViewModel: ObservableObject {
     @Published public var chapters: [TOCItem] = []
 
     private let bookURL: String
+    private let source: BookSource?
     private let provider = ReaderCoreServiceProvider.shared
 
-    public init(bookURL: String) {
+    public init(bookURL: String, source: BookSource? = nil) {
         self.bookURL = bookURL
+        self.source = source
     }
 
     public var firstChapter: (chapterURL: String, chapterTitle: String)? {
@@ -60,7 +62,7 @@ public final class BookDetailViewModel: ObservableObject {
 
     private func loadDetailOnly() async {
         do {
-            let state = await provider.getBookDetail(bookURL: bookURL)
+            let state = await provider.getBookDetail(bookURL: bookURL, source: source)
             switch state {
             case .loaded(let detail):
                 detailState = .loaded(detail: detail)
@@ -86,7 +88,7 @@ public final class BookDetailViewModel: ObservableObject {
     }
 
     private func loadChapters() async {
-        let state = await provider.getChapterList(bookURL: bookURL)
+        let state = await provider.getChapterList(bookURL: bookURL, source: source)
         switch state {
         case .loaded(let items):
             chapters = items

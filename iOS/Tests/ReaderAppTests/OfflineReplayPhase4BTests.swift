@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 import ReaderCoreModels
 
 /// Phase 4B: Offline Replay 离线重放测试

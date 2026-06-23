@@ -42,19 +42,30 @@ public final class ChapterListViewModel: ObservableObject {
     @Published public var listState: ChapterListState = .idle
     @Published public var bookTitle: String
 
-    private let bookURL: String
+    public let bookURL: String
+    private let source: BookSource?
     private let provider = ReaderCoreServiceProvider.shared
 
-    public init(bookURL: String, bookTitle: String) {
+    public init(bookURL: String, bookTitle: String, source: BookSource? = nil) {
         self.bookURL = bookURL
         self.bookTitle = bookTitle
+        self.source = source
+    }
+
+    public var chaptersForReader: [TOCItem] {
+        switch listState {
+        case .loaded(let chapters), .partial(let chapters, _):
+            return chapters
+        case .idle, .loading, .empty, .failed, .unsupported:
+            return []
+        }
     }
 
     public func loadChapters() async {
         listState = .loading
 
         do {
-            let state = await provider.getChapterList(bookURL: bookURL)
+            let state = await provider.getChapterList(bookURL: bookURL, source: source)
             switch state {
             case .loaded(let chapters):
                 if chapters.isEmpty {

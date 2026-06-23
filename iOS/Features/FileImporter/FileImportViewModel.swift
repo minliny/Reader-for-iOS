@@ -1,12 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import ReaderCoreModels
+import ReaderShellValidation
 
 public enum FileImportState: Equatable {
     case idle
     case selecting
     case importing(name: String)
-    case imported(book: LocalBook)
+    case imported(summary: CoreLocalBookImportSummary)
     case failed(message: String)
 }
 
@@ -14,14 +15,27 @@ public enum FileImportState: Equatable {
 public final class FileImportViewModel: ObservableObject {
     @Published public var importState: FileImportState = .idle
     @Published public var selectedURL: URL?
+    private let importer: any CoreLocalBookImporting
 
     private let supportedTypes: [UTType] = [
         .plainText,
         .epub,
-        UTType(filenameExtension: "txt") ?? .plainText
+        .pdf,
+        .zip,
+        UTType(filenameExtension: "txt") ?? .plainText,
+        UTType(filenameExtension: "html") ?? .html,
+        UTType(filenameExtension: "htm") ?? .html,
+        UTType(filenameExtension: "mobi") ?? .data,
+        UTType(filenameExtension: "azw") ?? .data,
+        UTType(filenameExtension: "azw3") ?? .data,
+        UTType(filenameExtension: "umd") ?? .data,
+        UTType(filenameExtension: "tar") ?? .data,
+        UTType(filenameExtension: "cbz") ?? .zip
     ].compactMap { $0 }
 
-    public init() {}
+    public init(importer: any CoreLocalBookImporting = CoreLocalBookImportService()) {
+        self.importer = importer
+    }
 
     public var supportedContentTypes: [UTType] { supportedTypes }
 
@@ -38,28 +52,8 @@ public final class FileImportViewModel: ObservableObject {
         importState = .importing(name: fileName)
 
         do {
-            let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
-            let fileSize = resourceValues.fileSize.flatMap(Int64.init)
-            let fileExt = url.pathExtension.lowercased()
-            let format: LocalBookFormat = {
-                switch fileExt {
-                case "epub": return .epub
-                case "txt":  return .txt
-                case "html": return .html
-                case "pdf":  return .pdf
-                default:     return .unknown
-                }
-            }()
-
-            let book = LocalBook(
-                title: fileName,
-                filePath: url.path,
-                fileFormat: format,
-                fileSize: fileSize,
-                encoding: format == .txt ? "utf-8" : nil
-            )
-
-            importState = .imported(book: book)
+            let summary = try await importer.importBook(at: url)
+            importState = .imported(summary: summary)
         } catch {
             importState = .failed(message: "Failed to read file: \(error.localizedDescription)")
         }

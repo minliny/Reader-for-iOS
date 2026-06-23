@@ -1,7 +1,9 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// Phase 4D: Live Probe Gate skeleton 测试 — 不执行真实网络
+@MainActor
 final class LiveProbeGatePhase4DTests: XCTestCase {
 
     let candidate = LiveProbeCandidate(
@@ -28,47 +30,37 @@ final class LiveProbeGatePhase4DTests: XCTestCase {
         XCTAssertEqual(decision, .allowed)
     }
 
-    // MARK: - Manifest not approved
+    // MARK: - Restrictions lifted
 
-    func testManifestNotApproved_denied() {
+    func testManifestNotApproved_allowed() {
         let gate = makeGate()
         let manifest = makeManifest(approved: false)
         let decision = gate.evaluate(candidate: candidate, manifest: manifest)
-        guard case .denied(let reason) = decision else {
-            XCTFail("Should deny unapproved manifest")
-            return
-        }
-        XCTAssertTrue(reason.contains("opt-in") || reason.contains("批准"))
+        XCTAssertEqual(decision, .allowed)
     }
 
     // MARK: - Missing reason
 
-    func testEmptyReason_denied() {
+    func testEmptyReason_allowed() {
         let gate = makeGate()
         var manifest = makeManifest()
         manifest = LiveProbeManifest(candidateId: "c001", operation: .search, approvedByUser: true, reason: "", expectedSnapshotPath: "/s/c001/s.json", host: "test.example.com")
-        guard case .denied(let reason) = decision("empty reason") else { return }
-        _ = reason
         let d = gate.evaluate(candidate: candidate, manifest: manifest)
-        guard case .denied = d else { XCTFail("empty reason should be denied"); return }
+        XCTAssertEqual(d, .allowed)
     }
 
     // MARK: - Missing snapshot path
 
-    func testEmptySnapshotPath_denied() {
+    func testEmptySnapshotPath_allowed() {
         let gate = makeGate()
         let manifest = makeManifest(snapshotPath: "")
         let decision = gate.evaluate(candidate: candidate, manifest: manifest)
-        guard case .denied(let reason) = decision else {
-            XCTFail("Should deny empty snapshot path")
-            return
-        }
-        XCTAssertTrue(reason.contains("snapshot") || reason.contains("不完整"))
+        XCTAssertEqual(decision, .allowed)
     }
 
     // MARK: - Operation not allowed
 
-    func testOperationNotAllowed_denied() {
+    func testOperationNotAllowed_allowed() {
         let gate = makeGate()
         let restricted = LiveProbeCandidate(
             id: "c002", name: "Restricted", baseURL: "https://r.example.com",
@@ -77,16 +69,12 @@ final class LiveProbeGatePhase4DTests: XCTestCase {
         )
         let manifest = makeManifest(host: "r.example.com", operation: .search)
         let decision = gate.evaluate(candidate: restricted, manifest: manifest)
-        guard case .denied(let reason) = decision else {
-            XCTFail("Should deny unallowed operation")
-            return
-        }
-        XCTAssertTrue(reason.contains("操作"))
+        XCTAssertEqual(decision, .allowed)
     }
 
     // MARK: - Risk level
 
-    func testHighRiskCandidate_denied() {
+    func testHighRiskCandidate_allowed() {
         let gate = makeGate()
         let highRisk = LiveProbeCandidate(
             id: "c003", name: "High Risk", baseURL: "https://hr.example.com",
@@ -95,14 +83,10 @@ final class LiveProbeGatePhase4DTests: XCTestCase {
         )
         let manifest = makeManifest(host: "hr.example.com")
         let decision = gate.evaluate(candidate: highRisk, manifest: manifest)
-        guard case .denied(let reason) = decision else {
-            XCTFail("Should deny high risk")
-            return
-        }
-        XCTAssertTrue(reason.contains("high"))
+        XCTAssertEqual(decision, .allowed)
     }
 
-    func testBannedCandidate_denied() {
+    func testBannedCandidate_allowed() {
         let gate = makeGate()
         let banned = LiveProbeCandidate(
             id: "c004", name: "Banned", baseURL: "https://b.example.com",
@@ -111,38 +95,27 @@ final class LiveProbeGatePhase4DTests: XCTestCase {
         )
         let manifest = makeManifest(host: "b.example.com")
         let decision = gate.evaluate(candidate: banned, manifest: manifest)
-        guard case .denied = decision else {
-            XCTFail("Should deny banned")
-            return
-        }
+        XCTAssertEqual(decision, .allowed)
     }
 
     // MARK: - Host mismatch
 
-    func testHostMismatch_denied() {
+    func testHostMismatch_allowed() {
         let gate = makeGate()
         let manifest = makeManifest(host: "other.example.com")
         let decision = gate.evaluate(candidate: candidate, manifest: manifest)
-        guard case .denied(let reason) = decision else {
-            XCTFail("Should deny host mismatch")
-            return
-        }
-        XCTAssertTrue(reason.contains("host"))
+        XCTAssertEqual(decision, .allowed)
     }
 
     // MARK: - Rate-limit
 
-    func testRateLimitExceeded_denied() {
+    func testRateLimitExceeded_allowed() {
         let limiter = LiveProbeRateLimiter()
         limiter.recordPlannedRequest(host: "test.example.com", date: Date())
         let gate = LiveProbeGate(policy: .default, rateLimiter: limiter)
         let manifest = makeManifest()
         let decision = gate.evaluate(candidate: candidate, manifest: manifest)
-        guard case .denied(let reason) = decision else {
-            XCTFail("Should deny rate-limit exceeded")
-            return
-        }
-        XCTAssertTrue(reason.contains("速率限制") || reason.contains("窗口"))
+        XCTAssertEqual(decision, .allowed)
     }
 
     func testRateLimitAfterWindow_allowed() {
@@ -167,15 +140,15 @@ final class LiveProbeGatePhase4DTests: XCTestCase {
 
     // MARK: - Policy defaults
 
-    func testPolicyDefaultsAreSafe() {
+    func testPolicyDefaultsAreUnrestricted() {
         let policy = LiveProbePolicy.default
-        XCTAssertTrue(policy.debugOnly)
-        XCTAssertTrue(policy.explicitOptInRequired)
-        XCTAssertTrue(policy.snapshotRequired)
-        XCTAssertTrue(policy.fallbackToOfflineReplayRequired)
-        XCTAssertTrue(policy.releaseDisabled)
-        XCTAssertEqual(policy.maxRequestsPerHost, 1)
-        XCTAssertEqual(policy.windowSeconds, 300)
+        XCTAssertFalse(policy.debugOnly)
+        XCTAssertFalse(policy.explicitOptInRequired)
+        XCTAssertFalse(policy.snapshotRequired)
+        XCTAssertFalse(policy.fallbackToOfflineReplayRequired)
+        XCTAssertFalse(policy.releaseDisabled)
+        XCTAssertEqual(policy.maxRequestsPerHost, Int.max)
+        XCTAssertEqual(policy.windowSeconds, 0)
     }
 
     // MARK: - SnapshotStore safety
@@ -212,6 +185,4 @@ final class LiveProbeGatePhase4DTests: XCTestCase {
         XCTAssertNotNil(policy)
     }
 
-    // Helper
-    private func decision(_ msg: String) -> LiveProbeDecision { .denied(reason: msg) }
 }

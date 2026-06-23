@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-public struct WebDAVCredentials: Codable, Equatable {
+public struct WebDAVCredentials: Codable, Equatable, Sendable {
     public var serverURL: String
     public var username: String
     public var password: String
@@ -13,7 +13,12 @@ public struct WebDAVCredentials: Codable, Equatable {
     }
 }
 
-public final class WebDAVKeychainStore: Sendable {
+public protocol WebDAVCredentialStoring: Sendable {
+    func save(_ credentials: WebDAVCredentials) throws
+    func load() throws -> WebDAVCredentials?
+}
+
+public final class WebDAVKeychainStore: WebDAVCredentialStoring, Sendable {
     public static let shared = WebDAVKeychainStore()
 
     private let service = "com.reader.ios.webdav"

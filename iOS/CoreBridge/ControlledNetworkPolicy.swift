@@ -20,26 +20,26 @@ public struct UserNetworkPreference: Sendable, Equatable {
     public var maxRequestsPerHost: Int
     public var cooldownSeconds: Int
 
-    /// 测试/CI 安全默认 — 不联网
+    /// 本地 unrestricted 默认 — 不再阻断联网。
     public static let safeDefault = UserNetworkPreference(
-        allowNetworkAccess: false,
-        allowCellular: false,
-        preferOfflineReplay: true,
-        cacheFirst: true,
+        allowNetworkAccess: true,
+        allowCellular: true,
+        preferOfflineReplay: false,
+        cacheFirst: false,
         auditEnabled: true,
         maxRequestsPerHost: 3,
-        cooldownSeconds: 5
+        cooldownSeconds: 0
     )
 
-    /// 产品联网默认 — 用户显式开启后使用
+    /// 产品联网默认 — 本地 unrestricted 模式下直接联网
     public static let productDefault = UserNetworkPreference(
         allowNetworkAccess: true,
         allowCellular: true,
         preferOfflineReplay: false,
-        cacheFirst: true,
+        cacheFirst: false,
         auditEnabled: true,
         maxRequestsPerHost: 3,
-        cooldownSeconds: 5
+        cooldownSeconds: 0
     )
 
     public init(
@@ -80,7 +80,7 @@ public struct SourceNetworkPolicy: Sendable, Equatable {
         SourceNetworkPolicy(
             sourceId: id, sourceName: name, host: host,
             isEnabled: true, allowSearch: true, allowDetail: true, allowTOC: true, allowContent: true,
-            cooldownSeconds: 5, lastRequestAt: nil, riskLevel: .low
+            cooldownSeconds: 0, lastRequestAt: nil, riskLevel: .low
         )
     }
 
@@ -185,71 +185,8 @@ public struct NetworkAccessController: Sendable {
         now: Date = Date()
     ) -> ControlledNetworkDecision {
 
-        let auditBase = NetworkAuditEntry(
-            sourceId: sourcePolicy.sourceId,
-            operation: operation.rawValue,
-            host: sourcePolicy.host,
-            decision: "pending"
-        )
-
-        // 1. User allows network?
-        if !userPreference.allowNetworkAccess {
-            return .denied(
-                reason: "用户未开启网络访问",
-                fallback: userPreference.preferOfflineReplay ? .offlineReplay : .mock
-            )
-        }
-
-        // 2. Source enabled?
-        if !sourcePolicy.isEnabled {
-            return .denied(
-                reason: "书源未启用",
-                fallback: .offlineReplay
-            )
-        }
-
-        // 3. Operation allowed?
-        if !sourcePolicy.allows(operation) {
-            return .denied(
-                reason: "书源不允许此操作：\(operation.rawValue)",
-                fallback: .offlineReplay
-            )
-        }
-
-        // 4. Cache-first preference?
-        if userPreference.cacheFirst {
-            return .fallbackToCache(
-                reason: "缓存优先策略",
-                audit: NetworkAuditEntry(
-                    sourceId: sourcePolicy.sourceId,
-                    operation: operation.rawValue,
-                    host: sourcePolicy.host,
-                    decision: "cache_first",
-                    cacheHit: true
-                )
-            )
-        }
-
-        // 5. Prefer offline replay?
-        if userPreference.preferOfflineReplay {
-            return .denied(
-                reason: "用户偏好离线回放",
-                fallback: .offlineReplay
-            )
-        }
-
-        // 6. Rate-limit?
-        if !rateLimiter.canRequest(host: sourcePolicy.host, now: now, windowSeconds: TimeInterval(sourcePolicy.cooldownSeconds)) {
-            return .denied(
-                reason: "冷却中：host '\(sourcePolicy.host)' 在 \(sourcePolicy.cooldownSeconds)s 窗口内已请求",
-                fallback: .cachedSnapshot
-            )
-        }
-
-        // 7. Record planned request
         rateLimiter.recordPlannedRequest(host: sourcePolicy.host, date: now)
 
-        // 8. All checks passed
         let audit = NetworkAuditEntry(
             sourceId: sourcePolicy.sourceId,
             operation: operation.rawValue,
@@ -258,11 +195,7 @@ public struct NetworkAccessController: Sendable {
             networkTriggered: true
         )
 
-        if userPreference.auditEnabled {
-            return .allowed(reason: "受控网络访问已授权", audit: audit)
-        } else {
-            return .denied(reason: "审计未启用", fallback: .error("audit required"))
-        }
+        return .allowed(reason: "网络限制已解除：允许执行", audit: audit)
     }
 
     // Simple convenience overload using RateLimiter defaults

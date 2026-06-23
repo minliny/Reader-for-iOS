@@ -63,6 +63,7 @@ public final class ReaderViewModel: ObservableObject {
 
     private var bookID: String?
     private var sourceID: String?
+    private let source: BookSource?
 
     public var currentBookID: String? { bookID }
     public var currentSourceID: String? { sourceID }
@@ -74,6 +75,7 @@ public final class ReaderViewModel: ObservableObject {
         currentChapterIndex: Int = 0,
         bookID: String? = nil,
         sourceID: String? = nil,
+        source: BookSource? = nil,
         provider: ReaderCoreServiceProvider = .shared,
         progressStore: ReadingProgressStore = .shared,
         settingsStore: ReaderSettingsStore = .shared,
@@ -90,6 +92,7 @@ public final class ReaderViewModel: ObservableObject {
         self.totalChapterCount = max(chapterList.count, 1)
         self.bookID = bookID
         self.sourceID = sourceID
+        self.source = source
         self.provider = provider
         self.progressStore = progressStore
         self.settingsStore = settingsStore
@@ -142,7 +145,7 @@ public final class ReaderViewModel: ObservableObject {
         }
 
         // Network / provider fallback
-        let state = await provider.getChapterContent(chapterURL: chapterURL)
+        let state = await provider.getChapterContent(chapterURL: chapterURL, source: source)
         switch state {
         case .loaded(let content):
             readerState = .loaded(content: content)

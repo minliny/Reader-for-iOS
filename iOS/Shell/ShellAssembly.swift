@@ -78,7 +78,7 @@ public final class MockSearchService: SearchService {
     }
 
     public func search(source: BookSource, query: SearchQuery) async throws -> [SearchResultItem] {
-        let state = await provider.searchBooks(keyword: query.keyword, page: query.page)
+        let state = await provider.searchBooks(keyword: query.keyword, page: query.page, source: source)
         switch state {
         case .loaded(let items):
             return items
@@ -107,7 +107,7 @@ public final class MockTOCService: TOCService {
     }
 
     public func fetchTOC(source: BookSource, detailURL: String) async throws -> [TOCItem] {
-        let state = await provider.getChapterList(bookURL: detailURL)
+        let state = await provider.getChapterList(bookURL: detailURL, source: source)
         switch state {
         case .loaded(let items):
             return items
@@ -136,7 +136,7 @@ public final class MockContentService: ContentService {
     }
 
     public func fetchContent(source: BookSource, chapterURL: String) async throws -> ContentPage {
-        let state = await provider.getChapterContent(chapterURL: chapterURL)
+        let state = await provider.getChapterContent(chapterURL: chapterURL, source: source)
         switch state {
         case .loaded(let page):
             return page

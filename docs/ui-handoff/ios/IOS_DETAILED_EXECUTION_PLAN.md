@@ -198,7 +198,7 @@ host: www.biquge.com
 searchURL: https://www.biquge.com/search?q={keyword}
 ```
 
-**Claude Code 执行步骤**:
+**执行步骤**:
 
 1. 创建 `SourceNetworkPolicy` fixture 对应候选源
 2. 确认 `host` 字段精确
@@ -234,12 +234,12 @@ searchURL: https://www.biquge.com/search?q={keyword}
 | 用户未提供书源 URL | M1 BLOCKED，等待 |
 | Reader-Core real service 需要 parser | 使用 adapter 层封装，不暴露到 UI |
 | 书源不稳定 | snapshot + fallback offline replay |
-| Codex 不可用 | 代码侧自测，文档化验证步骤 |
+| 自动化执行不可用 | 代码侧自测，文档化验证步骤 |
 | 真实网络被 CI 误触 | `testSafeDefaultDeniesNetwork` 已有 |
 
 ## 11. 立即行动
 
 1. 用户提供 1 个候选书源 URL
-2. Claude Code 执行 M1.1
+2. 执行 M1.1
 3. 后续自动进入 M1.2-M1.5
 4. M1 DONE → M2

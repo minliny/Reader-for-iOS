@@ -1,8 +1,8 @@
 # WebView Runtime Autorun Simulator Guide
 
-## 1. 为什么 Claude Code 不应依赖人工点击 UI
+## 1. 为什么自动化验证不应依赖人工点击 UI
 
-Claude Code 是一个命令行工具，其设计目标是自动化、可重复、可脚本化的任务执行。如果依赖人工在 Simulator 中点击 UI 来触发功能，会有以下问题：
+WebView Harness 的验证目标是自动化、可重复、可脚本化。如果依赖人工在 Simulator 中点击 UI 来触发功能，会有以下问题：
 
 1. **不可自动化**：CLI 工具无法模拟鼠标点击
 2. **不可重复**：每次手动点击都会有差异
@@ -233,7 +233,6 @@ echo "Results written to: $OUTPUT_DIR"
 ```
 DUPLICATE_CLASS_WARNING_REMOVED ✅
 IOS_APP_TARGET_SOURCES_CONFIRMED_SAFE ✅
-CLAUDE_CODE_IOS_DEV_ENV_READY ✅
 WEBVIEW_AUTORUN_WORKFLOW_PREPARED ✅
 NO_REAL_WEBVIEW_EXECUTION_THIS_ROUND ✅
 ```
@@ -243,16 +242,7 @@ NO_REAL_WEBVIEW_EXECUTION_THIS_ROUND ✅
 ## 11. 下一步（NEXT_ROUTE）
 
 ```
-NEXT_ROUTE = ENABLE_CLAUDE_CODE_AUTORUN_WEBVIEW_HARNESS
+NEXT_ROUTE = ENABLE_AUTORUN_WEBVIEW_HARNESS
 ```
 
 需要用户单独授权才能执行真实 WebView URL 测试。
-
----
-
-## 12. 相关文档
-
-- `docs/IOS_DEVELOPMENT_WITH_CLAUDE_CODE.md` - iOS 开发指南
-- `docs/CLAUDE_CODE_IOS_ENVIRONMENT_SETUP.md` - 环境配置说明
-- `CLAUDE.md` - Claude Code 项目配置
-- `.claude/commands/ios-dev.md` - iOS 开发命令

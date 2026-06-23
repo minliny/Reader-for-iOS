@@ -1,6 +1,7 @@
 import SwiftUI
 import ReaderAppSupport
 import ReaderAppPersistence
+import ReaderCoreModels
 
 public struct BookshelfView: View {
     @StateObject private var viewModel = BookshelfViewModel()
@@ -36,7 +37,12 @@ public struct BookshelfView: View {
                     .presentationDetents([.medium])
             }
             .sheet(isPresented: $showFileImport) {
-                FileImportView()
+                FileImportView { summary in
+                    Task {
+                        await viewModel.addOrUpdateLocalBook(summary)
+                        showFileImport = false
+                    }
+                }
             }
         }
     }
@@ -81,7 +87,7 @@ public struct BookshelfView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("从搜索结果添加书籍")
+                Text("从搜索结果或本地文件添加书籍")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -180,6 +186,8 @@ struct BookshelfItemDetailView: View {
                 ReaderView(
                     chapterURL: item.lastReadChapterURL ?? item.bookURL,
                     chapterTitle: item.lastReadChapterTitle ?? "继续阅读",
+                    chapterList: localChapterList,
+                    currentChapterIndex: currentChapterIndex,
                     bookID: item.id,
                     sourceID: item.sourceID
                 )
@@ -188,5 +196,14 @@ struct BookshelfItemDetailView: View {
                 BookmarksListView(bookId: item.id, sourceId: item.sourceID, bookTitle: item.title)
             }
         }
+    }
+
+    private var localChapterList: [TOCItem] {
+        item.localChapterList ?? []
+    }
+
+    private var currentChapterIndex: Int {
+        guard let chapterURL = item.lastReadChapterURL else { return 0 }
+        return localChapterList.firstIndex { $0.chapterURL == chapterURL } ?? 0
     }
 }

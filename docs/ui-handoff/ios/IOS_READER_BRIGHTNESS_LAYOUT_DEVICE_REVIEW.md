@@ -86,7 +86,7 @@ IOS_READER_BRIGHTNESS_LAYOUT_DEVICE_REVIEW_READY
 
 ## 13. 是否建议进入下一阶段
 
-`READER-P1-002` 设备端复测通过，建议交回 Claude Code 处理剩余 P2 或进入真实数据接入规划。
+`READER-P1-002` 设备端复测通过，建议处理剩余 P2 或进入真实数据接入规划。
 
 ## 14. 命令验证结果
 

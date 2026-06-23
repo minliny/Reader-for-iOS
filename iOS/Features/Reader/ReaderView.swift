@@ -15,7 +15,8 @@ public struct ReaderView: View {
         chapterList: [TOCItem] = [],
         currentChapterIndex: Int = 0,
         bookID: String? = nil,
-        sourceID: String? = nil
+        sourceID: String? = nil,
+        source: BookSource? = nil
     ) {
         self._viewModel = StateObject(wrappedValue: ReaderViewModel(
             chapterURL: chapterURL,
@@ -23,7 +24,8 @@ public struct ReaderView: View {
             chapterList: chapterList,
             currentChapterIndex: currentChapterIndex,
             bookID: bookID,
-            sourceID: sourceID
+            sourceID: sourceID,
+            source: source
         ))
     }
 

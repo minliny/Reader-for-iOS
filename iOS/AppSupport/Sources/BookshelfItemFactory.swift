@@ -39,4 +39,28 @@ public struct BookshelfItemFactory {
             readingProgress: existing?.readingProgress ?? 0.0
         )
     }
+
+    public static func makeOrUpdate(
+        from localBook: LocalBook,
+        firstChapterTitle: String? = nil,
+        firstChapterURL: String? = nil,
+        localChapterList: [TOCItem] = [],
+        existing: BookshelfItem? = nil
+    ) -> BookshelfItem {
+        BookshelfItem(
+            id: existing?.id ?? UUID().uuidString,
+            sourceID: "local-book",
+            sourceName: "Local Book",
+            bookURL: localBook.filePath,
+            title: localBook.title,
+            author: localBook.author ?? existing?.author,
+            coverURL: localBook.coverPath ?? existing?.coverURL,
+            addedAt: existing?.addedAt ?? localBook.addedAt,
+            updatedAt: Date(),
+            lastReadChapterTitle: existing?.lastReadChapterTitle ?? firstChapterTitle,
+            lastReadChapterURL: existing?.lastReadChapterURL ?? firstChapterURL,
+            readingProgress: existing?.readingProgress ?? 0.0,
+            localChapterList: localChapterList.isEmpty ? existing?.localChapterList : localChapterList
+        )
+    }
 }

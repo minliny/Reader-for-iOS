@@ -1,5 +1,7 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
+import ReaderCoreModels
 
 /// M2.2: Single source TOC — no real network
 @MainActor
@@ -52,6 +54,13 @@ final class SingleSourceTOCM2Tests: XCTestCase {
         XCTAssertEqual(view.sourceName, "⭐ 星星小说网")
     }
 
+    func testChapterListViewAcceptsSourceContext() {
+        let source = BookSource(id: "toc-source", bookSourceName: "目录书源", bookSourceUrl: "https://toc.example")
+        let view = ChapterListView(bookURL: "u", bookTitle: "t", sourceName: "目录书源", source: source)
+        XCTAssertEqual(view.source?.id, "toc-source")
+        XCTAssertEqual(view.source?.bookSourceName, "目录书源")
+    }
+
     // MARK: - Provider defaults
 
     func testProviderDefaultsToMock() {
@@ -60,12 +69,24 @@ final class SingleSourceTOCM2Tests: XCTestCase {
 
     // MARK: - No Content reached
 
-    func testTOCChapterNavigationToReaderViewIsDisabledInM2_2() {
-        // M2.2: Content/ReaderView is M2.3. This test confirms
-        // ChapterNavigation exists but the reader path uses mock data
-        let nav = ChapterNavigation(chapterURL: "offline://chapter/1", chapterTitle: "第一章")
-        XCTAssertEqual(nav.chapterTitle, "第一章")
-        // ReaderView is not reached in M2.2 scope
+    func testTOCChapterNavigationCarriesReaderContextIndex() {
+        let nav = ChapterNavigation(chapterURL: "offline://chapter/2", chapterTitle: "第二章", chapterIndex: 1)
+        XCTAssertEqual(nav.chapterTitle, "第二章")
+        XCTAssertEqual(nav.chapterIndex, 1)
+    }
+
+    func testChapterListViewModelExposesChaptersForReaderNavigation() async {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMockScenario(.success)
+        let source = BookSource(id: "toc-source", bookSourceName: "目录书源", bookSourceUrl: "https://toc.example")
+        let viewModel = ChapterListViewModel(bookURL: "https://toc.example/book/1", bookTitle: "凡人修仙传", source: source)
+
+        await viewModel.loadChapters()
+
+        XCTAssertEqual(viewModel.bookURL, "https://toc.example/book/1")
+        XCTAssertEqual(viewModel.chaptersForReader.count, 5)
+        XCTAssertEqual(viewModel.chaptersForReader.first?.chapterTitle, "第一章 山村少年")
+        provider.resetMock()
     }
 
     // MARK: - M1 search still works

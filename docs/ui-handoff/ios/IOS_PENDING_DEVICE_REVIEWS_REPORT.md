@@ -111,7 +111,7 @@ IOS_PENDING_DEVICE_REVIEWS_BLOCKED
 
 ## 12. 是否建议收口
 
-不建议进入 Phase 1/2/3 统一收口。Phase 1 Detail P2 与 BookSource 详情 / 本地测试已设备端解决；Phase 2 仍有开关状态切换待复核，应先交回 Claude Code 继续处理或补充证据。
+不建议进入 Phase 1/2/3 统一收口。Phase 1 Detail P2 与 BookSource 详情 / 本地测试已设备端解决；Phase 2 仍有开关状态切换待复核，应先继续处理或补充证据。
 
 ## 13. 命令验证结果
 

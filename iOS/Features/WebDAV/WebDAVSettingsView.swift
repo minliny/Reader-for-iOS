@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 public struct WebDAVSettingsView: View {
@@ -12,6 +13,8 @@ public struct WebDAVSettingsView: View {
                 serverSection
                 credentialSection
                 backupSection
+                progressSyncSection
+                restoreSection
                 connectionSection
             }
             .navigationTitle("WebDAV Backup")
@@ -86,13 +89,14 @@ public struct WebDAVSettingsView: View {
                 Task { await viewModel.exportBackup() }
             } label: {
                 HStack {
-                    Text("Export Backup Now")
+                    Text("Upload Backup Now")
                     Spacer()
                     if case .testing = viewModel.exportResult {
                         ProgressView()
                     }
                 }
             }
+            .disabled(!viewModel.isValid)
 
             switch viewModel.exportResult {
             case .idle:
@@ -100,7 +104,7 @@ public struct WebDAVSettingsView: View {
             case .testing:
                 HStack {
                     ProgressView()
-                    Text("Exporting...")
+                    Text("Uploading...")
                         .foregroundStyle(.secondary)
                 }
             case .success(let message):
@@ -113,7 +117,209 @@ public struct WebDAVSettingsView: View {
         }
     }
 
+    // MARK: - Progress Sync Section
+
+    private var progressSyncSection: some View {
+        Section("Progress Sync") {
+            Button {
+                Task { await viewModel.syncReadingProgress() }
+            } label: {
+                HStack {
+                    Text("Sync Reading Progress Now")
+                    Spacer()
+                    if case .testing = viewModel.progressSyncResult {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(!viewModel.isValid)
+
+            switch viewModel.progressSyncResult {
+            case .idle:
+                EmptyView()
+            case .testing:
+                HStack {
+                    ProgressView()
+                    Text("Syncing progress...")
+                        .foregroundStyle(.secondary)
+                }
+            case .success(let message):
+                Label(message, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .failed(let message):
+                Label(message, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
+
+            if !viewModel.progressSyncConflicts.isEmpty {
+                ForEach(viewModel.progressSyncConflicts) { conflict in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(conflict.resolved.chapterTitle)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text(progressConflictResolutionTitle(conflict.resolution))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Text("Local \(progressPercent(conflict.local.progressRatio))")
+                            Spacer()
+                            Text("Remote \(progressPercent(conflict.remote.progressRatio))")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func progressConflictResolutionTitle(_ resolution: WebDAVProgressConflictResolution) -> String {
+        switch resolution {
+        case .localKept:
+            return "Kept local progress"
+        case .remoteApplied:
+            return "Applied remote progress"
+        }
+    }
+
+    private func progressPercent(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .percent
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? "\(Int(value * 100))%"
+    }
+
     // MARK: - Connection Test
+
+    private var restoreSection: some View {
+        Section("Restore") {
+            Button {
+                Task { await viewModel.loadRemoteBackups() }
+            } label: {
+                HStack {
+                    Text("Load Remote Backups")
+                    Spacer()
+                    if case .testing = viewModel.listBackupsResult {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(!viewModel.isValid)
+
+            if !viewModel.remoteBackups.isEmpty {
+                Picker("Remote Backup", selection: $viewModel.selectedRemoteBackupID) {
+                    ForEach(viewModel.remoteBackups) { backup in
+                        Text(remoteBackupTitle(backup))
+                            .tag(Optional(backup.id))
+                    }
+                }
+
+                Button {
+                    Task { await viewModel.restoreSelectedBackup() }
+                } label: {
+                    HStack {
+                        Text("Restore Selected Backup")
+                        Spacer()
+                        if case .testing = viewModel.restoreResult {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(viewModel.selectedRemoteBackupID == nil)
+
+                Button(role: .destructive) {
+                    Task { await viewModel.deleteSelectedBackup() }
+                } label: {
+                    HStack {
+                        Text("Delete Selected Backup")
+                        Spacer()
+                        if case .testing = viewModel.deleteBackupResult {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(viewModel.selectedRemoteBackupID == nil)
+            }
+
+            switch viewModel.listBackupsResult {
+            case .idle:
+                EmptyView()
+            case .testing:
+                HStack {
+                    ProgressView()
+                    Text("Loading backups...")
+                        .foregroundStyle(.secondary)
+                }
+            case .success(let message):
+                Label(message, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .failed(let message):
+                Label(message, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
+
+            switch viewModel.deleteBackupResult {
+            case .idle:
+                EmptyView()
+            case .testing:
+                HStack {
+                    ProgressView()
+                    Text("Deleting backup...")
+                        .foregroundStyle(.secondary)
+                }
+            case .success(let message):
+                Label(message, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .failed(let message):
+                Label(message, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
+
+            TextField("Manual backup URL", text: $viewModel.restoreURL)
+#if os(iOS)
+                .keyboardType(.URL)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+#endif
+
+            Button {
+                Task { await viewModel.restoreBackup() }
+            } label: {
+                HStack {
+                    Text("Restore Manual URL")
+                    Spacer()
+                    if case .testing = viewModel.restoreResult {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(viewModel.restoreURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            switch viewModel.restoreResult {
+            case .idle:
+                EmptyView()
+            case .testing:
+                HStack {
+                    ProgressView()
+                    Text("Restoring...")
+                        .foregroundStyle(.secondary)
+                }
+            case .success(let message):
+                Label(message, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .failed(let message):
+                Label(message, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func remoteBackupTitle(_ backup: WebDAVRemoteBackup) -> String {
+        guard let byteCount = backup.byteCount else { return backup.filename }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return "\(backup.filename) (\(formatter.string(fromByteCount: byteCount)))"
+    }
 
     private var connectionSection: some View {
         Section("Connection Test") {

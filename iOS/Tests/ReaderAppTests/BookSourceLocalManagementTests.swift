@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderApp
+import ReaderAppPersistence
 import ReaderCoreModels
 
 /// BookSource 本地 fixture 管理测试

@@ -116,8 +116,8 @@ final class ReaderViewModelTests: XCTestCase {
         let vm = ReaderViewModel(
             chapterURL: "https://example.com/book/1/chapter/1",
             chapterTitle: "Test Chapter",
-            settingsStore: settingsStore,
             progressStore: progressStore,
+            settingsStore: settingsStore,
             cacheStore: cacheStore,
             bookshelfStore: bookshelfStore
         )

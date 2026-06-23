@@ -2,6 +2,7 @@ import Foundation
 import ReaderCoreModels
 import ReaderAppSupport
 import ReaderAppPersistence
+import ReaderShellValidation
 
 public enum BookshelfState: Equatable {
     case idle
@@ -35,9 +36,11 @@ public final class BookshelfViewModel: ObservableObject {
     @Published public var bookshelfState: BookshelfState = .idle
     @Published public var items: [BookshelfItem] = []
 
-    private let store = BookshelfStore.shared
+    private let store: BookshelfStore
 
-    public init() {}
+    public init(store: BookshelfStore = .shared) {
+        self.store = store
+    }
 
     public func loadItems() async {
         bookshelfState = .loading
@@ -78,6 +81,34 @@ public final class BookshelfViewModel: ObservableObject {
             await loadItems()
         } catch {
             bookshelfState = .failed(message: "Failed to add to bookshelf: \(error.localizedDescription)")
+        }
+    }
+
+    public func addOrUpdateLocalBook(_ book: LocalBook) async {
+        do {
+            let existingItem = try store.find(bookURL: book.filePath, sourceID: "local-book")
+            let item = BookshelfItemFactory.makeOrUpdate(from: book, existing: existingItem)
+            try store.addOrUpdate(item)
+            await loadItems()
+        } catch {
+            bookshelfState = .failed(message: "Failed to add local book: \(error.localizedDescription)")
+        }
+    }
+
+    public func addOrUpdateLocalBook(_ summary: CoreLocalBookImportSummary) async {
+        do {
+            let existingItem = try store.find(bookURL: summary.book.filePath, sourceID: "local-book")
+            let item = BookshelfItemFactory.makeOrUpdate(
+                from: summary.book,
+                firstChapterTitle: summary.firstChapterTitle,
+                firstChapterURL: summary.firstChapterURL,
+                localChapterList: summary.cachedTOCItems,
+                existing: existingItem
+            )
+            try store.addOrUpdate(item)
+            await loadItems()
+        } catch {
+            bookshelfState = .failed(message: "Failed to add local book: \(error.localizedDescription)")
         }
     }
 

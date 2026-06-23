@@ -1,5 +1,8 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
+import ReaderAppPersistence
+import ReaderAppSupport
 import ReaderCoreModels
 
 /// M3: Reading cache (content snapshot) and progress read/write
@@ -62,7 +65,8 @@ final class ReadingCacheAndProgressM3Tests: XCTestCase {
         let snap2 = store.loadChapterContentSnapshot(sourceId: "c001", chapterURL: "offline://chapter/2")
         XCTAssertEqual(snap1?.content, "第一章内容")
         XCTAssertEqual(snap2?.content, "第二章内容")
-        XCTAssertNil(snap1?.nextChapterURL)  // ch2's next
+        XCTAssertEqual(snap1?.nextChapterURL, "offline://chapter/2")
+        XCTAssertNil(snap2?.nextChapterURL)
     }
 
     func testContentCacheSourceIsolation() {
@@ -112,7 +116,7 @@ final class ReadingCacheAndProgressM3Tests: XCTestCase {
         let loaded = try? progressStore.loadProgress(bookID: "book-001")
         XCTAssertNotNil(loaded)
         XCTAssertEqual(loaded?.chapterTitle, "第一章 山村少年")
-        XCTAssertEqual(loaded?.progressRatio, 0.35, accuracy: 0.001)
+        XCTAssertEqual(loaded?.progressRatio ?? -1, 0.35, accuracy: 0.001)
         XCTAssertEqual(loaded?.chapterURL, "offline://chapter/1")
     }
 
@@ -142,7 +146,7 @@ final class ReadingCacheAndProgressM3Tests: XCTestCase {
 
         let loaded = try? progressStore.loadProgress(bookID: "book-001")
         XCTAssertEqual(loaded?.chapterURL, "ch2")
-        XCTAssertEqual(loaded?.progressRatio, 0.8, accuracy: 0.001)
+        XCTAssertEqual(loaded?.progressRatio ?? -1, 0.8, accuracy: 0.001)
     }
 
     // MARK: - M3-B: BookshelfStore Progress Update
@@ -169,7 +173,7 @@ final class ReadingCacheAndProgressM3Tests: XCTestCase {
 
         let loaded = (try? bookshelfStore.loadItems()) ?? []
         let found = loaded.first { $0.id == item.id }
-        XCTAssertEqual(found?.readingProgress, 0.5, accuracy: 0.001)
+        XCTAssertEqual(found?.readingProgress ?? -1, 0.5, accuracy: 0.001)
         XCTAssertEqual(found?.lastReadChapterTitle, "第三章 修炼入门")
         XCTAssertEqual(found?.lastReadChapterURL, "offline://chapter/3")
     }

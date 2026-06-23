@@ -1,5 +1,6 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 import ReaderCoreModels
 
 /// Search → Detail → TOC → ReaderView mock 数据闭环测试
@@ -81,13 +82,15 @@ final class MockDataFlowTests: XCTestCase {
 
     // MARK: - SearchViewModel with mock source
 
-    func testSearchViewModelPrePopulatesMockSource() async {
+    func testSearchViewModelPrePopulatesCandidateSource() async {
         let vm = SearchViewModel()
         await vm.loadSources()
 
-        XCTAssertFalse(vm.sources.isEmpty, "SearchViewModel 应预置 mock 书源")
+        XCTAssertFalse(vm.sources.isEmpty, "SearchViewModel 应预置候选书源")
         XCTAssertNotNil(vm.selectedSource, "应自动选中第一个书源")
-        XCTAssertEqual(vm.selectedSource?.bookSourceName, "Mock 书源")
+        XCTAssertEqual(vm.selectedSource?.id, "candidate-xingxingxsw")
+        XCTAssertEqual(vm.selectedSource?.bookSourceName, "⭐ 星星小说网")
+        XCTAssertEqual(vm.selectedSource?.bookSourceUrl, "https://www.xingxingxsw.com")
     }
 
     // MARK: - No Parser Internals

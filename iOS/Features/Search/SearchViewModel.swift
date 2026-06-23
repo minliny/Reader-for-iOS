@@ -42,15 +42,22 @@ public enum SearchState: Equatable {
 public final class SearchViewModel: ObservableObject {
     @Published public var keyword = ""
     @Published public var selectedSource: BookSource?
+    @Published public var searchAllEnabledSources = false
     @Published public var searchState: SearchState = .idle
     @Published public var sources: [BookSource] = []
     @Published public var currentPage = 1
     @Published public var hasMorePages = false
 
-    private let store = BookSourceStore.shared
-    private let provider = ReaderCoreServiceProvider.shared
+    private let store: BookSourceStore
+    private let provider: ReaderCoreServiceProvider
+    private var resultSourceBindings: [String: BookSource] = [:]
 
-    public init() {
+    public init(
+        store: BookSourceStore = .shared,
+        provider: ReaderCoreServiceProvider? = nil
+    ) {
+        self.store = store
+        self.provider = provider ?? ReaderCoreServiceProvider.shared
         Task {
             await loadSources()
         }
@@ -83,14 +90,17 @@ public final class SearchViewModel: ObservableObject {
             return
         }
 
-        // Mock mode allows search without a real source; provider routes to mock data
-        let source = selectedSource
-
         searchState = .loading
         currentPage = 1
+        resultSourceBindings = [:]
 
         do {
-            let state = await provider.searchBooks(keyword: trimmed, page: currentPage, source: source)
+            let state: LoadState<[SearchResultItem]>
+            if searchAllEnabledSources {
+                state = await searchAcrossEnabledSources(keyword: trimmed, page: currentPage)
+            } else {
+                state = await provider.searchBooks(keyword: trimmed, page: currentPage, source: selectedSource)
+            }
             switch state {
             case .loaded(let results):
                 if results.isEmpty {
@@ -125,14 +135,29 @@ public final class SearchViewModel: ObservableObject {
         guard hasMorePages, case .success(let existing) = searchState else { return }
 
         currentPage += 1
-        let state = await provider.searchBooks(keyword: keyword.trimmingCharacters(in: .whitespacesAndNewlines), page: currentPage, source: selectedSource)
+        let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let state: LoadState<[SearchResultItem]>
+        if searchAllEnabledSources {
+            state = await searchAcrossEnabledSources(keyword: trimmed, page: currentPage, existingResults: existing)
+        } else {
+            state = await provider.searchBooks(keyword: trimmed, page: currentPage, source: selectedSource)
+        }
 
         switch state {
         case .loaded(let results):
+            if searchAllEnabledSources {
+                searchState = .success(results: results)
+                return
+            }
             let combined = existing + results
             searchState = .success(results: combined)
             hasMorePages = results.count >= 5
         case .partial(let results, let warning):
+            if searchAllEnabledSources {
+                searchState = .partial(results: results, warnings: [warning])
+                hasMorePages = false
+                return
+            }
             let combined = existing + results
             searchState = .partial(results: combined, warnings: [warning])
             hasMorePages = false
@@ -142,11 +167,162 @@ public final class SearchViewModel: ObservableObject {
     }
 
     public func selectSource(_ source: BookSource) {
+        searchAllEnabledSources = false
         selectedSource = source
+    }
+
+    public func selectAllEnabledSources() {
+        searchAllEnabledSources = true
+    }
+
+    public var enabledSources: [BookSource] {
+        sources.filter(\.enabled)
+    }
+
+    public func source(for result: SearchResultItem) -> BookSource? {
+        resultSourceBindings[resultBindingKey(for: result)]
+    }
+
+    public func sourceName(for result: SearchResultItem) -> String {
+        source(for: result)?.displayName ?? selectedSource?.displayName ?? ""
     }
 
     public func reset() {
         keyword = ""
         searchState = .idle
+        resultSourceBindings = [:]
+    }
+
+    private func searchAcrossEnabledSources(
+        keyword: String,
+        page: Int,
+        existingResults: [SearchResultItem] = []
+    ) async -> LoadState<[SearchResultItem]> {
+        let activeSources = enabledSources
+        guard !activeSources.isEmpty else {
+            return .failed(AppReaderError(code: .unsupported, message: "没有启用的书源", stage: "SEARCH"))
+        }
+
+        var boundResults: [(SearchResultItem, BookSource?)] = existingResults.map {
+            ($0, source(for: $0))
+        }
+
+        let provider = self.provider
+        let outcomes = await withTaskGroup(of: MultiSourceSearchOutcome.self, returning: [MultiSourceSearchOutcome].self) { group in
+            for (sourceIndex, source) in activeSources.enumerated() {
+                group.addTask {
+                    let state = await provider.searchBooks(keyword: keyword, page: page, source: source)
+                    return MultiSourceSearchOutcome(sourceIndex: sourceIndex, source: source, state: state)
+                }
+            }
+
+            var collected: [MultiSourceSearchOutcome] = []
+            for await outcome in group {
+                collected.append(outcome)
+            }
+            return collected.sorted { $0.sourceIndex < $1.sourceIndex }
+        }
+
+        let warnings = outcomes.compactMap(\.warning)
+        let successCount = outcomes.filter(\.isSuccessfulSource).count
+        let anyHasMorePages = outcomes.contains { $0.returnedResultCount >= 5 }
+        boundResults.append(contentsOf: outcomes.flatMap(\.boundResults))
+
+        let deduped = deduplicate(boundResults: boundResults)
+        resultSourceBindings = Dictionary(uniqueKeysWithValues: deduped.compactMap { result, source in
+            guard let source else { return nil }
+            return (resultBindingKey(for: result), source)
+        })
+        hasMorePages = anyHasMorePages
+
+        let results = deduped.map(\.0)
+        if !results.isEmpty, warnings.isEmpty {
+            return .loaded(results)
+        }
+        if !results.isEmpty {
+            return .partial(results, warning: warnings.joined(separator: "\n"))
+        }
+        if successCount > 0 {
+            return .empty
+        }
+        return .failed(AppReaderError(code: .network, message: warnings.joined(separator: "\n"), stage: "SEARCH"))
+    }
+
+    private func deduplicate(
+        boundResults: [(SearchResultItem, BookSource?)]
+    ) -> [(SearchResultItem, BookSource?)] {
+        var seen: Set<String> = []
+        var output: [(SearchResultItem, BookSource?)] = []
+        for pair in boundResults {
+            let key = duplicateKey(for: pair.0)
+            if seen.insert(key).inserted {
+                output.append(pair)
+            }
+        }
+        return output
+    }
+
+    private func duplicateKey(for result: SearchResultItem) -> String {
+        let title = normalize(result.title)
+        let author = normalize(result.author ?? "")
+        if !author.isEmpty {
+            return "\(title)|\(author)"
+        }
+        return "\(title)|\(normalize(result.detailURL))"
+    }
+
+    private func resultBindingKey(for result: SearchResultItem) -> String {
+        "\(normalize(result.title))|\(normalize(result.author ?? ""))|\(normalize(result.detailURL))"
+    }
+
+    private func normalize(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private struct MultiSourceSearchOutcome: Sendable {
+        let sourceIndex: Int
+        let source: BookSource
+        let results: [SearchResultItem]
+        let warning: String?
+        let isSuccessfulSource: Bool
+
+        init(sourceIndex: Int, source: BookSource, state: LoadState<[SearchResultItem]>) {
+            self.sourceIndex = sourceIndex
+            self.source = source
+            switch state {
+            case .loaded(let results):
+                self.results = results
+                self.warning = nil
+                self.isSuccessfulSource = true
+            case .partial(let results, let warning):
+                self.results = results
+                self.warning = "\(source.displayName): \(warning)"
+                self.isSuccessfulSource = true
+            case .empty:
+                self.results = []
+                self.warning = nil
+                self.isSuccessfulSource = true
+            case .unsupported(let reason):
+                self.results = []
+                self.warning = "\(source.displayName): \(reason)"
+                self.isSuccessfulSource = false
+            case .failed(let error):
+                self.results = []
+                self.warning = "\(source.displayName): \(error.message)"
+                self.isSuccessfulSource = false
+            case .loading, .idle:
+                self.results = []
+                self.warning = nil
+                self.isSuccessfulSource = false
+            }
+        }
+
+        var returnedResultCount: Int { results.count }
+
+        var boundResults: [(SearchResultItem, BookSource?)] {
+            results.map { ($0, source) }
+        }
     }
 }

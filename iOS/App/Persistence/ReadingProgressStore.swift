@@ -18,7 +18,7 @@ public final class ReadingProgressStore: @unchecked Sendable {
         fileURL = storageURL
     }
 
-    private func loadAllProgress() throws -> [String: ReadingProgress] {
+    public func loadAllProgress() throws -> [String: ReadingProgress] {
         lock.lock()
         defer { lock.unlock() }
 
@@ -30,10 +30,11 @@ public final class ReadingProgressStore: @unchecked Sendable {
         return try decoder.decode([String: ReadingProgress].self, from: data)
     }
 
-    private func saveAllProgress(_ progressMap: [String: ReadingProgress]) throws {
+    public func saveAllProgress(_ progressMap: [String: ReadingProgress]) throws {
         lock.lock()
         defer { lock.unlock() }
 
+        try ensureParentDirectoryExists()
         let data = try encoder.encode(progressMap)
         try data.write(to: fileURL)
     }
@@ -53,5 +54,10 @@ public final class ReadingProgressStore: @unchecked Sendable {
         var progressMap = (try? loadAllProgress()) ?? [:]
         progressMap.removeValue(forKey: bookID)
         try saveAllProgress(progressMap)
+    }
+
+    private func ensureParentDirectoryExists() throws {
+        let directoryURL = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     }
 }

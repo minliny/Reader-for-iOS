@@ -1,7 +1,9 @@
 import XCTest
 @testable import ReaderApp
+@testable import ReaderShellValidation
 
 /// Phase 5: Controlled Network Access — no-network skeleton tests
+@MainActor
 final class ControlledNetworkAccessPhase5Tests: XCTestCase {
 
     let enabledSource = SourceNetworkPolicy.fixture(id: "s001", name: "Test", host: "test.example.com")
@@ -11,13 +13,13 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
         return s
     }()
 
-    // MARK: - Defaults are safe
+    // MARK: - Defaults are unrestricted
 
-    func testUserPreferenceSafeDefaultDeniesNetwork() {
+    func testUserPreferenceSafeDefaultAllowsNetwork() {
         let pref = UserNetworkPreference.safeDefault
-        XCTAssertFalse(pref.allowNetworkAccess)
-        XCTAssertTrue(pref.preferOfflineReplay)
-        XCTAssertTrue(pref.cacheFirst)
+        XCTAssertTrue(pref.allowNetworkAccess)
+        XCTAssertFalse(pref.preferOfflineReplay)
+        XCTAssertFalse(pref.cacheFirst)
     }
 
     func testUserPreferenceProductDefaultAllowsNetwork() {
@@ -26,72 +28,69 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
         XCTAssertFalse(pref.preferOfflineReplay)
     }
 
-    // MARK: - Controller: user denies network
+    // MARK: - Controller: restrictions no longer block
 
-    func testDenied_whenUserDeniesNetwork() {
+    func testAllowed_whenUserDeniesNetwork() {
         let ctrl = NetworkAccessController()
         let pref = UserNetworkPreference.safeDefault  // allowNetworkAccess = false
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: enabledSource, operation: .search)
-        guard case .denied(let reason, _) = result else {
-            XCTFail("should deny when user disables network")
+        guard case .allowed(_, let audit) = result else {
+            XCTFail("should allow after network restrictions are lifted")
             return
         }
-        XCTAssertTrue(reason.contains("网络"))
+        XCTAssertTrue(audit.networkTriggered)
     }
 
-    // MARK: - Controller: source disabled
-
-    func testDenied_whenSourceDisabled() {
+    func testAllowed_whenSourceDisabled() {
         let ctrl = NetworkAccessController()
         let pref = UserNetworkPreference.productDefault
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: disabledSource, operation: .search)
-        guard case .denied(let reason, _) = result else {
-            XCTFail("should deny when source disabled")
+        guard case .allowed(_, let audit) = result else {
+            XCTFail("should allow disabled source after restrictions are lifted")
             return
         }
-        XCTAssertTrue(reason.contains("未启用"))
+        XCTAssertTrue(audit.networkTriggered)
     }
 
-    // MARK: - Controller: operation not allowed
-
-    func testDenied_whenOperationNotAllowed() {
+    func testAllowed_whenOperationNotAllowed() {
         let ctrl = NetworkAccessController()
         let pref = UserNetworkPreference.productDefault
         var source = SourceNetworkPolicy.fixture()
         source.allowSearch = false
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: source, operation: .search)
-        guard case .denied(let reason, _) = result else {
-            XCTFail("should deny search when not allowed")
+        guard case .allowed(_, let audit) = result else {
+            XCTFail("should allow operation after restrictions are lifted")
             return
         }
-        XCTAssertTrue(reason.contains("搜索") || reason.contains("search"))
+        XCTAssertTrue(audit.networkTriggered)
     }
 
     // MARK: - Controller: cache-first
 
-    func testFallbackToCache_whenCacheFirst() {
+    func testAllowed_whenCacheFirst() {
         let ctrl = NetworkAccessController()
         var pref = UserNetworkPreference.productDefault
         pref.cacheFirst = true
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: enabledSource, operation: .search)
-        guard case .fallbackToCache = result else {
-            XCTFail("should fallback to cache when cacheFirst=true")
+        guard case .allowed(_, let audit) = result else {
+            XCTFail("should allow when cacheFirst=true after restrictions are lifted")
             return
         }
+        XCTAssertTrue(audit.networkTriggered)
     }
 
     // MARK: - Controller: prefer offline replay
 
-    func testDeniedWithOfflineReplay_whenPreferOfflineReplay() {
+    func testAllowedWithOfflineReplayPreference() {
         let ctrl = NetworkAccessController()
         var pref = UserNetworkPreference.productDefault
         pref.preferOfflineReplay = true
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: enabledSource, operation: .search)
-        guard case .denied(_, let fallback) = result else {
-            XCTFail("should fallback to offline replay")
+        guard case .allowed(_, let audit) = result else {
+            XCTFail("should allow after restrictions are lifted")
             return
         }
-        XCTAssertEqual(fallback, .offlineReplay)
+        XCTAssertTrue(audit.networkTriggered)
     }
 
     // MARK: - Controller: allowed
@@ -112,7 +111,7 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
 
     // MARK: - Controller: rate-limit
 
-    func testDenied_whenRateLimited() {
+    func testAllowed_whenRateLimited() {
         let limiter = LiveProbeRateLimiter()
         limiter.recordPlannedRequest(host: "test.example.com", date: Date())
         let ctrl = NetworkAccessController(rateLimiter: limiter)
@@ -120,10 +119,11 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
         pref.cacheFirst = false
         pref.preferOfflineReplay = false
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: enabledSource, operation: .search)
-        guard case .denied = result else {
-            XCTFail("should deny due to rate-limit")
+        guard case .allowed(_, let audit) = result else {
+            XCTFail("should allow despite rate-limit after restrictions are lifted")
             return
         }
+        XCTAssertTrue(audit.networkTriggered)
     }
 
     // MARK: - Provider remains mock
@@ -136,7 +136,7 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
 
     func testControlledNetworkPolicyHasNoParserDependencies() {
         let pref = UserNetworkPreference.safeDefault
-        XCTAssertFalse(pref.allowNetworkAccess)
+        XCTAssertTrue(pref.allowNetworkAccess)
         let source = SourceNetworkPolicy.fixture()
         XCTAssertTrue(source.isEnabled)
     }
@@ -160,15 +160,15 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
         XCTAssertTrue(source.allows(.content))
     }
 
-    // MARK: - Existing gates intact
+    // MARK: - Existing gates lifted
 
-    func testRealNetworkPolicyStillDefaultsToDisabled() {
+    func testRealNetworkPolicyDefaultsToUnrestricted() {
         let policy = RealNetworkPolicy.default
-        XCTAssertEqual(policy.mode, .disabled)
-        XCTAssertFalse(policy.isNetworkAllowed)
+        XCTAssertEqual(policy.mode, .unrestricted)
+        XCTAssertTrue(policy.isNetworkAllowed)
     }
 
-    func testLiveProbeGateStillRequiresExplicitOptIn() {
+    func testLiveProbeGateNoLongerRequiresExplicitOptIn() {
         let gate = LiveProbeGate()
         let candidate = LiveProbeCandidate(
             id: "c1", name: "t", baseURL: "https://t.com",
@@ -180,9 +180,6 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
             reason: "", expectedSnapshotPath: "", host: "t.com"
         )
         let decision = gate.evaluate(candidate: candidate, manifest: manifest)
-        guard case .denied = decision else {
-            XCTFail("LiveProbeGate should still deny without explicit opt-in")
-            return
-        }
+        XCTAssertEqual(decision, .allowed)
     }
 }
