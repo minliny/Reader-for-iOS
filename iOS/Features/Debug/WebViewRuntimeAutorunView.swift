@@ -1,6 +1,7 @@
 import Foundation
 import ReaderCoreModels
 import ReaderPlatformAdapters
+import ReaderShellValidation
 
 #if DEBUG && canImport(WebKit)
 
@@ -186,7 +187,7 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
 
             // 写入结果文件
             print("[WebViewHarness] writing result files")
-            writeResultFiles(result: result)
+            writeResultFiles(request: request, result: result)
 
             // 更新状态
             print("[WebViewHarness] writing final status=success")
@@ -234,7 +235,7 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         )
     }
 
-    private func writeResultFiles(result: RuntimeWebViewResult) {
+    private func writeResultFiles(request: RuntimeWebViewRequest, result: RuntimeWebViewResult) {
         // webview_result.json
         let resultJson = """
         {
@@ -269,6 +270,41 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         let snapshotMetaPath = "\(outputDirectory)/webview_snapshot_metadata.json"
         print("[WebViewHarness] writing webview_snapshot_metadata.json path=\(snapshotMetaPath)")
         try? snapshotMeta.write(toFile: snapshotMetaPath, atomically: true, encoding: .utf8)
+
+        var cookieMirrorMetadata: WebViewCookieMirrorMetadata?
+        let cookieMetadataURL = URL(fileURLWithPath: outputDirectory)
+            .appendingPathComponent("cookie_mirror_metadata.json")
+        do {
+            cookieMirrorMetadata = try WebViewCookieMirrorMetadataStore(
+                outputURL: cookieMetadataURL
+            ).saveCookieMirrorMetadata(request: request, result: result)
+            if cookieMirrorMetadata != nil {
+                print("[WebViewHarness] writing cookie_mirror_metadata.json path=\(cookieMetadataURL.path)")
+            }
+        } catch {
+            print("[WebViewHarness] failed to write cookie_mirror_metadata.json error=\(error.localizedDescription)")
+        }
+
+        let evidenceBundle = HostRuntimeEvidenceExporter.webViewAutorunBundle(
+            requestedURL: configuration.url,
+            finalURL: result.finalUrl,
+            allowedHost: configuration.allowedHost,
+            sourceId: configuration.sourceId,
+            resultSucceeded: result.success,
+            errorType: result.errorType?.rawValue,
+            navigationCount: navigationCount,
+            renderedHTMLByteCount: renderedHtmlSize,
+            snapshotId: result.snapshotId,
+            cookieMirrorMetadata: cookieMirrorMetadata
+        )
+        let evidenceURL = URL(fileURLWithPath: outputDirectory)
+            .appendingPathComponent("host_runtime_evidence_manifest.json")
+        do {
+            try HostRuntimeEvidenceExporter.write(evidenceBundle, to: evidenceURL)
+            print("[WebViewHarness] writing host_runtime_evidence_manifest.json path=\(evidenceURL.path)")
+        } catch {
+            print("[WebViewHarness] failed to write host_runtime_evidence_manifest.json error=\(error.localizedDescription)")
+        }
         print("[WebViewHarness] write completed")
     }
 
