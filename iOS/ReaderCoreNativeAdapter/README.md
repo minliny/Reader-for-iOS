@@ -32,7 +32,9 @@ xcframework 含 `ios-arm64`（真机）+ `ios-arm64-simulator`（模拟器）sli
 
 仅 ABI 连通骨架：runtime lifecycle（create / send / cancel / destroy）、event polling、
 `core.info` / `runtime.ping`。**不**实现 service protocols（SearchService / TOCService /
-ContentService）——后续轮次。
+ContentService）——后续轮次。Rounds 2-4 扩展到 Host Bus 完整循环、远程阅读协议骨架、
+http.execute 管线、source.import / book.detail / reading.progress.update。Round 5 把
+iOS 模拟器 smoke 固化为脚本证据。
 
 ## 证据纪律（强制）
 
@@ -41,19 +43,31 @@ ContentService）——后续轮次。
 - 报告区分 **app-side 能力**（host adapter 执行）与 **Core 能力**（Rust Core 通过
   ABI/protocol 执行）。`ReaderCoreNativeAdapterSmokeTests` 每条用例带
   `[core]` / `[app-side]` 标签。
+- **证据分层**（Round 5 起）：
+  - **macOS host smoke**（`run-shell-smoke.sh`）— 链接 macOS `libreader_core.a`，在
+    macOS 上直接运行。证明 adapter + Core ABI 连通，但平台不符。
+  - **iOS 模拟器 smoke**（`run-sim-smoke.sh`）— 交叉编译到 iOS-sim arm64，用
+    `xcrun simctl spawn` 在 booted iPhone 模拟器内运行。平台正确，但仍非真机。
+  - 两者均 **≠ 真机证据**。真机需 iOS device slice + 签名，后续轮次。
 
 ## 运行
 
 ```bash
-cd iOS
-# iOS 模拟器 slice 构建 + 测试（xcframework 是 iOS-only）
-swift build --target ReaderCoreNativeAdapter
-swift test --filter ReaderCoreNativeAdapterSmokeTests
+cd iOS/ReaderCoreNativeAdapter
+
+# macOS host smoke（需先 fetch-cabi.sh 拉 macOS lib）
+bash ./fetch-cabi.sh
+bash ./run-shell-smoke.sh
+
+# iOS 模拟器 smoke（需先 fetch-cabi.sh --sim 拉 iOS-sim lib）
+bash ./fetch-cabi.sh --sim
+bash ./run-sim-smoke.sh
 ```
 
-注：xcframework 当前只有 iOS slice（`ios-arm64` / `ios-arm64-simulator`），无 macOS
-slice，故 `swift test` 默认 macOS host 不可用；需针对 iOS 模拟器 triple 或用
-`xcodebuild` 跑模拟器测试。
+注：`xcodebuild -scheme ReaderApp-Package ... test` 走 SwiftPM 集成路径当前阻塞于
+header-only C target `ReaderCoreNative` 不产生 `ReaderCoreNative.o` 产物（SwiftPM +
+xcodebuild 对 header-only C target + unsafeFlags 的已知限制），后续轮次再修。
+当前用独立 `swiftc` + `simctl spawn` 路径产出模拟器证据。
 
 ## 已知 gap
 

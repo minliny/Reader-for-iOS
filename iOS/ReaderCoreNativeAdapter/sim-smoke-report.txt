@@ -1,0 +1,37 @@
+[core] abi version == 1: PASS
+[core] core.info returns abi+protocol version: PASS
+[core] runtime.ping pong=true: PASS
+[core] unknown method surfaces UNKNOWN_METHOD: PASS
+[core] malformed JSON send fails with non-zero status: PASS
+[core] Core emits host.request: PASS
+[core] cancel surfaces CANCELLED: PASS
+[core] host.request carries operationId: PASS
+[core] host.complete resolves original request: PASS
+[core] host.error propagates to original request: PASS
+[core] runtime.status returns result: PASS
+[core] runtime.status has activeRequests: PASS
+[core] book.search inline returns result: PASS
+[core] book.search inline parses results: PASS
+[core] book.toc inline returns result: PASS
+[core] book.toc inline parses entries: PASS
+[core] chapter.content inline returns result: PASS
+[core] chapter.content inline extracts body: PASS
+[core] http.execute emits host.request: PASS
+[core] http.execute book.search returns result: PASS
+[core] http.execute book.search parses books: PASS
+[core] http.execute empty URL rejected: PASS
+[core] source.import imports source: PASS
+[core] book.detail inline returns result: PASS
+[core] book.detail merges book metadata: PASS
+[core] book.detail rejects non-object book: PASS
+[core] reading.progress.update stores progress: PASS
+[core] reading.progress.update returns chapterIndex: PASS
+[core] reading.progress.update rejects out-of-range progress: PASS
+[app-side] runtime create + destroy: PASS
+[app-side] invalid config create fails: PASS
+[app-side] pollEvent drains result event: PASS
+[app-side] pollEvent returns nil for consumed event: PASS
+---
+[core]     pass=29 fail=0
+[app-side] pass=4 fail=0
+reader core native host adapter shell smoke passed

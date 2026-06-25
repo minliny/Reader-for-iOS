@@ -47,4 +47,5 @@ __pycache__/
 # See docs/IOS_XCODE_PROJECT_GENERATION_PLAN.md for instructions
 # Rust Reader-Core-Native binary (built, not source)
 iOS/ReaderCoreNativeAdapter/cabi/libreader_core.a
+iOS/ReaderCoreNativeAdapter/cabi/libreader_core_sim.a
 iOS/ReaderCoreNativeAdapter/ReaderCore.xcframework/

@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Materialize the Rust Reader-Core-Native C ABI + macOS static library for
-# macOS-hosted SwiftPM testing of ReaderCoreNativeAdapter.
+# Materialize the Rust Reader-Core-Native C ABI + static libraries for
+# macOS-hosted and iOS-simulator SwiftPM/swiftc testing of ReaderCoreNativeAdapter.
 #
-# This is a LOCAL DEV helper: the materialized libreader_core.a is a built
-# artifact and is gitignored. Headers (reader_core.h, module.modulemap) are
-# committed in cabi/; this script refreshes the static lib only (and can
-# refresh headers too with --refresh-headers).
+# This is a LOCAL DEV helper: the materialized libreader_core.a / libreader_core_sim.a
+# are built artifacts and are gitignored. Headers (reader_core.h, module.modulemap)
+# are committed in cabi/; this script refreshes the static libs (and can refresh
+# headers too with --refresh-headers).
 #
 # Usage:
-#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh
+#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh              # macOS host lib only
+#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --sim        # also iOS-sim lib
 #   READER_CORE_NATIVE=/path/to/Reader-Core-Native bash .../fetch-cabi.sh
 #   bash .../fetch-cabi.sh --refresh-headers
 set -euo pipefail
@@ -27,9 +28,14 @@ header_src="$native_root/include/reader_core.h"
 modulemap_src="$native_root/bindings/ios/module.modulemap"
 
 refresh_headers=0
-if [[ "${1:-}" == "--refresh-headers" ]]; then
-  refresh_headers=1
-fi
+fetch_sim=0
+for arg in "$@"; do
+  case "$arg" in
+    --refresh-headers) refresh_headers=1 ;;
+    --sim) fetch_sim=1 ;;
+    *) echo "fetch-cabi: unknown flag $arg" >&2; exit 1 ;;
+  esac
+done
 
 if (( refresh_headers == 1 )); then
   echo "fetch-cabi: refreshing headers from $native_root"
@@ -44,7 +50,19 @@ if [[ ! -f "$host_lib" ]]; then
   (cd "$native_root" && cargo build -p reader-ffi)
 fi
 
-# Materialize the lib into cabi/ (gitignored).
+# Materialize the macOS lib into cabi/ (gitignored).
 cp "$host_lib" "$cabi_dir/libreader_core.a"
-echo "fetch-cabi: materialized $cabi_dir/libreader_core.a"
+echo "fetch-cabi: materialized $cabi_dir/libreader_core.a (macOS arm64)"
 echo "fetch-cabi: headers in $cabi_dir (reader_core.h, module.modulemap)"
+
+# Optionally materialize the iOS-simulator static library (arm64, platform 7).
+if (( fetch_sim == 1 )); then
+  sim_lib="$native_root/target/aarch64-apple-ios-sim/release/libreader_core.a"
+  if [[ ! -f "$sim_lib" ]]; then
+    echo "fetch-cabi: building iOS-sim libreader_core_sim.a (aarch64-apple-ios-sim, release)"
+    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios-sim)
+  fi
+  cp "$sim_lib" "$cabi_dir/libreader_core_sim.a"
+  echo "fetch-cabi: materialized $cabi_dir/libreader_core_sim.a (iOS-sim arm64)"
+fi
+
