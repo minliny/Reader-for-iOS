@@ -45,3 +45,6 @@ __pycache__/
 # XcodeGen (generated from project.yml)
 # Do NOT commit *.xcodeproj or *.xcworkspace - generate with xcodegen
 # See docs/IOS_XCODE_PROJECT_GENERATION_PLAN.md for instructions
+# Rust Reader-Core-Native binary (built, not source)
+iOS/ReaderCoreNativeAdapter/cabi/libreader_core.a
+iOS/ReaderCoreNativeAdapter/ReaderCore.xcframework/
