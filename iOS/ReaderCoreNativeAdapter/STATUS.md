@@ -2,7 +2,7 @@
 
 ## Round 6: xcodebuild SwiftPM 集成修复（binaryTarget + 共享 scheme） (COMPLETED)
 
-**Commit:** TBD
+**Commit:** `7690ce6`
 
 ### Round 6 新增证据
 
