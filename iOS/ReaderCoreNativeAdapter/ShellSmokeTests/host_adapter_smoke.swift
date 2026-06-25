@@ -264,6 +264,88 @@ struct HostAdapterSmoke {
             check("[core]", "chapter.content inline returns result", false, "\(error)")
         }
 
+        // ---- [core] book.search via http.execute (host.request → host.complete → result) ----
+        do {
+            // Send book.search WITHOUT inline searchResponse — Core should emit host.request
+            let cmd = try JSONSerialization.data(withJSONObject: [
+                "protocolVersion": 1, "requestId": NSNumber(value: 90),
+                "method": "book.search",
+                "params": [
+                    "sourceId": "smoke-source",
+                    "searchRequest": [
+                        "url": "https://smoke.example.test/search?q=test",
+                        "method": "GET",
+                    ],
+                    "source": [
+                        "sourceId": "smoke-source",
+                        "name": "Smoke Source",
+                        "baseUrl": "https://smoke.example.test",
+                        "rules": [
+                            "search": [["kind": "jsonPath", "path": "$.books[*]"]],
+                        ],
+                    ] as [String: Any],
+                ],
+            ])
+            try runtime.send(json: cmd)
+            // Core should emit host.request with capability "http.execute"
+            let hostReq = try pollUntil(runtime: runtime, requestId: 90)
+            check("[core]", "http.execute emits host.request",
+                  hostReq.type == "host.request" && hostReq.capability == "http.execute",
+                  "type=\(hostReq.type) capability=\(hostReq.capability ?? "nil")")
+            guard let opId = hostReq.operationId else {
+                throw SmokeFailure("missing operationId")
+            }
+            // Host performs the "HTTP request" and completes with a mock response
+            let complete = try JSONSerialization.data(withJSONObject: [
+                "protocolVersion": 1, "requestId": NSNumber(value: 91),
+                "method": "host.complete",
+                "params": [
+                    "operationId": NSNumber(value: opId),
+                    "result": [
+                        "body": "{\"books\":[{\"bookId\":\"2\",\"title\":\"HTTP Book\",\"author\":\"Net\"}]}",
+                        "status": 200,
+                    ],
+                ],
+            ])
+            try runtime.send(json: complete)
+            let searchResult = try pollUntil(runtime: runtime, requestId: 90)
+            check("[core]", "http.execute book.search returns result",
+                  searchResult.type == "result",
+                  "type=\(searchResult.type)")
+            let bookCount = (searchResult.data?["books"] as? [Any])?.count ?? 0
+            check("[core]", "http.execute book.search parses books",
+                  bookCount > 0,
+                  "bookCount=\(bookCount)")
+        } catch {
+            check("[core]", "http.execute book.search returns result", false, "\(error)")
+        }
+
+        // ---- [core] book.search with searchRequest rejects empty URL ----
+        do {
+            _ = try runtime.request(method: "book.search", requestId: 95, params: [
+                "sourceId": "smoke-source",
+                "searchRequest": [
+                    "url": "",
+                    "method": "GET",
+                ],
+                "source": [
+                    "sourceId": "smoke-source",
+                    "name": "Smoke Source",
+                    "baseUrl": "https://smoke.example.test",
+                    "rules": [
+                        "search": [["kind": "jsonPath", "path": "$.books[*]"]],
+                    ],
+                ] as [String: Any],
+            ], timeout: 5)
+            check("[core]", "http.execute empty URL rejected", false, "expected throw")
+        } catch ReaderCoreNativeError.coreError(let code, _) {
+            check("[core]", "http.execute empty URL rejected",
+                  code == "INVALID_PARAMS",
+                  "code=\(code)")
+        } catch {
+            check("[core]", "http.execute empty URL rejected", false, "\(error)")
+        }
+
         // ---- [app-side] adapter behavior ----
         check("[app-side]", "runtime create + destroy", true)
 
