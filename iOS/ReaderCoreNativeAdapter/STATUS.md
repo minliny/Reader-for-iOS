@@ -2,7 +2,7 @@
 
 ## Round 4: 剩余远程协议覆盖 + 生命周期收尾 (COMPLETED)
 
-**Commit:** TBD
+**Commit:** `7829220`
 
 ### 累计能力表
 
