@@ -54,7 +54,8 @@ let package = Package(
                 "sim-smoke-report.txt"
             ],
             sources: [
-                "ReaderCoreNativeRuntime.swift"
+                "ReaderCoreNativeRuntime.swift",
+                "ReaderCoreNativeEvidenceRunner.swift"
             ]
         ),
         .target(
@@ -115,7 +116,8 @@ let package = Package(
             dependencies: [
                 "ReaderShellValidation",
                 "ReaderAppSupport",
-                "ReaderAppPersistence"
+                "ReaderAppPersistence",
+                "ReaderCoreNativeAdapter"
             ],
             path: ".",
             exclude: [

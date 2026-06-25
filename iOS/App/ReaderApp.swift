@@ -2,6 +2,10 @@ import SwiftUI
 import ReaderShellValidation
 import ReaderCoreModels
 
+#if DEBUG && canImport(ReaderCoreNativeAdapter)
+import ReaderCoreNativeAdapter
+#endif
+
 #if DEBUG && canImport(WebKit)
 import WebKit
 #endif
@@ -15,6 +19,9 @@ public struct ReaderApp: App {
 
     #if DEBUG && canImport(WebKit)
     @State private var autorunConfiguration: WebViewRuntimeAutorunConfiguration?
+    #endif
+    #if DEBUG && canImport(ReaderCoreNativeAdapter)
+    @State private var nativeCoreEvidenceAutorunConfiguration: NativeCoreEvidenceAutorunConfiguration?
     #endif
 
     public init() {
@@ -40,10 +47,33 @@ public struct ReaderApp: App {
             _autorunConfiguration = State(wrappedValue: config)
         }
         #endif
+
+        #if DEBUG && canImport(ReaderCoreNativeAdapter)
+        let nativeConfig = NativeCoreEvidenceAutorunConfiguration.parse(CommandLine.arguments)
+        print("[NativeCoreEvidence] autorun args parsed enabled=\(nativeConfig.isEnabled) valid=\(nativeConfig.isValid)")
+        print("[NativeCoreEvidence] bundleId=com.reader.ios")
+        if nativeConfig.isEnabled && nativeConfig.isValid {
+            _nativeCoreEvidenceAutorunConfiguration = State(wrappedValue: nativeConfig)
+        }
+        #endif
     }
 
     public var body: some Scene {
         WindowGroup {
+            #if DEBUG && canImport(ReaderCoreNativeAdapter)
+            if let config = nativeCoreEvidenceAutorunConfiguration, config.isEnabled && config.isValid {
+                NativeCoreEvidenceAutorunView(configuration: config)
+            } else {
+                defaultRootContent
+            }
+            #else
+            defaultRootContent
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var defaultRootContent: some View {
             #if DEBUG && canImport(WebKit)
             if let config = autorunConfiguration, config.isEnabled && config.isValid {
                 WebViewRuntimeAutorunView(configuration: config)
@@ -61,7 +91,6 @@ public struct ReaderApp: App {
                 environment: environment
             )
             #endif
-        }
     }
 }
 

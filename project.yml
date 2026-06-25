@@ -81,6 +81,31 @@ targets:
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGNING_ALLOWED: NO
 
+  ReaderCoreNativeAdapter:
+    type: framework
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iOS/ReaderCoreNativeAdapter
+        excludes:
+          - cabi/**
+          - ShellSmokeTests/**
+          - README.md
+          - STATUS.md
+          - fetch-cabi.sh
+          - run-shell-smoke.sh
+          - run-sim-smoke.sh
+          - sim-smoke-report.txt
+    dependencies:
+      - framework: iOS/ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+
   ReaderForIOSApp:
     type: application
     platform: iOS
@@ -96,6 +121,7 @@ targets:
       - target: ReaderShellValidation
       - target: ReaderAppSupport
       - target: ReaderAppPersistence
+      - target: ReaderCoreNativeAdapter
       - package: ReaderCore
         product: ReaderCoreModels
     settings:

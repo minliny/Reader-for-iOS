@@ -4,16 +4,18 @@ import ReaderAppSupport
 import ReaderCoreModels
 import ReaderShellValidation
 
+public typealias WebDAVReadingProgress = ReaderAppSupport.ReadingProgress
+
 public struct WebDAVProgressSyncPayload: Codable, Equatable, Sendable {
     public var schemaVersion: Int
-    public var records: [ReadingProgress]
+    public var records: [WebDAVReadingProgress]
     public var coreRecords: [ProgressCloudSyncRecord]
     public var cleanRoomMaintained: Bool
     public var externalGPLCodeCopied: Bool
 
     public init(
         schemaVersion: Int = 1,
-        records: [ReadingProgress],
+        records: [WebDAVReadingProgress],
         deviceID: String,
         cleanRoomMaintained: Bool = true,
         externalGPLCodeCopied: Bool = false
@@ -35,16 +37,16 @@ public enum WebDAVProgressConflictResolution: String, Codable, Equatable, Sendab
 public struct WebDAVProgressSyncConflict: Codable, Equatable, Identifiable, Sendable {
     public var id: String { bookID }
     public var bookID: String
-    public var local: ReadingProgress
-    public var remote: ReadingProgress
-    public var resolved: ReadingProgress
+    public var local: WebDAVReadingProgress
+    public var remote: WebDAVReadingProgress
+    public var resolved: WebDAVReadingProgress
     public var resolution: WebDAVProgressConflictResolution
 
     public init(
         bookID: String,
-        local: ReadingProgress,
-        remote: ReadingProgress,
-        resolved: ReadingProgress,
+        local: WebDAVReadingProgress,
+        remote: WebDAVReadingProgress,
+        resolved: WebDAVReadingProgress,
         resolution: WebDAVProgressConflictResolution
     ) {
         self.bookID = bookID
@@ -87,8 +89,8 @@ public struct WebDAVProgressSyncSummary: Equatable, Sendable {
 }
 
 public protocol WebDAVProgressRemoteSyncing: Sendable {
-    func loadProgress(credentials: WebDAVCredentials) async throws -> [ReadingProgress]
-    func saveProgress(_ records: [ReadingProgress], credentials: WebDAVCredentials) async throws
+    func loadProgress(credentials: WebDAVCredentials) async throws -> [WebDAVReadingProgress]
+    func saveProgress(_ records: [WebDAVReadingProgress], credentials: WebDAVCredentials) async throws
 }
 
 public protocol WebDAVProgressSyncing: Sendable {
@@ -110,7 +112,7 @@ public struct URLSessionWebDAVProgressSyncClient: WebDAVProgressRemoteSyncing {
         self.deviceID = deviceID
     }
 
-    public func loadProgress(credentials: WebDAVCredentials) async throws -> [ReadingProgress] {
+    public func loadProgress(credentials: WebDAVCredentials) async throws -> [WebDAVReadingProgress] {
         let url = try progressURL(credentials: credentials)
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -131,7 +133,7 @@ public struct URLSessionWebDAVProgressSyncClient: WebDAVProgressRemoteSyncing {
         return payload.records.sortedByStableProgressKey()
     }
 
-    public func saveProgress(_ records: [ReadingProgress], credentials: WebDAVCredentials) async throws {
+    public func saveProgress(_ records: [WebDAVReadingProgress], credentials: WebDAVCredentials) async throws {
         let url = try progressURL(credentials: credentials)
         let payload = WebDAVProgressSyncPayload(records: records, deviceID: deviceID)
         let data = try JSONEncoder.webDAVProgressEncoder.encode(payload)
@@ -210,10 +212,10 @@ public final class WebDAVProgressSyncService: WebDAVProgressSyncing, @unchecked 
     }
 
     private func resolve(
-        local: [ReadingProgress],
-        remote: [ReadingProgress]
-    ) -> (records: [ReadingProgress], downloadedCount: Int, conflicts: [WebDAVProgressSyncConflict]) {
-        var merged: [String: ReadingProgress] = Dictionary(uniqueKeysWithValues: local.map { ($0.bookID, $0) })
+        local: [WebDAVReadingProgress],
+        remote: [WebDAVReadingProgress]
+    ) -> (records: [WebDAVReadingProgress], downloadedCount: Int, conflicts: [WebDAVProgressSyncConflict]) {
+        var merged: [String: WebDAVReadingProgress] = Dictionary(uniqueKeysWithValues: local.map { ($0.bookID, $0) })
         var downloadedCount = 0
         var conflicts: [WebDAVProgressSyncConflict] = []
 
@@ -265,23 +267,23 @@ public final class WebDAVProgressSyncAdapter: ProgressSyncAdapterProtocol, @unch
         self.remote = remote
     }
 
-    public func pushProgress(_ progress: ReadingProgress) async throws {
+    public func pushProgress(_ progress: WebDAVReadingProgress) async throws {
         var recordsByID = Dictionary(uniqueKeysWithValues: try await remote.loadProgress(credentials: credentials).map { ($0.bookID, $0) })
         recordsByID[progress.bookID] = progress
         try await remote.saveProgress(Array(recordsByID.values).sortedByStableProgressKey(), credentials: credentials)
     }
 
-    public func pullProgress(bookID: String) async throws -> ReadingProgress? {
+    public func pullProgress(bookID: String) async throws -> WebDAVReadingProgress? {
         try await remote.loadProgress(credentials: credentials).first { $0.bookID == bookID }
     }
 
-    public func listRemoteProgress() async throws -> [ReadingProgress] {
+    public func listRemoteProgress() async throws -> [WebDAVReadingProgress] {
         try await remote.loadProgress(credentials: credentials)
     }
 }
 
-private extension Array where Element == ReadingProgress {
-    func sortedByStableProgressKey() -> [ReadingProgress] {
+private extension Array where Element == WebDAVReadingProgress {
+    func sortedByStableProgressKey() -> [WebDAVReadingProgress] {
         sorted { lhs, rhs in
             if lhs.bookID != rhs.bookID { return lhs.bookID < rhs.bookID }
             if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
@@ -290,7 +292,7 @@ private extension Array where Element == ReadingProgress {
     }
 }
 
-private extension ReadingProgress {
+private extension WebDAVReadingProgress {
     func coreProgressRecord(deviceID: String) -> ProgressCloudSyncRecord {
         ProgressCloudSyncRecord(
             bookId: bookID,

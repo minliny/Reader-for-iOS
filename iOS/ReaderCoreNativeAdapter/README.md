@@ -28,18 +28,23 @@ cp -R target/ios/ReaderCore.xcframework /path/to/Reader-for-iOS/iOS/ReaderCoreNa
 xcframework 含 `ios-arm64`（真机）+ `ios-arm64-simulator`（模拟器）slice，每个 slice 的
 `Headers/` 含 `reader_core.h` + `module.modulemap`（module 名 `ReaderCore`）。
 
-## Round 1 范围
+## Round 1-7 范围
 
 仅 ABI 连通骨架：runtime lifecycle（create / send / cancel / destroy）、event polling、
 `core.info` / `runtime.ping`。**不**实现 service protocols（SearchService / TOCService /
 ContentService）——后续轮次。Rounds 2-4 扩展到 Host Bus 完整循环、远程阅读协议骨架、
 http.execute 管线、source.import / book.detail / reading.progress.update。Round 5 把
-iOS 模拟器 smoke 固化为脚本证据。
+iOS 模拟器 smoke 固化为脚本证据。Round 7 把证据推进到 `ReaderForIOSApp`
+Debug/Simulator 进程：App launch 与真实 host request loop 独立记录，仍不改 Native
+protocol/schema。
 
 ## 证据纪律（强制）
 
 - **wrapper smoke ≠ 设备完成。** ShellSmokeTest 通过只证明 adapter 能编译、链接
   xcframework、在构建 host / 模拟器上驱动 Core；**不**证明真机启动或完整阅读流。
+- **App launch ≠ host request loop。** `ReaderForIOSApp` 启动只证明 App 进程加载
+  native adapter；`NativeCoreEvidenceView` / autorun 的 `host_request_loop` 通过
+  `book.search -> http.execute host.request -> host.complete -> result` 单独证明。
 - 报告区分 **app-side 能力**（host adapter 执行）与 **Core 能力**（Rust Core 通过
   ABI/protocol 执行）。`ReaderCoreNativeAdapterSmokeTests` 每条用例带
   `[core]` / `[app-side]` 标签。
@@ -70,12 +75,24 @@ bash ./fetch-cabi.sh --xcframework
 cd ..
 xcodebuild -scheme ReaderCoreNativeAdapterSmokeTests \
   -destination 'platform=iOS Simulator,name=iPhone 17' test
+
+# iOS App/Simulator 进程证据（需 booted simulator；不改 Native protocol/schema）
+cd /path/to/Reader-for-iOS
+bash scripts/run_native_core_app_evidence_simulator.sh --device "iPhone 17 Pro"
 ```
 
 注：`ReaderCoreNative` 是 `binaryTarget`（合并 xcframework，macOS + iOS-sim slice）。
 独立 scheme `ReaderCoreNativeAdapterSmokeTests` 只构建 adapter 依赖链，绕过 pre-existing
 的 `ReaderApp` target 构建问题（不在本 goal 范围）。`ReaderApp-Package` scheme 仍会拉
 损坏的 `ReaderApp`，不要用它跑 adapter 测试。
+
+`scripts/run_native_core_app_evidence_simulator.sh` 运行真实 `ReaderForIOSApp` Debug
+App，并通过 `--native-core-evidence-autorun` 写出：
+
+- `native_core_evidence_status.json`
+- `native_core_evidence.json`
+
+其中 `layers` 明确区分 `wrapper_smoke`、`app_launch`、`host_request_loop`。
 
 ## 已知 gap
 

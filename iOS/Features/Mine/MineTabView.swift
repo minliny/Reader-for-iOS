@@ -102,6 +102,11 @@ public struct MineTabView: View {
                     NavigationLink(destination: WebViewRuntimeHarnessView()) {
                         Label("WebView Harness", systemImage: "hammer")
                     }
+                    #if canImport(ReaderCoreNativeAdapter)
+                    NavigationLink(destination: NativeCoreEvidenceView()) {
+                        Label("Native Core Evidence", systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                    #endif
                     NavigationLink(destination: ReaderView(
                         fixtureChapterTitle: "测试章节",
                         fixtureContent: "这是一个测试章节。\n\n用于验证阅读页是否隐藏主底栏。\n\n进入此页面后，底部主底栏应不可见。\n\n测试通过标准：底栏已隐藏。"

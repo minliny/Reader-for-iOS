@@ -4,13 +4,15 @@ import ReaderAppSupport
 import ReaderAppPersistence
 import ReaderCoreModels
 
+public typealias WebDAVBackupReadingProgress = ReaderAppSupport.ReadingProgress
+
 public struct WebDAVBackupArchive: Codable, Equatable {
     public var schemaVersion: Int
     public var package: ReaderCoreModels.BackupPackage
     public var items: [BookshelfItem]
     public var bookSources: [ReaderCoreModels.BookSource]
     public var readerSettings: ReaderDisplaySettings?
-    public var readingProgress: [ReadingProgress]
+    public var readingProgress: [WebDAVBackupReadingProgress]
     public var restorePolicy: ReaderCoreModels.RestorePolicy
     public var cleanRoomMaintained: Bool
     public var externalGPLCodeCopied: Bool
@@ -21,7 +23,7 @@ public struct WebDAVBackupArchive: Codable, Equatable {
         items: [BookshelfItem],
         bookSources: [ReaderCoreModels.BookSource] = [],
         readerSettings: ReaderDisplaySettings? = nil,
-        readingProgress: [ReadingProgress] = [],
+        readingProgress: [WebDAVBackupReadingProgress] = [],
         restorePolicy: ReaderCoreModels.RestorePolicy = ReaderCoreModels.RestorePolicy(mode: .full),
         cleanRoomMaintained: Bool = true,
         externalGPLCodeCopied: Bool = false

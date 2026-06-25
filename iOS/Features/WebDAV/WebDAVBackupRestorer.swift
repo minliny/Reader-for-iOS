@@ -139,9 +139,9 @@ public final class WebDAVBackupRestorer: WebDAVBackupRestoring, @unchecked Senda
     }
 
     private func selectedReadingProgress(
-        from progress: [ReadingProgress],
+        from progress: [WebDAVBackupReadingProgress],
         policy: ReaderCoreModels.RestorePolicy
-    ) -> [ReadingProgress] {
+    ) -> [WebDAVBackupReadingProgress] {
         guard policy.mode == .selective,
               let selectedBookIDs = policy.selectedBookIDs,
               !selectedBookIDs.isEmpty else {
@@ -193,9 +193,9 @@ public final class WebDAVBackupRestorer: WebDAVBackupRestoring, @unchecked Senda
     }
 
     private func mergedReadingProgress(
-        _ restoredProgress: [ReadingProgress],
+        _ restoredProgress: [WebDAVBackupReadingProgress],
         overwriteExisting: Bool
-    ) throws -> [String: ReadingProgress] {
+    ) throws -> [String: WebDAVBackupReadingProgress] {
         guard !overwriteExisting else {
             return Dictionary(uniqueKeysWithValues: restoredProgress.map { ($0.bookID, $0) })
         }
