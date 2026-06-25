@@ -346,6 +346,89 @@ struct HostAdapterSmoke {
             check("[core]", "http.execute empty URL rejected", false, "\(error)")
         }
 
+        // ---- [core] shared source + book for detail/toc/content ----
+        // Import a source into storage so books are persisted for detail/toc lookups.
+        do {
+            let imported = try runtime.request(method: "source.import", requestId: 100, params: [
+                "sourceId": "round4-source",
+                "name": "Round 4 Source",
+                "baseUrl": "https://round4.example.test",
+                "rules": [
+                    "search": [["kind": "jsonPath", "path": "$.books[*]"]],
+                    "detail": [["kind": "jsonPath", "path": "$.book"]],
+                    "toc": [["kind": "jsonPath", "path": "$.toc"]],
+                    "chapter": [["kind": "cssText", "selector": "p"]],
+                ],
+            ], timeout: 5)
+            check("[core]", "source.import imports source",
+                  imported.type == "result" && (imported.data?["imported"] as? Bool) == true,
+                  "type=\(imported.type)")
+        } catch {
+            check("[core]", "source.import imports source", false, "\(error)")
+        }
+
+        // ---- [core] book.detail inline (merge metadata) ----
+        do {
+            let detail = try runtime.request(method: "book.detail", requestId: 110, params: [
+                "sourceId": "round4-source",
+                "book": ["bookId": "1", "title": "Base Title", "author": "Base Author"],
+                "detailResponse": "{\"book\":{\"title\":\"Full Title\",\"author\":\"Full Author\",\"cover\":\"http://img.test/c.jpg\"}}",
+                "source": [
+                    "sourceId": "round4-source",
+                    "name": "Round 4 Source",
+                    "baseUrl": "https://round4.example.test",
+                    "rules": [
+                        "detail": [["kind": "jsonPath", "path": "$.book"]],
+                    ],
+                ] as [String: Any],
+            ], timeout: 5)
+            check("[core]", "book.detail inline returns result",
+                  detail.type == "result",
+                  "type=\(detail.type)")
+            let merged = detail.data?["book"] as? [String: Any]
+            // Should have merged: Full Title + Full Author persist even from detailResponse
+            let hasMerged = merged?["title"] as? String == "Full Title"
+            check("[core]", "book.detail merges book metadata",
+                  hasMerged,
+                  "book keys: \(merged?.keys.joined(separator: ",") ?? "nil")")
+        } catch {
+            check("[core]", "book.detail inline returns result", false, "\(error)")
+        }
+
+        // ---- [core] book.detail rejects non-object book ----
+        do {
+            _ = try runtime.request(method: "book.detail", requestId: 115, params: [
+                "sourceId": "round4-source",
+                "book": "not-an-object",
+                "detailResponse": "{}",
+            ], timeout: 5)
+            check("[core]", "book.detail rejects non-object book", false, "expected throw")
+        } catch ReaderCoreNativeError.coreError(let code, _) {
+            check("[core]", "book.detail rejects non-object book",
+                  code == "INVALID_PARAMS",
+                  "code=\(code)")
+        } catch {
+            check("[core]", "book.detail rejects non-object book", false, "\(error)")
+        }
+
+        // ---- [core] reading.progress.update ----
+        do {
+            let prog = try runtime.request(method: "reading.progress.update", requestId: 120, params: [
+                "bookId": "book-1",
+                "chapterIndex": 5,
+                "chapterOffset": 1024,
+                "chapterProgress": 0.75,
+            ], timeout: 5)
+            check("[core]", "reading.progress.update stores progress",
+                  prog.type == "result" && (prog.data?["stored"] as? Bool) == true,
+                  "type=\(prog.type)")
+            check("[core]", "reading.progress.update returns chapterIndex",
+                  (prog.data?["chapterIndex"] as? NSNumber)?.intValue == 5,
+                  "chapterIndex=\(prog.data?["chapterIndex"] ?? "nil")")
+        } catch {
+            check("[core]", "reading.progress.update stores progress", false, "\(error)")
+        }
+
         // ---- [app-side] adapter behavior ----
         check("[app-side]", "runtime create + destroy", true)
 
