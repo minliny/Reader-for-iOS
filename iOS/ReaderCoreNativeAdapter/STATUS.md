@@ -2,7 +2,7 @@
 
 ## Round 5: iOS 模拟器烟雾测试证据 (COMPLETED)
 
-**Commit:** TBD
+**Commit:** `bee92c1`
 
 ### Round 5 新增证据
 
