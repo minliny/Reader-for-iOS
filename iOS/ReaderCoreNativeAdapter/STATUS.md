@@ -1,5 +1,57 @@
 # iOS Rust Core Host Adapter — STATUS
 
+## Round 6: xcodebuild SwiftPM 集成修复（binaryTarget + 共享 scheme） (COMPLETED)
+
+**Commit:** TBD
+
+### Round 6 新增证据
+
+| 路径 | 载体 | 结果 |
+|------|------|------|
+| macOS standalone | `run-shell-smoke.sh`（swiftc + libreader_core.a） | 33/33 PASS |
+| iOS-sim standalone | `run-sim-smoke.sh`（swiftc + libreader_core_sim.a + simctl spawn） | 33/33 PASS |
+| **iOS-sim XCTest**（新） | `xcodebuild -scheme ReaderCoreNativeAdapterSmokeTests`（binaryTarget xcframework） | **9/9 PASS** |
+
+**xcodebuild XCTest 在 iPhone 17 模拟器跑通**：`Executed 9 tests, with 0 failures`。
+
+### Round 6 关键改动
+
+1. **Package.swift**：`ReaderCoreNative` 从 header-only C target + unsafeFlags 改为
+   `binaryTarget(path: "ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework")`。移除
+   `linkerSettings` unsafeFlags 与 `import Foundation`/`packageCabiDir`。binaryTarget
+   让单一 SwiftPM/xcodebuild 配置按平台自动选 xcframework slice（macOS / iOS-sim），
+   无需 platform-conditional linkerSettings。
+2. **fetch-cabi.sh**：新增 `--xcframework` 选项，用 `xcodebuild -create-xcframework` 把
+   macOS `libreader_core.a` + iOS-sim `libreader_core_sim.a` 合并为
+   `cabi/ReaderCore.xcframework`（macos-arm64 + ios-arm64-simulator slice）。
+3. **共享 scheme**：新增 `iOS/.swiftpm/xcode/xcshareddata/xcschemes/ReaderCoreNativeAdapterSmokeTests.xcscheme`，
+   只构建 `ReaderCoreNativeAdapterSmokeTests`（依赖链不含 `ReaderApp`），绕过 pre-existing
+   的 `ReaderApp` target 构建问题（`BrightnessPolicy` 跨模块 + iOS-only API）。
+4. **.gitignore**：`.swiftpm/` 改为逐层 un-ignore，让共享 scheme 入 git，但构建产物仍忽略。
+
+### Round 6 解决的问题
+- `ReaderCoreNative.o` 产物缺失（header-only target 无 .o）→ binaryTarget 不需要 .o
+- iOS 模拟器链接 macOS lib 架构不匹配 → xcframework 自动选 iOS-sim slice
+- xcodebuild `-scheme ReaderApp-Package` 拉损坏的 ReaderApp → 独立 scheme 绕过
+
+### Round 6 未解决（pre-existing，非 adapter 范围）
+- `ReaderApp` target 自身的 `BrightnessPolicy` 跨模块可见性问题 + iOS-only API 在 macOS 不可用
+  → 不在本 goal 范围，由独立 scheme 绕过，不修复
+
+### Run command
+```bash
+cd iOS/ReaderCoreNativeAdapter
+# 准备 xcframework（binaryTarget 需要）
+bash ./fetch-cabi.sh --xcframework
+# 三条证据路径
+bash ./run-shell-smoke.sh                                    # macOS standalone
+bash ./run-sim-smoke.sh                                      # iOS-sim standalone
+cd .. && xcodebuild -scheme ReaderCoreNativeAdapterSmokeTests \
+  -destination 'platform=iOS Simulator,name=iPhone 17' test  # iOS-sim XCTest
+```
+
+---
+
 ## Round 5: iOS 模拟器烟雾测试证据 (COMPLETED)
 
 **Commit:** `bee92c1`

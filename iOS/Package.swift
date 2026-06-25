@@ -11,16 +11,6 @@
 // Reader-iOS MUST only depend on Reader-Core public products.
 // Direct source imports from Core/Sources/** are FORBIDDEN.
 import PackageDescription
-import Foundation
-
-// Absolute path to the materialized C ABI directory (reader_core.h,
-// module.modulemap, libreader_core.a). fetch-cabi.sh materializes the static
-// lib here; headers are committed. Absolute path is required because SwiftPM
-// linkerSettings unsafeFlags -L must resolve regardless of build cwd.
-let packageCabiDir = URL(fileURLWithPath: #file)
-    .deletingLastPathComponent()
-    .appendingPathComponent("ReaderCoreNativeAdapter/cabi")
-    .path
 
 let package = Package(
     name: "ReaderApp",
@@ -36,19 +26,16 @@ let package = Package(
         .package(path: "../Reader-Core")
     ],
     targets: [
-        // Rust Reader-Core-Native C ABI for macOS-host testing.
-        // reader_core.h + module.modulemap live in cabi/ (committed); the macOS
-        // libreader_core.a is materialized by fetch-cabi.sh (gitignored). The cabi
-        // target is a header-only C target exposing module "ReaderCoreNative".
-        // For iOS device/sim the xcframework path is a future round (blocked by
-        // the pre-existing ReaderApp build break). See ReaderCoreNativeAdapter/README.md.
-        .target(
+        // Rust Reader-Core-Native C ABI as a merged xcframework binaryTarget.
+        // fetch-cabi.sh --xcframework builds ReaderCore.xcframework (macOS +
+        // iOS-sim slices, gitignored) from Native's libreader_core.a. A binaryTarget
+        // lets a single SwiftPM/xcodebuild configuration link the correct slice per
+        // platform without platform-conditional linkerSettings. The module name is
+        // `ReaderCore` (from the in-xcframework module.modulemap). Run
+        // `bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework` first.
+        .binaryTarget(
             name: "ReaderCoreNative",
-            path: "ReaderCoreNativeAdapter/cabi",
-            publicHeadersPath: ".",
-            cSettings: [
-                .headerSearchPath(".")
-            ]
+            path: "ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework"
         ),
         .target(
             name: "ReaderCoreNativeAdapter",
@@ -61,16 +48,13 @@ let package = Package(
                 "README.md",
                 "STATUS.md",
                 "fetch-cabi.sh",
-                "ReaderCore.xcframework"
+                "run-shell-smoke.sh",
+                "run-sim-smoke.sh",
+                "ShellSmokeTests",
+                "sim-smoke-report.txt"
             ],
             sources: [
                 "ReaderCoreNativeRuntime.swift"
-            ],
-            linkerSettings: [
-                .unsafeFlags([
-                    "-L\(packageCabiDir)",
-                    "-lreader_core"
-                ])
             ]
         ),
         .target(

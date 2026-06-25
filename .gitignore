@@ -7,7 +7,14 @@ DerivedData/
 xcuserdata/
 
 # Swift Package Manager
-.swiftpm/
+.swiftpm/*
+!.swiftpm/xcode/
+.swiftpm/xcode/*
+!.swiftpm/xcode/xcshareddata/
+.swiftpm/xcode/xcshareddata/*
+!.swiftpm/xcode/xcshareddata/xcschemes/
+# Shared Xcode schemes (build artifacts ignored; schemes should be tracked)
+!.swiftpm/xcode/xcshareddata/xcschemes/*.xcscheme
 Packages/
 Package.resolved
 
@@ -48,4 +55,5 @@ __pycache__/
 # Rust Reader-Core-Native binary (built, not source)
 iOS/ReaderCoreNativeAdapter/cabi/libreader_core.a
 iOS/ReaderCoreNativeAdapter/cabi/libreader_core_sim.a
+iOS/ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework/
 iOS/ReaderCoreNativeAdapter/ReaderCore.xcframework/

@@ -48,7 +48,9 @@ iOS 模拟器 smoke 固化为脚本证据。
     macOS 上直接运行。证明 adapter + Core ABI 连通，但平台不符。
   - **iOS 模拟器 smoke**（`run-sim-smoke.sh`）— 交叉编译到 iOS-sim arm64，用
     `xcrun simctl spawn` 在 booted iPhone 模拟器内运行。平台正确，但仍非真机。
-  - 两者均 **≠ 真机证据**。真机需 iOS device slice + 签名，后续轮次。
+  - **iOS 模拟器 XCTest**（Round 6 起）— `xcodebuild -scheme ReaderCoreNativeAdapterSmokeTests`，
+    通过 binaryTarget xcframework 走 SwiftPM 集成，在模拟器跑 XCTest。平台正确，仍非真机。
+  - 三者均 **≠ 真机证据**。真机需 iOS device slice + 签名，后续轮次。
 
 ## 运行
 
@@ -62,12 +64,18 @@ bash ./run-shell-smoke.sh
 # iOS 模拟器 smoke（需先 fetch-cabi.sh --sim 拉 iOS-sim lib）
 bash ./fetch-cabi.sh --sim
 bash ./run-sim-smoke.sh
+
+# iOS 模拟器 XCTest（需先 fetch-cabi.sh --xcframework 构建 binaryTarget xcframework）
+bash ./fetch-cabi.sh --xcframework
+cd ..
+xcodebuild -scheme ReaderCoreNativeAdapterSmokeTests \
+  -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
-注：`xcodebuild -scheme ReaderApp-Package ... test` 走 SwiftPM 集成路径当前阻塞于
-header-only C target `ReaderCoreNative` 不产生 `ReaderCoreNative.o` 产物（SwiftPM +
-xcodebuild 对 header-only C target + unsafeFlags 的已知限制），后续轮次再修。
-当前用独立 `swiftc` + `simctl spawn` 路径产出模拟器证据。
+注：`ReaderCoreNative` 是 `binaryTarget`（合并 xcframework，macOS + iOS-sim slice）。
+独立 scheme `ReaderCoreNativeAdapterSmokeTests` 只构建 adapter 依赖链，绕过 pre-existing
+的 `ReaderApp` target 构建问题（不在本 goal 范围）。`ReaderApp-Package` scheme 仍会拉
+损坏的 `ReaderApp`，不要用它跑 adapter 测试。
 
 ## 已知 gap
 
