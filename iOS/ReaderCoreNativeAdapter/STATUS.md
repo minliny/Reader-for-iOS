@@ -2,7 +2,7 @@
 
 ## Round 2: Host Bus 完整循环 + 远程阅读协议骨架 (COMPLETED)
 
-**Commit:** TBD
+**Commit:** `221c714`
 
 ### Capability Table
 
