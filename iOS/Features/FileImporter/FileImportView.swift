@@ -161,7 +161,7 @@ public struct FileImportView: View {
                 .font(.system(size: 64))
                 .foregroundStyle(.red)
 
-            Text("Import Failed")
+            Text("导入失败")
                 .font(.title2.bold())
 
             Text(message)
@@ -170,11 +170,22 @@ public struct FileImportView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
-            Button("Try Again") {
-                viewModel.reset()
-                showFilePicker = true
+            HStack(spacing: 12) {
+                Button {
+                    viewModel.reset()
+                } label: {
+                    Label("返回", systemImage: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    viewModel.reset()
+                    showFilePicker = true
+                } label: {
+                    Label("选择其他文件", systemImage: "folder")
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
     }
 

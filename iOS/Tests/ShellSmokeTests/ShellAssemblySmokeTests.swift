@@ -67,6 +67,23 @@ final class ShellAssemblySmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testRealCoordinatorConfiguresProviderRealMode() {
+        // The dead-switch root cause was that makeRealReadingFlowCoordinator()
+        // bypassed ReaderCoreServiceProvider.shared.configureRealMode(), leaving
+        // the singleton in .mock. After the fix the coordinator path must unify
+        // with the singleton provider.
+        ReaderCoreServiceProvider.shared.setMode(.mock)
+
+        _ = ShellAssembly.makeRealReadingFlowCoordinator()
+
+        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .real)
+        XCTAssertTrue(ReaderCoreServiceProvider.shared.isRealModeAvailable)
+
+        // Cleanup: restore mock so subsequent tests are not affected.
+        ReaderCoreServiceProvider.shared.setMode(.mock)
+    }
+
+    @MainActor
     func testRealCoordinatorHasNonMockServices() {
         let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
 
@@ -162,4 +179,25 @@ final class ShellAssemblySmokeTests: XCTestCase {
         XCTAssertTrue(coordinator.tocService is MockTOCService)
         XCTAssertTrue(coordinator.contentService is MockContentService)
     }
+
+    // MARK: - B.1: Environment WebView Adapter (iOS-only)
+
+    #if canImport(WebKit) && canImport(UIKit)
+    @MainActor
+    func testEnvironmentHoldsWebViewAdapterOnIOS() {
+        var env = ReaderShellEnvironment()
+        XCTAssertNil(env.webViewAdapter, "Default environment should have nil webViewAdapter")
+
+        env.webViewAdapter = ShellAssembly.makeProductionWebViewAdapter()
+        XCTAssertNotNil(env.webViewAdapter, "Environment should hold production WebView adapter")
+        XCTAssertEqual(env.webViewAdapter?.executorId, "ios.production.webview")
+    }
+
+    @MainActor
+    func testMakeProductionWebViewAdapterReturnsControlledAdapter() {
+        let adapter = ShellAssembly.makeProductionWebViewAdapter()
+        XCTAssertEqual(adapter.executorId, "ios.production.webview")
+        XCTAssertEqual(adapter.executorName, "Production WKWebView Adapter")
+    }
+    #endif
 }

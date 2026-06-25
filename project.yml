@@ -8,7 +8,9 @@ options:
 
 packages:
   ReaderCore:
-    path: ../Reader-Core/Core
+    # Reader-Core's Package.swift lives at the repo root (../Reader-Core/Package.swift),
+    # not under ../Reader-Core/Core (that subdir only holds a .build cache).
+    path: ../Reader-Core
     from: "0.1.0"
 
 targets:
@@ -36,7 +38,9 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - path: iOS/AppSupport/Sources
-    dependencies: []
+    dependencies:
+      - package: ReaderCore
+        product: ReaderCoreModels
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

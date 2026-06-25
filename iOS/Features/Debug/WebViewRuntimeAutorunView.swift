@@ -3,7 +3,7 @@ import ReaderCoreModels
 import ReaderPlatformAdapters
 import ReaderShellValidation
 
-#if DEBUG && canImport(WebKit)
+#if DEBUG && canImport(WebKit) && canImport(UIKit)
 
 import SwiftUI
 import Combine
@@ -119,7 +119,7 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
 
     // ===== 配置 =====
     private let configuration: WebViewRuntimeAutorunConfiguration
-    private let adapter: WKWebViewRuntimeAdapter
+    private let adapter: ProductionWebViewAdapter
 
     // ===== 结果路径 =====
     private var runId: String = ""
@@ -138,12 +138,13 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         print("[WebViewHarness] init outputDirectory=\(self.outputDirectory)")
         print("[WebViewHarness] init status file will be at=\(self.outputDirectory)/webview_run_status.json")
 
-        // 创建 adapter（严格配置）
-        self.adapter = WKWebViewRuntimeAdapter.strict(
-            rootDirectory: Self.defaultSnapshotDirectory(),
-            allowedHosts: [configuration.allowedHost],
-            requireHttps: configuration.requireHttps
+        // 创建受控 ProductionWebViewAdapter（经 WebViewSecurityGate +
+        // DefaultRealNetworkGate + RealNetworkPolicyStore + cookie mirror）
+        let productionAdapter = ShellAssembly.makeProductionWebViewAdapter()
+        productionAdapter.updatePolicy(
+            WebViewSecurityPolicy.testPolicy(allowedHost: configuration.allowedHost)
         )
+        self.adapter = productionAdapter
     }
 
     public func executeRender() async {
@@ -254,10 +255,15 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         print("[WebViewHarness] writing webview_result.json path=\(resultPath)")
         try? resultJson.write(toFile: resultPath, atomically: true, encoding: .utf8)
 
-        // rendered_detail.html
-        let htmlPath = "\(outputDirectory)/rendered_detail.html"
-        print("[WebViewHarness] writing rendered_detail.html path=\(htmlPath) bytes=\(result.html.utf8.count)")
-        try? result.html.write(toFile: htmlPath, atomically: true, encoding: .utf8)
+        // rendered_detail.html — 仅当 --webview-keep-rendered-html 显式开启时写入。
+        // 默认不落盘原始 HTML，对齐 rawHTMLIncluded: false 的脱敏策略。
+        if configuration.keepRenderedHTML {
+            let htmlPath = "\(outputDirectory)/rendered_detail.html"
+            print("[WebViewHarness] writing rendered_detail.html path=\(htmlPath) bytes=\(result.html.utf8.count)")
+            try? result.html.write(toFile: htmlPath, atomically: true, encoding: .utf8)
+        } else {
+            print("[WebViewHarness] skipping rendered_detail.html (keepRenderedHTML=false)")
+        }
 
         // snapshot metadata
         let snapshotMeta = """
@@ -318,7 +324,7 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
                 "finalUrl": "\(finalUrl.replacingOccurrences(of: "\"", with: "\\\""))",
                 "navigationCount": \(navigationCount),
                 "renderedHtmlSize": \(renderedHtmlSize),
-                "snapshotPath": "\(savedSnapshotPath.replacingOccurrences(of: "\"", with: "\\\"其事"))",
+                "snapshotPath": "\(savedSnapshotPath.replacingOccurrences(of: "\"", with: "\\\""))",
                 "errorMessage": "\(error.replacingOccurrences(of: "\"", with: "\\\""))",
                 "startedAt": "\(ISO8601DateFormatter().string(from: Date().addingTimeInterval(-Double(executionTimeMs) / 1000)))",
                 "finishedAt": "\(ISO8601DateFormatter().string(from: Date()))"
@@ -343,10 +349,6 @@ public final class WebViewRuntimeAutorunViewModel: ObservableObject {
         try? statusJson.write(toFile: statusPath, atomically: true, encoding: .utf8)
     }
 
-    private static func defaultSnapshotDirectory() -> String {
-        let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        return paths.first?.appendingPathComponent("WebViewHarness/Snapshots").path ?? "/tmp/webview_harness"
-    }
 }
 
 #endif

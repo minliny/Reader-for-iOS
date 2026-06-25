@@ -206,6 +206,21 @@ public struct CoreLocalBookImportService: CoreLocalBookImporting {
         return SnapshotStore(snapshotRoot: snapRoot)
     }
 
+    /// Caches readable chapter content for TXT imports by reading the file
+    /// within the caller's security-scoped resource block.
+    ///
+    /// The `Data(contentsOf: fileURL)` call is safe because this method is
+    /// only called from `importBook(at:)` which is invoked while the caller
+    /// (FileImportViewModel) holds an active `startAccessingSecurityScopedResource()`
+    /// scope. If the scoped access has expired or the file is unreadable, the
+    /// call gracefully degrades — chapters are returned with `contentCached: false`
+    /// and a diagnostic is appended.
+    ///
+    /// Non-TXT formats skip content caching (metadata-only) because their
+    /// chapter extraction requires format-specific decoders not yet wired.
+    ///
+    /// - Important: Do not call this method outside the security-scoped block.
+    ///   The file access relies on the caller's scoped resource grant.
     private func cacheReadableChapters(
         for result: ReaderCoreLocalBookImportResult,
         fileURL: URL,

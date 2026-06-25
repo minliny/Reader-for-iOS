@@ -409,6 +409,66 @@ public enum HostRuntimeEvidenceExporter {
         )
     }
 
+    /// Session-cookie login evidence bundle. Emits `.measuredPass` only when a
+    /// valid (non-expired, non-revoked) operator approval packet is supplied;
+    /// otherwise emits `.blocked`. The bundle never carries raw cookie values,
+    /// Set-Cookie headers, credentials, tokens, or HTML bodies — only redacted
+    /// metadata, mirroring `HostRuntimeRedactionSummary.strict`.
+    public static func sessionCookieLoginBundle(
+        approval: OperatorApprovalPacket?,
+        observedAt: Date = Date()
+    ) -> HostRuntimeEvidenceBundle {
+        let isLive = approval?.isValid(at: observedAt) == true
+        let host = approval?.host
+        let subject: HostRuntimeEvidenceSubject
+        if let host {
+            subject = HostRuntimeEvidenceSubject(
+                urlScheme: "https",
+                urlHost: host,
+                allowedHost: host,
+                queryRedacted: true,
+                cookieMetadataOnly: true
+            )
+        } else {
+            subject = HostRuntimeEvidenceSubject(cookieMetadataOnly: true)
+        }
+
+        let blockers: [String]
+        if isLive {
+            blockers = []
+        } else if approval == nil {
+            blockers = ["Requires explicit operator approval and redacted real-site login fixture"]
+        } else if approval?.revoked == true {
+            blockers = ["Operator approval packet revoked"]
+        } else {
+            blockers = ["Operator approval packet expired"]
+        }
+
+        let descriptor = HostRuntimeEvidenceDescriptor(
+            evidenceId: .sessionCookieLoginPlatformRunner,
+            coreGapIds: ["S5", "S10"],
+            evidenceKinds: [.nativeWKWebViewLoginFlow, .realWebsiteLogin, .operatorApproval],
+            status: isLive ? .measuredPass : .blocked,
+            liveExecutionClaimed: isLive,
+            observedAt: isLive ? observedAt : nil,
+            subject: subject,
+            redaction: .strict,
+            requiredArtifacts: ["operator_approval.json", "host_runtime_evidence_manifest.json"],
+            observedArtifacts: isLive ? ["host_runtime_evidence_manifest.json"] : [],
+            blockers: blockers,
+            notes: [
+                "No raw cookie values, Set-Cookie headers, credentials, tokens, or HTML bodies are emitted",
+                "Login execution remains operator-gated; this descriptor records approval state only"
+            ]
+        )
+
+        return HostRuntimeEvidenceBundle(
+            bundleId: "reader-ios-session-cookie-login",
+            generatedAt: observedAt,
+            evidence: [descriptor]
+        )
+    }
+
     public static func encodedData(_ bundle: HostRuntimeEvidenceBundle) throws -> Data {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

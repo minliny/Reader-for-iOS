@@ -1,9 +1,21 @@
 import SwiftUI
+import ReaderShellValidation
 
 /// 「我的」Tab 最小生产 Shell — 设置/WebDAV/备份/同步归入此 Tab
 /// Debug-only 入口仅在 #if DEBUG 下可见
 public struct MineTabView: View {
+    @AppStorage("useRealServices") private var useRealServices = false
     public init() {}
+
+    private var serviceModeText: String {
+        switch ReaderCoreServiceProvider.shared.currentMode {
+        case .mock: return "mock"
+        case .offlineReplay: return "offlineReplay"
+        case .controlledOnlineDryRun: return "controlledOnlineDryRun"
+        case .controlledOnline: return "controlledOnline"
+        case .real: return "real"
+        }
+    }
 
     public var body: some View {
         NavigationStack {
@@ -36,6 +48,54 @@ public struct MineTabView: View {
                 // MARK: Developer Tools (Debug only)
                 #if DEBUG
                 Section("Developer Tools") {
+                    // B.1: useRealServices toggle + service mode / adapter readout
+                    Toggle("Use Real Services", isOn: $useRealServices)
+                        .font(.subheadline)
+
+                    HStack {
+                        Text("Service Mode")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(serviceModeText)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack {
+                        Text("Real Mode Available")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(ReaderCoreServiceProvider.shared.isRealModeAvailable ? "yes" : "no")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(ReaderCoreServiceProvider.shared.isRealModeAvailable ? .green : .red)
+                    }
+
+                    #if canImport(WebKit) && canImport(UIKit)
+                    HStack {
+                        Text("WebView Adapter")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("available")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.green)
+                    }
+                    #else
+                    HStack {
+                        Text("WebView Adapter")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("unavailable")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.red)
+                    }
+                    #endif
+
+                    Divider()
+
                     NavigationLink(destination: PrototypeGalleryView()) {
                         Label("[DEBUG] Prototype Gallery", systemImage: "wrench")
                     }

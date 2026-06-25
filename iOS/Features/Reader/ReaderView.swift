@@ -1,5 +1,7 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderAppSupport
+import ReaderShellValidation
 
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
@@ -7,6 +9,12 @@ public struct ReaderView: View {
     @State private var showSettings = false
     @State private var showTTS = false
     @State private var scrollOffset: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    @State private var visibleHeight: CGFloat = 0
+    @State private var chromeVisible: Bool = true
+    @StateObject private var pageTurnTrigger = PageTurnTrigger()
+    private let brightnessController = ScreenBrightnessController()
+    private let volumeKeyPageTurner = VolumeKeyPageTurner()
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     public init(
@@ -78,10 +86,25 @@ public struct ReaderView: View {
         }
         .onAppear {
             Task { await viewModel.loadContent() }
+            brightnessController.apply(BrightnessPolicy(
+                enabled: viewModel.displaySettings.brightnessOverrideEnabled,
+                level: viewModel.displaySettings.brightnessLevel,
+                restoreOnExit: true
+            ))
+            if viewModel.displaySettings.volumeKeyPageTurnEnabled {
+                volumeKeyPageTurner.onVolumeChange = { [weak pageTurnTrigger] direction in
+                    DispatchQueue.main.async {
+                        pageTurnTrigger?.trigger = (direction == .up) ? .next : .previous
+                    }
+                }
+                volumeKeyPageTurner.start()
+            }
         }
         .onDisappear {
             viewModel.saveSettings()
             ttsPlayer.stop()
+            brightnessController.restore()
+            volumeKeyPageTurner.stop()
         }
         .safeAreaInset(edge: .bottom) {
             if showTTS {
@@ -217,20 +240,64 @@ public struct ReaderView: View {
     }
 
     private func loadedContentView(_ content: ContentPage) -> some View {
+        Group {
+            if viewModel.displaySettings.pageTurnMode == .paginated {
+                paginatedContentView(content)
+            } else {
+                scrollContentView(content)
+            }
+        }
+    }
+
+    private func paginatedContentView(_ content: ContentPage) -> some View {
+        PaginatedReaderView(
+            text: content.content,
+            displaySettings: viewModel.displaySettings,
+            onToggleUI: {
+                withAnimation { chromeVisible.toggle() }
+            },
+            onProgressUpdate: { ratio in
+                viewModel.updateProgress(ratio: ratio)
+            },
+            pageTurnTrigger: pageTurnTrigger
+        )
+    }
+
+    private func scrollContentView(_ content: ContentPage) -> some View {
         ScrollView {
             contentText(text: content.content)
                 .background(
                     GeometryReader { geo in
-                        Color.clear.preference(
-                            key: ScrollOffsetPreferenceKey.self,
-                            value: geo.frame(in: .named("scroll")).minY
-                        )
+                        Color.clear
+                            .preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: geo.frame(in: .named("scroll")).minY
+                            )
+                            .preference(
+                                key: ContentHeightPreferenceKey.self,
+                                value: geo.size.height
+                            )
                     }
                 )
         }
         .coordinateSpace(name: "scroll")
+        .background(
+            GeometryReader { scrollGeo in
+                Color.clear
+                    .preference(
+                        key: VisibleHeightPreferenceKey.self,
+                        value: scrollGeo.size.height
+                    )
+            }
+        )
         .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
             trackScrollProgress(offset: offset)
+        }
+        .onPreferenceChange(ContentHeightPreferenceKey.self) { height in
+            contentHeight = height
+        }
+        .onPreferenceChange(VisibleHeightPreferenceKey.self) { height in
+            visibleHeight = height
         }
     }
 
@@ -335,12 +402,32 @@ public struct ReaderView: View {
 
     private func trackScrollProgress(offset: CGFloat) {
         scrollOffset = offset
+        // Compute clamped scroll ratio: 0.0 at top, 1.0 at bottom.
+        // offset is negative when scrolled down (content moves up).
+        let scrollableDistance = contentHeight - visibleHeight
+        guard scrollableDistance > 0 else { return }
+        let ratio = (-offset) / scrollableDistance
+        viewModel.updateProgress(ratio: ratio)
     }
 }
 
 // MARK: - Scroll Offset Preference Key
 
 private struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct ContentHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct VisibleHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()

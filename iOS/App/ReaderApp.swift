@@ -22,7 +22,12 @@ public struct ReaderApp: App {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator(useReal: useReal)
         _coordinator = StateObject(wrappedValue: coordinator)
         _navigationState = StateObject(wrappedValue: AppNavigationState())
-        environment = ReaderShellEnvironment()
+
+        var env = ReaderShellEnvironment()
+        #if canImport(WebKit) && canImport(UIKit)
+        env.webViewAdapter = ShellAssembly.makeProductionWebViewAdapter()
+        #endif
+        environment = env
 
         #if DEBUG && canImport(WebKit)
         // 解析 autorun 配置

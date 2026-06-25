@@ -262,4 +262,85 @@ final class ReadingCacheAndProgressM3Tests: XCTestCase {
         guard case .loaded = state else { XCTFail(); return }
         provider.resetMock()
     }
+
+    // MARK: - B.3: Local Book Cache-Miss Must Not Fall Back to Network
+
+    func testLocalBookCacheMissReturnsFailedNotNetworkFallback() async {
+        let snapshotRoot2 = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("b3_local_\(UUID().uuidString)")
+        let snapStore = SnapshotStore(snapshotRoot: snapshotRoot2)
+
+        let readerVM = ReaderViewModel(
+            chapterURL: "local-book://chapter/1",
+            chapterTitle: "本地章节",
+            bookID: "local-book-001",
+            sourceID: "local-book",
+            snapshotStore: snapStore
+        )
+
+        XCTAssertTrue(readerVM.isLocalBook, "isLocalBook should be true for sourceID=local-book")
+
+        await readerVM.loadContent()
+
+        switch readerVM.readerState {
+        case .failed(let message):
+            XCTAssertEqual(message, "本地章节缓存缺失，请重新导入该书")
+        default:
+            XCTFail("Expected .failed for local-book cache miss, got \(readerVM.readerState)")
+        }
+    }
+
+    func testLocalBookSchemeCacheMissReturnsFailed() async {
+        let snapshotRoot2 = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("b3_scheme_\(UUID().uuidString)")
+        let snapStore = SnapshotStore(snapshotRoot: snapshotRoot2)
+
+        let readerVM = ReaderViewModel(
+            chapterURL: "local-book://imported/some-chapter",
+            chapterTitle: "导入章节",
+            bookID: "local-book-002",
+            sourceID: nil,
+            snapshotStore: snapStore
+        )
+
+        XCTAssertTrue(readerVM.isLocalBook, "isLocalBook should be true for local-book:// scheme")
+
+        await readerVM.loadContent()
+
+        switch readerVM.readerState {
+        case .failed(let message):
+            XCTAssertEqual(message, "本地章节缓存缺失，请重新导入该书")
+        default:
+            XCTFail("Expected .failed for local-book:// cache miss, got \(readerVM.readerState)")
+        }
+    }
+
+    func testLocalBookCacheHitStillWorks() async {
+        let snapshotRoot2 = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("b3_hit_\(UUID().uuidString)")
+        let snapStore = SnapshotStore(snapshotRoot: snapshotRoot2)
+        _ = snapStore.saveChapterContentSnapshot(
+            sourceId: "local-book",
+            sourceName: "",
+            host: "",
+            chapterURL: "local-book://chapter/1",
+            chapterTitle: "本地第一章",
+            content: "这是本地导入的内容。",
+            nextChapterURL: nil
+        )
+
+        let readerVM = ReaderViewModel(
+            chapterURL: "local-book://chapter/1",
+            chapterTitle: "本地第一章",
+            bookID: "local-book-003",
+            sourceID: "local-book",
+            snapshotStore: snapStore
+        )
+
+        await readerVM.loadContent()
+
+        switch readerVM.readerState {
+        case .cached(let page):
+            XCTAssertTrue(page.content.contains("本地导入"))
+        default:
+            XCTFail("Expected .cached for local-book cache hit, got \(readerVM.readerState)")
+        }
+    }
 }

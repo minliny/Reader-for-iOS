@@ -169,6 +169,40 @@ public struct ReaderSettingsPanel: View {
                     }
                 }
                 .pickerStyle(.segmented)
+
+                if displaySettings.pageTurnMode == .paginated {
+                    Toggle("Tap Zones", isOn: $displaySettings.tapZoneEnabled)
+                        .font(.subheadline)
+                        .padding(.top, 4)
+
+                    Toggle("Volume Key Page Turn", isOn: $displaySettings.volumeKeyPageTurnEnabled)
+                        .font(.subheadline)
+
+                    Toggle("Dual Page (Landscape)", isOn: $displaySettings.dualPageEnabled)
+                        .font(.subheadline)
+                }
+            }
+
+            VStack(spacing: 12) {
+                Toggle("Brightness Override", isOn: $displaySettings.brightnessOverrideEnabled)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                if displaySettings.brightnessOverrideEnabled {
+                    HStack(spacing: 12) {
+                        Image(systemName: "sun.min")
+                            .foregroundStyle(.secondary)
+
+                        Slider(value: $displaySettings.brightnessLevel, in: 0.1...1.0, step: 0.05)
+
+                        Image(systemName: "sun.max")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(String(format: "%.0f%%", displaySettings.brightnessLevel * 100))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()

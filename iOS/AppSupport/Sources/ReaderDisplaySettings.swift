@@ -36,6 +36,11 @@ public struct ReaderDisplaySettings: Codable, Equatable {
     public var verticalPadding: Double
     public var backgroundMode: ReaderBackgroundMode
     public var pageTurnMode: PageTurnMode
+    public var tapZoneEnabled: Bool
+    public var brightnessOverrideEnabled: Bool
+    public var brightnessLevel: Double
+    public var volumeKeyPageTurnEnabled: Bool
+    public var dualPageEnabled: Bool
 
     public init(
         fontSize: Int = 18,
@@ -45,7 +50,12 @@ public struct ReaderDisplaySettings: Codable, Equatable {
         horizontalPadding: Double = 16.0,
         verticalPadding: Double = 16.0,
         backgroundMode: ReaderBackgroundMode = .light,
-        pageTurnMode: PageTurnMode = .scroll
+        pageTurnMode: PageTurnMode = .scroll,
+        tapZoneEnabled: Bool = true,
+        brightnessOverrideEnabled: Bool = false,
+        brightnessLevel: Double = 0.8,
+        volumeKeyPageTurnEnabled: Bool = false,
+        dualPageEnabled: Bool = false
     ) {
         self.fontSize = fontSize
         self.fontFamily = fontFamily
@@ -55,6 +65,30 @@ public struct ReaderDisplaySettings: Codable, Equatable {
         self.verticalPadding = verticalPadding
         self.backgroundMode = backgroundMode
         self.pageTurnMode = pageTurnMode
+        self.tapZoneEnabled = tapZoneEnabled
+        self.brightnessOverrideEnabled = brightnessOverrideEnabled
+        self.brightnessLevel = min(1.0, max(0.0, brightnessLevel))
+        self.volumeKeyPageTurnEnabled = volumeKeyPageTurnEnabled
+        self.dualPageEnabled = dualPageEnabled
+    }
+
+    /// Backward-compatible decoder: falls back to defaults for keys absent
+    /// in older persisted settings files.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fontSize = try c.decodeIfPresent(Int.self, forKey: .fontSize) ?? 18
+        fontFamily = try c.decodeIfPresent(String.self, forKey: .fontFamily) ?? "SF Pro Display"
+        lineSpacing = try c.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 8.0
+        paragraphSpacing = try c.decodeIfPresent(Double.self, forKey: .paragraphSpacing) ?? 16.0
+        horizontalPadding = try c.decodeIfPresent(Double.self, forKey: .horizontalPadding) ?? 16.0
+        verticalPadding = try c.decodeIfPresent(Double.self, forKey: .verticalPadding) ?? 16.0
+        backgroundMode = try c.decodeIfPresent(ReaderBackgroundMode.self, forKey: .backgroundMode) ?? .light
+        pageTurnMode = try c.decodeIfPresent(PageTurnMode.self, forKey: .pageTurnMode) ?? .scroll
+        tapZoneEnabled = try c.decodeIfPresent(Bool.self, forKey: .tapZoneEnabled) ?? true
+        brightnessOverrideEnabled = try c.decodeIfPresent(Bool.self, forKey: .brightnessOverrideEnabled) ?? false
+        brightnessLevel = try c.decodeIfPresent(Double.self, forKey: .brightnessLevel) ?? 0.8
+        volumeKeyPageTurnEnabled = try c.decodeIfPresent(Bool.self, forKey: .volumeKeyPageTurnEnabled) ?? false
+        dualPageEnabled = try c.decodeIfPresent(Bool.self, forKey: .dualPageEnabled) ?? false
     }
 
     public static let `default` = ReaderDisplaySettings()

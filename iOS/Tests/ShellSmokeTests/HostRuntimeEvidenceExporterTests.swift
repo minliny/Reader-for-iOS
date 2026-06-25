@@ -66,6 +66,108 @@ final class HostRuntimeEvidenceExporterTests: XCTestCase {
         XCTAssertFalse(json.contains("Set-Cookie:"))
     }
 
+    // MARK: - Session Cookie Login Bundle
+
+    func testSessionCookieLoginBundleBlockedWhenNoApproval() throws {
+        let bundle = HostRuntimeEvidenceExporter.sessionCookieLoginBundle(
+            approval: nil,
+            observedAt: Date(timeIntervalSince1970: 1_782_156_030)
+        )
+
+        let evidence = try XCTUnwrap(bundle.evidence.first { $0.evidenceId == .sessionCookieLoginPlatformRunner })
+        XCTAssertEqual(evidence.status, .blocked)
+        XCTAssertFalse(evidence.liveExecutionClaimed)
+        XCTAssertFalse(evidence.redaction.rawCookieValuesIncluded)
+        XCTAssertFalse(evidence.redaction.rawCredentialValuesIncluded)
+        XCTAssertFalse(evidence.redaction.rawHTMLIncluded)
+    }
+
+    func testSessionCookieLoginBundleMeasuredPassWhenValidApproval() throws {
+        let grantedAt = Date(timeIntervalSince1970: 1_782_156_000)
+        let approval = OperatorApprovalPacket(
+            packetId: "pkt-login",
+            host: "www.example.com",
+            capability: .sessionCookieLogin,
+            grantedAt: grantedAt,
+            expiresAt: grantedAt.addingTimeInterval(3600)
+        )
+
+        let bundle = HostRuntimeEvidenceExporter.sessionCookieLoginBundle(
+            approval: approval,
+            observedAt: grantedAt.addingTimeInterval(60)
+        )
+
+        let evidence = try XCTUnwrap(bundle.evidence.first { $0.evidenceId == .sessionCookieLoginPlatformRunner })
+        XCTAssertEqual(evidence.status, .measuredPass)
+        XCTAssertTrue(evidence.liveExecutionClaimed)
+        XCTAssertEqual(evidence.subject.urlHost, "www.example.com")
+        XCTAssertEqual(evidence.subject.allowedHost, "www.example.com")
+    }
+
+    func testSessionCookieLoginBundleBlockedWhenExpiredApproval() throws {
+        let grantedAt = Date(timeIntervalSince1970: 1_782_156_000)
+        let approval = OperatorApprovalPacket(
+            packetId: "pkt-login-exp",
+            host: "www.example.com",
+            capability: .sessionCookieLogin,
+            grantedAt: grantedAt,
+            expiresAt: grantedAt.addingTimeInterval(60)
+        )
+
+        let bundle = HostRuntimeEvidenceExporter.sessionCookieLoginBundle(
+            approval: approval,
+            observedAt: grantedAt.addingTimeInterval(120)
+        )
+
+        let evidence = try XCTUnwrap(bundle.evidence.first { $0.evidenceId == .sessionCookieLoginPlatformRunner })
+        XCTAssertEqual(evidence.status, .blocked)
+        XCTAssertFalse(evidence.liveExecutionClaimed)
+    }
+
+    func testSessionCookieLoginBundleBlockedWhenRevokedApproval() throws {
+        let grantedAt = Date(timeIntervalSince1970: 1_782_156_000)
+        let approval = OperatorApprovalPacket(
+            packetId: "pkt-login-rev",
+            host: "www.example.com",
+            capability: .sessionCookieLogin,
+            grantedAt: grantedAt,
+            expiresAt: nil,
+            revoked: true
+        )
+
+        let bundle = HostRuntimeEvidenceExporter.sessionCookieLoginBundle(
+            approval: approval,
+            observedAt: grantedAt.addingTimeInterval(60)
+        )
+
+        let evidence = try XCTUnwrap(bundle.evidence.first { $0.evidenceId == .sessionCookieLoginPlatformRunner })
+        XCTAssertEqual(evidence.status, .blocked)
+    }
+
+    func testSessionCookieLoginBundleOmitsRawSecretsAndHTML() throws {
+        let grantedAt = Date(timeIntervalSince1970: 1_782_156_000)
+        let approval = OperatorApprovalPacket(
+            packetId: "pkt-login-secrets",
+            host: "www.example.com",
+            capability: .sessionCookieLogin,
+            grantedAt: grantedAt,
+            expiresAt: nil
+        )
+
+        let bundle = HostRuntimeEvidenceExporter.sessionCookieLoginBundle(
+            approval: approval,
+            observedAt: grantedAt
+        )
+
+        let json = String(data: try HostRuntimeEvidenceExporter.encodedData(bundle), encoding: .utf8) ?? ""
+        XCTAssertTrue(json.contains("session_cookie_login_platform_runner"))
+        XCTAssertFalse(json.contains("Set-Cookie"))
+        XCTAssertFalse(json.contains("password"))
+        XCTAssertFalse(json.contains("token="))
+        XCTAssertFalse(json.contains("<html"))
+        XCTAssertFalse(json.contains("Authorization"))
+    }
+
     func testLocalBookSecurityScopedHandoffEvidenceOmitsFileNameAndPath() throws {
         let fileURL = URL(fileURLWithPath: "/Users/example/Private Novel Title.epub")
         let bundle = HostRuntimeEvidenceExporter.localBookSecurityScopedHandoffBundle(

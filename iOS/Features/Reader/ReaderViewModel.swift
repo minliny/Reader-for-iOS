@@ -38,6 +38,7 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var currentChapterIndex: Int = 0
     @Published public var totalChapterCount: Int = 0
     @Published public var chapterTitle: String
+    @Published public var isLocalBook: Bool = false
 
     public private(set) var chapterURL: String
     public private(set) var chapterList: [TOCItem]
@@ -93,6 +94,7 @@ public final class ReaderViewModel: ObservableObject {
         self.bookID = bookID
         self.sourceID = sourceID
         self.source = source
+        self.isLocalBook = (sourceID == "local-book") || chapterURL.hasPrefix("local-book://")
         self.provider = provider
         self.progressStore = progressStore
         self.settingsStore = settingsStore
@@ -142,6 +144,14 @@ public final class ReaderViewModel: ObservableObject {
                 }
                 return
             }
+        }
+
+        // B.3: Local books must not fall back to network providers.
+        // If the snapshot cache missed for a local-book source, the chapter
+        // data is gone — the user must re-import the book.
+        if isLocalBook {
+            readerState = .failed(message: "本地章节缓存缺失，请重新导入该书")
+            return
         }
 
         // Network / provider fallback

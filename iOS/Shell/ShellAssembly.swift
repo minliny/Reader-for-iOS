@@ -42,6 +42,15 @@ public enum ShellAssembly {
     // MARK: - Real
 
     public static func makeRealReadingFlowCoordinator() -> ReadingFlowCoordinator {
+        // Unify with the singleton provider: configureRealMode() flips the
+        // provider to .real AND runs the RealNetworkGate. If the gate denies,
+        // fall back to mock so the app never silently runs real services.
+        // This closes the "dead switch" where the toggle built real services
+        // directly while the provider singleton stayed in .mock.
+        guard ReaderCoreServiceProvider.shared.configureRealMode() else {
+            return makeMockReadingFlowCoordinator()
+        }
+
         let httpClient = URLSessionHTTPClient()
         let factory = ReaderCoreServiceFactory(httpClient: httpClient)
         let realSearchService = factory.makeSearchService()
@@ -66,6 +75,19 @@ public enum ShellAssembly {
         }
         return makeMockReadingFlowCoordinator()
     }
+
+    // MARK: - Production WebView Adapter
+
+    /// Builds a `ProductionWebViewAdapter` wired with the default security gate,
+    /// `DefaultRealNetworkGate`, `RealNetworkPolicyStore.shared`, and the cookie
+    /// mirror metadata store. The controlled path produces redacted evidence for
+    /// the WebView autorun harness. iOS-only (WebKit + UIKit).
+    #if canImport(WebKit) && canImport(UIKit)
+    @MainActor
+    public static func makeProductionWebViewAdapter() -> ProductionWebViewAdapter {
+        ProductionWebViewAdapter()
+    }
+    #endif
 }
 
 public final class MockSearchService: SearchService {

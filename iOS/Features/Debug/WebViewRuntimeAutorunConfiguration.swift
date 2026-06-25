@@ -28,6 +28,7 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
     public let requireSnapshot: Bool
     public let requireAudit: Bool
     public let exitAfterRun: Bool
+    public let keepRenderedHTML: Bool
 
     // ===== 默认约束 =====
     public static let defaultMaxNavigationCount = 1
@@ -56,7 +57,8 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
         allowDownload: Bool,
         requireSnapshot: Bool,
         requireAudit: Bool,
-        exitAfterRun: Bool
+        exitAfterRun: Bool,
+        keepRenderedHTML: Bool
     ) {
         self.isEnabled = isEnabled
         self.isValid = isValid
@@ -75,6 +77,7 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
         self.requireSnapshot = requireSnapshot
         self.requireAudit = requireAudit
         self.exitAfterRun = exitAfterRun
+        self.keepRenderedHTML = keepRenderedHTML
     }
 
     // MARK: - 解析
@@ -106,6 +109,7 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
         var requireSnapshot = Self.defaultRequireSnapshot
         var requireAudit = Self.defaultRequireAudit
         var exitAfterRun = false
+        var keepRenderedHTML = false
 
         // 解析每个参数
         for (index, arg) in arguments.enumerated() {
@@ -151,6 +155,8 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
                 }
             case "--webview-exit-after-run":
                 exitAfterRun = true
+            case "--webview-keep-rendered-html":
+                keepRenderedHTML = true
             default:
                 break
             }
@@ -208,7 +214,8 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
             allowDownload: allowDownload,
             requireSnapshot: requireSnapshot,
             requireAudit: requireAudit,
-            exitAfterRun: exitAfterRun
+            exitAfterRun: exitAfterRun,
+            keepRenderedHTML: keepRenderedHTML
         )
     }
 
@@ -232,7 +239,8 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
             allowDownload: Self.defaultAllowDownload,
             requireSnapshot: Self.defaultRequireSnapshot,
             requireAudit: Self.defaultRequireAudit,
-            exitAfterRun: false
+            exitAfterRun: false,
+            keepRenderedHTML: false
         )
     }
 
@@ -254,7 +262,8 @@ public struct WebViewRuntimeAutorunConfiguration: Sendable {
             allowDownload: Self.defaultAllowDownload,
             requireSnapshot: Self.defaultRequireSnapshot,
             requireAudit: Self.defaultRequireAudit,
-            exitAfterRun: false
+            exitAfterRun: false,
+            keepRenderedHTML: false
         )
     }
 
