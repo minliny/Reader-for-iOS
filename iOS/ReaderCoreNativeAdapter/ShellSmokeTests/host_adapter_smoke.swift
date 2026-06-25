@@ -429,6 +429,22 @@ struct HostAdapterSmoke {
             check("[core]", "reading.progress.update stores progress", false, "\(error)")
         }
 
+        // ---- [core] reading.progress.update rejects chapterProgress > 1.0 ----
+        do {
+            let cmd = try JSONSerialization.data(withJSONObject: [
+                "protocolVersion": 1, "requestId": NSNumber(value: 125),
+                "method": "reading.progress.update",
+                "params": ["bookId": "book-1", "chapterProgress": 1.25],
+            ])
+            try runtime.send(json: cmd)
+            let ev = try pollUntil(runtime: runtime, requestId: 125)
+            check("[core]", "reading.progress.update rejects out-of-range progress",
+                  ev.type == "error" && ev.coreErrorCode == "INVALID_PARAMS",
+                  "type=\(ev.type) code=\(ev.coreErrorCode ?? "nil")")
+        } catch {
+            check("[core]", "reading.progress.update rejects out-of-range progress", false, "\(error)")
+        }
+
         // ---- [app-side] adapter behavior ----
         check("[app-side]", "runtime create + destroy", true)
 
