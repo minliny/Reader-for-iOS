@@ -8,6 +8,9 @@
 //   [core]     — exercised through Rust Core via the C ABI / JSON protocol.
 //   [app-side] — exercised by the iOS host adapter (ReaderCoreNativeRuntime).
 //
+// Round 1 cases (ABI connectivity):  #1-7 [core], #1-4 [app-side]
+// Round 2 cases (Host Bus + remote-reading skeleton): #8-18 [core]
+//
 // Wrapper/host smoke, NOT iOS App/device proof.
 
 import Foundation
@@ -89,7 +92,7 @@ struct HostAdapterSmoke {
                   "status=\(status)")
         } catch { check("[core]", "malformed JSON send fails with non-zero status", false, "\(error)") }
 
-        // ---- [core] cancel surfaces CANCELLED ----
+        // ---- [core] remote-reading protocol skeleton ----
         do {
             let cmd = try JSONSerialization.data(withJSONObject: [
                 "protocolVersion": 1, "requestId": NSNumber(value: 20),
@@ -107,6 +110,158 @@ struct HostAdapterSmoke {
                   "type=\(ev.type) code=\(ev.coreErrorCode ?? "nil")")
         } catch {
             check("[core]", "cancel surfaces CANCELLED", false, "\(error)")
+        }
+
+        // ---- [core] Host Bus complete cycle (host.request → host.complete → result) ----
+        do {
+            let cmd = try JSONSerialization.data(withJSONObject: [
+                "protocolVersion": 1, "requestId": NSNumber(value: 30),
+                "method": "runtime.hostSmoke",
+                "params": ["capability": "host.smoke.echo", "params": ["ping": "pong"]],
+            ])
+            try runtime.send(json: cmd)
+            let hostReq = try pollUntil(runtime: runtime, requestId: 30)
+            check("[core]", "host.request carries operationId",
+                  hostReq.operationId != nil,
+                  "operationId=\(hostReq.operationId?.description ?? "nil")")
+            guard let opId = hostReq.operationId else {
+                throw SmokeFailure("missing operationId")
+            }
+            // Reply with host.complete
+            let complete = try JSONSerialization.data(withJSONObject: [
+                "protocolVersion": 1, "requestId": NSNumber(value: 31),
+                "method": "host.complete",
+                "params": ["operationId": NSNumber(value: opId), "result": ["echoed": true]],
+            ])
+            try runtime.send(json: complete)
+            let result = try pollUntil(runtime: runtime, requestId: 30)
+            check("[core]", "host.complete resolves original request",
+                  result.type == "result" && (result.data?["echoed"] as? Bool) == true,
+                  "type=\(result.type)")
+        } catch {
+            check("[core]", "host.complete resolves original request", false, "\(error)")
+        }
+
+        // ---- [core] Host Bus error cycle (host.request → host.error → error) ----
+        do {
+            let cmd = try JSONSerialization.data(withJSONObject: [
+                "protocolVersion": 1, "requestId": NSNumber(value: 40),
+                "method": "runtime.hostSmoke",
+                "params": ["capability": "host.smoke.echo", "params": ["fail": true]],
+            ])
+            try runtime.send(json: cmd)
+            let hostReq = try pollUntil(runtime: runtime, requestId: 40)
+            guard let opId = hostReq.operationId else {
+                throw SmokeFailure("missing operationId")
+            }
+            // Reply with host.error (CoreError requires code + message + retryable)
+            let hostErr = try JSONSerialization.data(withJSONObject: [
+                "protocolVersion": 1, "requestId": NSNumber(value: 41),
+                "method": "host.error",
+                "params": [
+                    "operationId": NSNumber(value: opId),
+                    "error": ["code": "INTERNAL", "message": "host blocked this", "retryable": false],
+                ],
+            ])
+            try runtime.send(json: hostErr)
+            let errEvent = try pollUntil(runtime: runtime, requestId: 40)
+            check("[core]", "host.error propagates to original request",
+                  errEvent.type == "error" && errEvent.coreErrorCode == "INTERNAL",
+                  "type=\(errEvent.type) code=\(errEvent.coreErrorCode ?? "nil")")
+        } catch {
+            check("[core]", "host.error propagates to original request", false, "\(error)")
+        }
+
+        // ---- [core] runtime.status ----
+        do {
+            let status = try runtime.request(method: "runtime.status", requestId: 50, timeout: 5)
+            check("[core]", "runtime.status returns result",
+                  status.type == "result",
+                  "type=\(status.type)")
+            check("[core]", "runtime.status has activeRequests",
+                  status.data?["activeRequestCount"] is NSNumber,
+                  "data keys: \(status.data?.keys.joined(separator: ",") ?? "nil")")
+        } catch {
+            check("[core]", "runtime.status returns result", false, "\(error)")
+        }
+
+        // ---- [core] book.search inline response (remote-reading skeleton) ----
+        do {
+            let search = try runtime.request(method: "book.search", requestId: 60, params: [
+                "sourceId": "smoke-source",
+                "searchResponse": "{\"books\":[{\"bookId\":\"1\",\"title\":\"Smoke Test\",\"author\":\"Tester\"}]}",
+                "source": [
+                    "sourceId": "smoke-source",
+                    "name": "Smoke Source",
+                    "baseUrl": "https://smoke.example.test",
+                    "rules": [
+                        "search": [["kind": "jsonPath", "path": "$.books[*]"]],
+                    ],
+                ] as [String: Any],
+            ], timeout: 5)
+            check("[core]", "book.search inline returns result",
+                  search.type == "result",
+                  "type=\(search.type)")
+            // Should have parsed at least one book (key is "books", not "results")
+            let bookCount = (search.data?["books"] as? [Any])?.count ?? 0
+            check("[core]", "book.search inline parses results",
+                  bookCount > 0,
+                  "bookCount=\(bookCount)")
+        } catch {
+            check("[core]", "book.search inline returns result", false, "\(error)")
+        }
+
+        // ---- [core] book.toc inline response ----
+        do {
+            let toc = try runtime.request(method: "book.toc", requestId: 70, params: [
+                "sourceId": "smoke-source",
+                "bookId": "1",
+                "tocResponse": "{\"toc\":[{\"title\":\"Chapter 1\",\"url\":\"c1\"},{\"title\":\"Chapter 2\",\"url\":\"c2\"}]}",
+                "source": [
+                    "sourceId": "smoke-source",
+                    "name": "Smoke Source",
+                    "baseUrl": "https://smoke.example.test",
+                    "rules": [
+                        "toc": [["kind": "jsonPath", "path": "$.toc"]],
+                    ],
+                ] as [String: Any],
+            ], timeout: 5)
+            check("[core]", "book.toc inline returns result",
+                  toc.type == "result",
+                  "type=\(toc.type)")
+            let entryCount = (toc.data?["toc"] as? [Any])?.count ?? 0
+            check("[core]", "book.toc inline parses entries",
+                  entryCount > 0,
+                  "entryCount=\(entryCount)")
+        } catch {
+            check("[core]", "book.toc inline returns result", false, "\(error)")
+        }
+
+        // ---- [core] chapter.content inline response ----
+        do {
+            let content = try runtime.request(method: "chapter.content", requestId: 80, params: [
+                "sourceId": "smoke-source",
+                "bookId": "1",
+                "chapterTitle": "Chapter 1",
+                "chapterResponse": "<html><body><p>Hello</p><p>World</p></body></html>",
+                "source": [
+                    "sourceId": "smoke-source",
+                    "name": "Smoke Source",
+                    "baseUrl": "https://smoke.example.test",
+                    "rules": [
+                        "chapter": [["kind": "cssText", "selector": "p"]],
+                    ],
+                ] as [String: Any],
+            ], timeout: 5)
+            check("[core]", "chapter.content inline returns result",
+                  content.type == "result",
+                  "type=\(content.type)")
+            let bodyLen = (content.data?["content"] as? String)?.count ?? 0
+            check("[core]", "chapter.content inline extracts body",
+                  bodyLen > 0,
+                  "bodyLen=\(bodyLen)")
+        } catch {
+            check("[core]", "chapter.content inline returns result", false, "\(error)")
         }
 
         // ---- [app-side] adapter behavior ----

@@ -51,6 +51,16 @@ public struct ReaderCoreNativeEvent: Equatable {
     public var data: [String: Any]? { object["data"] as? [String: Any] }
     public var errorObject: [String: Any]? { object["error"] as? [String: Any] }
 
+    /// The `operationId` from a `host.request` event — needed to route
+    /// `host.complete` / `host.error` back to the correct pending operation.
+    public var operationId: UInt64? {
+        (object["operationId"] as? NSNumber)?.uint64Value
+    }
+    /// The `capability` from a `host.request` event.
+    public var capability: String? { object["capability"] as? String }
+    /// The `params` from a `host.request` event.
+    public var hostParams: [String: Any]? { object["params"] as? [String: Any] }
+
     public var coreErrorCode: String? { errorObject?["code"] as? String }
     public var coreErrorMessage: String? { errorObject?["message"] as? String }
 
