@@ -113,6 +113,14 @@ public struct TextPaginationEngine: Sendable {
             if let newlineRange = text.range(of: "\n", range: targetIndex..<lookAheadLimit) {
                 // Split after the newline (include the newline in the current page)
                 splitIndex = newlineRange.upperBound
+            } else if let prevNewline = text.range(of: "\n", options: .backwards, range: currentIndex..<targetIndex),
+                      text.distance(from: currentIndex, to: prevNewline.upperBound) >= targetCharsPerPage / 2 {
+                // No paragraph boundary ahead — fall back to the most recent boundary
+                // before the target so the page still ends at a paragraph edge (the
+                // "WhenPossible" contract). Only accept the earlier split when it keeps
+                // the page at least half-full; otherwise a single over-long paragraph
+                // would force tiny pages, and we split mid-paragraph at the target.
+                splitIndex = prevNewline.upperBound
             } else {
                 // No paragraph boundary nearby — split at the target offset
                 splitIndex = targetIndex

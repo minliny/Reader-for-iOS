@@ -132,7 +132,13 @@ final class XmanhuaOfflineReplayTests: XCTestCase {
     func testXmanhuaSourceJSON_loadsSuccessfully() {
         XCTAssertEqual(xmanhuaSource.bookSourceName, "星际漫画(xmanhua)")
         XCTAssertEqual(xmanhuaSource.searchUrl, "https://www.xmanhua.com/search?title={{key}}&page={{page}}")
-        XCTAssertEqual(xmanhuaSource.ruleSearch, "css:.mh-list")
+        // Legado BookSource.ruleSearch is either a String (pipe-chain) or a dict
+        // (typed SearchRule). The xmanhua fixture uses the dict form, which decodes
+        // into `searchRule`; `ruleSearch` (String) stays nil. Assert the typed model.
+        XCTAssertNil(xmanhuaSource.ruleSearch, "Object-form ruleSearch must not populate the String field")
+        XCTAssertEqual(xmanhuaSource.searchRule?.bookList, "@css:.mh-list li")
+        XCTAssertEqual(xmanhuaSource.searchRule?.name, "h2.title@text")
+        XCTAssertEqual(xmanhuaSource.searchRule?.bookUrl, "a@href")
     }
 
     func testXmanhuaSearchReplay_extractsSearchResults() async throws {
