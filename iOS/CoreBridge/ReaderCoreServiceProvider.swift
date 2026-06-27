@@ -2,6 +2,9 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreServices
+#if canImport(ReaderCoreNativeAdapter)
+import ReaderCoreNativeAdapter
+#endif
 
 public enum ServiceMode: Sendable {
     case mock
@@ -9,13 +12,19 @@ public enum ServiceMode: Sendable {
     case controlledOnlineDryRun
     case controlledOnline
     case real
+    case rustCore
 }
 
 @MainActor
 public final class ReaderCoreServiceProvider: @unchecked Sendable {
     public static let shared = ReaderCoreServiceProvider()
 
-    private var mode: ServiceMode = .mock
+    // S6.2: Default mode is .rustCore. ReaderApp.init() still calls
+    // configureRustCoreMode() to boot the runtime + wire RustCore*Service
+    // adapters; this default ensures tests/previews that skip ReaderApp.init
+    // also route through Rust Core (or fail loudly if runtime not booted,
+    // rather than silently falling back to mock data).
+    private var mode: ServiceMode = .rustCore
     private let lock = NSLock()
     private let mockService: MockReaderCoreService
     private let offlineReplayService: OfflineReplayService
@@ -25,6 +34,12 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     private var realSearchService: (any SearchService)?
     private var realTOCService: (any TOCService)?
     private var realContentService: (any ContentService)?
+    #if canImport(ReaderCoreNativeAdapter)
+    private var rustCoreSearchService: (any SearchService)?
+    private var rustCoreTOCService: (any TOCService)?
+    private var rustCoreContentService: (any ContentService)?
+    private var rustCoreBookDetailService: RustCoreBookDetailService?
+    #endif
 
     private init() {
         self.mockService = MockReaderCoreService.shared
@@ -130,6 +145,33 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         return realSearchService != nil && realTOCService != nil && realContentService != nil
     }
 
+    #if canImport(ReaderCoreNativeAdapter)
+    /// S6.1: Boot Rust Core runtime and wire RustCore*Service adapters.
+    /// Returns true if rustCore mode is ready.
+    @discardableResult
+    public func configureRustCoreMode() -> Bool {
+        if !RustCoreRuntimeHolder.shared.isBooted {
+            do {
+                try RustCoreRuntimeHolder.shared.boot()
+            } catch {
+                print("[RustCore] boot failed: \(error)")
+                return false
+            }
+        }
+        guard let runtime = RustCoreRuntimeHolder.shared.current else {
+            return false
+        }
+        lock.lock()
+        rustCoreSearchService = RustCoreSearchService(runtime: runtime)
+        rustCoreTOCService = RustCoreTOCService(runtime: runtime)
+        rustCoreContentService = RustCoreContentService(runtime: runtime)
+        rustCoreBookDetailService = RustCoreBookDetailService(runtime: runtime)
+        mode = .rustCore
+        lock.unlock()
+        return rustCoreSearchService != nil
+    }
+    #endif
+
     public var isRealModeAvailable: Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -171,6 +213,24 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Search
 
     public func searchBooks(keyword: String, page: Int, source: BookSource? = nil) async -> LoadState<[SearchResultItem]> {
+        #if canImport(ReaderCoreNativeAdapter)
+        if mode == .rustCore {
+            guard let service = rustCoreSearchService else {
+                return .failed(AppReaderError(code: .unknown, message: "[RustCore] search service not configured — runtime not booted?", stage: "SEARCH"))
+            }
+            guard let source else {
+                return .failed(AppReaderError(code: .unsupported, message: "No book source selected for Rust Core search", stage: "SEARCH"))
+            }
+            do {
+                let results = try await service.search(source: source, query: SearchQuery(keyword: keyword, page: page))
+                return results.isEmpty ? .empty : .loaded(results)
+            } catch let error as AppReaderError {
+                return .failed(error)
+            } catch {
+                return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "SEARCH"))
+            }
+        }
+        #endif
         if canUseRealService, let service = realSearchService {
             return await performRealSearch(service: service, keyword: keyword, page: page, source: source)
         }
@@ -245,6 +305,31 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Book Detail
 
     public func getBookDetail(bookURL: String, source: BookSource? = nil) async -> LoadState<SearchResultItem> {
+        #if canImport(ReaderCoreNativeAdapter)
+        if mode == .rustCore {
+            guard let service = rustCoreBookDetailService else {
+                return .failed(AppReaderError(code: .unknown, message: "[RustCore] book detail service not configured — runtime not booted?", stage: "DETAIL"))
+            }
+            guard let source else {
+                return .failed(AppReaderError(code: .unsupported, message: "No book source selected for Rust Core detail", stage: "DETAIL"))
+            }
+            let inputBook = SearchResultItem(
+                title: source.bookSourceName,
+                detailURL: bookURL,
+                author: nil,
+                coverURL: nil,
+                intro: nil
+            )
+            do {
+                let enriched = try await service.fetchDetail(source: source, book: inputBook)
+                return .loaded(enriched)
+            } catch let error as AppReaderError {
+                return .failed(error)
+            } catch {
+                return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "DETAIL"))
+            }
+        }
+        #endif
         if canUseRealService, let source {
             return await performRealBookDetail(bookURL: bookURL, source: source)
         }
@@ -280,6 +365,24 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Chapter List (TOC)
 
     public func getChapterList(bookURL: String, source: BookSource? = nil) async -> LoadState<[TOCItem]> {
+        #if canImport(ReaderCoreNativeAdapter)
+        if mode == .rustCore {
+            guard let service = rustCoreTOCService else {
+                return .failed(AppReaderError(code: .unknown, message: "[RustCore] TOC service not configured — runtime not booted?", stage: "TOC"))
+            }
+            guard let source else {
+                return .failed(AppReaderError(code: .unsupported, message: "No book source selected for Rust Core TOC", stage: "TOC"))
+            }
+            do {
+                let items = try await service.fetchTOC(source: source, detailURL: bookURL)
+                return items.isEmpty ? .empty : .loaded(items)
+            } catch let error as AppReaderError {
+                return .failed(error)
+            } catch {
+                return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "TOC"))
+            }
+        }
+        #endif
         if canUseRealService, let service = realTOCService {
             guard let source else {
                 return .failed(AppReaderError(code: .unsupported, message: "No book source selected for real TOC", stage: "TOC"))
@@ -324,6 +427,24 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Chapter Content
 
     public func getChapterContent(chapterURL: String, source: BookSource? = nil) async -> LoadState<ContentPage> {
+        #if canImport(ReaderCoreNativeAdapter)
+        if mode == .rustCore {
+            guard let service = rustCoreContentService else {
+                return .failed(AppReaderError(code: .unknown, message: "[RustCore] content service not configured — runtime not booted?", stage: "CONTENT"))
+            }
+            guard let source else {
+                return .failed(AppReaderError(code: .unsupported, message: "No book source selected for Rust Core content", stage: "CONTENT"))
+            }
+            do {
+                let page = try await service.fetchContent(source: source, chapterURL: chapterURL)
+                return .loaded(page)
+            } catch let error as AppReaderError {
+                return .failed(error)
+            } catch {
+                return .failed(AppReaderError(code: .unknown, message: error.localizedDescription, stage: "CONTENT"))
+            }
+        }
+        #endif
         if canUseRealService, let service = realContentService {
             guard let source else {
                 return .failed(AppReaderError(code: .unsupported, message: "No book source selected for real content", stage: "CONTENT"))

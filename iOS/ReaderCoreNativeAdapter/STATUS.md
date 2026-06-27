@@ -1,5 +1,57 @@
 # iOS Rust Core Host Adapter — STATUS
 
+## Round 7: ReaderForIOSApp App/Simulator evidence path (IN PROGRESS)
+
+### Round 7 新增范围
+
+| 层级 | 载体 | 证据含义 |
+|------|------|----------|
+| wrapper smoke | `run-shell-smoke.sh` / `run-sim-smoke.sh` / `ReaderCoreNativeAdapterSmokeTests` | 只证明 adapter + ABI/protocol 可运行，不声明 App launch |
+| App launch | `ReaderForIOSApp` Debug autorun / `NativeCoreEvidenceView` | 证明真实 App 进程加载 native adapter |
+| host request loop | `ReaderCoreNativeAppEvidenceRunner` | `book.search -> http.execute host.request -> host.complete -> result` |
+
+### Round 7 当前验证状态
+
+| Gate | 命令 / 证据 | 当前结果 |
+|------|-------------|----------|
+| App target wiring | `xcodebuild -list -project ReaderForIOS.xcodeproj` | `ReaderCoreNativeAdapter` target 可见，`ReaderForIOSApp` scheme 可见 |
+| App build | `xcodebuild build -project ReaderForIOS.xcodeproj -scheme ReaderForIOSApp -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'` | **BUILD SUCCEEDED** |
+| wrapper smoke baseline | `bash iOS/ReaderCoreNativeAdapter/run-shell-smoke.sh` | `[core] pass=29 fail=0`, `[app-side] pass=4 fail=0` |
+| App launch + host request loop | `bash scripts/run_native_core_app_evidence_simulator.sh --device "iPhone 17 Pro"` | **BLOCKED**：当前无 booted simulator，脚本 fail-fast，未生成 `native_core_evidence.json` |
+
+当前状态只证明 App 已能编译并链接 native adapter，且 wrapper smoke 未回退。
+它**不**证明 App launch 或真实 host request loop 已完成；这两项需要 booted simulator
+运行 autorun 后，以 `native_core_evidence.json` 为证据。
+
+2026-06-26 复核：`xcrun simctl list devices booted` 无设备；脚本 fail-fast 正常。
+随后尝试 `--boot-if-needed` 与直接 `xcrun simctl boot FE9FC658-0BB3-4006-8EA0-DF44D3819167`，
+均卡在 CoreSimulator 启动阶段且仍无 booted device，因此 Goal B 维持 blocked。
+
+### Round 7 关键改动
+
+1. `ReaderCoreNativeEvidenceRunner.swift`：新增 App 可复用 host request loop runner，
+   输出 `reader-ios.native-core-evidence.v1` JSON，不改 Native protocol/schema。
+2. `NativeCoreEvidenceView.swift`：新增 Debug UI 与 autorun view，支持
+   `--native-core-evidence-autorun`。
+3. `ReaderForIOSApp` target 通过 `Package.swift` / `project.yml` 依赖
+   `ReaderCoreNativeAdapter`，把证据从 wrapper smoke 推进到 App 进程。
+4. `scripts/run_native_core_app_evidence_simulator.sh`：构建、安装、启动 App 并收集
+   `native_core_evidence_status.json` / `native_core_evidence.json`，随后校验
+   `wrapper_smoke` 不声明 App 执行、`app_launch` 为 `measuredPass`、
+   `host_request_loop` 为 `measuredPass` 且 `capability=http.execute`。
+
+### Run command
+
+```bash
+cd /Users/minliny/Documents/Reader\ for\ iOS
+bash scripts/run_native_core_app_evidence_simulator.sh --device "iPhone 17 Pro"
+```
+
+默认要求已有 booted simulator；若无 booted simulator，脚本会在构建前 fail-fast。
+如要让脚本负责启动模拟器，可显式追加 `--boot-if-needed`。
+
+---
+
 ## Round 6: xcodebuild SwiftPM 集成修复（binaryTarget + 共享 scheme） (COMPLETED)
 
 **Commit:** `7690ce6`

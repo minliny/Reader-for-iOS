@@ -1,6 +1,8 @@
 import Foundation
 import ReaderAppSupport
 
+public typealias StoredReadingProgress = ReaderAppSupport.ReadingProgress
+
 public final class ReadingProgressStore: @unchecked Sendable {
     public static let shared = ReadingProgressStore()
 
@@ -18,7 +20,7 @@ public final class ReadingProgressStore: @unchecked Sendable {
         fileURL = storageURL
     }
 
-    public func loadAllProgress() throws -> [String: ReadingProgress] {
+    public func loadAllProgress() throws -> [String: StoredReadingProgress] {
         lock.lock()
         defer { lock.unlock() }
 
@@ -27,10 +29,10 @@ public final class ReadingProgressStore: @unchecked Sendable {
         }
 
         let data = try Data(contentsOf: fileURL)
-        return try decoder.decode([String: ReadingProgress].self, from: data)
+        return try decoder.decode([String: StoredReadingProgress].self, from: data)
     }
 
-    public func saveAllProgress(_ progressMap: [String: ReadingProgress]) throws {
+    public func saveAllProgress(_ progressMap: [String: StoredReadingProgress]) throws {
         lock.lock()
         defer { lock.unlock() }
 
@@ -39,12 +41,12 @@ public final class ReadingProgressStore: @unchecked Sendable {
         try data.write(to: fileURL)
     }
 
-    public func loadProgress(bookID: String) throws -> ReadingProgress? {
+    public func loadProgress(bookID: String) throws -> StoredReadingProgress? {
         let progressMap = try loadAllProgress()
         return progressMap[bookID]
     }
 
-    public func saveProgress(_ progress: ReadingProgress) throws {
+    public func saveProgress(_ progress: StoredReadingProgress) throws {
         var progressMap = (try? loadAllProgress()) ?? [:]
         progressMap[progress.bookID] = progress
         try saveAllProgress(progressMap)

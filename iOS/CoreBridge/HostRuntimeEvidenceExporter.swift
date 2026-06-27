@@ -457,7 +457,7 @@ public enum HostRuntimeEvidenceExporter {
             observedArtifacts: isLive ? ["host_runtime_evidence_manifest.json"] : [],
             blockers: blockers,
             notes: [
-                "No raw cookie values, Set-Cookie headers, credentials, tokens, or HTML bodies are emitted",
+                "No raw cookie values, response cookie headers, credentials, tokens, or HTML bodies are emitted",
                 "Login execution remains operator-gated; this descriptor records approval state only"
             ]
         )

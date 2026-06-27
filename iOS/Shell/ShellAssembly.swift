@@ -2,6 +2,9 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreServices
+#if canImport(ReaderCoreNativeAdapter)
+import ReaderCoreNativeAdapter
+#endif
 
 @MainActor
 public enum ShellAssembly {
@@ -14,23 +17,23 @@ public enum ShellAssembly {
         let coordinator = ReadingFlowCoordinator(
             bookSourceRepository: InMemoryBookSourceRepository(),
             bookSourceDecoder: DefaultBookSourceDecoder(),
-            searchService: MockSearchService(provider: serviceProvider),
-            tocService: MockTOCService(provider: serviceProvider),
-            contentService: MockContentService(provider: serviceProvider),
+            searchService: ProviderBackedSearchService(provider: serviceProvider),
+            tocService: ProviderBackedTOCService(provider: serviceProvider),
+            contentService: ProviderBackedContentService(provider: serviceProvider),
             errorLogger: InMemoryErrorLogger()
         )
 
-        if let searchService = coordinator.searchService as? MockSearchService {
+        if let searchService = coordinator.searchService as? ProviderBackedSearchService {
             searchService.onWarning = { [weak coordinator] warning in
                 coordinator?.lastWarning = warning
             }
         }
-        if let tocService = coordinator.tocService as? MockTOCService {
+        if let tocService = coordinator.tocService as? ProviderBackedTOCService {
             tocService.onWarning = { [weak coordinator] warning in
                 coordinator?.lastWarning = warning
             }
         }
-        if let contentService = coordinator.contentService as? MockContentService {
+        if let contentService = coordinator.contentService as? ProviderBackedContentService {
             contentService.onWarning = { [weak coordinator] warning in
                 coordinator?.lastWarning = warning
             }
@@ -41,6 +44,7 @@ public enum ShellAssembly {
 
     // MARK: - Real
 
+    @available(*, deprecated, message: "S6.2: use makeRustCoreReadingFlowCoordinator — old Swift Core ReaderCoreServiceFactory path will be removed in S7")
     public static func makeRealReadingFlowCoordinator() -> ReadingFlowCoordinator {
         // Unify with the singleton provider: configureRealMode() flips the
         // provider to .real AND runs the RealNetworkGate. If the gate denies,
@@ -69,10 +73,52 @@ public enum ShellAssembly {
 
     // MARK: - Default
 
+    #if canImport(ReaderCoreNativeAdapter)
+    /// S6.1: Build a ReadingFlowCoordinator backed by Rust Core via C ABI.
+    /// Returns nil if the Rust Core runtime cannot be booted.
+    public static func makeRustCoreReadingFlowCoordinator() -> ReadingFlowCoordinator? {
+        if !RustCoreRuntimeHolder.shared.isBooted {
+            do {
+                try RustCoreRuntimeHolder.shared.boot()
+            } catch {
+                print("[RustCore] boot failed in ShellAssembly: \(error)")
+                return nil
+            }
+        }
+        guard let runtime = RustCoreRuntimeHolder.shared.current else {
+            return nil
+        }
+        return ReadingFlowCoordinator(
+            bookSourceRepository: InMemoryBookSourceRepository(),
+            bookSourceDecoder: DefaultBookSourceDecoder(),
+            searchService: RustCoreSearchService(runtime: runtime),
+            tocService: RustCoreTOCService(runtime: runtime),
+            contentService: RustCoreContentService(runtime: runtime),
+            errorLogger: InMemoryErrorLogger()
+        )
+    }
+    #endif
+
+    /// S6.2: Rust Core is the explicit default business path.
+    /// The legacy `useReal` flag is retained only for test injection (tests
+    /// that need the old Swift Core factory path call `makeRealReadingFlowCoordinator()`
+    /// directly). Production callers should not pass `useReal`.
     public static func makeDefaultReadingFlowCoordinator(useReal: Bool = false) -> ReadingFlowCoordinator {
         if useReal {
+            // Legacy escape hatch — only tests preserving the old Swift Core
+            // factory path should use this. Production never sets useReal=true.
             return makeRealReadingFlowCoordinator()
         }
+        // S6.2: Rust Core is the default. If boot fails, fall back to mock so
+        // the app never silently runs without a business path. This fallback
+        // is logged and surfaces a visible failure mode (provider getBookDetail
+        // etc. will fail-loud when mode != .rustCore).
+        #if canImport(ReaderCoreNativeAdapter)
+        if let coordinator = makeRustCoreReadingFlowCoordinator() {
+            return coordinator
+        }
+        print("[ShellAssembly] Rust Core boot failed — falling back to mock coordinator")
+        #endif
         return makeMockReadingFlowCoordinator()
     }
 
@@ -90,7 +136,7 @@ public enum ShellAssembly {
     #endif
 }
 
-public final class MockSearchService: SearchService {
+public final class ProviderBackedSearchService: SearchService {
     private let provider: ReaderCoreServiceProvider
     public var onWarning: ((String) -> Void)?
 
@@ -119,7 +165,7 @@ public final class MockSearchService: SearchService {
     }
 }
 
-public final class MockTOCService: TOCService {
+public final class ProviderBackedTOCService: TOCService {
     private let provider: ReaderCoreServiceProvider
     public var onWarning: ((String) -> Void)?
 
@@ -148,7 +194,7 @@ public final class MockTOCService: TOCService {
     }
 }
 
-public final class MockContentService: ContentService {
+public final class ProviderBackedContentService: ContentService {
     private let provider: ReaderCoreServiceProvider
     public var onWarning: ((String) -> Void)?
 

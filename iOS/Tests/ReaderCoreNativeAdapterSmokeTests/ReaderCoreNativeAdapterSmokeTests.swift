@@ -146,4 +146,33 @@ final class ReaderCoreNativeAdapterSmokeTests: XCTestCase {
         XCTAssertEqual(cancelled?.type, "error")
         XCTAssertEqual(cancelled?.coreErrorCode, "CANCELLED")
     }
+
+    func test_appSide_evidenceRunnerKeepsWrapperAppAndHostLoopSeparate() throws {
+        let report = ReaderCoreNativeAppEvidenceRunner.run(
+            processName: "ReaderCoreNativeAdapterSmokeTests",
+            bundleIdentifier: nil,
+            appLaunchObserved: false,
+            generatedAt: Date(timeIntervalSince1970: 1_782_156_100)
+        )
+
+        let wrapper = try XCTUnwrap(report.layers.first { $0.layer == .wrapperSmoke })
+        XCTAssertEqual(wrapper.status, .descriptorOnly)
+        XCTAssertFalse(wrapper.liveExecutionClaimed)
+
+        let appLaunch = try XCTUnwrap(report.layers.first { $0.layer == .appLaunch })
+        XCTAssertEqual(appLaunch.status, .descriptorOnly)
+        XCTAssertFalse(appLaunch.liveExecutionClaimed)
+
+        let hostLoop = try XCTUnwrap(report.layers.first { $0.layer == .hostRequestLoop })
+        XCTAssertEqual(hostLoop.status, .measuredPass)
+        XCTAssertTrue(hostLoop.liveExecutionClaimed)
+
+        let evidence = try XCTUnwrap(report.hostRequestLoop)
+        XCTAssertEqual(evidence.capability, "http.execute")
+        XCTAssertGreaterThan(evidence.operationId, 0)
+        XCTAssertEqual(evidence.resultBookCount, 1)
+        XCTAssertEqual(evidence.firstBookTitle, "App Host Loop")
+        XCTAssertEqual(report.abiVersion, 1)
+        XCTAssertEqual(report.protocolVersion, 1)
+    }
 }

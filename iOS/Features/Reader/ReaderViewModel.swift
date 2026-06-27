@@ -263,7 +263,7 @@ public final class ReaderViewModel: ObservableObject {
     private func saveReadingProgress() async {
         guard let bookID = bookID, let sourceID = sourceID else { return }
 
-        let progress = ReadingProgress(
+        let progress = ReaderAppSupport.ReadingProgress(
             bookID: bookID,
             sourceID: sourceID,
             bookURL: extractBookURL(from: chapterURL),

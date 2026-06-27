@@ -2,6 +2,10 @@ import SwiftUI
 import ReaderShellValidation
 import ReaderCoreModels
 
+#if DEBUG && canImport(ReaderCoreNativeAdapter)
+import ReaderCoreNativeAdapter
+#endif
+
 #if DEBUG && canImport(WebKit)
 import WebKit
 #endif
@@ -11,15 +15,20 @@ public struct ReaderApp: App {
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
     private let environment: ReaderShellEnvironment
-    @AppStorage("useRealServices") private var useRealServices = false
 
     #if DEBUG && canImport(WebKit)
     @State private var autorunConfiguration: WebViewRuntimeAutorunConfiguration?
     #endif
+    #if DEBUG && canImport(ReaderCoreNativeAdapter)
+    @State private var nativeCoreEvidenceAutorunConfiguration: NativeCoreEvidenceAutorunConfiguration?
+    #endif
 
     public init() {
-        let useReal = UserDefaults.standard.bool(forKey: "useRealServices")
-        let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator(useReal: useReal)
+        // S6.2: Rust Core is the default business path. The legacy
+        // useRealServices UserDefaults toggle is removed — production never
+        // needs the old Swift Core factory path. Tests that need mock mode
+        // inject it via ShellAssembly.makeMockReadingFlowCoordinator().
+        let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         _coordinator = StateObject(wrappedValue: coordinator)
         _navigationState = StateObject(wrappedValue: AppNavigationState())
 
@@ -28,6 +37,17 @@ public struct ReaderApp: App {
         env.webViewAdapter = ShellAssembly.makeProductionWebViewAdapter()
         #endif
         environment = env
+
+        // S6.1: Boot Rust Core runtime + wire provider to rustCore mode.
+        #if canImport(ReaderCoreNativeAdapter)
+        do {
+            try RustCoreRuntimeHolder.shared.boot()
+            ReaderCoreServiceProvider.shared.configureRustCoreMode()
+            print("[RustCore] runtime booted + provider configured for rustCore mode")
+        } catch {
+            print("[RustCore] boot failed at app init: \(error) — falling back to mock")
+        }
+        #endif
 
         #if DEBUG && canImport(WebKit)
         // 解析 autorun 配置
@@ -40,10 +60,33 @@ public struct ReaderApp: App {
             _autorunConfiguration = State(wrappedValue: config)
         }
         #endif
+
+        #if DEBUG && canImport(ReaderCoreNativeAdapter)
+        let nativeConfig = NativeCoreEvidenceAutorunConfiguration.parse(CommandLine.arguments)
+        print("[NativeCoreEvidence] autorun args parsed enabled=\(nativeConfig.isEnabled) valid=\(nativeConfig.isValid)")
+        print("[NativeCoreEvidence] bundleId=com.reader.ios")
+        if nativeConfig.isEnabled && nativeConfig.isValid {
+            _nativeCoreEvidenceAutorunConfiguration = State(wrappedValue: nativeConfig)
+        }
+        #endif
     }
 
     public var body: some Scene {
         WindowGroup {
+            #if DEBUG && canImport(ReaderCoreNativeAdapter)
+            if let config = nativeCoreEvidenceAutorunConfiguration, config.isEnabled && config.isValid {
+                NativeCoreEvidenceAutorunView(configuration: config)
+            } else {
+                defaultRootContent
+            }
+            #else
+            defaultRootContent
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var defaultRootContent: some View {
             #if DEBUG && canImport(WebKit)
             if let config = autorunConfiguration, config.isEnabled && config.isValid {
                 WebViewRuntimeAutorunView(configuration: config)
@@ -61,7 +104,6 @@ public struct ReaderApp: App {
                 environment: environment
             )
             #endif
-        }
     }
 }
 
