@@ -59,6 +59,7 @@ targets:
       - path: iOS/Shell
     dependencies:
       - target: ReaderAppSupport
+      - target: ReaderCoreNativeAdapter
       - package: ReaderCore
         product: ReaderCoreFoundation
       - package: ReaderCore
@@ -124,6 +125,12 @@ targets:
       - target: ReaderCoreNativeAdapter
       - package: ReaderCore
         product: ReaderCoreModels
+      - package: ReaderCore
+        product: ReaderCoreProtocols
+      - package: ReaderCore
+        product: ReaderCoreFoundation
+      - package: ReaderCore
+        product: ReaderCoreServices
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.reader.ios

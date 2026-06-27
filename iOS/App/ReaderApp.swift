@@ -36,6 +36,17 @@ public struct ReaderApp: App {
         #endif
         environment = env
 
+        // S6.1: Boot Rust Core runtime + wire provider to rustCore mode.
+        #if canImport(ReaderCoreNativeAdapter)
+        do {
+            try RustCoreRuntimeHolder.shared.boot()
+            ReaderCoreServiceProvider.shared.configureRustCoreMode()
+            print("[RustCore] runtime booted + provider configured for rustCore mode")
+        } catch {
+            print("[RustCore] boot failed at app init: \(error) — falling back to mock")
+        }
+        #endif
+
         #if DEBUG && canImport(WebKit)
         // 解析 autorun 配置
         let config = WebViewRuntimeAutorunConfiguration.parse(CommandLine.arguments)

@@ -55,13 +55,15 @@ let package = Package(
             ],
             sources: [
                 "ReaderCoreNativeRuntime.swift",
-                "ReaderCoreNativeEvidenceRunner.swift"
+                "ReaderCoreNativeEvidenceRunner.swift",
+                "RustCoreRuntimeHolder.swift"
             ]
         ),
         .target(
             name: "ReaderShellValidation",
             dependencies: [
                 "ReaderAppSupport",
+                "ReaderCoreNativeAdapter",
                 .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
                 .product(name: "ReaderCoreProtocols", package: "Reader-Core"),

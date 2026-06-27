@@ -2,6 +2,9 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreServices
+#if canImport(ReaderCoreNativeAdapter)
+import ReaderCoreNativeAdapter
+#endif
 
 @MainActor
 public enum ShellAssembly {
@@ -69,7 +72,38 @@ public enum ShellAssembly {
 
     // MARK: - Default
 
+    #if canImport(ReaderCoreNativeAdapter)
+    /// S6.1: Build a ReadingFlowCoordinator backed by Rust Core via C ABI.
+    /// Returns nil if the Rust Core runtime cannot be booted.
+    public static func makeRustCoreReadingFlowCoordinator() -> ReadingFlowCoordinator? {
+        if !RustCoreRuntimeHolder.shared.isBooted {
+            do {
+                try RustCoreRuntimeHolder.shared.boot()
+            } catch {
+                print("[RustCore] boot failed in ShellAssembly: \(error)")
+                return nil
+            }
+        }
+        guard let runtime = RustCoreRuntimeHolder.shared.current else {
+            return nil
+        }
+        return ReadingFlowCoordinator(
+            bookSourceRepository: InMemoryBookSourceRepository(),
+            bookSourceDecoder: DefaultBookSourceDecoder(),
+            searchService: RustCoreSearchService(runtime: runtime),
+            tocService: RustCoreTOCService(runtime: runtime),
+            contentService: RustCoreContentService(runtime: runtime),
+            errorLogger: InMemoryErrorLogger()
+        )
+    }
+    #endif
+
     public static func makeDefaultReadingFlowCoordinator(useReal: Bool = false) -> ReadingFlowCoordinator {
+        // S6.1: Preserves prior mock/real semantics so existing shell smoke
+        // tests stay green. Rust Core is an explicit opt-in via
+        // makeRustCoreReadingFlowCoordinator() or via ReaderCoreServiceProvider
+        // mode = .rustCore (business path switches at the provider level, not
+        // by silently replacing the default coordinator wiring).
         if useReal {
             return makeRealReadingFlowCoordinator()
         }

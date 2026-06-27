@@ -14,6 +14,7 @@ public struct MineTabView: View {
         case .controlledOnlineDryRun: return "controlledOnlineDryRun"
         case .controlledOnline: return "controlledOnline"
         case .real: return "real"
+        case .rustCore: return "rustCore"
         }
     }
 
