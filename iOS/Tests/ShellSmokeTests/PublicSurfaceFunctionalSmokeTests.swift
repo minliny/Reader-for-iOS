@@ -11,9 +11,9 @@ final class PublicSurfaceFunctionalSmokeTests: XCTestCase {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         
         XCTAssertNotNil(coordinator)
-        XCTAssertTrue(coordinator.searchService is MockSearchService)
-        XCTAssertTrue(coordinator.tocService is MockTOCService)
-        XCTAssertTrue(coordinator.contentService is MockContentService)
+        XCTAssertTrue(coordinator.searchService is ProviderBackedSearchService)
+        XCTAssertTrue(coordinator.tocService is ProviderBackedTOCService)
+        XCTAssertTrue(coordinator.contentService is ProviderBackedContentService)
     }
 
     // MARK: - ReadingFlowCoordinator Tests

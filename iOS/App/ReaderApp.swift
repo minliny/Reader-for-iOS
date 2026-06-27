@@ -15,7 +15,6 @@ public struct ReaderApp: App {
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
     private let environment: ReaderShellEnvironment
-    @AppStorage("useRealServices") private var useRealServices = false
 
     #if DEBUG && canImport(WebKit)
     @State private var autorunConfiguration: WebViewRuntimeAutorunConfiguration?
@@ -25,8 +24,11 @@ public struct ReaderApp: App {
     #endif
 
     public init() {
-        let useReal = UserDefaults.standard.bool(forKey: "useRealServices")
-        let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator(useReal: useReal)
+        // S6.2: Rust Core is the default business path. The legacy
+        // useRealServices UserDefaults toggle is removed — production never
+        // needs the old Swift Core factory path. Tests that need mock mode
+        // inject it via ShellAssembly.makeMockReadingFlowCoordinator().
+        let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         _coordinator = StateObject(wrappedValue: coordinator)
         _navigationState = StateObject(wrappedValue: AppNavigationState())
 

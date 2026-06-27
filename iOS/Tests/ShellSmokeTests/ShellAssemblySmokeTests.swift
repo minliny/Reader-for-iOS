@@ -20,9 +20,9 @@ final class ShellAssemblySmokeTests: XCTestCase {
 
         XCTAssertTrue(coordinator.bookSourceRepository is InMemoryBookSourceRepository)
         XCTAssertTrue(coordinator.bookSourceDecoder is DefaultBookSourceDecoder)
-        XCTAssertTrue(coordinator.searchService is MockSearchService)
-        XCTAssertTrue(coordinator.tocService is MockTOCService)
-        XCTAssertTrue(coordinator.contentService is MockContentService)
+        XCTAssertTrue(coordinator.searchService is ProviderBackedSearchService)
+        XCTAssertTrue(coordinator.tocService is ProviderBackedTOCService)
+        XCTAssertTrue(coordinator.contentService is ProviderBackedContentService)
     }
 
     @MainActor
@@ -87,18 +87,18 @@ final class ShellAssemblySmokeTests: XCTestCase {
     func testRealCoordinatorHasNonMockServices() {
         let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
 
-        XCTAssertFalse(coordinator.searchService is MockSearchService)
-        XCTAssertFalse(coordinator.tocService is MockTOCService)
-        XCTAssertFalse(coordinator.contentService is MockContentService)
+        XCTAssertFalse(coordinator.searchService is ProviderBackedSearchService)
+        XCTAssertFalse(coordinator.tocService is ProviderBackedTOCService)
+        XCTAssertFalse(coordinator.contentService is ProviderBackedContentService)
     }
 
     @MainActor
     func testMockCoordinatorStillWorks() {
         let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
 
-        XCTAssertTrue(coordinator.searchService is MockSearchService)
-        XCTAssertTrue(coordinator.tocService is MockTOCService)
-        XCTAssertTrue(coordinator.contentService is MockContentService)
+        XCTAssertTrue(coordinator.searchService is ProviderBackedSearchService)
+        XCTAssertTrue(coordinator.tocService is ProviderBackedTOCService)
+        XCTAssertTrue(coordinator.contentService is ProviderBackedContentService)
     }
 
     // MARK: - IOS-4A: Real TOC / Source Services
@@ -108,7 +108,7 @@ final class ShellAssemblySmokeTests: XCTestCase {
         let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
 
         XCTAssertNotNil(coordinator.tocService)
-        XCTAssertFalse(coordinator.tocService is MockTOCService,
+        XCTAssertFalse(coordinator.tocService is ProviderBackedTOCService,
                        "Real coordinator should use real TOCService, not mock")
     }
 
@@ -134,17 +134,17 @@ final class ShellAssemblySmokeTests: XCTestCase {
         let mockCoordinator = ShellAssembly.makeMockReadingFlowCoordinator()
         let defaultCoordinator = ShellAssembly.makeDefaultReadingFlowCoordinator(useReal: false)
 
-        XCTAssertTrue(defaultCoordinator.searchService is MockSearchService)
-        XCTAssertTrue(defaultCoordinator.tocService is MockTOCService)
-        XCTAssertTrue(defaultCoordinator.contentService is MockContentService)
+        XCTAssertTrue(defaultCoordinator.searchService is ProviderBackedSearchService)
+        XCTAssertTrue(defaultCoordinator.tocService is ProviderBackedTOCService)
+        XCTAssertTrue(defaultCoordinator.contentService is ProviderBackedContentService)
     }
 
     @MainActor
-    func testMockTOCServiceAvailableForUITests() {
+    func testProviderBackedTOCServiceAvailableForUITests() {
         let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
         let tocService = coordinator.tocService
 
-        XCTAssertTrue(tocService is MockTOCService,
+        XCTAssertTrue(tocService is ProviderBackedTOCService,
                       "Mock TOCService should be available when real mode is off")
     }
 
@@ -155,7 +155,7 @@ final class ShellAssemblySmokeTests: XCTestCase {
         let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
 
         XCTAssertNotNil(coordinator.contentService)
-        XCTAssertFalse(coordinator.contentService is MockContentService,
+        XCTAssertFalse(coordinator.contentService is ProviderBackedContentService,
                        "Real coordinator should use real ContentService, not mock")
     }
 
@@ -163,11 +163,11 @@ final class ShellAssemblySmokeTests: XCTestCase {
     func testAllRealServicesAreNonMock() {
         let coordinator = ShellAssembly.makeRealReadingFlowCoordinator()
 
-        XCTAssertFalse(coordinator.searchService is MockSearchService,
+        XCTAssertFalse(coordinator.searchService is ProviderBackedSearchService,
                        "Search should be real")
-        XCTAssertFalse(coordinator.tocService is MockTOCService,
+        XCTAssertFalse(coordinator.tocService is ProviderBackedTOCService,
                        "TOC should be real")
-        XCTAssertFalse(coordinator.contentService is MockContentService,
+        XCTAssertFalse(coordinator.contentService is ProviderBackedContentService,
                        "Content should be real")
     }
 
@@ -175,9 +175,9 @@ final class ShellAssemblySmokeTests: XCTestCase {
     func testAllMockServicesAreMock() {
         let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
 
-        XCTAssertTrue(coordinator.searchService is MockSearchService)
-        XCTAssertTrue(coordinator.tocService is MockTOCService)
-        XCTAssertTrue(coordinator.contentService is MockContentService)
+        XCTAssertTrue(coordinator.searchService is ProviderBackedSearchService)
+        XCTAssertTrue(coordinator.tocService is ProviderBackedTOCService)
+        XCTAssertTrue(coordinator.contentService is ProviderBackedContentService)
     }
 
     // MARK: - B.1: Environment WebView Adapter (iOS-only)

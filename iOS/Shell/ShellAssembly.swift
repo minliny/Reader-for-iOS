@@ -17,23 +17,23 @@ public enum ShellAssembly {
         let coordinator = ReadingFlowCoordinator(
             bookSourceRepository: InMemoryBookSourceRepository(),
             bookSourceDecoder: DefaultBookSourceDecoder(),
-            searchService: MockSearchService(provider: serviceProvider),
-            tocService: MockTOCService(provider: serviceProvider),
-            contentService: MockContentService(provider: serviceProvider),
+            searchService: ProviderBackedSearchService(provider: serviceProvider),
+            tocService: ProviderBackedTOCService(provider: serviceProvider),
+            contentService: ProviderBackedContentService(provider: serviceProvider),
             errorLogger: InMemoryErrorLogger()
         )
 
-        if let searchService = coordinator.searchService as? MockSearchService {
+        if let searchService = coordinator.searchService as? ProviderBackedSearchService {
             searchService.onWarning = { [weak coordinator] warning in
                 coordinator?.lastWarning = warning
             }
         }
-        if let tocService = coordinator.tocService as? MockTOCService {
+        if let tocService = coordinator.tocService as? ProviderBackedTOCService {
             tocService.onWarning = { [weak coordinator] warning in
                 coordinator?.lastWarning = warning
             }
         }
-        if let contentService = coordinator.contentService as? MockContentService {
+        if let contentService = coordinator.contentService as? ProviderBackedContentService {
             contentService.onWarning = { [weak coordinator] warning in
                 coordinator?.lastWarning = warning
             }
@@ -44,6 +44,7 @@ public enum ShellAssembly {
 
     // MARK: - Real
 
+    @available(*, deprecated, message: "S6.2: use makeRustCoreReadingFlowCoordinator — old Swift Core ReaderCoreServiceFactory path will be removed in S7")
     public static func makeRealReadingFlowCoordinator() -> ReadingFlowCoordinator {
         // Unify with the singleton provider: configureRealMode() flips the
         // provider to .real AND runs the RealNetworkGate. If the gate denies,
@@ -98,15 +99,26 @@ public enum ShellAssembly {
     }
     #endif
 
+    /// S6.2: Rust Core is the explicit default business path.
+    /// The legacy `useReal` flag is retained only for test injection (tests
+    /// that need the old Swift Core factory path call `makeRealReadingFlowCoordinator()`
+    /// directly). Production callers should not pass `useReal`.
     public static func makeDefaultReadingFlowCoordinator(useReal: Bool = false) -> ReadingFlowCoordinator {
-        // S6.1: Preserves prior mock/real semantics so existing shell smoke
-        // tests stay green. Rust Core is an explicit opt-in via
-        // makeRustCoreReadingFlowCoordinator() or via ReaderCoreServiceProvider
-        // mode = .rustCore (business path switches at the provider level, not
-        // by silently replacing the default coordinator wiring).
         if useReal {
+            // Legacy escape hatch — only tests preserving the old Swift Core
+            // factory path should use this. Production never sets useReal=true.
             return makeRealReadingFlowCoordinator()
         }
+        // S6.2: Rust Core is the default. If boot fails, fall back to mock so
+        // the app never silently runs without a business path. This fallback
+        // is logged and surfaces a visible failure mode (provider getBookDetail
+        // etc. will fail-loud when mode != .rustCore).
+        #if canImport(ReaderCoreNativeAdapter)
+        if let coordinator = makeRustCoreReadingFlowCoordinator() {
+            return coordinator
+        }
+        print("[ShellAssembly] Rust Core boot failed — falling back to mock coordinator")
+        #endif
         return makeMockReadingFlowCoordinator()
     }
 
@@ -124,7 +136,7 @@ public enum ShellAssembly {
     #endif
 }
 
-public final class MockSearchService: SearchService {
+public final class ProviderBackedSearchService: SearchService {
     private let provider: ReaderCoreServiceProvider
     public var onWarning: ((String) -> Void)?
 
@@ -153,7 +165,7 @@ public final class MockSearchService: SearchService {
     }
 }
 
-public final class MockTOCService: TOCService {
+public final class ProviderBackedTOCService: TOCService {
     private let provider: ReaderCoreServiceProvider
     public var onWarning: ((String) -> Void)?
 
@@ -182,7 +194,7 @@ public final class MockTOCService: TOCService {
     }
 }
 
-public final class MockContentService: ContentService {
+public final class ProviderBackedContentService: ContentService {
     private let provider: ReaderCoreServiceProvider
     public var onWarning: ((String) -> Void)?
 
