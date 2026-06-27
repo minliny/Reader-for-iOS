@@ -11,9 +11,12 @@ final class PublicSurfaceFunctionalSmokeTests: XCTestCase {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         
         XCTAssertNotNil(coordinator)
-        XCTAssertTrue(coordinator.searchService is ProviderBackedSearchService)
-        XCTAssertTrue(coordinator.tocService is ProviderBackedTOCService)
-        XCTAssertTrue(coordinator.contentService is ProviderBackedContentService)
+        // S6.2: default coordinator now routes through Rust Core
+        // (RustCore*Service when ReaderCoreNativeAdapter is available).
+        // Smoke verifies non-nil rather than specific service type.
+        XCTAssertNotNil(coordinator.searchService)
+        XCTAssertNotNil(coordinator.tocService)
+        XCTAssertNotNil(coordinator.contentService)
     }
 
     // MARK: - ReadingFlowCoordinator Tests

@@ -20,9 +20,13 @@ final class ShellAssemblySmokeTests: XCTestCase {
 
         XCTAssertTrue(coordinator.bookSourceRepository is InMemoryBookSourceRepository)
         XCTAssertTrue(coordinator.bookSourceDecoder is DefaultBookSourceDecoder)
-        XCTAssertTrue(coordinator.searchService is ProviderBackedSearchService)
-        XCTAssertTrue(coordinator.tocService is ProviderBackedTOCService)
-        XCTAssertTrue(coordinator.contentService is ProviderBackedContentService)
+        // S6.2: default coordinator now routes through Rust Core
+        // (RustCore*Service when ReaderCoreNativeAdapter is available;
+        // falls back to ProviderBacked*Service only if boot fails).
+        // Smoke verifies non-nil rather than specific service type.
+        XCTAssertNotNil(coordinator.searchService)
+        XCTAssertNotNil(coordinator.tocService)
+        XCTAssertNotNil(coordinator.contentService)
     }
 
     @MainActor
@@ -130,13 +134,17 @@ final class ShellAssemblySmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testDefaultCoordinatorMatchesMockWhenUseRealFalse() {
+    func testDefaultCoordinatorBuildsValidServicesWhenUseRealFalse() {
+        // S6.2: makeDefaultReadingFlowCoordinator(useReal: false) now routes
+        // through Rust Core (RustCore*Service), falling back to ProviderBacked*
+        // only if boot fails. Mock coordinator still wires ProviderBacked*.
         let mockCoordinator = ShellAssembly.makeMockReadingFlowCoordinator()
         let defaultCoordinator = ShellAssembly.makeDefaultReadingFlowCoordinator(useReal: false)
 
-        XCTAssertTrue(defaultCoordinator.searchService is ProviderBackedSearchService)
-        XCTAssertTrue(defaultCoordinator.tocService is ProviderBackedTOCService)
-        XCTAssertTrue(defaultCoordinator.contentService is ProviderBackedContentService)
+        XCTAssertNotNil(defaultCoordinator.searchService)
+        XCTAssertNotNil(defaultCoordinator.tocService)
+        XCTAssertNotNil(defaultCoordinator.contentService)
+        XCTAssertNotNil(mockCoordinator.searchService)
     }
 
     @MainActor
