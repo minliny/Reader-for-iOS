@@ -195,8 +195,7 @@ struct RSSSourceActionsView: View {
         DemoBackScreen(title: "源操作") {
             RSSActionSourceCard(source: source)
             RSSActionGrid(source: source)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSourceActionBottomButton(title: "返回源", isPrimary: false) {
                     dismiss()
@@ -227,8 +226,7 @@ struct RSSSourceEditView: View {
         DemoBackScreen(title: "RSS 源编辑") {
             RSSSourceEditTabs(selectedGroup: $selectedGroup)
             RSSEditFieldList(fields: fields)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceDebugView(source: source)
@@ -277,8 +275,7 @@ struct RSSSourceDebugView: View {
     var body: some View {
         DemoBackScreen(title: "规则调试") {
             RSSDebugPanel(source: source)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceEditView(source: source)
@@ -315,8 +312,7 @@ struct RSSSourceVarsView: View {
                 subtitle: "变量作用于请求头、分类 URL、正文规则和 WebView 注入脚本"
             )
             RSSEditFieldList(fields: variables)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceDebugView(source: source)
@@ -364,8 +360,7 @@ struct RSSSourceLoginView: View {
                 rows: loginRows
             )
             RSSLoginActionGrid(source: source)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSourceActionBottomButton(title: "返回操作", isPrimary: false) {
                     dismiss()
@@ -406,8 +401,7 @@ struct RSSSourceLoginWebView: View {
                 subtitle: "来自 \(source.name) · 登录完成后回写 Cookie"
             )
             RSSLoginWebPreview()
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceLoginView(source: source)
@@ -447,8 +441,7 @@ struct RSSSourceLoginCookieView: View {
                 subtitle: "只作用于当前 RSS 源，不覆盖其他订阅源",
                 rows: credentialRows
             )
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceLoginView(source: source)
@@ -493,8 +486,7 @@ struct RSSSourceLoginClearView: View {
                 copy: "清除后该 RSS 源下次刷新会重新进入登录流程，不影响其他订阅源和已缓存文章。",
                 detail: source.name
             )
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceLoginView(source: source)
@@ -532,8 +524,7 @@ struct RSSSourceGroupsView: View {
                 }
                 .buttonStyle(.plain)
             }
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSourceActionBottomButton(title: "取消", isPrimary: false) {
                     dismiss()
@@ -560,8 +551,7 @@ struct RSSSourceGroupEditView: View {
     var body: some View {
         DemoBackScreen(title: "编辑 RSS 分组") {
             RSSEditFieldList(fields: fields)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceGroupsView()
@@ -594,8 +584,7 @@ struct RSSSourceBatchView: View {
         DemoBackScreen(title: "批量管理") {
             RSSBatchSummaryRow()
             RSSManagementIconList(rows: RSSManagementIconRow.batchRows)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceExportView()
@@ -631,8 +620,7 @@ struct RSSSourceExportView: View {
                 ]
             )
             RSSImportExportList(rows: RSSImportExportRow.exportRows, actionTitle: "预览")
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceBatchView()
@@ -675,8 +663,7 @@ struct RSSSourceExportDetailView: View {
                     RSSDebugRowModel(title: "安全字段", body: "登录 Cookie、Token 和本地账号信息不参与导出。", isWarning: false)
                 ]
             )
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceExportView()
@@ -727,8 +714,7 @@ struct RSSSourceImportView: View {
                 ]
             )
             RSSImportExportList(rows: RSSImportExportRow.importRows, actionTitle: nil)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSourceActionBottomButton(title: "取消", isPrimary: false) {
                     dismiss()
@@ -768,8 +754,7 @@ struct RSSSourceImportDetailView: View {
                     RSSDebugRowModel(title: "登录态", body: "不导入 Cookie。更新后需要在源登录页重新授权。", isWarning: true)
                 ]
             )
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSSourceImportView()
@@ -1236,8 +1221,7 @@ private struct RSSSourceConfirmationPage<CancelDestination: View>: View {
     var body: some View {
         DemoBackScreen(title: title) {
             RSSSourceConfirmCard(icon: icon, heading: heading, copy: copy, detail: detail)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     cancelDestination()

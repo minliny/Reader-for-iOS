@@ -23,7 +23,7 @@ struct ReaderDemoShellView: View {
 
     @ViewBuilder
     private func shellBody(layout: ReaderResponsiveLayout) -> some View {
-        ZStack {
+        DemoReaderShell(layout: layout) {
             LinearGradient(
                 colors: [
                     SwiftUI.Color(red: 1.0, green: 0.97, blue: 0.91),
@@ -36,51 +36,39 @@ struct ReaderDemoShellView: View {
 
             ReaderDemoReadingSurface()
                 .padding(layout.readingInsets.edgeInsets)
-
+        } overlayHost: {
             VStack(spacing: 0) {
                 ReaderDemoTopBar(state: state, style: topBarStyle(for: layout))
                     .padding(.horizontal, topBarHorizontalInset(for: layout))
                     .padding(.top, topBarTopInset(for: layout))
                 Spacer(minLength: 0)
             }
-
-            controlChrome(layout: layout)
+        } bottomSheetHost: {
+            readerBottomSheetHost(layout: layout)
+        } moduleNav: {
+            readerModuleNavHost(layout: layout)
+        } stateHost: {
+            EmptyView()
         }
     }
 
     @ViewBuilder
-    private func controlChrome(layout: ReaderResponsiveLayout) -> some View {
-        if layout.usesTrailingDock, state.presentation == .compact {
-            VStack(spacing: 10) {
-                Spacer(minLength: 0)
-                VStack(spacing: layout.dockNavGap) {
-                    panel(layout: layout)
-                        .frame(width: layout.dockWidth, height: layout.dockSheetHeight)
-                    ReaderDemoModuleNav(
-                        activeModule: state.module,
-                        style: layout.compactModuleNav ? .compactLandscape : .regular,
-                        onSelect: switchCompactModule
-                    )
-                    .frame(width: layout.dockWidth)
-                    .frame(minHeight: layout.dockNavHeight)
-                }
-                .frame(width: layout.dockWidth)
-                .padding(.trailing, layout.dockRightInset)
-                .padding(.bottom, layout.dockNavBottomInset)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        } else {
-            VStack(spacing: 10) {
-                Spacer(minLength: 0)
-                panel(layout: layout)
-                    .padding(.horizontal, ReaderDesignTokens.readerControlSheetSideInset)
-                    .padding(.bottom, state.presentation == .compact ? ReaderDesignTokens.readerModuleNavBottomInset + 72 : 18)
-                if state.presentation == .compact {
-                    ReaderDemoModuleNav(activeModule: state.module, onSelect: switchCompactModule)
-                        .padding(.horizontal, ReaderDesignTokens.readerModuleNavSideInset)
-                        .padding(.bottom, ReaderDesignTokens.readerModuleNavBottomInset)
-                }
-            }
+    private func readerBottomSheetHost(layout: ReaderResponsiveLayout) -> some View {
+        panel(layout: layout)
+            .frame(height: layout.usesTrailingDock && state.presentation == .compact ? layout.dockSheetHeight : nil)
+            .padding(.horizontal, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerControlSheetSideInset)
+            .padding(.bottom, !layout.usesTrailingDock && state.presentation != .compact ? 18 : 0)
+    }
+
+    @ViewBuilder
+    private func readerModuleNavHost(layout: ReaderResponsiveLayout) -> some View {
+        if state.presentation == .compact {
+            ReaderDemoModuleNav(
+                activeModule: state.module,
+                style: layout.compactModuleNav ? .compactLandscape : .regular,
+                onSelect: switchCompactModule
+            )
+            .padding(.horizontal, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerModuleNavSideInset)
         }
     }
 

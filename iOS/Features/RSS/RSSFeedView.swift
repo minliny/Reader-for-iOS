@@ -11,59 +11,71 @@ public struct RSSFeedView: View {
     @State private var activeGroupFilter: String
     @State private var isGroupFilterOpen: Bool
     @State private var isCategoryFilterOpen: Bool
+    @State private var showSubscriptionManagement = false
+    @Binding private var topBarRequest: MainTabTopBarRequest?
+    private let showsTopBar: Bool
 
     @MainActor
-    public init() {
+    public init(
+        showsTopBar: Bool = true,
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+    ) {
         self.loadsLiveSubscriptions = false
+        self.showsTopBar = showsTopBar
         self._activeDemoRoute = State(initialValue: nil)
         self._selectedMode = State(initialValue: "源列表")
         self._activeGroupFilter = State(initialValue: "全部")
         self._isGroupFilterOpen = State(initialValue: false)
         self._isCategoryFilterOpen = State(initialValue: false)
+        self._topBarRequest = topBarRequest
         self._viewModel = StateObject(wrappedValue: RSSFeedViewModel())
     }
 
     @MainActor
-    public init(demoRoute: String) {
+    public init(
+        demoRoute: String,
+        showsTopBar: Bool = true,
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+    ) {
         let state = RSSDemoRouteState(route: demoRoute)
         let viewModel = RSSFeedViewModel(feedURL: state.feedURL, feedName: state.source.name)
         viewModel.subscriptions = state.coreSources
         viewModel.selectedSubscriptionURL = state.selectedSourceURL
         viewModel.feedState = state.feedState
         self.loadsLiveSubscriptions = false
+        self.showsTopBar = showsTopBar
         self._activeDemoRoute = State(initialValue: state.route)
         self._selectedMode = State(initialValue: state.selectedMode)
         self._activeGroupFilter = State(initialValue: "全部")
         self._isGroupFilterOpen = State(initialValue: false)
         self._isCategoryFilterOpen = State(initialValue: false)
+        self._topBarRequest = topBarRequest
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
 
     @MainActor
-    public init(viewModel: RSSFeedViewModel) {
+    public init(
+        viewModel: RSSFeedViewModel,
+        showsTopBar: Bool = true,
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+    ) {
         self.loadsLiveSubscriptions = true
+        self.showsTopBar = showsTopBar
         self._activeDemoRoute = State(initialValue: nil)
         self._selectedMode = State(initialValue: "源列表")
         self._activeGroupFilter = State(initialValue: "全部")
         self._isGroupFilterOpen = State(initialValue: false)
         self._isCategoryFilterOpen = State(initialValue: false)
+        self._topBarRequest = topBarRequest
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
 
     public var body: some View {
         let routeState = demoState
 
-        VStack(spacing: 0) {
-            RSSRootTopBar(
-                subscriptionCount: topBarSources.filter(\.enabled).count,
-                statusText: statusText,
-                sources: topBarSources,
-                onRefresh: refreshCurrentFeed,
-                isRefreshDisabled: isRSSActionDisabled
-            )
-
-            DemoPaperScreen {
-                if let routeState {
+        if let routeState {
+            DemoLibraryShell(title: routeState.navigationTitle, contentStyle: .custom) {
+                DemoPaperScreen {
                     RSSDemoRouteContent(
                         state: routeState,
                         selectedMode: $selectedMode,
@@ -72,14 +84,34 @@ public struct RSSFeedView: View {
                         isCategoryFilterOpen: $isCategoryFilterOpen,
                         onSelectRoute: selectDemoRoute
                     )
-                } else {
-                    RSSDemoHomeContent(
-                        selectedMode: $selectedMode,
-                        activeGroupFilter: $activeGroupFilter,
-                        isGroupFilterOpen: $isGroupFilterOpen,
-                        onSelectRoute: selectDemoRoute
-                    )
                 }
+            }
+        } else {
+            rssMainTabContent(routeState: routeState)
+        }
+    }
+
+    @ViewBuilder
+    private func rssMainTabContent(routeState: RSSDemoRouteState?) -> some View {
+        VStack(spacing: 0) {
+            if showsTopBar {
+                RSSRootTopBar(
+                    subscriptionCount: topBarSources.filter(\.enabled).count,
+                    statusText: statusText,
+                    sources: topBarSources,
+                    onRefresh: refreshCurrentFeed,
+                    onManage: { showSubscriptionManagement = true },
+                    isRefreshDisabled: isRSSActionDisabled
+                )
+            }
+
+            DemoPaperScreen(bottomPadding: ReaderDesignTokens.mainTabContentBottomPadding) {
+                RSSDemoHomeContent(
+                    selectedMode: $selectedMode,
+                    activeGroupFilter: $activeGroupFilter,
+                    isGroupFilterOpen: $isGroupFilterOpen,
+                    onSelectRoute: selectDemoRoute
+                )
             }
         }
         .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
@@ -90,6 +122,12 @@ public struct RSSFeedView: View {
         .task {
             guard loadsLiveSubscriptions else { return }
             await viewModel.loadSubscriptions()
+        }
+        .onChange(of: topBarRequest) { _, request in
+            handleTopBarRequest(request)
+        }
+        .navigationDestination(isPresented: $showSubscriptionManagement) {
+            RSSSubscriptionManagementView(sources: topBarSources)
         }
     }
 
@@ -233,19 +271,32 @@ public struct RSSFeedView: View {
         Task { await viewModel.refresh() }
     }
 
+    private func handleTopBarRequest(_ request: MainTabTopBarRequest?) {
+        switch request {
+        case .rssRefresh:
+            refreshCurrentFeed()
+            topBarRequest = nil
+        case .rssManage:
+            showSubscriptionManagement = true
+            topBarRequest = nil
+        case .none, .bookshelfSearch, .bookshelfMore, .discoverRefresh:
+            break
+        }
+    }
+
     private func saveCurrentSubscription() {
         guard loadsLiveSubscriptions else { return }
         Task { await viewModel.saveCurrentSubscription() }
     }
 }
 
-private enum RSSDemoPresentation {
+enum RSSDemoPresentation {
     case articleHub
     case sourceFeed
     case refreshing
 }
 
-private struct RSSDemoArticle: Hashable {
+struct RSSFeedDemoArticle: Hashable {
     let title: String
     let source: String
     let time: String
@@ -267,14 +318,14 @@ private struct RSSDemoArticle: Hashable {
     }
 }
 
-private struct RSSDemoCategory: Hashable {
+struct RSSDemoCategory: Hashable {
     let label: String
     let route: String
     let title: String
     let meta: String
 }
 
-private struct RSSDemoRouteState {
+struct RSSDemoRouteState {
     let route: String
     let presentation: RSSDemoPresentation
     let navigationTitle: String
@@ -360,8 +411,8 @@ private struct RSSDemoRouteState {
         RSSDemoCategory(label: "Discussions", route: "rss-source-category-discussions", title: "Discussions", meta: "社区讨论 · 4 条")
     ]
 
-    private static let demoArticles: [RSSDemoArticle] = [
-        RSSDemoArticle(
+    private static let demoArticles: [RSSFeedDemoArticle] = [
+        RSSFeedDemoArticle(
             title: "Reader UI 前端输入件更新说明",
             source: "GitHub Releases",
             time: "10:18",
@@ -370,7 +421,7 @@ private struct RSSDemoRouteState {
             unread: true,
             starred: true
         ),
-        RSSDemoArticle(
+        RSSFeedDemoArticle(
             title: "订阅源规则解析失败排查",
             source: "书源维护公告",
             time: "09:52",
@@ -379,7 +430,7 @@ private struct RSSDemoRouteState {
             unread: true,
             starred: false
         ),
-        RSSDemoArticle(
+        RSSFeedDemoArticle(
             title: "Legado 订阅源配置经验整理",
             source: "阅读器版本讨论",
             time: "昨天",
@@ -388,7 +439,7 @@ private struct RSSDemoRouteState {
             unread: true,
             starred: false
         ),
-        RSSDemoArticle(
+        RSSFeedDemoArticle(
             title: "本地导入完成解析",
             source: "本地系统通知",
             time: "周二",
@@ -397,7 +448,7 @@ private struct RSSDemoRouteState {
             unread: false,
             starred: false
         ),
-        RSSDemoArticle(
+        RSSFeedDemoArticle(
             title: "阅读器路线图讨论摘要",
             source: "阅读器版本讨论",
             time: "周一",
@@ -408,7 +459,7 @@ private struct RSSDemoRouteState {
         )
     ]
 
-    private static func filteredArticles(for route: String) -> [RSSDemoArticle] {
+    private static func filteredArticles(for route: String) -> [RSSFeedDemoArticle] {
         if route == "rss-all" {
             return demoArticles
         }
@@ -486,7 +537,7 @@ private struct RSSDemoHomeContent: View {
             isFilterOpen: $isGroupFilterOpen
         )
 
-        RSSDemoArticleSection(
+        RSSFeedDemoArticleSection(
             title: "最近未读",
             articles: Array(state.articles.prefix(3)),
             actionLabel: "查看全部",
@@ -514,7 +565,7 @@ private struct RSSDemoRouteContent: View {
             .buttonStyle(.plain)
             RSSModeRow(selectedMode: $selectedMode, onSelectRoute: onSelectRoute)
             RSSDemoSourceStrip(activeSourceID: state.source.id)
-            RSSDemoArticleSection(
+            RSSFeedDemoArticleSection(
                 title: state.navigationTitle,
                 articles: state.articles,
                 actionLabel: "管理源",
@@ -533,7 +584,7 @@ private struct RSSDemoRouteContent: View {
                 activeFilter: $activeGroupFilter,
                 isFilterOpen: $isGroupFilterOpen
             )
-            RSSDemoArticleSection(
+            RSSFeedDemoArticleSection(
                 title: "最近未读",
                 articles: state.articles,
                 actionLabel: "查看全部",
@@ -547,7 +598,7 @@ private struct RSSDemoRouteContent: View {
                 isOpen: $isCategoryFilterOpen,
                 onSelectRoute: onSelectRoute
             )
-            RSSDemoArticleSection(
+            RSSFeedDemoArticleSection(
                 title: state.category.title,
                 articles: state.articles,
                 actionLabel: "源操作",
@@ -558,11 +609,12 @@ private struct RSSDemoRouteContent: View {
     }
 }
 
-private struct RSSRootTopBar: View {
+struct RSSRootTopBar: View {
     let subscriptionCount: Int
     let statusText: String
     let sources: [RSSSource]
     let onRefresh: () -> Void
+    let onManage: () -> Void
     let isRefreshDisabled: Bool
 
     var body: some View {
@@ -612,9 +664,7 @@ private struct RSSRootTopBar: View {
             .disabled(isRefreshDisabled)
             .accessibilityLabel("刷新当前订阅")
 
-            NavigationLink {
-                RSSSubscriptionManagementView(sources: sources)
-            } label: {
+            Button(action: onManage) {
                 HStack(spacing: 4) {
                     ReaderIcon(.list, size: 16, accessibilityLabel: "管理 RSS 订阅")
                     Text("管理")
@@ -634,6 +684,7 @@ private struct RSSRootTopBar: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("管理 RSS 订阅")
         }
         .padding(.horizontal, ReaderDesignTokens.topBarHorizontalPadding)
         .padding(.top, ReaderDesignTokens.topBarTopPadding)
@@ -915,7 +966,7 @@ private struct RSSDemoSourceOverview: View {
     }
 }
 
-private struct RSSDemoArticleSection: View {
+private struct RSSFeedDemoArticleSection: View {
     let title: String
     let articles: [SubscriptionItem]
     let actionLabel: String

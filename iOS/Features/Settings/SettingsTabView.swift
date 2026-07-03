@@ -10,18 +10,22 @@ import ReaderShellValidation
 /// 本视图只做 Shell 入口与导航，不复刻业务状态机。
 public struct SettingsTabView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
+    private let showsTopBar: Bool
 
     static let demoRootRoutes: [String] = SettingsRootEntry.demoEntries.map(\.route)
 
-    public init(coordinator: ReadingFlowCoordinator) {
+    public init(coordinator: ReadingFlowCoordinator, showsTopBar: Bool = true) {
         self.coordinator = coordinator
+        self.showsTopBar = showsTopBar
     }
 
     public var body: some View {
         VStack(spacing: 0) {
-            DemoTopBar(title: AppTab.settings.title)
+            if showsTopBar {
+                DemoTopBar(title: AppTab.settings.title)
+            }
 
-            DemoPaperScreen {
+            DemoPaperScreen(bottomPadding: ReaderDesignTokens.mainTabContentBottomPadding) {
                 SettingsSection(title: "设置") {
                     ForEach(SettingsRootEntry.demoEntries) { entry in
                         NavigationLink(destination: settingsDestination(SettingsDemoShellView(demoRoute: entry.route))) {

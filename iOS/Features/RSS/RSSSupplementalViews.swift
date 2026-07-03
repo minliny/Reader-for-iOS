@@ -73,8 +73,7 @@ struct RSSReadRecordView: View {
                 )
             }
             RSSRecordList(records: RSSSupplementalDemoData.records)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSupplementalBottomButton(title: "返回列表", isPrimary: false) {
                     dismiss()
@@ -149,8 +148,7 @@ struct RSSRuleSubscriptionDetailView: View {
                 ]
             )
             RSSImportChangeList()
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSRuleSubscriptionEditView(subscriptionID: subscription.id, title: subscription.name)
@@ -181,8 +179,7 @@ struct RSSRuleSubscriptionEditView: View {
     var body: some View {
         DemoBackScreen(title: "编辑规则订阅") {
             RSSSupplementalEditFieldList(fields: fields)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSRuleSubscriptionTestView(subscriptionID: subscription.id, title: subscription.name)
@@ -229,8 +226,7 @@ struct RSSRuleSubscriptionTestView: View {
                     RSSSupplementalInfoRow(title: "3. 冲突策略", body: "保留本地名称、分组、启用状态，不覆盖登录凭据。", isWarning: false)
                 ]
             )
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSRuleSubscriptionEditView(subscriptionID: subscription.id, title: subscription.name)
@@ -292,8 +288,7 @@ struct RSSFavoriteGroupsView: View {
                 }
                 .buttonStyle(.plain)
             }
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSupplementalBottomButton(title: "取消", isPrimary: false) {
                     dismiss()
@@ -318,8 +313,7 @@ struct RSSFavoriteGroupEditView: View {
     var body: some View {
         DemoBackScreen(title: "编辑收藏分组") {
             RSSSupplementalEditFieldList(fields: fields)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     RSSFavoriteGroupsView()
@@ -1008,8 +1002,7 @@ private struct RSSSupplementalConfirmPage<CancelDestination: View>: View {
     var body: some View {
         DemoBackScreen(title: title) {
             RSSSupplementalConfirmCard(icon: icon, heading: heading, copy: copy, detail: detail)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink {
                     cancelDestination()

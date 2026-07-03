@@ -18,44 +18,15 @@ struct ReaderSourceSwitchFlowView: View {
     }
 
     var body: some View {
-        DemoBackScreen(title: "换源", contentStyle: .custom) {
-            GeometryReader { proxy in
-                let isExpanded = proxy.size.width >= 760
-                ScrollView {
-                    content(isExpanded: isExpanded)
-                        .padding(.horizontal, ReaderDesignTokens.demoContentHorizontalPadding)
-                        .padding(.vertical, ReaderDesignTokens.demoContentVerticalPadding)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-                .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
-            }
-        }
-        .toolbar(.hidden, for: .tabBar)
-    }
-
-    @ViewBuilder
-    private func content(isExpanded: Bool) -> some View {
-        if isExpanded {
-            HStack(alignment: .top, spacing: ReaderDesignTokens.sourceSwitchFlowGap) {
-                ReaderContinuitySlot(bookURL: bookURL)
-                    .frame(minWidth: 300, maxWidth: .infinity)
-                SourceSwitchWindow(
-                    candidates: candidates,
-                    selectedSource: $selectedSource
-                )
-                .frame(width: ReaderDesignTokens.sourceSwitchWindowWidth)
-                SourceSwitchResultCard(candidate: selectedCandidate)
-                    .frame(width: ReaderDesignTokens.sourceSwitchResultWidth)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: ReaderDesignTokens.sourceSwitchFlowGap) {
-                ReaderContinuitySlot(bookURL: bookURL)
-                SourceSwitchWindow(
-                    candidates: candidates,
-                    selectedSource: $selectedSource
-                )
-                SourceSwitchResultCard(candidate: selectedCandidate)
-            }
+        DemoFlowShell(title: "换源") {
+            ReaderContinuitySlot(bookURL: bookURL)
+        } comparisonRegion: {
+            SourceSwitchWindow(
+                candidates: candidates,
+                selectedSource: $selectedSource
+            )
+        } resultRegion: {
+            SourceSwitchResultCard(candidate: selectedCandidate)
         }
     }
 }

@@ -97,6 +97,7 @@ public struct ReaderProgressSurfaceView: View {
                         .stroke(ReaderDesignTokens.Color.readerTopBorder, lineWidth: 1)
                 )
         )
+        .accessibilityIdentifier("fd-reader-top")
     }
 
     private var displayTitle: String {

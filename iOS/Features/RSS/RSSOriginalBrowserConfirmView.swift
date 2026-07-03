@@ -31,8 +31,7 @@ struct RSSOriginalBrowserConfirmView: View {
                 copy: copyText,
                 detail: detailText
             )
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSBrowserConfirmButton(title: "返回原文页", isPrimary: false) {
                     dismiss()

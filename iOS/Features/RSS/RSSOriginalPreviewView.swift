@@ -33,6 +33,17 @@ struct RSSOriginalPreviewView: View {
             } else {
                 RSSOriginalInvalidState()
             }
+        } bottomActionHost: {
+            BottomFixedActionRow {
+                RSSOriginalBottomButton(title: "返回正文", isPrimary: false) {
+                    dismiss()
+                }
+            } trailing: {
+                RSSOriginalBottomButton(title: "浏览器打开", isPrimary: true) {
+                    openExternal()
+                }
+                .disabled(url == nil)
+            }
         }
         .navigationDestination(isPresented: $isBrowserConfirmPresented) {
             RSSOriginalBrowserConfirmView(
@@ -44,18 +55,6 @@ struct RSSOriginalPreviewView: View {
                     dismiss()
                 }
             )
-        }
-        .safeAreaInset(edge: .bottom) {
-            BottomFixedActionRow {
-                RSSOriginalBottomButton(title: "返回正文", isPrimary: false) {
-                    dismiss()
-                }
-            } trailing: {
-                RSSOriginalBottomButton(title: "浏览器打开", isPrimary: true) {
-                    openExternal()
-                }
-                .disabled(url == nil)
-            }
         }
     }
 

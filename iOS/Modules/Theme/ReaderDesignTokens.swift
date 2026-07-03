@@ -47,6 +47,7 @@ public enum ReaderDesignTokens {
     public static let demoContentGap: CGFloat = 10
     public static let demoContentHorizontalPadding: CGFloat = 16
     public static let demoContentVerticalPadding: CGFloat = 14
+    public static let mainTabContentBottomPadding: CGFloat = 102
     public static let cardPadding: CGFloat = 12
     public static let tabletNavWidth: CGFloat = 82
     public static let tabletNavItemHeight: CGFloat = 58

@@ -7,6 +7,65 @@ public enum ReaderStageActionBarStyle {
     case compactLandscape
 }
 
+public enum ReaderStageModule: String, CaseIterable, Hashable {
+    case directory = "目录"
+    case tts = "朗读"
+    case appearance = "外观"
+    case settings = "设置"
+
+    public var icon: ReaderAssetIcon {
+        switch self {
+        case .directory:
+            return .readerModuleDirectory
+        case .tts:
+            return .readerModuleTts
+        case .appearance:
+            return .readerModuleAppearance
+        case .settings:
+            return .readerModuleSettings
+        }
+    }
+
+    public var demoKey: String {
+        switch self {
+        case .directory:
+            return "directory"
+        case .tts:
+            return "tts"
+        case .appearance:
+            return "appearance"
+        case .settings:
+            return "settings"
+        }
+    }
+
+    public var compactDemoRoute: String {
+        switch self {
+        case .directory:
+            return "toc-bookmarks"
+        case .tts:
+            return "tts"
+        case .appearance:
+            return "reader-appearance"
+        case .settings:
+            return "reader-settings"
+        }
+    }
+
+    public var fullDemoRoute: String {
+        switch self {
+        case .directory:
+            return "reader-full-directory"
+        case .tts:
+            return "reader-full-tts"
+        case .appearance:
+            return "reader-full-appearance"
+        case .settings:
+            return "reader-full-settings"
+        }
+    }
+}
+
 /// 阅读底栏模块导航 —— 对齐 demo `.fd-reader-module-nav` / `.fd-reader-module` 规格。
 ///
 /// 真源：`Reader UI/frontend-demo/styles/03-reader.css` `.fd-reader-module-nav` / `.fd-reader-module`
@@ -18,48 +77,25 @@ public enum ReaderStageActionBarStyle {
 ///
 /// 在 `ReaderView` 中由 `chromeVisible` 控制显隐（`reader.control.show/hide`）。
 public struct ReaderStageActionBar: View {
-    public let onPrevious: (() -> Void)?
-    public let onNext: (() -> Void)?
-    public let onReload: (() -> Void)?
-    public let onDirectory: (() -> Void)?
+    public let activeModule: ReaderStageModule?
+    public let onSelectModule: (ReaderStageModule) -> Void
     public let style: ReaderStageActionBarStyle
 
     public init(
-        onPrevious: (() -> Void)? = nil,
-        onNext: (() -> Void)? = nil,
-        onReload: (() -> Void)? = nil,
-        onDirectory: (() -> Void)? = nil,
+        activeModule: ReaderStageModule? = nil,
+        onSelectModule: @escaping (ReaderStageModule) -> Void,
         style: ReaderStageActionBarStyle = .regular
     ) {
-        self.onPrevious = onPrevious
-        self.onNext = onNext
-        self.onReload = onReload
-        self.onDirectory = onDirectory
+        self.activeModule = activeModule
+        self.onSelectModule = onSelectModule
         self.style = style
     }
 
     public var body: some View {
         HStack(spacing: navGap) {
-            moduleItem(
-                icon: .chevronLeft,
-                label: "上一章",
-                action: onPrevious
-            )
-            moduleItem(
-                icon: .refresh,
-                label: "刷新",
-                action: onReload
-            )
-            moduleItem(
-                icon: .readerModuleDirectory,
-                label: "目录",
-                action: onDirectory
-            )
-            moduleItem(
-                icon: .chevron,
-                label: "下一章",
-                action: onNext
-            )
+            ForEach(ReaderStageModule.allCases, id: \.self) { module in
+                moduleItem(module)
+            }
         }
         .padding(navPadding)
         .frame(minHeight: navMinHeight)
@@ -71,24 +107,25 @@ public struct ReaderStageActionBar: View {
                         .stroke(ReaderDesignTokens.Color.readerModuleNavBorder, lineWidth: 1)
                 )
         )
+        .accessibilityIdentifier("fd-reader-module-nav")
     }
 
     @ViewBuilder
-    private func moduleItem(icon: ReaderAssetIcon, label: String, action: (() -> Void)?) -> some View {
-        let isActive = action != nil
+    private func moduleItem(_ module: ReaderStageModule) -> some View {
+        let isSelected = activeModule == module
         Button {
-            action?()
+            onSelectModule(module)
         } label: {
             VStack(spacing: moduleGap) {
-                ReaderIcon(icon, size: iconSize)
+                ReaderIcon(module.icon, size: iconSize, accessibilityLabel: module.rawValue)
                     .frame(width: iconShellSize, height: iconShellSize)
-                    .foregroundColor(isActive ? .white : ReaderDesignTokens.Color.primary)
+                    .foregroundColor(isSelected ? .white : ReaderDesignTokens.Color.primary)
                     .background(
                         Circle()
-                            .fill(isActive ? ReaderDesignTokens.Color.primaryDark
+                            .fill(isSelected ? ReaderDesignTokens.Color.primaryDark
                                     : ReaderDesignTokens.Color.readerModuleIconShellBackground)
                     )
-                Text(label)
+                Text(module.rawValue)
                     .font(.system(size: moduleFontSize, weight: .heavy))
                     .foregroundColor(ReaderDesignTokens.readerModuleTextColor)
                     .lineLimit(1)
@@ -96,8 +133,8 @@ public struct ReaderStageActionBar: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .disabled(!isActive)
-        .opacity(isActive ? 1 : 0.4)
+        .accessibilityLabel(module.rawValue)
+        .accessibilityIdentifier("fd-reader-module-\(module.demoKey)")
     }
 
     private var navGap: CGFloat {

@@ -21,40 +21,35 @@ public struct BookshelfView: View {
     @State private var showGroupManagement = false
     @State private var showBookshelfSearchSettings = false
     @ObservedObject private var navigationState: AppNavigationState
+    @Binding private var topBarRequest: MainTabTopBarRequest?
+    private let showsTopBar: Bool
 
     /// `navigationState` 为契约单一状态源，承载 `readerContext` / `motionInterrupt`，
     /// 用于对齐 `reader.entry.coverToImmersive` / `reader.entry.actionToImmersive`。
     /// 保留无参 init 仅供既有 `AppShellAlignmentTests.testMineTabViewCanInit` 等兼容路径使用。
-    public init(navigationState: AppNavigationState? = nil) {
+    public init(
+        navigationState: AppNavigationState? = nil,
+        showsTopBar: Bool = true,
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+    ) {
         if let navigationState {
             self._navigationState = ObservedObject(wrappedValue: navigationState)
         } else {
             self._navigationState = ObservedObject(wrappedValue: AppNavigationState())
         }
+        self.showsTopBar = showsTopBar
+        self._topBarRequest = topBarRequest
     }
 
     public var body: some View {
-        // NavigationStack 由 `AppShellView` 提供；本页使用 demo top bar 承载标题与入口，
-        // navigationDestination 仍挂在这里，避免双层 NavigationStack 嵌套。
+        // NavigationStack 由 `AppShellView` 提供；root 模式下 top bar 由
+        // DemoMainTabShell.appTopBar slot 承载，兼容/预览路径仍可内联显示。
         VStack(spacing: 0) {
-            DemoTopBar(title: "书架") {
-                DemoTopActionButton(
-                    icon: .search,
-                    accessibilityLabel: "搜索书籍",
-                    action: { showSearch = true }
-                )
-
-                DemoTopActionButton(
-                    icon: .more,
-                    accessibilityLabel: "书架更多操作",
-                    action: {
-                        showBookshelfMore = true
-                        focusedBookshelfItem = nil
-                    }
-                )
+            if showsTopBar {
+                bookshelfTopBar
             }
 
-            DemoPaperScreen {
+            DemoPaperScreen(bottomPadding: ReaderDesignTokens.mainTabContentBottomPadding) {
                 continueReadingCard
                 bookshelfStateView
             }
@@ -69,14 +64,11 @@ public struct BookshelfView: View {
         .onAppear {
             Task { await viewModel.loadItems() }
         }
+        .onChange(of: topBarRequest) { _, request in
+            handleTopBarRequest(request)
+        }
         .refreshable {
             await viewModel.loadItems()
-        }
-        .sheet(item: $selectedItem) { item in
-            BookshelfItemDetailView(item: item, onEnterImmersive: { context in
-                enterImmersive(from: item, source: .actionToImmersive)
-            })
-            .presentationDetents([.medium])
         }
         .navigationDestination(isPresented: $navigateToReader) {
             if let context = immersiveEntry {
@@ -117,6 +109,40 @@ public struct BookshelfView: View {
         .navigationDestination(isPresented: $showBookshelfSearchSettings) {
             SettingsDemoShellView(demoRoute: "bookshelf-search-settings")
         }
+    }
+
+    private var bookshelfTopBar: some View {
+        DemoTopBar(title: "书架") {
+            DemoTopActionButton(
+                icon: .search,
+                accessibilityLabel: "搜索书籍",
+                action: { showSearch = true }
+            )
+
+            DemoTopActionButton(
+                icon: .more,
+                accessibilityLabel: "书架更多操作",
+                action: openBookshelfMoreMenu
+            )
+        }
+    }
+
+    private func handleTopBarRequest(_ request: MainTabTopBarRequest?) {
+        switch request {
+        case .bookshelfSearch:
+            showSearch = true
+            topBarRequest = nil
+        case .bookshelfMore:
+            openBookshelfMoreMenu()
+            topBarRequest = nil
+        case .none, .discoverRefresh, .rssRefresh, .rssManage:
+            break
+        }
+    }
+
+    private func openBookshelfMoreMenu() {
+        showBookshelfMore = true
+        focusedBookshelfItem = nil
     }
 
     /// 继续阅读卡 —— 对齐 demo `.fd-continue-card` 规格（grid 62/1fr/82，min-h 100，
@@ -181,6 +207,19 @@ public struct BookshelfView: View {
                         Task { await viewModel.removeItem(id: itemID) }
                     }
                 )
+            }
+
+            if let selectedItem {
+                BookshelfItemDetailView(
+                    item: selectedItem,
+                    onClose: { self.selectedItem = nil },
+                    onEnterImmersive: { _ in
+                        self.selectedItem = nil
+                        enterImmersive(from: selectedItem, source: .actionToImmersive)
+                    }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(3)
             }
         }
     }
@@ -961,8 +1000,7 @@ struct BookshelfBatchManagementView: View {
         DemoBackScreen(title: "批量管理") {
             batchSummary
             batchList
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 NavigationLink(value: Route.bookshelfGroups) {
                     BookBatchBottomLabel(title: "移动分组", isPrimary: true)
@@ -1186,29 +1224,30 @@ private struct BookBatchBottomLabel: View {
 
 struct BookshelfItemDetailView: View {
     let item: BookshelfItem
+    let onClose: () -> Void
     let onEnterImmersive: (ReaderContext) -> Void
     @State private var showBookmarks = false
-    @SwiftUI.Environment(\.dismiss) private var dismiss
 
-    init(item: BookshelfItem, onEnterImmersive: @escaping (ReaderContext) -> Void) {
+    init(
+        item: BookshelfItem,
+        onClose: @escaping () -> Void = {},
+        onEnterImmersive: @escaping (ReaderContext) -> Void
+    ) {
         self.item = item
+        self.onClose = onClose
         self.onEnterImmersive = onEnterImmersive
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            DemoBackBar(title: "书籍详情", onBack: { dismiss() }) {
-                Button("完成") { dismiss() }
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-            }
-
-            DemoPaperScreen {
-                detailHeroCard
-                detailInfoCard
-                readingProgressCard
-            }
-
+        DemoBackScreen(title: "书籍详情") {
+            detailHeroCard
+            detailInfoCard
+            readingProgressCard
+        } trailing: {
+            Button("完成") { onClose() }
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+        } bottomActionHost: {
             BottomFixedActionRow {
                 Button {
                     showBookmarks = true
@@ -1226,13 +1265,21 @@ struct BookshelfItemDetailView: View {
                 .disabled(!canContinueReading)
                 .opacity(canContinueReading ? 1 : 0.48)
             }
-        }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
-#if os(iOS)
-        .toolbar(.hidden, for: .navigationBar)
-#endif
-        .sheet(isPresented: $showBookmarks) {
-            BookmarksListView(bookId: item.id, sourceId: item.sourceID, bookTitle: item.title)
+        } sheetHost: {
+            if showBookmarks {
+                DemoBottomSheet(title: "书签", maxHeight: 620, onDismiss: { showBookmarks = false }) {
+                    BookmarksListView(
+                        bookId: item.id,
+                        sourceId: item.sourceID,
+                        bookTitle: item.title,
+                        onClose: { showBookmarks = false }
+                    )
+                }
+            }
+        } dialogHost: {
+            EmptyView()
+        } stateHost: {
+            EmptyView()
         }
     }
 
@@ -1311,7 +1358,7 @@ struct BookshelfItemDetailView: View {
             sourceID: item.sourceID,
             source: .actionToImmersive
         )
-        dismiss()
+        onClose()
         onEnterImmersive(context)
     }
 

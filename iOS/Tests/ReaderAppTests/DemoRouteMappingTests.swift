@@ -49,51 +49,63 @@ final class DemoRouteMappingTests: XCTestCase {
         XCTAssertEqual(DemoRouteMappings.mapping(for: "local-import")?.platformTarget, .nativeRoute(.bookshelfImport))
     }
 
-    func testBookshelfRootRouteMapsToDemoAlignedSurface() {
+    func testBookshelfRootRouteMapsToDemoAlignedMainTabSlots() {
         let mapping = DemoRouteMappings.mapping(for: "bookshelf")
 
         XCTAssertEqual(mapping?.shell, "MainTabShell")
         XCTAssertEqual(mapping?.platformTarget, .appTab(.bookshelf))
+        XCTAssertTrue(mapping?.stateModel.contains("DemoMainTabShell.appTopBar") == true)
         XCTAssertTrue(mapping?.stateModel.contains("BookshelfView") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("showsTopBar: false") == true)
         XCTAssertTrue(mapping?.stateModel.contains("DemoTopBar") == true)
         XCTAssertTrue(mapping?.stateModel.contains("DemoPaperScreen") == true)
         XCTAssertTrue(mapping?.stateModel.contains("ContinueReadingCard") == true)
         XCTAssertTrue(mapping?.stateModel.contains("BookshelfItemDetailView") == true)
         XCTAssertTrue(mapping?.stateModel.contains("BookmarksListView") == true)
         XCTAssertTrue(mapping?.stateModel.contains("BookmarkRowView") == true)
+        XCTAssertTrue(mapping?.navigationEntry.contains("appTopBar/contentRegion/stateHost/mainNav") == true)
         XCTAssertTrue(mapping?.navigationEntry.contains("instead of system List") == true)
         XCTAssertTrue(mapping?.acceptanceTests.contains("BookshelfHTMLCSSStructureAlignmentTests") == true)
     }
 
-    func testDiscoverRootRouteMapsToDemoTopBarSurface() {
+    func testDiscoverRootRouteMapsToDemoMainTabAppTopBarSlot() {
         let mapping = DemoRouteMappings.mapping(for: "discover")
 
         XCTAssertEqual(mapping?.shell, "MainTabShell")
         XCTAssertEqual(mapping?.platformTarget, .appTab(.discover))
+        XCTAssertTrue(mapping?.stateModel.contains("DemoMainTabShell.appTopBar") == true)
         XCTAssertTrue(mapping?.stateModel.contains("DiscoverHomeShellView") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("showsTopBar: false") == true)
         XCTAssertTrue(mapping?.stateModel.contains("DemoTopBar") == true)
+        XCTAssertTrue(mapping?.navigationEntry.contains("appTopBar/contentRegion/stateHost/mainNav") == true)
         XCTAssertTrue(mapping?.acceptanceTests.contains("DemoComponentPrimitiveAlignmentTests") == true)
     }
 
-    func testRSSRootRouteMapsToDemoTopBarSurface() {
+    func testRSSRootRouteMapsToDemoMainTabAppTopBarSlot() {
         let mapping = DemoRouteMappings.mapping(for: "rss")
 
         XCTAssertEqual(mapping?.shell, "MainTabShell")
         XCTAssertEqual(mapping?.platformTarget, .appTab(.rss))
+        XCTAssertTrue(mapping?.stateModel.contains("DemoMainTabShell.appTopBar") == true)
         XCTAssertTrue(mapping?.stateModel.contains("RSSFeedView") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("showsTopBar: false") == true)
         XCTAssertTrue(mapping?.stateModel.contains("RSSRootTopBar") == true)
+        XCTAssertTrue(mapping?.navigationEntry.contains("appTopBar/contentRegion/stateHost/mainNav") == true)
         XCTAssertTrue(mapping?.acceptanceTests.contains("DemoComponentPrimitiveAlignmentTests") == true)
     }
 
-    func testSettingsRootRouteMapsToDemoTopBarSurface() {
+    func testSettingsRootRouteMapsToDemoMainTabAppTopBarSlot() {
         let mapping = DemoRouteMappings.mapping(for: "settings")
 
         XCTAssertEqual(mapping?.shell, "MainTabShell")
         XCTAssertEqual(mapping?.platformTarget, .appTab(.settings))
+        XCTAssertTrue(mapping?.stateModel.contains("DemoMainTabShell.appTopBar") == true)
         XCTAssertTrue(mapping?.stateModel.contains("SettingsTabView") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("showsTopBar: false") == true)
         XCTAssertTrue(mapping?.stateModel.contains("DemoTopBar") == true)
         XCTAssertTrue(mapping?.stateModel.contains("DemoPaperScreen") == true)
         XCTAssertTrue(mapping?.stateModel.contains("SettingsRootEntryRow") == true)
+        XCTAssertTrue(mapping?.navigationEntry.contains("appTopBar/contentRegion/stateHost/mainNav") == true)
         XCTAssertTrue(mapping?.acceptanceTests.contains("DemoComponentPrimitiveAlignmentTests") == true)
     }
 
@@ -138,7 +150,7 @@ final class DemoRouteMappingTests: XCTestCase {
         XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
     }
 
-    func testBookshelfSecondaryRoutesUseDemoBackScreen() {
+    func testBookshelfSecondaryRoutesUseDemoLibraryShell() {
         let routes = [
             "book-search",
             "book-detail",
@@ -151,7 +163,8 @@ final class DemoRouteMappingTests: XCTestCase {
         for route in routes {
             let mapping = DemoRouteMappings.mapping(for: route)
             XCTAssertEqual(mapping?.shell, "LibraryShell")
-            XCTAssertTrue(mapping?.stateModel.contains("DemoBackScreen") == true, route)
+            XCTAssertTrue(mapping?.stateModel.contains("DemoLibraryShell") == true, route)
+            XCTAssertTrue(mapping?.stateModel.contains("DemoBackScreen slot facade") == true, route)
             XCTAssertTrue(mapping?.acceptanceTests.contains("DemoComponentPrimitiveAlignmentTests") == true, route)
         }
     }
@@ -217,8 +230,10 @@ final class DemoRouteMappingTests: XCTestCase {
                 return XCTFail("\(route) must map to a Discover feature state, not a pushed Route")
             }
             XCTAssertTrue(stateName.contains("DiscoverHomeShellView"))
+            XCTAssertTrue(mapping?.stateModel.contains("DemoMainTabShell.appTopBar") == true)
             XCTAssertTrue(mapping?.stateModel.contains("DemoTopBar") == true)
             XCTAssertTrue(mapping?.stateModel.contains("DiscoverDemoState") == true)
+            XCTAssertTrue(mapping?.navigationEntry.contains("appTopBar") == true)
             XCTAssertTrue(mapping?.navigationEntry.contains("no pushed Route") == true)
         }
     }
@@ -231,7 +246,7 @@ final class DemoRouteMappingTests: XCTestCase {
         XCTAssertTrue(mapping?.stateModel.contains("RSSArticleDetailView") == true)
     }
 
-    func testRSSNativeSecondaryRoutesUseDemoBackScreen() {
+    func testRSSNativeSecondaryRoutesUseDemoLibraryShell() {
         let routes = DemoRouteMappings.all.filter { mapping in
             guard mapping.demoRoute.hasPrefix("rss-") else { return false }
             if case .nativeRoute = mapping.platformTarget {
@@ -243,7 +258,8 @@ final class DemoRouteMappingTests: XCTestCase {
         XCTAssertGreaterThan(routes.count, 30)
         for mapping in routes {
             XCTAssertEqual(mapping.shell, "LibraryShell", mapping.demoRoute)
-            XCTAssertTrue(mapping.stateModel.contains("DemoBackScreen"), mapping.demoRoute)
+            XCTAssertTrue(mapping.stateModel.contains("DemoLibraryShell"), mapping.demoRoute)
+            XCTAssertTrue(mapping.stateModel.contains("DemoBackScreen slot facade"), mapping.demoRoute)
             XCTAssertTrue(mapping.acceptanceTests.contains("DemoComponentPrimitiveAlignmentTests"), mapping.demoRoute)
         }
     }
@@ -268,7 +284,7 @@ final class DemoRouteMappingTests: XCTestCase {
             }
             if route == "discover-source-login" {
                 XCTAssertTrue(stateName.contains("DiscoverSourceLoginView"))
-                XCTAssertTrue(mapping?.stateModel.contains("DemoBackScreen") == true)
+                XCTAssertTrue(mapping?.stateModel.contains("DemoLibraryShell") == true)
             } else {
                 XCTAssertTrue(stateName.contains("RSSFeedView"))
                 XCTAssertTrue(mapping?.stateModel.contains("RSSDemoRouteState") == true)
@@ -315,7 +331,7 @@ final class DemoRouteMappingTests: XCTestCase {
                 return XCTFail("\(route) must map to a Settings feature state")
             }
             XCTAssertTrue(stateName.contains("SettingsDemoShellView"))
-            XCTAssertTrue(mapping?.stateModel.contains("DemoBackScreen") == true)
+            XCTAssertTrue(mapping?.stateModel.contains("DemoSettingsShell") == true)
             XCTAssertTrue(mapping?.stateModel.contains("SettingsDemoRouteState") == true)
             XCTAssertTrue(mapping?.navigationEntry.contains("without becoming a main tab") == true)
         }
@@ -471,7 +487,7 @@ final class DemoRouteMappingTests: XCTestCase {
         XCTAssertTrue(reader?.stateModel.contains("ContentView") == true)
         XCTAssertTrue(reader?.stateModel.contains("ReaderContentSectionView") == true)
         XCTAssertTrue(reader?.navigationEntry.contains("Route.toc/Route.content") == true)
-        XCTAssertTrue(reader?.navigationEntry.contains("DemoBackScreen") == true)
+        XCTAssertTrue(reader?.navigationEntry.contains("DemoLibraryShell") == true)
         XCTAssertTrue(reader?.stateModel.contains("ReaderAppearanceQuickAction") == true)
         XCTAssertTrue(reader?.stateModel.contains("ReaderSettingsQuickAction") == true)
         for route in ["reader-full-directory", "reader-full-tts", "reader-full-appearance", "reader-full-settings"] {
@@ -491,9 +507,11 @@ final class DemoRouteMappingTests: XCTestCase {
 
         XCTAssertEqual(mapping?.shell, "FlowShell")
         XCTAssertEqual(mapping?.platformTarget, .nativeRoute(.sourceSwitch))
-        XCTAssertTrue(mapping?.stateModel.contains("DemoBackScreen") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("DemoFlowShell") == true)
         XCTAssertTrue(mapping?.stateModel.contains("ReaderSourceSwitchFlowView") == true)
         XCTAssertTrue(mapping?.stateModel.contains("SourceSwitchCandidate") == true)
+        XCTAssertFalse(mapping?.stateModel.contains("DemoBackScreen") == true)
+        XCTAssertFalse(mapping?.navigationEntry.contains("DemoBackScreen") == true)
         XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
     }
 

@@ -33,8 +33,7 @@ public struct SearchView: View {
                 scopeChips
             }
             searchStateSurface
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             bottomActions
         }
         .onAppear {

@@ -16,6 +16,28 @@ enum BookSourceSheet: Identifiable {
         case .detail(_, let sourceId): return "detail-\(sourceId)"
         }
     }
+
+    var title: String {
+        switch self {
+        case .importSheet:
+            return "导入书源"
+        case .shareSheet:
+            return "书源 JSON"
+        case .detail:
+            return "书源详情"
+        }
+    }
+
+    var maxHeight: CGFloat? {
+        switch self {
+        case .importSheet:
+            return 620
+        case .shareSheet:
+            return 420
+        case .detail:
+            return 680
+        }
+    }
 }
 
 public struct BookSourceListView: View {
@@ -67,16 +89,22 @@ public struct BookSourceListView: View {
             DemoTopActionButton(icon: .add, accessibilityLabel: "导入书源") {
                 activeSheet = .importSheet
             }
-        }
-        .sheet(item: $activeSheet) { sheet in
-            switch sheet {
-            case .importSheet:
-                BookSourceImportView()
-            case .shareSheet:
-                shareSheetContent
-            case .detail(let source, _):
-                BookSourceDetailSheet(source: source)
+        } bottomActionHost: {
+            EmptyView()
+        } sheetHost: {
+            if let activeSheet {
+                DemoBottomSheet(
+                    title: activeSheet.title,
+                    maxHeight: activeSheet.maxHeight,
+                    onDismiss: { self.activeSheet = nil }
+                ) {
+                    bookSourceSheetContent(activeSheet)
+                }
             }
+        } dialogHost: {
+            EmptyView()
+        } stateHost: {
+            EmptyView()
         }
         .task {
             await loadSources()
@@ -128,8 +156,22 @@ public struct BookSourceListView: View {
         }
     }
 
+    @ViewBuilder
+    private func bookSourceSheetContent(_ sheet: BookSourceSheet) -> some View {
+        switch sheet {
+        case .importSheet:
+            BookSourceImportContent()
+
+        case .shareSheet:
+            shareSheetContent
+
+        case .detail(let source, _):
+            BookSourceDetailSheet(source: source, onClose: { activeSheet = nil })
+        }
+    }
+
     private var shareSheetContent: some View {
-        DemoBackScreen(title: "书源 JSON") {
+        VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
             ReaderCard {
                 Text(shareText)
                     .font(.system(size: 10, design: .monospaced))
@@ -137,12 +179,22 @@ public struct BookSourceListView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } trailing: {
-            DemoTopActionButton(icon: .file, accessibilityLabel: "复制书源 JSON") {
+
+            Button {
 #if os(iOS)
                 UIPasteboard.general.string = shareText
 #endif
+            } label: {
+                HStack(spacing: 8) {
+                    ReaderIcon(.file, size: 16, accessibilityLabel: "复制书源 JSON")
+                    Text("复制书源 JSON")
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                }
+                .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+                .foregroundColor(.white)
+                .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
             }
+            .buttonStyle(.plain)
         }
     }
 

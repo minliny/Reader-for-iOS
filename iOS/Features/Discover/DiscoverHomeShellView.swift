@@ -15,8 +15,14 @@ public struct DiscoverHomeShellView: View {
     @State private var selectedSort: String
     @State private var isControlPanelExpanded: Bool
     @State private var isFilterMenuOpen: Bool
+    @Binding private var topBarRequest: MainTabTopBarRequest?
+    private let showsTopBar: Bool
 
-    public init(demoRoute: String = "discover") {
+    public init(
+        demoRoute: String = "discover",
+        showsTopBar: Bool = true,
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+    ) {
         let state = DiscoverDemoState(route: demoRoute)
         self._activeDemoRoute = State(initialValue: demoRoute)
         self._selectedEntry = State(initialValue: state.activeEntry)
@@ -24,6 +30,8 @@ public struct DiscoverHomeShellView: View {
         self._selectedSort = State(initialValue: state.sort)
         self._isControlPanelExpanded = State(initialValue: state.isControlPanelExpanded)
         self._isFilterMenuOpen = State(initialValue: state.isSortOpen)
+        self.showsTopBar = showsTopBar
+        self._topBarRequest = topBarRequest
     }
 
     public var body: some View {
@@ -36,15 +44,11 @@ public struct DiscoverHomeShellView: View {
         )
 
         VStack(spacing: 0) {
-            DemoTopBar(title: "发现") {
-                DemoTopActionButton(
-                    icon: .refresh,
-                    accessibilityLabel: "刷新发现入口",
-                    action: { activeDemoRoute = "discover-refreshing" }
-                )
+            if showsTopBar {
+                discoverTopBar
             }
 
-            DemoPaperScreen {
+            DemoPaperScreen(bottomPadding: ReaderDesignTokens.mainTabContentBottomPadding) {
                 switch state.presentation {
                 case .empty:
                     DiscoverLargeStateCard(
@@ -135,6 +139,29 @@ public struct DiscoverHomeShellView: View {
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
+        .onChange(of: topBarRequest) { _, request in
+            handleTopBarRequest(request)
+        }
+    }
+
+    private var discoverTopBar: some View {
+        DemoTopBar(title: "发现") {
+            DemoTopActionButton(
+                icon: .refresh,
+                accessibilityLabel: "刷新发现入口",
+                action: refreshDiscoverEntry
+            )
+        }
+    }
+
+    private func handleTopBarRequest(_ request: MainTabTopBarRequest?) {
+        guard request == .discoverRefresh else { return }
+        refreshDiscoverEntry()
+        topBarRequest = nil
+    }
+
+    private func refreshDiscoverEntry() {
+        activeDemoRoute = "discover-refreshing"
     }
 }
 
@@ -192,8 +219,7 @@ struct DiscoverSourceLoginView: View {
                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 DiscoverLoginBottomButton(title: "返回控制层", icon: .sourceStack, isPrimary: false) {
                     dismiss()

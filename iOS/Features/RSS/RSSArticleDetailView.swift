@@ -38,18 +38,7 @@ struct RSSArticleDetailView: View {
             RSSReaderBody(paragraphs: bodyParagraphs)
 
             RSSOriginalLinkCard(link: item.link, openOriginal: openOriginal)
-        }
-        .navigationDestination(isPresented: $isOriginalPresented) {
-            RSSOriginalPreviewView(
-                url: originalURL,
-                title: item.title,
-                sourceTitle: resolvedSourceTitle
-            )
-        }
-        .navigationDestination(isPresented: $isSourceManagementPresented) {
-            RSSSubscriptionManagementView()
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 RSSReaderBottomButton(title: "返回列表", isPrimary: false) {
                     dismiss()
@@ -60,6 +49,16 @@ struct RSSArticleDetailView: View {
                 }
                 .disabled(originalURL == nil)
             }
+        }
+        .navigationDestination(isPresented: $isOriginalPresented) {
+            RSSOriginalPreviewView(
+                url: originalURL,
+                title: item.title,
+                sourceTitle: resolvedSourceTitle
+            )
+        }
+        .navigationDestination(isPresented: $isSourceManagementPresented) {
+            RSSSubscriptionManagementView()
         }
     }
 

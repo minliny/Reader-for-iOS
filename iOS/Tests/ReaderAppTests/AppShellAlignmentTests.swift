@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import ReaderApp
 import ReaderCoreModels
 import ReaderShellValidation
@@ -29,7 +30,154 @@ final class AppShellAlignmentTests: XCTestCase {
         XCTAssertEqual(AppTab.allCases.count, 4, "主 Tab 数量必须为 4")
     }
 
+    func testMainTabShellLayoutKeepsMainNavAsIndependentSlot() {
+        let phone = AppShellView.AppShellMainTabLayout(
+            viewport: DemoViewportSnapshot.make(size: CGSize(width: 390, height: 844))
+        )
+        XCTAssertFalse(phone.usesTabletRail)
+        XCTAssertEqual(phone.tabBarAxis, .horizontal)
+        XCTAssertEqual(phone.contentLeadingPadding, 0)
+        XCTAssertEqual(phone.contentBottomPadding, ReaderDesignTokens.mainTabContentBottomPadding,
+                       "demo MainTabShell keeps mainNav as an independent slot while fd-phone-content reserves bottom padding for the floating nav.")
+        XCTAssertNil(phone.mainNavWidth)
+        XCTAssertEqual(phone.mainNavLeadingPadding, 0)
+
+        let tablet = AppShellView.AppShellMainTabLayout(
+            viewport: DemoViewportSnapshot.make(size: CGSize(width: 1024, height: 1366))
+        )
+        XCTAssertTrue(tablet.usesTabletRail)
+        XCTAssertEqual(tablet.tabBarAxis, .vertical)
+        XCTAssertEqual(tablet.contentLeadingPadding, ReaderDesignTokens.tabletNavWidth + 18)
+        XCTAssertEqual(tablet.contentBottomPadding, ReaderDesignTokens.mainTabContentBottomPadding)
+        XCTAssertEqual(tablet.mainNavWidth, ReaderDesignTokens.tabletNavWidth)
+        XCTAssertEqual(tablet.mainNavLeadingPadding, 16)
+    }
+
+    func testMainTabNavHidesWhenReaderShellIsActive() {
+        let navigationState = AppNavigationState()
+        let shell = AppShellView(
+            coordinator: ShellAssembly.makeMockReadingFlowCoordinator(),
+            navigationState: navigationState,
+            environment: ReaderShellEnvironment()
+        )
+
+        XCTAssertTrue(shell.shouldShowMainNav)
+
+        navigationState.enterImmersiveReading(ReaderContext(
+            bookID: "demo-long-night",
+            chapterURL: "demo://chapter/rain-night",
+            chapterTitle: "雨夜",
+            source: .coverToImmersive
+        ))
+        XCTAssertFalse(shell.shouldShowMainNav,
+                       "demo ReaderShell routes must not keep the MainTabShell mainNav over the reading surface.")
+
+        navigationState.exitImmersiveReading()
+        XCTAssertTrue(shell.shouldShowMainNav)
+    }
+
     // MARK: - Shell Views 存在性
+
+    func testDemoShellSkeletonsCanInitForAllDemoShellFamilies() {
+        let mainTab = DemoMainTabShell {
+            Text("top")
+        } contentRegion: {
+            Text("content")
+        } stateHost: {
+            Text("state")
+        } mainNav: {
+            Text("nav")
+        }
+
+        let library = DemoLibraryShell(title: "书籍搜索") {
+            Text("library")
+        }
+
+        let settings = DemoSettingsShell(title: "通用设置") {
+            Text("settings")
+        } trailing: {
+            EmptyView()
+        } bottomActionHost: {
+            EmptyView()
+        } sheetHost: {
+            EmptyView()
+        } toastHost: {
+            EmptyView()
+        } dialogHost: {
+            EmptyView()
+        } stateHost: {
+            EmptyView()
+        }
+
+        let readerLayout = ReaderResponsiveLayout.make(size: CGSize(width: 390, height: 844))
+        let reader = DemoReaderShell(layout: readerLayout) {
+            Text("reading")
+        } overlayHost: {
+            Text("overlay")
+        } bottomSheetHost: {
+            Text("sheet")
+        } moduleNav: {
+            Text("nav")
+        } stateHost: {
+            Text("state")
+        }
+
+        let flow = DemoFlowShell(title: "换源") {
+            Text("step")
+        } comparisonRegion: {
+            Text("comparison")
+        } resultRegion: {
+            Text("result")
+        }
+
+        XCTAssertNotNil(mainTab)
+        XCTAssertNotNil(library)
+        XCTAssertNotNil(settings)
+        XCTAssertNotNil(reader)
+        XCTAssertNotNil(flow)
+    }
+
+    func testMainTabRootViewsCanInitAsContentOnlySlots() {
+        let navigationState = AppNavigationState()
+        let topBarRequest = Binding<MainTabTopBarRequest?>.constant(nil)
+        let coordinator = ShellAssembly.makeMockReadingFlowCoordinator()
+
+        XCTAssertNotNil(BookshelfView(
+            navigationState: navigationState,
+            showsTopBar: false,
+            topBarRequest: topBarRequest
+        ))
+        XCTAssertNotNil(DiscoverHomeShellView(
+            showsTopBar: false,
+            topBarRequest: topBarRequest
+        ))
+        XCTAssertNotNil(RSSFeedView(
+            showsTopBar: false,
+            topBarRequest: topBarRequest
+        ))
+        XCTAssertNotNil(SettingsTabView(
+            coordinator: coordinator,
+            showsTopBar: false
+        ))
+    }
+
+    func testDemoBackScreenFacadeCanPassEveryLibraryShellSlot() {
+        let screen = DemoBackScreen(title: "插槽页") {
+            Text("content")
+        } trailing: {
+            Text("trailing")
+        } bottomActionHost: {
+            Text("bottom")
+        } sheetHost: {
+            Text("sheet")
+        } dialogHost: {
+            Text("dialog")
+        } stateHost: {
+            Text("state")
+        }
+
+        XCTAssertNotNil(screen)
+    }
 
     func testDiscoverHomeShellViewCanInit() {
         let view = DiscoverHomeShellView()

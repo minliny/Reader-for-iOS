@@ -17,8 +17,8 @@ import SwiftUI
 /// - `tab.item.switch` / `app.tab.switch` —— 由 `AppNavigationState.switchTab` 处理
 ///
 /// 与系统 `TabView` 的区别：系统栏是贴底实心 49pt，与 demo 的浮动 68pt pill 不符。
-/// 本组件保留 `TabView(selection:)` 的语义，但用自定义视觉承载 demo 骨架规格。
-enum FloatingTabBarAxis {
+/// 本组件只承载 demo `mainNav` slot；页面切换由 AppShell 的自定义 contentRegion 负责。
+enum FloatingTabBarAxis: Equatable {
     case horizontal
     case vertical
 }
@@ -45,6 +45,7 @@ struct FloatingTabBar: View {
                         radius: 18, x: 0, y: 18)
         )
         .padding(.horizontal, ReaderDesignTokens.mainNavSideInsetAdjustment)
+        .accessibilityIdentifier("fd-main-nav")
     }
 
     @ViewBuilder
@@ -92,6 +93,7 @@ struct FloatingTabBar: View {
         }
         .buttonStyle(TabPressButtonStyle())
         .accessibilityLabel(tab.title)
+        .accessibilityIdentifier("fd-main-nav-item-\(tab.rawValue)")
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : [.isButton])
     }
 }

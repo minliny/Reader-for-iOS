@@ -10,20 +10,20 @@ Simulator target: iPhone 17, iOS 26.5, UDID `4647E187-8F40-44D2-AEF4-71B5B4B6F7B
 xcodebuild test -project ReaderForIOS.xcodeproj -scheme ReaderForIOSApp -destination 'id=4647E187-8F40-44D2-AEF4-71B5B4B6F7BB' -only-testing:ReaderAppTests/DemoRouteFamilySimulatorSmokeTests
 ```
 
-Result: passed. Executed `7` tests, `0` failures.
+Latest result: passed. Executed `8` tests, `0` failures.
 
 Result bundle:
 
-`/Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_12-05-58-+0800.xcresult`
+`/Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_15-35-15-+0800.xcresult`
 
-## Exported Screenshots
+## Committed Screenshot Export
 
 ```bash
-xcrun xcresulttool export attachments --path /Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_12-05-58-+0800.xcresult --output-path docs/ui-handoff/ios/screenshots/demo-route-smoke-20260703
+xcrun xcresulttool export attachments --path /Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_15-35-15-+0800.xcresult --output-path docs/ui-handoff/ios/screenshots/demo-route-smoke-20260703
 find docs/ui-handoff/ios/screenshots/demo-route-smoke-20260703 -type f -name '*.png' | wc -l
 ```
 
-Exported attachments: `110` PNG files plus `manifest.json`.
+Committed attachments: `110` PNG files plus `manifest.json` from the same route-family smoke set. The async result guard test has no screenshot attachment by design.
 
 Screenshot directory:
 

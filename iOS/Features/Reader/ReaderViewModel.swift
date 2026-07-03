@@ -204,6 +204,10 @@ public final class ReaderViewModel: ObservableObject {
         navigateToChapter(at: newIndex)
     }
 
+    public func goToChapter(at index: Int) {
+        navigateToChapter(at: index)
+    }
+
     private func navigateToChapter(at index: Int) {
         guard index >= 0, index < chapterList.count else { return }
         let chapter = chapterList[index]

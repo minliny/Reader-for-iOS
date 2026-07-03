@@ -26,62 +26,146 @@ struct AppShellView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
     @ObservedObject var navigationState: AppNavigationState
     let environment: ReaderShellEnvironment
-    @State private var bookshelfPath: [Route] = []
-    @State private var discoverPath: [Route] = []
-    @State private var rssPath: [Route] = []
-    @State private var settingsPath: [Route] = []
+    @State private var routePath: [Route] = []
+    @State private var mainNavVisibleByContent = true
+    @State private var mainTabTopBarRequest: MainTabTopBarRequest?
 
     var body: some View {
-        GeometryReader { proxy in
-            let viewport = DemoViewportSnapshot.make(size: proxy.size)
-            shellBody(viewport: viewport)
+        NavigationStack(path: $routePath) {
+            GeometryReader { proxy in
+                let viewport = DemoViewportSnapshot.make(size: proxy.size)
+                shellBody(viewport: viewport)
+            }
+            .navigationDestination(for: Route.self) { route in
+                destinationView(for: route)
+            }
         }
+#if os(iOS)
+        .toolbar(.hidden, for: .navigationBar)
+#endif
     }
 
     @ViewBuilder
     private func shellBody(viewport: DemoViewportSnapshot) -> some View {
-        let usesTabletRail = viewport.usesTabletMainNav
-        ZStack(alignment: usesTabletRail ? .leading : .bottom) {
-            TabView(selection: tabBinding) {
-                ForEach(AppTab.contractOrder) { tab in
-                    NavigationStack(path: pathBinding(for: tab)) {
-                        rootView(for: tab)
-                            .navigationDestination(for: Route.self) { route in
-                                destinationView(for: route)
-                            }
-                    }
-                    .tag(tab)
-                    .hiddenSystemTabBarIfAvailable()
+        let layout = AppShellMainTabLayout(viewport: viewport)
+        DemoMainTabShell(
+            contentLeadingPadding: layout.contentLeadingPadding,
+            mainNavAlignment: layout.usesTabletRail ? .leading : .bottom,
+            topBar: {
+                mainTabTopBar
+            },
+            contentRegion: {
+                tabContentRegion
+                    .animation(
+                        navigationState.motion.animation(AppMotion.Duration.tabSwitch),
+                        value: navigationState.activeTab
+                    )
+            },
+            stateHost: {
+                EmptyView()
+            },
+            mainNav: {
+                if shouldShowMainNav {
+                    FloatingTabBar(
+                        tabs: AppTab.contractOrder,
+                        selection: tabBinding,
+                        onSelect: { tab in navigationState.switchTab(tab) },
+                        axis: layout.tabBarAxis
+                    )
+                    .frame(width: layout.mainNavWidth)
+                    .padding(.leading, layout.mainNavLeadingPadding)
+                    .accessibilityIdentifier("fd-main-nav-slot")
+                    .transition(.opacity)
                 }
             }
-            .animation(navigationState.motion.animation(AppMotion.Duration.tabSwitch),
-                       value: navigationState.activeTab)
-            .padding(.leading, usesTabletRail ? ReaderDesignTokens.tabletNavWidth + 18 : 0)
-            .padding(.bottom, usesTabletRail ? 0 : ReaderDesignTokens.mainNavHeight + 14)
+        )
+    }
 
-            FloatingTabBar(
-                tabs: AppTab.contractOrder,
-                selection: tabBinding,
-                onSelect: { tab in navigationState.switchTab(tab) },
-                axis: usesTabletRail ? .vertical : .horizontal
-            )
-            .frame(width: usesTabletRail ? ReaderDesignTokens.tabletNavWidth : nil)
-            .padding(.leading, usesTabletRail ? 16 : 0)
+    @ViewBuilder
+    private var mainTabTopBar: some View {
+        if shouldShowMainNav && routePath.isEmpty {
+            switch navigationState.activeTab {
+            case .bookshelf:
+                DemoTopBar(title: "书架") {
+                    DemoTopActionButton(
+                        icon: .search,
+                        accessibilityLabel: "搜索书籍",
+                        action: { mainTabTopBarRequest = .bookshelfSearch }
+                    )
+
+                    DemoTopActionButton(
+                        icon: .more,
+                        accessibilityLabel: "书架更多操作",
+                        action: { mainTabTopBarRequest = .bookshelfMore }
+                    )
+                }
+
+            case .discover:
+                DemoTopBar(title: "发现") {
+                    DemoTopActionButton(
+                        icon: .refresh,
+                        accessibilityLabel: "刷新发现入口",
+                        action: { mainTabTopBarRequest = .discoverRefresh }
+                    )
+                }
+
+            case .rss:
+                let routeState = RSSDemoRouteState(route: "rss")
+                RSSRootTopBar(
+                    subscriptionCount: routeState.coreSources.filter(\.enabled).count,
+                    statusText: routeState.statusText,
+                    sources: routeState.coreSources,
+                    onRefresh: { mainTabTopBarRequest = .rssRefresh },
+                    onManage: { mainTabTopBarRequest = .rssManage },
+                    isRefreshDisabled: false
+                )
+
+            case .settings:
+                DemoTopBar(title: AppTab.settings.title)
+            }
         }
     }
 
-    /// 每个主 Tab 保留独立 `NavigationPath`，对齐 demo Slice 1 的 back stack 语义。
-    private func pathBinding(for tab: AppTab) -> Binding<[Route]> {
-        switch tab {
-        case .bookshelf:
-            return $bookshelfPath
-        case .discover:
-            return $discoverPath
-        case .rss:
-            return $rssPath
-        case .settings:
-            return $settingsPath
+    @ViewBuilder
+    private var tabContentRegion: some View {
+        rootView(for: navigationState.activeTab)
+            .id(navigationState.activeTab)
+            .transition(.opacity)
+            .onPreferenceChange(MainTabBarVisibilityPreferenceKey.self) { isVisible in
+                mainNavVisibleByContent = isVisible
+            }
+    }
+
+    struct AppShellMainTabLayout: Equatable {
+        let usesTabletRail: Bool
+
+        init(viewport: DemoViewportSnapshot) {
+            self.usesTabletRail = viewport.usesTabletMainNav
         }
+
+        var contentLeadingPadding: CGFloat {
+            usesTabletRail ? ReaderDesignTokens.tabletNavWidth + 18 : 0
+        }
+
+        var contentBottomPadding: CGFloat {
+            ReaderDesignTokens.mainTabContentBottomPadding
+        }
+
+        var mainNavWidth: CGFloat? {
+            usesTabletRail ? ReaderDesignTokens.tabletNavWidth : nil
+        }
+
+        var mainNavLeadingPadding: CGFloat {
+            usesTabletRail ? 16 : 0
+        }
+
+        var tabBarAxis: FloatingTabBarAxis {
+            usesTabletRail ? .vertical : .horizontal
+        }
+    }
+
+    var shouldShowMainNav: Bool {
+        mainNavVisibleByContent && navigationState.readerContext == nil
     }
 
     /// 当前 Tab 的根视图。搜索、阅读、书源管理都不是主 Tab。
@@ -89,16 +173,26 @@ struct AppShellView: View {
     private func rootView(for tab: AppTab) -> some View {
         switch tab {
         case .bookshelf:
-            BookshelfView(navigationState: navigationState)
+            BookshelfView(
+                navigationState: navigationState,
+                showsTopBar: false,
+                topBarRequest: $mainTabTopBarRequest
+            )
 
         case .discover:
-            DiscoverHomeShellView()
+            DiscoverHomeShellView(
+                showsTopBar: false,
+                topBarRequest: $mainTabTopBarRequest
+            )
 
         case .rss:
-            RSSFeedView()
+            RSSFeedView(
+                showsTopBar: false,
+                topBarRequest: $mainTabTopBarRequest
+            )
 
         case .settings:
-            SettingsTabView(coordinator: coordinator)
+            SettingsTabView(coordinator: coordinator, showsTopBar: false)
         }
     }
 
@@ -109,16 +203,26 @@ struct AppShellView: View {
     private func destinationView(for route: Route) -> some View {
         switch route {
         case .home, .bookshelf:
-            BookshelfView(navigationState: navigationState)
+            BookshelfView(
+                navigationState: navigationState,
+                showsTopBar: false,
+                topBarRequest: $mainTabTopBarRequest
+            )
 
         case .discover:
-            DiscoverHomeShellView()
+            DiscoverHomeShellView(
+                showsTopBar: false,
+                topBarRequest: $mainTabTopBarRequest
+            )
 
         case .rssList:
-            RSSFeedView()
+            RSSFeedView(
+                showsTopBar: false,
+                topBarRequest: $mainTabTopBarRequest
+            )
 
         case .settings:
-            SettingsTabView(coordinator: coordinator)
+            SettingsTabView(coordinator: coordinator, showsTopBar: false)
 
         case .reader(let bookID, let chapterURL, let chapterTitle):
             ReaderView(
@@ -367,16 +471,5 @@ struct AppShellView: View {
             get: { navigationState.activeTab },
             set: { newTab in navigationState.switchTab(newTab) }
         )
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func hiddenSystemTabBarIfAvailable() -> some View {
-        #if os(iOS)
-        self.toolbar(.hidden, for: .tabBar)
-        #else
-        self
-        #endif
     }
 }

@@ -5,17 +5,19 @@ import ReaderAppPersistence
 /// 书源详情 Sheet — 使用 demo paper/card 结构展示书源能力和本地测试状态。
 public struct BookSourceDetailSheet: View {
     let source: BookSource
+    let onClose: (() -> Void)?
     @State private var testState: String?
     @State private var validationResult: BookSourceValidationResult?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
-    public init(source: BookSource) {
+    public init(source: BookSource, onClose: (() -> Void)? = nil) {
         self.source = source
+        self.onClose = onClose
     }
 
     public var body: some View {
         VStack(spacing: 0) {
-            DemoBackBar(title: "书源详情", onBack: { dismiss() })
+            DemoBackBar(title: "书源详情", onBack: close)
 
             DemoPaperScreen {
                 headerCard
@@ -26,6 +28,14 @@ public struct BookSourceDetailSheet: View {
         }
         .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
         .onAppear { loadValidation() }
+    }
+
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
     }
 
     private var isImportedSource: Bool {

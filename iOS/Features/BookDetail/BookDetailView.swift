@@ -37,20 +37,33 @@ public struct BookDetailView: View {
                 BookDetailNoticeCard(notice: notice)
             }
             bookDetailContent(detail: displayDetail)
-        }
-        .safeAreaInset(edge: .bottom) {
+        } trailing: {
+            EmptyView()
+        } bottomActionHost: {
             bottomActions
-        }
-        .sheet(isPresented: $showSourceSheet) {
-            BookDetailSourceSheet(currentSourceName: displaySourceName)
-        }
-        .confirmationDialog("确认删除？", isPresented: $showRemoveDialog, titleVisibility: .visible) {
-            Button("删除", role: .destructive) {
-                removeFromBookshelf()
+        } sheetHost: {
+            if showSourceSheet {
+                DemoBottomSheet(title: "更换书源", maxHeight: 320, onDismiss: { showSourceSheet = false }) {
+                    BookDetailSourceSheet(
+                        currentSourceName: displaySourceName,
+                        onDismiss: { showSourceSheet = false }
+                    )
+                }
             }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("只从书架移除，不删除本地文件和阅读记录。")
+        } dialogHost: {
+            if showRemoveDialog {
+                DemoDialogOverlay(onDismiss: { showRemoveDialog = false }) {
+                    BookDetailRemoveDialog(
+                        onCancel: { showRemoveDialog = false },
+                        onConfirm: {
+                            removeFromBookshelf()
+                            showRemoveDialog = false
+                        }
+                    )
+                }
+            }
+        } stateHost: {
+            EmptyView()
         }
         .onAppear {
             Task {
@@ -568,38 +581,24 @@ private struct BookDetailBottomLabel: View {
 
 private struct BookDetailSourceSheet: View {
     let currentSourceName: String
-    @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
+    let onDismiss: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Capsule()
-                .fill(ReaderDesignTokens.Color.mainNavBorder)
-                .frame(width: 44, height: 4)
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 4)
-
-            Text("更换书源")
-                .font(.system(size: 17, weight: .heavy))
-                .lineLimit(1)
-
             VStack(spacing: 8) {
                 sourceButton(currentSourceName, isCurrent: true)
                 sourceButton("优书网", isCurrent: false)
                 sourceButton("书仓搜索", isCurrent: false)
                 sourceButton("本地缓存", isCurrent: false)
+                sourceButton("关闭", isCurrent: false)
             }
         }
-        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
-#if os(iOS)
-        .presentationDetents([.height(280), .medium])
-#endif
     }
 
     private func sourceButton(_ title: String, isCurrent: Bool) -> some View {
         Button {
-            dismiss()
+            onDismiss()
         } label: {
             HStack(spacing: 10) {
                 ReaderIcon(isCurrent ? .check : .source, size: 16, accessibilityLabel: title)
@@ -628,6 +627,32 @@ private struct BookDetailSourceSheet: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct BookDetailRemoveDialog: View {
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        ConfirmDialog(
+            icon: .trash,
+            iconColor: SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14),
+            title: "确认删除？",
+            message: "只从书架移除，不删除本地文件和阅读记录。"
+        ) {
+            HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
+                Button(action: onCancel) {
+                    BookDetailBottomLabel(title: "取消", isPrimary: false)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onConfirm) {
+                    BookDetailBottomLabel(title: "删除", isPrimary: true, isDanger: true)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 }
 

@@ -2,15 +2,21 @@ import SwiftUI
 import ReaderShellValidation
 
 public struct BookSourceImportView: View {
-    @StateObject private var viewModel = BookSourceViewModel()
-
     public init() {}
 
     public var body: some View {
         DemoBackScreen(title: "导入书源") {
-            importInputCard
-            importStateView
+            BookSourceImportContent()
         }
+    }
+}
+
+struct BookSourceImportContent: View {
+    @StateObject private var viewModel = BookSourceViewModel()
+
+    var body: some View {
+        importInputCard
+        importStateView
     }
 
     private var isImportButtonDisabled: Bool {

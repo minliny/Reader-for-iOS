@@ -116,8 +116,13 @@ struct DemoViewportSnapshot: Equatable {
 
 struct DemoPaperScreen<Content: View>: View {
     let content: Content
+    let bottomPadding: CGFloat
 
-    init(@ViewBuilder content: () -> Content) {
+    init(
+        bottomPadding: CGFloat = ReaderDesignTokens.demoContentVerticalPadding,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.bottomPadding = bottomPadding
         self.content = content()
     }
 
@@ -127,10 +132,25 @@ struct DemoPaperScreen<Content: View>: View {
                 content
             }
             .padding(.horizontal, ReaderDesignTokens.demoContentHorizontalPadding)
-            .padding(.vertical, ReaderDesignTokens.demoContentVerticalPadding)
+            .padding(.top, ReaderDesignTokens.demoContentVerticalPadding)
+            .padding(.bottom, bottomPadding)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+    }
+}
+
+struct MainTabBarVisibilityPreferenceKey: PreferenceKey {
+    static var defaultValue: Bool = true
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value && nextValue()
+    }
+}
+
+extension View {
+    func mainTabBarVisible(_ isVisible: Bool) -> some View {
+        preference(key: MainTabBarVisibilityPreferenceKey.self, value: isVisible)
     }
 }
 
@@ -139,56 +159,131 @@ enum DemoBackScreenContentStyle {
     case custom
 }
 
-struct DemoBackScreen<Content: View, Trailing: View>: View {
+public enum MainTabTopBarRequest: Equatable {
+    case bookshelfSearch
+    case bookshelfMore
+    case discoverRefresh
+    case rssRefresh
+    case rssManage
+}
+
+struct DemoBackScreen<Content: View, Trailing: View, BottomActionHost: View, SheetHost: View, DialogHost: View, StateHost: View>: View {
     let title: String
     let contentStyle: DemoBackScreenContentStyle
     let content: Content
     let trailing: Trailing
-    @SwiftUI.Environment(\.dismiss) private var dismiss
+    let bottomActionHost: BottomActionHost
+    let sheetHost: SheetHost
+    let dialogHost: DialogHost
+    let stateHost: StateHost
 
+    init(
+        title: String,
+        contentStyle: DemoBackScreenContentStyle = .paper,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder trailing: () -> Trailing,
+        @ViewBuilder bottomActionHost: () -> BottomActionHost,
+        @ViewBuilder sheetHost: () -> SheetHost,
+        @ViewBuilder dialogHost: () -> DialogHost,
+        @ViewBuilder stateHost: () -> StateHost
+    ) {
+        self.title = title
+        self.contentStyle = contentStyle
+        self.content = content()
+        self.trailing = trailing()
+        self.bottomActionHost = bottomActionHost()
+        self.sheetHost = sheetHost()
+        self.dialogHost = dialogHost()
+        self.stateHost = stateHost()
+    }
+
+    var body: some View {
+        DemoLibraryShell(title: title, contentStyle: contentStyle) {
+            content
+        } trailing: {
+            trailing
+        } bottomActionHost: {
+            bottomActionHost
+        } sheetHost: {
+            sheetHost
+        } dialogHost: {
+            dialogHost
+        } stateHost: {
+            stateHost
+        }
+    }
+}
+
+extension DemoBackScreen where BottomActionHost == EmptyView, SheetHost == EmptyView, DialogHost == EmptyView, StateHost == EmptyView {
     init(
         title: String,
         contentStyle: DemoBackScreenContentStyle = .paper,
         @ViewBuilder content: () -> Content,
         @ViewBuilder trailing: () -> Trailing
     ) {
-        self.title = title
-        self.contentStyle = contentStyle
-        self.content = content()
-        self.trailing = trailing()
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            DemoBackBar(title: title, onBack: { dismiss() }) {
-                trailing
-            }
-            switch contentStyle {
-            case .paper:
-                DemoPaperScreen {
-                    content
-                }
-            case .custom:
-                content
-            }
-        }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
-#if os(iOS)
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationBarBackButtonHidden(true)
-#endif
+        self.init(
+            title: title,
+            contentStyle: contentStyle,
+            content: content,
+            trailing: trailing,
+            bottomActionHost: { EmptyView() },
+            sheetHost: { EmptyView() },
+            dialogHost: { EmptyView() },
+            stateHost: { EmptyView() }
+        )
     }
 }
 
-extension DemoBackScreen where Trailing == EmptyView {
+extension DemoBackScreen where Trailing == EmptyView, BottomActionHost == EmptyView, SheetHost == EmptyView, DialogHost == EmptyView, StateHost == EmptyView {
     init(
         title: String,
         contentStyle: DemoBackScreenContentStyle = .paper,
         @ViewBuilder content: () -> Content
     ) {
-        self.init(title: title, contentStyle: contentStyle, content: content) {
+        self.init(title: title, contentStyle: contentStyle, content: content, trailing: {
             EmptyView()
-        }
+        })
+    }
+}
+
+extension DemoBackScreen where Trailing == EmptyView, SheetHost == EmptyView, DialogHost == EmptyView, StateHost == EmptyView {
+    init(
+        title: String,
+        contentStyle: DemoBackScreenContentStyle = .paper,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder bottomActionHost: () -> BottomActionHost
+    ) {
+        self.init(
+            title: title,
+            contentStyle: contentStyle,
+            content: content,
+            trailing: { EmptyView() },
+            bottomActionHost: bottomActionHost,
+            sheetHost: { EmptyView() },
+            dialogHost: { EmptyView() },
+            stateHost: { EmptyView() }
+        )
+    }
+}
+
+extension DemoBackScreen where SheetHost == EmptyView, DialogHost == EmptyView, StateHost == EmptyView {
+    init(
+        title: String,
+        contentStyle: DemoBackScreenContentStyle = .paper,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder trailing: () -> Trailing,
+        @ViewBuilder bottomActionHost: () -> BottomActionHost
+    ) {
+        self.init(
+            title: title,
+            contentStyle: contentStyle,
+            content: content,
+            trailing: trailing,
+            bottomActionHost: bottomActionHost,
+            sheetHost: { EmptyView() },
+            dialogHost: { EmptyView() },
+            stateHost: { EmptyView() }
+        )
     }
 }
 
@@ -763,6 +858,108 @@ struct DemoSwitchIndicator: View {
         }
         .accessibilityHidden(true)
         .animation(MotionEnvironment().animation(AppMotion.Duration.toggleSwitch), value: isOn)
+    }
+}
+
+struct DemoBottomSheet<Content: View>: View {
+    let title: String?
+    let maxHeight: CGFloat?
+    let onDismiss: () -> Void
+    let content: Content
+
+    init(
+        title: String? = nil,
+        maxHeight: CGFloat? = nil,
+        onDismiss: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.maxHeight = maxHeight
+        self.onDismiss = onDismiss
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            SwiftUI.Color.black.opacity(0.28)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
+
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                Capsule()
+                    .fill(ReaderDesignTokens.Color.mainNavBorder)
+                    .frame(width: 44, height: 4)
+                    .frame(maxWidth: .infinity)
+
+                if let title {
+                    HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                        Text(title)
+                            .font(.system(size: 17, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button(action: onDismiss) {
+                            ReaderIcon(.clear, size: 14, accessibilityLabel: "关闭\(title)")
+                                .frame(width: 32, height: 32)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    }
+                }
+
+                content
+            }
+            .padding(ReaderDesignTokens.cardPadding)
+            .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                    .fill(ReaderDesignTokens.Color.paperSolid)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                            .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                    )
+                    .shadow(
+                        color: SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.22),
+                        radius: 22,
+                        x: 0,
+                        y: 18
+                    )
+            )
+            .padding(.horizontal, ReaderDesignTokens.cardPadding)
+            .padding(.bottom, ReaderDesignTokens.cardPadding)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+struct DemoDialogOverlay<Content: View>: View {
+    let onDismiss: () -> Void
+    let content: Content
+
+    init(
+        onDismiss: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.onDismiss = onDismiss
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            SwiftUI.Color.black.opacity(0.32)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
+
+            content
+                .padding(.horizontal, ReaderDesignTokens.cardPadding)
+                .frame(maxWidth: 390)
+        }
+        .transition(.scale(scale: 0.96).combined(with: .opacity))
+        .accessibilityElement(children: .contain)
     }
 }
 

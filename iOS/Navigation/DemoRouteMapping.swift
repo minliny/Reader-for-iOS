@@ -161,8 +161,8 @@ public enum DemoRouteMappings {
                 slice: 4,
                 shell: "MainTabShell",
                 platformTarget: .featureState("DiscoverHomeShellView(demoRoute: \"\(route)\")"),
-                stateModel: "DiscoverHomeShellView(demoRoute:) + DemoTopBar + DiscoverDemoState + DiscoverPresentation",
-                navigationEntry: "discover tab root feature-state transition; no pushed Route or new tab",
+                stateModel: "DemoMainTabShell.appTopBar(DemoTopBar) + DiscoverHomeShellView(demoRoute:, showsTopBar: false when embedded) + DiscoverDemoState + DiscoverPresentation",
+                navigationEntry: "discover tab content-region feature-state transition under MainTabShell appTopBar; no pushed Route or new tab",
                 motionIDs: discoverFeatureMotionIDs(for: route),
                 acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
             )
@@ -184,7 +184,7 @@ public enum DemoRouteMappings {
             slice: 4,
             shell: "LibraryShell",
             platformTarget: .featureState("DiscoverSourceLoginView"),
-            stateModel: "DiscoverSourceLoginView + DemoBackScreen + source login UI state + cookie persistence toggle",
+            stateModel: "DiscoverSourceLoginView + DemoLibraryShell via DemoBackScreen slot facade + source login UI state + cookie persistence toggle",
             navigationEntry: "Discover control login action opens LibraryShell subpage; returns to discover feature state after refresh",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward", "state.content.replace"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -195,7 +195,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .featureState("RSSFeedView(demoRoute: \"\(route)\")"),
-            stateModel: "RSSFeedView(demoRoute:) + RSSDemoRouteState + RSSFeedState",
+            stateModel: "RSSFeedView(demoRoute:) + DemoLibraryShell + RSSDemoRouteState + RSSFeedState",
             navigationEntry: "RSS tab LibraryShell feature-state transition; source/category/mode state replaces RSS content",
             motionIDs: rssFeedFeatureMotionIDs(for: route),
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -224,7 +224,7 @@ public enum DemoRouteMappings {
                 slice: 6,
                 shell: "SettingsShell",
                 platformTarget: .featureState("SettingsDemoShellView(demoRoute: \"\(route)\")"),
-                stateModel: "SettingsDemoShellView(demoRoute:) + DemoBackScreen + SettingsDemoRouteState + settings/source/restore demo state",
+                stateModel: "SettingsDemoShellView(demoRoute:) + DemoSettingsShell + SettingsDemoRouteState + settings/source/restore demo state",
                 navigationEntry: "settings stack feature-state transition; route replaces settings/source content without becoming a main tab",
                 motionIDs: settingsFeatureMotionIDs(for: route),
                 acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -237,8 +237,8 @@ public enum DemoRouteMappings {
             slice: 1,
             shell: "MainTabShell",
             platformTarget: .appTab(.bookshelf),
-            stateModel: "AppTab.bookshelf + AppNavigationState.activeTab + BookshelfView + DemoTopBar + DemoPaperScreen + ContinueReadingCard + BookshelfItemDetailView + BookmarksListView + BookmarkRowView",
-            navigationEntry: "TabView(selection:) root; no route push; bookshelf item detail and bookmark sheets use demo back bar/paper/card rows instead of system List",
+            stateModel: "AppTab.bookshelf + AppNavigationState.activeTab + DemoMainTabShell.appTopBar(DemoTopBar) + BookshelfView(showsTopBar: false) + DemoPaperScreen + ContinueReadingCard + BookshelfItemDetailView + BookmarksListView + BookmarkRowView",
+            navigationEntry: "DemoMainTabShell appTopBar/contentRegion/stateHost/mainNav slots; no route push; bookshelf item detail and bookmark sheets use LibraryShell-compatible back bar/paper/card rows instead of system List",
             motionIDs: ["tab.item.press", "tab.item.select", "tab.item.switch", "app.tab.switch"],
             acceptanceTests: ["AppShellAlignmentTests", "BookshelfHTMLCSSStructureAlignmentTests", "ReaderIconAssetAlignmentTests", "MotionTokenAlignmentTests"]
         ),
@@ -247,8 +247,8 @@ public enum DemoRouteMappings {
             slice: 1,
             shell: "MainTabShell",
             platformTarget: .appTab(.discover),
-            stateModel: "AppTab.discover + AppNavigationState.activeTab + DiscoverHomeShellView + DemoTopBar",
-            navigationEntry: "TabView(selection:) root; no route push",
+            stateModel: "AppTab.discover + AppNavigationState.activeTab + DemoMainTabShell.appTopBar(DemoTopBar) + DiscoverHomeShellView(showsTopBar: false)",
+            navigationEntry: "DemoMainTabShell appTopBar/contentRegion/stateHost/mainNav slots; no route push",
             motionIDs: ["tab.item.press", "tab.item.select", "tab.item.switch", "app.tab.switch"],
             acceptanceTests: ["AppShellAlignmentTests", "DemoComponentPrimitiveAlignmentTests", "ReaderIconAssetAlignmentTests", "MotionTokenAlignmentTests"]
         ),
@@ -257,8 +257,8 @@ public enum DemoRouteMappings {
             slice: 1,
             shell: "MainTabShell",
             platformTarget: .appTab(.rss),
-            stateModel: "AppTab.rss + AppNavigationState.activeTab + RSSFeedView + RSSRootTopBar",
-            navigationEntry: "TabView(selection:) root; no route push",
+            stateModel: "AppTab.rss + AppNavigationState.activeTab + DemoMainTabShell.appTopBar(RSSRootTopBar) + RSSFeedView(showsTopBar: false)",
+            navigationEntry: "DemoMainTabShell appTopBar/contentRegion/stateHost/mainNav slots; no route push",
             motionIDs: ["tab.item.press", "tab.item.select", "tab.item.switch", "app.tab.switch"],
             acceptanceTests: ["AppShellAlignmentTests", "DemoComponentPrimitiveAlignmentTests", "ReaderIconAssetAlignmentTests", "MotionTokenAlignmentTests"]
         ),
@@ -267,8 +267,8 @@ public enum DemoRouteMappings {
             slice: 1,
             shell: "MainTabShell",
             platformTarget: .appTab(.settings),
-            stateModel: "AppTab.settings + AppNavigationState.activeTab + SettingsTabView + DemoTopBar + DemoPaperScreen + SettingsRootEntryRow",
-            navigationEntry: "TabView(selection:) root; no route push",
+            stateModel: "AppTab.settings + AppNavigationState.activeTab + DemoMainTabShell.appTopBar(DemoTopBar) + SettingsTabView(showsTopBar: false) + DemoPaperScreen + SettingsRootEntryRow",
+            navigationEntry: "DemoMainTabShell appTopBar/contentRegion/stateHost/mainNav slots; no route push",
             motionIDs: ["tab.item.press", "tab.item.select", "tab.item.switch", "app.tab.switch"],
             acceptanceTests: ["AppShellAlignmentTests", "DemoComponentPrimitiveAlignmentTests", "ReaderIconAssetAlignmentTests", "MotionTokenAlignmentTests"]
         ),
@@ -297,7 +297,7 @@ public enum DemoRouteMappings {
             slice: 2,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.search),
-            stateModel: "Route.search + Route.searchResults(query:) + DemoBackScreen + SearchView(initialQuery:) + SearchHistoryRow + SearchResultDemoRow + SearchScope + BottomFixedActionRow",
+            stateModel: "Route.search + Route.searchResults(query:) + DemoLibraryShell via DemoBackScreen slot facade + SearchView(initialQuery:) + SearchHistoryRow + SearchResultDemoRow + SearchScope + BottomFixedActionRow",
             navigationEntry: "bookshelf toolbar search action pushes demo-aligned SearchView; legacy searchResults value route pre-fills SearchView(initialQuery:); result rows push BookDetailView; in-shelf action can enter ReaderView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward", "input.focus"],
             acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "AppShellAlignmentTests", "DemoComponentPrimitiveAlignmentTests"]
@@ -307,7 +307,7 @@ public enum DemoRouteMappings {
             slice: 2,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.bookDetail),
-            stateModel: "Route.bookDetail(bookURL:title:author:) + DemoBackScreen + BookDetailView + BookDetailCoverView + BookDetailPreviewChapterRow + BottomFixedActionRow",
+            stateModel: "Route.bookDetail(bookURL:title:author:) + DemoLibraryShell via DemoBackScreen slot facade + BookDetailView + BookDetailCoverView + BookDetailPreviewChapterRow + BottomFixedActionRow",
             navigationEntry: "search result or bookshelf item pushes demo-aligned book detail; chapter preview pushes reader; directory button pushes BookDirectoryPreviewView",
             motionIDs: ["card.route", "app.route.push.forward", "button.press", "button.activate"],
             acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "AppShellAlignmentTests", "DemoComponentPrimitiveAlignmentTests"]
@@ -317,7 +317,7 @@ public enum DemoRouteMappings {
             slice: 2,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.bookDetailToc),
-            stateModel: "Route.bookDetailToc(bookURL:title:) + DemoBackScreen + BookDirectoryPreviewView + directory/bookmark mode state",
+            stateModel: "Route.bookDetailToc(bookURL:title:) + DemoLibraryShell via DemoBackScreen slot facade + BookDirectoryPreviewView + directory/bookmark mode state",
             navigationEntry: "book detail TOC entry pushes demo-aligned full directory page",
             motionIDs: ["app.route.push.forward", "button.press", "button.activate"],
             acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -327,7 +327,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssDetail),
-            stateModel: "Route.rssDetail(rssID:) + DemoBackScreen + RSSArticleDetailView + SubscriptionItem",
+            stateModel: "Route.rssDetail(rssID:) + DemoLibraryShell via DemoBackScreen slot facade + RSSArticleDetailView + SubscriptionItem",
             navigationEntry: "RSS article row pushes RSSArticleDetailView; global route has fallback item",
             motionIDs: ["listRow.route", "app.route.push.forward", "button.press", "button.activate"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -337,7 +337,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssOriginal),
-            stateModel: "Route.rssOriginal(url:title:sourceTitle:) + DemoBackScreen + RSSOriginalPreviewView + WKWebView",
+            stateModel: "Route.rssOriginal(url:title:sourceTitle:) + DemoLibraryShell via DemoBackScreen slot facade + RSSOriginalPreviewView + WKWebView",
             navigationEntry: "RSSArticleDetailView original actions push RSSOriginalPreviewView inside the RSS stack",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -347,7 +347,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssOriginalBrowser),
-            stateModel: "Route.rssOriginalBrowser(url:title:sourceTitle:) + DemoBackScreen + RSSOriginalBrowserConfirmView + OpenURLAction",
+            stateModel: "Route.rssOriginalBrowser(url:title:sourceTitle:) + DemoLibraryShell via DemoBackScreen slot facade + RSSOriginalBrowserConfirmView + OpenURLAction",
             navigationEntry: "RSSOriginalPreviewView browser action pushes confirmation; confirm opens system browser and returns to RSS reader context",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -357,7 +357,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSubscriptions),
-            stateModel: "Route.rssSubscriptions + DemoBackScreen + RSSSubscriptionManagementView + RSSManagementSource",
+            stateModel: "Route.rssSubscriptions + DemoLibraryShell via DemoBackScreen slot facade + RSSSubscriptionManagementView + RSSManagementSource",
             navigationEntry: "RSS tab manage action and RSS reader source settings push RSSSubscriptionManagementView",
             motionIDs: ["button.press", "button.activate", "chip.item.press", "chip.item.select", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -367,7 +367,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceActions),
-            stateModel: "Route.rssSourceActions(sourceID:title:) + DemoBackScreen + RSSSourceActionsView + RSSManagementSource",
+            stateModel: "Route.rssSourceActions(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceActionsView + RSSManagementSource",
             navigationEntry: "RSSSubscriptionManagementView source more action pushes RSSSourceActionsView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -377,7 +377,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceEdit),
-            stateModel: "Route.rssSourceEdit(sourceID:title:) + DemoBackScreen + RSSSourceEditView + RSSEditField",
+            stateModel: "Route.rssSourceEdit(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceEditView + RSSEditField",
             navigationEntry: "RSSSourceActionsView edit action pushes RSSSourceEditView; debug toolbar pushes RSSSourceDebugView",
             motionIDs: ["button.press", "button.activate", "chip.item.press", "chip.item.select", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -387,7 +387,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceDebug),
-            stateModel: "Route.rssSourceDebug(sourceID:title:) + DemoBackScreen + RSSSourceDebugView + RSSDebugPanel",
+            stateModel: "Route.rssSourceDebug(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceDebugView + RSSDebugPanel",
             navigationEntry: "RSSSourceActionsView debug action and RSSSourceEditView debug action push RSSSourceDebugView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -397,7 +397,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceVars),
-            stateModel: "Route.rssSourceVars(sourceID:title:) + DemoBackScreen + RSSSourceVarsView + RSSEditField",
+            stateModel: "Route.rssSourceVars(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceVarsView + RSSEditField",
             navigationEntry: "RSSSourceActionsView vars action pushes RSSSourceVarsView; test action pushes RSSSourceDebugView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -407,7 +407,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceLogin),
-            stateModel: "Route.rssSourceLogin(sourceID:title:) + DemoBackScreen + RSSSourceLoginView + RSSSourceInfoPanel",
+            stateModel: "Route.rssSourceLogin(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceLoginView + RSSSourceInfoPanel",
             navigationEntry: "RSSSourceActionsView login action pushes RSSSourceLoginView; login action grid pushes web/cookie/debug/clear subroutes",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -417,7 +417,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceLoginWeb),
-            stateModel: "Route.rssSourceLoginWeb(sourceID:title:) + DemoBackScreen + RSSSourceLoginWebView + RSSLoginWebPreview",
+            stateModel: "Route.rssSourceLoginWeb(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceLoginWebView + RSSLoginWebPreview",
             navigationEntry: "RSSSourceLoginView web login action pushes RSSSourceLoginWebView; login complete pushes RSSSourceLoginCookieView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -427,7 +427,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceLoginCookie),
-            stateModel: "Route.rssSourceLoginCookie(sourceID:title:) + DemoBackScreen + RSSSourceLoginCookieView + RSSSourceInfoPanel",
+            stateModel: "Route.rssSourceLoginCookie(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceLoginCookieView + RSSSourceInfoPanel",
             navigationEntry: "RSSSourceLoginView cookie action and RSSSourceLoginWebView completion push RSSSourceLoginCookieView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -437,7 +437,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceLoginClear),
-            stateModel: "Route.rssSourceLoginClear(sourceID:title:) + DemoBackScreen + RSSSourceLoginClearView + RSSSourceConfirmCard",
+            stateModel: "Route.rssSourceLoginClear(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceLoginClearView + RSSSourceConfirmCard",
             navigationEntry: "RSSSourceLoginView clear login action pushes RSSSourceLoginClearView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -447,7 +447,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceGroups),
-            stateModel: "Route.rssSourceGroups + DemoBackScreen + RSSSourceGroupsView + RSSManagementIconRow",
+            stateModel: "Route.rssSourceGroups + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceGroupsView + RSSManagementIconRow",
             navigationEntry: "RSSSubscriptionManagementView group action pushes RSSSourceGroupsView; group actions push RSSSourceGroupEditView",
             motionIDs: ["button.press", "button.activate", "toggle.switch", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -457,7 +457,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceGroupEdit),
-            stateModel: "Route.rssSourceGroupEdit(groupID:title:) + DemoBackScreen + RSSSourceGroupEditView + RSSEditField",
+            stateModel: "Route.rssSourceGroupEdit(groupID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceGroupEditView + RSSEditField",
             navigationEntry: "RSSSourceGroupsView add/rename actions push RSSSourceGroupEditView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -467,7 +467,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceBatch),
-            stateModel: "Route.rssSourceBatch + DemoBackScreen + RSSSourceBatchView + RSSManagementIconRow",
+            stateModel: "Route.rssSourceBatch + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceBatchView + RSSManagementIconRow",
             navigationEntry: "RSSSubscriptionManagementView batch action pushes RSSSourceBatchView; bottom actions push export or batch-disable",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -477,7 +477,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceExport),
-            stateModel: "Route.rssSourceExport + DemoBackScreen + RSSSourceExportView + RSSImportOptionPanel + RSSImportExportRow",
+            stateModel: "Route.rssSourceExport + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceExportView + RSSImportOptionPanel + RSSImportExportRow",
             navigationEntry: "RSSSourceBatchView and RSSSubscriptionManagementView export actions push RSSSourceExportView",
             motionIDs: ["button.press", "button.activate", "chip.item.press", "chip.item.select", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -487,7 +487,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceExportDetail),
-            stateModel: "Route.rssSourceExportDetail(sourceID:title:) + DemoBackScreen + RSSSourceExportDetailView + RSSSourceInfoPanel",
+            stateModel: "Route.rssSourceExportDetail(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceExportDetailView + RSSSourceInfoPanel",
             navigationEntry: "RSSSourceExportView preview rows push RSSSourceExportDetailView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -497,7 +497,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceExportResult),
-            stateModel: "Route.rssSourceExportResult + DemoBackScreen + RSSSourceExportResultView + RSSSourceConfirmationPage",
+            stateModel: "Route.rssSourceExportResult + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceExportResultView + RSSSourceConfirmationPage",
             navigationEntry: "RSSSourceExportView and RSSSourceExportDetailView export actions push RSSSourceExportResultView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -507,7 +507,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourcePin),
-            stateModel: "Route.rssSourcePin(sourceID:title:) + DemoBackScreen + RSSSourcePinConfirmView + RSSSourceConfirmationPage",
+            stateModel: "Route.rssSourcePin(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourcePinConfirmView + RSSSourceConfirmationPage",
             navigationEntry: "RSSSourceActionsView pin action pushes RSSSourcePinConfirmView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -517,7 +517,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceDisable),
-            stateModel: "Route.rssSourceDisable(sourceID:title:) + DemoBackScreen + RSSSourceDisableConfirmView + RSSSourceConfirmationPage",
+            stateModel: "Route.rssSourceDisable(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceDisableConfirmView + RSSSourceConfirmationPage",
             navigationEntry: "RSSSourceActionsView disable action pushes RSSSourceDisableConfirmView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -527,7 +527,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceBatchDisable),
-            stateModel: "Route.rssSourceBatchDisable + DemoBackScreen + RSSSourceBatchDisableConfirmView + RSSSourceConfirmationPage",
+            stateModel: "Route.rssSourceBatchDisable + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceBatchDisableConfirmView + RSSSourceConfirmationPage",
             navigationEntry: "RSSSubscriptionManagementView and RSSSourceBatchView disable actions push RSSSourceBatchDisableConfirmView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -537,7 +537,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceImport),
-            stateModel: "Route.rssSourceImport + DemoBackScreen + RSSSourceImportView + RSSImportOptionPanel + RSSImportExportRow",
+            stateModel: "Route.rssSourceImport + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceImportView + RSSImportOptionPanel + RSSImportExportRow",
             navigationEntry: "RSSSubscriptionManagementView import action pushes RSSSourceImportView",
             motionIDs: ["button.press", "button.activate", "chip.item.press", "chip.item.select", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -547,7 +547,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceImportDetail),
-            stateModel: "Route.rssSourceImportDetail(sourceID:title:) + DemoBackScreen + RSSSourceImportDetailView + RSSSourceInfoPanel",
+            stateModel: "Route.rssSourceImportDetail(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceImportDetailView + RSSSourceInfoPanel",
             navigationEntry: "RSSSourceImportView import preview rows push RSSSourceImportDetailView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -557,7 +557,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSourceImportResult),
-            stateModel: "Route.rssSourceImportResult + DemoBackScreen + RSSSourceImportResultView + RSSSourceConfirmationPage",
+            stateModel: "Route.rssSourceImportResult + DemoLibraryShell via DemoBackScreen slot facade + RSSSourceImportResultView + RSSSourceConfirmationPage",
             navigationEntry: "RSSSourceImportView import action pushes RSSSourceImportResultView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -567,7 +567,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssSearch),
-            stateModel: "Route.rssSearch + DemoBackScreen + RSSSearchView + RSSDemoArticle search scope",
+            stateModel: "Route.rssSearch + DemoLibraryShell via DemoBackScreen slot facade + RSSSearchView + RSSFeedDemoArticle search scope",
             navigationEntry: "RSSFeedView top search action pushes RSSSearchView; result rows push RSSArticleDetailView",
             motionIDs: ["button.press", "button.activate", "chip.item.press", "chip.item.select", "input.focus", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -577,7 +577,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssReadRecord),
-            stateModel: "Route.rssReadRecord(sourceID:title:) + DemoBackScreen + RSSReadRecordView + RSSReadRecord",
+            stateModel: "Route.rssReadRecord(sourceID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSReadRecordView + RSSReadRecord",
             navigationEntry: "RSSSourceActionsView read-record action pushes RSSReadRecordView; record rows push RSSArticleDetailView",
             motionIDs: ["button.press", "button.activate", "listRow.route", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -587,7 +587,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssRecordClear),
-            stateModel: "Route.rssRecordClear + DemoBackScreen + RSSRecordClearConfirmView + RSSSupplementalConfirmPage",
+            stateModel: "Route.rssRecordClear + DemoLibraryShell via DemoBackScreen slot facade + RSSRecordClearConfirmView + RSSSupplementalConfirmPage",
             navigationEntry: "RSSReadRecordView clear action pushes RSSRecordClearConfirmView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -597,7 +597,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssRuleSubscription),
-            stateModel: "Route.rssRuleSubscription + DemoBackScreen + RSSRuleSubscriptionView + RSSRuleSubscription",
+            stateModel: "Route.rssRuleSubscription + DemoLibraryShell via DemoBackScreen slot facade + RSSRuleSubscriptionView + RSSRuleSubscription",
             navigationEntry: "RSSSubscriptionManagementView rule-subscription action pushes RSSRuleSubscriptionView",
             motionIDs: ["button.press", "button.activate", "listRow.route", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -607,7 +607,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssRuleSubscriptionDetail),
-            stateModel: "Route.rssRuleSubscriptionDetail(subscriptionID:title:) + DemoBackScreen + RSSRuleSubscriptionDetailView + RSSImportChangeList",
+            stateModel: "Route.rssRuleSubscriptionDetail(subscriptionID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSRuleSubscriptionDetailView + RSSImportChangeList",
             navigationEntry: "RSSRuleSubscriptionView rows and open action push RSSRuleSubscriptionDetailView",
             motionIDs: ["button.press", "button.activate", "listRow.route", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -617,7 +617,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssRuleSubscriptionEdit),
-            stateModel: "Route.rssRuleSubscriptionEdit(subscriptionID:title:) + DemoBackScreen + RSSRuleSubscriptionEditView + RSSSupplementalEditField",
+            stateModel: "Route.rssRuleSubscriptionEdit(subscriptionID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSRuleSubscriptionEditView + RSSSupplementalEditField",
             navigationEntry: "RSSRuleSubscriptionDetailView edit action pushes RSSRuleSubscriptionEditView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -627,7 +627,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssRuleSubscriptionTest),
-            stateModel: "Route.rssRuleSubscriptionTest(subscriptionID:title:) + DemoBackScreen + RSSRuleSubscriptionTestView + RSSSupplementalInfoPanel",
+            stateModel: "Route.rssRuleSubscriptionTest(subscriptionID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSRuleSubscriptionTestView + RSSSupplementalInfoPanel",
             navigationEntry: "RSSRuleSubscriptionEditView test action pushes RSSRuleSubscriptionTestView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -637,7 +637,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssRuleSubscriptionApply),
-            stateModel: "Route.rssRuleSubscriptionApply + DemoBackScreen + RSSRuleSubscriptionApplyConfirmView + RSSSupplementalConfirmPage",
+            stateModel: "Route.rssRuleSubscriptionApply + DemoLibraryShell via DemoBackScreen slot facade + RSSRuleSubscriptionApplyConfirmView + RSSSupplementalConfirmPage",
             navigationEntry: "RSSRuleSubscriptionDetailView apply action pushes RSSRuleSubscriptionApplyConfirmView",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -647,7 +647,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssFavoriteGroups),
-            stateModel: "Route.rssFavoriteGroups + DemoBackScreen + RSSFavoriteGroupsView + RSSFavoriteGroup",
+            stateModel: "Route.rssFavoriteGroups + DemoLibraryShell via DemoBackScreen slot facade + RSSFavoriteGroupsView + RSSFavoriteGroup",
             navigationEntry: "RSS favorites management action pushes RSSFavoriteGroupsView; global route has fallback",
             motionIDs: ["button.press", "button.activate", "listRow.route", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -657,7 +657,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssFavoriteGroupEdit),
-            stateModel: "Route.rssFavoriteGroupEdit(groupID:title:) + DemoBackScreen + RSSFavoriteGroupEditView + RSSSupplementalEditField",
+            stateModel: "Route.rssFavoriteGroupEdit(groupID:title:) + DemoLibraryShell via DemoBackScreen slot facade + RSSFavoriteGroupEditView + RSSSupplementalEditField",
             navigationEntry: "RSSFavoriteGroupsView add/sort/group rows push RSSFavoriteGroupEditView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -667,7 +667,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssFavoriteClear),
-            stateModel: "Route.rssFavoriteClear + DemoBackScreen + RSSFavoriteClearConfirmView + RSSSupplementalConfirmPage",
+            stateModel: "Route.rssFavoriteClear + DemoLibraryShell via DemoBackScreen slot facade + RSSFavoriteClearConfirmView + RSSSupplementalConfirmPage",
             navigationEntry: "RSS favorite clear action pushes RSSFavoriteClearConfirmView; global route has fallback",
             motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -677,7 +677,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssEmpty),
-            stateModel: "Route.rssEmpty + DemoBackScreen + RSSStateView(kind: .empty) + RSSStateKind",
+            stateModel: "Route.rssEmpty + DemoLibraryShell via DemoBackScreen slot facade + RSSStateView(kind: .empty) + RSSStateKind",
             navigationEntry: "RSS empty state route replaces RSS content while preserving RSS stack context",
             motionIDs: ["state.content.replace", "button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -687,7 +687,7 @@ public enum DemoRouteMappings {
             slice: 5,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.rssError),
-            stateModel: "Route.rssError + DemoBackScreen + RSSStateView(kind: .error) + RSSStateKind",
+            stateModel: "Route.rssError + DemoLibraryShell via DemoBackScreen slot facade + RSSStateView(kind: .error) + RSSStateKind",
             navigationEntry: "RSS error state route replaces RSS content while preserving RSS stack context",
             motionIDs: ["state.content.replace", "button.press", "button.activate", "app.route.push.forward"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -697,7 +697,7 @@ public enum DemoRouteMappings {
             slice: 2,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.bookshelfGroups),
-            stateModel: "Route.bookshelfGroups + DemoBackScreen + BookshelfGroupManagementView + BookshelfGroupItem assignment state",
+            stateModel: "Route.bookshelfGroups + DemoLibraryShell via DemoBackScreen slot facade + BookshelfGroupManagementView + BookshelfGroupItem assignment state",
             navigationEntry: "bookshelf more/focus menu and batch move action push group management",
             motionIDs: ["app.route.push.forward", "button.press", "button.activate"],
             acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -707,7 +707,7 @@ public enum DemoRouteMappings {
             slice: 2,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.bookBatchManagement),
-            stateModel: "Route.bookBatchManagement + DemoBackScreen + BookshelfBatchManagementView + BookBatchItem selection state",
+            stateModel: "Route.bookBatchManagement + DemoLibraryShell via DemoBackScreen slot facade + BookshelfBatchManagementView + BookBatchItem selection state",
             navigationEntry: "Bookshelf more menu and book focus menu push BookshelfBatchManagementView",
             motionIDs: ["button.press", "button.activate", "app.route.push.forward", "state.content.replace"],
             acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -717,7 +717,7 @@ public enum DemoRouteMappings {
             slice: 2,
             shell: "LibraryShell",
             platformTarget: .nativeRoute(.bookshelfImport),
-            stateModel: "Route.bookshelfImport + DemoBackScreen + BookshelfLocalImportView + FileImportViewModel import state",
+            stateModel: "Route.bookshelfImport + DemoLibraryShell via DemoBackScreen slot facade + BookshelfLocalImportView + FileImportViewModel import state",
             navigationEntry: "bookshelf toolbar and more menu push local import flow",
             motionIDs: ["app.route.push.forward", "button.press", "button.activate", "input.focus"],
             acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests"]
@@ -738,7 +738,7 @@ public enum DemoRouteMappings {
             shell: "ReaderShell",
             platformTarget: .nativeRoute(.reader),
             stateModel: "Route.reader(bookID:chapterURL:chapterTitle:) + ReaderView + TOCView + TOCChapterDemoRow + ContentView + ReaderContentSectionView + ReaderInlineDestination + ReaderHotZoneSegment + ReaderControlSession + ReaderAppearanceQuickAction + ReaderSettingsQuickAction + ReaderReadingLayer + ReaderStateCard + ReaderStateBanner + ReaderProgressSurfaceView + ReaderResponsiveLayout + ReaderResponsiveVisualAudit + hidden system navigation chrome + ReaderSourceSwitchFlowView entry + reader-full-directory + reader-full-tts + reader-full-appearance + reader-full-settings entries",
-            navigationEntry: "reader destination is pushed from detail/continue-reading, never a main tab; system navigation bar is hidden; contextful Route.toc/Route.content keep real coordinator data but use DemoBackScreen + paper/card rows instead of system navigation titles; reader top source action pushes source-switch; directory/TTS/appearance/settings modules open ReaderDemoShellView(reader-full-directory/reader-full-tts/reader-full-appearance/reader-full-settings); hotzone prev/next trigger paginated page turns; control sheet previous/next buttons call chapter navigation; appearance quick controls update ReaderDisplaySettings typography/theme/page mode; settings quick controls update tap zones, volume-key page turns, dual page mode, and brightness override; TTS module controls update ReaderControlSession and the running capsule",
+            navigationEntry: "reader destination is pushed from detail/continue-reading, never a main tab; system navigation bar is hidden; contextful Route.toc/Route.content keep real coordinator data but use DemoLibraryShell-compatible paper/card rows instead of system navigation titles; reader top source action pushes source-switch; directory/TTS/appearance/settings modules open ReaderDemoShellView(reader-full-directory/reader-full-tts/reader-full-appearance/reader-full-settings); hotzone prev/next trigger paginated page turns; control sheet previous/next buttons call chapter navigation; appearance quick controls update ReaderDisplaySettings typography/theme/page mode; settings quick controls update tap zones, volume-key page turns, dual page mode, and brightness override; TTS module controls update ReaderControlSession and the running capsule",
             motionIDs: ["reader.control.show", "reader.control.hide", "reader.module.switch", "reader.page.turn.prev", "reader.page.turn.next", "reader.chapter.jump", "reader.session.tts.start", "reader.session.capsule.enter/update/switch/exit", "app.route.push.forward", "motion.async.resultGuard"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "MotionTokenAlignmentTests"]
         ),
@@ -747,8 +747,8 @@ public enum DemoRouteMappings {
             slice: 3,
             shell: "FlowShell",
             platformTarget: .nativeRoute(.sourceSwitch),
-            stateModel: "Route.sourceSwitch(bookURL:) + DemoBackScreen + ReaderSourceSwitchFlowView + SourceSwitchCandidate selection state",
-            navigationEntry: "reader inline source-switch flow pushes DemoBackScreen + ReaderSourceSwitchFlowView; not a main tab",
+            stateModel: "Route.sourceSwitch(bookURL:) + DemoFlowShell + ReaderSourceSwitchFlowView + SourceSwitchCandidate selection state",
+            navigationEntry: "reader inline source-switch flow pushes DemoFlowShell + ReaderSourceSwitchFlowView; not a main tab",
             motionIDs: ["reader.sourceSwitch.open", "reader.sourceSwitch.close", "overlay.sheet.enter", "overlay.sheet.exit"],
             acceptanceTests: ["DemoRouteMappingTests", "DemoComponentPrimitiveAlignmentTests", "AppShellAlignmentTests", "MotionTokenAlignmentTests"]
         )

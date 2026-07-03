@@ -18,14 +18,7 @@ struct BookshelfLocalImportView: View {
             importEntryCard
             importOptionsList
             importResultsList
-        }
-        .fileImporter(
-            isPresented: $showFilePicker,
-            allowedContentTypes: viewModel.supportedContentTypes,
-            allowsMultipleSelection: false,
-            onCompletion: handleFileImporterResult
-        )
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 BookshelfImportBottomButton(title: "继续选择", isPrimary: true) {
                     showFilePicker = true
@@ -36,6 +29,12 @@ struct BookshelfLocalImportView: View {
                 }
             }
         }
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: viewModel.supportedContentTypes,
+            allowsMultipleSelection: false,
+            onCompletion: handleFileImporterResult
+        )
     }
 
     private var importEntryCard: some View {

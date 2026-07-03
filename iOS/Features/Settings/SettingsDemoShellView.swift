@@ -18,50 +18,12 @@ struct SettingsDemoShellView: View {
     }
 
     var body: some View {
-        DemoBackScreen(title: state.title, contentStyle: .custom) {
-            ZStack(alignment: .bottom) {
-                DemoPaperScreen {
-                    mainContent
-                }
-                .disabled(activeConfirm != nil || state.presentation.showsRouteOverlay)
-                .blur(radius: activeConfirm != nil || state.presentation == .deleteDialog ? 1.2 : 0)
-
-                if state.presentation == .sourceImportSheet {
-                    SettingsDemoSourceImportSheet()
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                if state.presentation == .deleteDialog {
-                    SettingsDemoDeleteDialog()
-                        .padding(.horizontal, ReaderDesignTokens.cardPadding)
-                        .padding(.bottom, 28)
-                        .transition(.scale(scale: 0.96).combined(with: .opacity))
-                }
-
-                if let activeConfirm {
-                    SettingsDemoConfirmDialog(confirm: activeConfirm) {
-                        motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
-                            self.activeConfirm = nil
-                            self.toastMessage = activeConfirm.resultToast
-                        }
-                    } onCancel: {
-                        motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
-                            self.activeConfirm = nil
-                        }
-                    }
-                    .padding(.horizontal, ReaderDesignTokens.cardPadding)
-                    .padding(.bottom, 28)
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
-                }
-
-                if let toastMessage {
-                    SettingsDemoToast(message: toastMessage)
-                        .padding(.bottom, ReaderDesignTokens.bottomFixedActionRowMinHeight + 10)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+        DemoSettingsShell(title: state.title) {
+            DemoPaperScreen {
+                mainContent
             }
-            .animation(motion.animation(ReaderMotion.Duration.overlay), value: activeConfirm)
-            .animation(motion.animation(AppMotion.Duration.feedbackToast), value: toastMessage)
+            .disabled(activeConfirm != nil || state.presentation.showsRouteOverlay)
+            .blur(radius: activeConfirm != nil || state.presentation == .deleteDialog ? 1.2 : 0)
         } trailing: {
             if state.presentation == .source, state.route == "source-management" {
                 DemoTopActionButton(icon: .more, accessibilityLabel: "更多") {
@@ -75,13 +37,49 @@ struct SettingsDemoShellView: View {
             } else {
                 EmptyView()
             }
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             if !state.actions.isEmpty, !state.presentation.suppressesBottomActions {
                 SettingsDemoBottomActions(actions: state.actions, onConfirm: showConfirm)
             }
+        } sheetHost: {
+            if state.presentation == .sourceImportSheet {
+                SettingsDemoSourceImportSheet()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        } toastHost: {
+            if let toastMessage {
+                SettingsDemoToast(message: toastMessage)
+                    .padding(.bottom, ReaderDesignTokens.bottomFixedActionRowMinHeight + 10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        } dialogHost: {
+            if state.presentation == .deleteDialog {
+                SettingsDemoDeleteDialog()
+                    .padding(.horizontal, ReaderDesignTokens.cardPadding)
+                    .padding(.bottom, 28)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+            }
+
+            if let activeConfirm {
+                SettingsDemoConfirmDialog(confirm: activeConfirm) {
+                    motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
+                        self.activeConfirm = nil
+                        self.toastMessage = activeConfirm.resultToast
+                    }
+                } onCancel: {
+                    motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
+                        self.activeConfirm = nil
+                    }
+                }
+                .padding(.horizontal, ReaderDesignTokens.cardPadding)
+                .padding(.bottom, 28)
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+            }
+        } stateHost: {
+            EmptyView()
         }
-        .toolbar(.hidden, for: .tabBar)
+        .animation(motion.animation(ReaderMotion.Duration.overlay), value: activeConfirm)
+        .animation(motion.animation(AppMotion.Duration.feedbackToast), value: toastMessage)
     }
 
     @ViewBuilder

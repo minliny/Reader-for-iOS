@@ -8,67 +8,75 @@ public struct BookmarksListView: View {
     private let bookId: String
     private let sourceId: String
     private let bookTitle: String
+    private let onClose: (() -> Void)?
     @State private var bookmarks: [Bookmark] = []
     @State private var navigateToReader = false
     @State private var selectedBookmark: Bookmark?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
-    public init(bookId: String, sourceId: String, bookTitle: String) {
+    public init(bookId: String, sourceId: String, bookTitle: String, onClose: (() -> Void)? = nil) {
         self.bookId = bookId
         self.sourceId = sourceId
         self.bookTitle = bookTitle
+        self.onClose = onClose
     }
 
     public var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                DemoBackBar(title: "书签", onBack: { dismiss() }) {
-                    Button("完成") { dismiss() }
-                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                }
+        VStack(spacing: 0) {
+            DemoBackBar(title: "书签", onBack: close) {
+                Button("完成", action: close)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            }
 
-                DemoPaperScreen {
-                    ReaderCard {
-                        if bookmarks.isEmpty {
-                            BookmarkEmptyState(bookTitle: bookTitle)
-                        } else {
-                            VStack(spacing: 0) {
-                                ForEach(Array(bookmarks.enumerated()), id: \.element.id) { index, bookmark in
-                                    BookmarkRowView(
-                                        bookmark: bookmark,
-                                        onOpen: {
-                                            selectedBookmark = bookmark
-                                            navigateToReader = true
-                                        },
-                                        onDelete: {
-                                            deleteBookmark(bookmark)
-                                        }
-                                    )
-                                    if index < bookmarks.count - 1 {
-                                        Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            DemoPaperScreen {
+                ReaderCard {
+                    if bookmarks.isEmpty {
+                        BookmarkEmptyState(bookTitle: bookTitle)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(Array(bookmarks.enumerated()), id: \.element.id) { index, bookmark in
+                                BookmarkRowView(
+                                    bookmark: bookmark,
+                                    onOpen: {
+                                        selectedBookmark = bookmark
+                                        navigateToReader = true
+                                    },
+                                    onDelete: {
+                                        deleteBookmark(bookmark)
                                     }
+                                )
+                                if index < bookmarks.count - 1 {
+                                    Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
                                 }
                             }
                         }
                     }
                 }
             }
-            .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        }
+        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
 #if os(iOS)
-            .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
 #endif
-            .navigationDestination(isPresented: $navigateToReader) {
-                if let bm = selectedBookmark {
-                    ReaderView(
-                        chapterURL: bm.chapterURL,
-                        chapterTitle: bm.chapterTitle,
-                        bookID: bookId,
-                        sourceID: sourceId
-                    )
-                }
+        .navigationDestination(isPresented: $navigateToReader) {
+            if let bm = selectedBookmark {
+                ReaderView(
+                    chapterURL: bm.chapterURL,
+                    chapterTitle: bm.chapterTitle,
+                    bookID: bookId,
+                    sourceID: sourceId
+                )
             }
-            .onAppear { loadBookmarks() }
+        }
+        .onAppear { loadBookmarks() }
+    }
+
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
         }
     }
 

@@ -599,17 +599,36 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
 
     @MainActor
     func testReaderStageActionBarCanOpenDirectoryModule() {
-        var didOpenDirectory = false
+        var selectedModule: ReaderStageModule?
         let view = ReaderStageActionBar(
-            onPrevious: {},
-            onNext: {},
-            onReload: {},
-            onDirectory: { didOpenDirectory = true }
+            onSelectModule: { selectedModule = $0 }
         )
 
         XCTAssertNotNil(view)
-        view.onDirectory?()
-        XCTAssertTrue(didOpenDirectory)
+        view.onSelectModule(.directory)
+        XCTAssertEqual(selectedModule, .directory)
+    }
+
+    func testReaderStageModulesMatchDemoModuleNavRoutes() {
+        XCTAssertEqual(ReaderStageModule.allCases.map(\.rawValue), ["目录", "朗读", "外观", "设置"])
+        XCTAssertEqual(ReaderStageModule.allCases.map(\.compactDemoRoute), [
+            "toc-bookmarks",
+            "tts",
+            "reader-appearance",
+            "reader-settings"
+        ])
+        XCTAssertEqual(ReaderStageModule.allCases.map(\.fullDemoRoute), [
+            "reader-full-directory",
+            "reader-full-tts",
+            "reader-full-appearance",
+            "reader-full-settings"
+        ])
+        XCTAssertEqual(ReaderStageModule.allCases.map(\.demoKey), [
+            "directory",
+            "tts",
+            "appearance",
+            "settings"
+        ])
     }
 
     func testReaderResponsiveDockTokensMatchDemoCSS() {

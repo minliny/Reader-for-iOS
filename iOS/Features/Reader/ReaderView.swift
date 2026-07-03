@@ -6,9 +6,8 @@ import ReaderShellValidation
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
     @StateObject private var ttsPlayer = ReaderTTSPlayer()
-    @State private var showSettings = false
     @State private var showTTS = false
-    @State private var readerControlModule: ReaderControlModule = .directory
+    @State private var readerControlPresentation: ReaderControlPresentation = .control
     @State private var scrollOffset: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
     @State private var visibleHeight: CGFloat = 0
@@ -54,16 +53,7 @@ public struct ReaderView: View {
         .toolbar(.hidden, for: .navigationBar)
 #endif
         .toolbar(.hidden, for: .tabBar)
-        .sheet(isPresented: $showSettings) {
-            ReaderSettingsPanel(
-                displaySettings: $viewModel.displaySettings,
-                onDismiss: {
-                    viewModel.saveSettings()
-                    showSettings = false
-                }
-            )
-            .presentationDetents([.medium])
-        }
+        .mainTabBarVisible(false)
         .navigationDestination(item: $readerDestination) { destination in
             switch destination {
             case .sourceSwitch(let bookURL):
@@ -94,21 +84,11 @@ public struct ReaderView: View {
             brightnessController.restore()
             volumeKeyPageTurner.stop()
         }
-        .safeAreaInset(edge: .bottom) {
-            if showTTS {
-                ReaderTTSControlView(
-                    player: ttsPlayer,
-                    contentText: currentContentText
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
-        }
     }
 
     @ViewBuilder
     private func readerBody(layout: ReaderResponsiveLayout) -> some View {
-        ZStack {
+        DemoReaderShell(layout: layout) {
             contentBackground
                 .ignoresSafeArea()
 
@@ -122,18 +102,20 @@ public struct ReaderView: View {
                 immersiveHotZoneLayer
                     .allowsHitTesting(true)
             }
-
+        } overlayHost: {
             if chromeVisible {
                 VStack(spacing: 0) {
                     progressSurface(layout: layout)
                         .transition(.move(edge: .top).combined(with: .opacity))
                     Spacer(minLength: 0)
                 }
-                .zIndex(2)
-
-                controlChrome(layout: layout)
-                .zIndex(2)
             }
+        } bottomSheetHost: {
+            readerBottomSheetHost(layout: layout)
+        } moduleNav: {
+            readerModuleNavHost(layout: layout)
+        } stateHost: {
+            EmptyView()
         }
     }
 
@@ -182,7 +164,7 @@ public struct ReaderView: View {
                 subtitle: readerTopSubtitle,
                 onBack: { dismiss() },
                 onSourceSwitch: { readerDestination = .sourceSwitch(viewModel.chapterURL) },
-                onMore: { showSettings = true },
+                onMore: openReaderSettings,
                 style: topBarStyle(for: layout)
             )
             // `.fd-reader-top` inset：top 18 / 左右 14
@@ -239,35 +221,69 @@ public struct ReaderView: View {
     }
 
     @ViewBuilder
+    private func readerBottomSheetHost(layout: ReaderResponsiveLayout) -> some View {
+        if chromeVisible {
+            VStack(spacing: ReaderDesignTokens.readerControlSheetGap) {
+                if readerControlSession.isActive {
+                    ReaderSessionCapsule(session: readerControlSession)
+                        .frame(width: layout.usesTrailingDock ? layout.dockWidth : nil)
+                        .padding(.horizontal, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerControlSheetSideInset)
+                        .accessibilityIdentifier("fd-reader-control-session-host")
+                }
+
+                if showTTS {
+                    ReaderTTSControlView(
+                        player: ttsPlayer,
+                        contentText: currentContentText
+                    )
+                    .frame(width: layout.usesTrailingDock ? layout.dockWidth : nil)
+                    .padding(.horizontal, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerControlSheetSideInset)
+                    .accessibilityIdentifier("fd-reader-tts-control-host")
+                }
+
+                ReaderControlSheet(
+                    presentation: readerControlPresentation,
+                    displaySettings: $viewModel.displaySettings,
+                    chapterTitle: viewModel.chapterTitle,
+                    progressPercentage: viewModel.readingProgress,
+                    chapterCount: viewModel.totalChapterCount,
+                    chapterList: viewModel.chapterList,
+                    currentChapterIndex: viewModel.currentChapterIndex,
+                    session: readerControlSession,
+                    layout: layout,
+                    canGoPreviousChapter: viewModel.canGoPreviousChapter,
+                    canGoNextChapter: viewModel.canGoNextChapter,
+                    onExpandModule: expandReaderModule,
+                    onOpenQuickAction: openReaderQuickAction,
+                    onPreviousChapter: goPreviousChapter,
+                    onNextChapter: goNextChapter,
+                    onSelectChapter: viewModel.goToChapter,
+                    onSessionAction: handleReaderSessionAction
+                )
+                .frame(height: layout.usesTrailingDock ? layout.dockSheetHeight : nil)
+                .padding(.horizontal, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerControlSheetSideInset)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func readerModuleNavHost(layout: ReaderResponsiveLayout) -> some View {
+        if chromeVisible {
+            ReaderStageActionBar(
+                activeModule: readerControlPresentation.activeModule,
+                onSelectModule: openReaderModule,
+                style: layout.compactModuleNav ? .compactLandscape : .regular
+            )
+            .frame(minHeight: layout.usesTrailingDock ? layout.dockNavHeight : nil)
+            .padding(.horizontal, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerModuleNavSideInset)
+        }
+    }
+
+    @ViewBuilder
     private func actionBar(layout: ReaderResponsiveLayout) -> some View {
         switch viewModel.readerState {
-        case .loaded, .cached:
+        case .loaded, .cached, .partial, .failed, .empty:
             actionBarContent(layout: layout)
-        case .partial:
-            fallbackStageActionBar(
-                onPrevious: viewModel.canGoPreviousChapter
-                    ? goPreviousChapter : nil,
-                onNext: viewModel.canGoNextChapter
-                    ? goNextChapter : nil,
-                onReload: { Task { await viewModel.reload() } },
-                layout: layout
-            )
-        case .failed:
-            fallbackStageActionBar(
-                onPrevious: nil,
-                onNext: nil,
-                onReload: { Task { await viewModel.reload() } },
-                layout: layout
-            )
-        case .empty:
-            fallbackStageActionBar(
-                onPrevious: viewModel.canGoPreviousChapter
-                    ? goPreviousChapter : nil,
-                onNext: viewModel.canGoNextChapter
-                    ? goNextChapter : nil,
-                onReload: { Task { await viewModel.reload() } },
-                layout: layout
-            )
         case .idle, .loading:
             EmptyView()
         case .unsupported:
@@ -276,51 +292,39 @@ public struct ReaderView: View {
     }
 
     @ViewBuilder
-    private func fallbackStageActionBar(
-        onPrevious: (() -> Void)?,
-        onNext: (() -> Void)?,
-        onReload: (() -> Void)?,
-        layout: ReaderResponsiveLayout
-    ) -> some View {
-        ReaderStageActionBar(
-            onPrevious: onPrevious,
-            onNext: onNext,
-            onReload: onReload,
-            onDirectory: openReaderDirectory,
-            style: layout.compactModuleNav ? .compactLandscape : .regular
-        )
-        .frame(width: layout.usesTrailingDock ? layout.dockWidth : nil)
-        .padding(.horizontal, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerModuleNavSideInset)
-        .padding(.bottom, layout.usesTrailingDock ? 0 : ReaderDesignTokens.readerModuleNavBottomInset)
-    }
-
-    @ViewBuilder
     private func actionBarContent(layout: ReaderResponsiveLayout) -> some View {
         if layout.usesTrailingDock {
             VStack(spacing: layout.dockNavGap) {
+                if readerControlSession.isActive {
+                    ReaderSessionCapsule(session: readerControlSession)
+                        .frame(width: layout.dockWidth)
+                        .accessibilityIdentifier("fd-reader-control-session-host")
+                }
+
                 ReaderControlSheet(
-                    selectedModule: $readerControlModule,
+                    presentation: readerControlPresentation,
                     displaySettings: $viewModel.displaySettings,
                     chapterTitle: viewModel.chapterTitle,
                     progressPercentage: viewModel.readingProgress,
+                    chapterCount: viewModel.totalChapterCount,
+                    chapterList: viewModel.chapterList,
+                    currentChapterIndex: viewModel.currentChapterIndex,
                     session: readerControlSession,
                     layout: layout,
                     canGoPreviousChapter: viewModel.canGoPreviousChapter,
                     canGoNextChapter: viewModel.canGoNextChapter,
-                    onOpenModule: openReaderModule,
+                    onExpandModule: expandReaderModule,
+                    onOpenQuickAction: openReaderQuickAction,
                     onPreviousChapter: goPreviousChapter,
                     onNextChapter: goNextChapter,
+                    onSelectChapter: viewModel.goToChapter,
                     onSessionAction: handleReaderSessionAction
                 )
                 .frame(width: layout.dockWidth, height: layout.dockSheetHeight)
 
                 ReaderStageActionBar(
-                    onPrevious: viewModel.canGoPreviousChapter
-                        ? goPreviousChapter : nil,
-                    onNext: viewModel.canGoNextChapter
-                        ? goNextChapter : nil,
-                    onReload: { Task { await viewModel.reload() } },
-                    onDirectory: openReaderDirectory,
+                    activeModule: readerControlPresentation.activeModule,
+                    onSelectModule: openReaderModule,
                     style: layout.compactModuleNav ? .compactLandscape : .regular
                 )
                 .frame(width: layout.dockWidth)
@@ -329,29 +333,36 @@ public struct ReaderView: View {
             .frame(width: layout.dockWidth)
         } else {
             VStack(spacing: ReaderDesignTokens.readerControlSheetGap) {
+                if readerControlSession.isActive {
+                    ReaderSessionCapsule(session: readerControlSession)
+                        .padding(.horizontal, ReaderDesignTokens.readerControlSheetSideInset)
+                        .accessibilityIdentifier("fd-reader-control-session-host")
+                }
+
                 ReaderControlSheet(
-                    selectedModule: $readerControlModule,
+                    presentation: readerControlPresentation,
                     displaySettings: $viewModel.displaySettings,
                     chapterTitle: viewModel.chapterTitle,
                     progressPercentage: viewModel.readingProgress,
+                    chapterCount: viewModel.totalChapterCount,
+                    chapterList: viewModel.chapterList,
+                    currentChapterIndex: viewModel.currentChapterIndex,
                     session: readerControlSession,
                     layout: layout,
                     canGoPreviousChapter: viewModel.canGoPreviousChapter,
                     canGoNextChapter: viewModel.canGoNextChapter,
-                    onOpenModule: openReaderModule,
+                    onExpandModule: expandReaderModule,
+                    onOpenQuickAction: openReaderQuickAction,
                     onPreviousChapter: goPreviousChapter,
                     onNextChapter: goNextChapter,
+                    onSelectChapter: viewModel.goToChapter,
                     onSessionAction: handleReaderSessionAction
                 )
                 .padding(.horizontal, ReaderDesignTokens.readerControlSheetSideInset)
 
                 ReaderStageActionBar(
-                    onPrevious: viewModel.canGoPreviousChapter
-                        ? goPreviousChapter : nil,
-                    onNext: viewModel.canGoNextChapter
-                        ? goNextChapter : nil,
-                    onReload: { Task { await viewModel.reload() } },
-                    onDirectory: openReaderDirectory
+                    activeModule: readerControlPresentation.activeModule,
+                    onSelectModule: openReaderModule
                 )
                 // `.fd-reader-module-nav` inset：左右 24 / 距底 32
                 .padding(.horizontal, ReaderDesignTokens.readerModuleNavSideInset)
@@ -523,8 +534,28 @@ public struct ReaderView: View {
         openReaderModule(.directory)
     }
 
-    private func openReaderModule(_ module: ReaderControlModule) {
+    private func openReaderSettings() {
+        chromeVisible = true
+        openReaderModule(.settings)
+    }
+
+    private func openReaderModule(_ module: ReaderStageModule) {
+        readerControlPresentation = .module(module)
+    }
+
+    private func expandReaderModule(_ module: ReaderStageModule) {
         readerDestination = .demoRoute(module.fullDemoRoute)
+    }
+
+    private func openReaderQuickAction(_ action: ReaderQuickAction) {
+        switch action {
+        case .search:
+            readerDestination = .demoRoute("content-search")
+        case .autoPage:
+            readerDestination = .demoRoute("auto-page")
+        case .replacement:
+            readerDestination = .demoRoute("content-replacement")
+        }
     }
 
     private func handleHotZoneSegment(_ segment: ReaderHotZoneSegment) {
@@ -787,12 +818,76 @@ enum ReaderControlSession: Equatable {
     var isTTSPaused: Bool {
         self == .tts(playbackState: .paused)
     }
+
+    var isActive: Bool {
+        switch self {
+        case .ready:
+            return false
+        case .tts:
+            return true
+        }
+    }
 }
 
 private enum ReaderControlSessionAction {
     case startTTS
     case pauseTTS
     case stopTTS
+}
+
+private enum ReaderControlPresentation: Equatable {
+    case control
+    case module(ReaderStageModule)
+
+    var activeModule: ReaderStageModule? {
+        switch self {
+        case .control:
+            return nil
+        case .module(let module):
+            return module
+        }
+    }
+
+    var expansionModule: ReaderStageModule {
+        activeModule ?? .settings
+    }
+
+    var slotIdentifier: String {
+        switch self {
+        case .control:
+            return "fd-reader-control-main"
+        case .module:
+            return "fd-reader-module-panel"
+        }
+    }
+}
+
+private enum ReaderQuickAction: CaseIterable {
+    case search
+    case autoPage
+    case replacement
+
+    var title: String {
+        switch self {
+        case .search:
+            return "内容搜索"
+        case .autoPage:
+            return "自动翻页"
+        case .replacement:
+            return "内容替换"
+        }
+    }
+
+    var icon: ReaderAssetIcon {
+        switch self {
+        case .search:
+            return .readerContentSearch
+        case .autoPage:
+            return .readerAutoPage
+        case .replacement:
+            return .readerContentReplace
+        }
+    }
 }
 
 enum ReaderAppearanceQuickAction: Equatable {
@@ -835,96 +930,67 @@ enum ReaderSettingsQuickAction: Equatable {
     }
 }
 
-private enum ReaderControlModule: String, CaseIterable {
-    case directory = "目录"
-    case tts = "朗读"
-    case appearance = "外观"
-    case settings = "设置"
-
-    var icon: ReaderAssetIcon {
-        switch self {
-        case .directory: return .readerModuleDirectory
-        case .tts: return .readerModuleTts
-        case .appearance: return .readerModuleAppearance
-        case .settings: return .readerModuleSettings
-        }
-    }
-
-    var fullDemoRoute: String {
-        switch self {
-        case .directory:
-            return "reader-full-directory"
-        case .tts:
-            return "reader-full-tts"
-        case .appearance:
-            return "reader-full-appearance"
-        case .settings:
-            return "reader-full-settings"
-        }
-    }
-}
-
 private struct ReaderControlSheet: View {
-    @Binding var selectedModule: ReaderControlModule
+    let presentation: ReaderControlPresentation
     @Binding var displaySettings: ReaderDisplaySettings
     let chapterTitle: String
     let progressPercentage: Double
+    let chapterCount: Int
+    let chapterList: [TOCItem]
+    let currentChapterIndex: Int
     let session: ReaderControlSession
     let layout: ReaderResponsiveLayout
     let canGoPreviousChapter: Bool
     let canGoNextChapter: Bool
-    let onOpenModule: (ReaderControlModule) -> Void
+    let onExpandModule: (ReaderStageModule) -> Void
+    let onOpenQuickAction: (ReaderQuickAction) -> Void
     let onPreviousChapter: () -> Void
     let onNextChapter: () -> Void
+    let onSelectChapter: (Int) -> Void
     let onSessionAction: (ReaderControlSessionAction) -> Void
 
     var body: some View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.readerControlSheetGap) {
-                ReaderSessionCapsule(session: session)
-                modulePicker
+                grabber
                 ReaderControlMain(
-                    selectedModule: selectedModule,
+                    presentation: presentation,
                     displaySettings: $displaySettings,
                     chapterTitle: chapterTitle,
                     progressPercentage: progressPercentage,
+                    chapterCount: chapterCount,
+                    chapterList: chapterList,
+                    currentChapterIndex: currentChapterIndex,
                     layout: layout,
                     session: session,
                     canGoPreviousChapter: canGoPreviousChapter,
                     canGoNextChapter: canGoNextChapter,
-                    onOpenModule: onOpenModule,
+                    onExpandModule: onExpandModule,
+                    onOpenQuickAction: onOpenQuickAction,
                     onPreviousChapter: onPreviousChapter,
                     onNextChapter: onNextChapter,
+                    onSelectChapter: onSelectChapter,
                     onSessionAction: onSessionAction
                 )
             }
             .frame(maxWidth: .infinity, minHeight: layout.dockSheetHeight, alignment: .topLeading)
         }
+        .accessibilityIdentifier("fd-reader-sheet")
     }
 
-    private var modulePicker: some View {
-        HStack(spacing: layout.compactModuleNav ? ReaderDesignTokens.readerDockCompactModuleGap : ReaderDesignTokens.readerModuleNavGap) {
-            ForEach(ReaderControlModule.allCases, id: \.self) { module in
-                Button {
-                    selectedModule = module
-                } label: {
-                    VStack(spacing: layout.compactModuleNav ? 2 : 4) {
-                        ReaderIcon(module.icon, size: layout.compactModuleNav ? 16 : 18, accessibilityLabel: module.rawValue)
-                            .frame(width: layout.compactModuleNav ? 26 : 30, height: layout.compactModuleNav ? 26 : 30)
-                            .background(
-                                Circle()
-                                    .fill(selectedModule == module ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.readerModuleIconShellBackground)
-                            )
-                            .foregroundColor(selectedModule == module ? .white : ReaderDesignTokens.Color.primary)
-                        Text(module.rawValue)
-                            .font(.system(size: layout.compactModuleNav ? ReaderDesignTokens.readerDockCompactModuleFontSize : ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.plain)
-            }
+    private var grabber: some View {
+        Button {
+            onExpandModule(presentation.expansionModule)
+        } label: {
+            Capsule()
+                .fill(ReaderDesignTokens.Color.mainNavBorder)
+                .frame(width: 46, height: 5)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("展开完整控制页")
+        .accessibilityIdentifier("fd-reader-grabber")
     }
 }
 
@@ -950,6 +1016,104 @@ private struct ReaderSessionCapsule: View {
             Capsule()
                 .fill(ReaderDesignTokens.Color.controlBackground)
         )
+    }
+}
+
+private struct ReaderDirectoryQuickPanel: View {
+    let chapters: [TOCItem]
+    let currentChapterIndex: Int
+    let fallbackTitle: String
+    let onSelectChapter: (Int) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if chapters.isEmpty {
+                directoryRow(title: fallbackTitle, index: currentChapterIndex, isCurrent: true)
+            } else {
+                ForEach(Array(chapters.prefix(6).enumerated()), id: \.offset) { _, chapter in
+                    directoryRow(
+                        title: chapter.chapterTitle,
+                        index: chapter.chapterIndex,
+                        isCurrent: chapter.chapterIndex == currentChapterIndex
+                    )
+                    if chapter.chapterIndex != chapters.prefix(6).last?.chapterIndex {
+                        Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.readerControlChapterPanelHeight, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.controlBackground)
+        )
+        .accessibilityIdentifier("fd-reader-toc-panel")
+    }
+
+    private func directoryRow(title: String, index: Int, isCurrent: Bool) -> some View {
+        Button {
+            onSelectChapter(index)
+        } label: {
+            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title.isEmpty ? "当前章节" : title)
+                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    Text(isCurrent ? "当前阅读位置" : "第 \(index + 1) 章")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if isCurrent {
+                    Text("当前")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+}
+
+private struct ReaderTTSQuickPanel: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            optionRow(icon: .tts, title: "播放控制", detail: "上一句 / 播放暂停 / 下一句")
+            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            optionRow(icon: .motion, title: "语速", detail: "1.0x")
+            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            optionRow(icon: .volume, title: "音色", detail: "系统女声")
+            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            optionRow(icon: .currentLocation, title: "范围", detail: "当前章节")
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.readerControlChapterPanelHeight, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.controlBackground)
+        )
+        .accessibilityIdentifier("fd-reader-tts-panel")
+    }
+
+    private func optionRow(icon: ReaderAssetIcon, title: String, detail: String) -> some View {
+        HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+            ReaderIcon(icon, size: 15, accessibilityLabel: title)
+                .frame(width: ReaderDesignTokens.settingsRowIconColumn)
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            Text(title)
+                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(detail)
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
     }
 }
 
@@ -1131,17 +1295,22 @@ private struct ReaderSettingsQuickToggleRow: View {
 }
 
 private struct ReaderControlMain: View {
-    let selectedModule: ReaderControlModule
+    let presentation: ReaderControlPresentation
     @Binding var displaySettings: ReaderDisplaySettings
     let chapterTitle: String
     let progressPercentage: Double
+    let chapterCount: Int
+    let chapterList: [TOCItem]
+    let currentChapterIndex: Int
     let layout: ReaderResponsiveLayout
     let session: ReaderControlSession
     let canGoPreviousChapter: Bool
     let canGoNextChapter: Bool
-    let onOpenModule: (ReaderControlModule) -> Void
+    let onExpandModule: (ReaderStageModule) -> Void
+    let onOpenQuickAction: (ReaderQuickAction) -> Void
     let onPreviousChapter: () -> Void
     let onNextChapter: () -> Void
+    let onSelectChapter: (Int) -> Void
     let onSessionAction: (ReaderControlSessionAction) -> Void
 
     var body: some View {
@@ -1150,38 +1319,36 @@ private struct ReaderControlMain: View {
 
             mainPanel
         }
+        .accessibilityIdentifier(presentation.slotIdentifier)
     }
 
     @ViewBuilder
     private var mainPanel: some View {
-        if selectedModule == .appearance {
-            ReaderAppearanceQuickPanel(displaySettings: $displaySettings)
-        } else if selectedModule == .settings {
-            ReaderSettingsQuickPanel(displaySettings: $displaySettings)
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(chapterTitle)
-                    .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
-                    .lineLimit(1)
-                ProgressView(value: progressPercentage)
-                    .tint(ReaderDesignTokens.Color.primary)
-                Text(panelDescription)
-                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: layout.dockChapterPanelHeight, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                    .fill(ReaderDesignTokens.Color.controlBackground)
+        switch presentation {
+        case .control:
+            chapterProgressPanel
+        case .module(.directory):
+            ReaderDirectoryQuickPanel(
+                chapters: chapterList,
+                currentChapterIndex: currentChapterIndex,
+                fallbackTitle: chapterTitle,
+                onSelectChapter: onSelectChapter
             )
+        case .module(.tts):
+            ReaderTTSQuickPanel()
+        case .module(.appearance):
+            ReaderAppearanceQuickPanel(displaySettings: $displaySettings)
+        case .module(.settings):
+            ReaderSettingsQuickPanel(displaySettings: $displaySettings)
         }
     }
 
     @ViewBuilder
     private var actionRow: some View {
-        if selectedModule == .tts {
+        switch presentation {
+        case .control:
+            quickActionRow
+        case .module(.tts):
             HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
                 PillChip("停止") {
                     onSessionAction(.stopTTS)
@@ -1194,43 +1361,115 @@ private struct ReaderControlMain: View {
                 }
             }
             .frame(minHeight: layout.dockControlActionRowHeight)
-        } else {
-            HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
-                chapterActionChip("上一章", isEnabled: canGoPreviousChapter, action: onPreviousChapter)
-                PillChip(selectedModule.rawValue, isSelected: true) {
-                    triggerModuleAction()
-                }
-                chapterActionChip("下一章", isEnabled: canGoNextChapter, action: onNextChapter)
-            }
-            .frame(minHeight: layout.dockControlActionRowHeight)
+        case .module:
+            EmptyView()
         }
     }
 
-    private func chapterActionChip(_ title: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
-        PillChip(title) {
+    private var quickActionRow: some View {
+        HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
+            ForEach(ReaderQuickAction.allCases, id: \.self) { action in
+                Button {
+                    onOpenQuickAction(action)
+                } label: {
+                    VStack(spacing: 4) {
+                        ReaderIcon(action.icon, size: 22, accessibilityLabel: action.title)
+                            .frame(width: 34, height: 34)
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                            .background(
+                                Circle()
+                                    .fill(ReaderDesignTokens.Color.readerModuleIconShellBackground)
+                            )
+                        Text(action.title)
+                            .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(action.title)
+            }
+        }
+        .frame(minHeight: layout.dockControlActionRowHeight)
+    }
+
+    private var chapterProgressPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                chapterStepButton(icon: .chevronLeft, label: "上一章", isEnabled: canGoPreviousChapter, action: onPreviousChapter)
+                Text(chapterTitle)
+                    .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                chapterStepButton(icon: .chevron, label: "下一章", isEnabled: canGoNextChapter, action: onNextChapter)
+            }
+
+            HStack(spacing: 8) {
+                Text("\(Int(progressPercentage * 100))%")
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                ProgressView(value: progressPercentage)
+                    .tint(ReaderDesignTokens.Color.primary)
+                Text("共 \(max(chapterCount, 1)) 章")
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: layout.dockChapterPanelHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.controlBackground)
+        )
+    }
+
+    private func chapterStepButton(icon: ReaderAssetIcon, label: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button {
             guard isEnabled else { return }
             action()
+        } label: {
+            ReaderIcon(icon, size: 16, accessibilityLabel: label)
+                .frame(width: 34, height: 34)
+                .foregroundColor(isEnabled ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.readerModuleTextColor.opacity(0.45))
+                .background(
+                    Circle()
+                        .fill(ReaderDesignTokens.Color.readerModuleIconShellBackground)
+                )
         }
+        .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.4)
-        .accessibilityHint(isEnabled ? "切换章节" : "没有可切换的章节")
+        .accessibilityLabel(label)
     }
 
-    private var panelDescription: String {
-        switch selectedModule {
-        case .directory:
-            return "目录、书签与章节跳转面板入口。"
-        case .tts:
-            return "朗读控制、语速与运行胶囊入口。"
-        case .appearance:
-            return "字号、主题、间距和调色板入口。"
-        case .settings:
-            return "缓存、调试与阅读行为设置入口。"
+    private func moduleInfoPanel(icon: ReaderAssetIcon, title: String, description: String) -> some View {
+        Button {
+            onExpandModule(presentation.expansionModule)
+        } label: {
+            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                ReaderIcon(icon, size: 18, accessibilityLabel: title)
+                    .frame(width: ReaderDesignTokens.settingsRowIconColumn)
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                    Text(description)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Text("展开")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: layout.dockChapterPanelHeight, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .fill(ReaderDesignTokens.Color.controlBackground)
+            )
         }
-    }
-
-    private func triggerModuleAction() {
-        onOpenModule(selectedModule)
+        .buttonStyle(.plain)
     }
 }
 

@@ -97,20 +97,18 @@ struct StateSurfaceView: View {
 
     var body: some View {
         DemoBackScreen(title: kind.routeTitle, contentStyle: .custom) {
-            VStack(spacing: 0) {
-                DemoPaperScreen {
-                    Spacer(minLength: 18)
-                    StateSurfaceCard(kind: kind)
-                    Spacer(minLength: 18)
-                }
-
-                BottomFixedActionRow {
-                    StateSurfaceActionLabel(title: kind.secondaryActionTitle, isPrimary: false)
-                } trailing: {
-                    StateSurfaceActionLabel(title: kind.primaryActionTitle, isPrimary: true)
-                }
+            DemoPaperScreen {
+                Spacer(minLength: 18)
+                StateSurfaceCard(kind: kind)
+                Spacer(minLength: 18)
             }
             .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        } bottomActionHost: {
+            BottomFixedActionRow {
+                StateSurfaceActionLabel(title: kind.secondaryActionTitle, isPrimary: false)
+            } trailing: {
+                StateSurfaceActionLabel(title: kind.primaryActionTitle, isPrimary: true)
+            }
         }
     }
 }

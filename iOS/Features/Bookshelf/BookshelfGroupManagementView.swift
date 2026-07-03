@@ -8,8 +8,7 @@ struct BookshelfGroupManagementView: View {
         DemoBackScreen(title: "分组管理") {
             groupList
             assignmentList
-        }
-        .safeAreaInset(edge: .bottom) {
+        } bottomActionHost: {
             BottomFixedActionRow {
                 BookshelfGroupBottomButton(title: "新建分组", isPrimary: true) {
                     selectedGroupID = "new-group"
