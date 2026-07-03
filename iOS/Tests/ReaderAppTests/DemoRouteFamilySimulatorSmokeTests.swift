@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 import XCTest
 import ReaderCoreModels
+import ReaderAppSupport
 import ReaderShellValidation
 @testable import ReaderApp
 
@@ -74,6 +75,30 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         assertReaderVisualAudit(size: expandedWidth, expectedClass: .expandedWidth)
         assertReaderVisualAudit(size: tablet, expectedClass: .tabletExpanded)
         assertReaderVisualAudit(size: compactLandscape, expectedClass: .compactLandscape)
+    }
+
+    func testDemoBookshelfReaderEntryRendersVisibleTextOnSimulator() {
+        let item = DemoBookshelfFixture.items[0]
+        let chapterURL = item.lastReadChapterURL ?? item.bookURL
+        let chapterList = item.localChapterList ?? []
+
+        let image = renderForScreenshot(
+            NavigationStack {
+                ReaderView(
+                    chapterURL: chapterURL,
+                    chapterTitle: item.lastReadChapterTitle ?? "继续阅读",
+                    chapterList: chapterList,
+                    currentChapterIndex: chapterList.firstIndex { $0.chapterURL == chapterURL } ?? 0,
+                    bookID: item.id,
+                    sourceID: item.sourceID,
+                    immersiveStart: true
+                )
+            },
+            size: phone,
+            wait: 0.35
+        )
+
+        assertContainsVisibleTextPixels(image, name: "bookshelf-reader-entry")
     }
 
     func testDiscoverRouteFamilyRendersAllDemoFeatureStatesOnSimulator() {
@@ -280,6 +305,81 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         add(attachment)
 
         window.isHidden = true
+    }
+
+    private func renderForScreenshot<V: View>(
+        _ view: V,
+        size: CGSize,
+        wait: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> UIImage {
+        let host = UIHostingController(rootView: view)
+        let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        host.view.frame = window.bounds
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(wait))
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { _ in
+            XCTAssertTrue(host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true), file: file, line: line)
+        }
+        window.isHidden = true
+        return image
+    }
+
+    private func assertContainsVisibleTextPixels(
+        _ image: UIImage,
+        name: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let cgImage = image.cgImage else {
+            XCTFail("\(name) screenshot has no CGImage", file: file, line: line)
+            return
+        }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        var data = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &data,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            XCTFail("\(name) screenshot context creation failed", file: file, line: line)
+            return
+        }
+
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var darkPixelCount = 0
+        for offset in stride(from: 0, to: data.count, by: 4) {
+            let red = Int(data[offset])
+            let green = Int(data[offset + 1])
+            let blue = Int(data[offset + 2])
+            let alpha = Int(data[offset + 3])
+            if alpha > 0, red < 105, green < 105, blue < 105 {
+                darkPixelCount += 1
+            }
+        }
+
+        XCTAssertGreaterThan(
+            darkPixelCount,
+            900,
+            "\(name) should render visible reader text, not just a blank paper background",
+            file: file,
+            line: line
+        )
     }
 
     private func writeScreenshot(

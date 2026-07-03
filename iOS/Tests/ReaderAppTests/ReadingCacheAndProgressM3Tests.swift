@@ -211,6 +211,37 @@ final class ReadingCacheAndProgressM3Tests: XCTestCase {
         }
     }
 
+    func testDemoBookshelfChapterLoadsCanonicalReaderFixtureInsteadOfBlank() async {
+        let demoItem = DemoBookshelfFixture.items[0]
+        let chapterURL = demoItem.lastReadChapterURL ?? demoItem.bookURL
+        let chapterList = demoItem.localChapterList ?? []
+        let snapStore = SnapshotStore(
+            snapshotRoot: URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("demo_reader_\(UUID().uuidString)")
+        )
+
+        let readerVM = ReaderViewModel(
+            chapterURL: chapterURL,
+            chapterTitle: demoItem.lastReadChapterTitle ?? "继续阅读",
+            chapterList: chapterList,
+            currentChapterIndex: chapterList.firstIndex { $0.chapterURL == chapterURL } ?? 0,
+            bookID: demoItem.id,
+            sourceID: demoItem.sourceID,
+            snapshotStore: snapStore
+        )
+
+        await readerVM.loadContent()
+
+        switch readerVM.readerState {
+        case .loaded(let page), .cached(let page), .partial(let page, _):
+            XCTAssertEqual(page.chapterURL, chapterURL)
+            XCTAssertFalse(page.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            XCTAssertTrue(page.content.contains(DemoReaderFixture.readingText[0]))
+        default:
+            XCTFail("Expected demo bookshelf chapter to render canonical reader fixture, got \(readerVM.readerState)")
+        }
+    }
+
     // MARK: - M2 Regression: Reading Progress Still Works
 
     func testReadingProgressStoreNoRealNetwork() {

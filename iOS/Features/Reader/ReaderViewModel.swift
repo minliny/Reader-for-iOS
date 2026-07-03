@@ -146,6 +146,11 @@ public final class ReaderViewModel: ObservableObject {
             }
         }
 
+        if isFrontendDemoChapter {
+            readerState = .loaded(content: frontendDemoContentPage())
+            return
+        }
+
         // B.3: Local books must not fall back to network providers.
         // If the snapshot cache missed for a local-book source, the chapter
         // data is gone — the user must re-import the book.
@@ -323,6 +328,27 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    private var isFrontendDemoChapter: Bool {
+        chapterURL.hasPrefix("demo://") || sourceID == DemoBookshelfFixture.sourceID
+    }
+
+    private func frontendDemoContentPage() -> ContentPage {
+        ContentPage(
+            title: chapterTitle.isEmpty ? DemoReaderFixture.chapterTitle : chapterTitle,
+            content: DemoReaderFixture.readingText.joined(separator: "\n\n"),
+            chapterURL: chapterURL,
+            nextChapterURL: nextChapterURLAfterCurrent()
+        )
+    }
+
+    private func nextChapterURLAfterCurrent() -> String? {
+        guard !chapterList.isEmpty else { return nil }
+        let index = chapterList.firstIndex { $0.chapterURL == chapterURL } ?? currentChapterIndex
+        let nextIndex = index + 1
+        guard chapterList.indices.contains(nextIndex) else { return nil }
+        return chapterList[nextIndex].chapterURL
+    }
 
     private func extractBookURL(from chapterURL: String) -> String {
         if let range = chapterURL.range(of: "/chapter/") {
