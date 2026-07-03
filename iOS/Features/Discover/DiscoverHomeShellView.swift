@@ -14,6 +14,7 @@ public struct DiscoverHomeShellView: View {
     @State private var selectedFilter: String
     @State private var selectedSort: String
     @State private var isControlPanelExpanded: Bool
+    @State private var isFilterMenuOpen: Bool
 
     public init(demoRoute: String = "discover") {
         let state = DiscoverDemoState(route: demoRoute)
@@ -22,6 +23,7 @@ public struct DiscoverHomeShellView: View {
         self._selectedFilter = State(initialValue: state.activeFilter)
         self._selectedSort = State(initialValue: state.sort)
         self._isControlPanelExpanded = State(initialValue: state.isControlPanelExpanded)
+        self._isFilterMenuOpen = State(initialValue: state.isSortOpen)
     }
 
     public var body: some View {
@@ -89,7 +91,11 @@ public struct DiscoverHomeShellView: View {
                         DiscoverFilterRow(
                             selectedFilter: $selectedFilter,
                             selectedSort: $selectedSort,
-                            isSortOpen: state.isSortOpen
+                            isOpen: $isFilterMenuOpen,
+                            onApply: {
+                                activeDemoRoute = "discover-refreshing"
+                                isFilterMenuOpen = false
+                            }
                         )
                     }
 
@@ -459,26 +465,43 @@ private struct DiscoverEntryRow: View {
 private struct DiscoverFilterRow: View {
     @Binding var selectedFilter: String
     @Binding var selectedSort: String
-    let isSortOpen: Bool
+    @Binding var isOpen: Bool
+    let onApply: () -> Void
     private let filters = ["关键词", "男频", "女频"]
     private let sorts = ["人气", "更新", "收藏", "完本", "字数"]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: ReaderDesignTokens.discoverEntryRowGap) {
-                    ForEach(filters, id: \.self) { filter in
-                        PillChip(filter, isSelected: selectedFilter == filter) {
-                            selectedFilter = filter
-                        }
+        DemoFilterDisclosure(
+            label: "筛选",
+            summary: "\(selectedFilter) · \(selectedSort)",
+            accessibilityLabel: "发现筛选与排序",
+            applyTitle: "应用",
+            isOpen: $isOpen,
+            groups: [
+                DemoFilterGroup(
+                    title: "范围",
+                    options: filters.map { filter in
+                        DemoFilterOption(
+                            label: filter,
+                            icon: filter == "关键词" ? .search : nil,
+                            isActive: selectedFilter == filter,
+                            action: { selectedFilter = filter }
+                        )
                     }
-                    PillChip("排序：\(selectedSort)", isSelected: isSortOpen)
-                }
-            }
-            if isSortOpen {
-                DiscoverSortPopover(selectedSort: $selectedSort, sorts: sorts)
-            }
-        }
+                ),
+                DemoFilterGroup(
+                    title: "排序",
+                    options: sorts.map { sort in
+                        DemoFilterOption(
+                            label: sort,
+                            isActive: selectedSort == sort,
+                            action: { selectedSort = sort }
+                        )
+                    }
+                )
+            ],
+            onApply: onApply
+        )
     }
 }
 

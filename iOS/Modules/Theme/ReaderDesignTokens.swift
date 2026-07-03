@@ -57,6 +57,30 @@ public enum ReaderDesignTokens {
     public static let chipMaxWidth: CGFloat = 132
     public static let chipHorizontalPadding: CGFloat = 10
     public static let chipFontSize: CGFloat = 12
+    /// `.fd-filter-control` gap（demo: 7px）。
+    public static let filterControlGap: CGFloat = 7
+    /// `.fd-filter-trigger` / `.fd-filter-apply` min-height（demo: 34px）。
+    public static let filterControlMinHeight: CGFloat = 34
+    /// `.fd-filter-trigger` icon column（demo: 16px）。
+    public static let filterTriggerIconColumn: CGFloat = 16
+    /// `.fd-filter-trigger` chevron column（demo: 14px）。
+    public static let filterTriggerChevronColumn: CGFloat = 14
+    /// `.fd-filter-trigger` gap（demo: 7px）。
+    public static let filterTriggerGap: CGFloat = 7
+    /// `.fd-filter-trigger` horizontal padding（demo: 10px）。
+    public static let filterTriggerHorizontalPadding: CGFloat = 10
+    /// `.fd-filter-apply` min-width（demo: 64px）。
+    public static let filterApplyMinWidth: CGFloat = 64
+    /// `.fd-filter-menu` gap（demo: 10px）。
+    public static let filterMenuGap: CGFloat = 10
+    /// `.fd-filter-menu` padding（demo: 10px）。
+    public static let filterMenuPadding: CGFloat = 10
+    /// `.fd-filter-menu article` gap（demo: 7px）。
+    public static let filterMenuGroupGap: CGFloat = 7
+    /// `.fd-filter-menu button` min-height（demo: 30px）。
+    public static let filterMenuOptionMinHeight: CGFloat = 30
+    /// `.fd-filter-menu button` gap / row wrap gap（demo: 5-6px）。
+    public static let filterMenuOptionGap: CGFloat = 6
     /// `.fd-search-entry` 最小高度（demo: 44px）。
     public static let searchEntryMinHeight: CGFloat = 44
     /// `.fd-search-entry` icon column（demo: 24px）。

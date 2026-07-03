@@ -15,6 +15,63 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         XCTAssertEqual(ReaderDesignTokens.chipMinHeight, 32)
     }
 
+    func testSharedFilterDisclosureTokensMatchDemoCSS() {
+        XCTAssertEqual(ReaderDesignTokens.filterControlGap, 7)
+        XCTAssertEqual(ReaderDesignTokens.filterControlMinHeight, 34)
+        XCTAssertEqual(ReaderDesignTokens.filterTriggerIconColumn, 16)
+        XCTAssertEqual(ReaderDesignTokens.filterTriggerChevronColumn, 14)
+        XCTAssertEqual(ReaderDesignTokens.filterTriggerGap, 7)
+        XCTAssertEqual(ReaderDesignTokens.filterTriggerHorizontalPadding, 10)
+        XCTAssertEqual(ReaderDesignTokens.filterApplyMinWidth, 64)
+        XCTAssertEqual(ReaderDesignTokens.filterMenuGap, 10)
+        XCTAssertEqual(ReaderDesignTokens.filterMenuPadding, 10)
+        XCTAssertEqual(ReaderDesignTokens.filterMenuGroupGap, 7)
+        XCTAssertEqual(ReaderDesignTokens.filterMenuOptionMinHeight, 30)
+        XCTAssertEqual(ReaderDesignTokens.filterMenuOptionGap, 6)
+    }
+
+    @MainActor
+    func testDemoFilterDisclosureCanInitializeFromDemoShape() {
+        let isOpen = Binding.constant(true)
+        let view = DemoFilterDisclosure(
+            label: "筛选",
+            summary: "关键词 · 人气",
+            accessibilityLabel: "发现筛选与排序",
+            applyTitle: "应用",
+            isOpen: isOpen,
+            groups: [
+                DemoFilterGroup(
+                    title: "范围",
+                    options: [
+                        DemoFilterOption(label: "关键词", icon: .search, isActive: true),
+                        DemoFilterOption(label: "男频"),
+                        DemoFilterOption(label: "女频")
+                    ]
+                ),
+                DemoFilterGroup(
+                    title: "排序",
+                    options: [
+                        DemoFilterOption(label: "人气", isActive: true),
+                        DemoFilterOption(label: "更新")
+                    ]
+                )
+            ],
+            onApply: {}
+        )
+
+        XCTAssertNotNil(view)
+    }
+
+    func testDemoReaderFixtureMatchesFrontendDemoText() {
+        XCTAssertEqual(DemoReaderFixture.title, "长夜余火")
+        XCTAssertEqual(DemoReaderFixture.sourceLine, "第 32 章 雨夜 · 优书网")
+        XCTAssertEqual(DemoReaderFixture.chapterTitle, "雨夜")
+        XCTAssertEqual(DemoReaderFixture.chapterProgress, "38%")
+        XCTAssertEqual(DemoReaderFixture.readingText.count, 38)
+        XCTAssertEqual(DemoReaderFixture.readingText.first, "雨声在窗外连成一片，像无数细小的针，密密地刺在玻璃上，汇成一层朦胧的水幕，将城市的灯光晕成模糊的光团。")
+        XCTAssertEqual(DemoReaderFixture.readingText.last, "走出楼道时，积水倒映着渐亮的天空。他们沿着街边慢慢向前，谁都没有再回头。远处第一班车穿过薄雾，带来新一天的声音。")
+    }
+
     @MainActor
     func testDiscoverFeatureStateViewsCanInitFromDemoRoutes() {
         let routes = DemoRouteMappings.expectedMainTabShellRoutes.filter { $0.hasPrefix("discover-") }
@@ -201,8 +258,8 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         XCTAssertNotNil(view)
 
         let fallback = RSSArticleDetailView.fallbackItem(link: "https://example.com/fallback")
-        XCTAssertEqual(fallback.title, "RSS 阅读")
-        XCTAssertEqual(fallback.sourceName, "RSS")
+        XCTAssertEqual(fallback.title, "Reader UI 前端输入件更新说明")
+        XCTAssertEqual(fallback.sourceName, "GitHub Releases")
     }
 
     @MainActor
@@ -318,6 +375,37 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         XCTAssertEqual(ReaderDesignTokens.settingsSwitchThumbSize, 18)
         XCTAssertEqual(ReaderDesignTokens.settingsSearchFieldHeight, 40)
         XCTAssertEqual(ReaderDesignTokens.sourceRowMinHeight, 64)
+    }
+
+    @MainActor
+    func testSettingsSourceDeepRouteSurfacesCanInitFromDemoRoutes() {
+        let routes = [
+            "settings-general",
+            "bookshelf-search-settings",
+            "sync-backup",
+            "webdav-config",
+            "source-management",
+            "source-import-options",
+            "source-import-preview",
+            "source-batch",
+            "source-groups",
+            "source-detail",
+            "source-detect",
+            "source-rule-edit",
+            "source-debug",
+            "source-debug-search-result",
+            "source-debug-detail-result",
+            "source-debug-catalog-result",
+            "source-debug-content-log",
+            "source-edit-debug",
+            "source-logs",
+            "source-code-view",
+            "source-delete-confirm"
+        ]
+
+        for route in routes {
+            XCTAssertNotNil(SettingsDemoShellView(demoRoute: route), route)
+        }
     }
 
     func testDemoTopAndBackBarTokensMatchDemoCSS() {

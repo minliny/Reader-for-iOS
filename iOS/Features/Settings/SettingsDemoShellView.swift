@@ -2,20 +2,97 @@ import SwiftUI
 
 struct SettingsDemoShellView: View {
     private let state: SettingsDemoRouteState
+    @State private var expandedOptionKey: String?
+    @State private var activeConfirm: SettingsDemoConfirm?
+    @State private var toastMessage: String?
+    @State private var settingsValues: [String: String] = [:]
+    @State private var sourceMenuOpen = false
+    @State private var sourceFilterOpen = false
+    @State private var sourceStatusFilter = "全部"
+    @State private var sourceGroupFilter = "全部分组"
+    @State private var sourceEnabled: [String: Bool] = [:]
 
     init(demoRoute: String) {
         self.state = SettingsDemoRouteState(route: demoRoute)
     }
 
     var body: some View {
-        DemoBackScreen(title: state.title) {
-            SettingsDemoHero(state: state)
+        DemoBackScreen(title: state.title, contentStyle: .custom) {
+            ZStack(alignment: .bottom) {
+                DemoPaperScreen {
+                    mainContent
+                }
+                .disabled(activeConfirm != nil || state.presentation.showsRouteOverlay)
+                .blur(radius: activeConfirm != nil || state.presentation == .deleteDialog ? 1.2 : 0)
 
+                if state.presentation == .sourceImportSheet {
+                    SettingsDemoSourceImportSheet()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                if state.presentation == .deleteDialog {
+                    SettingsDemoDeleteDialog()
+                        .padding(.horizontal, ReaderDesignTokens.cardPadding)
+                        .padding(.bottom, 28)
+                        .transition(.scale(scale: 0.96).combined(with: .opacity))
+                }
+
+                if let activeConfirm {
+                    SettingsDemoConfirmDialog(confirm: activeConfirm) {
+                        self.activeConfirm = nil
+                        self.toastMessage = activeConfirm.resultToast
+                    } onCancel: {
+                        self.activeConfirm = nil
+                    }
+                    .padding(.horizontal, ReaderDesignTokens.cardPadding)
+                    .padding(.bottom, 28)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+                }
+
+                if let toastMessage {
+                    SettingsDemoToast(message: toastMessage)
+                        .padding(.bottom, ReaderDesignTokens.bottomFixedActionRowMinHeight + 10)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        } trailing: {
+            if state.presentation == .source, state.route == "source-management" {
+                DemoTopActionButton(icon: .more, accessibilityLabel: "更多") {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        sourceMenuOpen.toggle()
+                    }
+                }
+            } else if let trailing = state.trailingAction {
+                SettingsDemoTopRouteButton(action: trailing)
+            } else {
+                EmptyView()
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if !state.actions.isEmpty, !state.presentation.suppressesBottomActions {
+                SettingsDemoBottomActions(actions: state.actions, onConfirm: showConfirm)
+            }
+        }
+        .toolbar(.hidden, for: .tabBar)
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        if state.presentation == .deleteDialog {
+            SettingsDemoSourceBatchHeader()
+            sourceSearchAndFilters
+            SettingsDemoSourceListView(title: state.sourceListTitle, rows: displayedSourceRows, mode: .selection)
+        } else {
             if !state.metrics.isEmpty {
                 SettingsDemoMetricGrid(metrics: state.metrics)
             }
 
-            if let searchPlaceholder = state.searchPlaceholder {
+            if state.presentation == .source || state.presentation == .sourceImportSheet {
+                if sourceMenuOpen {
+                    SettingsDemoSourceMoreMenu()
+                }
+                sourceSearchAndFilters
+            } else if let searchPlaceholder = state.searchPlaceholder {
                 SettingsDemoSearchField(placeholder: searchPlaceholder)
             }
 
@@ -24,11 +101,21 @@ struct SettingsDemoShellView: View {
             }
 
             ForEach(state.sections) { section in
-                SettingsDemoSectionView(section: section)
+                SettingsDemoSectionView(
+                    route: state.route,
+                    section: section,
+                    values: valuesBinding,
+                    expandedOptionKey: $expandedOptionKey,
+                    onConfirm: showConfirm
+                )
             }
 
             if !state.sourceRows.isEmpty {
-                SettingsDemoSourceListView(title: state.sourceListTitle, rows: state.sourceRows, mode: state.sourceListMode)
+                SettingsDemoSourceListView(title: state.sourceListTitle, rows: displayedSourceRows, mode: state.sourceListMode)
+            }
+
+            if !state.subPanels.isEmpty {
+                SettingsDemoSubPanelsView(panels: state.subPanels)
             }
 
             if !state.infoItems.isEmpty {
@@ -38,17 +125,84 @@ struct SettingsDemoShellView: View {
             if !state.codeLines.isEmpty {
                 SettingsDemoCodeBlock(lines: state.codeLines)
             }
+        }
+    }
 
-            if state.presentation == .deleteDialog {
-                SettingsDemoDeleteDialog()
+    private var valuesBinding: Binding<[String: String]> {
+        Binding(
+            get: { state.defaultValues.merging(settingsValues) { _, new in new } },
+            set: { settingsValues = $0 }
+        )
+    }
+
+    private var displayedSourceRows: [SettingsDemoSourceRow] {
+        let sourceRows = state.sourceRows.isEmpty ? SettingsDemoRouteState.sourceItems : state.sourceRows
+        return sourceRows
+            .filter { row in
+                switch sourceStatusFilter {
+                case "已启用":
+                    return row.enabled
+                case "异常":
+                    return row.status == "异常"
+                case "未检测":
+                    return row.status == "未检测"
+                case "自定义":
+                    return row.group == "自定义"
+                default:
+                    return true
+                }
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if !state.actions.isEmpty {
-                SettingsDemoBottomActions(actions: state.actions)
+            .filter { row in
+                sourceGroupFilter == "全部分组" || row.group == sourceGroupFilter
             }
+            .map { row in
+                guard let enabled = sourceEnabled[row.title] else { return row }
+                return row.replacingEnabled(enabled)
+            }
+    }
+
+    @ViewBuilder
+    private var sourceSearchAndFilters: some View {
+        SettingsDemoSearchField(placeholder: "搜索书源名称或域名")
+        Text("12 个书源 · 8 个启用 · 4 个异常 · 10:30 检测")
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        DemoFilterDisclosure(
+            label: "筛选",
+            summary: "\(sourceStatusFilter) · \(sourceGroupFilter)",
+            accessibilityLabel: "书源筛选",
+            isOpen: $sourceFilterOpen,
+            groups: [
+                DemoFilterGroup(
+                    title: "状态",
+                    options: ["全部", "已启用", "异常", "未检测", "自定义"].map { item in
+                        DemoFilterOption(label: item, isActive: item == sourceStatusFilter) {
+                            sourceStatusFilter = item
+                            sourceFilterOpen = false
+                        }
+                    }
+                ),
+                DemoFilterGroup(
+                    title: "分组",
+                    options: ["全部分组", "玄幻书源", "起点导入", "测试书源"].map { item in
+                        DemoFilterOption(label: item, isActive: item == sourceGroupFilter) {
+                            sourceGroupFilter = item
+                            sourceFilterOpen = false
+                        }
+                    }
+                )
+            ]
+        )
+    }
+
+    private func showConfirm(_ confirm: SettingsDemoConfirm?) {
+        guard let confirm else { return }
+        withAnimation(.easeInOut(duration: 0.16)) {
+            activeConfirm = confirm
+            toastMessage = nil
         }
-        .toolbar(.hidden, for: .tabBar)
     }
 }
 
@@ -56,8 +210,50 @@ private enum SettingsDemoPresentation: Equatable {
     case settings
     case restore
     case source
+    case sourceImportSheet
     case discoverSource
     case deleteDialog
+
+    var showsRouteOverlay: Bool {
+        self == .sourceImportSheet || self == .deleteDialog
+    }
+
+    var suppressesBottomActions: Bool {
+        self == .sourceImportSheet || self == .deleteDialog
+    }
+}
+
+private enum SettingsDemoRowStyle: Equatable {
+    case normal
+    case segment
+    case select
+    case stepper
+    case action
+    case input
+}
+
+private struct SettingsDemoConfirm: Equatable, Identifiable {
+    let id: String
+    let title: String
+    let copy: String
+    let cancelLabel: String
+    let confirmLabel: String
+    let resultToast: String?
+
+    init(
+        title: String,
+        copy: String,
+        cancelLabel: String = "取消",
+        confirmLabel: String = "确认",
+        resultToast: String? = nil
+    ) {
+        self.id = "\(title)-\(confirmLabel)"
+        self.title = title
+        self.copy = copy
+        self.cancelLabel = cancelLabel
+        self.confirmLabel = confirmLabel
+        self.resultToast = resultToast
+    }
 }
 
 private enum SettingsDemoTone: Equatable {
@@ -121,6 +317,8 @@ private struct SettingsDemoRouteState {
     let infoItems: [SettingsDemoInfoItem]
     let codeLines: [String]
     let actions: [SettingsDemoAction]
+    let subPanels: [SettingsDemoSubPanel]
+    let trailingAction: SettingsDemoAction?
 
     init(route: String) {
         let normalizedRoute = route.isEmpty ? "settings-general" : route
@@ -191,7 +389,9 @@ private struct SettingsDemoRouteState {
         sourceListMode: SettingsDemoSourceListMode = .plain,
         infoItems: [SettingsDemoInfoItem] = [],
         codeLines: [String] = [],
-        actions: [SettingsDemoAction] = []
+        actions: [SettingsDemoAction] = [],
+        subPanels: [SettingsDemoSubPanel] = [],
+        trailingAction: SettingsDemoAction? = nil
     ) {
         self.route = route
         self.title = title
@@ -210,6 +410,8 @@ private struct SettingsDemoRouteState {
         self.infoItems = infoItems
         self.codeLines = codeLines
         self.actions = actions
+        self.subPanels = subPanels
+        self.trailingAction = trailingAction
     }
 
     private static func settingsGeneral(route: String) -> Self {
@@ -221,26 +423,52 @@ private struct SettingsDemoRouteState {
             status: "SettingsShell",
             sections: [
                 SettingsDemoSection(title: "基础偏好", rows: [
-                    row(.palette, "App 主题", "跟随系统"),
-                    row(.globe, "语言", "简体中文"),
-                    row(.home, "启动时打开", "书架")
+                    segmentRow(.palette, "App主题", "跟随系统", ["跟随系统", "浅色", "深色"]),
+                    selectRow(.globe, "语言", "简体中文", ["简体中文", "繁體中文", "English"]),
+                    selectRow(.home, "启动时打开", "书架", ["书架", "发现", "RSS", "设置"])
                 ]),
                 SettingsDemoSection(title: "行为与反馈", rows: [
                     switchRow(.refresh, "自动检查更新", enabled: true),
                     switchRow(.top, "点击当前底栏回顶部", enabled: true),
                     switchRow(.motion, "减少动态效果", enabled: true),
                     row(.bug, "崩溃日志", "已开启", tone: .good),
-                    row(.play, "动画效果", "标准"),
-                    row(.trash, "缓存清理", "清理缓存", tone: .danger)
+                    selectRow(.play, "动画效果", "标准", ["减少", "标准", "增强"]),
+                    actionRow(.trash, "缓存清理", "清理缓存", tone: .danger, confirm: SettingsDemoConfirm(
+                        title: "清理缓存？",
+                        copy: "将清除封面、章节和临时文件缓存，不会删除书籍与阅读进度。",
+                        confirmLabel: "确认清理",
+                        resultToast: "已清理 1.28 GB 缓存"
+                    ))
                 ]),
                 SettingsDemoSection(title: "系统权限", rows: [
-                    row(.folder, "文件访问", "已授权", tone: .good),
-                    row(.bell, "通知权限", "未授权", tone: .warn),
-                    row(.battery, "电池优化", "受系统管理", tone: .info)
+                    actionRow(.folder, "文件访问", "已授权", actionLabel: "去设置", tone: .good, confirm: SettingsDemoConfirm(
+                        title: "打开文件访问设置？",
+                        copy: "将跳转到系统设置中的文件访问权限，用于管理本地文件和媒体访问。",
+                        confirmLabel: "去设置"
+                    )),
+                    actionRow(.bell, "通知权限", "未授权", actionLabel: "去设置", tone: .warn, confirm: SettingsDemoConfirm(
+                        title: "打开通知权限设置？",
+                        copy: "将跳转到系统设置中的通知权限，用于开启或关闭阅读提醒。",
+                        confirmLabel: "去设置"
+                    )),
+                    actionRow(.battery, "电池优化", "受系统管理", actionLabel: "去设置", tone: .info, confirm: SettingsDemoConfirm(
+                        title: "打开电池优化设置？",
+                        copy: "将跳转到系统设置中的电池优化页面，用于管理后台运行策略。",
+                        confirmLabel: "去设置"
+                    ))
                 ])
             ],
             actions: [
-                SettingsDemoAction(icon: .refresh, title: "恢复默认", tone: .danger)
+                SettingsDemoAction(
+                    icon: .refresh,
+                    title: "恢复默认",
+                    tone: .danger,
+                    confirm: SettingsDemoConfirm(
+                        title: "恢复通用设置？",
+                        copy: "恢复后将重置 App 主题、语言、启动页面和行为偏好。",
+                        confirmLabel: "确认恢复"
+                    )
+                )
             ]
         )
     }
@@ -254,26 +482,35 @@ private struct SettingsDemoRouteState {
             status: "route state",
             sections: [
                 SettingsDemoSection(title: "书架", rows: [
-                    row(.grid, "默认展示", "封面"),
-                    row(.columns, "封面列数", "3 列"),
-                    row(.folder, "默认分组", "全部"),
+                    segmentRow(.grid, "默认展示", "封面", ["封面", "列表"]),
+                    stepperRow(.columns, "封面列数", "3列"),
+                    selectRow(.folder, "默认分组", "全部", ["全部", "长篇追读", "资料", "未分组"]),
                     switchRow(.badge, "显示更新标记", enabled: true)
                 ]),
                 SettingsDemoSection(title: "排序与筛选", rows: [
-                    row(.sort, "书架排序", "最近更新"),
-                    row(.list, "展示范围", "全部"),
-                    row(.refresh, "更新状态", "不限")
+                    selectRow(.sort, "书架排序", "最近更新", ["最近更新", "最近阅读", "书名", "作者"]),
+                    selectRow(.list, "展示范围", "全部", ["全部", "追更", "本地书", "未读", "已完结", "更新失败"]),
+                    selectRow(.refresh, "更新状态", "不限", ["不限", "有更新", "更新失败"])
                 ]),
                 SettingsDemoSection(title: "搜索", rows: [
-                    row(.search, "搜索范围", "全局"),
-                    row(.sort, "结果排序", "相关度"),
+                    selectRow(.search, "搜索范围", "全局", ["当前分组", "书架", "全局"]),
+                    selectRow(.sort, "结果排序", "相关度", ["相关度", "最近阅读", "最近更新"]),
                     switchRow(.people, "合并同名同作者", enabled: true),
                     switchRow(.clock, "搜索历史", enabled: true),
-                    row(.list, "搜索历史数量", "20 条")
+                    selectRow(.list, "搜索历史数量", "20条", ["10条", "20条", "50条"])
                 ])
             ],
             actions: [
-                SettingsDemoAction(icon: .trash, title: "清空搜索历史", tone: .danger)
+                SettingsDemoAction(
+                    icon: .trash,
+                    title: "清空搜索历史",
+                    tone: .danger,
+                    confirm: SettingsDemoConfirm(
+                        title: "清空搜索历史？",
+                        copy: "清空后无法恢复，已保存的搜索关键词会被移除。",
+                        confirmLabel: "确认清空"
+                    )
+                )
             ]
         )
     }
@@ -303,18 +540,13 @@ private struct SettingsDemoRouteState {
             subtitle: "WebDAV 配置、备份记录和恢复入口",
             icon: .sync,
             status: "6 records",
-            metrics: [
-                SettingsDemoMetric(icon: .cloud, value: "12.8 MB", label: "最新备份"),
-                SettingsDemoMetric(icon: .clock, value: "08:00", label: "自动备份"),
-                SettingsDemoMetric(icon: .bookshelf, value: "128", label: "书架书籍")
-            ],
             sections: [
                 webdavSection(title: "WebDAV 配置"),
                 SettingsDemoSection(title: "恢复数据", rows: backupRows)
             ],
             actions: [
-                SettingsDemoAction(icon: .refresh, title: "测试网络"),
-                SettingsDemoAction(icon: .check, title: "保存配置")
+                SettingsDemoAction(icon: .refresh, title: "测试网络连通性", confirm: webdavTestConfirm),
+                SettingsDemoAction(icon: .check, title: "保存配置", confirm: webdavSaveConfirm)
             ]
         )
     }
@@ -330,8 +562,8 @@ private struct SettingsDemoRouteState {
                 webdavSection(title: "连接信息")
             ],
             actions: [
-                SettingsDemoAction(icon: .refresh, title: "测试网络"),
-                SettingsDemoAction(icon: .check, title: "保存配置")
+                SettingsDemoAction(icon: .refresh, title: "测试网络连通性", confirm: webdavTestConfirm),
+                SettingsDemoAction(icon: .check, title: "保存配置", confirm: webdavSaveConfirm)
             ]
         )
     }
@@ -451,12 +683,21 @@ private struct SettingsDemoRouteState {
             subtitle: "搜索、筛选、启停、检测和批量入口",
             status: "12 个书源",
             metrics: sourceMetrics,
-            searchPlaceholder: "搜索书源名称或域名",
-            chipRows: sourceFilterRows,
             sourceRows: sourceItems,
             actions: [
-                SettingsDemoAction(icon: .list, title: "批量管理"),
-                SettingsDemoAction(icon: .add, title: "新增书源")
+                SettingsDemoAction(icon: .list, title: "批量管理", route: "source-batch"),
+                SettingsDemoAction(icon: .add, title: "新增书源", route: "source-import-options")
+            ],
+            subPanels: [
+                SettingsDemoSubPanel(title: "SourceEditForm · 新增书源", rows: [
+                    ("书源名称", "测试书源"),
+                    ("域名", "test.example"),
+                    ("分组", "测试书源")
+                ], action: "保存"),
+                SettingsDemoSubPanel(title: "LogPanel · 错误日志", rows: [
+                    ("ERROR", "笔趣阁目录解析失败，返回字段缺失。"),
+                    ("WARN", "本地导入源尚未检测，可手动点击检测。")
+                ])
             ]
         )
     }
@@ -464,19 +705,15 @@ private struct SettingsDemoRouteState {
     private static func sourceImportOptions(route: String) -> Self {
         sourceState(
             route: route,
-            title: "添加书源",
+            title: "书源管理",
             subtitle: "网络、本地、剪贴板或手动新建",
             status: "bottom sheet",
-            sections: [
-                SettingsDemoSection(title: "添加方式", rows: [
-                    row(.cloud, "网络导入", "从 URL 拉取书源包", detail: "预览"),
-                    row(.folder, "本地导入", "选择本地 JSON 或 TXT 文件", detail: "预览"),
-                    row(.file, "剪贴板导入", "解析剪贴板中的书源内容", detail: "预览"),
-                    row(.edit, "手动新建", "进入空白书源编辑页", detail: "编辑")
-                ])
-            ],
+            presentation: .sourceImportSheet,
+            metrics: sourceMetrics,
+            sourceRows: sourceItems,
             actions: [
-                SettingsDemoAction(icon: .close, title: "取消")
+                SettingsDemoAction(icon: .list, title: "批量管理", route: "source-batch"),
+                SettingsDemoAction(icon: .add, title: "新增书源", route: "source-import-options")
             ]
         )
     }
@@ -512,16 +749,14 @@ private struct SettingsDemoRouteState {
             title: "已选 3 个",
             subtitle: "批量启用、禁用、检测、分组或删除",
             status: "batch",
-            searchPlaceholder: "搜索书源名称或域名",
-            chipRows: sourceFilterRows,
             sourceRows: sourceItems,
             sourceListMode: .selection,
             actions: [
                 SettingsDemoAction(icon: .check, title: "启用"),
                 SettingsDemoAction(icon: .close, title: "禁用"),
                 SettingsDemoAction(icon: .activity, title: "检测"),
-                SettingsDemoAction(icon: .folder, title: "分组"),
-                SettingsDemoAction(icon: .trash, title: "删除", tone: .danger)
+                SettingsDemoAction(icon: .folder, title: "分组", route: "source-groups"),
+                SettingsDemoAction(icon: .trash, title: "删除", tone: .danger, route: "source-delete-confirm")
             ]
         )
     }
@@ -573,9 +808,9 @@ private struct SettingsDemoRouteState {
                 SettingsDemoInfoItem(label: "更新时间", value: "今天 10:12")
             ],
             actions: [
-                SettingsDemoAction(icon: .activity, title: "检测此源"),
-                SettingsDemoAction(icon: .edit, title: "编辑规则"),
-                SettingsDemoAction(icon: .trash, title: "删除", tone: .danger)
+                SettingsDemoAction(icon: .activity, title: "检测此源", route: "source-detect"),
+                SettingsDemoAction(icon: .edit, title: "编辑规则", route: "source-rule-edit"),
+                SettingsDemoAction(icon: .trash, title: "删除", tone: .danger, route: "source-delete-confirm")
             ]
         )
     }
@@ -602,7 +837,7 @@ private struct SettingsDemoRouteState {
             ],
             actions: [
                 SettingsDemoAction(icon: .refresh, title: "重新检测"),
-                SettingsDemoAction(icon: .edit, title: "编辑正文规则")
+                SettingsDemoAction(icon: .edit, title: "编辑正文规则", route: "source-rule-edit")
             ]
         )
     }
@@ -642,7 +877,7 @@ private struct SettingsDemoRouteState {
             ],
             actions: [
                 SettingsDemoAction(icon: .check, title: "保存规则"),
-                SettingsDemoAction(icon: .bug, title: "调测当前模块")
+                SettingsDemoAction(icon: .bug, title: "调测当前模块", route: "source-debug")
             ]
         )
     }
@@ -744,7 +979,7 @@ private struct SettingsDemoRouteState {
             ],
             actions: [
                 SettingsDemoAction(icon: .refresh, title: "重新调测"),
-                SettingsDemoAction(icon: .edit, title: "回到编辑")
+                SettingsDemoAction(icon: .edit, title: "回到编辑", route: "source-rule-edit")
             ]
         )
     }
@@ -773,8 +1008,8 @@ private struct SettingsDemoRouteState {
             ],
             actions: [
                 SettingsDemoAction(icon: .file, title: "复制日志"),
-                SettingsDemoAction(icon: .bug, title: "回到解析"),
-                SettingsDemoAction(icon: .edit, title: "回到编辑")
+                SettingsDemoAction(icon: .bug, title: "回到解析", route: "source-debug"),
+                SettingsDemoAction(icon: .edit, title: "回到编辑", route: "source-rule-edit")
             ]
         )
     }
@@ -799,7 +1034,7 @@ private struct SettingsDemoRouteState {
             ],
             actions: [
                 SettingsDemoAction(icon: .file, title: "复制全部"),
-                SettingsDemoAction(icon: .activity, title: "重新检测异常")
+                SettingsDemoAction(icon: .activity, title: "重新检测异常", route: "source-detect")
             ]
         )
     }
@@ -835,7 +1070,7 @@ private struct SettingsDemoRouteState {
             ],
             actions: [
                 SettingsDemoAction(icon: .refresh, title: "重新请求"),
-                SettingsDemoAction(icon: .bug, title: "回到调测")
+                SettingsDemoAction(icon: .bug, title: "回到调测", route: "source-debug")
             ]
         )
     }
@@ -937,7 +1172,8 @@ private struct SettingsDemoRouteState {
         sourceListMode: SettingsDemoSourceListMode = .plain,
         infoItems: [SettingsDemoInfoItem] = [],
         codeLines: [String] = [],
-        actions: [SettingsDemoAction] = []
+        actions: [SettingsDemoAction] = [],
+        subPanels: [SettingsDemoSubPanel] = []
     ) -> Self {
         Self(
             route: route,
@@ -956,7 +1192,8 @@ private struct SettingsDemoRouteState {
             sourceListMode: sourceListMode,
             infoItems: infoItems,
             codeLines: codeLines,
-            actions: actions
+            actions: actions,
+            subPanels: subPanels
         )
     }
 
@@ -970,13 +1207,60 @@ private struct SettingsDemoRouteState {
         SettingsDemoRow(icon: icon, title: title, subtitle: subtitle, detail: detail, tone: tone)
     }
 
+    private static func segmentRow(
+        _ icon: ReaderAssetIcon,
+        _ title: String,
+        _ value: String,
+        _ options: [String]
+    ) -> SettingsDemoRow {
+        SettingsDemoRow(icon: icon, title: title, subtitle: nil, detail: value, tone: .normal, style: .segment, options: options)
+    }
+
+    private static func selectRow(
+        _ icon: ReaderAssetIcon,
+        _ title: String,
+        _ value: String,
+        _ options: [String]
+    ) -> SettingsDemoRow {
+        SettingsDemoRow(icon: icon, title: title, subtitle: nil, detail: value, tone: .normal, style: .select, options: options)
+    }
+
+    private static func stepperRow(
+        _ icon: ReaderAssetIcon,
+        _ title: String,
+        _ value: String
+    ) -> SettingsDemoRow {
+        SettingsDemoRow(icon: icon, title: title, subtitle: nil, detail: value, tone: .normal, style: .stepper)
+    }
+
+    private static func actionRow(
+        _ icon: ReaderAssetIcon,
+        _ title: String,
+        _ subtitle: String? = nil,
+        actionLabel: String? = nil,
+        tone: SettingsDemoTone = .normal,
+        confirm: SettingsDemoConfirm? = nil,
+        route: String? = nil
+    ) -> SettingsDemoRow {
+        SettingsDemoRow(
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
+            detail: actionLabel,
+            tone: tone,
+            style: .action,
+            route: route,
+            confirm: confirm
+        )
+    }
+
     private static func switchRow(
         _ icon: ReaderAssetIcon,
         _ title: String,
         subtitle: String? = nil,
         enabled: Bool
     ) -> SettingsDemoRow {
-        SettingsDemoRow(icon: icon, title: title, subtitle: subtitle, detail: enabled ? "开" : "关", tone: enabled ? .good : .muted, showsSwitch: true, switchOn: enabled)
+        SettingsDemoRow(icon: icon, title: title, subtitle: subtitle, detail: enabled ? "开" : "关", tone: enabled ? .good : .muted, style: .normal, showsSwitch: true, switchOn: enabled)
     }
 
     private static func progressRow(
@@ -1021,6 +1305,18 @@ private struct SettingsDemoRouteState {
         row(.clock, "阅读进度快照", "本地 · 2026-06-20 09:40 · 阅读进度", detail: "进度", tone: .muted)
     ]
 
+    private static let webdavTestConfirm = SettingsDemoConfirm(
+        title: "测试网络连通性？",
+        copy: "将使用当前服务器地址和账号发起一次连接验证。",
+        confirmLabel: "开始测试"
+    )
+
+    private static let webdavSaveConfirm = SettingsDemoConfirm(
+        title: "保存 WebDAV 配置？",
+        copy: "保存后，远程恢复会从该 WebDAV 目录读取备份数据。",
+        confirmLabel: "保存"
+    )
+
     private static let sourceMetrics: [SettingsDemoMetric] = [
         SettingsDemoMetric(icon: .source, value: "12", label: "个书源"),
         SettingsDemoMetric(icon: .check, value: "8", label: "个启用"),
@@ -1033,14 +1329,30 @@ private struct SettingsDemoRouteState {
         SettingsDemoChipRowData(title: "分组", chips: ["全部分组", "玄幻书源", "起点导入", "测试书源"], selected: "全部分组")
     ]
 
-    private static let sourceItems: [SettingsDemoSourceRow] = [
+    static let sourceItems: [SettingsDemoSourceRow] = [
         sourceRow("起点中文网", "qidian.com · 起点导入", "可用", .good, true, false),
         sourceRow("笔趣阁", "biquge.example · 玄幻书源", "异常", .warn, true, true),
         sourceRow("本地导入源", "本地文件导入 · 自定义", "未检测", .muted, false, false),
         sourceRow("测试书源", "test.example · 测试书源", "可用", .good, true, false),
+        sourceRow("轻小说文库", "lightnovel.example · 测试书源", "可用", .good, true, false),
         sourceRow("旧规则源", "old.example · 自定义", "异常", .warn, true, true),
+        sourceRow("飞卢小说网", "faloo.com · 玄幻书源", "可用", .good, true, false),
+        sourceRow("晋江文学城", "jjwx.example · 起点导入", "可用", .good, true, false),
+        sourceRow("纵横中文网", "zongheng.com · 玄幻书源", "未检测", .muted, false, false),
+        sourceRow("豆瓣阅读", "read.douban.com · 自定义", "可用", .good, true, false),
         sourceRow("失效示例源", "dead.example · 测试书源", "异常", .warn, false, true)
     ]
+
+    var defaultValues: [String: String] {
+        sections.flatMap(\.rows).reduce(into: [:]) { values, row in
+            guard !row.options.isEmpty, let detail = row.detail else { return }
+            values[SettingsDemoRouteState.optionKey(route: route, title: row.title)] = detail
+        }
+    }
+
+    static func optionKey(route: String, title: String) -> String {
+        "\(route):\(title.replacingOccurrences(of: " ", with: "-"))"
+    }
 }
 
 private struct SettingsDemoMetric: Identifiable {
@@ -1071,6 +1383,20 @@ private struct SettingsDemoChipRowData: Identifiable {
     }
 }
 
+private struct SettingsDemoSubPanel: Identifiable {
+    let id: String
+    let title: String
+    let rows: [(label: String, value: String)]
+    let action: String?
+
+    init(title: String, rows: [(String, String)], action: String? = nil) {
+        self.id = title
+        self.title = title
+        self.rows = rows.map { ($0.0, $0.1) }
+        self.action = action
+    }
+}
+
 private struct SettingsDemoSection: Identifiable {
     let id: String
     let title: String
@@ -1090,6 +1416,10 @@ private struct SettingsDemoRow: Identifiable {
     let subtitle: String?
     let detail: String?
     let tone: SettingsDemoTone
+    let style: SettingsDemoRowStyle
+    let options: [String]
+    let route: String?
+    let confirm: SettingsDemoConfirm?
     let showsSwitch: Bool
     let switchOn: Bool
     let progress: Double?
@@ -1100,6 +1430,10 @@ private struct SettingsDemoRow: Identifiable {
         subtitle: String?,
         detail: String?,
         tone: SettingsDemoTone,
+        style: SettingsDemoRowStyle = .normal,
+        options: [String] = [],
+        route: String? = nil,
+        confirm: SettingsDemoConfirm? = nil,
         showsSwitch: Bool = false,
         switchOn: Bool = false,
         progress: Double? = nil
@@ -1110,6 +1444,10 @@ private struct SettingsDemoRow: Identifiable {
         self.subtitle = subtitle
         self.detail = detail
         self.tone = tone
+        self.style = style
+        self.options = options
+        self.route = route
+        self.confirm = confirm
         self.showsSwitch = showsSwitch
         self.switchOn = switchOn
         self.progress = progress
@@ -1125,6 +1463,7 @@ private struct SettingsDemoSourceRow: Identifiable {
     let id: String
     let title: String
     let meta: String
+    let group: String
     let status: String
     let tone: SettingsDemoTone
     let enabled: Bool
@@ -1134,10 +1473,19 @@ private struct SettingsDemoSourceRow: Identifiable {
         self.id = "\(title)-\(meta)"
         self.title = title
         self.meta = meta
+        self.group = SettingsDemoSourceRow.group(from: meta)
         self.status = status
         self.tone = tone
         self.enabled = enabled
         self.selected = selected
+    }
+
+    private static func group(from meta: String) -> String {
+        meta.components(separatedBy: " · ").last ?? ""
+    }
+
+    func replacingEnabled(_ enabled: Bool) -> SettingsDemoSourceRow {
+        SettingsDemoSourceRow(title: title, meta: meta, status: status, tone: tone, enabled: enabled, selected: selected)
     }
 }
 
@@ -1158,12 +1506,22 @@ private struct SettingsDemoAction: Identifiable {
     let icon: ReaderAssetIcon
     let title: String
     let tone: SettingsDemoTone
+    let route: String?
+    let confirm: SettingsDemoConfirm?
 
-    init(icon: ReaderAssetIcon, title: String, tone: SettingsDemoTone = .normal) {
+    init(
+        icon: ReaderAssetIcon,
+        title: String,
+        tone: SettingsDemoTone = .normal,
+        route: String? = nil,
+        confirm: SettingsDemoConfirm? = nil
+    ) {
         self.id = title
         self.icon = icon
         self.title = title
         self.tone = tone
+        self.route = route
+        self.confirm = confirm
     }
 }
 
@@ -1273,7 +1631,11 @@ private struct SettingsDemoChipRow: View {
 }
 
 private struct SettingsDemoSectionView: View {
+    let route: String
     let section: SettingsDemoSection
+    @Binding var values: [String: String]
+    @Binding var expandedOptionKey: String?
+    let onConfirm: (SettingsDemoConfirm?) -> Void
 
     var body: some View {
         ReaderCard {
@@ -1284,7 +1646,13 @@ private struct SettingsDemoSectionView: View {
                     .lineLimit(1)
 
                 ForEach(section.rows) { row in
-                    SettingsDemoRowView(row: row)
+                    SettingsDemoRowView(
+                        route: route,
+                        row: row,
+                        values: $values,
+                        expandedOptionKey: $expandedOptionKey,
+                        onConfirm: onConfirm
+                    )
                 }
             }
         }
@@ -1292,9 +1660,131 @@ private struct SettingsDemoSectionView: View {
 }
 
 private struct SettingsDemoRowView: View {
+    let route: String
     let row: SettingsDemoRow
+    @Binding var values: [String: String]
+    @Binding var expandedOptionKey: String?
+    let onConfirm: (SettingsDemoConfirm?) -> Void
+
+    private var optionKey: String {
+        SettingsDemoRouteState.optionKey(route: route, title: row.title)
+    }
+
+    private var currentValue: String? {
+        row.options.isEmpty ? row.detail : values[optionKey] ?? row.detail
+    }
+
+    private var optionOpen: Bool {
+        expandedOptionKey == optionKey
+    }
 
     var body: some View {
+        VStack(spacing: 0) {
+            rowBody
+            if optionOpen, row.style == .select {
+                SettingsDemoOptionDropdown(
+                    options: row.options,
+                    selected: currentValue ?? "",
+                    onSelect: { value in
+                        values[optionKey] = value
+                        withAnimation(.easeInOut(duration: 0.14)) {
+                            expandedOptionKey = nil
+                        }
+                    }
+                )
+                .padding(.leading, ReaderDesignTokens.settingsRowIconColumn + ReaderDesignTokens.settingsRowHorizontalPadding + ReaderDesignTokens.settingsRowGap)
+                .padding(.trailing, ReaderDesignTokens.settingsRowHorizontalPadding)
+                .padding(.bottom, 8)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(rowBackground)
+        )
+    }
+
+    @ViewBuilder
+    private var rowBody: some View {
+        switch row.style {
+        case .segment:
+            baseRow {
+                SettingsDemoSegment(options: row.options, selected: currentValue ?? "") { value in
+                    values[optionKey] = value
+                }
+            }
+        case .stepper:
+            baseRow {
+                SettingsDemoStepper(value: currentValue ?? row.detail ?? "")
+            }
+        case .select:
+            Button {
+                withAnimation(.easeInOut(duration: 0.14)) {
+                    expandedOptionKey = optionOpen ? nil : optionKey
+                }
+            } label: {
+                baseRow {
+                    HStack(spacing: 6) {
+                        Text(currentValue ?? "")
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        ReaderIcon(.chevron, size: 14, accessibilityLabel: optionOpen ? "收起" : "展开")
+                            .rotationEffect(.degrees(optionOpen ? -90 : 90))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        case .action:
+            if let route = row.route {
+                NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
+                    baseRow {
+                        actionAccessory
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    onConfirm(row.confirm)
+                } label: {
+                    baseRow {
+                        actionAccessory
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        case .input, .normal:
+            baseRow {
+                if row.showsSwitch {
+                    SettingsDemoSwitch(isOn: row.switchOn)
+                } else if let detail = currentValue {
+                    SettingsDemoBadge(text: detail, tone: row.tone)
+                } else {
+                    ReaderIcon(.chevron, size: 14)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var actionAccessory: some View {
+        HStack(spacing: 6) {
+            if let detail = row.detail {
+                Text(detail)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .foregroundColor(row.tone.foreground)
+                    .lineLimit(1)
+            }
+            ReaderIcon(.chevron, size: 14)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var rowBackground: SwiftUI.Color {
+        ReaderDesignTokens.Color.controlBackground.opacity(row.tone == .danger ? 0.92 : (optionOpen ? 0.76 : 0.58))
+    }
+
+    private func baseRow<Accessory: View>(@ViewBuilder accessory: () -> Accessory) -> some View {
         HStack(spacing: ReaderDesignTokens.settingsRowGap) {
             ReaderIcon(row.icon, size: 18, accessibilityLabel: row.title)
                 .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
@@ -1319,20 +1809,103 @@ private struct SettingsDemoRowView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if row.showsSwitch {
-                SettingsDemoSwitch(isOn: row.switchOn)
-            } else if let detail = row.detail {
-                SettingsDemoBadge(text: detail, tone: row.tone)
-            } else {
-                ReaderIcon(.chevron, size: 14)
-                    .foregroundStyle(.secondary)
-            }
+            accessory()
         }
         .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
-        .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
+        .frame(minHeight: row.style == .input ? ReaderDesignTokens.settingsInputRowMinHeight : ReaderDesignTokens.settingsRowMinHeight)
+    }
+}
+
+private struct SettingsDemoSegment: View {
+    let options: [String]
+    let selected: String
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(options, id: \.self) { option in
+                Button {
+                    onSelect(option)
+                } label: {
+                    Text(option)
+                        .font(.system(size: 10, weight: .heavy))
+                        .lineLimit(1)
+                        .foregroundColor(option == selected ? .white : ReaderDesignTokens.Color.primaryDark)
+                        .padding(.horizontal, 7)
+                        .frame(minHeight: 24)
+                        .background(
+                            Capsule()
+                                .fill(option == selected ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.chipBackground.opacity(0.72))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: 142, alignment: .trailing)
+    }
+}
+
+private struct SettingsDemoStepper: View {
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("-")
+            Text(value)
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .frame(minWidth: 30)
+            Text("+")
+        }
+        .font(.system(size: 12, weight: .heavy))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .frame(minHeight: 24)
+        .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72)))
+    }
+}
+
+private struct SettingsDemoOptionDropdown: View {
+    let options: [String]
+    let selected: String
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ForEach(options, id: \.self) { option in
+                Button {
+                    onSelect(option)
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(option)
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        if option == selected {
+                            ReaderIcon(.check, size: 13, accessibilityLabel: "当前")
+                                .foregroundColor(ReaderDesignTokens.Color.primary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .padding(.horizontal, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
+                            .fill(option == selected ? ReaderDesignTokens.Color.primary.opacity(0.10) : ReaderDesignTokens.Color.surface.opacity(0.78))
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                .fill(ReaderDesignTokens.Color.controlBackground.opacity(row.tone == .danger ? 0.92 : 0.58))
+                .fill(ReaderDesignTokens.Color.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+                .shadow(color: SwiftUI.Color(red: 82/255, green: 66/255, blue: 48/255, opacity: 0.12), radius: 12, x: 0, y: 8)
         )
     }
 }
@@ -1382,6 +1955,17 @@ private struct SettingsDemoSourceRowView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             SettingsDemoBadge(text: row.status, tone: row.tone)
+            if mode == .plain {
+                NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-detect")) {
+                    Text("检测")
+                        .font(.system(size: 11, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .frame(width: ReaderDesignTokens.sourceRowActionWidth)
+                        .frame(minHeight: 28)
+                        .background(Capsule().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+                }
+                .buttonStyle(.plain)
+            }
             SettingsDemoSwitch(isOn: row.enabled)
         }
         .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
@@ -1390,6 +1974,177 @@ private struct SettingsDemoSourceRowView: View {
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                 .fill(row.selected ? ReaderDesignTokens.Color.primary.opacity(0.10) : ReaderDesignTokens.Color.controlBackground.opacity(0.58))
         )
+    }
+}
+
+private struct SettingsDemoSourceMoreMenu: View {
+    private let items: [(String, String)] = [
+        ("网络导入", "source-import-preview"),
+        ("本地导入", "source-import-preview"),
+        ("新建书源", "source-rule-edit"),
+        ("批量管理", "source-batch"),
+        ("分组管理", "source-groups"),
+        ("校验所选", "source-batch"),
+        ("错误日志", "source-logs")
+    ]
+
+    var body: some View {
+        ReaderCard {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], spacing: 8) {
+                ForEach(items, id: \.0) { item in
+                    NavigationLink(destination: SettingsDemoShellView(demoRoute: item.1)) {
+                        Text(item.0)
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                            .frame(maxWidth: .infinity, minHeight: 34)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
+                                    .fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct SettingsDemoSourceBatchHeader: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
+                Text("取消")
+            }
+            .buttonStyle(.plain)
+
+            Text("已选 3 个")
+                .font(.system(size: 15, weight: .heavy))
+                .frame(maxWidth: .infinity)
+
+            Button {} label: {
+                Text("全选")
+            }
+            .buttonStyle(.plain)
+        }
+        .font(.system(size: 12, weight: .heavy))
+        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 42)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct SettingsDemoSourceImportSheet: View {
+    private let items: [(ReaderAssetIcon, String, String, String)] = [
+        (.cloud, "网络导入", "从 URL 拉取书源包", "source-import-preview"),
+        (.folder, "本地导入", "选择本地 JSON 或 TXT 文件", "source-import-preview"),
+        (.file, "剪贴板导入", "解析剪贴板中的书源内容", "source-import-preview"),
+        (.edit, "手动新建", "进入空白书源编辑页", "source-rule-edit")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Capsule()
+                .fill(ReaderDesignTokens.Color.mainNavBorder)
+                .frame(width: 44, height: 4)
+                .frame(maxWidth: .infinity)
+            Text("添加书源")
+                .font(.system(size: 17, weight: .heavy))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            ForEach(items, id: \.1) { item in
+                NavigationLink(destination: SettingsDemoShellView(demoRoute: item.3)) {
+                    HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                        ReaderIcon(item.0, size: 18, accessibilityLabel: item.1)
+                            .frame(width: ReaderDesignTokens.settingsRowIconColumn)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.1)
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            Text(item.2)
+                                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        ReaderIcon(.chevron, size: 14)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                            .fill(ReaderDesignTokens.Color.controlBackground.opacity(0.72))
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
+                Text("取消")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                            .fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72))
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 20)
+                .fill(ReaderDesignTokens.Color.surface)
+                .overlay(
+                    UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 20)
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+                .shadow(color: SwiftUI.Color.black.opacity(0.16), radius: 18, x: 0, y: -8)
+        )
+    }
+}
+
+private struct SettingsDemoSubPanelsView: View {
+    let panels: [SettingsDemoSubPanel]
+
+    var body: some View {
+        ForEach(panels) { panel in
+            ReaderCard {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(panel.title)
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    ForEach(panel.rows, id: \.label) { row in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(row.label)
+                                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 54, alignment: .leading)
+                            Text(row.value)
+                                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .semibold))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    if let action = panel.action {
+                        Button {} label: {
+                            Text(action)
+                                .font(.system(size: 12, weight: .heavy))
+                                .foregroundColor(.white)
+                                .frame(minWidth: 74, minHeight: 32)
+                                .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1458,19 +2213,30 @@ private struct SettingsDemoDeleteDialog: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(4)
 
-                SettingsDemoRowView(
-                    row: SettingsDemoRow(
-                        icon: .log,
-                        title: "同时清除相关检测日志",
-                        subtitle: nil,
-                        detail: "可选",
-                        tone: .warn
-                    )
+                HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                    Image(systemName: "square")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(SettingsDemoTone.warn.foreground)
+                    Text("同时清除相关检测日志")
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+                .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                        .fill(ReaderDesignTokens.Color.controlBackground.opacity(0.72))
                 )
 
                 HStack(spacing: 10) {
-                    SettingsDemoActionButton(action: SettingsDemoAction(icon: .close, title: "取消"))
-                    SettingsDemoActionButton(action: SettingsDemoAction(icon: .trash, title: "删除", tone: .danger))
+                    NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-batch")) {
+                        SettingsDemoActionLabel(action: SettingsDemoAction(icon: .close, title: "取消"))
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
+                        SettingsDemoActionLabel(action: SettingsDemoAction(icon: .trash, title: "删除", tone: .danger))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -1479,19 +2245,20 @@ private struct SettingsDemoDeleteDialog: View {
 
 private struct SettingsDemoBottomActions: View {
     let actions: [SettingsDemoAction]
+    let onConfirm: (SettingsDemoConfirm?) -> Void
 
     var body: some View {
         if actions.count == 2, let first = actions.first, let second = actions.dropFirst().first {
             BottomFixedActionRow {
-                SettingsDemoActionButton(action: first)
+                SettingsDemoActionButton(action: first, onConfirm: onConfirm)
             } trailing: {
-                SettingsDemoActionButton(action: second)
+                SettingsDemoActionButton(action: second, onConfirm: onConfirm)
             }
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
                     ForEach(actions) { action in
-                        SettingsDemoActionButton(action: action)
+                        SettingsDemoActionButton(action: action, onConfirm: onConfirm)
                             .frame(minWidth: 86, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                     }
                 }
@@ -1514,24 +2281,113 @@ private struct SettingsDemoBottomActions: View {
 
 private struct SettingsDemoActionButton: View {
     let action: SettingsDemoAction
+    let onConfirm: (SettingsDemoConfirm?) -> Void
 
     var body: some View {
-        Button {} label: {
-            HStack(spacing: 6) {
-                ReaderIcon(action.icon, size: 16, accessibilityLabel: action.title)
+        if let route = action.route {
+            NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
+                SettingsDemoActionLabel(action: action)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button {
+                onConfirm(action.confirm)
+            } label: {
+                SettingsDemoActionLabel(action: action)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct SettingsDemoActionLabel: View {
+    let action: SettingsDemoAction
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ReaderIcon(action.icon, size: 16, accessibilityLabel: action.title)
+            Text(action.title)
+                .font(.system(size: 12, weight: .heavy))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+        .foregroundColor(action.tone == .danger ? .white : ReaderDesignTokens.Color.primaryDark)
+        .padding(.horizontal, 10)
+        .background(
+            Capsule()
+                .fill(action.tone == .danger ? SettingsDemoTone.danger.foreground : ReaderDesignTokens.Color.chipBackground)
+        )
+    }
+}
+
+private struct SettingsDemoTopRouteButton: View {
+    let action: SettingsDemoAction
+
+    var body: some View {
+        if let route = action.route {
+            NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
                 Text(action.title)
                     .font(.system(size: 12, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
-            .foregroundColor(action.tone == .danger ? .white : ReaderDesignTokens.Color.primaryDark)
-            .padding(.horizontal, 10)
-            .background(
-                Capsule()
-                    .fill(action.tone == .danger ? SettingsDemoTone.danger.foreground : ReaderDesignTokens.Color.chipBackground)
-            )
+            .buttonStyle(.plain)
+        } else {
+            EmptyView()
         }
-        .buttonStyle(.plain)
+    }
+}
+
+private struct SettingsDemoConfirmDialog: View {
+    let confirm: SettingsDemoConfirm
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(confirm.title)
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                Text(confirm.copy)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(5)
+                HStack(spacing: 10) {
+                    Button(action: onCancel) {
+                        Text(confirm.cancelLabel)
+                            .font(.system(size: 12, weight: .heavy))
+                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                            .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground))
+                    }
+                    .buttonStyle(.plain)
+                    Button(action: onConfirm) {
+                        Text(confirm.confirmLabel)
+                            .font(.system(size: 12, weight: .heavy))
+                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .foregroundColor(.white)
+                            .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct SettingsDemoToast: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(.system(size: 12, weight: .heavy))
+            .foregroundColor(.white)
+            .lineLimit(2)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 36)
+            .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark.opacity(0.92)))
+            .padding(.horizontal, ReaderDesignTokens.cardPadding)
     }
 }
 

@@ -401,10 +401,10 @@ private enum ReaderDemoSessionAction {
 private struct ReaderDemoReadingSurface: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("第 32 章 雨夜")
+            Text(DemoReaderFixture.chapterTitle)
                 .font(ReaderTypography.demoSerif(size: 23, weight: .bold))
                 .lineLimit(1)
-            ForEach(Self.paragraphs, id: \.self) { paragraph in
+            ForEach(DemoReaderFixture.readingText, id: \.self) { paragraph in
                 Text(paragraph)
                     .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.immersiveBodyFontSize))
                     .lineSpacing(ReaderDesignTokens.immersiveBodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1))
@@ -414,12 +414,6 @@ private struct ReaderDemoReadingSurface: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-
-    private static let paragraphs = [
-        "雨声落在旧窗上，像有人隔着长街轻轻敲门。她把书页压平，指尖停在那句被反复标注的旁白上。",
-        "灯塔的光越过雾面，照见远处海堤，也照见每一个被藏起来的名字。",
-        "这一章的节奏比上一章慢，却把所有线索都收束到了同一个夜晚。"
-    ]
 }
 
 private struct ReaderDemoTopBar: View {
@@ -432,16 +426,16 @@ private struct ReaderDemoTopBar: View {
                 .frame(width: backIconButtonSize, height: backIconButtonSize)
                 .background(Circle().fill(ReaderDesignTokens.Color.surface.opacity(0.72)))
             VStack(alignment: .leading, spacing: 2) {
-                Text("灯塔与雾")
+                Text(DemoReaderFixture.title)
                     .font(.system(size: titleFontSize, weight: .heavy))
                     .lineLimit(1)
-                Text("第 32 章 · 38% · \(state.title)")
+                Text("\(DemoReaderFixture.sourceLine) · \(state.title)")
                     .font(.system(size: subtitleFontSize, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("38%")
+            Text(DemoReaderFixture.chapterProgress)
                 .font(.system(size: percentFontSize, weight: .heavy).monospacedDigit())
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .frame(width: percentWidth, height: percentHeight)

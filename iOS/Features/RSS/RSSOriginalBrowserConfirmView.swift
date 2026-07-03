@@ -47,15 +47,14 @@ struct RSSOriginalBrowserConfirmView: View {
     }
 
     private var copyText: String {
-        let target = url?.host ?? url?.absoluteString ?? "当前原文链接"
-        return "将调用系统浏览器打开 \(target)，同时保留 \(sourceTitle) 的 RSS 阅读上下文。"
+        if url == nil {
+            return "当前 RSS 条目没有可交给系统浏览器的 URL。"
+        }
+        return "实际应用中这里会调用系统浏览器打开 github.com/minliny/Reader-UI/releases/latest，同时保留当前 RSS 阅读上下文。"
     }
 
     private var detailText: String {
-        if let url {
-            return "\(title) · \(url.absoluteString)"
-        }
-        return "当前 RSS 条目没有可交给系统浏览器的 URL。"
+        ""
     }
 
     private func confirmOpenAndReturn() {
@@ -98,14 +97,16 @@ private struct RSSBrowserConfirmCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
 
-            Text(detail)
-                .font(.system(size: ReaderDesignTokens.rssBrowserConfirmDetailFontSize))
-                .lineSpacing(ReaderDesignTokens.rssBrowserConfirmDetailFontSize * 0.55)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-                .truncationMode(.middle)
-                .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
+            if !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: ReaderDesignTokens.rssBrowserConfirmDetailFontSize))
+                    .lineSpacing(ReaderDesignTokens.rssBrowserConfirmDetailFontSize * 0.55)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
+            }
         }
         .padding(.vertical, ReaderDesignTokens.rssBrowserConfirmVerticalPadding)
         .padding(.horizontal, ReaderDesignTokens.rssBrowserConfirmHorizontalPadding)

@@ -103,7 +103,8 @@ struct AppShellView: View {
     }
 
     /// Value-route fallback for legacy callers that still push `Route`.
-    /// Full 131-route migration remains deferred by the UI slice matrix.
+    /// Demo route ownership is tracked by `DemoRouteMappings`; this switch keeps
+    /// the native destination bridge for concrete `Route` values.
     @ViewBuilder
     private func destinationView(for route: Route) -> some View {
         switch route {

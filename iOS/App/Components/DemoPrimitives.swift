@@ -423,6 +423,205 @@ struct PillChip: View {
     }
 }
 
+struct DemoFilterOption {
+    let id: String
+    let label: String
+    var icon: ReaderAssetIcon?
+    var isActive: Bool
+    var action: () -> Void
+
+    init(
+        id: String? = nil,
+        label: String,
+        icon: ReaderAssetIcon? = nil,
+        isActive: Bool = false,
+        action: @escaping () -> Void = {}
+    ) {
+        self.id = id ?? label
+        self.label = label
+        self.icon = icon
+        self.isActive = isActive
+        self.action = action
+    }
+}
+
+struct DemoFilterGroup {
+    let title: String
+    let options: [DemoFilterOption]
+}
+
+struct DemoFilterDisclosure: View {
+    let label: String
+    let summary: String
+    var accessibilityLabel: String
+    var applyTitle: String?
+    var onApply: (() -> Void)?
+    let groups: [DemoFilterGroup]
+    @Binding var isOpen: Bool
+
+    init(
+        label: String,
+        summary: String,
+        accessibilityLabel: String? = nil,
+        applyTitle: String? = nil,
+        isOpen: Binding<Bool>,
+        groups: [DemoFilterGroup],
+        onApply: (() -> Void)? = nil
+    ) {
+        self.label = label
+        self.summary = summary
+        self.accessibilityLabel = accessibilityLabel ?? label
+        self.applyTitle = applyTitle
+        self._isOpen = isOpen
+        self.groups = groups
+        self.onApply = onApply
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ReaderDesignTokens.filterControlGap) {
+            HStack(spacing: ReaderDesignTokens.filterControlGap) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        isOpen.toggle()
+                    }
+                } label: {
+                    HStack(spacing: ReaderDesignTokens.filterTriggerGap) {
+                        ReaderIcon(.filter, size: 16, accessibilityLabel: accessibilityLabel)
+                            .frame(width: ReaderDesignTokens.filterTriggerIconColumn)
+                        Text(label)
+                            .font(.system(size: 12, weight: .heavy))
+                            .lineLimit(1)
+                        Text(summary)
+                            .font(.system(size: 11, weight: .heavy))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        ReaderIcon(.chevron, size: 14, accessibilityLabel: isOpen ? "收起" : "展开")
+                            .frame(width: ReaderDesignTokens.filterTriggerChevronColumn)
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isOpen ? -90 : 90))
+                    }
+                    .padding(.horizontal, ReaderDesignTokens.filterTriggerHorizontalPadding)
+                    .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.filterControlMinHeight)
+                    .foregroundColor(SwiftUI.Color(red: 0x3f/255, green: 0x37/255, blue: 0x2f/255))
+                    .background(
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                            .fill(ReaderDesignTokens.Color.surface.opacity(0.90))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                                    .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.92), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(summary)
+
+                if let applyTitle, let onApply {
+                    Button(action: onApply) {
+                        HStack(spacing: 4) {
+                            ReaderIcon(.check, size: 13, accessibilityLabel: applyTitle)
+                            Text(applyTitle)
+                                .font(.system(size: 12, weight: .heavy))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, ReaderDesignTokens.filterTriggerHorizontalPadding)
+                        .frame(minWidth: ReaderDesignTokens.filterApplyMinWidth)
+                        .frame(minHeight: ReaderDesignTokens.filterControlMinHeight)
+                        .foregroundColor(.white)
+                        .background(
+                            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            SwiftUI.Color(red: 0x43/255, green: 0x6f/255, blue: 0x88/255),
+                                            SwiftUI.Color(red: 0x31/255, green: 0x5f/255, blue: 0x78/255)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
+                        .shadow(
+                            color: SwiftUI.Color(red: 49/255, green: 95/255, blue: 120/255, opacity: 0.22),
+                            radius: 7,
+                            x: 0,
+                            y: 7
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(applyTitle)
+                }
+            }
+
+            if isOpen {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.filterMenuGap) {
+                    ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                        VStack(alignment: .leading, spacing: ReaderDesignTokens.filterMenuGroupGap) {
+                            Text(group.title)
+                                .font(.system(size: 11, weight: .heavy))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 68), spacing: ReaderDesignTokens.filterMenuOptionGap)],
+                                alignment: .leading,
+                                spacing: ReaderDesignTokens.filterMenuOptionGap
+                            ) {
+                                ForEach(group.options, id: \.id) { option in
+                                    Button(action: option.action) {
+                                        HStack(spacing: 5) {
+                                            if let icon = option.icon {
+                                                ReaderIcon(icon, size: 13, accessibilityLabel: option.label)
+                                            }
+                                            Text(option.label)
+                                                .font(.system(size: 11, weight: .heavy))
+                                                .lineLimit(1)
+                                        }
+                                        .padding(.horizontal, ReaderDesignTokens.filterTriggerHorizontalPadding)
+                                        .frame(minHeight: ReaderDesignTokens.filterMenuOptionMinHeight)
+                                        .foregroundColor(option.isActive ? .white : SwiftUI.Color(red: 0x3f/255, green: 0x37/255, blue: 0x2f/255))
+                                        .background(
+                                            Capsule()
+                                                .fill(option.isActive ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.chipBackground.opacity(0.64))
+                                                .overlay(
+                                                    Capsule()
+                                                        .stroke(
+                                                            option.isActive ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.mainNavBorder.opacity(0.86),
+                                                            lineWidth: 1
+                                                        )
+                                                )
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(option.label)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(ReaderDesignTokens.filterMenuPadding)
+                .background(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                        .fill(ReaderDesignTokens.Color.surface.opacity(0.98))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                                .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.92), lineWidth: 1)
+                        )
+                        .shadow(
+                            color: SwiftUI.Color(red: 82/255, green: 66/255, blue: 48/255, opacity: 0.18),
+                            radius: 14,
+                            x: 0,
+                            y: 14
+                        )
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .zIndex(8)
+    }
+}
+
 struct DemoIconRow<Accessory: View>: View {
     let icon: ReaderAssetIcon
     let title: String

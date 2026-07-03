@@ -102,6 +102,7 @@ let package = Package(
             "ChapterCacheEntry.swift",
             "BookshelfItem.swift",
             "DemoBookshelfFixture.swift",
+            "DemoReaderFixture.swift",
             "SourceIdentity.swift",
             "BookshelfItemFactory.swift"
         ]

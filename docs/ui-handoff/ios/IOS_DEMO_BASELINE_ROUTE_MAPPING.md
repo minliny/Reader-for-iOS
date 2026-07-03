@@ -205,11 +205,12 @@ node --check scripts/verify_demo_slice_mapping.mjs
 node scripts/verify_demo_slice_mapping.mjs
 xcodegen generate
 xcodebuild test -project ReaderForIOS.xcodeproj -scheme ReaderForIOSApp -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' -only-testing:ReaderAppTests/DemoRouteMappingTests -only-testing:ReaderAppTests/AppShellAlignmentTests -only-testing:ReaderAppTests/ReaderIconAssetAlignmentTests -only-testing:ReaderAppTests/MotionTokenAlignmentTests -only-testing:ReaderAppTests/BookshelfHTMLCSSStructureAlignmentTests -only-testing:ReaderAppTests/DemoComponentPrimitiveAlignmentTests
-xcodebuild test -project ReaderForIOS.xcodeproj -scheme ReaderForIOSApp -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' -only-testing:ReaderAppTests/DemoRouteFamilySimulatorSmokeTests
+xcodebuild test -project ReaderForIOS.xcodeproj -scheme ReaderForIOSApp -destination 'id=4647E187-8F40-44D2-AEF4-71B5B4B6F7BB' -only-testing:ReaderAppTests/DemoRouteFamilySimulatorSmokeTests
+xcrun xcresulttool export attachments --path /Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_12-05-58-+0800.xcresult --output-path docs/ui-handoff/ios/screenshots/demo-route-smoke-20260703
 git diff --check
 ```
 
-Latest focused result: selected tests passed, including `DemoRouteMappingTests`, `AppShellAlignmentTests`, `ReaderIconAssetAlignmentTests`, `MotionTokenAlignmentTests`, `BookshelfHTMLCSSStructureAlignmentTests`, `DemoComponentPrimitiveAlignmentTests`, and `DemoRouteFamilySimulatorSmokeTests`. `scripts/verify_demo_slice_mapping.mjs` now cross-checks all 131 high-priority / Swift-owned routes against Reader UI `route-contract.js`. `DemoRouteFamilySimulatorSmokeTests` executed 7 simulator-render tests with 0 failures and stored XCTAttachment screenshots in `/Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_09-59-43-+0800.xcresult`.
+Latest focused result: selected tests passed, including `DemoRouteMappingTests`, `AppShellAlignmentTests`, `ReaderIconAssetAlignmentTests`, `MotionTokenAlignmentTests`, `BookshelfHTMLCSSStructureAlignmentTests`, `DemoComponentPrimitiveAlignmentTests`, and `DemoRouteFamilySimulatorSmokeTests`. `scripts/verify_demo_slice_mapping.mjs` now cross-checks all 131 high-priority / Swift-owned routes against Reader UI `route-contract.js`. `DemoRouteFamilySimulatorSmokeTests` executed 7 simulator-render tests with 0 failures on iPhone 17 Simulator `4647E187-8F40-44D2-AEF4-71B5B4B6F7BB`; result bundle: `/Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_12-05-58-+0800.xcresult`. Exported screenshot attachments: `docs/ui-handoff/ios/screenshots/demo-route-smoke-20260703/` (`110` PNG files plus `manifest.json`).
 
 ## Closure Status - 2026-07-03
 

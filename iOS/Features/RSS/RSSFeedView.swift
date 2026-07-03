@@ -8,12 +8,18 @@ public struct RSSFeedView: View {
     private let loadsLiveSubscriptions: Bool
     @State private var activeDemoRoute: String?
     @State private var selectedMode: String
+    @State private var activeGroupFilter: String
+    @State private var isGroupFilterOpen: Bool
+    @State private var isCategoryFilterOpen: Bool
 
     @MainActor
     public init() {
-        self.loadsLiveSubscriptions = true
+        self.loadsLiveSubscriptions = false
         self._activeDemoRoute = State(initialValue: nil)
         self._selectedMode = State(initialValue: "源列表")
+        self._activeGroupFilter = State(initialValue: "全部")
+        self._isGroupFilterOpen = State(initialValue: false)
+        self._isCategoryFilterOpen = State(initialValue: false)
         self._viewModel = StateObject(wrappedValue: RSSFeedViewModel())
     }
 
@@ -27,6 +33,9 @@ public struct RSSFeedView: View {
         self.loadsLiveSubscriptions = false
         self._activeDemoRoute = State(initialValue: state.route)
         self._selectedMode = State(initialValue: state.selectedMode)
+        self._activeGroupFilter = State(initialValue: "全部")
+        self._isGroupFilterOpen = State(initialValue: false)
+        self._isCategoryFilterOpen = State(initialValue: false)
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
 
@@ -35,6 +44,9 @@ public struct RSSFeedView: View {
         self.loadsLiveSubscriptions = true
         self._activeDemoRoute = State(initialValue: nil)
         self._selectedMode = State(initialValue: "源列表")
+        self._activeGroupFilter = State(initialValue: "全部")
+        self._isGroupFilterOpen = State(initialValue: false)
+        self._isCategoryFilterOpen = State(initialValue: false)
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
 
@@ -43,57 +55,30 @@ public struct RSSFeedView: View {
 
         VStack(spacing: 0) {
             RSSRootTopBar(
-                subscriptionCount: viewModel.subscriptions.filter(\.enabled).count,
+                subscriptionCount: topBarSources.filter(\.enabled).count,
                 statusText: statusText,
-                sources: viewModel.subscriptions,
+                sources: topBarSources,
                 onRefresh: refreshCurrentFeed,
                 isRefreshDisabled: isRSSActionDisabled
             )
 
             DemoPaperScreen {
-                RSSSummaryCard(
-                    statusText: statusText,
-                    itemCount: currentItemCount,
-                    onRefresh: refreshCurrentFeed,
-                    isRefreshDisabled: isRSSActionDisabled
-                )
-
-                NavigationLink {
-                    RSSSearchView()
-                } label: {
-                    RSSDemoSearchEntry()
-                }
-                .buttonStyle(.plain)
-
-                RSSModeRow(selectedMode: $selectedMode)
-
                 if let routeState {
-                    RSSDemoRouteContent(state: routeState)
+                    RSSDemoRouteContent(
+                        state: routeState,
+                        selectedMode: $selectedMode,
+                        activeGroupFilter: $activeGroupFilter,
+                        isGroupFilterOpen: $isGroupFilterOpen,
+                        isCategoryFilterOpen: $isCategoryFilterOpen,
+                        onSelectRoute: selectDemoRoute
+                    )
                 } else {
-                    if !viewModel.subscriptions.isEmpty {
-                        RSSSourceStrip(
-                            sources: viewModel.subscriptions,
-                            selectedURL: viewModel.selectedSubscriptionURL,
-                            onSelect: { source in viewModel.selectSubscription(source) }
-                        )
-                    }
-
-                    ReaderCard {
-                        VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
-                            RSSSearchEntry(feedURL: $viewModel.feedURL, feedName: $viewModel.feedName)
-                            HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
-                                PillChip("保存", isSelected: false, action: saveCurrentSubscription)
-                                    .disabled(isRSSActionDisabled)
-
-                                PillChip("刷新", isSelected: true, action: refreshCurrentFeed)
-                                    .disabled(isRSSActionDisabled)
-
-                                Spacer(minLength: 0)
-                            }
-                        }
-                    }
-
-                    stateSection
+                    RSSDemoHomeContent(
+                        selectedMode: $selectedMode,
+                        activeGroupFilter: $activeGroupFilter,
+                        isGroupFilterOpen: $isGroupFilterOpen,
+                        onSelectRoute: selectDemoRoute
+                    )
                 }
             }
         }
@@ -110,6 +95,16 @@ public struct RSSFeedView: View {
 
     private var demoState: RSSDemoRouteState? {
         activeDemoRoute.map(RSSDemoRouteState.init(route:))
+    }
+
+    private var topBarSources: [RSSSource] {
+        if let demoState {
+            return demoState.coreSources
+        }
+        if loadsLiveSubscriptions, !viewModel.subscriptions.isEmpty {
+            return viewModel.subscriptions
+        }
+        return RSSDemoRouteState(route: "rss").coreSources
     }
 
     @ViewBuilder
@@ -180,6 +175,9 @@ public struct RSSFeedView: View {
         if let demoState {
             return demoState.statusText
         }
+        if !loadsLiveSubscriptions {
+            return "10:18 更新"
+        }
 
         switch viewModel.feedState {
         case .idle:
@@ -199,6 +197,9 @@ public struct RSSFeedView: View {
         if let demoState {
             return demoState.articles.count
         }
+        if !loadsLiveSubscriptions {
+            return RSSDemoRouteState(route: "rss").articles.count
+        }
 
         switch viewModel.feedState {
         case .loaded(let summary), .empty(let summary):
@@ -209,7 +210,18 @@ public struct RSSFeedView: View {
     }
 
     private var isRSSActionDisabled: Bool {
-        loadsLiveSubscriptions && viewModel.feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard loadsLiveSubscriptions else { return false }
+        return viewModel.feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func selectDemoRoute(_ route: String) {
+        if route == "rss" {
+            activeDemoRoute = nil
+            selectedMode = "源列表"
+        } else {
+            activeDemoRoute = route
+            selectedMode = RSSDemoRouteState.selectedMode(for: route)
+        }
     }
 
     private func refreshCurrentFeed() {
@@ -429,26 +441,78 @@ private struct RSSDemoRouteState {
         return "未读"
     }
 
-    private static func selectedMode(for route: String) -> String {
+    static func selectedMode(for route: String) -> String {
+        if route == "rss" {
+            return "源列表"
+        }
         if route == "rss-all" {
             return "全部"
         }
         if route == "rss-starred" {
             return "收藏"
         }
+        if route == "rss-rule-subscription" {
+            return "规则订阅"
+        }
         if route == "rss-source-feed" || route.hasPrefix("rss-source-category-") {
-            return "源"
+            return "源列表"
         }
         return "源列表"
     }
 }
 
+private struct RSSDemoHomeContent: View {
+    @Binding var selectedMode: String
+    @Binding var activeGroupFilter: String
+    @Binding var isGroupFilterOpen: Bool
+    let onSelectRoute: (String) -> Void
+
+    private var state: RSSDemoRouteState {
+        RSSDemoRouteState(route: "rss")
+    }
+
+    var body: some View {
+        NavigationLink {
+            RSSSearchView()
+        } label: {
+            RSSDemoSearchEntry()
+        }
+        .buttonStyle(.plain)
+
+        RSSModeRow(selectedMode: $selectedMode, onSelectRoute: onSelectRoute)
+
+        RSSDemoSourceOverview(
+            activeFilter: $activeGroupFilter,
+            isFilterOpen: $isGroupFilterOpen
+        )
+
+        RSSDemoArticleSection(
+            title: "最近未读",
+            articles: Array(state.articles.prefix(3)),
+            actionLabel: "查看全部",
+            actionIcon: .list
+        )
+    }
+}
+
 private struct RSSDemoRouteContent: View {
     let state: RSSDemoRouteState
+    @Binding var selectedMode: String
+    @Binding var activeGroupFilter: String
+    @Binding var isGroupFilterOpen: Bool
+    @Binding var isCategoryFilterOpen: Bool
+    let onSelectRoute: (String) -> Void
 
     var body: some View {
         switch state.presentation {
         case .articleHub:
+            NavigationLink {
+                RSSSearchView()
+            } label: {
+                RSSDemoSearchEntry()
+            }
+            .buttonStyle(.plain)
+            RSSModeRow(selectedMode: $selectedMode, onSelectRoute: onSelectRoute)
             RSSDemoSourceStrip(activeSourceID: state.source.id)
             RSSDemoArticleSection(
                 title: state.navigationTitle,
@@ -457,8 +521,18 @@ private struct RSSDemoRouteContent: View {
                 actionIcon: .sourceStack
             )
         case .refreshing:
+            NavigationLink {
+                RSSSearchView()
+            } label: {
+                RSSDemoSearchEntry()
+            }
+            .buttonStyle(.plain)
+            RSSModeRow(selectedMode: $selectedMode, onSelectRoute: onSelectRoute)
             RSSDemoRefreshLine(message: "正在刷新启用订阅源和分类入口")
-            RSSDemoSourceOverview()
+            RSSDemoSourceOverview(
+                activeFilter: $activeGroupFilter,
+                isFilterOpen: $isGroupFilterOpen
+            )
             RSSDemoArticleSection(
                 title: "最近未读",
                 articles: state.articles,
@@ -468,7 +542,11 @@ private struct RSSDemoRouteContent: View {
         case .sourceFeed:
             RSSDemoSourceHero(state: state)
             RSSDemoSourceToolbar()
-            RSSDemoCategoryFilter(activeRoute: state.category.route)
+            RSSDemoCategoryFilter(
+                activeRoute: state.category.route,
+                isOpen: $isCategoryFilterOpen,
+                onSelectRoute: onSelectRoute
+            )
             RSSDemoArticleSection(
                 title: state.category.title,
                 articles: state.articles,
@@ -564,60 +642,23 @@ private struct RSSRootTopBar: View {
     }
 }
 
-private struct RSSSummaryCard: View {
-    let statusText: String
-    let itemCount: Int
-    let onRefresh: () -> Void
-    let isRefreshDisabled: Bool
-
-    var body: some View {
-        ReaderCard {
-            HStack(spacing: ReaderDesignTokens.rssSummaryGap) {
-                ReaderIcon(.rss, size: 22, accessibilityLabel: "RSS 摘要")
-                    .frame(width: ReaderDesignTokens.rssSummaryIconColumn)
-                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("RSS 摘要")
-                        .font(.system(size: 15, weight: .heavy))
-                    Text("订阅筛选、源条和搜索入口已归入 RSS tab")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Text(itemCount > 0 ? "\(itemCount)" : statusText)
-                    .font(.system(size: 11, weight: .heavy))
-                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-
-                Button(action: onRefresh) {
-                    HStack(spacing: 4) {
-                        ReaderIcon(.refresh, size: 14, accessibilityLabel: "刷新 RSS")
-                        Text("刷新")
-                            .font(.system(size: 11, weight: .heavy))
-                    }
-                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                    .padding(.horizontal, 9)
-                    .frame(minHeight: 28)
-                    .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground))
-                }
-                .buttonStyle(.plain)
-                .disabled(isRefreshDisabled)
-            }
-            .frame(minHeight: ReaderDesignTokens.rssSummaryMinHeight)
-        }
-    }
-}
-
 private struct RSSModeRow: View {
     @Binding var selectedMode: String
-    private let modes = ["源列表", "全部", "收藏", "源"]
+    let onSelectRoute: (String) -> Void
+    private let modes = [
+        ("源列表", "rss"),
+        ("全部", "rss-all"),
+        ("收藏", "rss-starred"),
+        ("规则订阅", "rss-rule-subscription")
+    ]
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
-                ForEach(modes, id: \.self) { mode in
-                    PillChip(mode, isSelected: selectedMode == mode) {
-                        selectedMode = mode
+                ForEach(modes, id: \.0) { mode in
+                    PillChip(mode.0, isSelected: selectedMode == mode.0) {
+                        selectedMode = mode.0
+                        onSelectRoute(mode.1)
                     }
                     .frame(minHeight: ReaderDesignTokens.rssModeRowMinHeight)
                 }
@@ -763,6 +804,8 @@ private struct RSSDemoSourceToolbar: View {
 
 private struct RSSDemoCategoryFilter: View {
     let activeRoute: String
+    @Binding var isOpen: Bool
+    let onSelectRoute: (String) -> Void
 
     private let categories = [
         RSSDemoCategory(label: "全部", route: "rss-source-feed", title: "GitHub Releases", meta: "默认 RSS 解析 · 18 条"),
@@ -772,24 +815,48 @@ private struct RSSDemoCategoryFilter: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("分类")
-                .font(.system(size: 12, weight: .heavy))
-                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
-                    ForEach(categories, id: \.route) { category in
-                        PillChip(category.label, isSelected: category.route == activeRoute)
+        DemoFilterDisclosure(
+            label: "分类",
+            summary: categories.first(where: { $0.route == activeRoute })?.label ?? "全部",
+            accessibilityLabel: "RSS 分类入口",
+            isOpen: $isOpen,
+            groups: [
+                DemoFilterGroup(
+                    title: "分类入口",
+                    options: categories.map { category in
+                        DemoFilterOption(
+                            label: category.label,
+                            isActive: category.route == activeRoute,
+                            action: { onSelectRoute(category.route) }
+                        )
                     }
-                }
-            }
-        }
-        .padding(ReaderDesignTokens.cardPadding)
-        .backgroundCard(cornerRadius: ReaderDesignTokens.Radius.md)
+                )
+            ]
+        )
     }
 }
 
 private struct RSSDemoSourceOverview: View {
+    @Binding var activeFilter: String
+    @Binding var isFilterOpen: Bool
+
+    private let filters = ["全部", "开源项目", "社区", "需登录", "暂停"]
+
+    private var visibleSources: [RSSManagementSource] {
+        RSSManagementSource.demoSources.filter { source in
+            switch activeFilter {
+            case "全部":
+                return true
+            case "需登录":
+                return source.loginRequired
+            case "暂停":
+                return !source.enabled
+            default:
+                return source.group == activeFilter
+            }
+        }
+    }
+
     var body: some View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
@@ -802,7 +869,26 @@ private struct RSSDemoSourceOverview: View {
                     LabelChip(icon: .add, title: "新建")
                 }
 
-                ForEach(RSSManagementSource.demoSources) { source in
+                DemoFilterDisclosure(
+                    label: "筛选",
+                    summary: activeFilter,
+                    accessibilityLabel: "RSS 订阅源筛选",
+                    isOpen: $isFilterOpen,
+                    groups: [
+                        DemoFilterGroup(
+                            title: "分组与状态",
+                            options: filters.map { filter in
+                                DemoFilterOption(
+                                    label: filter,
+                                    isActive: activeFilter == filter,
+                                    action: { activeFilter = filter }
+                                )
+                            }
+                        )
+                    ]
+                )
+
+                ForEach(visibleSources) { source in
                     HStack(spacing: ReaderDesignTokens.settingsRowGap) {
                         ReaderIcon(source.enabled ? .rss : .offline, size: 18)
                             .frame(width: ReaderDesignTokens.settingsRowIconColumn)

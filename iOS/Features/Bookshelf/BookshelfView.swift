@@ -19,6 +19,7 @@ public struct BookshelfView: View {
     @State private var showSearch = false
     @State private var showBatchManagement = false
     @State private var showGroupManagement = false
+    @State private var showBookshelfSearchSettings = false
     @ObservedObject private var navigationState: AppNavigationState
 
     /// `navigationState` 为契约单一状态源，承载 `readerContext` / `motionInterrupt`，
@@ -113,6 +114,9 @@ public struct BookshelfView: View {
         .navigationDestination(isPresented: $showSearch) {
             SearchView()
         }
+        .navigationDestination(isPresented: $showBookshelfSearchSettings) {
+            SettingsDemoShellView(demoRoute: "bookshelf-search-settings")
+        }
     }
 
     /// 继续阅读卡 —— 对齐 demo `.fd-continue-card` 规格（grid 62/1fr/82，min-h 100，
@@ -199,20 +203,50 @@ public struct BookshelfView: View {
         case .empty:
             ReaderCard {
                 VStack(spacing: ReaderDesignTokens.settingsSectionGap) {
-                    ReaderIcon(.bookshelf, size: 42, accessibilityLabel: "书架为空")
+                    ReaderIcon(.bookshelf, size: 42, accessibilityLabel: "书架空状态")
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         .frame(width: 56, height: 56)
                         .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
 
-                    Text("书架为空")
-                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    Text("书架还是空的")
+                        .font(.system(size: 18, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .multilineTextAlignment(.center)
 
-                    Text("从搜索结果或本地文件添加书籍")
-                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                    Text("添加网络书籍或导入本地文件后，会在这里显示继续阅读和书架内容。")
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(spacing: ReaderDesignTokens.rssModeRowGap) {
+                        BookshelfEmptyActionButton(
+                            icon: .search,
+                            title: "搜索书籍",
+                            subtitle: "按书名、作者或关键词查找",
+                            isPrimary: true,
+                            action: { showSearch = true }
+                        )
+                        BookshelfEmptyActionButton(
+                            icon: .folder,
+                            title: "导入本地书",
+                            subtitle: "添加本机文件到书架",
+                            isPrimary: false,
+                            action: { showLocalImport = true }
+                        )
+                    }
+                    .padding(.top, 4)
+
+                    HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
+                        BookshelfEmptyHintButton(icon: .sparkle, title: "去发现") {
+                            navigationState.switchTab(.discover)
+                        }
+                        BookshelfEmptyHintButton(icon: .gear, title: "书架设置") {
+                            showBookshelfSearchSettings = true
+                        }
+                    }
                 }
-                .frame(maxWidth: .infinity, minHeight: 180)
+                .frame(maxWidth: .infinity, minHeight: 260)
             }
 
         case .failed(let message):
@@ -1314,6 +1348,68 @@ struct BookshelfItemDetailView: View {
     private var currentChapterIndex: Int {
         guard let chapterURL = item.lastReadChapterURL else { return 0 }
         return localChapterList.firstIndex { $0.chapterURL == chapterURL } ?? 0
+    }
+}
+
+private struct BookshelfEmptyActionButton: View {
+    let icon: ReaderAssetIcon
+    let title: String
+    let subtitle: String
+    let isPrimary: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                ReaderIcon(icon, size: 18, accessibilityLabel: title)
+                    .frame(width: ReaderDesignTokens.settingsRowIconColumn)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                        .lineLimit(2)
+                        .foregroundColor(isPrimary ? .white.opacity(0.82) : .secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.settingsRowMinHeight, alignment: .leading)
+            .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .fill(isPrimary ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.chipBackground.opacity(0.72))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                            .stroke(isPrimary ? ReaderDesignTokens.Color.primaryDark.opacity(0.4) : ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+}
+
+private struct BookshelfEmptyHintButton: View {
+    let icon: ReaderAssetIcon
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                ReaderIcon(icon, size: 13, accessibilityLabel: title)
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.searchSectionActionMinHeight)
+            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import UIKit
 import XCTest
@@ -261,11 +262,56 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         XCTAssertEqual(host.view.bounds.size.height, size.height, accuracy: 0.5, file: file, line: line)
         XCTAssertGreaterThan(image.pngData()?.count ?? 0, 512, "\(family)/\(name) screenshot should not be empty", file: file, line: line)
 
+        if let screenshotDirectory = ProcessInfo.processInfo.environment["READER_IOS_DEMO_SMOKE_SCREENSHOT_DIR"] {
+            writeScreenshot(
+                image,
+                family: family,
+                name: name,
+                size: size,
+                directory: screenshotDirectory,
+                file: file,
+                line: line
+            )
+        }
+
         let attachment = XCTAttachment(image: image)
         attachment.name = "\(family)-\(name)-\(Int(size.width))x\(Int(size.height))"
         attachment.lifetime = .keepAlways
         add(attachment)
 
         window.isHidden = true
+    }
+
+    private func writeScreenshot(
+        _ image: UIImage,
+        family: String,
+        name: String,
+        size: CGSize,
+        directory: String,
+        file: StaticString,
+        line: UInt
+    ) {
+        guard !directory.isEmpty else { return }
+        guard let data = image.pngData() else {
+            XCTFail("\(family)/\(name) screenshot PNG encoding failed", file: file, line: line)
+            return
+        }
+
+        let baseURL = URL(fileURLWithPath: directory, isDirectory: true)
+        let familyURL = baseURL.appendingPathComponent(sanitizePathComponent(family), isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: familyURL, withIntermediateDirectories: true)
+            let filename = "\(sanitizePathComponent(name))-\(Int(size.width))x\(Int(size.height)).png"
+            try data.write(to: familyURL.appendingPathComponent(filename), options: .atomic)
+        } catch {
+            XCTFail("\(family)/\(name) screenshot write failed: \(error)", file: file, line: line)
+        }
+    }
+
+    private func sanitizePathComponent(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        return value.unicodeScalars.map { scalar in
+            allowed.contains(scalar) ? String(scalar) : "-"
+        }.joined()
     }
 }

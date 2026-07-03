@@ -25,7 +25,7 @@ struct RSSArticleDetailView: View {
 
             RSSReaderTitleBlock(
                 title: item.title,
-                subtitle: cleanSummary.nonEmpty ?? "已进入 RSS 阅读上下文，正文和原文入口保持在同一个二级页面。"
+                subtitle: cleanSummary.nonEmpty ?? Self.demoSummary
             )
 
             RSSReaderInlineActions(
@@ -65,21 +65,24 @@ struct RSSArticleDetailView: View {
 
     static func fallbackItem(link: String) -> SubscriptionItem {
         SubscriptionItem(
-            title: "RSS 阅读",
-            link: link,
-            author: nil,
-            summary: "该入口来自全局 RSS detail route。真实列表进入时会带入订阅条目的标题、摘要、作者和发布时间。",
+            title: demoTitle,
+            link: link.nonEmpty ?? demoLink,
+            author: "开源项目",
+            summary: demoSummary,
             publishedAt: nil,
-            sourceId: "route-fallback",
-            sourceName: "RSS"
+            sourceId: "github-releases",
+            sourceName: demoSourceTitle
         )
     }
 
     private var resolvedSourceTitle: String {
-        item.sourceName?.nonEmpty ?? sourceTitle.nonEmpty ?? "RSS"
+        item.sourceName?.nonEmpty ?? sourceTitle.nonEmpty ?? Self.demoSourceTitle
     }
 
     private var sourceMetaText: String {
+        if item.title == Self.demoTitle {
+            return "今天 10:18 · 开源项目 · 已解析正文"
+        }
         let date = item.publishedAt.map(Self.dateFormatter.string(from:)) ?? "未标记时间"
         if let author = item.author?.nonEmpty {
             return "\(date) · \(author) · 已解析正文"
@@ -97,6 +100,9 @@ struct RSSArticleDetailView: View {
     }
 
     private var bodyParagraphs: [String] {
+        if item.title == Self.demoTitle {
+            return Self.demoBodyParagraphs
+        }
         let summaryParagraphs = cleanSummary
             .components(separatedBy: CharacterSet.newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -104,10 +110,7 @@ struct RSSArticleDetailView: View {
         if !summaryParagraphs.isEmpty {
             return summaryParagraphs
         }
-        return [
-            "该订阅条目尚未提供完整正文，当前页面保留 RSS 阅读结构、已读/收藏操作和原文入口。",
-            "如果订阅源后续提供正文规则，正文会直接渲染在这里；如果只提供链接，则通过原文入口进入 WebView 或系统浏览器。"
-        ]
+        return Self.demoBodyParagraphs
     }
 
     private var originalURL: URL? {
@@ -129,6 +132,16 @@ struct RSSArticleDetailView: View {
         formatter.timeStyle = .short
         return formatter
     }()
+
+    private static let demoTitle = "Reader UI 前端输入件更新说明"
+    private static let demoSourceTitle = "GitHub Releases"
+    private static let demoLink = "https://github.com/minliny/Reader-UI/releases/latest"
+    private static let demoSummary = "本条目汇总最近的阅读体验修复、发现页状态补充和 RSS 页面结构调整。"
+    private static let demoBodyParagraphs = [
+        "RSS 页面现在以订阅源为一级对象，同时保留常规阅读器里的未读、全部、收藏和刷新工作流。主页负责快速浏览条目，阅读页则专注正文、原文和源相关操作。",
+        "如果订阅源提供正文规则，文章应直接进入当前阅读页；如果源只提供链接，则在阅读页保留原文入口，并用 WebView 或外部浏览器作为兜底。",
+        "后续实现里，已读状态应在进入阅读页时自动写入，收藏和源设置需要回到订阅源维度同步，不应该散落在主 Tab 的临时按钮里。"
+    ]
 }
 
 private struct RSSReaderSourceCard: View {

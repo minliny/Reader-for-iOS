@@ -1,5 +1,4 @@
 import SwiftUI
-import WebKit
 
 struct RSSOriginalPreviewView: View {
     let url: URL?
@@ -25,12 +24,12 @@ struct RSSOriginalPreviewView: View {
     var body: some View {
         DemoBackScreen(title: "原文页面") {
             RSSOriginalHeader(
-                title: url?.host ?? url?.absoluteString ?? "原文链接不可用",
+                title: displayURL,
                 subtitle: "来自 \(sourceTitle) · 已保留 RSS 阅读上下文"
             )
 
-            if let url {
-                RSSOriginalWebContainer(url: url, title: title)
+            if url != nil {
+                RSSOriginalWebContainer(title: title)
             } else {
                 RSSOriginalInvalidState()
             }
@@ -63,6 +62,14 @@ struct RSSOriginalPreviewView: View {
     private func openExternal() {
         guard url != nil else { return }
         isBrowserConfirmPresented = true
+    }
+
+    private var displayURL: String {
+        guard let url else { return "原文链接不可用" }
+        if let host = url.host {
+            return host + url.path
+        }
+        return url.absoluteString
     }
 }
 
@@ -98,7 +105,6 @@ private struct RSSOriginalHeader: View {
 }
 
 private struct RSSOriginalWebContainer: View {
-    let url: URL
     let title: String
 
     var body: some View {
@@ -109,18 +115,30 @@ private struct RSSOriginalWebContainer: View {
                     .lineLimit(2)
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
-                Text("内置 WebView 预览原文；返回时保留 RSS 阅读页上下文。")
+                Text("这里展示原文网页入口的预览状态。实际 APP 中应打开内置 WebView，并保留返回 RSS 阅读页、复制链接、分享和用浏览器打开。")
                     .font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewBodyFontSize))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                RSSOriginalWebView(url: url)
-                    .frame(minHeight: ReaderDesignTokens.rssOriginalWebPreviewMinHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                            .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
-                    )
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach([0.82, 0.64, 0.44], id: \.self) { widthRatio in
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
+                            .fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72))
+                            .frame(maxWidth: .infinity, minHeight: 14)
+                            .frame(width: 260 * widthRatio, alignment: .leading)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssOriginalWebPreviewMinHeight, alignment: .topLeading)
+                .background(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                        .fill(ReaderDesignTokens.Color.paperSolid.opacity(0.62))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                                .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                        )
+                )
             }
         }
     }
@@ -138,27 +156,6 @@ private struct RSSOriginalInvalidState: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssOriginalWebPreviewMinHeight, alignment: .topLeading)
-        }
-    }
-}
-
-private struct RSSOriginalWebView: UIViewRepresentable {
-    let url: URL
-
-    func makeUIView(context: Context) -> WKWebView {
-        let configuration = WKWebViewConfiguration()
-        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        let webView = WKWebView(frame: .zero, configuration: configuration)
-        webView.allowsBackForwardNavigationGestures = true
-        webView.scrollView.backgroundColor = UIColor.clear
-        webView.backgroundColor = UIColor.clear
-        webView.load(URLRequest(url: url))
-        return webView
-    }
-
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        if webView.url != url {
-            webView.load(URLRequest(url: url))
         }
     }
 }
