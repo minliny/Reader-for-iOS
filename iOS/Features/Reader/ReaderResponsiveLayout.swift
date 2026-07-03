@@ -153,17 +153,17 @@ struct ReaderResponsiveLayout: Equatable {
     }
 
     private static func classify(size: CGSize) -> ReaderViewportClass {
-        guard size.width > 0, size.height > 0 else { return .phonePortrait }
-        if size.width > size.height, size.height <= ReaderDesignTokens.readerCompactLandscapeMaxHeight {
+        let viewportClass = DemoViewportSnapshot.make(size: size).viewportClass
+        switch viewportClass {
+        case .compactLandscape:
             return .compactLandscape
-        }
-        if size.width >= ReaderDesignTokens.readerTabletExpandedMinWidth {
+        case .tabletExpanded:
             return .tabletExpanded
-        }
-        if size.width >= ReaderDesignTokens.readerExpandedWidthMinWidth {
+        case .expandedWidth:
             return .expandedWidth
+        default:
+            return .phonePortrait
         }
-        return .phonePortrait
     }
 }
 

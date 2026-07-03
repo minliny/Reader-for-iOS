@@ -8,7 +8,8 @@ import ReaderShellValidation
 @MainActor
 final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
     private let phone = CGSize(width: 390, height: 844)
-    private let tablet = CGSize(width: 820, height: 960)
+    private let expandedWidth = CGSize(width: 820, height: 960)
+    private let tablet = CGSize(width: 900, height: 960)
     private let compactLandscape = CGSize(width: 1_180, height: 500)
 
     func testBookshelfRouteFamilyRendersDemoSurfacesOnSimulator() {
@@ -69,6 +70,7 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         )
 
         assertReaderVisualAudit(size: phone, expectedClass: .phonePortrait)
+        assertReaderVisualAudit(size: expandedWidth, expectedClass: .expandedWidth)
         assertReaderVisualAudit(size: tablet, expectedClass: .tabletExpanded)
         assertReaderVisualAudit(size: compactLandscape, expectedClass: .compactLandscape)
     }
@@ -159,6 +161,7 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         )
 
         assertRenders(shell, family: "app-shell", name: "phone", size: phone)
+        assertRenders(shell, family: "app-shell", name: "expanded-width-bottom-nav", size: expandedWidth)
         assertRenders(shell, family: "app-shell", name: "tablet-left-rail", size: tablet)
 
         XCTAssertEqual(ReaderDesignTokens.tabletNavWidth, 82)

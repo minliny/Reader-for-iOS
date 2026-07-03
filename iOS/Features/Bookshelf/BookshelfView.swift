@@ -630,7 +630,11 @@ private struct BookshelfCoverFrame: View {
             RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(SwiftUI.Color.white.opacity(0.58))
 
-            if let url = coverURL {
+            if let demoCoverAssetName {
+                Image(demoCoverAssetName)
+                    .resizable()
+                    .scaledToFill()
+            } else if let url = coverURL {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -670,6 +674,31 @@ private struct BookshelfCoverFrame: View {
             return url
         }
         return URL(fileURLWithPath: coverURL)
+    }
+
+    private var demoCoverAssetName: String? {
+        guard let coverURL = item.coverURL,
+              let url = URL(string: coverURL),
+              url.scheme == "demo-cover" else {
+            return nil
+        }
+        let key = url.host ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        switch key {
+        case "longNight":
+            return "demo-cover-long-night"
+        case "mysteryLord":
+            return "demo-cover-mystery-lord"
+        case "brightMoon":
+            return "demo-cover-bright-moon"
+        case "threeBody":
+            return "demo-cover-three-body"
+        case "renjian":
+            return "demo-cover-renjian-cihua"
+        case "androidNotes":
+            return "demo-cover-android-notes"
+        default:
+            return nil
+        }
     }
 }
 

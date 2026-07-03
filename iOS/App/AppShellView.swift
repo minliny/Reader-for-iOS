@@ -30,10 +30,18 @@ struct AppShellView: View {
     @State private var discoverPath: [Route] = []
     @State private var rssPath: [Route] = []
     @State private var settingsPath: [Route] = []
-    @SwiftUI.Environment(\.horizontalSizeClass) private var horizontalSizeClass: UserInterfaceSizeClass?
 
     var body: some View {
-        ZStack(alignment: isExpandedLayout ? .leading : .bottom) {
+        GeometryReader { proxy in
+            let viewport = DemoViewportSnapshot.make(size: proxy.size)
+            shellBody(viewport: viewport)
+        }
+    }
+
+    @ViewBuilder
+    private func shellBody(viewport: DemoViewportSnapshot) -> some View {
+        let usesTabletRail = viewport.usesTabletMainNav
+        ZStack(alignment: usesTabletRail ? .leading : .bottom) {
             TabView(selection: tabBinding) {
                 ForEach(AppTab.contractOrder) { tab in
                     NavigationStack(path: pathBinding(for: tab)) {
@@ -48,28 +56,18 @@ struct AppShellView: View {
             }
             .animation(.easeInOut(duration: navigationState.motion.duration(AppMotion.Duration.tabSwitch)),
                        value: navigationState.activeTab)
-            .padding(.leading, isExpandedLayout ? ReaderDesignTokens.tabletNavWidth + 12 : 0)
-            .padding(.bottom, isExpandedLayout ? 0 : ReaderDesignTokens.mainNavHeight + 14)
+            .padding(.leading, usesTabletRail ? ReaderDesignTokens.tabletNavWidth + 18 : 0)
+            .padding(.bottom, usesTabletRail ? 0 : ReaderDesignTokens.mainNavHeight + 14)
 
             FloatingTabBar(
                 tabs: AppTab.contractOrder,
                 selection: tabBinding,
                 onSelect: { tab in navigationState.switchTab(tab) },
-                axis: isExpandedLayout ? .vertical : .horizontal
+                axis: usesTabletRail ? .vertical : .horizontal
             )
-            .frame(width: isExpandedLayout ? ReaderDesignTokens.tabletNavWidth : nil)
-            .padding(.leading, isExpandedLayout ? 8 : 0)
-            .padding(.horizontal, isExpandedLayout ? 0 : 0)
-            .padding(.bottom, isExpandedLayout ? 0 : 0)
+            .frame(width: usesTabletRail ? ReaderDesignTokens.tabletNavWidth : nil)
+            .padding(.leading, usesTabletRail ? 16 : 0)
         }
-    }
-
-    private var isExpandedLayout: Bool {
-        #if os(iOS)
-        horizontalSizeClass == .regular
-        #else
-        false
-        #endif
     }
 
     /// 每个主 Tab 保留独立 `NavigationPath`，对齐 demo Slice 1 的 back stack 语义。

@@ -101,6 +101,7 @@ let package = Package(
             "ReadingProgress.swift",
             "ChapterCacheEntry.swift",
             "BookshelfItem.swift",
+            "DemoBookshelfFixture.swift",
             "SourceIdentity.swift",
             "BookshelfItemFactory.swift"
         ]

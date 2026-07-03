@@ -525,8 +525,8 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
     }
 
     func testReaderResponsiveDockTokensMatchDemoCSS() {
-        XCTAssertEqual(ReaderDesignTokens.readerExpandedWidthMinWidth, 560)
-        XCTAssertEqual(ReaderDesignTokens.readerTabletExpandedMinWidth, 760)
+        XCTAssertEqual(ReaderDesignTokens.readerExpandedWidthMinWidth, 600)
+        XCTAssertEqual(ReaderDesignTokens.readerTabletExpandedMinWidth, 840)
         XCTAssertEqual(ReaderDesignTokens.readerCompactLandscapeMaxHeight, 520)
         XCTAssertEqual(ReaderDesignTokens.readerDockMaxWidth, 340)
         XCTAssertEqual(ReaderDesignTokens.readerDockExpandedRightInset, 18)
@@ -548,6 +548,43 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         XCTAssertEqual(ReaderDesignTokens.readerDockCompactReadingRightInset, 384)
     }
 
+    func testDemoViewportSnapshotMatchesFrontendDemoRuntime() {
+        let compact = DemoViewportSnapshot.make(size: CGSize(width: 320, height: 844))
+        XCTAssertEqual(compact.widthClass, "compact")
+        XCTAssertEqual(compact.heightClass, "regular")
+        XCTAssertEqual(compact.orientation, "portrait")
+        XCTAssertEqual(compact.viewportClass, .compactPortrait)
+
+        let standard = DemoViewportSnapshot.make(size: CGSize(width: 390, height: 844))
+        XCTAssertEqual(standard.widthClass, "standard")
+        XCTAssertEqual(standard.viewportClass, .standardPortrait)
+        XCTAssertEqual(standard.runtimePhoneWidth, 390)
+        XCTAssertEqual(standard.runtimePhoneHeight, 844)
+
+        let large = DemoViewportSnapshot.make(size: CGSize(width: 500, height: 844))
+        XCTAssertEqual(large.widthClass, "large")
+        XCTAssertEqual(large.viewportClass, .largePortrait)
+
+        let expanded = DemoViewportSnapshot.make(size: CGSize(width: 820, height: 960))
+        XCTAssertEqual(expanded.widthClass, "expanded")
+        XCTAssertEqual(expanded.viewportClass, .expandedWidth)
+        XCTAssertEqual(expanded.runtimePhoneWidth, 560)
+        XCTAssertEqual(expanded.runtimePhoneHeight, 844)
+        XCTAssertFalse(expanded.usesTabletMainNav)
+
+        let tablet = DemoViewportSnapshot.make(size: CGSize(width: 840, height: 960))
+        XCTAssertEqual(tablet.widthClass, "tablet")
+        XCTAssertEqual(tablet.viewportClass, .tabletExpanded)
+        XCTAssertEqual(tablet.runtimePhoneWidth, 760)
+        XCTAssertEqual(tablet.runtimePhoneHeight, 892)
+        XCTAssertTrue(tablet.usesTabletMainNav)
+
+        let compactLandscape = DemoViewportSnapshot.make(size: CGSize(width: 1_180, height: 500))
+        XCTAssertEqual(compactLandscape.heightClass, "compact")
+        XCTAssertEqual(compactLandscape.orientation, "landscape")
+        XCTAssertEqual(compactLandscape.viewportClass, .compactLandscape)
+    }
+
     func testReaderResponsiveLayoutMatchesDemoViewportClasses() {
         let phone = ReaderResponsiveLayout.make(size: CGSize(width: 390, height: 844))
         XCTAssertEqual(phone.viewportClass, .phonePortrait)
@@ -566,7 +603,10 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         XCTAssertEqual(expanded.readingInsets.top, 92)
         XCTAssertEqual(expanded.readingInsets.trailing, 44)
 
-        let tablet = ReaderResponsiveLayout.make(size: CGSize(width: 820, height: 960))
+        let expandedBeforeTablet = ReaderResponsiveLayout.make(size: CGSize(width: 820, height: 960))
+        XCTAssertEqual(expandedBeforeTablet.viewportClass, .expandedWidth)
+
+        let tablet = ReaderResponsiveLayout.make(size: CGSize(width: 900, height: 960))
         XCTAssertEqual(tablet.viewportClass, .tabletExpanded)
         XCTAssertEqual(tablet.controlPlacement, .trailingDock)
         XCTAssertEqual(tablet.dockRightInset, 24)
@@ -602,13 +642,16 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         XCTAssertTrue(expanded.dockStackInsideViewport)
         XCTAssertTrue(expanded.topBarClearsReadingContent)
 
-        let tablet = ReaderResponsiveVisualAudit.make(size: CGSize(width: 820, height: 960))
+        let expandedBeforeTablet = ReaderResponsiveVisualAudit.make(size: CGSize(width: 820, height: 960))
+        XCTAssertEqual(expandedBeforeTablet.layout.viewportClass, .expandedWidth)
+
+        let tablet = ReaderResponsiveVisualAudit.make(size: CGSize(width: 900, height: 960))
         XCTAssertEqual(tablet.layout.viewportClass, .tabletExpanded)
         XCTAssertTrue(tablet.requiresHardDockAvoidance)
         XCTAssertTrue(tablet.readingAvoidsDockWhenRequired)
         XCTAssertTrue(tablet.dockStackInsideViewport)
-        XCTAssertEqual(tablet.readingRect.maxX, 420)
-        XCTAssertEqual(tablet.dockStackRect?.minX, 456)
+        XCTAssertEqual(tablet.readingRect.maxX, 500)
+        XCTAssertEqual(tablet.dockStackRect?.minX, 536)
 
         let compactLandscape = ReaderResponsiveVisualAudit.make(size: CGSize(width: 1_180, height: 500))
         XCTAssertEqual(compactLandscape.layout.viewportClass, .compactLandscape)

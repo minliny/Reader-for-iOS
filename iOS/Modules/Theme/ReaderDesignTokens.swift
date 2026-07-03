@@ -608,11 +608,11 @@ public enum ReaderDesignTokens {
     public static let readerSessionCapsuleHeight: CGFloat = 44
     public static let readerSessionCapsuleIconSize: CGFloat = 28
     public static let readerSessionCapsuleCountdownSize: CGFloat = 22
-    /// Minimum width where demo switches from phone bottom controls to expanded reader dock.
-    public static let readerExpandedWidthMinWidth: CGFloat = 560
-    /// Minimum width where demo treats reader as tablet-expanded.
-    public static let readerTabletExpandedMinWidth: CGFloat = 760
-    /// Maximum height for compact-landscape reader controls.
+    /// Demo `viewportClassSnapshot()` expanded-width threshold.
+    public static let readerExpandedWidthMinWidth: CGFloat = 600
+    /// Demo `viewportClassSnapshot()` tablet-expanded threshold.
+    public static let readerTabletExpandedMinWidth: CGFloat = 840
+    /// Demo `viewportClassSnapshot()` compact-landscape height threshold.
     public static let readerCompactLandscapeMaxHeight: CGFloat = 520
     /// `--reader-quick-panel-max-width` (demo: 340px).
     public static let readerDockMaxWidth: CGFloat = 340

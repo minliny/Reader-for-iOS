@@ -48,8 +48,13 @@ public final class BookshelfViewModel: ObservableObject {
         do {
             let loadedItems = try store.loadItems()
             if loadedItems.isEmpty {
+                #if DEBUG
+                items = DemoBookshelfFixture.items
+                bookshelfState = .loaded(items: items)
+                #else
                 items = []
                 bookshelfState = .empty
+                #endif
             } else {
                 items = loadedItems.sorted { $0.updatedAt > $1.updatedAt }
                 bookshelfState = .loaded(items: items)

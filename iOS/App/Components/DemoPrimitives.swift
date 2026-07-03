@@ -1,5 +1,119 @@
 import SwiftUI
 
+struct DemoViewportClass: RawRepresentable, Equatable, Hashable {
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    static let compactPortrait = DemoViewportClass(rawValue: "compact-portrait")
+    static let standardPortrait = DemoViewportClass(rawValue: "standard-portrait")
+    static let largePortrait = DemoViewportClass(rawValue: "large-portrait")
+    static let expandedWidth = DemoViewportClass(rawValue: "expanded-width")
+    static let tabletExpanded = DemoViewportClass(rawValue: "tablet-expanded")
+    static let compactLandscape = DemoViewportClass(rawValue: "compact-landscape")
+}
+
+struct DemoViewportSnapshot: Equatable {
+    let width: CGFloat
+    let height: CGFloat
+    let widthClass: String
+    let heightClass: String
+    let orientation: String
+    let viewportClass: DemoViewportClass
+
+    static func make(size: CGSize) -> DemoViewportSnapshot {
+        let width = max(0, size.width.rounded())
+        let height = max(0, size.height.rounded())
+        let orientation = width > height ? "landscape" : "portrait"
+        let widthClass: String
+        if width < 360 {
+            widthClass = "compact"
+        } else if width < 480 {
+            widthClass = "standard"
+        } else if width < 600 {
+            widthClass = "large"
+        } else if width < 840 {
+            widthClass = "expanded"
+        } else {
+            widthClass = "tablet"
+        }
+
+        let heightClass: String
+        if height < 520 {
+            heightClass = "compact"
+        } else if height < 720 {
+            heightClass = "short"
+        } else {
+            heightClass = "regular"
+        }
+
+        let viewportClass: DemoViewportClass
+        if orientation == "landscape", height < 520 {
+            viewportClass = .compactLandscape
+        } else if width >= 840 {
+            viewportClass = .tabletExpanded
+        } else if width >= 600 {
+            viewportClass = .expandedWidth
+        } else if orientation == "portrait", width >= 480 {
+            viewportClass = .largePortrait
+        } else if orientation == "portrait", width >= 360 {
+            viewportClass = .standardPortrait
+        } else if orientation == "portrait" {
+            viewportClass = .compactPortrait
+        } else {
+            viewportClass = DemoViewportClass(rawValue: "\(widthClass)-\(orientation)")
+        }
+
+        return DemoViewportSnapshot(
+            width: width,
+            height: height,
+            widthClass: widthClass,
+            heightClass: heightClass,
+            orientation: orientation,
+            viewportClass: viewportClass
+        )
+    }
+
+    var usesTabletMainNav: Bool {
+        viewportClass == .tabletExpanded
+    }
+
+    var runtimePhoneWidth: CGFloat {
+        switch viewportClass {
+        case .expandedWidth:
+            min(560, max(0, width - 40))
+        case .tabletExpanded:
+            min(760, max(0, width - 64))
+        default:
+            min(ReaderDesignTokens.phoneWidth, max(0, width))
+        }
+    }
+
+    var runtimePhoneHeight: CGFloat {
+        switch viewportClass {
+        case .expandedWidth:
+            min(ReaderDesignTokens.phoneHeight, max(0, height - 68))
+        case .tabletExpanded:
+            min(960, max(0, height - 68))
+        default:
+            min(ReaderDesignTokens.phoneHeight, max(0, height))
+        }
+    }
+
+    var runtimeStackPhoneHeight: CGFloat {
+        switch viewportClass {
+        case .expandedWidth:
+            min(900, max(0, height - 68))
+        case .tabletExpanded:
+            min(960, max(0, height - 68))
+        default:
+            runtimePhoneHeight
+        }
+    }
+}
+
 struct DemoPaperScreen<Content: View>: View {
     let content: Content
 

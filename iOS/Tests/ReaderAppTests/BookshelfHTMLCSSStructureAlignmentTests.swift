@@ -23,6 +23,17 @@ final class BookshelfHTMLCSSStructureAlignmentTests: XCTestCase {
         XCTAssertEqual(ReaderDesignTokens.demoContentVerticalPadding, 14)
     }
 
+    func testDemoBookshelfFixtureMatchesFrontendDemoDefaultContent() {
+        XCTAssertEqual(DemoBookshelfFixture.items.count, 11)
+        XCTAssertEqual(DemoBookshelfFixture.items.first?.title, "长夜余火")
+        XCTAssertEqual(DemoBookshelfFixture.items.first?.author, "爱潜水的乌贼")
+        XCTAssertEqual(DemoBookshelfFixture.items.first?.coverURL, "demo-cover://longNight")
+        XCTAssertEqual(DemoBookshelfFixture.items.first?.readingProgress, 0.38)
+        XCTAssertEqual(DemoBookshelfFixture.items.first?.localChapterList?.count, 4)
+        XCTAssertEqual(DemoBookshelfFixture.items[1].title, "诡秘之主")
+        XCTAssertEqual(DemoBookshelfFixture.items[5].sourceID, "local-book")
+    }
+
     func testContinueReadingCardTokensMatchDemoCSS() {
         XCTAssertEqual(ReaderDesignTokens.continueCardMinHeight, 100)
         XCTAssertEqual(ReaderDesignTokens.continueCardCoverWidth, 62)
