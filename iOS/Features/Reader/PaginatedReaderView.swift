@@ -24,6 +24,7 @@ struct PaginatedReaderView: View {
     @State private var currentPageIndex: Int = 0
     @State private var availableSize: CGSize = .zero
     @State private var slideEdge: Edge = .trailing
+    private let motion = MotionEnvironment()
 
     private var isDualPageMode: Bool {
         displaySettings.dualPageEnabled && availableSize.width > availableSize.height
@@ -87,7 +88,7 @@ struct PaginatedReaderView: View {
             tapZoneOverlay
         }
         .gesture(swipeGesture)
-        .animation(.easeInOut(duration: 0.25), value: currentPageIndex)
+        .animation(motion.animation(ReaderMotion.Duration.pageTurn), value: currentPageIndex)
         .overlay(alignment: .bottom) {
             pageIndicator
         }

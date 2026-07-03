@@ -54,7 +54,7 @@ struct AppShellView: View {
                     .hiddenSystemTabBarIfAvailable()
                 }
             }
-            .animation(.easeInOut(duration: navigationState.motion.duration(AppMotion.Duration.tabSwitch)),
+            .animation(navigationState.motion.animation(AppMotion.Duration.tabSwitch),
                        value: navigationState.activeTab)
             .padding(.leading, usesTabletRail ? ReaderDesignTokens.tabletNavWidth + 18 : 0)
             .padding(.bottom, usesTabletRail ? 0 : ReaderDesignTokens.mainNavHeight + 14)

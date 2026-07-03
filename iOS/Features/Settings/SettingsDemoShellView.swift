@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsDemoShellView: View {
     private let state: SettingsDemoRouteState
+    private let motion = MotionEnvironment()
     @State private var expandedOptionKey: String?
     @State private var activeConfirm: SettingsDemoConfirm?
     @State private var toastMessage: String?
@@ -39,10 +40,14 @@ struct SettingsDemoShellView: View {
 
                 if let activeConfirm {
                     SettingsDemoConfirmDialog(confirm: activeConfirm) {
-                        self.activeConfirm = nil
-                        self.toastMessage = activeConfirm.resultToast
+                        motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
+                            self.activeConfirm = nil
+                            self.toastMessage = activeConfirm.resultToast
+                        }
                     } onCancel: {
-                        self.activeConfirm = nil
+                        motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
+                            self.activeConfirm = nil
+                        }
                     }
                     .padding(.horizontal, ReaderDesignTokens.cardPadding)
                     .padding(.bottom, 28)
@@ -55,10 +60,13 @@ struct SettingsDemoShellView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .animation(motion.animation(ReaderMotion.Duration.overlay), value: activeConfirm)
+            .animation(motion.animation(AppMotion.Duration.feedbackToast), value: toastMessage)
         } trailing: {
             if state.presentation == .source, state.route == "source-management" {
                 DemoTopActionButton(icon: .more, accessibilityLabel: "更多") {
-                    withAnimation(.easeInOut(duration: 0.16)) {
+                    let duration = sourceMenuOpen ? AppMotion.Duration.dropdownCollapse : AppMotion.Duration.dropdownExpand
+                    motion.withMotionAnimation(duration) {
                         sourceMenuOpen.toggle()
                     }
                 }
@@ -90,6 +98,7 @@ struct SettingsDemoShellView: View {
             if state.presentation == .source || state.presentation == .sourceImportSheet {
                 if sourceMenuOpen {
                     SettingsDemoSourceMoreMenu()
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 sourceSearchAndFilters
             } else if let searchPlaceholder = state.searchPlaceholder {
@@ -199,7 +208,7 @@ struct SettingsDemoShellView: View {
 
     private func showConfirm(_ confirm: SettingsDemoConfirm?) {
         guard let confirm else { return }
-        withAnimation(.easeInOut(duration: 0.16)) {
+        motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
             activeConfirm = confirm
             toastMessage = nil
         }
@@ -1665,6 +1674,7 @@ private struct SettingsDemoRowView: View {
     @Binding var values: [String: String]
     @Binding var expandedOptionKey: String?
     let onConfirm: (SettingsDemoConfirm?) -> Void
+    private let motion = MotionEnvironment()
 
     private var optionKey: String {
         SettingsDemoRouteState.optionKey(route: route, title: row.title)
@@ -1686,8 +1696,8 @@ private struct SettingsDemoRowView: View {
                     options: row.options,
                     selected: currentValue ?? "",
                     onSelect: { value in
-                        values[optionKey] = value
-                        withAnimation(.easeInOut(duration: 0.14)) {
+                        motion.withMotionAnimation(AppMotion.Duration.dropdownSelect) {
+                            values[optionKey] = value
                             expandedOptionKey = nil
                         }
                     }
@@ -1695,12 +1705,14 @@ private struct SettingsDemoRowView: View {
                 .padding(.leading, ReaderDesignTokens.settingsRowIconColumn + ReaderDesignTokens.settingsRowHorizontalPadding + ReaderDesignTokens.settingsRowGap)
                 .padding(.trailing, ReaderDesignTokens.settingsRowHorizontalPadding)
                 .padding(.bottom, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                 .fill(rowBackground)
         )
+        .animation(motion.animation(optionOpen ? AppMotion.Duration.dropdownExpand : AppMotion.Duration.dropdownCollapse), value: optionOpen)
     }
 
     @ViewBuilder
@@ -1718,7 +1730,8 @@ private struct SettingsDemoRowView: View {
             }
         case .select:
             Button {
-                withAnimation(.easeInOut(duration: 0.14)) {
+                let duration = optionOpen ? AppMotion.Duration.dropdownCollapse : AppMotion.Duration.dropdownExpand
+                motion.withMotionAnimation(duration) {
                     expandedOptionKey = optionOpen ? nil : optionKey
                 }
             } label: {
@@ -1734,7 +1747,7 @@ private struct SettingsDemoRowView: View {
                     }
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DemoPressButtonStyle())
         case .action:
             if let route = row.route {
                 NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
@@ -1742,7 +1755,7 @@ private struct SettingsDemoRowView: View {
                         actionAccessory
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DemoPressButtonStyle())
             } else {
                 Button {
                     onConfirm(row.confirm)
@@ -1751,7 +1764,7 @@ private struct SettingsDemoRowView: View {
                         actionAccessory
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DemoPressButtonStyle())
             }
         case .input, .normal:
             baseRow {
@@ -1820,12 +1833,15 @@ private struct SettingsDemoSegment: View {
     let options: [String]
     let selected: String
     let onSelect: (String) -> Void
+    private let motion = MotionEnvironment()
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(options, id: \.self) { option in
                 Button {
-                    onSelect(option)
+                    motion.withMotionAnimation(AppMotion.Duration.chipSelect) {
+                        onSelect(option)
+                    }
                 } label: {
                     Text(option)
                         .font(.system(size: 10, weight: .heavy))
@@ -1838,10 +1854,11 @@ private struct SettingsDemoSegment: View {
                                 .fill(option == selected ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.chipBackground.opacity(0.72))
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DemoPressButtonStyle())
             }
         }
         .frame(maxWidth: 142, alignment: .trailing)
+        .animation(motion.animation(AppMotion.Duration.chipSelect), value: selected)
     }
 }
 
@@ -1869,6 +1886,7 @@ private struct SettingsDemoOptionDropdown: View {
     let options: [String]
     let selected: String
     let onSelect: (String) -> Void
+    private let motion = MotionEnvironment()
 
     var body: some View {
         VStack(spacing: 4) {
@@ -1894,7 +1912,8 @@ private struct SettingsDemoOptionDropdown: View {
                             .fill(option == selected ? ReaderDesignTokens.Color.primary.opacity(0.10) : ReaderDesignTokens.Color.surface.opacity(0.78))
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DemoPressButtonStyle())
+                .animation(motion.animation(AppMotion.Duration.chipSelect), value: selected)
             }
         }
         .padding(8)
@@ -1964,7 +1983,7 @@ private struct SettingsDemoSourceRowView: View {
                         .frame(minHeight: 28)
                         .background(Capsule().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DemoPressButtonStyle())
             }
             SettingsDemoSwitch(isOn: row.enabled)
         }
@@ -2003,7 +2022,7 @@ private struct SettingsDemoSourceMoreMenu: View {
                                     .fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72))
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DemoPressButtonStyle())
                 }
             }
         }
@@ -2016,7 +2035,7 @@ private struct SettingsDemoSourceBatchHeader: View {
             NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
                 Text("取消")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DemoPressButtonStyle())
 
             Text("已选 3 个")
                 .font(.system(size: 15, weight: .heavy))
@@ -2025,7 +2044,7 @@ private struct SettingsDemoSourceBatchHeader: View {
             Button {} label: {
                 Text("全选")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DemoPressButtonStyle())
         }
         .font(.system(size: 12, weight: .heavy))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
@@ -2082,7 +2101,7 @@ private struct SettingsDemoSourceImportSheet: View {
                             .fill(ReaderDesignTokens.Color.controlBackground.opacity(0.72))
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DemoPressButtonStyle())
             }
             NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
                 Text("取消")
@@ -2094,7 +2113,7 @@ private struct SettingsDemoSourceImportSheet: View {
                             .fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72))
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DemoPressButtonStyle())
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
@@ -2140,7 +2159,7 @@ private struct SettingsDemoSubPanelsView: View {
                                 .frame(minWidth: 74, minHeight: 32)
                                 .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(DemoPressButtonStyle())
                     }
                 }
             }
@@ -2232,11 +2251,11 @@ private struct SettingsDemoDeleteDialog: View {
                     NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-batch")) {
                         SettingsDemoActionLabel(action: SettingsDemoAction(icon: .close, title: "取消"))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DemoPressButtonStyle())
                     NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
                         SettingsDemoActionLabel(action: SettingsDemoAction(icon: .trash, title: "删除", tone: .danger))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DemoPressButtonStyle())
                 }
             }
         }
@@ -2288,14 +2307,14 @@ private struct SettingsDemoActionButton: View {
             NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
                 SettingsDemoActionLabel(action: action)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DemoPressButtonStyle())
         } else {
             Button {
                 onConfirm(action.confirm)
             } label: {
                 SettingsDemoActionLabel(action: action)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DemoPressButtonStyle())
         }
     }
 }
@@ -2331,7 +2350,7 @@ private struct SettingsDemoTopRouteButton: View {
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .lineLimit(1)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DemoPressButtonStyle())
         } else {
             EmptyView()
         }
@@ -2361,7 +2380,7 @@ private struct SettingsDemoConfirmDialog: View {
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DemoPressButtonStyle())
                     Button(action: onConfirm) {
                         Text(confirm.confirmLabel)
                             .font(.system(size: 12, weight: .heavy))
@@ -2369,7 +2388,7 @@ private struct SettingsDemoConfirmDialog: View {
                             .foregroundColor(.white)
                             .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DemoPressButtonStyle())
                 }
             }
         }
@@ -2420,6 +2439,7 @@ private struct SettingsDemoSwitch: View {
                 .padding(2)
         }
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : [.isButton])
+        .animation(MotionEnvironment().animation(AppMotion.Duration.toggleSwitch), value: isOn)
     }
 }
 

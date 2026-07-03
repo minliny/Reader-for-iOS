@@ -251,7 +251,7 @@ private struct DiscoverLoginBottomButton: View {
                     .fill(isPrimary ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.surface)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DemoPressButtonStyle())
     }
 }
 
@@ -411,10 +411,14 @@ private struct DiscoverSourceBar: View {
     let sourceName: String
     let sourceMeta: String
     @Binding var isControlPanelExpanded: Bool
+    private let motion = MotionEnvironment()
 
     var body: some View {
         Button {
-            isControlPanelExpanded.toggle()
+            let duration = isControlPanelExpanded ? AppMotion.Duration.dropdownCollapse : AppMotion.Duration.dropdownExpand
+            motion.withMotionAnimation(duration) {
+                isControlPanelExpanded.toggle()
+            }
         } label: {
             HStack(spacing: ReaderDesignTokens.discoverSourceGap) {
                 ReaderIcon(.sourceStack, size: 22, accessibilityLabel: "当前书源")
@@ -436,11 +440,12 @@ private struct DiscoverSourceBar: View {
                     .frame(width: ReaderDesignTokens.discoverSourceChevronColumn)
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isControlPanelExpanded ? 90 : 0))
+                    .animation(motion.animation(AppMotion.Duration.dropdownSelect), value: isControlPanelExpanded)
             }
             .padding(ReaderDesignTokens.discoverSourcePadding)
             .frame(minHeight: ReaderDesignTokens.discoverSourceBarMinHeight)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DemoPressButtonStyle())
         .backgroundCard()
     }
 }

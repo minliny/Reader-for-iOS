@@ -286,9 +286,26 @@ struct DemoTopActionButton: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DemoPressButtonStyle())
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+/// Shared `button.press` feedback for demo-derived controls.
+/// Uses native SwiftUI animation while keeping token values aligned with the
+/// frontend demo motion contract.
+struct DemoPressButtonStyle: ButtonStyle {
+    var scale: CGFloat = AppMotion.Scale.pressMin
+    var duration: TimeInterval = AppMotion.Duration.buttonPress
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .animation(
+                MotionEnvironment().animation(duration),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -354,7 +371,7 @@ struct ReaderStateCard: View {
                             .padding(.horizontal, 12)
                             .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DemoPressButtonStyle())
                     .padding(.top, 4)
                 }
             }
@@ -418,8 +435,9 @@ struct PillChip: View {
                         .fill(isSelected ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.chipBackground)
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DemoPressButtonStyle())
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
+        .animation(MotionEnvironment().animation(AppMotion.Duration.chipSelect), value: isSelected)
     }
 }
 
@@ -458,6 +476,7 @@ struct DemoFilterDisclosure: View {
     var onApply: (() -> Void)?
     let groups: [DemoFilterGroup]
     @Binding var isOpen: Bool
+    private let motion = MotionEnvironment()
 
     init(
         label: String,
@@ -481,7 +500,8 @@ struct DemoFilterDisclosure: View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.filterControlGap) {
             HStack(spacing: ReaderDesignTokens.filterControlGap) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.16)) {
+                    let duration = isOpen ? AppMotion.Duration.dropdownCollapse : AppMotion.Duration.dropdownExpand
+                    motion.withMotionAnimation(duration) {
                         isOpen.toggle()
                     }
                 } label: {
@@ -501,6 +521,7 @@ struct DemoFilterDisclosure: View {
                             .frame(width: ReaderDesignTokens.filterTriggerChevronColumn)
                             .foregroundStyle(.secondary)
                             .rotationEffect(.degrees(isOpen ? -90 : 90))
+                            .animation(motion.animation(AppMotion.Duration.dropdownSelect), value: isOpen)
                     }
                     .padding(.horizontal, ReaderDesignTokens.filterTriggerHorizontalPadding)
                     .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.filterControlMinHeight)
@@ -514,12 +535,16 @@ struct DemoFilterDisclosure: View {
                             )
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DemoPressButtonStyle())
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityValue(summary)
 
                 if let applyTitle, let onApply {
-                    Button(action: onApply) {
+                    Button {
+                        motion.withMotionAnimation(AppMotion.Duration.filterCommit) {
+                            onApply()
+                        }
+                    } label: {
                         HStack(spacing: 4) {
                             ReaderIcon(.check, size: 13, accessibilityLabel: applyTitle)
                             Text(applyTitle)
@@ -550,7 +575,7 @@ struct DemoFilterDisclosure: View {
                             y: 7
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(DemoPressButtonStyle())
                     .accessibilityLabel(applyTitle)
                 }
             }
@@ -569,7 +594,11 @@ struct DemoFilterDisclosure: View {
                                 spacing: ReaderDesignTokens.filterMenuOptionGap
                             ) {
                                 ForEach(group.options, id: \.id) { option in
-                                    Button(action: option.action) {
+                                    Button {
+                                        motion.withMotionAnimation(AppMotion.Duration.dropdownSelect) {
+                                            option.action()
+                                        }
+                                    } label: {
                                         HStack(spacing: 5) {
                                             if let icon = option.icon {
                                                 ReaderIcon(icon, size: 13, accessibilityLabel: option.label)
@@ -593,8 +622,9 @@ struct DemoFilterDisclosure: View {
                                                 )
                                         )
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(DemoPressButtonStyle())
                                     .accessibilityLabel(option.label)
+                                    .animation(motion.animation(AppMotion.Duration.chipSelect), value: option.isActive)
                                 }
                             }
                         }
@@ -619,6 +649,7 @@ struct DemoFilterDisclosure: View {
             }
         }
         .zIndex(8)
+        .animation(motion.animation(isOpen ? AppMotion.Duration.dropdownExpand : AppMotion.Duration.dropdownCollapse), value: isOpen)
     }
 }
 
@@ -702,14 +733,16 @@ struct DemoToggleRow: View {
 
     var body: some View {
         Button {
-            isOn.toggle()
+            MotionEnvironment().withMotionAnimation(AppMotion.Duration.toggleSwitch) {
+                isOn.toggle()
+            }
         } label: {
             DemoIconRow(icon: icon, title: title, subtitle: subtitle, detail: isOn ? onDetail : offDetail) {
                 DemoSwitchIndicator(isOn: isOn)
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DemoPressButtonStyle())
         .accessibilityLabel(title)
         .accessibilityValue(isOn ? onDetail : offDetail)
     }
@@ -729,6 +762,7 @@ struct DemoSwitchIndicator: View {
                 .padding(2)
         }
         .accessibilityHidden(true)
+        .animation(MotionEnvironment().animation(AppMotion.Duration.toggleSwitch), value: isOn)
     }
 }
 
