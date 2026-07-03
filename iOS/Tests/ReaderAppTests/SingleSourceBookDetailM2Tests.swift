@@ -50,20 +50,34 @@ final class SingleSourceBookDetailM2Tests: XCTestCase {
         XCTAssertTrue(label.contains("待接入") || label.contains("最新章节"))
     }
 
-    // MARK: - No real network
+    // MARK: - Mock fixtures
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderCanUseMockFixtures() {
+        let provider = ReaderCoreServiceProvider.shared
+        let previousMode = provider.currentMode
+        defer {
+            provider.resetMock()
+            provider.setMode(previousMode)
+        }
+
+        provider.setMode(.mock)
+        XCTAssertEqual(provider.currentMode, .mock)
     }
 
     // MARK: - M1 search still works
 
     func testSearchStillReturnsResults() async {
         let provider = ReaderCoreServiceProvider.shared
+        let previousMode = provider.currentMode
+        defer {
+            provider.resetMock()
+            provider.setMode(previousMode)
+        }
+
+        provider.setMode(.mock)
         provider.setMockScenario(.success)
         let state = await provider.searchBooks(keyword: "凡人", page: 1)
         guard case .loaded(let results) = state else { XCTFail(); return }
         XCTAssertEqual(results.count, 3)
-        provider.resetMock()
     }
 }

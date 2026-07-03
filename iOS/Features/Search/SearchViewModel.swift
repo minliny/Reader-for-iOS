@@ -53,9 +53,11 @@ public final class SearchViewModel: ObservableObject {
     private var resultSourceBindings: [String: BookSource] = [:]
 
     public init(
+        initialKeyword: String = "",
         store: BookSourceStore = .shared,
         provider: ReaderCoreServiceProvider? = nil
     ) {
+        self.keyword = initialKeyword
         self.store = store
         self.provider = provider ?? ReaderCoreServiceProvider.shared
         Task {

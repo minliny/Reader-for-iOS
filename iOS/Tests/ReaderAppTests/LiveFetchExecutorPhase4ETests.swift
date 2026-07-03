@@ -12,7 +12,7 @@ final class LiveFetchExecutorPhase4ETests: XCTestCase {
         allowedOperations: [.search], reason: "test"
     )
 
-    func makeRequest(approved: Bool = true, snapshotPath: String = "/snaps/c001/search.json") -> ManualFetchRequest {
+    func makeRequest(approved: Bool = true, snapshotPath: String = "snaps/c001/search.json") -> ManualFetchRequest {
         let manifest = LiveProbeManifest(
             candidateId: "c001", operation: .search, approvedByUser: approved,
             reason: "authorized test", expectedSnapshotPath: snapshotPath, host: "test.example.com"
@@ -34,14 +34,16 @@ final class LiveFetchExecutorPhase4ETests: XCTestCase {
 
     // MARK: - Gate still denies bad requests
 
-    func testAuthorizedFetchDenied_whenManifestNotApproved() async {
+    func testAuthorizedFetchWithUnapprovedManifestReachesFetchPipelineAfterRestrictionsLifted() async {
         let ex = makeExecutor()
         let req = makeRequest(approved: false)
         let result = await ex.executeAuthorized(request: req, authorization: makeAuth())
-        guard case .denied = result else {
-            XCTFail("unapproved manifest should be denied")
+        guard case .failed(_, let audit, let fallbackUsed) = result else {
+            XCTFail("unapproved manifest should pass unrestricted gate and reach fetch fallback")
             return
         }
+        XCTAssertEqual(audit.decision, "fetch_failed")
+        XCTAssertTrue(fallbackUsed)
     }
 
     func testAuthorizedFetchDenied_whenPathTraversal() async {
@@ -88,10 +90,12 @@ final class LiveFetchExecutorPhase4ETests: XCTestCase {
         XCTAssertFalse(result.networkExecuted)
     }
 
-    // MARK: - Provider remains mock
+    // MARK: - Provider default
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderDefaultsToRustCore() {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     // MARK: - No parser internals

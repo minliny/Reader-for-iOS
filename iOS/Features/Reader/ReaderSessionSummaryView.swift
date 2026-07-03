@@ -21,39 +21,40 @@ public struct ReaderSessionSummaryView: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "book.closed.fill")
-                    .foregroundStyle(.tint)
-                Text("会话上下文")
-                    .font(.headline)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.primary)
-                
+        ReaderCard {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                    ReaderIcon(.bookOpen, size: 18, accessibilityLabel: "会话上下文")
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                        .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("会话上下文")
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        Text(title)
+                            .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .bold))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+
+                Button(action: action) {
+                    Text(actionTitle)
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssReaderInlineActionMinHeight)
+                        .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.vertical, 4)
-            
-            Button(action: action) {
-                Text(actionTitle)
-                    .font(.body.weight(.medium))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.top, 4)
         }
-        .padding(20)
-        .background(Color.platformSecondaryGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
     }
 }
 #endif

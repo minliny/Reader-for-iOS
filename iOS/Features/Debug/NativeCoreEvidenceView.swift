@@ -73,70 +73,69 @@ public struct NativeCoreEvidenceView: View {
     public init() {}
 
     public var body: some View {
-        List {
-            Section("Native Core") {
-                LabeledContent("ABI") {
-                    Text("\(ReaderCoreNativeRuntime.abiVersion)")
-                        .font(.caption.monospaced())
-                }
-                LabeledContent("App Launch") {
-                    statusText(for: .appLaunch)
-                }
-                LabeledContent("Host Loop") {
-                    statusText(for: .hostRequestLoop)
-                }
+        DemoBackScreen(title: "Native Core Evidence") {
+            NativeCoreEvidenceSection(title: "Native Core") {
+                NativeCoreEvidenceRow(
+                    icon: .code,
+                    title: "ABI",
+                    subtitle: "ReaderCoreNativeRuntime",
+                    value: "\(ReaderCoreNativeRuntime.abiVersion)"
+                )
+                NativeCoreEvidenceRow(
+                    icon: .activity,
+                    title: "App Launch",
+                    subtitle: "App launch observed",
+                    value: statusValue(for: .appLaunch),
+                    isPassing: statusIsPassing(for: .appLaunch)
+                )
+                NativeCoreEvidenceRow(
+                    icon: .sourceStack,
+                    title: "Host Loop",
+                    subtitle: "Host request bridge",
+                    value: statusValue(for: .hostRequestLoop),
+                    isPassing: statusIsPassing(for: .hostRequestLoop)
+                )
             }
 
-            Section("Evidence") {
-                Button {
+            NativeCoreEvidenceSection(title: "Evidence") {
+                NativeCoreEvidenceActionButton(
+                    icon: .sourceStack,
+                    title: "Run Host Request Loop",
+                    subtitle: "Run native adapter evidence and capture host-loop metrics",
+                    isRunning: isRunning
+                ) {
                     runHostLoop()
-                } label: {
-                    if isRunning {
-                        ProgressView()
-                    } else {
-                        Label("Run Host Request Loop", systemImage: "point.3.connected.trianglepath.dotted")
-                    }
                 }
-                .disabled(isRunning)
 
                 if let host = report?.hostRequestLoop {
-                    LabeledContent("Capability") {
-                        Text(host.capability)
-                            .font(.caption.monospaced())
-                    }
-                    LabeledContent("Operation") {
-                        Text("\(host.operationId)")
-                            .font(.caption.monospaced())
-                    }
-                    LabeledContent("Books") {
-                        Text("\(host.resultBookCount)")
-                            .font(.caption.monospaced())
-                    }
-                    LabeledContent("First Title") {
-                        Text(host.firstBookTitle ?? "-")
-                            .font(.caption)
-                    }
+                    NativeCoreEvidenceRow(icon: .source, title: "Capability", subtitle: "Native host request", value: host.capability)
+                    NativeCoreEvidenceRow(icon: .link, title: "Operation", subtitle: "HostRequestEvent.operationId", value: "\(host.operationId)")
+                    NativeCoreEvidenceRow(icon: .bookOpen, title: "Books", subtitle: "Result count", value: "\(host.resultBookCount)")
+                    NativeCoreEvidenceRow(icon: .text, title: "First Title", subtitle: "First returned book title", value: host.firstBookTitle ?? "-")
                 }
             }
 
-            Section("Wrapper Smoke") {
-                statusText(for: .wrapperSmoke)
+            NativeCoreEvidenceSection(title: "Wrapper Smoke") {
+                NativeCoreEvidenceRow(
+                    icon: .shield,
+                    title: "Wrapper Smoke",
+                    subtitle: "ReaderCoreNativeAdapter smoke layer",
+                    value: statusValue(for: .wrapperSmoke),
+                    isPassing: statusIsPassing(for: .wrapperSmoke)
+                )
             }
         }
-        .navigationTitle("Native Core Evidence")
     }
 
-    @ViewBuilder
-    private func statusText(for layer: ReaderCoreNativeEvidenceLayer) -> some View {
+    private func statusValue(for layer: ReaderCoreNativeEvidenceLayer) -> String {
         if let layerResult = report?.layers.first(where: { $0.layer == layer }) {
-            Text(layerResult.status.rawValue)
-                .font(.caption.monospaced())
-                .foregroundStyle(layerResult.status == .measuredPass ? .green : .secondary)
-        } else {
-            Text("notRun")
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
+            return layerResult.status.rawValue
         }
+        return "notRun"
+    }
+
+    private func statusIsPassing(for layer: ReaderCoreNativeEvidenceLayer) -> Bool? {
+        report?.layers.first(where: { $0.layer == layer })?.status == .measuredPass
     }
 
     private func runHostLoop() {
@@ -165,41 +164,120 @@ public struct NativeCoreEvidenceAutorunView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 16) {
+        DemoPaperScreen {
             if viewModel.isRunning {
-                ProgressView("Running Native Core evidence")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ReaderStateCard(
+                    icon: .sync,
+                    title: "Running Native Core evidence",
+                    subtitle: "Host request loop evidence is running."
+                )
             } else if let report = viewModel.report, report.hostRequestLoopPassed {
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.green)
-                    Text("Native Core evidence passed")
-                        .font(.headline)
-                    Text(viewModel.outputDirectory)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
+                ReaderStateCard(
+                    icon: .check,
+                    title: "Native Core evidence passed",
+                    subtitle: viewModel.outputDirectory
+                )
             } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "xmark.octagon.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.red)
-                    Text("Native Core evidence failed")
-                        .font(.headline)
-                    Text(viewModel.errorText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
+                ReaderStateCard(
+                    icon: .warning,
+                    title: "Native Core evidence failed",
+                    subtitle: viewModel.errorText
+                )
             }
         }
         .task {
             await viewModel.run()
         }
+    }
+}
+
+private struct NativeCoreEvidenceSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+
+                VStack(spacing: 0) {
+                    content
+                }
+            }
+        }
+    }
+}
+
+private struct NativeCoreEvidenceRow: View {
+    let icon: ReaderAssetIcon
+    let title: String
+    let subtitle: String
+    let value: String
+    var isPassing: Bool? = nil
+
+    var body: some View {
+        DemoIconRow(icon: icon, title: title, subtitle: subtitle, detail: nil) {
+            Text(value)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy, design: .monospaced))
+                .foregroundColor(valueColor)
+                .lineLimit(1)
+        }
+    }
+
+    private var valueColor: Color {
+        guard let isPassing else {
+            return ReaderDesignTokens.Color.primaryDark.opacity(0.74)
+        }
+        return isPassing ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.70, green: 0.42, blue: 0.12)
+    }
+}
+
+private struct NativeCoreEvidenceActionButton: View {
+    let icon: ReaderAssetIcon
+    let title: String
+    let subtitle: String
+    let isRunning: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                if isRunning {
+                    ProgressView()
+                        .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                } else {
+                    ReaderIcon(icon, size: 17, accessibilityLabel: title)
+                        .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isRunning ? "Running Host Request Loop" : title)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.settingsRowMinHeight, alignment: .leading)
+            .foregroundColor(.white)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .fill(ReaderDesignTokens.Color.primary)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isRunning)
+        .opacity(isRunning ? 0.65 : 1)
     }
 }
 

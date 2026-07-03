@@ -11,55 +11,60 @@ public struct ReaderTTSControlView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("TTS Player")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(stateLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 0) {
-                Slider(
-                    value: Binding(
-                        get: { Double(player.speechRate) },
-                        set: { player.speechRate = Float($0) }
-                    ),
-                    in: 0.25...2.0,
-                    step: 0.25
-                )
-                Text(String(format: "%.2fx", player.speechRate))
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 48)
-            }
-
-            HStack(spacing: 24) {
-                Button(action: { player.stop() }) {
-                    Image(systemName: "stop.fill")
-                        .font(.title3)
+        ReaderCard {
+            VStack(spacing: ReaderDesignTokens.settingsSectionGap) {
+                HStack(spacing: 8) {
+                    ReaderIcon(.tts, size: ReaderDesignTokens.readerSessionCapsuleIconSize)
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    Text("TTS Player")
+                        .font(.system(size: 12, weight: .heavy))
+                    Spacer()
+                    Text(stateLabel)
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(.secondary)
                 }
-                .disabled(player.playbackState == .idle || player.playbackState == .finished)
+                .frame(height: ReaderDesignTokens.readerSessionCapsuleHeight)
 
-                Button(action: { player.togglePlayPause(text: contentText) }) {
-                    Image(systemName: playPauseIcon)
-                        .font(.title)
+                HStack(spacing: 8) {
+                    Slider(
+                        value: Binding(
+                            get: { Double(player.speechRate) },
+                            set: { player.speechRate = Float($0) }
+                        ),
+                        in: 0.25...2.0,
+                        step: 0.25
+                    )
+                    Text(String(format: "%.2fx", player.speechRate))
+                        .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                        .frame(width: 48)
                 }
 
-                Spacer()
+                HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
+                    Button(action: { player.stop() }) {
+                        ReaderIcon(.stop, size: 18, accessibilityLabel: "停止")
+                            .frame(width: ReaderDesignTokens.readerSessionCapsuleIconSize, height: ReaderDesignTokens.readerSessionCapsuleIconSize)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(player.playbackState == .idle || player.playbackState == .finished)
+
+                    Button(action: { player.togglePlayPause(text: contentText) }) {
+                        ReaderIcon(playPauseIcon, size: 18, accessibilityLabel: "播放或暂停")
+                            .frame(width: ReaderDesignTokens.readerSessionCapsuleIconSize, height: ReaderDesignTokens.readerSessionCapsuleIconSize)
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
             }
         }
-        .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    private var playPauseIcon: String {
+    private var playPauseIcon: ReaderAssetIcon {
         switch player.playbackState {
         case .playing:
-            return "pause.circle.fill"
+            return .pause
         case .paused, .idle, .finished:
-            return "play.circle.fill"
+            return .play
         }
     }
 

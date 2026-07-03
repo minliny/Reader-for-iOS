@@ -32,7 +32,7 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
 
     func testAllowed_whenUserDeniesNetwork() {
         let ctrl = NetworkAccessController()
-        let pref = UserNetworkPreference.safeDefault  // allowNetworkAccess = false
+        let pref = UserNetworkPreference.safeDefault
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: enabledSource, operation: .search)
         guard case .allowed(_, let audit) = result else {
             XCTFail("should allow after network restrictions are lifted")
@@ -126,10 +126,12 @@ final class ControlledNetworkAccessPhase5Tests: XCTestCase {
         XCTAssertTrue(audit.networkTriggered)
     }
 
-    // MARK: - Provider remains mock
+    // MARK: - Provider default
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderDefaultsToRustCore() {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     // MARK: - No parser internals

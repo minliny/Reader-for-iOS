@@ -6,14 +6,16 @@ import ReaderShellValidation
 /// with tap zones and slide animation.
 ///
 /// Used by `ReaderView` when `displaySettings.pageTurnMode == .paginated`.
-/// Tap zones: left third = previous page, center third = toggle UI,
-/// right third = next page. Also supports horizontal swipe gestures.
+/// Tap zones match the immersive reader contract: 26% previous, 48% chrome,
+/// 26% next. Also supports horizontal swipe gestures.
 ///
 /// When `displaySettings.dualPageEnabled` is true and the viewport is
 /// landscape (width > height), two pages are shown side by side.
 struct PaginatedReaderView: View {
+    let title: String?
     let text: String
     let displaySettings: ReaderDisplaySettings
+    let contentInsets: ReaderContentInsets
     let onToggleUI: () -> Void
     let onProgressUpdate: (Double) -> Void
     @ObservedObject var pageTurnTrigger: PageTurnTrigger
@@ -59,6 +61,8 @@ struct PaginatedReaderView: View {
             recomputePages()
             currentPageIndex = 0
         }
+        .onChange(of: title) { _ in recomputePages() }
+        .onChange(of: contentInsets) { _ in recomputePages() }
         .onChange(of: displaySettings.fontSize) { _ in recomputePages() }
         .onChange(of: displaySettings.lineSpacing) { _ in recomputePages() }
         .onChange(of: displaySettings.horizontalPadding) { _ in recomputePages() }
@@ -71,11 +75,14 @@ struct PaginatedReaderView: View {
         ZStack {
             Color(hex: displaySettings.backgroundMode.backgroundColor)
 
-            if isDualPageMode {
-                dualPageLayout
-            } else {
-                singlePageLayout
+            Group {
+                if isDualPageMode {
+                    dualPageLayout
+                } else {
+                    singlePageLayout
+                }
             }
+            .padding(contentInsets.edgeInsets)
 
             tapZoneOverlay
         }
@@ -135,18 +142,29 @@ struct PaginatedReaderView: View {
 
     @ViewBuilder
     private func pageText(at index: Int) -> some View {
-        let pageText = pageString(at: index)
-        Text(pageText)
-            .font(.custom(displaySettings.fontFamily, size: CGFloat(displaySettings.fontSize)))
-            .foregroundColor(Color(hex: displaySettings.backgroundMode.textColor))
-            .lineSpacing(CGFloat(displaySettings.lineSpacing))
-            .multilineTextAlignment(.leading)
-            .padding(EdgeInsets(
-                top: displaySettings.verticalPadding,
-                leading: displaySettings.horizontalPadding,
-                bottom: displaySettings.verticalPadding + displaySettings.paragraphSpacing,
-                trailing: displaySettings.horizontalPadding
-            ))
+        VStack(alignment: .leading, spacing: paragraphGap) {
+            if index == 0, !displayTitle.isEmpty {
+                Text(displayTitle)
+                    .font(ReaderTypography.readerDisplayFont(family: displaySettings.fontFamily, size: titleFontSize, weight: .bold))
+                    .lineSpacing(titleFontSize * (ReaderDesignTokens.immersiveTitleLineHeight - 1))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(textColor)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.bottom, max(0, ReaderDesignTokens.immersiveTitleBottomMargin - paragraphGap))
+            }
+
+            ForEach(Array(pageParagraphs(at: index).enumerated()), id: \.offset) { _, paragraph in
+                Text(indentedParagraph(paragraph))
+                    .font(ReaderTypography.readerDisplayFont(family: displaySettings.fontFamily, size: bodyFontSize))
+                    .lineSpacing(bodyLineSpacing)
+                    .foregroundColor(textColor)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Paginated reading typography layer")
     }
 
     // MARK: - Tap Zones
@@ -158,17 +176,17 @@ struct PaginatedReaderView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture { goPrevious() }
-                    .frame(maxWidth: .infinity)
+                    .frame(width: availableSize.width * ReaderDesignTokens.hotzonePrevRatio)
 
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture { onToggleUI() }
-                    .frame(width: availableSize.width * 0.34)
+                    .frame(width: availableSize.width * ReaderDesignTokens.hotzoneCenterRatio)
 
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture { goNext() }
-                    .frame(maxWidth: .infinity)
+                    .frame(width: availableSize.width * ReaderDesignTokens.hotzoneNextRatio)
             }
         }
     }
@@ -248,18 +266,20 @@ struct PaginatedReaderView: View {
 
         let effectiveWidth: Double
         if isDualPageMode {
-            // Each page gets half the width
-            effectiveWidth = Double(availableSize.width) / 2.0
+            // The responsive reading inset wraps the whole spread before
+            // columns split, so each page gets half of the remaining width.
+            let contentWidth = max(1, availableSize.width - contentInsets.leading - contentInsets.trailing)
+            effectiveWidth = Double(contentWidth) / 2.0
         } else {
             effectiveWidth = Double(availableSize.width)
         }
 
         let metrics = PaginationMetrics(
             fontSize: displaySettings.fontSize,
-            lineSpacing: displaySettings.lineSpacing,
+            lineSpacing: Double(bodyLineSpacing),
             paragraphSpacing: displaySettings.paragraphSpacing,
-            horizontalPadding: displaySettings.horizontalPadding,
-            verticalPadding: displaySettings.verticalPadding,
+            horizontalPadding: paginationHorizontalPadding,
+            verticalPadding: paginationVerticalPadding,
             availableWidth: effectiveWidth,
             availableHeight: Double(availableSize.height)
         )
@@ -279,5 +299,53 @@ struct PaginatedReaderView: View {
         guard index >= 0, index < pages.count else { return "" }
         let page = pages[index]
         return String(text[page.start..<page.end])
+    }
+
+    private var displayTitle: String {
+        (title ?? "")
+            .replacingOccurrences(of: #"^第\s*\d+\s*章\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var bodyFontSize: CGFloat {
+        CGFloat(displaySettings.fontSize)
+    }
+
+    private var titleFontSize: CGFloat {
+        bodyFontSize + ReaderDesignTokens.immersiveTitleFontSizeOffset
+    }
+
+    private var bodyLineSpacing: CGFloat {
+        bodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1)
+    }
+
+    private var paragraphGap: CGFloat {
+        CGFloat(displaySettings.paragraphSpacing)
+    }
+
+    private var textColor: SwiftUI.Color {
+        Color(hex: displaySettings.backgroundMode.textColor)
+    }
+
+    private var paginationHorizontalPadding: Double {
+        guard !isDualPageMode else { return 0 }
+        return Double((contentInsets.leading + contentInsets.trailing) / 2)
+    }
+
+    private var paginationVerticalPadding: Double {
+        Double((contentInsets.top + contentInsets.bottom) / 2)
+    }
+
+    private func pageParagraphs(at index: Int) -> [String] {
+        let lines = pageString(at: index)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return lines.isEmpty ? [pageString(at: index)] : lines
+    }
+
+    private func indentedParagraph(_ paragraph: String) -> String {
+        let indentCount = max(0, Int(ReaderDesignTokens.immersiveBodyParagraphIndent.rounded()))
+        return String(repeating: "\u{3000}", count: indentCount) + paragraph
     }
 }

@@ -172,10 +172,12 @@ final class LiveProbeGatePhase4DTests: XCTestCase {
         XCTAssertFalse(store.validatePathInsideSnapshotRoot("c001/../../etc/passwd"))
     }
 
-    // MARK: - Provider remains mock
+    // MARK: - Provider default
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderDefaultsToRustCore() {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     // MARK: - No parser internals

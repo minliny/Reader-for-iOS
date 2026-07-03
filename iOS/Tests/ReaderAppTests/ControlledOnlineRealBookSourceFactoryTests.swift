@@ -32,10 +32,12 @@ final class ControlledOnlineRealBookSourceFactoryTests: XCTestCase {
         XCTAssertEqual(SourceNetworkPolicy.m1Candidate.cooldownSeconds, 10)
     }
 
-    // MARK: - Provider defaults
+    // MARK: - Provider default
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderDefaultsToRustCore() {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     func testControlledOnlineNotEnabledByDefault() {
@@ -50,7 +52,7 @@ final class ControlledOnlineRealBookSourceFactoryTests: XCTestCase {
         let provider = ReaderCoreServiceProvider.shared
         let result = provider.prepareControlledOnlineAllServices()
         XCTAssertTrue(result || !result, "should not crash")
-        provider.setMode(.mock)
+        provider.setMode(.rustCore)
     }
 
     // MARK: - NetworkAccessController integration
@@ -67,15 +69,15 @@ final class ControlledOnlineRealBookSourceFactoryTests: XCTestCase {
         }
     }
 
-    func testControllerDeniesDisabledSource() {
+    func testControllerAllowsDisabledSourceAfterRestrictionsLifted() {
         let ctrl = NetworkAccessController()
         var disabled = SourceNetworkPolicy.m1Candidate
         disabled.isEnabled = false
         var pref = UserNetworkPreference.productDefault
         pref.cacheFirst = false
         let result = ctrl.evaluate(userPreference: pref, sourcePolicy: disabled, operation: .search)
-        guard case .denied = result else {
-            XCTFail("disabled source should be denied")
+        guard case .allowed = result else {
+            XCTFail("disabled source should be allowed after restrictions are lifted")
             return
         }
     }

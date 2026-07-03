@@ -266,6 +266,6 @@ final class ReaderViewModelTests: XCTestCase {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReaderAppTests", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent(name)
+        return dir.appendingPathComponent("\(UUID().uuidString)-\(name)")
     }
 }

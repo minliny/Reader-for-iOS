@@ -22,41 +22,39 @@ public struct ReaderFlowFeatureView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                statusCard
+        DemoBackScreen(title: "Reader") {
+            statusCard
 
-                if let warning = coordinator.lastWarning {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.yellow)
-                        Text(warning)
-                            .font(.caption)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Button("Dismiss") { coordinator.lastWarning = nil }
-                            .font(.caption)
-                    }
-                    .padding(12)
-                    .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+            if let warning = coordinator.lastWarning {
+                ReaderStateBanner(
+                    icon: .warning,
+                    title: "链路提示",
+                    messages: [warning]
+                )
+                Button {
+                    coordinator.lastWarning = nil
+                } label: {
+                    Text("已知晓")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssReaderInlineActionMinHeight)
+                        .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
                 }
-
-                if moduleBoundary.canImportBookSource {
-                    BookSourceImportView()
-                }
-
-                if coordinator.selectedBook != nil || coordinator.selectedChapter != nil || coordinator.contentPage != nil {
-                    sessionSummary
-                }
-
-                readerActions
-
-                serviceModeToggle
+                .buttonStyle(.plain)
             }
-            .padding(20)
+
+            if moduleBoundary.canImportBookSource {
+                BookSourceImportView()
+            }
+
+            if coordinator.selectedBook != nil || coordinator.selectedChapter != nil || coordinator.contentPage != nil {
+                sessionSummary
+            }
+
+            readerActions
+
+            serviceModeToggle
         }
-        .background(Color(UIColor.systemGroupedBackground))
-        .navigationTitle("Reader")
     }
 
     private var statusCard: some View {
@@ -166,82 +164,94 @@ public struct ReaderFlowFeatureView: View {
 
     @ViewBuilder
     private var readerActions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("主链路入口")
-                .font(.headline)
+        ReaderCard {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                Text("主链路入口")
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
-            if moduleBoundary.canSearch {
-                if moduleBoundary.canSearch && coordinator.selectedSource != nil {
+                if moduleBoundary.canSearch {
+                    if moduleBoundary.canSearch && coordinator.selectedSource != nil {
+                        Button {
+                            navigationState.push(.search)
+                        } label: {
+                            actionRow(
+                                icon: .search,
+                                title: "开始搜索",
+                                subtitle: "进入 Search -> TOC -> Content 最小主链路"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        actionRow(
+                            icon: .search,
+                            title: "开始搜索",
+                            subtitle: "请先导入并选中一个书源"
+                        )
+                    }
+                }
+
+                if let selectedBook = coordinator.selectedBook, !coordinator.tocItems.isEmpty {
                     Button {
-                        navigationState.push(.search)
+                        navigationState.push(.toc(bookTitle: selectedBook.title, bookAuthor: selectedBook.author))
                     } label: {
                         actionRow(
-                            title: "开始搜索",
-                            subtitle: "进入 Search -> TOC -> Content 最小主链路"
+                            icon: .readerModuleDirectory,
+                            title: "继续目录",
+                            subtitle: selectedBook.title
                         )
                     }
                     .buttonStyle(.plain)
-                } else {
-                    actionRow(
-                        title: "开始搜索",
-                        subtitle: "请先导入并选中一个书源"
-                    )
                 }
-            }
 
-            if let selectedBook = coordinator.selectedBook, !coordinator.tocItems.isEmpty {
-                Button {
-                    navigationState.push(.toc(bookTitle: selectedBook.title, bookAuthor: selectedBook.author))
-                } label: {
-                    actionRow(
-                        title: "继续目录",
-                        subtitle: selectedBook.title
-                    )
+                if let selectedChapter = coordinator.selectedChapter, moduleBoundary.canReadContent {
+                    Button {
+                        navigationState.push(.content(chapterTitle: selectedChapter.chapterTitle))
+                    } label: {
+                        actionRow(
+                            icon: .bookOpen,
+                            title: "继续阅读",
+                            subtitle: selectedChapter.chapterTitle
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
-
-            if let selectedChapter = coordinator.selectedChapter, moduleBoundary.canReadContent {
-                Button {
-                    navigationState.push(.content(chapterTitle: selectedChapter.chapterTitle))
-                } label: {
-                    actionRow(
-                        title: "继续阅读",
-                        subtitle: selectedChapter.chapterTitle
-                    )
-                }
-                .buttonStyle(.plain)
             }
         }
     }
 
     private var serviceModeToggle: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("Real Core Services", isOn: $useRealServices)
-                .font(.subheadline)
-            Text(useRealServices ? "Using real Reader-Core search/TOC/content" : "Using mock data for development")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        ReaderCard {
+            DemoToggleRow(
+                icon: .code,
+                title: "Real Core Services",
+                subtitle: useRealServices ? "Using real Reader-Core search/TOC/content" : "Using mock data for development",
+                onDetail: "real",
+                offDetail: "mock",
+                isOn: $useRealServices
+            )
         }
-        .padding(12)
-        .background(Color.platformSecondaryGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private func actionRow(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private func actionRow(icon: ReaderAssetIcon, title: String, subtitle: String) -> some View {
+        HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+            ReaderIcon(icon, size: 18, accessibilityLabel: title)
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color.platformSecondaryGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.settingsRowMinHeight, alignment: .leading)
     }
 
     private var progressItems: [ReaderStatusCardItem] {

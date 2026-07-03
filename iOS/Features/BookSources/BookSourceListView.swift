@@ -41,109 +41,146 @@ public struct BookSourceListView: View {
     ]
 
     public var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if let error = errorMessage {
-                    HStack {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                        Spacer()
-                        Button("关闭") { errorMessage = nil }
-                            .font(.caption)
-                    }
-                    .padding(12)
-                    .background(Color.red.opacity(0.1))
-                }
+        DemoBackScreen(title: "书源管理") {
+            if let errorMessage {
+                ReaderStateBanner(
+                    icon: .warning,
+                    title: "书源加载提示",
+                    messages: [errorMessage]
+                )
+            }
 
-                Group {
-                    if isLoading {
-                        ProgressView("加载书源中...")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if sources.isEmpty {
-                        emptyStateView
-                    } else {
-                        sourceListContent
-                    }
-                }
+            sourceSummaryCard
+
+            if isLoading {
+                ReaderStateBanner(
+                    icon: .refresh,
+                    title: "加载书源中",
+                    messages: ["正在合并预置候选源与本地导入源。"]
+                )
+            } else if sources.isEmpty {
+                emptyStateView
+            } else {
+                sourceListContent
             }
-            .navigationTitle("书源")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { activeSheet = .importSheet }) {
-                        Image(systemName: "plus")
-                    }
-                }
+        } trailing: {
+            DemoTopActionButton(icon: .add, accessibilityLabel: "导入书源") {
+                activeSheet = .importSheet
             }
-            .sheet(item: $activeSheet) { sheet in
-                switch sheet {
-                case .importSheet:
-                    BookSourceImportView()
-                case .shareSheet:
-                    NavigationStack {
-                        ScrollView {
-                            Text(shareText)
-                                .font(.caption.monospaced())
-                                .padding()
-                        }
-                        .navigationTitle("书源 JSON")
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                Button("复制") {
-#if os(iOS)
-                                    UIPasteboard.general.string = shareText
-#endif
-                                }
-                            }
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                Button("完成") { activeSheet = nil }
-                            }
-                        }
-                    }
-                case .detail(let source, _):
-                    BookSourceDetailSheet(source: source)
-                }
+        }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .importSheet:
+                BookSourceImportView()
+            case .shareSheet:
+                shareSheetContent
+            case .detail(let source, _):
+                BookSourceDetailSheet(source: source)
             }
-            .task {
-                await loadSources()
-            }
+        }
+        .task {
+            await loadSources()
         }
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "books.vertical")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("暂无书源")
-                .font(.title2).fontWeight(.semibold)
-            Text("导入书源以开始使用")
-                .font(.subheadline).foregroundStyle(.secondary)
-            Button("导入书源") {
-                activeSheet = .importSheet
-            }
-            .buttonStyle(.borderedProminent)
+        ReaderStateCard(
+            icon: .sourceStack,
+            title: "暂无书源",
+            subtitle: "导入书源以开始使用。",
+            actionTitle: "导入书源"
+        ) {
+            activeSheet = .importSheet
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var sourceSummaryCard: some View {
+        ReaderCard {
+            HStack(alignment: .center, spacing: ReaderDesignTokens.settingsRowGap) {
+                ReaderIcon(.sourceStack, size: ReaderDesignTokens.rssSourceListIconSize, accessibilityLabel: "书源配置")
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("书源配置")
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    Text("启用 \(enabledSources.count) 个，停用 \(disabledSources.count) 个")
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    activeSheet = .importSheet
+                } label: {
+                    Text("导入")
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                        .foregroundColor(.white)
+                        .frame(minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
+                        .padding(.horizontal, 10)
+                        .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("导入书源")
+            }
+        }
+    }
+
+    private var shareSheetContent: some View {
+        DemoBackScreen(title: "书源 JSON") {
+            ReaderCard {
+                Text(shareText)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } trailing: {
+            DemoTopActionButton(icon: .file, accessibilityLabel: "复制书源 JSON") {
+#if os(iOS)
+                UIPasteboard.general.string = shareText
+#endif
+            }
+        }
     }
 
     private var enabledSources: [BookSource] { sources.filter { $0.enabled } }
     private var disabledSources: [BookSource] { sources.filter { !$0.enabled } }
 
     private var sourceListContent: some View {
-        List {
-            if !enabledSources.isEmpty {
-                Section("已启用 (\(enabledSources.count))") {
-                    ForEach(enabledSources, id: \.id) { source in sourceRow(source: source) }
+        ReaderCard {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                if !enabledSources.isEmpty {
+                    sourceSection(title: "已启用", sources: enabledSources)
                 }
-            }
-            if !disabledSources.isEmpty {
-                Section("已禁用 (\(disabledSources.count))") {
-                    ForEach(disabledSources, id: \.id) { source in sourceRow(source: source) }
+                if !disabledSources.isEmpty {
+                    sourceSection(title: "已禁用", sources: disabledSources)
                 }
             }
         }
-        .listStyle(.plain)
+    }
+
+    private func sourceSection(title: String, sources: [BookSource]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("\(title) (\(sources.count))")
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                Spacer()
+            }
+            .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+            .padding(.bottom, 6)
+
+            ForEach(Array(sources.enumerated()), id: \.offset) { index, source in
+                sourceRow(source: source)
+                if index < sources.count - 1 {
+                    Divider()
+                        .padding(.leading, ReaderDesignTokens.settingsRowHorizontalPadding + ReaderDesignTokens.settingsRowIconColumn + ReaderDesignTokens.settingsRowGap)
+                }
+            }
+        }
     }
 
     private func sourceRow(source: BookSource) -> some View {
@@ -174,8 +211,6 @@ public struct BookSourceListView: View {
                 activeSheet = .detail(source: source, id: sourceId)
             }
         )
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-        .listRowSeparator(.hidden)
     }
 
     private func loadSources() async {

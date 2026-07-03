@@ -19,38 +19,54 @@ public struct ReaderContentSectionView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            // Header Context
-            VStack(alignment: .leading, spacing: 8) {
-                if let bookTitle = bookTitle {
-                    Text(bookTitle)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+        ReaderCard {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let bookTitle = bookTitle {
+                        Text(bookTitle)
+                            .font(.system(size: ReaderDesignTokens.readerTopSubtitleFontSize, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Text(title)
+                        .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.immersiveBodyFontSize + ReaderDesignTokens.immersiveTitleFontSizeOffset, weight: .bold))
+                        .lineSpacing((ReaderDesignTokens.immersiveBodyFontSize + ReaderDesignTokens.immersiveTitleFontSizeOffset) * (ReaderDesignTokens.immersiveTitleLineHeight - 1))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let sourceName = sourceName {
+                        Text("来源：\(sourceName)")
+                            .font(.system(size: ReaderDesignTokens.readerTopSubtitleFontSize, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
-                
-                Text(title)
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                
-                if let sourceName = sourceName {
-                    Text("来源: \(sourceName)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.immersiveBodyFontSize * 0.72) {
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                        Text(indentedParagraph(paragraph))
+                            .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.immersiveBodyFontSize))
+                            .lineSpacing(ReaderDesignTokens.immersiveBodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1))
+                            .foregroundStyle(.primary.opacity(0.86))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
-            .padding(.bottom, 8)
-
-            // Content Body
-            Text(bodyText)
-                .font(.body)
-                .lineSpacing(14)
-                .foregroundStyle(.primary.opacity(0.85))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 16)
-        // No heavy background card, just readable text on the system background
+    }
+
+    private var paragraphs: [String] {
+        let lines = bodyText
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return lines.isEmpty ? [bodyText] : lines
+    }
+
+    private func indentedParagraph(_ paragraph: String) -> String {
+        let indentCount = max(0, Int(ReaderDesignTokens.immersiveBodyParagraphIndent.rounded()))
+        return String(repeating: "\u{3000}", count: indentCount) + paragraph
     }
 }

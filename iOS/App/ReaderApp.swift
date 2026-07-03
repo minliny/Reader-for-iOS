@@ -91,7 +91,7 @@ public struct ReaderApp: App {
             if let config = autorunConfiguration, config.isEnabled && config.isValid {
                 WebViewRuntimeAutorunView(configuration: config)
             } else {
-                RootShellView(
+                AppShellView(
                     coordinator: coordinator,
                     navigationState: navigationState,
                     environment: environment
@@ -104,103 +104,5 @@ public struct ReaderApp: App {
                 environment: environment
             )
             #endif
-    }
-}
-
-struct RootShellView: View {
-    @ObservedObject var coordinator: ReadingFlowCoordinator
-    @ObservedObject var navigationState: AppNavigationState
-    let environment: ReaderShellEnvironment
-    @State private var selectedTab = 0
-
-    var body: some View {
-        TabView(selection: $selectedTab) {
-            // Tab 0: 书架
-            NavigationStack {
-                BookshelfView()
-                    .navigationTitle("书架")
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            NavigationLink(destination: SearchView()) {
-                                Image(systemName: "magnifyingglass")
-                            }
-                        }
-                    }
-            }
-            .tabItem {
-                Label("书架", systemImage: "books.vertical")
-            }
-            .tag(0)
-
-            // Tab 1: 发现
-            DiscoverHomeShellView()
-                .tabItem {
-                    Label("发现", systemImage: "safari")
-                }
-                .tag(1)
-
-            // Tab 2: 书源
-            NavigationStack {
-                BookSourceListView(coordinator: coordinator)
-                    .navigationTitle("书源")
-            }
-            .tabItem {
-                Label("书源", systemImage: "doc.text.magnifyingglass")
-            }
-            .tag(2)
-
-            // Tab 3: 我的
-            MineTabView()
-                .tabItem {
-                    Label("我的", systemImage: "person.circle")
-                }
-                .tag(3)
-        }
-    }
-
-    @ViewBuilder
-    private func destinationView(for route: Route) -> some View {
-        switch route {
-        case .home:
-            ReaderFlowFeatureView(
-                coordinator: coordinator,
-                navigationState: navigationState,
-                environment: environment
-            )
-        case .bookSourceImport:
-            BookSourceImportView()
-        case .search:
-            SearchView()
-        case .toc(let bookTitle, let bookAuthor):
-            if let book = coordinator.selectedBook {
-                TOCView(coordinator: coordinator, book: book)
-            } else {
-                Text("书籍信息不可用")
-            }
-        case .content(let chapterTitle):
-            if let chapter = coordinator.selectedChapter {
-                ContentView(coordinator: coordinator, chapter: chapter)
-            } else {
-                Text("章节信息不可用")
-            }
-        case .webdavSettings:
-            WebDAVSettingsView()
-        case .rssList:
-            RSSFeedView()
-        case .bookshelf:
-            BookshelfView()
-        case .prototypeGallery:
-            PrototypeGalleryView()
-        case .bookSources:
-            BookSourceListView(coordinator: coordinator)
-        case .bookDetail(let bookURL, let title, let author):
-            BookDetailView(result: SearchResultItem(
-                title: title,
-                detailURL: bookURL,
-                author: author
-            ))
-        default:
-            Text("\(route.title) — 待实现")
-        }
     }
 }

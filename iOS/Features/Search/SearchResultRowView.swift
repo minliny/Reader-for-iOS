@@ -20,49 +20,52 @@ public struct SearchResultRowView: View {
     }
 
     public var body: some View {
-        Button(action: {
-            onTap?()
-        }) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(result.title)
-                        .font(.headline)
+        ReaderCard {
+            HStack(alignment: .top, spacing: ReaderDesignTokens.searchResultRowGap) {
+                ReaderIcon(.bookOpen, size: 20, accessibilityLabel: result.title)
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .frame(width: ReaderDesignTokens.searchResultCoverWidth, height: ReaderDesignTokens.searchResultCoverHeight)
+                    .background(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs).fill(ReaderDesignTokens.Color.chipBackground))
 
-                    if let author = result.author, !author.isEmpty {
-                        Text("by \(author)")
-                            .font(.subheadline)
+                Button(action: { onTap?() }) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(result.title)
+                            .font(.system(size: 14, weight: .heavy))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+
+                        Text(searchMeta)
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.secondary)
-                    }
+                            .lineLimit(1)
 
-                    HStack {
                         if let intro = result.intro, !intro.isEmpty {
                             Text(intro)
-                                .font(.caption)
+                                .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                                .lineLimit(2)
                         }
-                        Spacer()
-                        Text(sourceName)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 4))
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .buttonStyle(.plain)
 
                 if let onAddToBookshelf = onAddToBookshelf {
                     Button(action: onAddToBookshelf) {
-                        Image(systemName: "plus.circle")
-                            .font(.title3)
+                        ReaderIcon(.add, size: 18, accessibilityLabel: "加入书架")
+                            .foregroundColor(.white)
+                            .frame(width: ReaderDesignTokens.searchResultActionColumn, height: ReaderDesignTokens.searchResultActionMinHeight)
+                            .background(Capsule().fill(ReaderDesignTokens.Color.primary))
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(ReaderDesignTokens.searchResultRowPadding - ReaderDesignTokens.cardPadding)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-        .buttonStyle(.plain)
+    }
+
+    private var searchMeta: String {
+        let author = result.author?.isEmpty == false ? result.author! : "作者未知"
+        return "\(author) · \(sourceName)"
     }
 }

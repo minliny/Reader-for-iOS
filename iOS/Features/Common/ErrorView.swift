@@ -11,38 +11,20 @@ public struct ErrorView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(.orange)
-
-            Text(error.message)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-
-            if let failureType = error.failure?.type {
-                Text("Failure: \(failureType.rawValue)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let retry = retryAction {
-                Button(action: retry) {
-                    Text("重试")
-                        .font(.body.weight(.medium))
-                        .frame(minWidth: 100)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.top, 8)
-            }
-        }
-        .padding(32)
+        ReaderStateCard(
+            icon: .warning,
+            title: "加载失败",
+            subtitle: subtitle,
+            actionTitle: retryAction == nil ? nil : "重试",
+            action: retryAction
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.platformSecondaryGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+    }
+
+    private var subtitle: String {
+        if let failureType = error.failure?.type {
+            return "\(error.message)\nFailure: \(failureType.rawValue)"
+        }
+        return error.message
     }
 }

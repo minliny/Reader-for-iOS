@@ -42,9 +42,10 @@ final class RealNetworkGateTests: XCTestCase {
 
     // MARK: - Provider defaults
 
-    func testProviderDefaultsToMock() {
+    func testProviderDefaultsToRustCore() {
         let provider = ReaderCoreServiceProvider.shared
-        XCTAssertEqual(provider.currentMode, .mock)
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     func testProviderRealModeAvailableByDefault() {
@@ -59,6 +60,7 @@ final class RealNetworkGateTests: XCTestCase {
         let result = provider.configureRealMode()
         XCTAssertTrue(result, "configureRealMode should succeed when network restrictions are lifted")
         XCTAssertTrue(provider.isRealModeAvailable)
+        provider.setMode(.rustCore)
     }
 
     // MARK: - Store

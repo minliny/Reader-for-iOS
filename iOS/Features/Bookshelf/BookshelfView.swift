@@ -6,43 +6,177 @@ import ReaderCoreModels
 public struct BookshelfView: View {
     @StateObject private var viewModel = BookshelfViewModel()
     @State private var selectedItem: BookshelfItem?
-    @State private var showFileImport = false
+    @State private var showLocalImport = false
+    @State private var immersiveEntry: ReaderContext?
+    @State private var navigateToReader = false
+    @State private var bookshelfDisplayMode: BookshelfDisplayMode = .cover
+    @State private var bookshelfGroup = "全部"
+    @State private var bookshelfSort = "最近更新"
+    @State private var bookshelfFilter = "全部"
+    @State private var bookshelfFilterOpen = false
+    @State private var focusedBookshelfItem: BookshelfItem?
+    @State private var showBookshelfMore = false
+    @State private var showSearch = false
+    @State private var showBatchManagement = false
+    @State private var showGroupManagement = false
+    @ObservedObject private var navigationState: AppNavigationState
 
-    public init() {}
+    /// `navigationState` 为契约单一状态源，承载 `readerContext` / `motionInterrupt`，
+    /// 用于对齐 `reader.entry.coverToImmersive` / `reader.entry.actionToImmersive`。
+    /// 保留无参 init 仅供既有 `AppShellAlignmentTests.testMineTabViewCanInit` 等兼容路径使用。
+    public init(navigationState: AppNavigationState? = nil) {
+        if let navigationState {
+            self._navigationState = ObservedObject(wrappedValue: navigationState)
+        } else {
+            self._navigationState = ObservedObject(wrappedValue: AppNavigationState())
+        }
+    }
 
     public var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
+        // NavigationStack 由 `AppShellView` 提供；本页使用 demo top bar 承载标题与入口，
+        // navigationDestination 仍挂在这里，避免双层 NavigationStack 嵌套。
+        VStack(spacing: 0) {
+            DemoTopBar(title: "书架") {
+                DemoTopActionButton(
+                    icon: .search,
+                    accessibilityLabel: "搜索书籍",
+                    action: { showSearch = true }
+                )
+
+                DemoTopActionButton(
+                    icon: .more,
+                    accessibilityLabel: "书架更多操作",
+                    action: {
+                        showBookshelfMore = true
+                        focusedBookshelfItem = nil
+                    }
+                )
+            }
+
+            DemoPaperScreen {
+                continueReadingCard
                 bookshelfStateView
             }
-            .padding()
-            .navigationTitle("书架")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showFileImport = true
-                    } label: {
-                        Image(systemName: "doc.badge.plus")
-                    }
+        }
+        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .overlay {
+            bookshelfOverlayLayer
+        }
+#if os(iOS)
+        .toolbar(.hidden, for: .navigationBar)
+#endif
+        .onAppear {
+            Task { await viewModel.loadItems() }
+        }
+        .refreshable {
+            await viewModel.loadItems()
+        }
+        .sheet(item: $selectedItem) { item in
+            BookshelfItemDetailView(item: item, onEnterImmersive: { context in
+                enterImmersive(from: item, source: .actionToImmersive)
+            })
+            .presentationDetents([.medium])
+        }
+        .navigationDestination(isPresented: $navigateToReader) {
+            if let context = immersiveEntry {
+                ReaderView(
+                    chapterURL: context.chapterURL,
+                    chapterTitle: context.chapterTitle,
+                    chapterList: chapterList(for: context),
+                    currentChapterIndex: chapterIndex(for: context),
+                    bookID: context.bookID,
+                    sourceID: context.sourceID,
+                    immersiveStart: true
+                )
+                .onAppear { navigationState.enterImmersiveReading(context) }
+                .onDisappear {
+                    navigationState.exitImmersiveReading()
+                    immersiveEntry = nil
+                    navigateToReader = false
                 }
             }
-            .onAppear {
-                Task { await viewModel.loadItems() }
-            }
-            .refreshable {
-                await viewModel.loadItems()
-            }
-            .sheet(item: $selectedItem) { item in
-                BookshelfItemDetailView(item: item)
-                    .presentationDetents([.medium])
-            }
-            .sheet(isPresented: $showFileImport) {
-                FileImportView { summary in
-                    Task {
-                        await viewModel.addOrUpdateLocalBook(summary)
-                        showFileImport = false
-                    }
+        }
+        .navigationDestination(isPresented: $showBatchManagement) {
+            BookshelfBatchManagementView()
+        }
+        .navigationDestination(isPresented: $showGroupManagement) {
+            BookshelfGroupManagementView()
+        }
+        .navigationDestination(isPresented: $showLocalImport) {
+            BookshelfLocalImportView { summary in
+                Task {
+                    await viewModel.addOrUpdateLocalBook(summary)
+                    showLocalImport = false
                 }
+            }
+        }
+        .navigationDestination(isPresented: $showSearch) {
+            SearchView()
+        }
+    }
+
+    /// 继续阅读卡 —— 对齐 demo `.fd-continue-card` 规格（grid 62/1fr/82，min-h 100，
+    /// strong serif 20px，cover aspect 4:5，button pill primary）。
+    /// 仅在有「最近阅读」书且带 `lastReadChapterURL` 时显示。
+    @ViewBuilder
+    private var continueReadingCard: some View {
+        if let lastItem = viewModel.items.first(where: { $0.lastReadChapterURL != nil }) {
+            ContinueReadingCard(
+                item: lastItem,
+                onContinue: {
+                    enterImmersive(from: lastItem, source: .coverToImmersive)
+                },
+                onFocus: {
+                    focusedBookshelfItem = lastItem
+                    showBookshelfMore = false
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var bookshelfOverlayLayer: some View {
+        ZStack {
+            if showBookshelfMore {
+                BookshelfMoreLayer(
+                    onDismiss: { showBookshelfMore = false },
+                    onBatch: {
+                        showBookshelfMore = false
+                        showBatchManagement = true
+                    },
+                    onGroups: {
+                        showBookshelfMore = false
+                        showGroupManagement = true
+                    },
+                    onImport: {
+                        showBookshelfMore = false
+                        showLocalImport = true
+                    }
+                )
+            }
+
+            if let focusedBookshelfItem {
+                BookshelfBookFocusLayer(
+                    item: focusedBookshelfItem,
+                    onDismiss: { self.focusedBookshelfItem = nil },
+                    onBatch: {
+                        self.focusedBookshelfItem = nil
+                        showBatchManagement = true
+                    },
+                    onGroups: {
+                        self.focusedBookshelfItem = nil
+                        showGroupManagement = true
+                    },
+                    onDetail: {
+                        self.focusedBookshelfItem = nil
+                        navigateToDetail(item: focusedBookshelfItem)
+                    },
+                    onDelete: {
+                        let itemID = focusedBookshelfItem.id
+                        self.focusedBookshelfItem = nil
+                        Task { await viewModel.removeItem(id: itemID) }
+                    }
+                )
             }
         }
     }
@@ -60,142 +194,1088 @@ public struct BookshelfView: View {
                 .frame(maxWidth: .infinity, minHeight: 200)
 
         case .loaded(let items):
-            List {
-                ForEach(items) { item in
-                    BookshelfItemRowView(
-                        item: item,
-                        onTap: {
-                            navigateToDetail(item: item)
-                        },
-                        onDelete: {
-                            Task {
-                                await viewModel.removeItem(id: item.id)
-                            }
-                        }
-                    )
-                }
-            }
-            .listStyle(.plain)
+            bookshelfShelfSection(items: items)
 
         case .empty:
-            VStack(spacing: 16) {
-                Image(systemName: "books.vertical")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
+            ReaderCard {
+                VStack(spacing: ReaderDesignTokens.settingsSectionGap) {
+                    ReaderIcon(.bookshelf, size: 42, accessibilityLabel: "书架为空")
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .frame(width: 56, height: 56)
+                        .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
 
-                Text("书架为空")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    Text("书架为空")
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
 
-                Text("从搜索结果或本地文件添加书籍")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Text("从搜索结果或本地文件添加书籍")
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, minHeight: 180)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .failed(let message):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("错误", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .font(.subheadline.weight(.semibold))
+            ReaderCard {
+                HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                    ReaderIcon(.warning, size: 20, accessibilityLabel: "错误")
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
 
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("加载失败")
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        Text(message)
+                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
         }
+    }
+
+    /// 书架 shelf 区 —— 结构取自 demo `mainTabBookshelf()`：
+    /// `fd-bookshelf-shelf-section` -> `fd-section-head` + optional
+    /// `fd-bookshelf-filter-popover` + `fd-book-grid`。
+    private func bookshelfShelfSection(items: [BookshelfItem]) -> some View {
+        let visibleItems = filteredBookshelfItems(items)
+        return VStack(alignment: .leading, spacing: ReaderDesignTokens.bookGridRowSpacing) {
+            BookshelfSectionHeader(
+                displayMode: $bookshelfDisplayMode,
+                isFilterOpen: $bookshelfFilterOpen,
+                filterIsActive: bookshelfFilterOpen
+                    || bookshelfGroup != "全部"
+                    || bookshelfSort != "最近更新"
+                    || bookshelfFilter != "全部"
+            )
+
+            if bookshelfFilterOpen {
+                BookshelfFilterPopover(
+                    group: $bookshelfGroup,
+                    sort: $bookshelfSort,
+                    filter: $bookshelfFilter
+                )
+            }
+
+            if visibleItems.isEmpty {
+                Text("没有符合条件的书籍")
+                    .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookListCardMinHeight)
+            } else if bookshelfDisplayMode == .cover {
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: ReaderDesignTokens.bookGridColumnSpacing),
+                        count: ReaderDesignTokens.bookGridColumns
+                    ),
+                    alignment: .leading,
+                    spacing: ReaderDesignTokens.bookGridRowSpacing
+                ) {
+                    ForEach(Array(visibleItems.enumerated()), id: \.element.id) { _, item in
+                        BookshelfBookCoverCard(
+                            item: item,
+                            onCoverTap: {
+                                enterImmersive(from: item, source: .coverToImmersive)
+                            },
+                            onFocus: {
+                                focusedBookshelfItem = item
+                                showBookshelfMore = false
+                            },
+                            onDetailTap: {
+                                navigateToDetail(item: item)
+                            }
+                        )
+                    }
+                }
+                .accessibilityLabel("书籍封面网格")
+            } else {
+                VStack(spacing: ReaderDesignTokens.bookGridListRowSpacing) {
+                    ForEach(visibleItems) { item in
+                        BookshelfBookListCard(
+                            item: item,
+                            onCoverTap: {
+                                enterImmersive(from: item, source: .coverToImmersive)
+                            },
+                            onFocus: {
+                                focusedBookshelfItem = item
+                                showBookshelfMore = false
+                            },
+                            onDetailTap: {
+                                navigateToDetail(item: item)
+                            }
+                        )
+                    }
+                }
+                .accessibilityLabel("书籍列表")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("我的书架")
     }
 
     private func navigateToDetail(item: BookshelfItem) {
         selectedItem = item
     }
+
+    private func filteredBookshelfItems(_ items: [BookshelfItem]) -> [BookshelfItem] {
+        var indexed = items.enumerated()
+            .filter { pair in bookshelfGroup == "全部" || bookshelfBookGroup(pair.element, index: pair.offset) == bookshelfGroup }
+            .filter { pair in bookshelfBookMatchesFilter(pair.element, index: pair.offset) }
+
+        switch bookshelfSort {
+        case "阅读进度":
+            indexed.sort { left, right in
+                if left.element.readingProgress == right.element.readingProgress {
+                    return left.offset < right.offset
+                }
+                return left.element.readingProgress > right.element.readingProgress
+            }
+        case "书名":
+            indexed.sort { left, right in
+                let result = left.element.title.localizedStandardCompare(right.element.title)
+                return result == .orderedSame ? left.offset < right.offset : result == .orderedAscending
+            }
+        case "作者":
+            indexed.sort { left, right in
+                let result = (left.element.author ?? "").localizedStandardCompare(right.element.author ?? "")
+                return result == .orderedSame ? left.offset < right.offset : result == .orderedAscending
+            }
+        default:
+            break
+        }
+
+        return indexed.map(\.element)
+    }
+
+    private func bookshelfBookGroup(_ item: BookshelfItem, index: Int) -> String {
+        let source = "\(item.sourceID) \(item.sourceName ?? "") \(item.author ?? "")"
+        if source.localizedCaseInsensitiveContains("local") || source.contains("本地") || source.contains("导入") {
+            return "本地书"
+        }
+        if index < 4 || source.contains("书源") || source.contains("同步") {
+            return "追更"
+        }
+        return "默认"
+    }
+
+    private func bookshelfBookMatchesFilter(_ item: BookshelfItem, index: Int) -> Bool {
+        switch bookshelfFilter {
+        case "未读":
+            return item.readingProgress < 0.2
+        case "已完结":
+            return item.readingProgress >= 0.99 || (item.latestChapter ?? "").contains("完")
+        case "更新失败":
+            return item.latestChapter?.contains("失败") == true || item.title.contains("更新失败")
+        default:
+            return true
+        }
+    }
+
+    // MARK: - Immersive entry (reader.entry.coverToImmersive / actionToImmersive)
+
+    /// latest-intent-wins：连续点击只保留最后目标 —— 通过 `navigationState.enterImmersiveReading`
+    /// 注入新 `ReaderContext`（新 requestID），旧 context 被覆盖。
+    private func enterImmersive(from item: BookshelfItem, source: ReaderContext.EntrySource) {
+        let chapterURL = item.lastReadChapterURL ?? item.bookURL
+        let chapterTitle = item.lastReadChapterTitle ?? "继续阅读"
+        let context = ReaderContext(
+            bookID: item.id,
+            chapterURL: chapterURL,
+            chapterTitle: chapterTitle,
+            sourceID: item.sourceID,
+            source: source
+        )
+        navigationState.enterImmersiveReading(context)
+        immersiveEntry = context
+        navigateToReader = true
+    }
+
+    private func chapterList(for context: ReaderContext) -> [TOCItem] {
+        guard let item = viewModel.items.first(where: { $0.id == context.bookID }) else {
+            return []
+        }
+        return item.localChapterList ?? []
+    }
+
+    private func chapterIndex(for context: ReaderContext) -> Int {
+        let list = chapterList(for: context)
+        guard !list.isEmpty else { return 0 }
+        return list.firstIndex { $0.chapterURL == context.chapterURL } ?? 0
+    }
+}
+
+enum BookshelfDisplayMode: String, CaseIterable {
+    case cover
+    case list
+}
+
+private struct BookshelfSectionHeader: View {
+    @Binding var displayMode: BookshelfDisplayMode
+    @Binding var isFilterOpen: Bool
+    let filterIsActive: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: ReaderDesignTokens.bookshelfSectionHeadGap) {
+            Text("我的书架")
+                .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: ReaderDesignTokens.bookshelfSectionActionGap) {
+                actionButton(
+                    icon: .grid,
+                    label: "封面视图",
+                    isActive: displayMode == .cover
+                ) {
+                    displayMode = .cover
+                }
+
+                actionButton(
+                    icon: .list,
+                    label: "列表视图",
+                    isActive: displayMode == .list
+                ) {
+                    displayMode = .list
+                }
+
+                actionButton(
+                    icon: .filter,
+                    label: "书架筛选",
+                    isActive: filterIsActive
+                ) {
+                    isFilterOpen.toggle()
+                }
+
+                actionButton(
+                    icon: .gear,
+                    label: "书架显示设置",
+                    isActive: false
+                ) {}
+                .disabled(true)
+            }
+        }
+        .frame(minHeight: ReaderDesignTokens.bookshelfSectionHeadMinHeight)
+    }
+
+    private func actionButton(
+        icon: ReaderAssetIcon,
+        label: String,
+        isActive: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ReaderIcon(icon, size: 18, accessibilityLabel: label)
+                .frame(
+                    width: ReaderDesignTokens.bookshelfSectionActionSize,
+                    height: ReaderDesignTokens.bookshelfSectionActionSize
+                )
+                .foregroundColor(isActive ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0x6f/255, green: 0x69/255, blue: 0x62/255))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : [.isButton])
+    }
+}
+
+private struct BookshelfFilterPopover: View {
+    @Binding var group: String
+    @Binding var sort: String
+    @Binding var filter: String
+
+    private let groupOptions = ["全部", "默认", "本地书", "追更"]
+    private let sortOptions = ["最近更新", "阅读进度", "书名", "作者"]
+    private let filterOptions = ["全部", "未读", "已完结", "更新失败"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            optionRow(title: "分组", options: groupOptions, selection: $group)
+            optionRow(title: "排序", options: sortOptions, selection: $sort)
+            optionRow(title: "筛选", options: filterOptions, selection: $filter)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                .fill(ReaderDesignTokens.Color.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+        )
+        .accessibilityLabel("书架排序与筛选选项")
+    }
+
+    private func optionRow(title: String, options: [String], selection: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .heavy))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(options, id: \.self) { option in
+                        Button {
+                            selection.wrappedValue = option
+                        } label: {
+                            Text(option)
+                                .font(.system(size: 12, weight: .heavy))
+                                .lineLimit(1)
+                                .padding(.horizontal, 10)
+                                .frame(minHeight: 30)
+                                .background(
+                                    Capsule()
+                                        .fill(selection.wrappedValue == option
+                                              ? ReaderDesignTokens.Color.primary
+                                              : SwiftUI.Color(red: 238/255, green: 232/255, blue: 223/255, opacity: 0.9))
+                                )
+                                .foregroundColor(selection.wrappedValue == option ? .white : SwiftUI.Color(red: 0x2b/255, green: 0x25/255, blue: 0x1f/255))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selection.wrappedValue == option ? [.isButton, .isSelected] : [.isButton])
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct BookshelfBookCoverCard: View {
+    let item: BookshelfItem
+    let onCoverTap: () -> Void
+    let onFocus: () -> Void
+    let onDetailTap: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ReaderDesignTokens.bookCardGap) {
+            BookshelfCoverAction(
+                item: item,
+                mode: .cover,
+                onTap: onCoverTap,
+                onLongPress: onFocus
+            ) {
+                BookshelfCoverFrame(item: item, mode: .cover)
+            }
+
+            Button(action: onDetailTap) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.title)
+                        .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize))
+                        .lineLimit(ReaderDesignTokens.bookCardTitleLineLimit)
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(.primary)
+
+                    Text(item.author ?? item.sourceName ?? "未知作者")
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct BookshelfBookListCard: View {
+    let item: BookshelfItem
+    let onCoverTap: () -> Void
+    let onFocus: () -> Void
+    let onDetailTap: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: ReaderDesignTokens.bookListColumnGap) {
+            BookshelfCoverAction(
+                item: item,
+                mode: .list,
+                onTap: onCoverTap,
+                onLongPress: onFocus
+            ) {
+                BookshelfCoverFrame(item: item, mode: .list)
+                    .frame(width: ReaderDesignTokens.bookListCoverWidth)
+            }
+
+            Button(action: onDetailTap) {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.bookListRowGap) {
+                    Text(item.title)
+                        .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize))
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
+
+                    Text(item.author ?? item.sourceName ?? "未知作者")
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookListCardMinHeight, alignment: .leading)
+    }
+}
+
+private struct BookshelfCoverFrame: View {
+    enum Mode {
+        case cover
+        case list
+    }
+
+    let item: BookshelfItem
+    let mode: Mode
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(SwiftUI.Color.white.opacity(0.58))
+
+            if let url = coverURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .aspectRatio(ReaderDesignTokens.bookCoverAspectRatio, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .shadow(
+            color: SwiftUI.Color(red: 52/255, green: 38/255, blue: 26/255, opacity: mode == .cover ? 0.13 : 0.12),
+            radius: mode == .cover ? 10 : 6,
+            x: 0,
+            y: mode == .cover ? 10 : 6
+        )
+    }
+
+    private var placeholder: some View {
+        ReaderIcon(.book, size: mode == .cover ? 26 : 18)
+            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+    }
+
+    private var cornerRadius: CGFloat {
+        mode == .cover ? ReaderDesignTokens.bookCoverFrameCornerRadius : ReaderDesignTokens.bookListCoverCornerRadius
+    }
+
+    private var coverURL: URL? {
+        guard let coverURL = item.coverURL, !coverURL.isEmpty else { return nil }
+        if let url = URL(string: coverURL), url.scheme != nil {
+            return url
+        }
+        return URL(fileURLWithPath: coverURL)
+    }
+}
+
+private struct BookshelfCoverAction<Content: View>: View {
+    let item: BookshelfItem
+    let mode: BookshelfCoverFrame.Mode
+    let onTap: () -> Void
+    let onLongPress: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var suppressTapAfterLongPress = false
+
+    var body: some View {
+        content()
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .onTapGesture {
+                if suppressTapAfterLongPress {
+                    suppressTapAfterLongPress = false
+                    return
+                }
+                onTap()
+            }
+            .onLongPressGesture(
+                minimumDuration: ReaderDesignTokens.bookFocusLongPressDuration,
+                perform: {
+                    suppressTapAfterLongPress = true
+                    onLongPress()
+                }
+            )
+            .accessibilityLabel("打开 \(item.title)")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var cornerRadius: CGFloat {
+        mode == .cover ? ReaderDesignTokens.bookCoverFrameCornerRadius : ReaderDesignTokens.bookListCoverCornerRadius
+    }
+}
+
+private struct BookshelfBookFocusLayer: View {
+    let item: BookshelfItem
+    let onDismiss: () -> Void
+    let onBatch: () -> Void
+    let onGroups: () -> Void
+    let onDetail: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: ReaderDesignTokens.bookFocusBackdropOpacity)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
+
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.bookFocusMenuGap) {
+                header
+                actionGrid
+            }
+            .padding(ReaderDesignTokens.bookFocusMenuPadding)
+            .background(menuBackground)
+            .padding(.horizontal, ReaderDesignTokens.bookFocusMenuHorizontalInset)
+            .padding(.bottom, ReaderDesignTokens.mainNavHeight + ReaderDesignTokens.bookFocusMenuBottomGap)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("书籍操作")
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            BookshelfCoverFrame(item: item, mode: .list)
+                .frame(width: ReaderDesignTokens.bookFocusCoverSize,
+                       height: ReaderDesignTokens.bookFocusCoverSize / ReaderDesignTokens.bookCoverAspectRatio)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                    .font(.system(size: 16, weight: .heavy))
+                    .lineLimit(1)
+
+                Text("\(item.author ?? "未知作者") · \(item.lastReadChapterTitle ?? item.latestChapter ?? "继续阅读")")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var actionGrid: some View {
+        HStack(spacing: 8) {
+            focusAction(icon: .check, title: "多选", role: nil, action: onBatch)
+            focusAction(icon: .people, title: "分支", role: nil, action: onGroups)
+            focusAction(icon: .info, title: "书籍详情", role: nil, action: onDetail)
+            focusAction(icon: .trash, title: "删除", role: .destructive, action: onDelete)
+        }
+    }
+
+    private func focusAction(
+        icon: ReaderAssetIcon,
+        title: String,
+        role: ButtonRole?,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(role: role, action: action) {
+            VStack(spacing: 5) {
+                ReaderIcon(icon, size: 18, accessibilityLabel: title)
+                Text(title)
+                    .font(.system(size: 11, weight: .heavy))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookFocusActionMinHeight)
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(role == .destructive ? .red : SwiftUI.Color(red: 0x3c/255, green: 0x35/255, blue: 0x2f/255))
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(SwiftUI.Color.white.opacity(0.48))
+        )
+    }
+
+    private var menuBackground: some View {
+        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+            .fill(SwiftUI.Color(red: 1, green: 252/255, blue: 248/255, opacity: 0.97))
+            .overlay(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                    .stroke(
+                        SwiftUI.Color(
+                            red: 180/255,
+                            green: 166/255,
+                            blue: 151/255,
+                            opacity: ReaderDesignTokens.bookFocusMenuBorderOpacity
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.22),
+                    radius: 22, x: 0, y: 22)
+    }
+}
+
+private struct BookshelfMoreLayer: View {
+    let onDismiss: () -> Void
+    let onBatch: () -> Void
+    let onGroups: () -> Void
+    let onImport: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: ReaderDesignTokens.bookshelfMoreBackdropOpacity)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
+
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.bookshelfMoreMenuGap) {
+                Text("书架更多操作")
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                    .lineLimit(1)
+
+                moreAction(icon: .check, title: "批量管理", meta: "选择多本书后移动或删除", action: onBatch)
+                moreAction(icon: .people, title: "分组管理", meta: "编辑书架分组与归属", action: onGroups)
+                moreAction(icon: .bookOpen, title: "本地书导入", meta: "导入本地文件到书架", action: onImport)
+            }
+            .padding(ReaderDesignTokens.bookshelfMoreMenuPadding)
+            .frame(width: ReaderDesignTokens.bookshelfMoreMenuWidth, alignment: .leading)
+            .background(menuBackground)
+            .padding(.top, ReaderDesignTokens.bookshelfMoreMenuTopGap)
+            .padding(.trailing, ReaderDesignTokens.bookshelfMoreMenuRightGap)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("书架更多操作")
+    }
+
+    private func moreAction(
+        icon: ReaderAssetIcon,
+        title: String,
+        meta: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(alignment: .center, spacing: ReaderDesignTokens.bookshelfMoreActionGap) {
+                ReaderIcon(icon, size: 18, accessibilityLabel: title)
+                    .frame(width: ReaderDesignTokens.bookshelfMoreActionIconColumn)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .heavy))
+                        .lineLimit(1)
+                    Text(meta)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, ReaderDesignTokens.bookshelfMoreActionHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookshelfMoreActionMinHeight, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(SwiftUI.Color(red: 0x3c/255, green: 0x35/255, blue: 0x2f/255))
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(SwiftUI.Color.clear)
+        )
+    }
+
+    private var menuBackground: some View {
+        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+            .fill(SwiftUI.Color(red: 1, green: 252/255, blue: 248/255, opacity: 0.97))
+            .overlay(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                    .stroke(
+                        SwiftUI.Color(
+                            red: 180/255,
+                            green: 166/255,
+                            blue: 151/255,
+                            opacity: ReaderDesignTokens.bookFocusMenuBorderOpacity
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.18),
+                    radius: 22, x: 0, y: 22)
+    }
+}
+
+struct BookshelfBatchManagementView: View {
+    @State private var selectedIDs = Set(BookBatchItem.demoBooks.prefix(3).map(\.id))
+
+    var body: some View {
+        DemoBackScreen(title: "批量管理") {
+            batchSummary
+            batchList
+        }
+        .safeAreaInset(edge: .bottom) {
+            BottomFixedActionRow {
+                NavigationLink(value: Route.bookshelfGroups) {
+                    BookBatchBottomLabel(title: "移动分组", isPrimary: true)
+                }
+                .buttonStyle(.plain)
+            } trailing: {
+                BookBatchBottomButton(title: "删除所选", isPrimary: false, isDanger: true) {}
+            }
+        }
+    }
+
+    private var selectedCount: Int {
+        selectedIDs.count
+    }
+
+    private var batchSummary: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    Text("已选 \(selectedCount) 本")
+                        .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(action: toggleAll) {
+                        Text(selectedCount == BookBatchItem.demoBooks.count ? "取消全选" : "全选")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 30)
+                            .background(Capsule().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("长按书籍或从更多菜单进入，选择后统一移动分组、删除或取消选择。")
+                    .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .padding(ReaderDesignTokens.bookBatchSummaryPadding - ReaderDesignTokens.cardPadding)
+        }
+    }
+
+    private var batchList: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("书架书籍")
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .padding(.bottom, 4)
+
+                ForEach(BookBatchItem.demoBooks) { item in
+                    BookBatchRow(
+                        item: item,
+                        isSelected: selectedIDs.contains(item.id),
+                        onToggle: { toggle(item) }
+                    )
+                    if item.id != BookBatchItem.demoBooks.last?.id {
+                        Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                    }
+                }
+            }
+        }
+    }
+
+    private func toggle(_ item: BookBatchItem) {
+        if selectedIDs.contains(item.id) {
+            selectedIDs.remove(item.id)
+        } else {
+            selectedIDs.insert(item.id)
+        }
+    }
+
+    private func toggleAll() {
+        if selectedCount == BookBatchItem.demoBooks.count {
+            selectedIDs.removeAll()
+        } else {
+            selectedIDs = Set(BookBatchItem.demoBooks.map(\.id))
+        }
+    }
+}
+
+private struct BookBatchItem: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let author: String
+    let chapter: String
+    let group: String
+
+    static let demoBooks: [BookBatchItem] = [
+        BookBatchItem(id: "mist-lighthouse", title: "灯塔与雾", author: "书源同步", chapter: "第 42 章 风暴前夜", group: "追更"),
+        BookBatchItem(id: "rain-city", title: "雨城札记", author: "林间", chapter: "第 18 章 旧书店", group: "默认"),
+        BookBatchItem(id: "local-notes", title: "本地导入手记", author: "本地书", chapter: "离线章节 03", group: "本地书"),
+        BookBatchItem(id: "sea-archive", title: "海边档案", author: "远山", chapter: "第 6 卷 附录", group: "追更"),
+        BookBatchItem(id: "source-sync", title: "书源同步异常记录", author: "维护", chapter: "更新失败", group: "默认"),
+        BookBatchItem(id: "long-title", title: "长标题测试：跨端书架布局校验", author: "设计验收", chapter: "第 9 章", group: "本地书")
+    ]
+}
+
+private struct BookBatchRow: View {
+    let item: BookBatchItem
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: ReaderDesignTokens.bookBatchRowGap) {
+                BookBatchSelectControl(isSelected: isSelected)
+                    .frame(width: ReaderDesignTokens.bookBatchSelectColumn)
+
+                BookBatchCover(title: item.title)
+                    .frame(width: ReaderDesignTokens.bookBatchCoverWidth)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text("\(item.author) · \(item.chapter)")
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(item.group)
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .padding(.horizontal, 9)
+                    .frame(minHeight: 30)
+                    .background(Capsule().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+            }
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookBatchRowMinHeight, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
+                .fill(isSelected ? ReaderDesignTokens.Color.primary.opacity(0.08) : SwiftUI.Color.clear)
+        )
+        .accessibilityLabel("\(item.title)，\(isSelected ? "已选择" : "未选择")")
+    }
+}
+
+private struct BookBatchSelectControl: View {
+    let isSelected: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isSelected ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.surface)
+                .overlay(
+                    Circle()
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+            if isSelected {
+                ReaderIcon(.check, size: 13, accessibilityLabel: "已选择")
+                    .foregroundColor(.white)
+            }
+        }
+        .frame(width: ReaderDesignTokens.bookBatchSelectSize, height: ReaderDesignTokens.bookBatchSelectSize)
+    }
+}
+
+private struct BookBatchCover: View {
+    let title: String
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
+            .fill(ReaderDesignTokens.Color.primary.opacity(0.14))
+            .overlay(
+                Text(String(title.prefix(1)))
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            )
+            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .shadow(color: SwiftUI.Color(red: 45/255, green: 34/255, blue: 26/255, opacity: 0.12), radius: 10, x: 0, y: 3)
+    }
+}
+
+private struct BookBatchBottomButton: View {
+    let title: String
+    let isPrimary: Bool
+    var isDanger = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            BookBatchBottomLabel(title: title, isPrimary: isPrimary, isDanger: isDanger)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct BookBatchBottomLabel: View {
+    let title: String
+    let isPrimary: Bool
+    var isDanger = false
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+            .lineLimit(1)
+            .foregroundColor(foregroundColor)
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+            .background(Capsule().fill(backgroundColor))
+    }
+
+    private var foregroundColor: SwiftUI.Color {
+        if isDanger {
+            return .red
+        }
+        return isPrimary ? .white : ReaderDesignTokens.Color.primaryDark
+    }
+
+    private var backgroundColor: SwiftUI.Color {
+        isPrimary ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.surface
+    }
 }
 
 struct BookshelfItemDetailView: View {
     let item: BookshelfItem
-    @State private var navigateToReader = false
+    let onEnterImmersive: (ReaderContext) -> Void
     @State private var showBookmarks = false
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
+    init(item: BookshelfItem, onEnterImmersive: @escaping (ReaderContext) -> Void) {
+        self.item = item
+        self.onEnterImmersive = onEnterImmersive
+    }
+
     var body: some View {
-        NavigationStack {
-            List {
-                Section("书籍信息") {
-                    LabeledContent("书名", value: item.title)
-                    if let author = item.author {
-                        LabeledContent("作者", value: author)
-                    }
-                    if let source = item.sourceName {
-                        LabeledContent("来源", value: source)
-                    }
-                }
-
-                Section("阅读进度") {
-                    LabeledContent("进度") {
-                        Text("\(Int(item.readingProgress * 100))%")
-                    }
-                    if let chapter = item.lastReadChapterTitle {
-                        LabeledContent("最后阅读", value: chapter)
-                    }
-                    LabeledContent("添加时间") {
-                        Text(item.addedAt, style: .date)
-                    }
-                }
-
-                Section {
-                    Button {
-                        showBookmarks = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "bookmark")
-                            Text("查看书签")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                if item.lastReadChapterURL != nil {
-                    Section {
-                        Button {
-                            navigateToReader = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "book.fill")
-                                Text("继续阅读")
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
+        VStack(spacing: 0) {
+            DemoBackBar(title: "书籍详情", onBack: { dismiss() }) {
+                Button("完成") { dismiss() }
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             }
-            .navigationTitle(item.title)
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
+
+            DemoPaperScreen {
+                detailHeroCard
+                detailInfoCard
+                readingProgressCard
+            }
+
+            BottomFixedActionRow {
+                Button {
+                    showBookmarks = true
+                } label: {
+                    detailActionLabel(icon: .bookmark, title: "查看书签", isPrimary: false)
                 }
-            }
-            .navigationDestination(isPresented: $navigateToReader) {
-                ReaderView(
-                    chapterURL: item.lastReadChapterURL ?? item.bookURL,
-                    chapterTitle: item.lastReadChapterTitle ?? "继续阅读",
-                    chapterList: localChapterList,
-                    currentChapterIndex: currentChapterIndex,
-                    bookID: item.id,
-                    sourceID: item.sourceID
-                )
-            }
-            .sheet(isPresented: $showBookmarks) {
-                BookmarksListView(bookId: item.id, sourceId: item.sourceID, bookTitle: item.title)
+                .buttonStyle(.plain)
+            } trailing: {
+                Button {
+                    continueReading()
+                } label: {
+                    detailActionLabel(icon: .bookOpen, title: "继续阅读", isPrimary: canContinueReading)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canContinueReading)
+                .opacity(canContinueReading ? 1 : 0.48)
             }
         }
+        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+#if os(iOS)
+        .toolbar(.hidden, for: .navigationBar)
+#endif
+        .sheet(isPresented: $showBookmarks) {
+            BookmarksListView(bookId: item.id, sourceId: item.sourceID, bookTitle: item.title)
+        }
+    }
+
+    private var detailHeroCard: some View {
+        ReaderCard {
+            HStack(alignment: .top, spacing: ReaderDesignTokens.bookDetailHeroGap) {
+                BookshelfCoverFrame(item: item, mode: .list)
+                    .frame(width: 54)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.title)
+                        .font(ReaderTypography.demoSerif(size: 20, weight: .bold))
+                        .lineLimit(2)
+                    Text(authorLabel)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text(sourceLabel)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var detailInfoCard: some View {
+        ReaderCard {
+            VStack(spacing: 0) {
+                DemoIconRow(icon: .bookOpen, title: "书名", subtitle: item.title, detail: nil)
+                Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                DemoIconRow(icon: .sourceStack, title: "来源", subtitle: sourceLabel, detail: "书架")
+                Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                DemoIconRow(icon: .clock, title: "添加时间", subtitle: addedDateLabel, detail: nil)
+            }
+        }
+    }
+
+    private var readingProgressCard: some View {
+        ReaderCard {
+            VStack(spacing: 0) {
+                DemoIconRow(icon: .progress, title: "阅读进度", subtitle: progressLabel, detail: nil)
+                if let chapter = item.lastReadChapterTitle {
+                    Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                    DemoIconRow(icon: .directory, title: "最后阅读", subtitle: chapter, detail: "继续")
+                }
+            }
+        }
+    }
+
+    private func detailActionLabel(icon: ReaderAssetIcon, title: String, isPrimary: Bool) -> some View {
+        HStack(spacing: 7) {
+            ReaderIcon(icon, size: 16, accessibilityLabel: title)
+            Text(title)
+                .font(.system(size: 12, weight: .heavy))
+                .lineLimit(1)
+        }
+        .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(isPrimary ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: isPrimary ? 0 : 1)
+                )
+        )
+    }
+
+    private func continueReading() {
+        guard let chapterURL = item.lastReadChapterURL else { return }
+        let context = ReaderContext(
+            bookID: item.id,
+            chapterURL: chapterURL,
+            chapterTitle: item.lastReadChapterTitle ?? "继续阅读",
+            sourceID: item.sourceID,
+            source: .actionToImmersive
+        )
+        dismiss()
+        onEnterImmersive(context)
+    }
+
+    private var canContinueReading: Bool {
+        item.lastReadChapterURL != nil
+    }
+
+    private var authorLabel: String {
+        guard let author = item.author?.trimmingCharacters(in: .whitespacesAndNewlines), !author.isEmpty else {
+            return "未知作者"
+        }
+        return author
+    }
+
+    private var sourceLabel: String {
+        guard let source = item.sourceName?.trimmingCharacters(in: .whitespacesAndNewlines), !source.isEmpty else {
+            return "本地书架"
+        }
+        return source
+    }
+
+    private var progressLabel: String {
+        "\(Int(item.readingProgress * 100))%"
+    }
+
+    private var addedDateLabel: String {
+        item.addedAt.formatted(date: .numeric, time: .omitted)
     }
 
     private var localChapterList: [TOCItem] {
@@ -205,5 +1285,90 @@ struct BookshelfItemDetailView: View {
     private var currentChapterIndex: Int {
         guard let chapterURL = item.lastReadChapterURL else { return 0 }
         return localChapterList.firstIndex { $0.chapterURL == chapterURL } ?? 0
+    }
+}
+
+// MARK: - 继续阅读卡
+
+/// 继续阅读卡 —— 对齐 demo `.fd-continue-card` 规格。
+///
+/// 真源：`Reader UI/frontend-demo/styles/00-foundation.css` `.fd-continue-card`
+/// 规格（取自 `ReaderDesignTokens`，clean-room，不复制 CSS）：
+/// - grid 62pt / 1fr / 82pt（cover / text / action button）
+/// - min-h 100pt / padding 10×16 / border 1 / radius 8 / surface bg / soft shadow
+/// - h2: 13pt/900/primary · strong: serif 20pt line-clamp 2
+/// - cover-button: 62pt wide / aspect 4:5 / radius 6
+/// - action-button: min 74×40 / radius pill / primary bg / white / 13pt-800
+struct ContinueReadingCard: View {
+    let item: BookshelfItem
+    let onContinue: () -> Void
+    let onFocus: () -> Void
+
+    var body: some View {
+        HStack(spacing: ReaderDesignTokens.continueCardGap) {
+            // 左：cover (62pt × aspect 4:5)
+            BookshelfCoverAction(
+                item: item,
+                mode: .list,
+                onTap: onContinue,
+                onLongPress: onFocus
+            ) {
+                coverView
+                    .frame(width: ReaderDesignTokens.continueCoverButtonWidth)
+                    .aspectRatio(ReaderDesignTokens.bookCoverAspectRatio, contentMode: .fit)
+            }
+
+            // 中：title block
+            VStack(alignment: .leading, spacing: 4) {
+                Text("继续阅读")
+                    .font(.system(size: ReaderDesignTokens.continueCardHeaderFontSize, weight: .black))
+                    .foregroundColor(ReaderDesignTokens.Color.primary)
+
+                Text(item.title)
+                    .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.continueCardTitleFontSize))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                if let author = item.author {
+                    Text(author)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 右：action button
+            Button(action: onContinue) {
+                Text("继续")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(.white)
+                    .frame(
+                        minWidth: ReaderDesignTokens.continueActionButtonMinWidth,
+                        minHeight: ReaderDesignTokens.continueActionButtonMinHeight
+                    )
+                    .background(ReaderDesignTokens.Color.primary)
+                    .clipShape(Capsule())
+            }
+            .frame(width: ReaderDesignTokens.continueCardActionButtonWidth)
+        }
+        .padding(.vertical, ReaderDesignTokens.continueCardVerticalPadding)
+        .padding(.horizontal, ReaderDesignTokens.continueCardHorizontalPadding)
+        .frame(minHeight: ReaderDesignTokens.continueCardMinHeight, alignment: .center)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+                .shadow(color: SwiftUI.Color(red: 89/255, green: 70/255, blue: 50/255, opacity: 0.09),
+                        radius: 12, x: 0, y: 12)
+        )
+    }
+
+    @ViewBuilder
+    private var coverView: some View {
+        BookshelfCoverFrame(item: item, mode: .list)
     }
 }

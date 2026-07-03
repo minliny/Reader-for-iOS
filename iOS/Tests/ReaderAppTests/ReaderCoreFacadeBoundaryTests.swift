@@ -2,15 +2,29 @@ import XCTest
 @testable import ReaderApp
 @testable import ReaderShellValidation
 
-/// ReaderCore facade 边界测试 — 验证 UI 不引用 parser internals，默认 mock，no network
+/// ReaderCore facade 边界测试 — 验证 UI 不引用 parser internals，显式 mock，no network
 @MainActor
 final class ReaderCoreFacadeBoundaryTests: XCTestCase {
 
-    // MARK: - Provider defaults
-
-    func testProviderDefaultsToMockMode() {
+    override func setUp() {
+        super.setUp()
         let provider = ReaderCoreServiceProvider.shared
-        XCTAssertEqual(provider.currentMode, .mock, "默认模式应为 mock，不能默认启用 real service")
+        provider.setMode(.mock)
+        provider.resetMock()
+    }
+
+    override func tearDown() {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.resetMock()
+        provider.setMode(.rustCore)
+        super.tearDown()
+    }
+
+    // MARK: - Provider mode
+
+    func testProviderCanUseMockMode() {
+        let provider = ReaderCoreServiceProvider.shared
+        XCTAssertEqual(provider.currentMode, .mock, "mock 边界测试应显式运行在 mock 模式")
     }
 
     func testProviderMockIsAvailableWithoutConfiguration() {
@@ -22,7 +36,7 @@ final class ReaderCoreFacadeBoundaryTests: XCTestCase {
     func testRealModeRequiresExplicitConfiguration() {
         let provider = ReaderCoreServiceProvider.shared
         // real 模式不应自动启用
-        XCTAssertFalse(provider.isRealModeAvailable, "Real mode 不应在未配置时可用")
+        XCTAssertNotEqual(provider.currentMode, .real, "Real mode 不应在 mock 边界测试中自动启用")
     }
 
     // MARK: - Mock flow maintains provider boundary

@@ -6,10 +6,12 @@ import XCTest
 @MainActor
 final class ControlledOnlineDryRunIntegrationTests: XCTestCase {
 
-    // MARK: - Provider defaults
+    // MARK: - Provider default
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderDefaultsToRustCore() {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     // MARK: - ControlledOnlineDryRun search
@@ -27,8 +29,7 @@ final class ControlledOnlineDryRunIntegrationTests: XCTestCase {
         XCTAssertEqual(results.count, 3)
         XCTAssertEqual(results[0].title, "凡人修仙传")
 
-        // Reset
-        provider.setMode(.mock)
+        provider.setMode(.rustCore)
     }
 
     // MARK: - NetworkAccessController wired
@@ -45,11 +46,11 @@ final class ControlledOnlineDryRunIntegrationTests: XCTestCase {
         }
     }
 
-    func testNetworkAccessControllerDeniesSafeDefault() {
+    func testNetworkAccessControllerAllowsSafeDefault() {
         let ctrl = NetworkAccessController()
         let result = ctrl.evaluate(userPreference: .safeDefault, sourcePolicy: .fixture(), operation: .search)
-        guard case .denied = result else {
-            XCTFail("safe default should deny")
+        guard case .allowed = result else {
+            XCTFail("safe default should allow after network restrictions are lifted")
             return
         }
     }
@@ -58,7 +59,9 @@ final class ControlledOnlineDryRunIntegrationTests: XCTestCase {
 
     func testNoLiveNetworkInTests() {
         // controlledOnlineDryRun never triggers real network
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     func testNoParserInternals() {

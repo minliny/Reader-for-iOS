@@ -3,47 +3,73 @@ import ReaderShellValidation
 
 public struct BookSourceImportView: View {
     @StateObject private var viewModel = BookSourceViewModel()
-    @Environment(\.dismiss) private var dismiss
 
     public init() {}
 
     public var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("导入书源")
-                    .font(.headline)
+        DemoBackScreen(title: "导入书源") {
+            importInputCard
+            importStateView
+        }
+    }
+
+    private var isImportButtonDisabled: Bool {
+        viewModel.jsonInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var importInputCard: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                HStack(alignment: .center, spacing: ReaderDesignTokens.settingsRowGap) {
+                    ReaderIcon(.file, size: ReaderDesignTokens.rssImportListIconSize, accessibilityLabel: "书源 JSON")
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("粘贴 Legado 书源 JSON")
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        Text("导入前会执行本地结构校验。")
+                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 TextEditor(text: $viewModel.jsonInput)
-                    .frame(minHeight: 150)
-                    .font(.system(.body, design: .monospaced))
-                    .padding(8)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .frame(minHeight: 168)
+                    .padding(10)
+                    .scrollContentBackground(.hidden)
+                    .background(
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                            .fill(ReaderDesignTokens.Color.paperSolid)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                                    .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                            )
+                    )
 
-                Button(action: {
+                Button {
                     Task { await viewModel.importFromText() }
-                }) {
-                    HStack {
-                        Image(systemName: "doc.text")
+                } label: {
+                    HStack(spacing: 8) {
+                        ReaderIcon(.upload, size: 16, accessibilityLabel: "从文本导入")
                         Text("从文本导入")
+                            .font(.system(size: 13, weight: .heavy))
                     }
-                    .frame(maxWidth: .infinity)
+                    .foregroundColor(isImportButtonDisabled ? ReaderDesignTokens.Color.primaryDark : .white)
+                    .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssImportPanelLabelMinHeight)
+                    .background(
+                        Capsule()
+                            .fill(isImportButtonDisabled ? ReaderDesignTokens.Color.chipBackground : ReaderDesignTokens.Color.primaryDark)
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.jsonInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                importStateView
-            }
-            .padding()
-            .navigationTitle("导入书源")
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                }
+                .buttonStyle(.plain)
+                .disabled(isImportButtonDisabled)
+                .accessibilityLabel("从文本导入书源")
             }
         }
     }
@@ -52,73 +78,46 @@ public struct BookSourceImportView: View {
     private var importStateView: some View {
         switch viewModel.importState {
         case .idle:
-            EmptyView()
+            ReaderStateBanner(
+                icon: .source,
+                title: "等待导入",
+                messages: ["粘贴 JSON 后可以导入；当前不会访问真实网络。"]
+            )
 
         case .loading:
-            ProgressView("导入中...")
-                .frame(maxWidth: .infinity, minHeight: 120)
+            ReaderStateBanner(
+                icon: .refresh,
+                title: "导入中",
+                messages: ["正在解析书源并执行本地校验。"]
+            )
 
         case .success(let source):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("导入成功", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(source.displayName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            ReaderStateCard(
+                icon: .check,
+                title: "导入成功",
+                subtitle: "已保存 \(source.displayName)。"
+            )
 
         case .failed(let message):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("导入失败", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            ReaderStateBanner(
+                icon: .warning,
+                title: "导入失败",
+                messages: [message]
+            )
 
         case .unsupported(let reason):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("不支持", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(reason)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            ReaderStateBanner(
+                icon: .warning,
+                title: "不支持该书源",
+                messages: [reason]
+            )
 
         case .partial(let source, let warnings):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("部分导入", systemImage: "exclamationmark.circle.fill")
-                    .foregroundStyle(.yellow)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(source.displayName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                ForEach(warnings, id: \.self) { warning in
-                    Text("⚠️ \(warning)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color.yellow.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            ReaderStateBanner(
+                icon: .warning,
+                title: "部分导入",
+                messages: [source.displayName] + warnings
+            )
         }
     }
 }

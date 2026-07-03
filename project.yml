@@ -113,11 +113,15 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - path: iOS/App
+        excludes:
+          - Persistence/**
       - path: iOS/Features
       - path: iOS/Navigation
       - path: iOS/Modules
       - path: iOS/Surface
       - path: iOS/AppSupport
+        excludes:
+          - Sources/**
     dependencies:
       - target: ReaderShellValidation
       - target: ReaderAppSupport
@@ -131,14 +135,18 @@ targets:
         product: ReaderCoreFoundation
       - package: ReaderCore
         product: ReaderCoreServices
+      - package: ReaderCore
+        product: ReaderPlatformAdapters
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.reader.ios
+        PRODUCT_MODULE_NAME: ReaderApp
         INFOPLIST_FILE: iOS/Info.plist
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
         ENABLE_BITCODE: NO
         DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
     info:
@@ -201,8 +209,21 @@ targets:
       - target: ReaderShellValidation
       - target: ReaderAppSupport
       - target: ReaderAppPersistence
+      - target: ReaderCoreNativeAdapter
+      - package: ReaderCore
+        product: ReaderCoreFoundation
       - package: ReaderCore
         product: ReaderCoreModels
+      - package: ReaderCore
+        product: ReaderCoreProtocols
+      - package: ReaderCore
+        product: ReaderCoreParser
+      - package: ReaderCore
+        product: ReaderCoreNetwork
+      - package: ReaderCore
+        product: ReaderCoreServices
+      - package: ReaderCore
+        product: ReaderPlatformAdapters
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -218,5 +239,6 @@ schemes:
       config: Debug
       targets:
         - ShellSmokeTests
+        - ReaderAppTests
     archive:
       config: Release

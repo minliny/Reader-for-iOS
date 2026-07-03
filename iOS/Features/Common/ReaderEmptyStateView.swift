@@ -22,36 +22,28 @@ public struct ReaderEmptyStateView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.primary)
-
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-
-            if let actionTitle = actionTitle, let action = action {
-                Button(action: action) {
-                    Text(actionTitle)
-                        .font(.body.weight(.medium))
-                        .frame(minWidth: 100)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.top, 8)
-            }
-        }
+        ReaderStateCard(
+            icon: icon,
+            title: title,
+            subtitle: message,
+            actionTitle: actionTitle,
+            action: action
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(32)
-        .background(Color.platformSecondaryGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+    }
+
+    private var icon: ReaderAssetIcon {
+        switch systemImage {
+        case let value where value.contains("book"):
+            return .bookOpen
+        case let value where value.contains("folder"):
+            return .folderOff
+        case let value where value.contains("wifi"):
+            return .offline
+        case let value where value.contains("magnifyingglass"):
+            return .search
+        default:
+            return .info
+        }
     }
 }

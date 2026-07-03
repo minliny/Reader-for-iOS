@@ -42,9 +42,12 @@ public struct ReaderDisplaySettings: Codable, Equatable {
     public var volumeKeyPageTurnEnabled: Bool
     public var dualPageEnabled: Bool
 
+    public static let demoSerifFontFamily = "Songti SC"
+    public static let legacySansDefaultFontFamily = "SF Pro Display"
+
     public init(
         fontSize: Int = 18,
-        fontFamily: String = "SF Pro Display",
+        fontFamily: String = ReaderDisplaySettings.demoSerifFontFamily,
         lineSpacing: Double = 8.0,
         paragraphSpacing: Double = 16.0,
         horizontalPadding: Double = 16.0,
@@ -77,7 +80,7 @@ public struct ReaderDisplaySettings: Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         fontSize = try c.decodeIfPresent(Int.self, forKey: .fontSize) ?? 18
-        fontFamily = try c.decodeIfPresent(String.self, forKey: .fontFamily) ?? "SF Pro Display"
+        fontFamily = try c.decodeIfPresent(String.self, forKey: .fontFamily) ?? Self.demoSerifFontFamily
         lineSpacing = try c.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 8.0
         paragraphSpacing = try c.decodeIfPresent(Double.self, forKey: .paragraphSpacing) ?? 16.0
         horizontalPadding = try c.decodeIfPresent(Double.self, forKey: .horizontalPadding) ?? 16.0

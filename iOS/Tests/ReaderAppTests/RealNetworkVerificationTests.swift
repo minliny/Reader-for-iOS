@@ -8,7 +8,12 @@ import XCTest
 final class RealNetworkVerificationTests: XCTestCase {
 
     func testSearchRealXingxingxsw() async throws {
+        guard ProcessInfo.processInfo.environment["READER_IOS_ENABLE_REAL_NETWORK_TESTS"] == "1" else {
+            throw XCTSkip("Set READER_IOS_ENABLE_REAL_NETWORK_TESTS=1 to run real network verification.")
+        }
+
         let provider = ReaderCoreServiceProvider.shared
+        defer { provider.setMode(.rustCore) }
 
         // 1. 创建 real services
         let ready = provider.prepareControlledOnlineAllServices()
@@ -34,8 +39,5 @@ final class RealNetworkVerificationTests: XCTestCase {
         default:
             print("[VERIFY] Unexpected state: \(state)")
         }
-
-        // Reset
-        provider.setMode(.mock)
     }
 }

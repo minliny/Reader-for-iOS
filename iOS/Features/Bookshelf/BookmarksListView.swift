@@ -1,4 +1,5 @@
 import SwiftUI
+import ReaderAppSupport
 import ReaderAppPersistence
 
 /// M5-B: Bookmarks list view shown as a sheet from BookshelfItemDetailView.
@@ -20,35 +21,43 @@ public struct BookmarksListView: View {
 
     public var body: some View {
         NavigationStack {
-            Group {
-                if bookmarks.isEmpty {
-                    ContentUnavailableView(
-                        "无书签",
-                        systemImage: "bookmark",
-                        description: Text("在阅读时点击书签按钮添加书签")
-                    )
-                } else {
-                    List {
-                        ForEach(bookmarks) { bookmark in
-                            BookmarkRowView(bookmark: bookmark)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    selectedBookmark = bookmark
-                                    navigateToReader = true
-                                }
-                        }
-                        .onDelete(perform: deleteBookmarks)
-                    }
-                    .listStyle(.plain)
-                }
-            }
-            .navigationTitle("书签")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+            VStack(spacing: 0) {
+                DemoBackBar(title: "书签", onBack: { dismiss() }) {
                     Button("完成") { dismiss() }
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                }
+
+                DemoPaperScreen {
+                    ReaderCard {
+                        if bookmarks.isEmpty {
+                            BookmarkEmptyState(bookTitle: bookTitle)
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(Array(bookmarks.enumerated()), id: \.element.id) { index, bookmark in
+                                    BookmarkRowView(
+                                        bookmark: bookmark,
+                                        onOpen: {
+                                            selectedBookmark = bookmark
+                                            navigateToReader = true
+                                        },
+                                        onDelete: {
+                                            deleteBookmark(bookmark)
+                                        }
+                                    )
+                                    if index < bookmarks.count - 1 {
+                                        Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
+            .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+#if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
+#endif
             .navigationDestination(isPresented: $navigateToReader) {
                 if let bm = selectedBookmark {
                     ReaderView(
@@ -67,41 +76,78 @@ public struct BookmarksListView: View {
         bookmarks = (try? BookmarkStore.shared.loadBookmarksForBook(bookId: bookId)) ?? []
     }
 
-    private func deleteBookmarks(at offsets: IndexSet) {
-        for index in offsets {
-            let bookmark = bookmarks[index]
-            try? BookmarkStore.shared.deleteBookmark(id: bookmark.id)
-        }
+    private func deleteBookmark(_ bookmark: Bookmark) {
+        try? BookmarkStore.shared.deleteBookmark(id: bookmark.id)
         loadBookmarks()
     }
 }
 
 struct BookmarkRowView: View {
     let bookmark: Bookmark
+    let onOpen: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(bookmark.chapterTitle)
-                .font(.subheadline)
-                .fontWeight(.medium)
+        HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+            Button(action: onOpen) {
+                HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                    ReaderIcon(.bookmark, size: 18, accessibilityLabel: bookmark.chapterTitle)
+                        .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
-            if let snippet = bookmark.snippet, !snippet.isEmpty {
-                Text(snippet)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(bookmark.chapterTitle)
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+
+                        if let snippet = bookmark.snippet, !snippet.isEmpty {
+                            Text(snippet)
+                                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+
+                        HStack(spacing: 8) {
+                            Text("\(Int(bookmark.progress * 100))%")
+                            Text(bookmark.createdAt, style: .date)
+                        }
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
+            .buttonStyle(.plain)
 
-            HStack {
-                Text("\(Int(bookmark.progress * 100))%")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-
-                Text(bookmark.createdAt, style: .date)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            Button(action: onDelete) {
+                ReaderIcon(.trash, size: 16, accessibilityLabel: "删除书签")
+                    .frame(width: 32, height: 32)
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .background(Circle().fill(ReaderDesignTokens.Color.chipBackground))
             }
+            .buttonStyle(.plain)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 9)
+    }
+}
+
+private struct BookmarkEmptyState: View {
+    let bookTitle: String
+
+    var body: some View {
+        VStack(alignment: .center, spacing: ReaderDesignTokens.settingsSectionGap) {
+            ReaderIcon(.bookmark, size: 34, accessibilityLabel: "无书签")
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+            Text("暂无书签")
+                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+            Text("\(bookTitle) 的阅读书签会显示在这里")
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, minHeight: 156)
     }
 }

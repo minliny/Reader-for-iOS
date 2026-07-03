@@ -11,216 +11,194 @@ public struct ReaderSettingsPanel: View {
     }
 
     public var body: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 12) {
-                Text("Font Size")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if displaySettings.fontSize > 12 {
-                            displaySettings.fontSize -= 2
-                        }
-                    }) {
-                        Image(systemName: "textformat.size.smaller")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Text("\(displaySettings.fontSize)")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .frame(width: 60)
-
-                    Button(action: {
-                        if displaySettings.fontSize < 32 {
-                            displaySettings.fontSize += 2
-                        }
-                    }) {
-                        Image(systemName: "textformat.size.larger")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
+        DemoPaperScreen {
+            ReaderCard {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                    Text("外观")
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    CompactIntStepper(title: "字号", value: $displaySettings.fontSize, range: 12...32, step: 2)
+                    CompactDoubleStepper(title: "行距", value: $displaySettings.lineSpacing, range: 2...24, step: 2)
+                    CompactDoubleStepper(title: "段距", value: $displaySettings.paragraphSpacing, range: 2...48, step: 2)
+                    FontMenu(selection: $displaySettings.fontFamily)
+                    PaletteRow(selection: $displaySettings.backgroundMode)
                 }
             }
 
-            VStack(spacing: 12) {
-                Text("Font Family")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                Picker("Font", selection: $displaySettings.fontFamily) {
-                    ForEach(ReaderSettingsPanel.availableFonts, id: \.self) { font in
-                        Text(font).tag(font)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            VStack(spacing: 12) {
-                Text("Line Spacing")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if displaySettings.lineSpacing > 2 {
-                            displaySettings.lineSpacing -= 2
+            ReaderCard {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                    Text("翻页")
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    Picker("Mode", selection: $displaySettings.pageTurnMode) {
+                        ForEach(PageTurnMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue.capitalized).tag(mode)
                         }
-                    }) {
-                        Image(systemName: "minus")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                     }
-
-                    Text(String(format: "%.0f", displaySettings.lineSpacing))
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .frame(width: 60)
-
-                    Button(action: {
-                        if displaySettings.lineSpacing < 24 {
-                            displaySettings.lineSpacing += 2
-                        }
-                    }) {
-                        Image(systemName: "plus")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
+                    .pickerStyle(.segmented)
+                    DemoToggleRow(
+                        icon: .gesture,
+                        title: "Tap Zones",
+                        subtitle: "点击屏幕左右热区翻页",
+                        isOn: $displaySettings.tapZoneEnabled
+                    )
+                    DemoToggleRow(
+                        icon: .volume,
+                        title: "Volume Key Page Turn",
+                        subtitle: "音量键控制上一页/下一页",
+                        isOn: $displaySettings.volumeKeyPageTurnEnabled
+                    )
+                    DemoToggleRow(
+                        icon: .columns,
+                        title: "Dual Page (Landscape)",
+                        subtitle: "横屏时使用双页阅读",
+                        isOn: $displaySettings.dualPageEnabled
+                    )
                 }
             }
 
-            VStack(spacing: 12) {
-                Text("Paragraph Spacing")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+            ReaderCard {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                    DemoToggleRow(
+                        icon: .sun,
+                        title: "Brightness Override",
+                        subtitle: "阅读页内独立亮度控制",
+                        isOn: $displaySettings.brightnessOverrideEnabled
+                    )
 
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if displaySettings.paragraphSpacing > 2 {
-                            displaySettings.paragraphSpacing -= 2
-                        }
-                    }) {
-                        Image(systemName: "minus")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Text(String(format: "%.0f", displaySettings.paragraphSpacing))
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .frame(width: 60)
-
-                    Button(action: {
-                        if displaySettings.paragraphSpacing < 48 {
-                            displaySettings.paragraphSpacing += 2
-                        }
-                    }) {
-                        Image(systemName: "plus")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-            }
-
-            VStack(spacing: 12) {
-                Text("Background")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                HStack(spacing: 12) {
-                    ForEach(ReaderBackgroundMode.allCases, id: \.self) { mode in
-                        Button(action: {
-                            displaySettings.backgroundMode = mode
-                        }) {
-                            VStack(spacing: 4) {
-                                Circle()
-                                    .fill(Color(hex: mode.backgroundColor))
-                                    .frame(width: 32, height: 32)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(displaySettings.backgroundMode == mode ? Color.blue : Color.clear, lineWidth: 2)
-                                    )
-
-                                Text(mode.rawValue.capitalized)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                    if displaySettings.brightnessOverrideEnabled {
+                        HStack(spacing: 12) {
+                            ReaderIcon(.sun, size: 18)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $displaySettings.brightnessLevel, in: 0.1...1.0, step: 0.05)
+                            Text(String(format: "%.0f%%", displaySettings.brightnessLevel * 100))
+                                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44)
                         }
                     }
                 }
             }
-
-            VStack(spacing: 12) {
-                Text("Page Turn")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                Picker("Mode", selection: $displaySettings.pageTurnMode) {
-                    ForEach(PageTurnMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue.capitalized).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                if displaySettings.pageTurnMode == .paginated {
-                    Toggle("Tap Zones", isOn: $displaySettings.tapZoneEnabled)
-                        .font(.subheadline)
-                        .padding(.top, 4)
-
-                    Toggle("Volume Key Page Turn", isOn: $displaySettings.volumeKeyPageTurnEnabled)
-                        .font(.subheadline)
-
-                    Toggle("Dual Page (Landscape)", isOn: $displaySettings.dualPageEnabled)
-                        .font(.subheadline)
-                }
-            }
-
-            VStack(spacing: 12) {
-                Toggle("Brightness Override", isOn: $displaySettings.brightnessOverrideEnabled)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                if displaySettings.brightnessOverrideEnabled {
-                    HStack(spacing: 12) {
-                        Image(systemName: "sun.min")
-                            .foregroundStyle(.secondary)
-
-                        Slider(value: $displaySettings.brightnessLevel, in: 0.1...1.0, step: 0.05)
-
-                        Image(systemName: "sun.max")
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(String(format: "%.0f%%", displaySettings.brightnessLevel * 100))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
         }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
     }
 
     public static let availableFonts: [String] = [
-        "SF Pro Display",
-        "SF Pro Text",
-        "Georgia",
+        ReaderTypography.demoSerifPrimaryFamily,
+        "STSong",
+        "Noto Serif CJK SC",
+        "Source Han Serif SC",
         "Palatino",
         "Times New Roman",
+        "SF Pro Text",
         "Avenir",
         "Helvetica Neue"
     ]
+}
+
+private struct CompactIntStepper: View {
+    let title: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let step: Int
+
+    var body: some View {
+        compactStepper(title: title, valueText: "\(value)", decrement: {
+            value = max(range.lowerBound, value - step)
+        }, increment: {
+            value = min(range.upperBound, value + step)
+        })
+    }
+}
+
+private struct CompactDoubleStepper: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+
+    var body: some View {
+        compactStepper(title: title, valueText: String(format: "%.0f", value), decrement: {
+            value = max(range.lowerBound, value - step)
+        }, increment: {
+            value = min(range.upperBound, value + step)
+        })
+    }
+}
+
+private func compactStepper(title: String, valueText: String, decrement: @escaping () -> Void, increment: @escaping () -> Void) -> some View {
+    HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+        Text(title)
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+            .frame(maxWidth: .infinity, alignment: .leading)
+        StepperButton(icon: .clear, action: decrement)
+        Text(valueText)
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+            .frame(width: 38)
+        StepperButton(icon: .add, action: increment)
+    }
+    .frame(height: ReaderDesignTokens.readerSettingsPanelRowHeight)
+}
+
+private struct StepperButton: View {
+    let icon: ReaderAssetIcon
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ReaderIcon(icon, size: 14)
+                .frame(width: ReaderDesignTokens.readerSettingsStepperSize, height: ReaderDesignTokens.readerSettingsStepperSize)
+                .background(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
+                        .fill(ReaderDesignTokens.Color.controlBackground)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FontMenu: View {
+    @Binding var selection: String
+
+    var body: some View {
+        Menu {
+            ForEach(ReaderSettingsPanel.availableFonts, id: \.self) { font in
+                Button(font) { selection = font }
+            }
+        } label: {
+            DemoIconRow(icon: .typo, title: "字体", subtitle: selection, detail: "menu")
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct PaletteRow: View {
+    @Binding var selection: ReaderBackgroundMode
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("背景")
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(ReaderBackgroundMode.allCases, id: \.self) { mode in
+                Button {
+                    selection = mode
+                } label: {
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
+                        .fill(Color(hex: mode.backgroundColor))
+                        .frame(
+                            width: selection == mode ? ReaderDesignTokens.readerSettingsLargeSwatchWidth : ReaderDesignTokens.readerSettingsSwatchSize,
+                            height: ReaderDesignTokens.readerSettingsSwatchSize
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
+                                .stroke(selection == mode ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(height: ReaderDesignTokens.readerSettingsPanelRowHeight)
+    }
 }
 
 extension Color {

@@ -42,71 +42,75 @@ struct M6BookSourceImportVerificationView: View {
     }
 
     var body: some View {
-        List {
-            // MARK: - 状态
-            Section("验证步骤") {
-                if steps.isEmpty && !isRunning {
-                    Text("点击下方按钮开始 M6 导入链路验证").foregroundStyle(.secondary)
-                }
-                ForEach(steps) { step in
-                    VerifyStepRow(step: step)
-                }
-                if isRunning {
-                    ProgressView("验证中...")
+        DemoBackScreen(title: "[验证] M6 导入链路") {
+            if steps.isEmpty && !isRunning {
+                ReaderStateBanner(
+                    icon: .sourceStack,
+                    title: "验证步骤",
+                    messages: ["点击下方按钮开始 M6 导入链路验证"]
+                )
+            } else {
+                M6VerificationSection(title: "验证步骤") {
+                    ForEach(steps) { step in
+                        VerifyStepRow(step: step)
+                    }
+                    if isRunning {
+                        HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                            ProgressView()
+                            Text("验证中...")
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.settingsRowMinHeight, alignment: .leading)
+                    }
                 }
             }
 
-            // MARK: - 操作
-            Section("一键验证") {
-                Button {
+            M6VerificationSection(title: "一键验证") {
+                M6VerificationButton(
+                    icon: .play,
+                    title: "执行 M6 导入链路验证",
+                    subtitle: "加载、归一化、验证、保存、重载",
+                    isPrimary: true,
+                    isDisabled: isRunning
+                ) {
                     runFullVerification()
-                } label: {
-                    HStack {
-                        Image(systemName: "play.fill")
-                        Text("执行 M6 导入链路验证")
-                    }
-                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isRunning)
 
-                Button("清除本地书源并重置") {
+                M6VerificationButton(
+                    icon: .trash,
+                    title: "清除本地书源并重置",
+                    subtitle: "清空本地 BookSourceStore 和当前验证结果",
+                    isPrimary: false,
+                    isDisabled: isRunning
+                ) {
                     resetStore()
                 }
-                .disabled(isRunning)
-                .font(.caption)
             }
 
-            // MARK: - 已保存书源
             if !storeSources.isEmpty {
-                Section("BookSourceStore 中的书源") {
+                M6VerificationSection(title: "BookSourceStore 中的书源") {
                     ForEach(storeSources, id: \.id) { source in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(source.bookSourceName)
-                                .font(.subheadline.weight(.medium))
-                            HStack {
-                                Text(source.bookSourceUrl ?? "no URL")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text(source.enabled ? "已启用" : "已禁用")
-                                    .font(.caption2)
-                                    .foregroundStyle(source.enabled ? .green : .secondary)
-                            }
+                        VStack(alignment: .leading, spacing: 2) {
+                            DemoIconRow(
+                                icon: .source,
+                                title: source.bookSourceName,
+                                subtitle: source.bookSourceUrl ?? "no URL",
+                                detail: source.enabled ? "已启用" : "已禁用"
+                            )
                             if let id = source.id {
                                 Text("id: \(id.prefix(16))...")
-                                    .font(.caption2).foregroundStyle(.tertiary)
+                                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, ReaderDesignTokens.settingsRowIconColumn + ReaderDesignTokens.settingsRowGap + ReaderDesignTokens.settingsRowHorizontalPadding)
                             }
                         }
                     }
                 }
             }
 
-            // MARK: - 可区分性验证
             if !storeSources.isEmpty {
-                Section("可区分性") {
-                    let hasStar = storeSources.contains { ($0.bookSourceName).hasPrefix("⭐") }
-                    let withoutStar = storeSources.contains { !($0.bookSourceName).hasPrefix("⭐") }
+                M6VerificationSection(title: "可区分性") {
                     VerifyStepRow(step: VerifyStep(
                         label: "预置源带 ⭐ 前缀",
                         passed: hasStar || steps.contains(where: { $0.label.contains("预置源") && $0.passed }),
@@ -120,42 +124,49 @@ struct M6BookSourceImportVerificationView: View {
                 }
             }
 
-            // MARK: - 手动测试搜索
             if !importedSourceIDs.isEmpty {
-                Section("手动测试") {
-                    Button {
+                M6VerificationSection(title: "手动测试") {
+                    M6VerificationButton(
+                        icon: .search,
+                        title: "测试搜索（controlledOnline）",
+                        subtitle: "手动触发一个受控联网 operation",
+                        isPrimary: false,
+                        isDisabled: isRunning
+                    ) {
                         runManualSearchTest()
-                    } label: {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                            Text("测试搜索（controlledOnline）")
-                        }
-                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(isRunning)
 
                     if let result = searchTestResult {
                         Text(result)
-                            .font(.caption)
-                            .foregroundStyle(result.contains("成功") ? .green : .orange)
+                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
+                            .foregroundColor(result.contains("成功") ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.70, green: 0.42, blue: 0.12))
+                            .lineLimit(4)
+                            .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     Text("手动触发，每次只测一个 operation，受 NetworkAccessController 控制")
-                        .font(.caption2).foregroundStyle(.tertiary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
                 }
             }
 
-            // MARK: - Scope
-            Section("安全边界") {
-                Label("不自动联网", systemImage: "checkmark").foregroundStyle(.green)
-                Label("不接 WebDAV/RSS/Sync", systemImage: "checkmark").foregroundStyle(.green)
-                Label("不修改 Reader-Core", systemImage: "checkmark").foregroundStyle(.green)
-                Label("仅 #if DEBUG", systemImage: "checkmark").foregroundStyle(.green)
+            M6VerificationSection(title: "安全边界") {
+                M6BoundaryRow(title: "不自动联网")
+                M6BoundaryRow(title: "不接 WebDAV/RSS/Sync")
+                M6BoundaryRow(title: "不修改 Reader-Core")
+                M6BoundaryRow(title: "仅 #if DEBUG")
             }
         }
-        .navigationTitle("[验证] M6 导入链路")
-        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var hasStar: Bool {
+        storeSources.contains { ($0.bookSourceName).hasPrefix("⭐") }
+    }
+
+    private var withoutStar: Bool {
+        storeSources.contains { !($0.bookSourceName).hasPrefix("⭐") }
     }
 
     // MARK: - Full verification
@@ -364,19 +375,104 @@ struct VerifyStepRow: View {
     let step: VerifyStep
 
     var body: some View {
-        HStack(alignment: .top) {
-            Image(systemName: step.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(step.passed ? .green : .red)
-                .padding(.top, 2)
+        HStack(alignment: .top, spacing: ReaderDesignTokens.settingsRowGap) {
+            ReaderIcon(step.passed ? .check : .close, size: 16, accessibilityLabel: step.passed ? "通过" : "失败")
+                .foregroundColor(step.passed ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.62, green: 0.18, blue: 0.14))
+                .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                .background(Circle().fill((step.passed ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.62, green: 0.18, blue: 0.14)).opacity(0.12)))
             VStack(alignment: .leading, spacing: 2) {
                 Text(step.label)
-                    .font(.subheadline)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 if let detail = step.detail {
                     Text(detail)
-                        .font(.caption)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+        .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight, alignment: .leading)
+    }
+}
+
+private struct M6VerificationSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+
+                VStack(spacing: 0) {
+                    content
+                }
+            }
+        }
+    }
+}
+
+private struct M6VerificationButton: View {
+    let icon: ReaderAssetIcon
+    let title: String
+    let subtitle: String
+    let isPrimary: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                ReaderIcon(icon, size: 17, accessibilityLabel: title)
+                    .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.settingsRowMinHeight, alignment: .leading)
+            .foregroundColor(foregroundColor)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .fill(backgroundColor)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.55 : 1)
+    }
+
+    private var foregroundColor: Color {
+        isPrimary ? .white : ReaderDesignTokens.Color.primaryDark
+    }
+
+    private var backgroundColor: Color {
+        isPrimary ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.chipBackground
+    }
+}
+
+private struct M6BoundaryRow: View {
+    let title: String
+
+    var body: some View {
+        DemoIconRow(icon: .check, title: title, subtitle: "验证工具安全边界", detail: nil) {
+            EmptyView()
         }
     }
 }

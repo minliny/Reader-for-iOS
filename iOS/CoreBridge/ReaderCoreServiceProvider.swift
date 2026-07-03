@@ -524,6 +524,9 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     // MARK: - Mock Scenario Control
 
     public func setMockScenario(_ scenario: MockScenario) {
+        lock.lock()
+        mode = .mock
+        lock.unlock()
         mockService.setScenario(scenario)
     }
 

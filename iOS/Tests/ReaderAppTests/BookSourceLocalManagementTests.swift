@@ -11,7 +11,7 @@ final class BookSourceLocalManagementTests: XCTestCase {
 
     func testFixtureSourcesCount() {
         let sources = BookSourceListView.fixtureSources
-        XCTAssertEqual(sources.count, 5, "本地 fixture 应有 5 个书源")
+        XCTAssertEqual(sources.count, 6, "本地 fixture 应有 6 个书源，包含真实候选源")
     }
 
     func testFixtureSourcesHaveRequiredFields() {
@@ -43,7 +43,7 @@ final class BookSourceLocalManagementTests: XCTestCase {
 
         try await store.save(fixtures)
         let loaded = try await store.load()
-        XCTAssertEqual(loaded.count, 5)
+        XCTAssertEqual(loaded.count, fixtures.count)
         store.clearCache()
     }
 
@@ -80,7 +80,8 @@ final class BookSourceLocalManagementTests: XCTestCase {
 
     func testBookSourceViewDoesNotImportParserInternals() {
         // Compile-time verification: this test module does not import parser internals
-        let source = BookSourceListView.fixtureSources[0]
-        XCTAssertEqual(source.bookSourceName, "笔趣阁")
+        let names = BookSourceListView.fixtureSources.map(\.bookSourceName)
+        XCTAssertTrue(names.contains("⭐ 星星小说网"))
+        XCTAssertTrue(names.contains("笔趣阁"))
     }
 }

@@ -13,47 +13,55 @@ public struct BookshelfItemRowView: View {
     }
 
     public var body: some View {
-        Button(action: {
-            onTap?()
-        }) {
-            HStack(spacing: 12) {
-                coverPlaceholder
+        ReaderCard {
+            Button(action: {
+                onTap?()
+            }) {
+                HStack(spacing: ReaderDesignTokens.bookListColumnGap) {
+                    coverPlaceholder
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title)
-                        .font(.headline)
-                        .lineLimit(1)
-
-                    if let author = item.author, !author.isEmpty {
-                        Text(author)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: ReaderDesignTokens.bookListRowGap) {
+                        Text(item.title)
+                            .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .bold))
+                            .foregroundColor(.primary)
                             .lineLimit(1)
-                    }
 
-                    if let lastChapter = item.lastReadChapterTitle, !lastChapter.isEmpty {
-                        Text("Last: \(lastChapter)")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
+                        if let author = item.author, !author.isEmpty {
+                            Text(author)
+                                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
 
-                    if item.readingProgress > 0 {
-                        ProgressView(value: item.readingProgress)
-                            .frame(maxWidth: 120)
+                        if let lastChapter = item.lastReadChapterTitle, !lastChapter.isEmpty {
+                            Text("上次读到：\(lastChapter)")
+                                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+
+                        if item.readingProgress > 0 {
+                            ProgressView(value: item.readingProgress)
+                                .frame(maxWidth: 120)
+                                .tint(ReaderDesignTokens.Color.primaryDark)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if onDelete != nil {
+                        ReaderIcon(.trash, size: 16, accessibilityLabel: "删除")
+                            .foregroundColor(.secondary)
                     }
                 }
-
-                Spacer()
+                .padding(ReaderDesignTokens.bookGroupRowHorizontalPadding - ReaderDesignTokens.cardPadding)
             }
-            .padding(.vertical, 8)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 onDelete?()
             } label: {
-                Label("Delete", systemImage: "trash")
+                Text("删除")
             }
         }
     }
@@ -61,12 +69,11 @@ public struct BookshelfItemRowView: View {
     private var coverPlaceholder: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color(.secondarySystemBackground))
-                .frame(width: 50, height: 70)
+                .fill(ReaderDesignTokens.Color.chipBackground)
+                .frame(width: ReaderDesignTokens.bookListCoverWidth, height: ReaderDesignTokens.bookListCoverWidth / ReaderDesignTokens.bookCoverAspectRatio)
 
-            Image(systemName: "book.closed")
-                .font(.system(size: 20))
-                .foregroundStyle(.secondary)
+            ReaderIcon(.book, size: 20, accessibilityLabel: item.title)
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         }
     }
 }

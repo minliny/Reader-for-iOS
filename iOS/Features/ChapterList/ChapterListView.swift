@@ -34,14 +34,9 @@ public struct ChapterListView: View {
 
     public var body: some View {
         NavigationStack(path: $navigationPath) {
-            VStack(alignment: .leading, spacing: 16) {
-                listStateView
+            DemoBackScreen(title: "目录") {
+                directoryCard
             }
-            .padding()
-            .navigationTitle("目录")
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
             .onAppear {
                 Task { await viewModel.loadChapters() }
             }
@@ -59,80 +54,97 @@ public struct ChapterListView: View {
         }
     }
 
+    private var directoryCard: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.bookDirectoryFullGap) {
+                header
+                listStateView
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.top, ReaderDesignTokens.bookDirectoryListTopPadding - ReaderDesignTokens.demoContentVerticalPadding)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("目录")
+    }
+
+    private var header: some View {
+        HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+            ReaderIcon(.readerModuleDirectory, size: 22, accessibilityLabel: "目录")
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(viewModel.bookTitle)
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .lineLimit(1)
+
+                Text("\(displaySourceName) · \(chapterCountDescription)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookDirectoryHeaderMinHeight, alignment: .leading)
+        .padding(.horizontal, 2)
+    }
+
     @ViewBuilder
     private var listStateView: some View {
         switch viewModel.listState {
         case .idle:
-            Text("Loading...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            ReaderStateBanner(
+                icon: .refresh,
+                title: "准备加载目录",
+                messages: ["等待目录请求启动。"]
+            )
 
         case .loading:
-            ProgressView("Loading chapters...")
-                .frame(maxWidth: .infinity, minHeight: 200)
+            ReaderStateBanner(
+                icon: .refresh,
+                title: "加载目录中",
+                messages: ["正在从当前书源获取章节列表。"]
+            )
 
         case .loaded(let chapters):
             chapterList(chapters)
 
         case .empty:
-            VStack(spacing: 16) {
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
-
-                Text("No Chapters")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Text("Chapter list is unavailable")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            ReaderStateCard(
+                icon: .readerModuleDirectory,
+                title: "暂无目录",
+                subtitle: "当前书籍还没有可展示的章节列表。",
+                actionTitle: "重新加载"
+            ) {
+                Task { await viewModel.loadChapters() }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .failed(let message):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Load Failed", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            ReaderStateCard(
+                icon: .warning,
+                title: "目录加载失败",
+                subtitle: message,
+                actionTitle: "重新加载"
+            ) {
+                Task { await viewModel.loadChapters() }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
 
         case .unsupported(let reason):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Unsupported", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(reason)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            ReaderStateCard(
+                icon: .warning,
+                title: "目录暂不支持",
+                subtitle: reason
+            )
 
         case .partial(let chapters, let warnings):
             VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Partial Data", systemImage: "exclamationmark.circle.fill")
-                        .foregroundStyle(.yellow)
-                        .font(.subheadline.weight(.semibold))
-
-                    ForEach(warnings, id: \.self) {
-                        Text("⚠️ \($0)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding()
-                .background(Color.yellow.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                ReaderStateBanner(
+                    icon: .warning,
+                    title: "部分目录可用",
+                    messages: warnings.isEmpty ? ["目录返回了部分章节。"] : warnings
+                )
 
                 chapterList(chapters)
             }
@@ -140,17 +152,27 @@ public struct ChapterListView: View {
     }
 
     private func chapterList(_ chapters: [TOCItem]) -> some View {
-        List {
+        VStack(spacing: 0) {
             ForEach(Array(chapters.enumerated()), id: \.element.chapterURL) { index, chapter in
                 ChapterRowView(
                     chapter: chapter,
+                    displayIndex: index + 1,
                     onTap: {
                         showChapterAction(chapter: chapter, index: index)
                     }
                 )
+
+                if chapter.chapterURL != chapters.last?.chapterURL {
+                    Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                }
             }
         }
-        .listStyle(.plain)
+        .background(ReaderDesignTokens.Color.surface.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                .stroke(ReaderDesignTokens.Color.readerModuleNavBorder, lineWidth: 1)
+        )
     }
 
     private func showChapterAction(chapter: TOCItem, index: Int) {
@@ -159,5 +181,32 @@ public struct ChapterListView: View {
             chapterTitle: chapter.chapterTitle,
             chapterIndex: index
         ))
+    }
+
+    private var displaySourceName: String {
+        if !sourceName.isEmpty {
+            return sourceName
+        }
+        if let name = source?.bookSourceName, !name.isEmpty {
+            return name
+        }
+        return "未选中书源"
+    }
+
+    private var chapterCountDescription: String {
+        switch viewModel.listState {
+        case .loaded(let chapters), .partial(let chapters, _):
+            return "共 \(chapters.count) 章"
+        case .empty:
+            return "暂无目录"
+        case .failed:
+            return "加载失败"
+        case .unsupported:
+            return "暂不支持"
+        case .idle:
+            return "准备加载"
+        case .loading:
+            return "加载中"
+        }
     }
 }

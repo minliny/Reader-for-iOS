@@ -28,49 +28,85 @@ public struct BookSourceRowView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 名称 + 启用/停用按钮
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(name).font(.headline)
-                    Text(url).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-                Button {
-                    enabled.toggle()
-                } label: {
-                    Text(enabled ? "停用" : "启用")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(enabled ? Color.orange.opacity(0.15) : Color.green.opacity(0.15))
-                        .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-            }
+        HStack(alignment: .top, spacing: ReaderDesignTokens.settingsRowGap) {
+            sourceIdentityButton
 
-            // 状态标签 + 操作
-            HStack {
-                Label("当前状态：\(enabled ? "已启用" : "已禁用")",
-                      systemImage: enabled ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(enabled ? .green : .secondary)
-                if let onShare = onShare {
-                    Button(action: onShare) {
-                        Image(systemName: "square.and.arrow.up").font(.caption)
-                    }
-                    .buttonStyle(.bordered)
+            HStack(spacing: 6) {
+                iconAction(icon: enabled ? .pause : .play, label: enabled ? "停用" : "启用") {
+                    enabled.toggle()
                 }
-                Spacer()
-                Button(role: .destructive, action: onDelete) {
-                    Label("删除", systemImage: "trash").font(.caption)
+                if let onShare {
+                    iconAction(icon: .upload, label: "分享", action: onShare)
                 }
-                .buttonStyle(.bordered)
+                iconAction(icon: .trash, label: "删除", action: onDelete)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-        .contentShape(Rectangle())
-        .onTapGesture { onTapDetail?() }
+        .padding(.vertical, 10)
+        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+        .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssSourceListRowMinHeight, alignment: .leading)
+        .background(ReaderDesignTokens.Color.surface)
+    }
+
+    private var sourceIdentityButton: some View {
+        Button {
+            onTapDetail?()
+        } label: {
+            HStack(alignment: .top, spacing: ReaderDesignTokens.settingsRowGap) {
+                ReaderIcon(.source, size: 18, accessibilityLabel: name)
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                    .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(name)
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        sourceStatusChip
+                    }
+
+                    Text(url)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    if let group, !group.isEmpty {
+                        Text(group)
+                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityLabel("查看 \(name) 详情")
+    }
+
+    private var sourceStatusChip: some View {
+        Text(enabled ? "已启用" : "已禁用")
+            .font(.system(size: 10, weight: .heavy))
+            .foregroundColor(enabled ? .white : ReaderDesignTokens.Color.primaryDark)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 22)
+            .background(
+                Capsule().fill(enabled ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.chipBackground)
+            )
+    }
+
+    private func iconAction(icon: ReaderAssetIcon, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ReaderIcon(icon, size: 14, accessibilityLabel: label)
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .frame(width: ReaderDesignTokens.rssSourceListMoreButtonSize, height: ReaderDesignTokens.rssSourceListMoreButtonSize)
+                .background(Circle().fill(ReaderDesignTokens.Color.chipBackground.opacity(0.82)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }

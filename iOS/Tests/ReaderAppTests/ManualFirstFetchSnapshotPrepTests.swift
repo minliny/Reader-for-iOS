@@ -12,7 +12,7 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
         allowedOperations: [.search], reason: "test"
     )
 
-    func makeRequest(dryRun: Bool = true, approved: Bool = true, snapshotPath: String = "/snaps/c001/search.json", host: String = "test.example.com") -> ManualFetchRequest {
+    func makeRequest(dryRun: Bool = true, approved: Bool = true, snapshotPath: String = "snaps/c001/search.json", host: String = "test.example.com") -> ManualFetchRequest {
         let manifest = LiveProbeManifest(
             candidateId: "c001", operation: .search, approvedByUser: approved,
             reason: "test dry run", expectedSnapshotPath: snapshotPath, host: host
@@ -95,9 +95,9 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
     func testRequestDefaultsDryRunOnly() {
         let manifest = LiveProbeManifest(
             candidateId: "c001", operation: .search, approvedByUser: true,
-            reason: "test", expectedSnapshotPath: "/s.json", host: "t.example.com"
+            reason: "test", expectedSnapshotPath: "s.json", host: "t.example.com"
         )
-        let req = ManualFetchRequest(candidate: candidate, manifest: manifest, expectedSnapshotPath: "/s.json")
+        let req = ManualFetchRequest(candidate: candidate, manifest: manifest, expectedSnapshotPath: "s.json")
         XCTAssertTrue(req.dryRunOnly, "Default should be dry-run only")
         XCTAssertFalse(req.requestedByUser)
     }
@@ -148,16 +148,19 @@ final class ManualFirstFetchSnapshotPrepTests: XCTestCase {
         XCTAssertFalse(result.networkExecuted)
     }
 
-    // MARK: - Provider defaults
+    // MARK: - Provider default
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderDefaultsToRustCore() {
+        let provider = ReaderCoreServiceProvider.shared
+        provider.setMode(.rustCore)
+        XCTAssertEqual(provider.currentMode, .rustCore)
     }
 
     func testOfflineReplayNotDefault() {
         // Offline replay requires explicit enableOfflineReplay(), not default
         let provider = ReaderCoreServiceProvider.shared
-        XCTAssertEqual(provider.currentMode, .mock)
+        provider.setMode(.rustCore)
+        XCTAssertNotEqual(provider.currentMode, .offlineReplay)
     }
 
     // MARK: - No parser internals

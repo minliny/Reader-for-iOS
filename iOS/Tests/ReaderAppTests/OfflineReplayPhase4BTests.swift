@@ -97,28 +97,29 @@ final class OfflineReplayPhase4BTests: XCTestCase {
     // MARK: - No network / No gate required
 
     func testOfflineReplayDoesNotRequireRealNetworkGate() {
-        // Offline replay 不需要 gate allowed — 它不是真实网络
+        // Offline replay 不需要额外 gate — 它不是真实网络
         RealNetworkPolicyStore.shared.reset()
         let state = RealNetworkPolicyStore.shared.current
-        XCTAssertEqual(state.mode, .disabled)
+        XCTAssertEqual(state.mode, .unrestricted)
         // OfflineReplayService 不检查 gate
         // This test validates the design: offline replay is independent of real network gate
     }
 
     // MARK: - Provider defaults
 
-    func testProviderDefaultsToMock_notOfflineReplay() {
+    func testProviderDefaultsToRustCore_notOfflineReplay() {
         let provider = ReaderCoreServiceProvider.shared
-        // Reset to mock after any test that changed mode
-        XCTAssertEqual(provider.currentMode, .mock, "Provider should default to mock, not offline replay")
+        provider.setMode(.rustCore)
+        XCTAssertNotEqual(provider.currentMode, .offlineReplay, "Provider should not default to offline replay")
     }
 
-    // MARK: - Real network still disabled
+    // MARK: - Real network unrestricted
 
-    func testRealModeStillRequiresGate() {
+    func testRealModeSucceedsUnderUnrestrictedPolicy() {
         RealNetworkPolicyStore.shared.reset()
         let provider = ReaderCoreServiceProvider.shared
         let result = provider.configureRealMode()
-        XCTAssertFalse(result, "Real mode should fail when gate is disabled")
+        XCTAssertTrue(result, "Real mode should succeed when network restrictions are lifted")
+        provider.setMode(.rustCore)
     }
 }

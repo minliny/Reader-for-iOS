@@ -51,70 +51,9 @@ public struct ContentView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if surfaceKind != .content {
-                    ReaderStatusCardView(
-                        eyebrow: "阅读阶段",
-                        title: stageTitle,
-                        subtitle: stageDetail,
-                        items: contextItems()
-                    )
-                    .padding(.bottom, 8)
-                }
-
-                switch surfaceKind {
-                case .loading:
-                    LoadingView(message: "加载正文...")
-                        .frame(maxWidth: .infinity, minHeight: 240)
-
-                case .error:
-                    if let error = coordinator.currentError {
-                        ErrorView(error: error) {
-                            Task {
-                                await coordinator.selectChapter(chapter)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 240)
-                    }
-
-                case .content:
-                    if let contentPage = coordinator.contentPage {
-                        ReaderContentSectionView(
-                            title: contentPage.title,
-                            bodyText: contentPage.content,
-                            bookTitle: coordinator.selectedBook?.title,
-                            sourceName: coordinator.selectedSource?.bookSourceName
-                        )
-
-                        VStack(spacing: 12) {
-                            let currentIndex = coordinator.tocItems.firstIndex(where: { $0.chapterURL == chapter.chapterURL }) ?? 0
-                            let totalCount = coordinator.tocItems.count
-
-                            ReaderProgressSurfaceView(
-                                chapterIndex: currentIndex,
-                                chapterCount: totalCount,
-                                progressPercentage: totalCount > 0 ? Double(currentIndex) / Double(totalCount) : 0
-                            )
-
-                            ReaderStageActionBar(
-                                onPrevious: previousChapterAction,
-                                onNext: nextChapterAction,
-                                onReload: { Task { await coordinator.selectChapter(chapter) } }
-                            )
-                        }
-                        .padding(.top, 16)
-                    }
-
-                case .empty:
-                    emptyState
-                }
-            }
-            .padding(20)
+        DemoBackScreen(title: "正文") {
+            contentSurface
         }
-        .background(Color.platformGroupedBackground)
-        .navigationTitle(chapter.chapterTitle)
-        .inlineNavigationBarTitle()
         .task {
             if coordinator.selectedChapter != chapter || coordinator.contentPage == nil {
                 await coordinator.selectChapter(chapter)
@@ -122,16 +61,84 @@ public struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var contentSurface: some View {
+        switch surfaceKind {
+        case .loading:
+            ReaderStateBanner(
+                icon: .refresh,
+                title: stageTitle,
+                messages: [stageDetail]
+            )
+
+        case .error:
+            ReaderStateCard(
+                icon: .warning,
+                title: stageTitle,
+                subtitle: stageDetail,
+                actionTitle: "重新加载"
+            ) {
+                Task { await coordinator.selectChapter(chapter) }
+            }
+
+        case .content:
+            if let contentPage = coordinator.contentPage {
+                loadedContent(contentPage)
+            }
+
+        case .empty:
+            emptyState
+        }
+    }
+
+    private func loadedContent(_ contentPage: ContentPage) -> some View {
+        VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
+            ReaderContentSectionView(
+                title: contentPage.title,
+                bodyText: contentPage.content,
+                bookTitle: coordinator.selectedBook?.title,
+                sourceName: coordinator.selectedSource?.bookSourceName
+            )
+
+            progressCard
+
+            ReaderStageActionBar(
+                onPrevious: previousChapterAction,
+                onNext: nextChapterAction,
+                onReload: { Task { await coordinator.selectChapter(chapter) } }
+            )
+        }
+    }
+
+    private var progressCard: some View {
+        ReaderCard {
+            VStack(spacing: 0) {
+                DemoIconRow(
+                    icon: .progress,
+                    title: "阅读进度",
+                    subtitle: chapter.chapterTitle,
+                    detail: "\(currentChapterIndex + 1)/\(max(totalChapterCount, 1))"
+                )
+                Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                DemoIconRow(
+                    icon: .sourceSwitch,
+                    title: "当前来源",
+                    subtitle: coordinator.selectedSource?.bookSourceName ?? "未选中书源",
+                    detail: coordinator.selectedBook?.title
+                )
+            }
+        }
+    }
+
     private var emptyState: some View {
-        ReaderEmptyStateView(
+        ReaderStateCard(
+            icon: .file,
             title: "暂无正文",
-            message: stageDetail,
-            systemImage: "doc.text",
+            subtitle: stageDetail,
             actionTitle: "重新加载正文"
         ) {
             Task { await coordinator.selectChapter(chapter) }
         }
-        .frame(maxWidth: .infinity, minHeight: 240)
     }
 
     private var previousChapterAction: (() -> Void)? {
@@ -156,27 +163,12 @@ public struct ContentView: View {
         }
     }
 
-    private func contextItems() -> [ReaderStatusCardItem] {
-        var items: [ReaderStatusCardItem] = []
+    private var currentChapterIndex: Int {
+        coordinator.tocItems.firstIndex(where: { $0.chapterURL == chapter.chapterURL }) ?? max(0, chapter.chapterIndex)
+    }
 
-        if let sourceName = coordinator.selectedSource?.bookSourceName {
-            items.append(ReaderStatusCardItem(label: "书源", value: sourceName))
-        }
-
-        if let bookTitle = coordinator.selectedBook?.title {
-            items.append(ReaderStatusCardItem(label: "书籍", value: bookTitle))
-        }
-
-        items.append(ReaderStatusCardItem(label: "章节", value: chapter.chapterTitle))
-
-        items.append(
-            ReaderStatusCardItem(
-                label: "状态",
-                value: surfaceKind.rawValue
-            )
-        )
-
-        return items
+    private var totalChapterCount: Int {
+        coordinator.tocItems.isEmpty ? max(chapter.chapterIndex + 1, 1) : coordinator.tocItems.count
     }
 }
 
