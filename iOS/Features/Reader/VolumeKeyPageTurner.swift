@@ -1,6 +1,8 @@
 import Foundation
+#if os(iOS)
 import AVFoundation
-#if canImport(UIKit)
+#endif
+#if os(iOS) && canImport(UIKit)
 import UIKit
 import MediaPlayer
 #endif
@@ -31,7 +33,7 @@ public final class VolumeKeyPageTurner: NSObject {
     private var lastTriggerTime: Date = .distantPast
     private let debounceInterval: TimeInterval = 0.3
 
-    #if canImport(UIKit)
+    #if os(iOS) && canImport(UIKit)
     private var volumeView: MPVolumeView?
     private var volumeSlider: UISlider?
     #endif
@@ -41,6 +43,7 @@ public final class VolumeKeyPageTurner: NSObject {
     }
 
     public func start() {
+        #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
         try? session.setActive(true)
@@ -57,15 +60,18 @@ public final class VolumeKeyPageTurner: NSObject {
         observation = session.observe(\.outputVolume, options: [.new]) { [weak self] _, change in
             self?.handleVolumeChange(change.newValue ?? 0)
         }
+        #endif
     }
 
     public func stop() {
         observation?.invalidate()
         observation = nil
+        #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
         #if canImport(UIKit)
         volumeView = nil
         volumeSlider = nil
+        #endif
         #endif
     }
 
@@ -86,7 +92,7 @@ public final class VolumeKeyPageTurner: NSObject {
         savedVolume = newVolume
 
         // Best-effort volume reset
-        #if canImport(UIKit)
+        #if os(iOS) && canImport(UIKit)
         DispatchQueue.main.async { [weak self] in
             self?.volumeSlider?.value = self?.savedVolume ?? 0.5
         }

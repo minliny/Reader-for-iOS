@@ -71,7 +71,7 @@ public struct BookshelfView: View {
         .onAppear {
             Task { await viewModel.loadItems() }
         }
-        .onChange(of: topBarRequest) { _, request in
+        .onChange(of: topBarRequest) { request in
             handleTopBarRequest(request)
         }
         .refreshable {

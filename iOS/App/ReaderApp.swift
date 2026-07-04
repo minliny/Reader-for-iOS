@@ -6,11 +6,13 @@ import ReaderCoreModels
 import ReaderCoreNativeAdapter
 #endif
 
-#if DEBUG && canImport(WebKit)
+#if DEBUG && canImport(WebKit) && canImport(UIKit)
 import WebKit
 #endif
 
+#if !SWIFT_PACKAGE
 @main
+#endif
 public struct ReaderApp: App {
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
@@ -18,7 +20,7 @@ public struct ReaderApp: App {
     @StateObject private var sessionStore: ReaderSessionStore = ReaderSessionStore()
     private let environment: ReaderShellEnvironment
 
-    #if DEBUG && canImport(WebKit)
+    #if DEBUG && canImport(WebKit) && canImport(UIKit)
     @State private var autorunConfiguration: WebViewRuntimeAutorunConfiguration?
     #endif
     #if DEBUG && canImport(ReaderCoreNativeAdapter)
@@ -51,7 +53,7 @@ public struct ReaderApp: App {
         }
         #endif
 
-        #if DEBUG && canImport(WebKit)
+        #if DEBUG && canImport(WebKit) && canImport(UIKit)
         // 解析 autorun 配置
         let config = WebViewRuntimeAutorunConfiguration.parse(CommandLine.arguments)
         print("[WebViewHarness] autorun args parsed enabled=\(config.isEnabled) valid=\(config.isValid)")
@@ -95,7 +97,7 @@ public struct ReaderApp: App {
         // 后续可基于 sessionStore.reportError 统一上报错误。
         // TODO: 待 P3-B 后续落地全局错误边界包裹
         Group {
-            #if DEBUG && canImport(WebKit)
+            #if DEBUG && canImport(WebKit) && canImport(UIKit)
             if let config = autorunConfiguration, config.isEnabled && config.isValid {
                 WebViewRuntimeAutorunView(configuration: config)
             } else {
@@ -106,7 +108,7 @@ public struct ReaderApp: App {
                 )
             }
             #else
-            RootShellView(
+            AppShellView(
                 coordinator: coordinator,
                 navigationState: navigationState,
                 environment: environment

@@ -139,7 +139,7 @@ public struct DiscoverHomeShellView: View {
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
-        .onChange(of: topBarRequest) { _, request in
+        .onChange(of: topBarRequest) { request in
             handleTopBarRequest(request)
         }
     }

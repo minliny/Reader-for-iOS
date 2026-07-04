@@ -156,7 +156,7 @@ public struct RSSFeedView: View {
             guard loadsLiveSubscriptions else { return }
             await viewModel.loadSubscriptions()
         }
-        .onChange(of: topBarRequest) { _, request in
+        .onChange(of: topBarRequest) { request in
             handleTopBarRequest(request)
         }
     }

@@ -265,8 +265,8 @@ struct DemoSettingsShell<Content: View, Trailing: View, BottomActionHost: View, 
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-#endif
         .toolbar(.hidden, for: .tabBar)
+#endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-settings-shell")
     }
@@ -320,8 +320,8 @@ struct DemoReaderShell<ReadingSurface: View, OverlayHost: View, BottomSheetHost:
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-#endif
         .toolbar(.hidden, for: .tabBar)
+#endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-reader-frame")
     }
@@ -404,8 +404,8 @@ struct DemoFlowShell<StepRegion: View, ComparisonRegion: View, ResultRegion: Vie
         .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
-#endif
         .toolbar(.hidden, for: .tabBar)
+#endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-flow-frame")
     }

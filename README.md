@@ -54,8 +54,14 @@ This repo does not own:
 
 Primary shared plan:
 
-- `../Reader UI/contracts/CONTRACT_FIRST_NATIVE_UI_PLAN.md`
+- `docs/frontend-complete-app/CONTRACT_FIRST_NATIVE_UI_PLAN.md`
+
+Reader UI remains the upstream contract/schema/codegen source; this repo keeps a local development copy under `docs/frontend-complete-app/`.
 
 Current local status entry:
 
 - `docs/PROJECT_STATUS.md`
+
+Frontend complete-app development entry:
+
+- `docs/frontend-complete-app/README.md`

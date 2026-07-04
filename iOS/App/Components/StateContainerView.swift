@@ -185,7 +185,7 @@ public struct StateContainerView<T: Sendable & Equatable, Content: View, ResultC
         // 用 stateReplace（160ms）驱动 4 态切换 transition。
         .animation(motionEnvironment.animation(AppMotion.Duration.stateReplace), value: phase)
         // phase 切换时同步 reduced-motion 状态，保证后续动画归一化与系统设置一致。
-        .onChange(of: phase) { _, _ in
+        .onChange(of: phase) { _ in
             motionEnvironment.refreshFromSystem()
         }
     }

@@ -59,8 +59,8 @@ public struct ReaderView: View {
         }
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
-#endif
         .toolbar(.hidden, for: .tabBar)
+#endif
         .mainTabBarVisible(false)
         .onAppear {
             Task { await viewModel.loadContent() }

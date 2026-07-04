@@ -82,6 +82,7 @@ let package = Package(
             exclude: [
                 "App",
                 "AppSupport",
+                "build",
                 "Features",
                 "Modules",
                 "Navigation",
@@ -100,6 +101,10 @@ let package = Package(
             .product(name: "ReaderCoreModels", package: "Reader-Core")
         ],
         path: "AppSupport/Sources",
+        exclude: [
+            "sample_book_source.json",
+            "xingxingxsw.search-only.json"
+        ],
         sources: [
             "ReaderAppSupportMarker.swift",
             "ReaderDisplaySettings.swift",
@@ -133,9 +138,11 @@ let package = Package(
             exclude: [
                 "App/Persistence",
                 "AppSupport",
+                "build",
                 "CoreIntegration",
                 "CoreBridge",
                 "Shell",
+                "Modules/Assets/ReaderIcons.xcassets",
                 "Tests",
             ],
             sources: [

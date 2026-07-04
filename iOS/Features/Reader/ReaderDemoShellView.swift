@@ -17,8 +17,8 @@ struct ReaderDemoShellView: View {
         GeometryReader { proxy in
             shellBody(layout: ReaderResponsiveLayout.make(size: proxy.size))
         }
-        .toolbar(.hidden, for: .tabBar)
 #if os(iOS)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar(.hidden, for: .navigationBar)
 #endif
     }

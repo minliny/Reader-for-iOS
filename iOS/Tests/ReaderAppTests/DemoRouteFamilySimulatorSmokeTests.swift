@@ -1,4 +1,6 @@
 import Foundation
+
+#if canImport(UIKit)
 import SwiftUI
 import UIKit
 import XCTest
@@ -417,3 +419,4 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         }.joined()
     }
 }
+#endif
