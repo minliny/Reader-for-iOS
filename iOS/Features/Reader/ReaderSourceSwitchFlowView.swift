@@ -3,11 +3,13 @@ import ReaderAppSupport
 
 struct ReaderSourceSwitchFlowView: View {
     private let bookURL: String
+    private let onExit: (() -> Void)?
     private let candidates: [SourceSwitchCandidate]
     @State private var selectedSource: String
 
-    init(bookURL: String) {
+    init(bookURL: String, onExit: (() -> Void)? = nil) {
         self.bookURL = bookURL
+        self.onExit = onExit
         let candidates = SourceSwitchCandidate.demoCandidates.sortedByLatency()
         self.candidates = candidates
         self._selectedSource = State(initialValue: candidates.first(where: { $0.state == "当前" })?.source ?? candidates.first?.source ?? "")
@@ -19,7 +21,7 @@ struct ReaderSourceSwitchFlowView: View {
 
     var body: some View {
         DemoFlowShell(title: "换源") {
-            ReaderContinuitySlot(bookURL: bookURL)
+            ReaderContinuitySlot(bookURL: bookURL, onExit: onExit)
         } comparisonRegion: {
             SourceSwitchWindow(
                 candidates: candidates,
@@ -104,20 +106,21 @@ private extension Array where Element == SourceSwitchCandidate {
 
 private struct ReaderContinuitySlot: View {
     let bookURL: String
+    let onExit: (() -> Void)?
 
     var body: some View {
         ZStack {
             LinearGradient(
                 colors: [
-                    SwiftUI.Color(red: 1.0, green: 0.97, blue: 0.91),
-                    SwiftUI.Color(red: 0.96, green: 0.90, blue: 0.82)
+                    ReaderDesignTokens.Color.readerPaperGradientStart,
+                    ReaderDesignTokens.Color.readerPaperGradientEnd
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
             VStack(spacing: 0) {
-                SourceSwitchReaderTop(bookURL: bookURL)
+                SourceSwitchReaderTop(bookURL: bookURL, onExit: onExit)
                     .padding(.horizontal, ReaderDesignTokens.readerTopSideInset)
                     .padding(.top, ReaderDesignTokens.readerTopTopInset)
                 Spacer(minLength: 0)
@@ -125,13 +128,13 @@ private struct ReaderContinuitySlot: View {
 
             VStack(alignment: .leading, spacing: 15) {
                 Text(DemoReaderFixture.chapterTitle)
-                    .font(ReaderTypography.demoSerif(size: 23, weight: .bold))
+                    .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.readerOverlayHeroTitleFontSize, weight: .bold))
                     .lineLimit(1)
                 ForEach(DemoReaderFixture.readingText.prefix(3), id: \.self) { paragraph in
                     Text(paragraph)
                         .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.immersiveBodyFontSize))
                         .lineSpacing(ReaderDesignTokens.immersiveBodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1))
-                        .foregroundColor(SwiftUI.Color(red: 0.20, green: 0.17, blue: 0.14))
+                        .foregroundColor(ReaderDesignTokens.Color.ink)
                         .lineLimit(4)
                 }
                 Spacer(minLength: 0)
@@ -160,19 +163,25 @@ private struct ReaderContinuitySlot: View {
 
 private struct SourceSwitchReaderTop: View {
     let bookURL: String
+    let onExit: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 10) {
-            ReaderIcon(.back, size: 18, accessibilityLabel: "返回")
-                .frame(width: 34, height: 34)
-                .background(Circle().fill(ReaderDesignTokens.Color.surface.opacity(0.72)))
+            Button {
+                onExit?()
+            } label: {
+                ReaderIcon(.back, size: 18, accessibilityLabel: "返回")
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(ReaderDesignTokens.Color.surface.opacity(0.72)))
+            }
+            .buttonStyle(DemoPressButtonStyle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(DemoReaderFixture.title)
                     .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
                     .lineLimit(1)
                 Text(DemoReaderFixture.sourceLine)
                     .font(.system(size: ReaderDesignTokens.readerTopSubtitleFontSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,19 +214,19 @@ private struct SourceSwitchControlSheet: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("当前书源")
-                    .font(.system(size: 11, weight: .heavy))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                 HStack {
                     Text("优书网")
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
                     Spacer(minLength: 0)
                     Text("120 ms")
-                        .font(.system(size: 12, weight: .heavy).monospacedDigit())
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black).monospacedDigit())
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 }
                 Text("已同步到第 32 章 雨夜。换源窗口保持阅读控制层可见。")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .semibold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(2)
             }
             .padding(10)
@@ -256,7 +265,7 @@ private struct SourceSwitchModuleNav: View {
                         .foregroundColor(index == 0 ? .white : ReaderDesignTokens.Color.primary)
                         .background(Circle().fill(index == 0 ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.readerModuleIconShellBackground))
                     Text(module.1)
-                        .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.readerModuleTextColor)
                         .lineLimit(1)
                 }
@@ -285,7 +294,7 @@ private struct SourceSwitchMiniButton: View {
         HStack(spacing: 5) {
             ReaderIcon(icon, size: 15, accessibilityLabel: title)
             Text(title)
-                .font(.system(size: 11, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerTopCompactButtonFontSize, weight: .black))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 34)
@@ -309,17 +318,17 @@ private struct SourceSwitchWindow: View {
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("换源")
-                            .font(.system(size: 16, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
                             .lineLimit(1)
                         Text("按延迟排序")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .semibold))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                     ReaderIcon(.close, size: 16, accessibilityLabel: "关闭换源窗口")
                         .frame(width: 24, height: 24)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .background(
                             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                                 .fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72))
@@ -354,28 +363,28 @@ private struct SourceSwitchCandidateRow: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: ReaderDesignTokens.sourceSwitchCandidateRowGap) {
                     Text(candidate.source)
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(candidate.speed)
-                        .font(.system(size: 11, weight: .heavy).monospacedDigit())
-                        .foregroundColor(candidate.canSwitch || candidate.isCurrent ? ReaderDesignTokens.Color.primaryDark : .secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black).monospacedDigit())
+                        .foregroundColor(candidate.canSwitch || candidate.isCurrent ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                     Text(candidate.latestChapter)
-                        .font(.system(size: 11, weight: .heavy))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                         .frame(minWidth: 86, alignment: .trailing)
                 }
                 HStack(spacing: 6) {
                     SourceSwitchStatusBadge(text: candidate.state, isWarn: !candidate.canSwitch && !candidate.isCurrent)
                     Text(candidate.match)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                     Text("\(candidate.checkDone)/3 检测")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
             }
@@ -404,18 +413,18 @@ private struct SourceSwitchResultCard: View {
                 .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
 
             Text(candidate.source)
-                .font(.system(size: 18, weight: .heavy))
-                .foregroundColor(SwiftUI.Color(red: 0.20, green: 0.17, blue: 0.14))
+                .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .heavy))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .lineLimit(1)
 
             Text("\(candidate.state) · \(candidate.speed) · \(candidate.latestChapter)")
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(2)
 
             Text("确认后保持当前阅读位置，仅替换正文来源与章节解析结果。")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .semibold))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineSpacing(3)
                 .lineLimit(4)
 
@@ -423,7 +432,7 @@ private struct SourceSwitchResultCard: View {
 
             Button {} label: {
                 Text("确认换源")
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.sourceSwitchResultButtonMinHeight)
                     .background(
@@ -453,14 +462,14 @@ private struct SourceSwitchStatusBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
             .lineLimit(1)
-            .foregroundColor(isWarn ? SwiftUI.Color(red: 0.66, green: 0.38, blue: 0.08) : ReaderDesignTokens.Color.primaryDark)
+            .foregroundColor(isWarn ? ReaderDesignTokens.Color.Semantic.warning : ReaderDesignTokens.Color.primaryDark)
             .padding(.horizontal, 7)
             .frame(minHeight: 22)
             .background(
                 Capsule()
-                    .fill(isWarn ? SwiftUI.Color(red: 1.0, green: 0.88, blue: 0.63, opacity: 0.82) : ReaderDesignTokens.Color.chipBackground)
+                    .fill(isWarn ? ReaderDesignTokens.Color.Semantic.warningTint : ReaderDesignTokens.Color.chipBackground)
             )
     }
 }

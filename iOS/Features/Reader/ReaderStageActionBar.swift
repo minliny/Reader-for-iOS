@@ -126,7 +126,7 @@ public struct ReaderStageActionBar: View {
                                     : ReaderDesignTokens.Color.readerModuleIconShellBackground)
                     )
                 Text(module.rawValue)
-                    .font(.system(size: moduleFontSize, weight: .heavy))
+                    .font(.system(size: moduleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.readerModuleTextColor)
                     .lineLimit(1)
             }

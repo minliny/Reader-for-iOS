@@ -35,44 +35,30 @@ public struct WebViewRuntimeHarnessView: View {
     }
 
     public var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+        DemoBackScreen(title: "WebView Harness") {
+            authorizationSection
 
-                    // ===== 授权信息 =====
-                    authorizationSection
+            Divider()
 
-                    Divider()
+            securityConstraintsSection
 
-                    // ===== 安全约束验证 =====
-                    securityConstraintsSection
+            Divider()
 
-                    Divider()
+            executeButton
 
-                    // ===== 执行按钮 =====
-                    executeButton
+            Divider()
 
-                    Divider()
-
-                    // ===== 状态显示 =====
-                    if viewModel.isLoading {
-                        loadingSection
-                    }
-
-                    if let error = viewModel.errorMessage {
-                        errorSection(error)
-                    }
-
-                    if !viewModel.statusMessage.isEmpty && viewModel.errorMessage == nil && !viewModel.isLoading {
-                        resultSection
-                    }
-
-                    Spacer()
-                }
-                .padding()
+            if viewModel.isLoading {
+                loadingSection
             }
-            .navigationTitle("WebView Harness")
-            .navigationBarTitleDisplayMode(.inline)
+
+            if let error = viewModel.errorMessage {
+                errorSection(error)
+            }
+
+            if !viewModel.statusMessage.isEmpty && viewModel.errorMessage == nil && !viewModel.isLoading {
+                resultSection
+            }
         }
     }
 
@@ -80,64 +66,58 @@ public struct WebViewRuntimeHarnessView: View {
 
     private var authorizationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("授权信息", systemImage: "checkmark.shield")
-                .font(.headline)
+            HStack(spacing: 8) {
+                ReaderIcon(.shield, size: 20, accessibilityLabel: "授权信息")
+                Text("授权信息")
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+            }
 
-            Group {
-                LabeledContent("URL") {
-                    Text(viewModel.authorizedUrl)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                LabeledContent("Allowed Host") {
-                    Text(viewModel.allowedHost)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                LabeledContent("Source") {
-                    Text("qianfanxs_user_provided")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 6) {
+                HarnessMetricRow(label: "URL", value: viewModel.authorizedUrl)
+                HarnessMetricRow(label: "Allowed Host", value: viewModel.allowedHost)
+                HarnessMetricRow(label: "Source", value: "qianfanxs_user_provided")
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
+        .background(ReaderDesignTokens.Color.controlBackground)
+        .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
     }
 
     // MARK: - Security Constraints Section
 
     private var securityConstraintsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("安全约束", systemImage: "lock.shield")
-                .font(.headline)
+            HStack(spacing: 8) {
+                ReaderIcon(.shield, size: 20, accessibilityLabel: "安全约束")
+                Text("安全约束")
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+            }
 
             let violations = viewModel.validateSecurityConstraints()
 
             if violations.isEmpty {
                 HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                    ReaderIcon(.check, size: 16, accessibilityLabel: "通过")
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     Text("所有安全约束已满足")
-                        .font(.caption)
-                        .foregroundColor(.green)
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 }
             } else {
                 ForEach(violations, id: \.self) { violation in
                     HStack {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.red)
+                        ReaderIcon(.warning, size: 16, accessibilityLabel: "违规")
+                            .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
                         Text(violation)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                            .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                            .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
                     }
                 }
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
+        .background(ReaderDesignTokens.Color.controlBackground)
+        .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
     }
 
     // MARK: - Execute Button
@@ -150,18 +130,20 @@ public struct WebViewRuntimeHarnessView: View {
         }) {
             HStack {
                 if viewModel.isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
+                    // demo `.fd-discover-bottom-loading i`：14×14 旋转圆，2px border。
+                    // 在 primary 背景上用白色轨道 + 白色 top arc。
+                    DemoLoadingSpinnerInlineOnPrimary()
                 } else {
-                    Image(systemName: "play.fill")
+                    ReaderIcon(.play, size: 16, accessibilityLabel: nil)
+                        .foregroundColor(.white)
                 }
                 Text(viewModel.isLoading ? "执行中..." : "执行 WebView 渲染")
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(viewModel.isLoading ? Color.gray : Color.blue)
+            .background(viewModel.isLoading ? ReaderDesignTokens.Color.muted : ReaderDesignTokens.Color.primary)
             .foregroundColor(.white)
-            .cornerRadius(8)
+            .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
         }
         .disabled(viewModel.isLoading)
     }
@@ -170,11 +152,11 @@ public struct WebViewRuntimeHarnessView: View {
 
     private var loadingSection: some View {
         VStack(spacing: 8) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle())
+            // demo `.fd-reader-loading-panel i`：30×30 旋转圆。
+            DemoLoadingSpinner(size: .reader)
             Text(viewModel.statusMessage)
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                .foregroundColor(ReaderDesignTokens.Color.muted)
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -184,94 +166,85 @@ public struct WebViewRuntimeHarnessView: View {
 
     private func errorSection(_ error: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("错误", systemImage: "xmark.octagon")
-                .font(.headline)
-                .foregroundColor(.red)
+            HStack(spacing: 8) {
+                ReaderIcon(.warning, size: 20, accessibilityLabel: "错误")
+                    .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+                Text("错误")
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+            }
 
             Text(error)
-                .font(.caption)
-                .foregroundColor(.red)
+                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
         }
         .padding()
-        .background(Color.red.opacity(0.1))
-        .cornerRadius(8)
+        .background(ReaderDesignTokens.Color.Semantic.danger.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
     }
 
     // MARK: - Result Section
 
     private var resultSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("执行结果", systemImage: "checkmark.circle")
-                .font(.headline)
-                .foregroundColor(.green)
+            HStack(spacing: 8) {
+                ReaderIcon(.check, size: 20, accessibilityLabel: "执行结果")
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                Text("执行结果")
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            }
 
-            Group {
-                LabeledContent("状态") {
-                    Text(viewModel.statusMessage)
-                        .foregroundColor(.primary)
-                }
-                LabeledContent("Final URL") {
-                    Text(viewModel.finalUrl.isEmpty ? "-" : viewModel.finalUrl)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                LabeledContent("Navigation Count") {
-                    Text("\(viewModel.navigationCount)")
-                        .foregroundColor(.primary)
-                }
-                LabeledContent("HTML Size") {
-                    Text("\(viewModel.renderedHtmlSize) bytes")
-                        .foregroundColor(.primary)
-                }
-                LabeledContent("Page Title") {
-                    Text(viewModel.pageTitle.isEmpty ? "-" : viewModel.pageTitle)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                LabeledContent("Execution Time") {
-                    Text("\(viewModel.executionTimeMs) ms")
-                        .foregroundColor(.primary)
-                }
+            VStack(alignment: .leading, spacing: 6) {
+                HarnessMetricRow(label: "状态", value: viewModel.statusMessage)
+                HarnessMetricRow(label: "Final URL", value: viewModel.finalUrl.isEmpty ? "-" : viewModel.finalUrl)
+                HarnessMetricRow(label: "Navigation Count", value: "\(viewModel.navigationCount)")
+                HarnessMetricRow(label: "HTML Size", value: "\(viewModel.renderedHtmlSize) bytes")
+                HarnessMetricRow(label: "Page Title", value: viewModel.pageTitle.isEmpty ? "-" : viewModel.pageTitle)
+                HarnessMetricRow(label: "Execution Time", value: "\(viewModel.executionTimeMs) ms")
 
                 if let snapshot = viewModel.savedSnapshotPath {
-                    LabeledContent("Snapshot") {
-                        Text(snapshot)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                    HarnessMetricRow(label: "Snapshot", value: snapshot)
                 }
             }
-            .font(.caption)
 
             if !viewModel.warnings.isEmpty {
                 Divider()
-                Label("警告", systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundColor(.orange)
+                HStack(spacing: 8) {
+                    ReaderIcon(.warning, size: 16, accessibilityLabel: "警告")
+                        .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
+                    Text("警告")
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
+                        .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
+                }
 
                 ForEach(viewModel.warnings, id: \.self) { warning in
                     Text("• \(warning)")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
                 }
             }
 
             if !viewModel.auditEvents.isEmpty {
                 Divider()
-                Label("审计事件", systemImage: "list.bullet.rectangle")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    ReaderIcon(.log, size: 16, accessibilityLabel: "审计事件")
+                        .foregroundColor(ReaderDesignTokens.Color.muted)
+                    Text("审计事件")
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
+                        .foregroundColor(ReaderDesignTokens.Color.muted)
+                }
 
                 ForEach(viewModel.auditEvents, id: \.self) { event in
                     Text("• \(event)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundColor(ReaderDesignTokens.Color.muted)
                 }
             }
         }
         .padding()
-        .background(Color.green.opacity(0.1))
-        .cornerRadius(8)
+        .background(ReaderDesignTokens.Color.primaryDark.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
     }
 }
 
@@ -279,6 +252,24 @@ public struct WebViewRuntimeHarnessView: View {
 
 #Preview {
     WebViewRuntimeHarnessView()
+}
+
+private struct HarnessMetricRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+            Spacer()
+            Text(value)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .multilineTextAlignment(.trailing)
+        }
+    }
 }
 
 #endif

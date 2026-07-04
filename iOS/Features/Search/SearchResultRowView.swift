@@ -30,19 +30,19 @@ public struct SearchResultRowView: View {
                 Button(action: { onTap?() }) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(result.title)
-                            .font(.system(size: 14, weight: .heavy))
-                            .foregroundColor(.primary)
+                            .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.ink)
                             .lineLimit(1)
 
                         Text(searchMeta)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .bold))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
 
                         if let intro = result.intro, !intro.isEmpty {
                             Text(intro)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize))
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(2)
                         }
                     }

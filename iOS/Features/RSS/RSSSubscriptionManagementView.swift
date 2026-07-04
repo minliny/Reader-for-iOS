@@ -135,31 +135,189 @@ struct RSSManagementSource: Hashable, Identifiable {
     }
 }
 
+private enum RSSManagementRoute {
+    case sourceActions(RSSManagementSource)
+    case sourceEdit(RSSManagementSource)
+    case sourceDebug(RSSManagementSource)
+    case sourceVars(RSSManagementSource)
+    case sourceLogin(RSSManagementSource)
+    case sourceLoginWeb(RSSManagementSource)
+    case sourceLoginCookie(RSSManagementSource)
+    case sourceLoginClear(RSSManagementSource)
+    case sourceGroups
+    case sourceGroupEdit(groupID: String, title: String?)
+    case sourceBatch
+    case sourceExport
+    case sourceExportDetail(sourceID: String, title: String)
+    case sourceExportResult
+    case sourceImport
+    case sourceImportDetail(sourceID: String, title: String)
+    case sourceImportResult
+    case sourcePin(RSSManagementSource)
+    case sourceDisable(RSSManagementSource)
+    case sourceBatchDisable
+    case ruleSubscription
+    case readRecord(RSSManagementSource?)
+}
+
+private struct RSSManagementNavigateKey: EnvironmentKey {
+    static let defaultValue: (RSSManagementRoute) -> Void = { _ in }
+}
+
+private struct RSSManagementPopKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+
+private extension EnvironmentValues {
+    var rssManagementNavigate: (RSSManagementRoute) -> Void {
+        get { self[RSSManagementNavigateKey.self] }
+        set { self[RSSManagementNavigateKey.self] = newValue }
+    }
+
+    var rssManagementPop: () -> Void {
+        get { self[RSSManagementPopKey.self] }
+        set { self[RSSManagementPopKey.self] = newValue }
+    }
+}
+
+private struct RSSManagementRouteHost<Root: View>: View {
+    @State private var routeStack: [RSSManagementRoute] = []
+    @SwiftUI.Environment(\.dismiss) private var dismiss
+    let onRootExit: (() -> Void)?
+    let root: Root
+
+    init(onRootExit: (() -> Void)?, @ViewBuilder root: () -> Root) {
+        self.onRootExit = onRootExit
+        self.root = root()
+    }
+
+    var body: some View {
+        ZStack {
+            if let route = routeStack.last {
+                routeView(for: route)
+            } else {
+                root
+            }
+        }
+        .environment(\.rssManagementNavigate, { route in
+            routeStack.append(route)
+        })
+        .environment(\.rssManagementPop, closeTopRoute)
+    }
+
+    @ViewBuilder
+    private func routeView(for route: RSSManagementRoute) -> some View {
+        switch route {
+        case .sourceActions(let source):
+            RSSSourceActionsView(source: source)
+        case .sourceEdit(let source):
+            RSSSourceEditView(source: source)
+        case .sourceDebug(let source):
+            RSSSourceDebugView(source: source)
+        case .sourceVars(let source):
+            RSSSourceVarsView(source: source)
+        case .sourceLogin(let source):
+            RSSSourceLoginView(source: source)
+        case .sourceLoginWeb(let source):
+            RSSSourceLoginWebView(source: source)
+        case .sourceLoginCookie(let source):
+            RSSSourceLoginCookieView(source: source)
+        case .sourceLoginClear(let source):
+            RSSSourceLoginClearView(source: source)
+        case .sourceGroups:
+            RSSSourceGroupsView()
+        case .sourceGroupEdit(let groupID, let title):
+            RSSSourceGroupEditView(groupID: groupID, title: title)
+        case .sourceBatch:
+            RSSSourceBatchView()
+        case .sourceExport:
+            RSSSourceExportView()
+        case .sourceExportDetail(let sourceID, let title):
+            RSSSourceExportDetailView(sourceID: sourceID, title: title)
+        case .sourceExportResult:
+            RSSSourceExportResultView()
+        case .sourceImport:
+            RSSSourceImportView()
+        case .sourceImportDetail(let sourceID, let title):
+            RSSSourceImportDetailView(sourceID: sourceID, title: title)
+        case .sourceImportResult:
+            RSSSourceImportResultView()
+        case .sourcePin(let source):
+            RSSSourcePinConfirmView(source: source)
+        case .sourceDisable(let source):
+            RSSSourceDisableConfirmView(source: source)
+        case .sourceBatchDisable:
+            RSSSourceBatchDisableConfirmView()
+        case .ruleSubscription:
+            RSSRuleSubscriptionView(onExit: closeTopRoute)
+        case .readRecord(let source):
+            RSSReadRecordView(source: source, onExit: closeTopRoute)
+        }
+    }
+
+    private func closeTopRoute() {
+        if routeStack.isEmpty {
+            if let onRootExit {
+                onRootExit()
+            } else {
+                dismiss()
+            }
+        } else {
+            routeStack.removeLast()
+        }
+    }
+}
+
+private struct RSSManagementRouteButton<Label: View>: View {
+    let route: RSSManagementRoute
+    let label: Label
+    @SwiftUI.Environment(\.rssManagementNavigate) private var navigate
+
+    init(route: RSSManagementRoute, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.label = label()
+    }
+
+    var body: some View {
+        Button {
+            navigate(route)
+        } label: {
+            label
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct RSSSubscriptionManagementView: View {
     private let sources: [RSSManagementSource]
+    private let onExit: (() -> Void)?
     @State private var selectedFilter = "全部"
     @State private var autoRefreshEnabled = true
     @State private var unreadReminderEnabled = true
 
-    init(sources: [RSSSource] = []) {
+    init(sources: [RSSSource] = [], onExit: (() -> Void)? = nil) {
         let mapped = RSSManagementSource.from(sources)
         self.sources = mapped.isEmpty ? RSSManagementSource.demoSources : mapped
+        self.onExit = onExit
     }
 
-    init(managementSources: [RSSManagementSource]) {
+    init(managementSources: [RSSManagementSource], onExit: (() -> Void)? = nil) {
         self.sources = managementSources.isEmpty ? RSSManagementSource.demoSources : managementSources
+        self.onExit = onExit
     }
 
     var body: some View {
-        DemoBackScreen(title: "RSS 订阅管理") {
-            RSSManageActionsRow()
-            RSSManageFilterRow(selectedFilter: $selectedFilter)
-            RSSSourceList(sources: filteredSources)
-            RSSManageBatchRow(selectedCount: min(2, filteredSources.count))
-            RSSSourceSettingsPanel(
-                autoRefreshEnabled: $autoRefreshEnabled,
-                unreadReminderEnabled: $unreadReminderEnabled
-            )
+        RSSManagementRouteHost(onRootExit: onExit) {
+            DemoBackScreen(title: "RSS 订阅管理", onBack: onExit) {
+                RSSManageActionsRow()
+                RSSManageFilterRow(selectedFilter: $selectedFilter)
+                RSSSourceList(sources: filteredSources)
+                RSSManageBatchRow(selectedCount: min(2, filteredSources.count))
+                RSSSourceSettingsPanel(
+                    autoRefreshEnabled: $autoRefreshEnabled,
+                    unreadReminderEnabled: $unreadReminderEnabled
+                )
+            }
         }
     }
 
@@ -228,12 +386,9 @@ struct RSSSourceEditView: View {
             RSSEditFieldList(fields: fields)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceDebugView(source: source)
-                } label: {
+                RSSManagementRouteButton(route: .sourceDebug(source)) {
                     RSSSourceActionBottomLabel(title: "调试规则", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSourceActionBottomButton(title: "保存", isPrimary: true) {
                     dismiss()
@@ -277,12 +432,9 @@ struct RSSSourceDebugView: View {
             RSSDebugPanel(source: source)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceEditView(source: source)
-                } label: {
+                RSSManagementRouteButton(route: .sourceEdit(source)) {
                     RSSSourceActionBottomLabel(title: "编辑规则", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSourceActionBottomButton(title: "完成", isPrimary: true) {
                     dismiss()
@@ -314,12 +466,9 @@ struct RSSSourceVarsView: View {
             RSSEditFieldList(fields: variables)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceDebugView(source: source)
-                } label: {
+                RSSManagementRouteButton(route: .sourceDebug(source)) {
                     RSSSourceActionBottomLabel(title: "测试变量", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSourceActionBottomButton(title: "完成", isPrimary: true) {
                     dismiss()
@@ -403,19 +552,13 @@ struct RSSSourceLoginWebView: View {
             RSSLoginWebPreview()
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceLoginView(source: source)
-                } label: {
+                RSSManagementRouteButton(route: .sourceLogin(source)) {
                     RSSSourceActionBottomLabel(title: "返回登录", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
-                NavigationLink {
-                    RSSSourceLoginCookieView(source: source)
-                } label: {
+                RSSManagementRouteButton(route: .sourceLoginCookie(source)) {
                     RSSSourceActionBottomLabel(title: "登录完成", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -443,12 +586,9 @@ struct RSSSourceLoginCookieView: View {
             )
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceLoginView(source: source)
-                } label: {
+                RSSManagementRouteButton(route: .sourceLogin(source)) {
                     RSSSourceActionBottomLabel(title: "返回", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSourceActionBottomButton(title: "保存凭据", isPrimary: true) {
                     dismiss()
@@ -488,12 +628,9 @@ struct RSSSourceLoginClearView: View {
             )
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceLoginView(source: source)
-                } label: {
+                RSSManagementRouteButton(route: .sourceLogin(source)) {
                     RSSSourceActionBottomLabel(title: "取消", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSourceActionBottomButton(title: "确认清除", isPrimary: true) {
                     dismiss()
@@ -510,19 +647,13 @@ struct RSSSourceGroupsView: View {
         DemoBackScreen(title: "RSS 分组") {
             RSSManagementIconList(rows: RSSManagementIconRow.groupRows)
             RSSInlineActionWrap {
-                NavigationLink {
-                    RSSSourceGroupEditView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceGroupEdit(groupID: "open-source", title: "开源项目")) {
                     RSSInlineActionLabel(icon: .add, title: "新增分组")
                 }
-                .buttonStyle(.plain)
 
-                NavigationLink {
-                    RSSSourceGroupEditView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceGroupEdit(groupID: "open-source", title: "开源项目")) {
                     RSSInlineActionLabel(icon: .edit, title: "重命名")
                 }
-                .buttonStyle(.plain)
             }
         } bottomActionHost: {
             BottomFixedActionRow {
@@ -553,12 +684,9 @@ struct RSSSourceGroupEditView: View {
             RSSEditFieldList(fields: fields)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceGroupsView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceGroups) {
                     RSSSourceActionBottomLabel(title: "取消", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSourceActionBottomButton(title: "保存", isPrimary: true) {
                     dismiss()
@@ -586,19 +714,13 @@ struct RSSSourceBatchView: View {
             RSSManagementIconList(rows: RSSManagementIconRow.batchRows)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceExportView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceExport) {
                     RSSSourceActionBottomLabel(title: "导出", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
-                NavigationLink {
-                    RSSSourceBatchDisableConfirmView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceBatchDisable) {
                     RSSSourceActionBottomLabel(title: "禁用", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -622,19 +744,13 @@ struct RSSSourceExportView: View {
             RSSImportExportList(rows: RSSImportExportRow.exportRows, actionTitle: "预览")
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceBatchView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceBatch) {
                     RSSSourceActionBottomLabel(title: "返回", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
-                NavigationLink {
-                    RSSSourceExportResultView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceExportResult) {
                     RSSSourceActionBottomLabel(title: "导出", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -665,19 +781,13 @@ struct RSSSourceExportDetailView: View {
             )
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceExportView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceExport) {
                     RSSSourceActionBottomLabel(title: "返回", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
-                NavigationLink {
-                    RSSSourceExportResultView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceExportResult) {
                     RSSSourceActionBottomLabel(title: "导出此源", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -720,12 +830,9 @@ struct RSSSourceImportView: View {
                     dismiss()
                 }
             } trailing: {
-                NavigationLink {
-                    RSSSourceImportResultView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceImportResult) {
                     RSSSourceActionBottomLabel(title: "导入 2 个", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -756,19 +863,13 @@ struct RSSSourceImportDetailView: View {
             )
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSSourceImportView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceImport) {
                     RSSSourceActionBottomLabel(title: "返回", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
-                NavigationLink {
-                    RSSSourceImportView()
-                } label: {
+                RSSManagementRouteButton(route: .sourceImport) {
                     RSSSourceActionBottomLabel(title: "加入导入", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -870,33 +971,21 @@ private struct RSSManageActionsRow: View {
             ForEach(actions, id: \.title) { action in
                 switch action.title {
                 case "新建":
-                    NavigationLink {
-                        RSSSourceEditView()
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceEdit(RSSManagementSource.demoSources[0])) {
                         RSSManageActionLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "导入":
-                    NavigationLink {
-                        RSSSourceImportView()
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceImport) {
                         RSSManageActionLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "规则订阅":
-                    NavigationLink {
-                        RSSRuleSubscriptionView()
-                    } label: {
+                    RSSManagementRouteButton(route: .ruleSubscription) {
                         RSSManageActionLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "分组":
-                    NavigationLink {
-                        RSSSourceGroupsView()
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceGroups) {
                         RSSManageActionLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 default:
                     Button {} label: {
                         RSSManageActionLabel(title: action.title, icon: action.icon)
@@ -919,8 +1008,8 @@ private struct RSSManageActionLabel: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
         }
-        .font(.system(size: 12, weight: .heavy))
-        .foregroundColor(title == "新建" ? .white : SwiftUI.Color(red: 0x4d/255, green: 0x46/255, blue: 0x3f/255))
+        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
+        .foregroundColor(title == "新建" ? .white : ReaderDesignTokens.readerModuleTextColor)
         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssManageActionButtonMinHeight)
         .background(
             Capsule()
@@ -973,11 +1062,11 @@ private struct RSSManagementIconList: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(row.title)
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                             .lineLimit(1)
                         Text(row.meta)
                             .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1044,7 +1133,7 @@ private struct RSSInlineActionLabel: View {
             Text(title)
                 .lineLimit(1)
         }
-        .font(.system(size: 11, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .padding(.horizontal, 8)
         .frame(minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
@@ -1056,13 +1145,13 @@ private struct RSSBatchSummaryRow: View {
     var body: some View {
         HStack(spacing: 6) {
             Text("已选 2 个订阅源")
-                .font(.system(size: 12, weight: .heavy))
-                .foregroundColor(SwiftUI.Color(red: 0x34/255, green: 0x2f/255, blue: 0x2a/255))
+                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             ForEach(["反选", "全选"], id: \.self) { title in
                 Text(title)
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .padding(.horizontal, 8)
                     .frame(minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
@@ -1093,8 +1182,8 @@ private struct RSSImportOptionPanel: View {
                     .frame(width: 22)
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 Text(label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .semibold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -1105,8 +1194,8 @@ private struct RSSImportOptionPanel: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 74), spacing: 6)], alignment: .leading, spacing: 6) {
                 ForEach(options, id: \.self) { option in
                     Text(option.title)
-                        .font(.system(size: 11, weight: .heavy))
-                        .foregroundColor(option.isActive ? ReaderDesignTokens.Color.primaryDark : SwiftUI.Color(red: 0x55/255, green: 0x4c/255, blue: 0x43/255))
+                        .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize, weight: .black))
+                        .foregroundColor(option.isActive ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.ink)
                         .padding(.horizontal, 8)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
@@ -1149,12 +1238,10 @@ private struct RSSImportExportList: View {
     let rows: [RSSImportExportRow]
     let actionTitle: String?
 
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.element) { index, row in
-                NavigationLink {
-                    destinationView(for: row.destination)
-                } label: {
+        var body: some View {
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element) { index, row in
+                RSSManagementRouteButton(route: route(for: row.destination)) {
                     HStack(spacing: 8) {
                         ReaderIcon(row.icon, size: 15, accessibilityLabel: row.title)
                             .frame(
@@ -1166,17 +1253,17 @@ private struct RSSImportExportList: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(row.title)
-                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                                 .lineLimit(1)
                             Text(row.meta)
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         Text(actionTitle ?? (row.isSelected ? "详情" : "查看"))
-                            .font(.system(size: 11, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .padding(.horizontal, 8)
                             .frame(minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
@@ -1186,7 +1273,6 @@ private struct RSSImportExportList: View {
                     .padding(.vertical, 9)
                     .frame(minHeight: ReaderDesignTokens.rssEditListRowMinHeight)
                 }
-                .buttonStyle(.plain)
 
                 if index < rows.count - 1 {
                     Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
@@ -1196,13 +1282,12 @@ private struct RSSImportExportList: View {
         .backgroundCard(cornerRadius: ReaderDesignTokens.Radius.md)
     }
 
-    @ViewBuilder
-    private func destinationView(for destination: RSSImportExportRow.Destination) -> some View {
+    private func route(for destination: RSSImportExportRow.Destination) -> RSSManagementRoute {
         switch destination {
         case .exportDetail(let sourceID, let title):
-            RSSSourceExportDetailView(sourceID: sourceID, title: title)
+            return .sourceExportDetail(sourceID: sourceID, title: title)
         case .importDetail(let sourceID, let title):
-            RSSSourceImportDetailView(sourceID: sourceID, title: title)
+            return .sourceImportDetail(sourceID: sourceID, title: title)
         }
     }
 }
@@ -1217,14 +1302,15 @@ private struct RSSSourceConfirmationPage<CancelDestination: View>: View {
     let cancelDestination: () -> CancelDestination
     let confirmTitle: String
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
+    @SwiftUI.Environment(\.rssManagementPop) private var pop
 
     var body: some View {
         DemoBackScreen(title: title) {
             RSSSourceConfirmCard(icon: icon, heading: heading, copy: copy, detail: detail)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    cancelDestination()
+                Button {
+                    pop()
                 } label: {
                     RSSSourceActionBottomLabel(title: cancelTitle, isPrimary: false)
                 }
@@ -1286,11 +1372,11 @@ private struct RSSSourceManagementRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(source.name)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .lineLimit(1)
                 Text(source.listMeta)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1298,18 +1384,15 @@ private struct RSSSourceManagementRow: View {
             RSSStatusBadge(tone: source.tone)
                 .frame(width: ReaderDesignTokens.rssSourceListStatusWidth)
 
-            NavigationLink {
-                RSSSourceActionsView(source: source)
-            } label: {
+            RSSManagementRouteButton(route: .sourceActions(source)) {
                 ReaderIcon(.more, size: 16, accessibilityLabel: "\(source.name) 更多操作")
                     .frame(
                         width: ReaderDesignTokens.rssSourceListMoreButtonSize,
                         height: ReaderDesignTokens.rssSourceListMoreButtonSize
                     )
                     .background(Circle().fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72)))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -1333,11 +1416,11 @@ private struct RSSStatusBadge: View {
     private var color: SwiftUI.Color {
         switch tone {
         case .good:
-            return SwiftUI.Color(red: 0x2f/255, green: 0x6b/255, blue: 0x52/255)
+            return ReaderDesignTokens.Color.Semantic.success
         case .warn:
-            return SwiftUI.Color(red: 0x8b/255, green: 0x58/255, blue: 0x29/255)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .muted:
-            return SwiftUI.Color.secondary
+            return ReaderDesignTokens.Color.muted
         }
     }
 }
@@ -1348,33 +1431,24 @@ private struct RSSManageBatchRow: View {
     var body: some View {
         HStack(spacing: 6) {
             Text("已选 \(selectedCount) 个")
-                .font(.system(size: 12, weight: .heavy))
-                .foregroundColor(SwiftUI.Color(red: 0x34/255, green: 0x2f/255, blue: 0x2a/255))
+                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             ForEach(["批量", "禁用", "导出"], id: \.self) { title in
                 switch title {
                 case "批量":
-                    NavigationLink {
-                        RSSSourceBatchView()
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceBatch) {
                         RSSBatchInlineLabel(title: title)
                     }
-                    .buttonStyle(.plain)
                 case "禁用":
-                    NavigationLink {
-                        RSSSourceBatchDisableConfirmView()
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceBatchDisable) {
                         RSSBatchInlineLabel(title: title)
                     }
-                    .buttonStyle(.plain)
                 default:
-                    NavigationLink {
-                        RSSSourceExportView()
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceExport) {
                         RSSBatchInlineLabel(title: title)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -1390,7 +1464,7 @@ private struct RSSBatchInlineLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 11, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize, weight: .black))
             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             .padding(.horizontal, 8)
             .frame(minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
@@ -1405,8 +1479,8 @@ private struct RSSSourceSettingsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("刷新与提醒")
-                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .padding(.bottom, 4)
 
             RSSSourceSettingRow(
@@ -1442,10 +1516,10 @@ private struct RSSSourceSettingRow: View {
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
                 Text(subtitle)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1489,11 +1563,11 @@ private struct RSSActionSourceCard: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(source.name)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .lineLimit(1)
                 Text(source.sourceMeta)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1527,54 +1601,33 @@ private struct RSSActionGrid: View {
             ForEach(actions, id: \.title) { action in
                 switch action.title {
                 case "编辑源":
-                    NavigationLink {
-                        RSSSourceEditView(source: source)
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceEdit(source)) {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "规则调试":
-                    NavigationLink {
-                        RSSSourceDebugView(source: source)
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceDebug(source)) {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "阅读记录":
-                    NavigationLink {
-                        RSSReadRecordView(source: source)
-                    } label: {
+                    RSSManagementRouteButton(route: .readRecord(source)) {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "源变量":
-                    NavigationLink {
-                        RSSSourceVarsView(source: source)
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceVars(source)) {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "登录":
-                    NavigationLink {
-                        RSSSourceLoginView(source: source)
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceLogin(source)) {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "置顶":
-                    NavigationLink {
-                        RSSSourcePinConfirmView(source: source)
-                    } label: {
+                    RSSManagementRouteButton(route: .sourcePin(source)) {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 case "禁用":
-                    NavigationLink {
-                        RSSSourceDisableConfirmView(source: source)
-                    } label: {
+                    RSSManagementRouteButton(route: .sourceDisable(source)) {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
                     }
-                    .buttonStyle(.plain)
                 default:
                     Button {} label: {
                         RSSActionGridLabel(title: action.title, icon: action.icon)
@@ -1598,13 +1651,17 @@ private struct RSSActionGridLabel: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
         }
-        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .frame(maxWidth: .infinity, minHeight: minHeight)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                 .fill(ReaderDesignTokens.Color.surface)
-                .shadow(color: SwiftUI.Color.black.opacity(0.04), radius: 10, x: 0, y: 6)
+                .shadow(
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26, x: 0, y: 8
+                )
         )
     }
 }
@@ -1624,31 +1681,27 @@ private struct RSSLoginActionGrid: View {
             spacing: ReaderDesignTokens.rssActionGridGap
         ) {
             ForEach(actions, id: \.title) { action in
-                NavigationLink {
-                    destinationView(for: action.destination)
-                } label: {
+                RSSManagementRouteButton(route: route(for: action.destination)) {
                     RSSActionGridLabel(
                         title: action.title,
                         icon: action.icon,
                         minHeight: ReaderDesignTokens.rssActionGridCompactButtonMinHeight
                     )
                 }
-                .buttonStyle(.plain)
             }
         }
     }
 
-    @ViewBuilder
-    private func destinationView(for destination: RSSLoginActionDestination) -> some View {
+    private func route(for destination: RSSLoginActionDestination) -> RSSManagementRoute {
         switch destination {
         case .web:
-            RSSSourceLoginWebView(source: source)
+            return .sourceLoginWeb(source)
         case .cookie:
-            RSSSourceLoginCookieView(source: source)
+            return .sourceLoginCookie(source)
         case .debug:
-            RSSSourceDebugView(source: source)
+            return .sourceDebug(source)
         case .clear:
-            RSSSourceLoginClearView(source: source)
+            return .sourceLoginClear(source)
         }
     }
 }
@@ -1693,13 +1746,13 @@ private struct RSSEditFieldList: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(field.group)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                     Text(field.label)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(field.value)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -1762,11 +1815,11 @@ private struct RSSSourceInfoPanel: View {
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1796,7 +1849,7 @@ private struct RSSLoginWebPreview: View {
 
                 Text("实际应用中这里打开内置 WebView。登录成功后提取 Cookie、Token 和登录检测结果，返回源登录页。")
                     .font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewBodyFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .fixedSize(horizontal: false, vertical: true)
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -1834,14 +1887,14 @@ private struct RSSSourceConfirmCard: View {
 
             Text(heading)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmTitleFontSize, weight: .heavy))
-                .foregroundColor(SwiftUI.Color(red: 0x34/255, green: 0x2f/255, blue: 0x2a/255))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
 
             Text(copy)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmBodyFontSize))
                 .lineSpacing(ReaderDesignTokens.rssBrowserConfirmBodyFontSize * 0.7)
-                .foregroundColor(SwiftUI.Color(red: 0x51/255, green: 0x48/255, blue: 0x3f/255))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
@@ -1849,7 +1902,7 @@ private struct RSSSourceConfirmCard: View {
             Text(detail)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmDetailFontSize))
                 .lineSpacing(ReaderDesignTokens.rssBrowserConfirmDetailFontSize * 0.55)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
@@ -1873,18 +1926,18 @@ private struct RSSDebugRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(row.title)
-                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .lineLimit(1)
             Text(row.body)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmDetailFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssEditListRowMinHeight, alignment: .leading)
         .padding(.horizontal, row.isWarning ? 9 : 0)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
-                .fill(row.isWarning ? SwiftUI.Color(red: 180/255, green: 110/255, blue: 35/255, opacity: 0.10) : .clear)
+                .fill(row.isWarning ? ReaderDesignTokens.Color.Semantic.warningTint : .clear)
         )
     }
 }
@@ -1895,7 +1948,7 @@ private struct RSSSourceActionBottomLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 13, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
             .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
             .background(
@@ -1932,8 +1985,9 @@ private extension View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.72), lineWidth: 1)
                 )
                 .shadow(
-                    color: SwiftUI.Color(red: 80/255, green: 67/255, blue: 52/255, opacity: 0.08),
-                    radius: 12,
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
                     x: 0,
                     y: 8
                 )

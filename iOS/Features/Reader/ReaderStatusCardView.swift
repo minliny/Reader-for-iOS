@@ -36,32 +36,37 @@ public struct ReaderStatusCardView: View {
         VStack(alignment: .leading, spacing: 16) {
             if !eyebrow.isEmpty {
                 Text(eyebrow.uppercased())
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tint)
+                    // demo `.fd-settings-row-title`：13/800
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.primary)
                     .tracking(1.2)
             }
-            
+
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.primary)
+                    // demo `.fd-top-bar h1` serif
+                    .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.backBarTitleFontSize, weight: .bold))
+                    .foregroundStyle(ReaderDesignTokens.Color.ink)
                 Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    // demo meta：10-12px
+                    .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            
+
             if !items.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.offset) { item in
                         HStack {
                             Text(item.element.label)
-                                .font(.callout.weight(.medium))
-                                .foregroundStyle(.secondary)
+                                // demo meta：10-12px
+                                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .semibold))
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                             Spacer()
                             Text(item.element.value)
-                                .font(.callout)
-                                .foregroundStyle(.primary)
+                                // demo `.fd-settings-row-value`：11px
+                                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize))
+                                .foregroundStyle(ReaderDesignTokens.Color.ink)
                                 .multilineTextAlignment(.trailing)
                         }
                         .padding(.vertical, 10)
@@ -71,15 +76,31 @@ public struct ReaderStatusCardView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .background(Color.platformTertiaryGroupedBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, ReaderDesignTokens.cardPadding)
+                // demo `.fd-restore-progress-meter` 轨道色 rgba(35,121,164,0.12)
+                .background(
+                    ReaderDesignTokens.Color.primary.opacity(0.12)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
             }
         }
-        .padding(20)
-        .background(Color.platformSecondaryGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .padding(ReaderDesignTokens.cardPadding)
+        // demo `ReaderCard` 背景：surface
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+                // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                .shadow(
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
+                    x: 0,
+                    y: 8
+                )
+        )
     }
 }
 #endif

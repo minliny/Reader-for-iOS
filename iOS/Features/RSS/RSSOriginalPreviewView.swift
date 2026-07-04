@@ -4,57 +4,71 @@ struct RSSOriginalPreviewView: View {
     let url: URL?
     let title: String
     let sourceTitle: String
+    private let onExit: (() -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
     @State private var isBrowserConfirmPresented = false
 
-    init(url: URL?, title: String, sourceTitle: String) {
+    init(url: URL?, title: String, sourceTitle: String, onExit: (() -> Void)? = nil) {
         self.url = url
         self.title = title
         self.sourceTitle = sourceTitle
+        self.onExit = onExit
     }
 
-    init(urlString: String, title: String, sourceTitle: String) {
+    init(urlString: String, title: String, sourceTitle: String, onExit: (() -> Void)? = nil) {
         self.init(
             url: URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
             title: title,
-            sourceTitle: sourceTitle
+            sourceTitle: sourceTitle,
+            onExit: onExit
         )
     }
 
     var body: some View {
-        DemoBackScreen(title: "原文页面") {
-            RSSOriginalHeader(
-                title: displayURL,
-                subtitle: "来自 \(sourceTitle) · 已保留 RSS 阅读上下文"
-            )
-
-            if url != nil {
-                RSSOriginalWebContainer(title: title)
+        ZStack {
+            if isBrowserConfirmPresented {
+                RSSOriginalBrowserConfirmView(
+                    url: url,
+                    title: title,
+                    sourceTitle: sourceTitle,
+                    onReturnToReader: {
+                        isBrowserConfirmPresented = false
+                        close()
+                    }
+                )
             } else {
-                RSSOriginalInvalidState()
-            }
-        } bottomActionHost: {
-            BottomFixedActionRow {
-                RSSOriginalBottomButton(title: "返回正文", isPrimary: false) {
-                    dismiss()
+                DemoBackScreen(title: "原文页面", onBack: close) {
+                    RSSOriginalHeader(
+                        title: displayURL,
+                        subtitle: "来自 \(sourceTitle) · 已保留 RSS 阅读上下文"
+                    )
+
+                    if url != nil {
+                        RSSOriginalWebContainer(title: title)
+                    } else {
+                        RSSOriginalInvalidState()
+                    }
+                } bottomActionHost: {
+                    BottomFixedActionRow {
+                        RSSOriginalBottomButton(title: "返回正文", isPrimary: false) {
+                            close()
+                        }
+                    } trailing: {
+                        RSSOriginalBottomButton(title: "浏览器打开", isPrimary: true) {
+                            openExternal()
+                        }
+                        .disabled(url == nil)
+                    }
                 }
-            } trailing: {
-                RSSOriginalBottomButton(title: "浏览器打开", isPrimary: true) {
-                    openExternal()
-                }
-                .disabled(url == nil)
             }
         }
-        .navigationDestination(isPresented: $isBrowserConfirmPresented) {
-            RSSOriginalBrowserConfirmView(
-                url: url,
-                title: title,
-                sourceTitle: sourceTitle,
-                onReturnToReader: {
-                    isBrowserConfirmPresented = false
-                    dismiss()
-                }
-            )
+    }
+
+    private func close() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 
@@ -89,11 +103,11 @@ private struct RSSOriginalHeader: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,7 +130,7 @@ private struct RSSOriginalWebContainer: View {
 
                 Text("这里展示原文网页入口的预览状态。实际 APP 中应打开内置 WebView，并保留返回 RSS 阅读页、复制链接、分享和用浏览器打开。")
                     .font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewBodyFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .fixedSize(horizontal: false, vertical: true)
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -152,7 +166,7 @@ private struct RSSOriginalInvalidState: View {
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 Text("当前 RSS 条目没有可打开的 URL，保留返回正文入口。")
                     .font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewBodyFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
             }
             .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssOriginalWebPreviewMinHeight, alignment: .topLeading)
         }
@@ -167,7 +181,7 @@ private struct RSSOriginalBottomButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
                 .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                 .background(

@@ -62,11 +62,11 @@ public struct ReaderProgressSurfaceView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(displayTitle)
                     .font(.system(size: titleFontSize, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(ReaderDesignTokens.Color.ink)
                     .lineLimit(ReaderDesignTokens.readerTopTitleLineLimit)
                 Text(displaySubtitle)
                     .font(.system(size: subtitleFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -119,7 +119,7 @@ public struct ReaderProgressSurfaceView: View {
                 ReaderIcon(icon, size: 16, accessibilityLabel: accessibilityLabel)
                 if !title.isEmpty {
                     Text(title)
-                        .font(.system(size: buttonFontSize, weight: .heavy))
+                        .font(.system(size: buttonFontSize, weight: .black))
                         .lineLimit(1)
                 }
             }
@@ -127,7 +127,7 @@ public struct ReaderProgressSurfaceView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundColor(.primary)
+        .foregroundColor(ReaderDesignTokens.Color.ink)
         .accessibilityLabel(accessibilityLabel)
         .disabled(action == nil)
         .opacity(action == nil ? 0.48 : 1)

@@ -6,9 +6,11 @@ struct ReaderDemoShellView: View {
     @State private var session: ReaderDemoSession = .none
     @State private var displaySettings = ReaderDisplaySettings.default
     private let motion = MotionEnvironment()
+    private let onExit: (() -> Void)?
 
-    init(demoRoute: String) {
+    init(demoRoute: String, onExit: (() -> Void)? = nil) {
         self._state = State(initialValue: ReaderDemoRouteState(route: demoRoute))
+        self.onExit = onExit
     }
 
     var body: some View {
@@ -26,8 +28,8 @@ struct ReaderDemoShellView: View {
         DemoReaderShell(layout: layout) {
             LinearGradient(
                 colors: [
-                    SwiftUI.Color(red: 1.0, green: 0.97, blue: 0.91),
-                    SwiftUI.Color(red: 0.96, green: 0.90, blue: 0.82)
+                    ReaderDesignTokens.Color.readerPaperGradientStart,
+                    ReaderDesignTokens.Color.readerPaperGradientEnd
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -38,7 +40,7 @@ struct ReaderDemoShellView: View {
                 .padding(layout.readingInsets.edgeInsets)
         } overlayHost: {
             VStack(spacing: 0) {
-                ReaderDemoTopBar(state: state, style: topBarStyle(for: layout))
+                ReaderDemoTopBar(state: state, style: topBarStyle(for: layout), onExit: onExit)
                     .padding(.horizontal, topBarHorizontalInset(for: layout))
                     .padding(.top, topBarTopInset(for: layout))
                 Spacer(minLength: 0)
@@ -396,7 +398,7 @@ private struct ReaderDemoReadingSurface: View {
                 Text(paragraph)
                     .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.immersiveBodyFontSize))
                     .lineSpacing(ReaderDesignTokens.immersiveBodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1))
-                    .foregroundColor(SwiftUI.Color(red: 0.20, green: 0.17, blue: 0.14))
+                    .foregroundColor(ReaderDesignTokens.Color.ink)
             }
             Spacer(minLength: 0)
         }
@@ -407,24 +409,30 @@ private struct ReaderDemoReadingSurface: View {
 private struct ReaderDemoTopBar: View {
     let state: ReaderDemoRouteState
     var style: ReaderProgressSurfaceStyle = .regular
+    let onExit: (() -> Void)?
 
     var body: some View {
         HStack(spacing: gap) {
-            ReaderIcon(.back, size: 18, accessibilityLabel: "返回")
-                .frame(width: backIconButtonSize, height: backIconButtonSize)
-                .background(Circle().fill(ReaderDesignTokens.Color.surface.opacity(0.72)))
+            Button {
+                onExit?()
+            } label: {
+                ReaderIcon(.back, size: 18, accessibilityLabel: "返回")
+                    .frame(width: backIconButtonSize, height: backIconButtonSize)
+                    .background(Circle().fill(ReaderDesignTokens.Color.surface.opacity(0.72)))
+            }
+            .buttonStyle(DemoPressButtonStyle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(DemoReaderFixture.title)
                     .font(.system(size: titleFontSize, weight: .heavy))
                     .lineLimit(1)
                 Text("\(DemoReaderFixture.sourceLine) · \(state.title)")
                     .font(.system(size: subtitleFontSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(DemoReaderFixture.chapterProgress)
-                .font(.system(size: percentFontSize, weight: .heavy).monospacedDigit())
+                .font(.system(size: percentFontSize, weight: .black).monospacedDigit())
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .frame(width: percentWidth, height: percentHeight)
                 .background(Capsule().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
@@ -496,7 +504,7 @@ private struct ReaderDemoModuleNav: View {
                             .foregroundColor(activeModule == module ? .white : ReaderDesignTokens.Color.primary)
                             .background(Circle().fill(activeModule == module ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.readerModuleIconShellBackground))
                         Text(module.title)
-                            .font(.system(size: moduleFontSize, weight: .heavy))
+                            .font(.system(size: moduleFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.readerModuleTextColor)
                             .lineLimit(1)
                     }
@@ -582,7 +590,7 @@ private struct ReaderDemoCompactPanel: View {
             ReaderIcon(state.module.icon, size: 18, accessibilityLabel: state.title)
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Text(state.title)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerTopCompactTitleFontSize, weight: .black))
                 .lineLimit(1)
             Spacer(minLength: 0)
             if state.module.fullRoute != nil {
@@ -590,7 +598,7 @@ private struct ReaderDemoCompactPanel: View {
                     onExpand(state.module)
                 } label: {
                     Text("展开")
-                        .font(.system(size: 11, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerTopCompactButtonFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 }
                 .buttonStyle(.plain)
@@ -649,7 +657,7 @@ private struct ReaderDemoFullPanel: View {
                             onCollapse(state.module)
                         } label: {
                             Text("收起")
-                                .font(.system(size: 11, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.readerTopCompactButtonFontSize, weight: .black))
                                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         }
                         .buttonStyle(.plain)
@@ -698,7 +706,7 @@ private struct ReaderDemoUtilityPanel: View {
                     LabelHeader(icon: state.module.icon, title: state.title)
                     Spacer(minLength: 0)
                     Text("完成")
-                        .font(.system(size: 11, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerTopCompactButtonFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 }
                 Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
@@ -722,7 +730,7 @@ private struct LabelHeader: View {
             ReaderIcon(icon, size: 18, accessibilityLabel: title)
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Text(title)
-                .font(.system(size: 14, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy))
                 .lineLimit(1)
         }
     }
@@ -747,14 +755,14 @@ private struct ReaderDemoDirectoryList: View {
                 HStack(spacing: 10) {
                     ReaderIcon(index == 2 ? .bookmark : .directory, size: 16)
                         .frame(width: 24)
-                        .foregroundColor(index == 2 ? ReaderDesignTokens.Color.primaryDark : .secondary)
+                        .foregroundColor(index == 2 ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.muted)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(chapter.0)
-                            .font(.system(size: 13, weight: index == 2 ? .heavy : .semibold))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: index == 2 ? .heavy : .semibold))
                             .lineLimit(1)
                         Text(chapter.1)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                     }
                     Spacer(minLength: 0)
                 }
@@ -776,18 +784,18 @@ private struct ReaderDemoSessionCapsule: View {
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(session.title) · \(session.statusLabel)")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
                     .lineLimit(1)
                 Text(session.detailLabel)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
             Text(session.countdownLabel)
-                .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black).monospacedDigit())
                 .frame(width: ReaderDesignTokens.readerSessionCapsuleCountdownSize + 10)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .padding(.horizontal, 12)
         .frame(height: ReaderDesignTokens.readerSessionCapsuleHeight)
@@ -854,7 +862,7 @@ private struct ReaderDemoAppearanceControls: View {
                         perform(.theme(option.mode))
                     } label: {
                         Text(option.title)
-                            .font(.system(size: 11, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.readerTopCompactButtonFontSize, weight: .black))
                             .lineLimit(1)
                             .padding(.horizontal, 10)
                             .frame(minHeight: 30)
@@ -884,7 +892,7 @@ private struct ReaderDemoAppearanceControls: View {
             if isFull {
                 HStack(spacing: 8) {
                     Text("翻页")
-                        .font(.system(size: 12, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     ReaderDemoModeChip(
                         title: "滚动",
@@ -961,7 +969,7 @@ private struct ReaderDemoStepperRow: View {
     var body: some View {
         HStack(spacing: ReaderDesignTokens.settingsRowGap) {
             Text(title)
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: decrease) {
                 ReaderIcon(.clear, size: 12, accessibilityLabel: "\(title)减少")
@@ -969,7 +977,7 @@ private struct ReaderDemoStepperRow: View {
             }
             .buttonStyle(.plain)
             Text(value)
-                .font(.system(size: 11, weight: .heavy).monospacedDigit())
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black).monospacedDigit())
                 .frame(width: 34)
             Button(action: increase) {
                 ReaderIcon(.add, size: 12, accessibilityLabel: "\(title)增加")
@@ -989,7 +997,7 @@ private struct ReaderDemoModeChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 11, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerTopCompactButtonFontSize, weight: .black))
                 .lineLimit(1)
                 .padding(.horizontal, 10)
                 .frame(minHeight: 30)
@@ -1017,12 +1025,12 @@ private struct ReaderDemoToggleRow: View {
                     .frame(width: ReaderDesignTokens.settingsRowIconColumn)
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(isOn ? "开" : "关")
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                 Capsule()
                     .fill(isOn ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder)
                     .frame(width: ReaderDesignTokens.settingsSwitchTrackWidth, height: ReaderDesignTokens.settingsSwitchTrackHeight)
@@ -1072,8 +1080,8 @@ private struct ReaderDemoAutoPagePanel: View {
             }
             controlRow("速度", value: "42 秒/页", options: ["慢", "默认", "快"])
             Text("自动翻页会保持当前章节进度，并在控制层显示运行胶囊。")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
     }
 }
@@ -1124,16 +1132,16 @@ private func controlRow(_ title: String, value: String, options: [String]) -> so
     VStack(alignment: .leading, spacing: 6) {
         HStack {
             Text(title)
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
             Spacer(minLength: 0)
             Text(value)
-                .font(.system(size: 11, weight: .heavy).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black).monospacedDigit())
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         HStack(spacing: 6) {
             ForEach(options, id: \.self) { option in
                 Text(option)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
                     .lineLimit(1)
                     .padding(.horizontal, 8)
                     .frame(minHeight: 28)
@@ -1149,12 +1157,12 @@ private func settingRow(icon: ReaderAssetIcon, title: String, detail: String) ->
             .frame(width: ReaderDesignTokens.settingsRowIconColumn)
             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         Text(title)
-            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
         Text(detail)
-            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-            .foregroundStyle(.secondary)
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+            .foregroundStyle(ReaderDesignTokens.Color.muted)
             .lineLimit(1)
     }
     .frame(minHeight: 38)
@@ -1163,10 +1171,10 @@ private func settingRow(icon: ReaderAssetIcon, title: String, detail: String) ->
 private func searchField(_ placeholder: String) -> some View {
     HStack(spacing: 8) {
         ReaderIcon(.search, size: 15, accessibilityLabel: "搜索")
-            .foregroundStyle(.secondary)
+            .foregroundStyle(ReaderDesignTokens.Color.muted)
         Text(placeholder)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .semibold))
+            .foregroundStyle(ReaderDesignTokens.Color.muted)
             .lineLimit(1)
         Spacer(minLength: 0)
     }
@@ -1183,11 +1191,11 @@ private func metricGrid(_ metrics: [(String, String)]) -> some View {
         ForEach(metrics, id: \.0) { metric in
             VStack(spacing: 3) {
                 Text(metric.0)
-                    .font(.system(size: 14, weight: .heavy).monospacedDigit())
+                    .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy).monospacedDigit())
                     .lineLimit(1)
                 Text(metric.1)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 54)
@@ -1210,7 +1218,7 @@ private struct PillButton: View {
             HStack(spacing: 6) {
                 ReaderIcon(icon, size: 14, accessibilityLabel: title)
                 Text(title)
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerTopCompactButtonFontSize, weight: .black))
                     .lineLimit(1)
             }
             .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)

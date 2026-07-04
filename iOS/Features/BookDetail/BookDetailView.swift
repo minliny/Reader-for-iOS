@@ -4,15 +4,22 @@ import ReaderAppSupport
 import ReaderAppPersistence
 import ReaderShellValidation
 
+private enum BookDetailDestination {
+    case directory
+    case reader(BookDetailPreviewChapter?)
+}
+
 public struct BookDetailView: View {
     @StateObject private var viewModel: BookDetailViewModel
     @State private var isInBookshelf = false
     @State private var bookshelfItemID: String?
     @State private var showSourceSheet = false
     @State private var showRemoveDialog = false
+    @State private var activeDestination: BookDetailDestination?
     let result: SearchResultItem
     let sourceName: String
     let source: BookSource?
+    let onExit: (() -> Void)?
     private let bookshelfStore = BookshelfStore.shared
     private var sourceIdentity: ReaderAppSupport.SourceIdentity {
         SourceIdentityFactory.from(searchResult: result)
@@ -24,15 +31,39 @@ public struct BookDetailView: View {
         return sourceIdentity.id
     }
 
-    public init(result: SearchResultItem, sourceName: String = "", source: BookSource? = nil) {
+    public init(result: SearchResultItem, sourceName: String = "", source: BookSource? = nil, onExit: (() -> Void)? = nil) {
         self.result = result
         self.sourceName = sourceName
         self.source = source
+        self.onExit = onExit
         self._viewModel = StateObject(wrappedValue: BookDetailViewModel(bookURL: result.detailURL, source: source))
     }
 
     public var body: some View {
-        DemoBackScreen(title: "书籍详情") {
+        ZStack {
+            switch activeDestination {
+            case .some(.directory):
+                BookDirectoryPreviewView(bookURL: result.detailURL, title: result.title) {
+                    activeDestination = nil
+                }
+            case .some(.reader(let chapter)):
+                readerView(chapter: chapter) {
+                    activeDestination = nil
+                }
+            case .none:
+                detailShell
+            }
+        }
+        .onAppear {
+            Task {
+                await viewModel.loadDetail()
+                checkBookshelfStatus()
+            }
+        }
+    }
+
+    private var detailShell: some View {
+        DemoBackScreen(title: "书籍详情", onBack: onExit) {
             if let notice = detailStatusNotice {
                 BookDetailNoticeCard(notice: notice)
             }
@@ -64,12 +95,6 @@ public struct BookDetailView: View {
             }
         } stateHost: {
             EmptyView()
-        }
-        .onAppear {
-            Task {
-                await viewModel.loadDetail()
-                checkBookshelfStatus()
-            }
         }
     }
 
@@ -181,32 +206,32 @@ public struct BookDetailView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(detail.title)
                         .font(ReaderTypography.demoSerif(size: 22, weight: .heavy))
-                        .foregroundColor(SwiftUI.Color(red: 0x2b/255, green: 0x24/255, blue: 0x1d/255))
+                        .foregroundColor(ReaderDesignTokens.Color.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
 
                     Text(authorText(for: detail))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .medium))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                         .padding(.top, 8)
 
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("最新")
-                            .font(.system(size: 11, weight: .heavy))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .frame(width: 34, alignment: .leading)
                         Text(latestChapterText(for: detail))
-                            .font(.system(size: 12))
-                            .foregroundColor(.primary)
+                            .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                            .foregroundColor(ReaderDesignTokens.Color.ink)
                             .lineLimit(1)
                     }
                     .padding(.top, 10)
 
                     HStack(spacing: 8) {
                         Text("书源：\(displaySourceName)")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .bold))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -214,7 +239,7 @@ public struct BookDetailView: View {
                             showSourceSheet = true
                         } label: {
                             Text("更换书源")
-                                .font(.system(size: 9, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.bookDetailInlineSourceButtonFontSize, weight: .black))
                                 .lineLimit(1)
                                 .padding(.horizontal, 8)
                                 .frame(minHeight: ReaderDesignTokens.bookDetailInlineSourceButtonMinHeight)
@@ -235,11 +260,11 @@ public struct BookDetailView: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.bookDetailSummaryGap) {
                 Text("简介")
-                    .font(.system(size: 15, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
                     .lineLimit(1)
                 Text(summaryText(for: detail))
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineSpacing(6)
                     .lineLimit(4)
             }
@@ -252,17 +277,17 @@ public struct BookDetailView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     Text("章节信息")
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    NavigationLink {
-                        BookDirectoryPreviewView(bookURL: result.detailURL, title: result.title)
+                    Button {
+                        activeDestination = .directory
                     } label: {
                         HStack(spacing: 6) {
                             ReaderIcon(.directory, size: 16, accessibilityLabel: "完整目录")
                             Text("完整目录")
-                                .font(.system(size: 12, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
                                 .lineLimit(1)
                         }
                         .padding(.horizontal, 10)
@@ -277,15 +302,13 @@ public struct BookDetailView: View {
 
                 ForEach(previewChapters) { chapter in
                     Divider().overlay(ReaderDesignTokens.Color.readerModuleNavBorder)
-                    NavigationLink {
-                        readerView(chapter: chapter)
+                    Button {
+                        addToBookshelfIfNeeded()
+                        activeDestination = .reader(chapter)
                     } label: {
                         BookDetailPreviewChapterRow(chapter: chapter)
                     }
                     .buttonStyle(.plain)
-                    .simultaneousGesture(TapGesture().onEnded {
-                        addToBookshelfIfNeeded()
-                    })
                 }
             }
             .padding(.top, ReaderDesignTokens.bookDirectoryListTopPadding - ReaderDesignTokens.cardPadding)
@@ -296,15 +319,13 @@ public struct BookDetailView: View {
 
     private var bottomActions: some View {
         BottomFixedActionRow {
-            NavigationLink {
-                readerView(chapter: nil)
+            Button {
+                addToBookshelfIfNeeded()
+                activeDestination = .reader(nil)
             } label: {
                 BookDetailBottomLabel(title: isInBookshelf ? "继续阅读" : "开始阅读", isPrimary: true)
             }
             .buttonStyle(.plain)
-            .simultaneousGesture(TapGesture().onEnded {
-                addToBookshelfIfNeeded()
-            })
         } trailing: {
             Button {
                 if isInBookshelf {
@@ -323,7 +344,7 @@ public struct BookDetailView: View {
         }
     }
 
-    private func readerView(chapter: BookDetailPreviewChapter?) -> ReaderView {
+    private func readerView(chapter: BookDetailPreviewChapter?, onExit: (() -> Void)? = nil) -> ReaderView {
         let requestedIndex = chapter?.sourceIndex ?? 0
         let resolvedIndex = viewModel.chapters.indices.contains(requestedIndex) ? requestedIndex : 0
         let resolvedChapter = viewModel.chapters.indices.contains(resolvedIndex) ? viewModel.chapters[resolvedIndex] : nil
@@ -337,7 +358,8 @@ public struct BookDetailView: View {
             currentChapterIndex: resolvedIndex,
             bookID: sourceIdentity.id,
             sourceID: resolvedSourceID,
-            source: source
+            source: source,
+            onExit: onExit
         )
     }
 
@@ -408,9 +430,9 @@ private enum BookDetailNoticeTone {
         case .loading:
             return ReaderDesignTokens.Color.primaryDark
         case .warning:
-            return SwiftUI.Color(red: 0.66, green: 0.38, blue: 0.08)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .danger:
-            return SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14)
+            return ReaderDesignTokens.Color.Semantic.danger
         }
     }
 
@@ -419,9 +441,9 @@ private enum BookDetailNoticeTone {
         case .loading:
             return ReaderDesignTokens.Color.primary.opacity(0.10)
         case .warning:
-            return SwiftUI.Color(red: 0.96, green: 0.74, blue: 0.36, opacity: 0.18)
+            return ReaderDesignTokens.Color.Semantic.warningTint
         case .danger:
-            return SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14, opacity: 0.10)
+            return ReaderDesignTokens.Color.Semantic.danger.opacity(0.10)
         }
     }
 }
@@ -438,12 +460,12 @@ private struct BookDetailNoticeCard: View {
                     .background(Circle().fill(notice.tone.background))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(notice.title)
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .foregroundColor(notice.tone.foreground)
                         .lineLimit(1)
                     Text(notice.message)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
             }
@@ -474,7 +496,8 @@ private struct BookDetailCoverView: View {
         }
         .frame(width: ReaderDesignTokens.bookDetailHeroCoverWidth, height: ReaderDesignTokens.bookDetailHeroCoverHeight)
         .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm))
-        .shadow(color: SwiftUI.Color(red: 52/255, green: 38/255, blue: 26/255, opacity: 0.18), radius: 8, x: 0, y: 6)
+        // demo `.fd-book-detail-hero img`: 0 8px 16px rgba(52,38,26,0.18)
+        .shadow(color: ReaderDesignTokens.Color.Shadow.bookDetailHero, radius: 16, x: 0, y: 8)
         .accessibilityLabel(Text("\(title)封面"))
     }
 
@@ -517,8 +540,8 @@ private struct BookDetailPreviewChapterRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(chapter.title)
-                .font(.system(size: 14, weight: chapter.isCurrent ? .heavy : .regular))
-                .foregroundColor(chapter.isCurrent ? ReaderDesignTokens.Color.primaryDark : .primary)
+                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: chapter.isCurrent ? .heavy : .regular))
+                .foregroundColor(chapter.isCurrent ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.ink)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -536,7 +559,7 @@ private struct BookDetailPreviewChapterRow: View {
 
     private func markerIcon(_ icon: ReaderAssetIcon, isActive: Bool, accessibilityLabel: String) -> some View {
         ReaderIcon(icon, size: 15, accessibilityLabel: accessibilityLabel)
-            .foregroundColor(isActive ? ReaderDesignTokens.Color.primary : SwiftUI.Color.secondary.opacity(0.58))
+            .foregroundColor(isActive ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.muted.opacity(0.58))
             .frame(width: ReaderDesignTokens.bookDirectoryMarkerSize, height: ReaderDesignTokens.bookDirectoryMarkerSize)
             .background(
                 Capsule()
@@ -552,7 +575,7 @@ private struct BookDetailBottomLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 13, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .lineLimit(1)
             .frame(maxWidth: .infinity)
             .frame(minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
@@ -569,7 +592,7 @@ private struct BookDetailBottomLabel: View {
             return .white
         }
         if isDanger {
-            return SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14)
+            return ReaderDesignTokens.Color.Semantic.danger
         }
         return ReaderDesignTokens.Color.primaryDark
     }
@@ -606,12 +629,12 @@ private struct BookDetailSourceSheet: View {
                     .frame(width: 26, height: 26)
                     .background(Circle().fill(isCurrent ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.primary.opacity(0.10)))
                 Text(title)
-                    .font(.system(size: 14, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if isCurrent {
                     Text("当前")
-                        .font(.system(size: 11, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         .padding(.horizontal, 8)
                         .frame(minHeight: 24)
@@ -637,7 +660,7 @@ private struct BookDetailRemoveDialog: View {
     var body: some View {
         ConfirmDialog(
             icon: .trash,
-            iconColor: SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14),
+            iconColor: ReaderDesignTokens.Color.Semantic.danger,
             title: "确认删除？",
             message: "只从书架移除，不删除本地文件和阅读记录。"
         ) {

@@ -15,7 +15,7 @@ public struct ReaderSettingsPanel: View {
             ReaderCard {
                 VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                     Text("外观")
-                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     CompactIntStepper(title: "字号", value: $displaySettings.fontSize, range: 12...32, step: 2)
                     CompactDoubleStepper(title: "行距", value: $displaySettings.lineSpacing, range: 2...24, step: 2)
@@ -28,14 +28,9 @@ public struct ReaderSettingsPanel: View {
             ReaderCard {
                 VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                     Text("翻页")
-                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                    Picker("Mode", selection: $displaySettings.pageTurnMode) {
-                        ForEach(PageTurnMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue.capitalized).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    PageTurnModeSegment(selection: $displaySettings.pageTurnMode)
                     DemoToggleRow(
                         icon: .gesture,
                         title: "Tap Zones",
@@ -69,11 +64,17 @@ public struct ReaderSettingsPanel: View {
                     if displaySettings.brightnessOverrideEnabled {
                         HStack(spacing: 12) {
                             ReaderIcon(.sun, size: 18)
-                                .foregroundStyle(.secondary)
-                            Slider(value: $displaySettings.brightnessLevel, in: 0.1...1.0, step: 0.05)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
+                            DemoRangeRail(
+                                value: $displaySettings.brightnessLevel,
+                                range: 0.1...1.0,
+                                step: 0.05,
+                                label: "阅读亮度",
+                                valueText: String(format: "%.0f%%", displaySettings.brightnessLevel * 100)
+                            )
                             Text(String(format: "%.0f%%", displaySettings.brightnessLevel * 100))
-                                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .frame(width: 44)
                         }
                     }
@@ -93,6 +94,35 @@ public struct ReaderSettingsPanel: View {
         "Avenir",
         "Helvetica Neue"
     ]
+}
+
+private struct PageTurnModeSegment: View {
+    @Binding var selection: PageTurnMode
+
+    var body: some View {
+        HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+            Text("Mode")
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(PageTurnMode.allCases, id: \.self) { mode in
+                PillChip(title(for: mode), isSelected: selection == mode) {
+                    MotionEnvironment().withMotionAnimation(AppMotion.Duration.chipSelect) {
+                        selection = mode
+                    }
+                }
+            }
+        }
+        .frame(minHeight: ReaderDesignTokens.readerSettingsPanelRowHeight)
+    }
+
+    private func title(for mode: PageTurnMode) -> String {
+        switch mode {
+        case .scroll:
+            return "滚动"
+        case .paginated:
+            return "分页"
+        }
+    }
 }
 
 private struct CompactIntStepper: View {
@@ -128,11 +158,11 @@ private struct CompactDoubleStepper: View {
 private func compactStepper(title: String, valueText: String, decrement: @escaping () -> Void, increment: @escaping () -> Void) -> some View {
     HStack(spacing: ReaderDesignTokens.settingsRowGap) {
         Text(title)
-            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .frame(maxWidth: .infinity, alignment: .leading)
         StepperButton(icon: .clear, action: decrement)
         Text(valueText)
-            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
             .frame(width: 38)
         StepperButton(icon: .add, action: increment)
     }
@@ -177,7 +207,7 @@ private struct PaletteRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text("背景")
-                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .frame(maxWidth: .infinity, alignment: .leading)
             ForEach(ReaderBackgroundMode.allCases, id: \.self) { mode in
                 Button {

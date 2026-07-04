@@ -5,15 +5,26 @@ import ReaderShellValidation
 public struct TOCView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
     public let book: SearchResultItem
+    private let onExit: (() -> Void)?
+    @State private var selectedChapter: TOCItem?
 
-    public init(coordinator: ReadingFlowCoordinator, book: SearchResultItem) {
+    public init(coordinator: ReadingFlowCoordinator, book: SearchResultItem, onExit: (() -> Void)? = nil) {
         self.coordinator = coordinator
         self.book = book
+        self.onExit = onExit
     }
 
     public var body: some View {
-        DemoBackScreen(title: "目录") {
-            directoryCard
+        ZStack {
+            if let selectedChapter {
+                ContentView(coordinator: coordinator, chapter: selectedChapter) {
+                    self.selectedChapter = nil
+                }
+            } else {
+                DemoBackScreen(title: "目录", onBack: onExit) {
+                    directoryCard
+                }
+            }
         }
         .task {
             if coordinator.tocItems.isEmpty {
@@ -38,8 +49,9 @@ public struct TOCView: View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
                 .shadow(
-                    color: SwiftUI.Color(red: 80/255, green: 67/255, blue: 52/255, opacity: 0.08),
-                    radius: 12,
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
                     x: 0,
                     y: 8
                 )
@@ -58,12 +70,12 @@ public struct TOCView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .lineLimit(1)
                 Text("\(coordinator.selectedSource?.bookSourceName ?? "未选中书源") · 共 \(coordinator.tocItems.count) 章")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .medium))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,8 +118,8 @@ public struct TOCView: View {
     private var chapterRows: some View {
         VStack(spacing: 0) {
             ForEach(Array(coordinator.tocItems.enumerated()), id: \.element.chapterURL) { index, chapter in
-                NavigationLink {
-                    ContentView(coordinator: coordinator, chapter: chapter)
+                Button {
+                    selectedChapter = chapter
                 } label: {
                     TOCChapterDemoRow(
                         chapter: chapter,
@@ -139,8 +151,8 @@ struct TOCChapterDemoRow: View {
     var body: some View {
         HStack(spacing: ReaderDesignTokens.bookGroupRowGap) {
             Text(chapter.chapterTitle)
-                .font(.system(size: 14, weight: isCurrent ? .heavy : .regular))
-                .foregroundColor(isCurrent ? ReaderDesignTokens.Color.primaryDark : .primary)
+                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: isCurrent ? .heavy : .regular))
+                .foregroundColor(isCurrent ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.ink)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -162,7 +174,7 @@ struct TOCChapterDemoRow: View {
 
     private func markerText(_ value: String) -> some View {
         Text(value)
-            .font(.system(size: 10, weight: .heavy).monospacedDigit())
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black).monospacedDigit())
             .foregroundColor(isCurrent ? .white : ReaderDesignTokens.Color.primaryDark)
             .frame(width: ReaderDesignTokens.bookDirectoryMarkerSize, height: ReaderDesignTokens.bookDirectoryMarkerSize)
             .background(

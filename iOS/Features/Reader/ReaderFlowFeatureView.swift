@@ -35,7 +35,7 @@ public struct ReaderFlowFeatureView: View {
                     coordinator.lastWarning = nil
                 } label: {
                     Text("已知晓")
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssReaderInlineActionMinHeight)
                         .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
@@ -167,7 +167,7 @@ public struct ReaderFlowFeatureView: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text("主链路入口")
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
                 if moduleBoundary.canSearch {
@@ -242,11 +242,11 @@ public struct ReaderFlowFeatureView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                    .foregroundColor(.primary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                    .foregroundColor(ReaderDesignTokens.Color.ink)
                 Text(subtitle)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

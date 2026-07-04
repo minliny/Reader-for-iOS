@@ -6,12 +6,146 @@ enum RSSStateKind: Hashable {
     case error
 }
 
+private enum RSSSupplementalRoute {
+    case article(SubscriptionItem, sourceTitle: String)
+    case management
+    case feed
+    case recordClear
+    case ruleSubscriptionDetail(subscriptionID: String, title: String?)
+    case ruleSubscriptionEdit(subscriptionID: String, title: String?)
+    case ruleSubscriptionTest(subscriptionID: String, title: String?)
+    case ruleSubscriptionApply(subscriptionID: String, title: String?)
+    case favoriteGroupEdit(groupID: String, title: String?)
+    case favoriteClear
+}
+
+private struct RSSSupplementalNavigateKey: EnvironmentKey {
+    static let defaultValue: (RSSSupplementalRoute) -> Void = { _ in }
+}
+
+private struct RSSSupplementalPopKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+
+private extension EnvironmentValues {
+    var rssSupplementalNavigate: (RSSSupplementalRoute) -> Void {
+        get { self[RSSSupplementalNavigateKey.self] }
+        set { self[RSSSupplementalNavigateKey.self] = newValue }
+    }
+
+    var rssSupplementalPop: () -> Void {
+        get { self[RSSSupplementalPopKey.self] }
+        set { self[RSSSupplementalPopKey.self] = newValue }
+    }
+}
+
+private struct RSSSupplementalRouteHost<Root: View>: View {
+    @State private var routeStack: [RSSSupplementalRoute] = []
+    @SwiftUI.Environment(\.dismiss) private var dismiss
+    let onRootExit: (() -> Void)?
+    let root: Root
+
+    init(onRootExit: (() -> Void)? = nil, @ViewBuilder root: () -> Root) {
+        self.onRootExit = onRootExit
+        self.root = root()
+    }
+
+    var body: some View {
+        ZStack {
+            if let route = routeStack.last {
+                routeView(for: route)
+            } else {
+                root
+            }
+        }
+        .environment(\.rssSupplementalNavigate, { route in
+            routeStack.append(route)
+        })
+        .environment(\.rssSupplementalPop, closeTopRoute)
+    }
+
+    @ViewBuilder
+    private func routeView(for route: RSSSupplementalRoute) -> some View {
+        switch route {
+        case .article(let item, let sourceTitle):
+            RSSArticleDetailView(item: item, sourceTitle: sourceTitle, onExit: closeTopRoute)
+        case .management:
+            RSSSubscriptionManagementView(onExit: closeTopRoute)
+        case .feed:
+            RSSFeedView(demoRoute: "rss-all", showsTopBar: false, onExit: closeTopRoute)
+        case .recordClear:
+            RSSRecordClearConfirmView(onExit: closeTopRoute)
+        case .ruleSubscriptionDetail(let subscriptionID, let title):
+            RSSRuleSubscriptionDetailView(subscriptionID: subscriptionID, title: title, onExit: closeTopRoute, hostsRoutes: false)
+        case .ruleSubscriptionEdit(let subscriptionID, let title):
+            RSSRuleSubscriptionEditView(subscriptionID: subscriptionID, title: title, onExit: closeTopRoute, hostsRoutes: false)
+        case .ruleSubscriptionTest(let subscriptionID, let title):
+            RSSRuleSubscriptionTestView(subscriptionID: subscriptionID, title: title, onExit: closeTopRoute, hostsRoutes: false)
+        case .ruleSubscriptionApply(let subscriptionID, let title):
+            RSSRuleSubscriptionApplyConfirmView(subscriptionID: subscriptionID, title: title, onExit: closeTopRoute)
+        case .favoriteGroupEdit(let groupID, let title):
+            RSSFavoriteGroupEditView(groupID: groupID, title: title, onExit: closeTopRoute, hostsRoutes: false)
+        case .favoriteClear:
+            RSSFavoriteClearConfirmView(onExit: closeTopRoute)
+        }
+    }
+
+    private func closeTopRoute() {
+        if routeStack.isEmpty {
+            if let onRootExit {
+                onRootExit()
+            } else {
+                dismiss()
+            }
+        } else {
+            routeStack.removeLast()
+        }
+    }
+}
+
+private struct RSSSupplementalRouteButton<Label: View>: View {
+    let route: RSSSupplementalRoute
+    let label: Label
+    @SwiftUI.Environment(\.rssSupplementalNavigate) private var navigate
+
+    init(route: RSSSupplementalRoute, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.label = label()
+    }
+
+    var body: some View {
+        Button {
+            navigate(route)
+        } label: {
+            label
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct RSSSearchView: View {
     @State private var selectedScope = "全部"
     private let scopes = ["全部", "订阅源", "文章", "分组"]
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
+
+    init(onExit: (() -> Void)? = nil, hostsRoutes: Bool = true) {
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
+    }
 
     var body: some View {
-        DemoBackScreen(title: "RSS 搜索") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "RSS 搜索", onBack: onExit) {
             ReaderCard {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -20,7 +154,7 @@ struct RSSSearchView: View {
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         Text("搜索订阅源、文章标题或分组")
                             .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                     }
                     .frame(minHeight: 38)
@@ -41,7 +175,7 @@ struct RSSSearchView: View {
                 title: "搜索结果",
                 articles: Array(RSSSupplementalDemoData.articles.prefix(3)),
                 actionTitle: "管理源",
-                actionDestination: { RSSSubscriptionManagementView() }
+                actionRoute: .management
             )
         }
     }
@@ -49,22 +183,38 @@ struct RSSSearchView: View {
 
 struct RSSReadRecordView: View {
     private let source: RSSManagementSource?
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
 
-    init(source: RSSManagementSource? = nil) {
+    init(source: RSSManagementSource? = nil, onExit: (() -> Void)? = nil, hostsRoutes: Bool = true) {
         self.source = source
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
     }
 
-    init(sourceID: String?, title: String? = nil) {
+    init(sourceID: String?, title: String? = nil, onExit: (() -> Void)? = nil, hostsRoutes: Bool = true) {
         if let sourceID {
             self.source = RSSManagementSource.fallback(sourceID: sourceID, title: title)
         } else {
             self.source = nil
         }
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
     }
 
     var body: some View {
-        DemoBackScreen(title: "阅读记录") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "阅读记录", onBack: onExit) {
             if let source {
                 RSSSupplementalHeaderPanel(
                     icon: .clock,
@@ -76,21 +226,32 @@ struct RSSReadRecordView: View {
         } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSupplementalBottomButton(title: "返回列表", isPrimary: false) {
-                    dismiss()
+                    close()
                 }
             } trailing: {
-                NavigationLink {
-                    RSSRecordClearConfirmView()
-                } label: {
+                RSSSupplementalRouteButton(route: .recordClear) {
                     RSSSupplementalBottomLabel(title: "清空记录", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
+        }
+    }
+
+    private func close() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 }
 
 struct RSSRecordClearConfirmView: View {
+    private let onExit: (() -> Void)?
+
+    init(onExit: (() -> Void)? = nil) {
+        self.onExit = onExit
+    }
+
     var body: some View {
         RSSSupplementalConfirmPage(
             title: "清空阅读记录",
@@ -99,30 +260,47 @@ struct RSSRecordClearConfirmView: View {
             copy: "只会清除 RSS 阅读历史，不会删除收藏、订阅源、未读状态或正文缓存。",
             detail: "记录清空后仍可从 RSS 列表和收藏分组进入文章。",
             cancelTitle: "取消",
-            cancelDestination: { RSSReadRecordView() },
-            confirmTitle: "确认清空"
+            confirmTitle: "确认清空",
+            onCancel: close,
+            onConfirm: close
         )
+    }
+
+    private func close() {
+        onExit?()
     }
 }
 
 struct RSSRuleSubscriptionView: View {
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
+
+    init(onExit: (() -> Void)? = nil, hostsRoutes: Bool = true) {
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
+    }
+
     var body: some View {
-        DemoBackScreen(title: "规则订阅") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "规则订阅", onBack: onExit) {
             RSSRuleSubscriptionList(subscriptions: RSSSupplementalDemoData.ruleSubscriptions)
             RSSSupplementalInlineActionWrap {
-                NavigationLink {
-                    RSSRuleSubscriptionDetailView()
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionDetail(subscriptionID: "community-rss", title: "社区 RSS 源订阅")) {
                     RSSSupplementalInlineActionLabel(icon: .upload, title: "打开订阅")
                 }
-                .buttonStyle(.plain)
 
-                NavigationLink {
-                    RSSRuleSubscriptionEditView(subscriptionID: "new-subscription", title: "新增规则订阅")
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionEdit(subscriptionID: "new-subscription", title: "新增规则订阅")) {
                     RSSSupplementalInlineActionLabel(icon: .add, title: "新增")
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -130,13 +308,32 @@ struct RSSRuleSubscriptionView: View {
 
 struct RSSRuleSubscriptionDetailView: View {
     private let subscription: RSSRuleSubscription
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
 
-    init(subscriptionID: String = "community-rss", title: String? = "社区 RSS 源订阅") {
+    init(
+        subscriptionID: String = "community-rss",
+        title: String? = "社区 RSS 源订阅",
+        onExit: (() -> Void)? = nil,
+        hostsRoutes: Bool = true
+    ) {
         self.subscription = RSSRuleSubscription.fallback(subscriptionID: subscriptionID, title: title)
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
     }
 
     var body: some View {
-        DemoBackScreen(title: "订阅详情") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "订阅详情", onBack: onExit) {
             RSSSupplementalInfoPanel(
                 icon: .sync,
                 title: subscription.name,
@@ -150,19 +347,13 @@ struct RSSRuleSubscriptionDetailView: View {
             RSSImportChangeList()
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSRuleSubscriptionEditView(subscriptionID: subscription.id, title: subscription.name)
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionEdit(subscriptionID: subscription.id, title: subscription.name)) {
                     RSSSupplementalBottomLabel(title: "编辑", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
-                NavigationLink {
-                    RSSRuleSubscriptionApplyConfirmView(subscriptionID: subscription.id, title: subscription.name)
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionApply(subscriptionID: subscription.id, title: subscription.name)) {
                     RSSSupplementalBottomLabel(title: "应用更新", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -170,28 +361,52 @@ struct RSSRuleSubscriptionDetailView: View {
 
 struct RSSRuleSubscriptionEditView: View {
     private let subscription: RSSRuleSubscription
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
 
-    init(subscriptionID: String = "community-rss", title: String? = "社区 RSS 源订阅") {
+    init(
+        subscriptionID: String = "community-rss",
+        title: String? = "社区 RSS 源订阅",
+        onExit: (() -> Void)? = nil,
+        hostsRoutes: Bool = true
+    ) {
         self.subscription = RSSRuleSubscription.fallback(subscriptionID: subscriptionID, title: title)
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
     }
 
     var body: some View {
-        DemoBackScreen(title: "编辑规则订阅") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "编辑规则订阅", onBack: onExit) {
             RSSSupplementalEditFieldList(fields: fields)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSRuleSubscriptionTestView(subscriptionID: subscription.id, title: subscription.name)
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionTest(subscriptionID: subscription.id, title: subscription.name)) {
                     RSSSupplementalBottomLabel(title: "测试订阅", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSupplementalBottomButton(title: "保存", isPrimary: true) {
-                    dismiss()
+                    close()
                 }
             }
+        }
+    }
+
+    private func close() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 
@@ -209,13 +424,32 @@ struct RSSRuleSubscriptionEditView: View {
 
 struct RSSRuleSubscriptionTestView: View {
     private let subscription: RSSRuleSubscription
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
 
-    init(subscriptionID: String = "community-rss", title: String? = "社区 RSS 源订阅") {
+    init(
+        subscriptionID: String = "community-rss",
+        title: String? = "社区 RSS 源订阅",
+        onExit: (() -> Void)? = nil,
+        hostsRoutes: Bool = true
+    ) {
         self.subscription = RSSRuleSubscription.fallback(subscriptionID: subscriptionID, title: title)
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
     }
 
     var body: some View {
-        DemoBackScreen(title: "测试规则订阅") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "测试规则订阅", onBack: onExit) {
             RSSSupplementalInfoPanel(
                 icon: .bug,
                 title: subscription.name,
@@ -228,19 +462,13 @@ struct RSSRuleSubscriptionTestView: View {
             )
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSRuleSubscriptionEditView(subscriptionID: subscription.id, title: subscription.name)
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionEdit(subscriptionID: subscription.id, title: subscription.name)) {
                     RSSSupplementalBottomLabel(title: "返回编辑", isPrimary: false)
                 }
-                .buttonStyle(.plain)
             } trailing: {
-                NavigationLink {
-                    RSSRuleSubscriptionDetailView(subscriptionID: subscription.id, title: subscription.name)
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionDetail(subscriptionID: subscription.id, title: subscription.name)) {
                     RSSSupplementalBottomLabel(title: "查看结果", isPrimary: true)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -248,9 +476,11 @@ struct RSSRuleSubscriptionTestView: View {
 
 struct RSSRuleSubscriptionApplyConfirmView: View {
     private let subscription: RSSRuleSubscription
+    private let onExit: (() -> Void)?
 
-    init(subscriptionID: String = "community-rss", title: String? = "社区 RSS 源订阅") {
+    init(subscriptionID: String = "community-rss", title: String? = "社区 RSS 源订阅", onExit: (() -> Void)? = nil) {
         self.subscription = RSSRuleSubscription.fallback(subscriptionID: subscriptionID, title: title)
+        self.onExit = onExit
     }
 
     var body: some View {
@@ -261,71 +491,114 @@ struct RSSRuleSubscriptionApplyConfirmView: View {
             copy: "将新增 2 个源、更新 1 个规则，并跳过 1 个本地冲突。登录凭据不会被覆盖。",
             detail: "应用前可进入导入预览确认每个 RSS 源的处理策略。",
             cancelTitle: "返回详情",
-            cancelDestination: { RSSRuleSubscriptionDetailView(subscriptionID: subscription.id, title: subscription.name) },
-            confirmTitle: "进入导入预览"
+            confirmTitle: "进入导入预览",
+            onCancel: close,
+            onConfirm: close
         )
+    }
+
+    private func close() {
+        onExit?()
     }
 }
 
 struct RSSFavoriteGroupsView: View {
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
 
+    init(onExit: (() -> Void)? = nil, hostsRoutes: Bool = true) {
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
+    }
+
     var body: some View {
-        DemoBackScreen(title: "收藏分组") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "收藏分组", onBack: onExit) {
             RSSFavoriteGroupList(groups: RSSSupplementalDemoData.favoriteGroups)
             RSSSupplementalInlineActionWrap {
-                NavigationLink {
-                    RSSFavoriteGroupEditView(groupID: "new-favorite-group", title: "新增分组")
-                } label: {
+                RSSSupplementalRouteButton(route: .favoriteGroupEdit(groupID: "new-favorite-group", title: "新增分组")) {
                     RSSSupplementalInlineActionLabel(icon: .add, title: "新增分组")
                 }
-                .buttonStyle(.plain)
 
-                NavigationLink {
-                    RSSFavoriteGroupEditView(groupID: "default", title: "默认分组")
-                } label: {
+                RSSSupplementalRouteButton(route: .favoriteGroupEdit(groupID: "default", title: "默认分组")) {
                     RSSSupplementalInlineActionLabel(icon: .edit, title: "排序")
                 }
-                .buttonStyle(.plain)
             }
         } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSupplementalBottomButton(title: "取消", isPrimary: false) {
-                    dismiss()
+                    close()
                 }
             } trailing: {
                 RSSSupplementalBottomButton(title: "保存", isPrimary: true) {
-                    dismiss()
+                    close()
                 }
             }
+        }
+    }
+
+    private func close() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 }
 
 struct RSSFavoriteGroupEditView: View {
     private let group: RSSFavoriteGroup
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
 
-    init(groupID: String = "default", title: String? = "默认分组") {
+    init(groupID: String = "default", title: String? = "默认分组", onExit: (() -> Void)? = nil, hostsRoutes: Bool = true) {
         self.group = RSSFavoriteGroup.fallback(groupID: groupID, title: title)
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
     }
 
     var body: some View {
-        DemoBackScreen(title: "编辑收藏分组") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: "编辑收藏分组", onBack: onExit) {
             RSSSupplementalEditFieldList(fields: fields)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    RSSFavoriteGroupsView()
-                } label: {
-                    RSSSupplementalBottomLabel(title: "取消", isPrimary: false)
+                RSSSupplementalBottomButton(title: "取消", isPrimary: false) {
+                    close()
                 }
-                .buttonStyle(.plain)
             } trailing: {
                 RSSSupplementalBottomButton(title: "保存", isPrimary: true) {
-                    dismiss()
+                    close()
                 }
             }
+        }
+    }
+
+    private func close() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 
@@ -340,6 +613,12 @@ struct RSSFavoriteGroupEditView: View {
 }
 
 struct RSSFavoriteClearConfirmView: View {
+    private let onExit: (() -> Void)?
+
+    init(onExit: (() -> Void)? = nil) {
+        self.onExit = onExit
+    }
+
     var body: some View {
         RSSSupplementalConfirmPage(
             title: "清空收藏分组",
@@ -348,17 +627,40 @@ struct RSSFavoriteClearConfirmView: View {
             copy: "仅移除当前收藏分组里的条目，文章本身和订阅源不会删除。",
             detail: "其他收藏分组、阅读记录和订阅源状态不会受影响。",
             cancelTitle: "返回分组",
-            cancelDestination: { RSSFavoriteGroupsView() },
-            confirmTitle: "确认清空"
+            confirmTitle: "确认清空",
+            onCancel: close,
+            onConfirm: close
         )
+    }
+
+    private func close() {
+        onExit?()
     }
 }
 
 struct RSSStateView: View {
     let kind: RSSStateKind
+    private let onExit: (() -> Void)?
+    private let hostsRoutes: Bool
+
+    init(kind: RSSStateKind, onExit: (() -> Void)? = nil, hostsRoutes: Bool = true) {
+        self.kind = kind
+        self.onExit = onExit
+        self.hostsRoutes = hostsRoutes
+    }
 
     var body: some View {
-        DemoBackScreen(title: kind == .error ? "RSS 错误" : "RSS 空状态") {
+        if hostsRoutes {
+            RSSSupplementalRouteHost(onRootExit: onExit) {
+                screen
+            }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        DemoBackScreen(title: kind == .error ? "RSS 错误" : "RSS 空状态", onBack: onExit) {
             RSSSupplementalStateCard(kind: kind)
         }
     }
@@ -505,37 +807,31 @@ private struct RSSFavoriteGroup: Hashable {
     }
 }
 
-private struct RSSSupplementalArticleSection<ActionDestination: View>: View {
+private struct RSSSupplementalArticleSection: View {
     let title: String
     let articles: [RSSDemoArticle]
     let actionTitle: String
-    let actionDestination: () -> ActionDestination
+    let actionRoute: RSSSupplementalRoute
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                NavigationLink {
-                    actionDestination()
-                } label: {
+                RSSSupplementalRouteButton(route: actionRoute) {
                     RSSSupplementalInlineActionLabel(icon: .sourceStack, title: actionTitle)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
 
             ForEach(Array(articles.enumerated()), id: \.element) { index, article in
-                NavigationLink {
-                    RSSArticleDetailView(item: article.subscriptionItem, sourceTitle: article.source)
-                } label: {
+                RSSSupplementalRouteButton(route: .article(article.subscriptionItem, sourceTitle: article.source)) {
                     RSSSupplementalArticleRow(article: article)
                 }
-                .buttonStyle(.plain)
                 if index < articles.count - 1 {
                     Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
                 }
@@ -562,11 +858,11 @@ private struct RSSSupplementalArticleRow: View {
                     .lineLimit(2)
                 Text("\(article.source) · \(article.time) · \(article.group)")
                     .font(.system(size: ReaderDesignTokens.rssArticleRowSmallFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
                 Text(article.desc)
                     .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(ReaderDesignTokens.rssArticleRowBodyLineLimit)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -587,9 +883,7 @@ private struct RSSRecordList: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(records.enumerated()), id: \.element) { index, record in
-                NavigationLink {
-                    RSSArticleDetailView(item: record.subscriptionItem, sourceTitle: "RSS")
-                } label: {
+                RSSSupplementalRouteButton(route: .article(record.subscriptionItem, sourceTitle: "RSS")) {
                     HStack(spacing: 8) {
                         ReaderIcon(.clock, size: 15, accessibilityLabel: "阅读记录")
                             .frame(
@@ -601,11 +895,11 @@ private struct RSSRecordList: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(record.title)
-                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                                 .lineLimit(1)
                             Text(record.meta)
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -617,7 +911,6 @@ private struct RSSRecordList: View {
                     .padding(.vertical, 9)
                     .frame(minHeight: ReaderDesignTokens.rssEditListRowMinHeight)
                 }
-                .buttonStyle(.plain)
 
                 if index < records.count - 1 {
                     Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
@@ -634,9 +927,7 @@ private struct RSSRuleSubscriptionList: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(subscriptions.enumerated()), id: \.element) { index, subscription in
-                NavigationLink {
-                    RSSRuleSubscriptionDetailView(subscriptionID: subscription.id, title: subscription.name)
-                } label: {
+                RSSSupplementalRouteButton(route: .ruleSubscriptionDetail(subscriptionID: subscription.id, title: subscription.name)) {
                     HStack(spacing: 8) {
                         ReaderIcon(subscription.icon, size: 15, accessibilityLabel: subscription.type)
                             .frame(
@@ -648,19 +939,19 @@ private struct RSSRuleSubscriptionList: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(subscription.name)
-                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                                 .lineLimit(1)
                             Text("\(subscription.type) · \(subscription.url)")
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         Text(subscription.update)
-                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                             .frame(width: 72, alignment: .trailing)
                     }
@@ -668,7 +959,6 @@ private struct RSSRuleSubscriptionList: View {
                     .padding(.vertical, 9)
                     .frame(minHeight: ReaderDesignTokens.rssManagementListRowMinHeight)
                 }
-                .buttonStyle(.plain)
 
                 if index < subscriptions.count - 1 {
                     Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
@@ -700,11 +990,11 @@ private struct RSSImportChangeList: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(row.title)
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                             .lineLimit(1)
                         Text(row.meta)
                             .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -730,9 +1020,7 @@ private struct RSSFavoriteGroupList: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(groups.enumerated()), id: \.element) { index, group in
-                NavigationLink {
-                    RSSFavoriteGroupEditView(groupID: group.id, title: group.name)
-                } label: {
+                RSSSupplementalRouteButton(route: .favoriteGroupEdit(groupID: group.id, title: group.name)) {
                     HStack(spacing: 8) {
                         ReaderIcon(.bookmark, size: 15, accessibilityLabel: group.name)
                             .frame(
@@ -744,11 +1032,11 @@ private struct RSSFavoriteGroupList: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(group.name)
-                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                                 .lineLimit(1)
                             Text(group.meta)
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -759,7 +1047,6 @@ private struct RSSFavoriteGroupList: View {
                     .padding(.vertical, 9)
                     .frame(minHeight: ReaderDesignTokens.rssManagementListRowMinHeight)
                 }
-                .buttonStyle(.plain)
 
                 if index < groups.count - 1 {
                     Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
@@ -787,7 +1074,7 @@ private struct RSSSupplementalStateCard: View {
 
             Text(copy)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmBodyFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineSpacing(3)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -797,19 +1084,13 @@ private struct RSSSupplementalStateCard: View {
             }
 
             HStack(spacing: 8) {
-                NavigationLink {
-                    RSSFeedView()
-                } label: {
+                RSSSupplementalRouteButton(route: .feed) {
                     RSSSupplementalInlineActionLabel(icon: kind == .error ? .refresh : .list, title: kind == .error ? "重试刷新" : "查看全部")
                 }
-                .buttonStyle(.plain)
 
-                NavigationLink {
-                    RSSSubscriptionManagementView()
-                } label: {
+                RSSSupplementalRouteButton(route: .management) {
                     RSSSupplementalInlineActionLabel(icon: .sourceStack, title: "订阅管理")
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, ReaderDesignTokens.rssBrowserConfirmVerticalPadding)
@@ -830,11 +1111,11 @@ private struct RSSSupplementalStateCard: View {
     }
 
     private var iconBackground: SwiftUI.Color {
-        kind == .error ? SwiftUI.Color(red: 0.78, green: 0.22, blue: 0.18).opacity(0.12) : ReaderDesignTokens.Color.primary.opacity(0.12)
+        kind == .error ? ReaderDesignTokens.Color.Semantic.dangerTint : ReaderDesignTokens.Color.primary.opacity(0.12)
     }
 
     private var iconColor: SwiftUI.Color {
-        kind == .error ? SwiftUI.Color(red: 0.56, green: 0.21, blue: 0.18) : ReaderDesignTokens.Color.primaryDark
+        kind == .error ? ReaderDesignTokens.Color.Semantic.danger : ReaderDesignTokens.Color.primaryDark
     }
 }
 
@@ -849,17 +1130,17 @@ private struct RSSSupplementalErrorList: View {
             ForEach(rows, id: \.0) { row in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(row.0)
-                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     Text(row.1)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
                 }
-                .foregroundColor(SwiftUI.Color(red: 0.49, green: 0.18, blue: 0.16))
+                .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
-                        .fill(SwiftUI.Color(red: 0.84, green: 0.13, blue: 0.13).opacity(0.08))
+                        .fill(ReaderDesignTokens.Color.Semantic.danger.opacity(0.08))
                 )
             }
         }
@@ -880,11 +1161,11 @@ private struct RSSSupplementalHeaderPanel: View {
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .lineLimit(1)
                 Text(subtitle)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -909,11 +1190,11 @@ private struct RSSSupplementalInfoPanel: View {
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -925,10 +1206,10 @@ private struct RSSSupplementalInfoPanel: View {
             ForEach(Array(rows.enumerated()), id: \.element) { index, row in
                 VStack(alignment: .leading, spacing: 3) {
                     Text(row.title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     Text(row.body)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(row.isWarning ? .primary : .secondary)
+                        .foregroundStyle(row.isWarning ? ReaderDesignTokens.Color.ink : ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssEditListRowMinHeight, alignment: .leading)
@@ -965,13 +1246,13 @@ private struct RSSSupplementalEditFieldList: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(field.group)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                     Text(field.label)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(field.value)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -988,31 +1269,29 @@ private struct RSSSupplementalEditFieldList: View {
     }
 }
 
-private struct RSSSupplementalConfirmPage<CancelDestination: View>: View {
+private struct RSSSupplementalConfirmPage: View {
     let title: String
     let icon: ReaderAssetIcon
     let heading: String
     let copy: String
     let detail: String
     let cancelTitle: String
-    let cancelDestination: () -> CancelDestination
     let confirmTitle: String
-    @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
 
     var body: some View {
-        DemoBackScreen(title: title) {
+        DemoBackScreen(title: title, onBack: onCancel) {
             RSSSupplementalConfirmCard(icon: icon, heading: heading, copy: copy, detail: detail)
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink {
-                    cancelDestination()
-                } label: {
+                Button(action: onCancel) {
                     RSSSupplementalBottomLabel(title: cancelTitle, isPrimary: false)
                 }
                 .buttonStyle(.plain)
             } trailing: {
                 RSSSupplementalBottomButton(title: confirmTitle, isPrimary: true) {
-                    dismiss()
+                    onConfirm()
                 }
             }
         }
@@ -1037,7 +1316,7 @@ private struct RSSSupplementalConfirmCard: View {
                 .multilineTextAlignment(.center)
             Text(copy)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmBodyFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineSpacing(3)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1080,7 +1359,7 @@ private struct RSSSupplementalInlineActionLabel: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
         }
-        .font(.system(size: 11, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .padding(.horizontal, 8)
         .frame(minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
@@ -1094,7 +1373,7 @@ private struct RSSSupplementalBottomLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 13, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
             .lineLimit(1)
             .minimumScaleFactor(0.82)
@@ -1142,7 +1421,7 @@ private struct RSSSupplementalBadge: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 10, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
             .foregroundColor(color)
             .padding(.horizontal, 7)
             .frame(minHeight: 22)
@@ -1152,11 +1431,11 @@ private struct RSSSupplementalBadge: View {
     private var color: SwiftUI.Color {
         switch tone {
         case .good:
-            return SwiftUI.Color(red: 0x2f/255, green: 0x6b/255, blue: 0x52/255)
+            return ReaderDesignTokens.Color.Semantic.success
         case .warn:
-            return SwiftUI.Color(red: 0x8b/255, green: 0x58/255, blue: 0x29/255)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .muted:
-            return SwiftUI.Color.secondary
+            return ReaderDesignTokens.Color.muted
         }
     }
 }
@@ -1171,8 +1450,9 @@ private extension View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.72), lineWidth: 1)
                 )
                 .shadow(
-                    color: SwiftUI.Color(red: 80/255, green: 67/255, blue: 52/255, opacity: 0.08),
-                    radius: 12,
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
                     x: 0,
                     y: 8
                 )

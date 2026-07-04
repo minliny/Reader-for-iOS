@@ -71,7 +71,7 @@ public struct BookSourceDetailSheet: View {
 
                     Text(source.bookSourceUrl ?? "无")
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,7 +83,7 @@ public struct BookSourceDetailSheet: View {
         HStack(spacing: 4) {
             ReaderIcon(.download, size: 11, accessibilityLabel: "本地导入")
             Text("本地导入")
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
         }
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .padding(.horizontal, 8)
@@ -133,7 +133,7 @@ public struct BookSourceDetailSheet: View {
                     HStack(spacing: 8) {
                         ReaderIcon(testState == "测试中..." ? .refresh : .play, size: 16, accessibilityLabel: "本地模拟测试")
                         Text(testState == nil ? "本地模拟测试" : "重新测试")
-                            .font(.system(size: 13, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssImportPanelLabelMinHeight)
@@ -145,7 +145,7 @@ public struct BookSourceDetailSheet: View {
 
                 Text("离线模式，不会访问真实网络。")
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
         }
@@ -153,7 +153,7 @@ public struct BookSourceDetailSheet: View {
 
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -162,7 +162,7 @@ public struct BookSourceDetailSheet: View {
         HStack(alignment: .top, spacing: ReaderDesignTokens.settingsRowGap) {
             Text(label)
                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .frame(width: 62, alignment: .leading)
             Text(value)
                 .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .bold))
@@ -176,17 +176,17 @@ public struct BookSourceDetailSheet: View {
         HStack(alignment: .top, spacing: ReaderDesignTokens.settingsRowGap) {
             Text(label)
                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .frame(width: 62, alignment: .leading)
 
             VStack(alignment: .trailing, spacing: 3) {
                 Text(status.rawValue)
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(status == .ready ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.primary)
                 if let hint {
                     Text(hint)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .multilineTextAlignment(.trailing)
                 }
             }

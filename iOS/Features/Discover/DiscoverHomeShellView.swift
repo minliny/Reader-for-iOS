@@ -177,12 +177,12 @@ struct DiscoverSourceLoginView: View {
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("轻小说文库")
-                            .font(.system(size: 17, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewTitleFontSize, weight: .heavy))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .lineLimit(1)
                         Text("该书源的发现入口需要登录态，登录后返回当前入口并刷新列表。")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(2)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -217,7 +217,7 @@ struct DiscoverSourceLoginView: View {
 
             Text("返回发现页后，当前书源和当前入口保持不变，只刷新内容列表。")
                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } bottomActionHost: {
             BottomFixedActionRow {
@@ -242,7 +242,7 @@ private struct DiscoverLoginAction: View {
         HStack(spacing: 7) {
             ReaderIcon(icon, size: 16, accessibilityLabel: title)
             Text(title)
-                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
@@ -267,7 +267,7 @@ private struct DiscoverLoginBottomButton: View {
             HStack(spacing: 6) {
                 ReaderIcon(icon, size: 14, accessibilityLabel: title)
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .lineLimit(1)
             }
             .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
@@ -453,18 +453,18 @@ private struct DiscoverSourceBar: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(sourceName)
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.discoverBookRowTitleFontSize, weight: .heavy))
                         .lineLimit(1)
                     Text(sourceMeta)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 ReaderIcon(.chevron, size: 14)
                     .frame(width: ReaderDesignTokens.discoverSourceChevronColumn)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .rotationEffect(.degrees(isControlPanelExpanded ? 90 : 0))
                     .animation(motion.animation(AppMotion.Duration.dropdownSelect), value: isControlPanelExpanded)
             }
@@ -543,7 +543,7 @@ private struct DiscoverSortPopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("排序方式")
-                .font(.system(size: 11, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 62), spacing: 7)], alignment: .leading, spacing: 7) {
                 ForEach(sorts, id: \.self) { sort in
@@ -635,7 +635,7 @@ private struct DiscoverPanelSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 11, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             content
         }
@@ -659,11 +659,11 @@ private struct DiscoverSourceOption: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 .lineLimit(1)
             Text(meta)
                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .padding(.horizontal, 9)
@@ -681,11 +681,11 @@ private struct DiscoverSourceOption: View {
     private var toneColor: SwiftUI.Color {
         switch tone {
         case .good:
-            return SwiftUI.Color(red: 0x2f/255, green: 0x6b/255, blue: 0x52/255)
+            return ReaderDesignTokens.Color.Semantic.success
         case .warn:
-            return SwiftUI.Color(red: 0x8b/255, green: 0x58/255, blue: 0x29/255)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .muted:
-            return .secondary
+            return ReaderDesignTokens.Color.muted
         case .loading:
             return ReaderDesignTokens.Color.primary
         }
@@ -696,13 +696,13 @@ private struct DiscoverInlineError: View {
     var body: some View {
         HStack(spacing: 8) {
             ReaderIcon(.warning, size: 16, accessibilityLabel: "入口解析失败")
-                .foregroundColor(SwiftUI.Color(red: 0x8b/255, green: 0x58/255, blue: 0x29/255))
+                .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
             VStack(alignment: .leading, spacing: 2) {
                 Text("入口解析失败")
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 Text("当前书源的 exploreUrl 返回异常。")
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             DiscoverActionLabel(icon: .refresh, title: "重试", minWidth: 54)
@@ -711,7 +711,7 @@ private struct DiscoverInlineError: View {
         .frame(minHeight: 50)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                .fill(SwiftUI.Color(red: 0x8b/255, green: 0x58/255, blue: 0x29/255).opacity(0.08))
+                .fill(ReaderDesignTokens.Color.Semantic.warning.opacity(0.08))
         )
     }
 }
@@ -728,7 +728,7 @@ private struct DiscoverActionLabel: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
         }
-        .font(.system(size: 11, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .padding(.horizontal, 8)
         .frame(minWidth: minWidth, minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
@@ -744,12 +744,12 @@ private struct DiscoverResultHeader: View {
     var body: some View {
         HStack {
             Text(entry)
-                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Spacer(minLength: 0)
             Text("\(total) 本 · \(sort)")
-                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .padding(.horizontal, 2)
     }
@@ -782,7 +782,7 @@ private struct DiscoverBookRow: View {
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
                     .fill(ReaderDesignTokens.Color.surface)
                 ReaderIcon(.book, size: 22, accessibilityLabel: "\(book.title)封面")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                 Circle()
                     .fill(book.inShelf ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.rssDotRead)
                     .frame(width: 7, height: 7)
@@ -791,7 +791,8 @@ private struct DiscoverBookRow: View {
             .frame(width: ReaderDesignTokens.discoverBookRowCoverWidth,
                    height: ReaderDesignTokens.discoverBookRowCoverHeight)
             .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs))
-            .shadow(color: ReaderDesignTokens.Color.discoverCoverShadow, radius: 6, x: 0, y: 6)
+            // demo `.fd-discover-book-row img`: 0 6px 14px rgba(80,67,52,0.12)
+            .shadow(color: ReaderDesignTokens.Color.discoverCoverShadow, radius: 14, x: 0, y: 6)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(book.title)
@@ -799,7 +800,7 @@ private struct DiscoverBookRow: View {
                     .lineLimit(2)
                 Text("\(book.author) · \(book.kind)")
                     .font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
                 Text(book.latest)
                     .font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize, weight: .bold))
@@ -807,7 +808,7 @@ private struct DiscoverBookRow: View {
                     .lineLimit(1)
                 Text(book.summary)
                     .font(.system(size: ReaderDesignTokens.discoverBookRowBodyFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(ReaderDesignTokens.discoverBookRowBodyLineLimit)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -841,14 +842,14 @@ private struct DiscoverLargeStateCard: View {
                 .multilineTextAlignment(.center)
             Text(subtitle)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmBodyFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineSpacing(3)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 ForEach(actions, id: \.self) { title in
                     Text(title)
-                        .font(.system(size: 11, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
@@ -869,7 +870,7 @@ private struct DiscoverLargeStateCard: View {
         case .normal:
             return ReaderDesignTokens.Color.primaryDark
         case .error:
-            return SwiftUI.Color(red: 0x8b/255, green: 0x2f/255, blue: 0x29/255)
+            return ReaderDesignTokens.Color.Semantic.danger
         }
     }
 }
@@ -883,10 +884,10 @@ private struct DiscoverSkeletonList: View {
                         .fill(ReaderDesignTokens.Color.chipBackground)
                         .frame(width: ReaderDesignTokens.discoverBookRowCoverWidth, height: ReaderDesignTokens.discoverBookRowCoverHeight)
                     VStack(alignment: .leading, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 3).fill(ReaderDesignTokens.Color.chipBackground).frame(height: 12)
-                        RoundedRectangle(cornerRadius: 3).fill(ReaderDesignTokens.Color.chipBackground).frame(width: 132, height: 10)
-                        RoundedRectangle(cornerRadius: 3).fill(ReaderDesignTokens.Color.chipBackground.opacity(0.68)).frame(height: 10)
-                        RoundedRectangle(cornerRadius: 3).fill(ReaderDesignTokens.Color.chipBackground.opacity(0.68)).frame(width: 170, height: 10)
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs).fill(ReaderDesignTokens.Color.chipBackground).frame(height: 12)
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs).fill(ReaderDesignTokens.Color.chipBackground).frame(width: 132, height: 10)
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs).fill(ReaderDesignTokens.Color.chipBackground.opacity(0.68)).frame(height: 10)
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs).fill(ReaderDesignTokens.Color.chipBackground.opacity(0.68)).frame(width: 170, height: 10)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -907,11 +908,11 @@ private struct DiscoverRefreshLine: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.78)
+            // demo `.fd-discover-bottom-loading i`：14×14 旋转圆。
+            DemoLoadingSpinner(size: .inline)
             Text(message)
-                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .padding(.horizontal, 10)
@@ -923,11 +924,11 @@ private struct DiscoverRefreshLine: View {
 private struct DiscoverBottomLoading: View {
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.72)
+            // demo `.fd-discover-bottom-loading i`：14×14 旋转圆。
+            DemoLoadingSpinner(size: .inline)
             Text("继续加载")
-                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .frame(maxWidth: .infinity, minHeight: 34)
     }
@@ -940,7 +941,7 @@ private struct DiscoverBackTopButton: View {
             Text("回到顶部")
                 .lineLimit(1)
         }
-        .font(.system(size: 11, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, minHeight: 34)
@@ -957,7 +958,7 @@ private struct DiscoverToast: View {
             Text(message)
                 .lineLimit(1)
         }
-        .font(.system(size: 11, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
         .foregroundColor(.white)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, minHeight: 34)
@@ -969,20 +970,20 @@ private struct DiscoverCacheConfirmCard: View {
     var body: some View {
         VStack(spacing: 10) {
             Text("清除发现缓存？")
-                .font(.system(size: 15, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.discoverBookRowTitleFontSize, weight: .heavy))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Text("将清除优书网的发现入口缓存，不影响书架和阅读进度。")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .multilineTextAlignment(.center)
             HStack(spacing: 8) {
                 Text("取消")
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .frame(maxWidth: .infinity, minHeight: 34)
                     .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground))
                 Text("确认清除")
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, minHeight: 34)
                     .background(Capsule().fill(ReaderDesignTokens.Color.primary))
@@ -1003,8 +1004,9 @@ private extension View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.72), lineWidth: 1)
                 )
                 .shadow(
-                    color: SwiftUI.Color(red: 80/255, green: 67/255, blue: 52/255, opacity: 0.08),
-                    radius: 12,
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
                     x: 0,
                     y: 8
                 )

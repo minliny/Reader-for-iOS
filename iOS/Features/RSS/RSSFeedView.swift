@@ -3,26 +3,36 @@ import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderShellValidation
 
+private enum RSSFeedDestination {
+    case search
+    case subscriptions
+    case article(SubscriptionItem, String)
+}
+
 public struct RSSFeedView: View {
     @StateObject private var viewModel: RSSFeedViewModel
     private let loadsLiveSubscriptions: Bool
     @State private var activeDemoRoute: String?
+    @State private var activeDestination: RSSFeedDestination?
     @State private var selectedMode: String
     @State private var activeGroupFilter: String
     @State private var isGroupFilterOpen: Bool
     @State private var isCategoryFilterOpen: Bool
-    @State private var showSubscriptionManagement = false
     @Binding private var topBarRequest: MainTabTopBarRequest?
     private let showsTopBar: Bool
+    private let onExit: (() -> Void)?
 
     @MainActor
     public init(
         showsTopBar: Bool = true,
-        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil),
+        onExit: (() -> Void)? = nil
     ) {
         self.loadsLiveSubscriptions = false
         self.showsTopBar = showsTopBar
+        self.onExit = onExit
         self._activeDemoRoute = State(initialValue: nil)
+        self._activeDestination = State(initialValue: nil)
         self._selectedMode = State(initialValue: "源列表")
         self._activeGroupFilter = State(initialValue: "全部")
         self._isGroupFilterOpen = State(initialValue: false)
@@ -35,7 +45,8 @@ public struct RSSFeedView: View {
     public init(
         demoRoute: String,
         showsTopBar: Bool = true,
-        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil),
+        onExit: (() -> Void)? = nil
     ) {
         let state = RSSDemoRouteState(route: demoRoute)
         let viewModel = RSSFeedViewModel(feedURL: state.feedURL, feedName: state.source.name)
@@ -44,7 +55,9 @@ public struct RSSFeedView: View {
         viewModel.feedState = state.feedState
         self.loadsLiveSubscriptions = false
         self.showsTopBar = showsTopBar
+        self.onExit = onExit
         self._activeDemoRoute = State(initialValue: state.route)
+        self._activeDestination = State(initialValue: nil)
         self._selectedMode = State(initialValue: state.selectedMode)
         self._activeGroupFilter = State(initialValue: "全部")
         self._isGroupFilterOpen = State(initialValue: false)
@@ -57,11 +70,14 @@ public struct RSSFeedView: View {
     public init(
         viewModel: RSSFeedViewModel,
         showsTopBar: Bool = true,
-        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil),
+        onExit: (() -> Void)? = nil
     ) {
         self.loadsLiveSubscriptions = true
         self.showsTopBar = showsTopBar
+        self.onExit = onExit
         self._activeDemoRoute = State(initialValue: nil)
+        self._activeDestination = State(initialValue: nil)
         self._selectedMode = State(initialValue: "源列表")
         self._activeGroupFilter = State(initialValue: "全部")
         self._isGroupFilterOpen = State(initialValue: false)
@@ -73,21 +89,38 @@ public struct RSSFeedView: View {
     public var body: some View {
         let routeState = demoState
 
-        if let routeState {
-            DemoLibraryShell(title: routeState.navigationTitle, contentStyle: .custom) {
-                DemoPaperScreen {
-                    RSSDemoRouteContent(
-                        state: routeState,
-                        selectedMode: $selectedMode,
-                        activeGroupFilter: $activeGroupFilter,
-                        isGroupFilterOpen: $isGroupFilterOpen,
-                        isCategoryFilterOpen: $isCategoryFilterOpen,
-                        onSelectRoute: selectDemoRoute
-                    )
+        ZStack {
+            if let activeDestination {
+                rssDestination(activeDestination)
+            } else if let routeState {
+                DemoBackScreen(title: routeState.navigationTitle, contentStyle: .custom, onBack: onExit) {
+                    DemoPaperScreen {
+                        RSSDemoRouteContent(
+                            state: routeState,
+                            selectedMode: $selectedMode,
+                            activeGroupFilter: $activeGroupFilter,
+                            isGroupFilterOpen: $isGroupFilterOpen,
+                            isCategoryFilterOpen: $isCategoryFilterOpen,
+                            onSearch: { self.activeDestination = .search },
+                            onSelectRoute: selectDemoRoute
+                        )
+                    }
                 }
+            } else {
+                rssMainTabContent(routeState: routeState)
             }
-        } else {
-            rssMainTabContent(routeState: routeState)
+        }
+    }
+
+    @ViewBuilder
+    private func rssDestination(_ destination: RSSFeedDestination) -> some View {
+        switch destination {
+        case .search:
+            RSSSearchView(onExit: { activeDestination = nil })
+        case .subscriptions:
+            RSSSubscriptionManagementView(sources: topBarSources, onExit: { activeDestination = nil })
+        case .article(let item, let sourceTitle):
+            RSSArticleDetailView(item: item, sourceTitle: sourceTitle, onExit: { activeDestination = nil })
         }
     }
 
@@ -100,7 +133,7 @@ public struct RSSFeedView: View {
                     statusText: statusText,
                     sources: topBarSources,
                     onRefresh: refreshCurrentFeed,
-                    onManage: { showSubscriptionManagement = true },
+                    onManage: { activeDestination = .subscriptions },
                     isRefreshDisabled: isRSSActionDisabled
                 )
             }
@@ -110,12 +143,12 @@ public struct RSSFeedView: View {
                     selectedMode: $selectedMode,
                     activeGroupFilter: $activeGroupFilter,
                     isGroupFilterOpen: $isGroupFilterOpen,
+                    onSearch: { activeDestination = .search },
                     onSelectRoute: selectDemoRoute
                 )
             }
         }
         .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
-        .navigationTitle(routeState?.navigationTitle ?? "RSS")
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
@@ -125,9 +158,6 @@ public struct RSSFeedView: View {
         }
         .onChange(of: topBarRequest) { _, request in
             handleTopBarRequest(request)
-        }
-        .navigationDestination(isPresented: $showSubscriptionManagement) {
-            RSSSubscriptionManagementView(sources: topBarSources)
         }
     }
 
@@ -167,7 +197,7 @@ public struct RSSFeedView: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text("解析结果")
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 DemoIconRow(icon: .rss, title: "格式", subtitle: summary.source.name ?? summary.source.url, detail: summary.format.rawValue.uppercased())
                 DemoIconRow(icon: .list, title: "条目", subtitle: "当前结果数量", detail: "\(summary.items.count)")
@@ -177,7 +207,7 @@ public struct RSSFeedView: View {
                 ForEach(summary.diagnostics.prefix(3), id: \.self) { diagnostic in
                     Text(diagnostic)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
             }
@@ -189,20 +219,23 @@ public struct RSSFeedView: View {
         let sourceTitle = summary.source.name ?? summary.source.url
         return VStack(alignment: .leading, spacing: 0) {
             Text("最新条目")
-                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .padding(.horizontal, ReaderDesignTokens.cardPadding)
                 .padding(.top, ReaderDesignTokens.cardPadding)
 
-            ForEach(items, id: \.link) { item in
-                NavigationLink {
-                    RSSArticleDetailView(item: item, sourceTitle: sourceTitle)
-                } label: {
-                    RSSArticleRow(item: item)
-                }
-                .buttonStyle(.plain)
-                if item.link != items.last?.link {
-                    Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            // P2-B: 使用 LazyVStack 虚拟化 RSS 条目列表，避免长 feed 一次性渲染全部行。
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(items, id: \.link) { item in
+                    Button {
+                        activeDestination = .article(item, sourceTitle)
+                    } label: {
+                        RSSArticleRow(item: item)
+                    }
+                    .buttonStyle(.plain)
+                    if item.link != items.last?.link {
+                        Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                    }
                 }
             }
         }
@@ -277,7 +310,7 @@ public struct RSSFeedView: View {
             refreshCurrentFeed()
             topBarRequest = nil
         case .rssManage:
-            showSubscriptionManagement = true
+            activeDestination = .subscriptions
             topBarRequest = nil
         case .none, .bookshelfSearch, .bookshelfMore, .discoverRefresh:
             break
@@ -516,6 +549,7 @@ private struct RSSDemoHomeContent: View {
     @Binding var selectedMode: String
     @Binding var activeGroupFilter: String
     @Binding var isGroupFilterOpen: Bool
+    let onSearch: () -> Void
     let onSelectRoute: (String) -> Void
 
     private var state: RSSDemoRouteState {
@@ -523,9 +557,7 @@ private struct RSSDemoHomeContent: View {
     }
 
     var body: some View {
-        NavigationLink {
-            RSSSearchView()
-        } label: {
+        Button(action: onSearch) {
             RSSDemoSearchEntry()
         }
         .buttonStyle(.plain)
@@ -552,14 +584,13 @@ private struct RSSDemoRouteContent: View {
     @Binding var activeGroupFilter: String
     @Binding var isGroupFilterOpen: Bool
     @Binding var isCategoryFilterOpen: Bool
+    let onSearch: () -> Void
     let onSelectRoute: (String) -> Void
 
     var body: some View {
         switch state.presentation {
         case .articleHub:
-            NavigationLink {
-                RSSSearchView()
-            } label: {
+            Button(action: onSearch) {
                 RSSDemoSearchEntry()
             }
             .buttonStyle(.plain)
@@ -572,9 +603,7 @@ private struct RSSDemoRouteContent: View {
                 actionIcon: .sourceStack
             )
         case .refreshing:
-            NavigationLink {
-                RSSSearchView()
-            } label: {
+            Button(action: onSearch) {
                 RSSDemoSearchEntry()
             }
             .buttonStyle(.plain)
@@ -634,7 +663,7 @@ struct RSSRootTopBar: View {
                             width: ReaderDesignTokens.rssTopRefreshDotSize,
                             height: ReaderDesignTokens.rssTopRefreshDotSize
                         )
-                        .shadow(color: ReaderDesignTokens.Color.primary.opacity(0.16), radius: 4)
+                        .shadow(color: ReaderDesignTokens.Color.Shadow.soft, radius: 4)
 
                     HStack(spacing: 4) {
                         Text("\(subscriptionCount) 个启用源")
@@ -642,7 +671,7 @@ struct RSSRootTopBar: View {
                         Text("· \(statusText)")
                             .lineLimit(1)
                     }
-                    .font(.system(size: 12, weight: .black))
+                    .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .minimumScaleFactor(0.78)
 
@@ -668,7 +697,7 @@ struct RSSRootTopBar: View {
                 HStack(spacing: 4) {
                     ReaderIcon(.list, size: 16, accessibilityLabel: "管理 RSS 订阅")
                     Text("管理")
-                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 }
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .padding(.horizontal, 8)
@@ -735,11 +764,11 @@ private struct RSSSourceStrip: View {
                                 .frame(width: ReaderDesignTokens.rssSourceStripIconColumn)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(source.name ?? source.url)
-                                    .font(.system(size: 12, weight: .heavy))
+                                    .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                                     .lineLimit(1)
                                 Text(source.lastFetchedAt.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? "未刷新")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.secondary)
+                                    .font(.system(size: ReaderDesignTokens.rssArticleRowSmallFontSize))
+                                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                             }
                         }
                         .padding(.horizontal, 10)
@@ -764,8 +793,8 @@ private struct RSSDemoSearchEntry: View {
                 .frame(width: ReaderDesignTokens.settingsRowIconColumn)
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Text("搜索订阅源、文章标题或分组")
-                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
@@ -788,11 +817,11 @@ private struct RSSDemoSourceStrip: View {
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(source.name)
-                                .font(.system(size: 12, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                                 .lineLimit(1)
                             Text("\(source.group) · \(source.unread > 0 ? "\(source.unread) 未读" : "无未读")")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: ReaderDesignTokens.rssArticleRowSmallFontSize))
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                         }
                     }
@@ -818,11 +847,11 @@ private struct RSSDemoSourceHero: View {
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             VStack(alignment: .leading, spacing: 3) {
                 Text(state.source.name)
-                    .font(.system(size: 15, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize, weight: .heavy))
                     .lineLimit(1)
                 Text("\(state.source.group) · \(state.category.meta) · \(state.source.rule) · \(state.source.latest)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -913,7 +942,7 @@ private struct RSSDemoSourceOverview: View {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 HStack {
                     Text("订阅源")
-                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     Spacer(minLength: 0)
                     LabelChip(icon: .upload, title: "导入")
@@ -946,17 +975,17 @@ private struct RSSDemoSourceOverview: View {
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(source.name)
-                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                                 .lineLimit(1)
                             Text(source.sourceMeta)
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         Text(source.unread > 0 ? "\(source.unread)" : "0")
-                            .font(.system(size: 11, weight: .heavy))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize, weight: .black))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                         RSSDemoStatusBadge(source: source)
                     }
                     .frame(minHeight: ReaderDesignTokens.rssSourceListRowMinHeight)
@@ -976,7 +1005,7 @@ private struct RSSFeedDemoArticleSection: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -1002,11 +1031,11 @@ private struct RSSDemoRefreshLine: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.78)
+            // demo `.fd-rss-bottom-loading i`：14×14 旋转圆。
+            DemoLoadingSpinner(size: .inline)
             Text(message)
-                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .padding(.horizontal, 10)
@@ -1018,11 +1047,11 @@ private struct RSSDemoRefreshLine: View {
 private struct RSSDemoBottomLoading: View {
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.72)
+            // demo `.fd-rss-bottom-loading i`：14×14 旋转圆。
+            DemoLoadingSpinner(size: .inline)
             Text("继续下滑加载下一页")
-                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 34)
@@ -1034,7 +1063,7 @@ private struct RSSDemoStatusBadge: View {
 
     var body: some View {
         Text(source.status)
-            .font(.system(size: 10, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
             .lineLimit(1)
             .padding(.horizontal, 8)
             .frame(minHeight: 24)
@@ -1045,22 +1074,22 @@ private struct RSSDemoStatusBadge: View {
     private var backgroundColor: SwiftUI.Color {
         switch source.tone {
         case .good:
-            return SwiftUI.Color(red: 74/255, green: 149/255, blue: 96/255, opacity: 0.12)
+            return ReaderDesignTokens.Color.Semantic.successTint
         case .warn:
-            return SwiftUI.Color(red: 209/255, green: 147/255, blue: 47/255, opacity: 0.14)
+            return ReaderDesignTokens.Color.Semantic.warningTint
         case .muted:
-            return SwiftUI.Color(red: 180/255, green: 166/255, blue: 151/255, opacity: 0.16)
+            return ReaderDesignTokens.Color.rssRowBorder
         }
     }
 
     private var foregroundColor: SwiftUI.Color {
         switch source.tone {
         case .good:
-            return SwiftUI.Color(red: 47/255, green: 138/255, blue: 80/255)
+            return ReaderDesignTokens.Color.Semantic.success
         case .warn:
-            return SwiftUI.Color(red: 154/255, green: 104/255, blue: 23/255)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .muted:
-            return .secondary
+            return ReaderDesignTokens.Color.muted
         }
     }
 }
@@ -1075,51 +1104,11 @@ private struct LabelChip: View {
             Text(title)
                 .lineLimit(1)
         }
-        .font(.system(size: 11, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .padding(.horizontal, 10)
         .frame(minHeight: 30)
         .background(Capsule().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
-    }
-}
-
-private struct RSSSearchEntry: View {
-    @Binding var feedURL: String
-    @Binding var feedName: String
-
-    var body: some View {
-        VStack(spacing: ReaderDesignTokens.settingsSectionGap) {
-            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
-                ReaderIcon(.search, size: 18)
-                    .frame(width: ReaderDesignTokens.settingsRowIconColumn)
-                feedURLField
-            }
-            .frame(minHeight: ReaderDesignTokens.rssSearchEntryMinHeight)
-
-            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
-                ReaderIcon(.edit, size: 18)
-                    .frame(width: ReaderDesignTokens.settingsRowIconColumn)
-                TextField("Name", text: $feedName)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
-                    .textFieldStyle(.plain)
-            }
-            .frame(minHeight: ReaderDesignTokens.settingsInputHeight)
-        }
-    }
-
-    @ViewBuilder
-    private var feedURLField: some View {
-        #if os(iOS)
-        TextField("Feed URL", text: $feedURL)
-            .textInputAutocapitalization(.never)
-            .keyboardType(.URL)
-            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
-            .textFieldStyle(.plain)
-        #else
-        TextField("Feed URL", text: $feedURL)
-            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
-            .textFieldStyle(.plain)
-        #endif
     }
 }
 
@@ -1140,12 +1129,12 @@ private struct RSSArticleRow: View {
                 if let author = item.author, !author.isEmpty {
                     Text(author)
                         .font(.system(size: ReaderDesignTokens.rssArticleRowSmallFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
                 if let summary = item.summary, !summary.isEmpty {
                     Text(summary)
                         .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(ReaderDesignTokens.rssArticleRowBodyLineLimit)
                 }
             }
@@ -1182,8 +1171,9 @@ private extension View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.72), lineWidth: 1)
                 )
                 .shadow(
-                    color: SwiftUI.Color(red: 80/255, green: 67/255, blue: 52/255, opacity: 0.08),
-                    radius: 12,
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
                     x: 0,
                     y: 8
                 )

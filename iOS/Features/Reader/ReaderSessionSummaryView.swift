@@ -31,7 +31,7 @@ public struct ReaderSessionSummaryView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("会话上下文")
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         Text(title)
                             .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .bold))
@@ -42,12 +42,12 @@ public struct ReaderSessionSummaryView: View {
 
                 Text(subtitle)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(2)
 
                 Button(action: action) {
                     Text(actionTitle)
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssReaderInlineActionMinHeight)
                         .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))

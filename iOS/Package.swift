@@ -23,7 +23,12 @@ let package = Package(
     ],
     dependencies: [
         // Local dev: Reader-Core sibling checkout
-        .package(path: "../Reader-Core")
+        .package(path: "../Reader-Core"),
+        // Reader UI Contract（Contract-first Native UI Architecture）
+        // 提供 generated Swift 类型：RouteId / UiEvent / UiState / ViewState / Motion / Token /
+        // CoreCommand / CoreEvent / HostRequest / ProgressLocation / Content / SyncConflict / StateRule
+        // 接入路径：Reader for iOS/iOS/Package.swift -> ../../Reader UI
+        .package(path: "../../Reader UI")
     ],
     targets: [
         // Rust Reader-Core-Native C ABI as a merged xcframework binaryTarget.
@@ -116,13 +121,14 @@ let package = Package(
         path: "App/Persistence"
     ),
         .target(
-            name: "ReaderApp",
-            dependencies: [
-                "ReaderShellValidation",
-                "ReaderAppSupport",
-                "ReaderAppPersistence",
-                "ReaderCoreNativeAdapter"
-            ],
+        name: "ReaderApp",
+        dependencies: [
+            "ReaderShellValidation",
+            "ReaderAppSupport",
+            "ReaderAppPersistence",
+            "ReaderCoreNativeAdapter",
+            .product(name: "ReaderUIContract", package: "Reader UI")
+        ],
             path: ".",
             exclude: [
                 "App/Persistence",
@@ -177,15 +183,16 @@ let package = Package(
             path: "Tests/ReaderAppPersistenceTestRunner"
         ),
         .testTarget(
-            name: "ReaderAppTests",
-            dependencies: [
-                "ReaderApp",
-                "ReaderAppSupport",
-                "ReaderAppPersistence",
-                "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Reader-Core")
-            ],
-            path: "Tests/ReaderAppTests"
-        )
+        name: "ReaderAppTests",
+        dependencies: [
+            "ReaderApp",
+            "ReaderAppSupport",
+            "ReaderAppPersistence",
+            "ReaderShellValidation",
+            .product(name: "ReaderCoreModels", package: "Reader-Core"),
+            .product(name: "ReaderUIContract", package: "Reader UI")
+        ],
+        path: "Tests/ReaderAppTests"
+    )
     ]
 )

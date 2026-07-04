@@ -4,62 +4,89 @@ import ReaderCoreModels
 struct RSSArticleDetailView: View {
     let item: SubscriptionItem
     let sourceTitle: String
+    private let onExit: (() -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
     @State private var isRead = true
     @State private var isStarred = false
-    @State private var isOriginalPresented = false
-    @State private var isSourceManagementPresented = false
+    @State private var activeDestination: RSSArticleDestination?
 
-    init(item: SubscriptionItem, sourceTitle: String) {
+    init(item: SubscriptionItem, sourceTitle: String, onExit: (() -> Void)? = nil) {
         self.item = item
         self.sourceTitle = sourceTitle
+        self.onExit = onExit
     }
 
     var body: some View {
-        DemoBackScreen(title: "RSS 阅读") {
-            RSSReaderSourceCard(
-                sourceTitle: resolvedSourceTitle,
-                metaText: sourceMetaText,
-                link: item.link
-            )
+        ZStack {
+            switch activeDestination {
+            case .some(.original):
+                RSSOriginalPreviewView(
+                    url: originalURL,
+                    title: item.title,
+                    sourceTitle: resolvedSourceTitle,
+                    onExit: { activeDestination = nil }
+                )
+            case .some(.sourceManagement):
+                RSSSubscriptionManagementView(onExit: { activeDestination = nil })
+            case .none:
+                DemoBackScreen(title: "RSS 阅读", onBack: onExit) {
+                    RSSReaderSourceCard(
+                        sourceTitle: resolvedSourceTitle,
+                        metaText: sourceMetaText,
+                        link: item.link
+                    )
 
-            RSSReaderTitleBlock(
-                title: item.title,
-                subtitle: cleanSummary.nonEmpty ?? Self.demoSummary
-            )
+                    RSSReaderTitleBlock(
+                        title: item.title,
+                        subtitle: cleanSummary.nonEmpty ?? Self.demoSummary
+                    )
 
-            RSSReaderInlineActions(
-                isRead: $isRead,
-                isStarred: $isStarred,
-                openOriginal: openOriginal,
-                openSourceSettings: openSourceSettings
-            )
+                    RSSReaderInlineActions(
+                        isRead: $isRead,
+                        isStarred: $isStarred,
+                        openOriginal: openOriginal,
+                        openSourceSettings: openSourceSettings
+                    )
 
-            RSSReaderBody(paragraphs: bodyParagraphs)
+                    RSSReaderBody(paragraphs: bodyParagraphs)
 
-            RSSOriginalLinkCard(link: item.link, openOriginal: openOriginal)
-        } bottomActionHost: {
-            BottomFixedActionRow {
-                RSSReaderBottomButton(title: "返回列表", isPrimary: false) {
-                    dismiss()
+                    RSSOriginalLinkCard(link: item.link, openOriginal: openOriginal)
+                } bottomActionHost: {
+                    BottomFixedActionRow {
+                        RSSReaderBottomButton(title: "返回列表", isPrimary: false) {
+                            close()
+                        }
+                    } trailing: {
+                        RSSReaderBottomButton(title: "打开原文", isPrimary: true) {
+                            openOriginal()
+                        }
+                        .disabled(originalURL == nil)
+                    }
                 }
-            } trailing: {
-                RSSReaderBottomButton(title: "打开原文", isPrimary: true) {
-                    openOriginal()
-                }
-                .disabled(originalURL == nil)
             }
         }
-        .navigationDestination(isPresented: $isOriginalPresented) {
-            RSSOriginalPreviewView(
-                url: originalURL,
-                title: item.title,
-                sourceTitle: resolvedSourceTitle
-            )
+    }
+
+    private enum RSSArticleDestination {
+        case original
+        case sourceManagement
+    }
+
+    private func close() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
-        .navigationDestination(isPresented: $isSourceManagementPresented) {
-            RSSSubscriptionManagementView()
-        }
+    }
+
+    private func openOriginal() {
+        guard originalURL != nil else { return }
+        activeDestination = .original
+    }
+
+    private func openSourceSettings() {
+        activeDestination = .sourceManagement
     }
 
     static func fallbackItem(link: String) -> SubscriptionItem {
@@ -116,15 +143,6 @@ struct RSSArticleDetailView: View {
         URL(string: item.link.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func openOriginal() {
-        guard originalURL != nil else { return }
-        isOriginalPresented = true
-    }
-
-    private func openSourceSettings() {
-        isSourceManagementPresented = true
-    }
-
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -164,17 +182,17 @@ private struct RSSReaderSourceCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sourceTitle)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(metaText)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text("查看源")
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .padding(.horizontal, 9)
                     .frame(minHeight: 28)
@@ -201,7 +219,7 @@ private struct RSSReaderTitleBlock: View {
             Text(subtitle)
                 .font(.system(size: ReaderDesignTokens.rssReaderSubtitleFontSize))
                 .lineSpacing(ReaderDesignTokens.rssReaderSubtitleFontSize * (ReaderDesignTokens.rssReaderSubtitleLineHeight - 1))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, ReaderDesignTokens.cardPadding)
@@ -248,8 +266,8 @@ private struct RSSReaderInlineActions: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
             }
-            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-            .foregroundColor(isPrimary ? ReaderDesignTokens.Color.primaryDark : SwiftUI.Color(red: 0x4d/255, green: 0x46/255, blue: 0x3f/255))
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+            .foregroundColor(isPrimary ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.readerModuleTextColor)
             .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.rssReaderInlineActionMinHeight)
             .padding(.horizontal, 8)
             .background(
@@ -271,7 +289,7 @@ private struct RSSReaderBody: View {
                     Text(paragraph)
                         .font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize))
                         .lineSpacing(ReaderDesignTokens.rssReaderBodyFontSize * (ReaderDesignTokens.rssReaderBodyLineHeight - 1))
-                        .foregroundColor(SwiftUI.Color(red: 0x34/255, green: 0x2f/255, blue: 0x2a/255))
+                        .foregroundColor(ReaderDesignTokens.Color.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -295,17 +313,17 @@ private struct RSSOriginalLinkCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("原文链接")
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(link)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button("打开", action: openOriginal)
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .padding(.horizontal, 9)
                     .frame(minHeight: 28)
@@ -325,7 +343,7 @@ private struct RSSReaderBottomButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
                 .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                 .background(

@@ -60,8 +60,8 @@ public struct BookSourceRowView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 8) {
                         Text(name)
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                            .foregroundStyle(.primary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                            .foregroundStyle(ReaderDesignTokens.Color.ink)
                             .lineLimit(1)
 
                         sourceStatusChip
@@ -69,7 +69,7 @@ public struct BookSourceRowView: View {
 
                     Text(url)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
 
                     if let group, !group.isEmpty {
@@ -90,7 +90,7 @@ public struct BookSourceRowView: View {
 
     private var sourceStatusChip: some View {
         Text(enabled ? "已启用" : "已禁用")
-            .font(.system(size: 10, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
             .foregroundColor(enabled ? .white : ReaderDesignTokens.Color.primaryDark)
             .padding(.horizontal, 8)
             .frame(minHeight: 22)

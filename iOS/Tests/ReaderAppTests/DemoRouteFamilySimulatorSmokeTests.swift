@@ -267,7 +267,8 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let host = UIHostingController(rootView: view)
+        // P3-B: 注入 ReaderSessionStore，避免 ReaderView 的 @EnvironmentObject 在测试中崩溃
+        let host = UIHostingController(rootView: view.environmentObject(ReaderSessionStore()))
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
         window.rootViewController = host
         window.makeKeyAndVisible()
@@ -314,7 +315,8 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> UIImage {
-        let host = UIHostingController(rootView: view)
+        // P3-B: 注入 ReaderSessionStore，避免 ReaderView 的 @EnvironmentObject 在测试中崩溃
+        let host = UIHostingController(rootView: view.environmentObject(ReaderSessionStore()))
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
         window.rootViewController = host
         window.makeKeyAndVisible()

@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct SettingsDemoShellView: View {
-    private let state: SettingsDemoRouteState
+    private let initialRoute: String
+    private let onExit: (() -> Void)?
     private let motion = MotionEnvironment()
+    @Environment(\.dismiss) private var dismiss
+    @State private var routeStack: [String] = []
     @State private var expandedOptionKey: String?
     @State private var activeConfirm: SettingsDemoConfirm?
     @State private var toastMessage: String?
@@ -13,12 +16,13 @@ struct SettingsDemoShellView: View {
     @State private var sourceGroupFilter = "全部分组"
     @State private var sourceEnabled: [String: Bool] = [:]
 
-    init(demoRoute: String) {
-        self.state = SettingsDemoRouteState(route: demoRoute)
+    init(demoRoute: String, onExit: (() -> Void)? = nil) {
+        self.initialRoute = demoRoute
+        self.onExit = onExit
     }
 
     var body: some View {
-        DemoSettingsShell(title: state.title) {
+        DemoSettingsShell(title: state.title, onBack: handleBack) {
             DemoPaperScreen {
                 mainContent
             }
@@ -33,17 +37,17 @@ struct SettingsDemoShellView: View {
                     }
                 }
             } else if let trailing = state.trailingAction {
-                SettingsDemoTopRouteButton(action: trailing)
+                SettingsDemoTopRouteButton(action: trailing, onRoute: navigate)
             } else {
                 EmptyView()
             }
         } bottomActionHost: {
             if !state.actions.isEmpty, !state.presentation.suppressesBottomActions {
-                SettingsDemoBottomActions(actions: state.actions, onConfirm: showConfirm)
+                SettingsDemoBottomActions(actions: state.actions, onConfirm: showConfirm, onRoute: navigate)
             }
         } sheetHost: {
             if state.presentation == .sourceImportSheet {
-                SettingsDemoSourceImportSheet()
+                SettingsDemoSourceImportSheet(onRoute: navigate)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         } toastHost: {
@@ -54,7 +58,7 @@ struct SettingsDemoShellView: View {
             }
         } dialogHost: {
             if state.presentation == .deleteDialog {
-                SettingsDemoDeleteDialog()
+                SettingsDemoDeleteDialog(onRoute: navigate)
                     .padding(.horizontal, ReaderDesignTokens.cardPadding)
                     .padding(.bottom, 28)
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
@@ -80,14 +84,23 @@ struct SettingsDemoShellView: View {
         }
         .animation(motion.animation(ReaderMotion.Duration.overlay), value: activeConfirm)
         .animation(motion.animation(AppMotion.Duration.feedbackToast), value: toastMessage)
+        .animation(motion.animation(AppMotion.Duration.tabSwitch), value: currentRoute)
+    }
+
+    private var currentRoute: String {
+        routeStack.last ?? initialRoute
+    }
+
+    private var state: SettingsDemoRouteState {
+        SettingsDemoRouteState(route: currentRoute)
     }
 
     @ViewBuilder
     private var mainContent: some View {
         if state.presentation == .deleteDialog {
-            SettingsDemoSourceBatchHeader()
+            SettingsDemoSourceBatchHeader(onRoute: navigate)
             sourceSearchAndFilters
-            SettingsDemoSourceListView(title: state.sourceListTitle, rows: displayedSourceRows, mode: .selection)
+            SettingsDemoSourceListView(title: state.sourceListTitle, rows: displayedSourceRows, mode: .selection, onRoute: navigate)
         } else {
             if !state.metrics.isEmpty {
                 SettingsDemoMetricGrid(metrics: state.metrics)
@@ -95,7 +108,7 @@ struct SettingsDemoShellView: View {
 
             if state.presentation == .source || state.presentation == .sourceImportSheet {
                 if sourceMenuOpen {
-                    SettingsDemoSourceMoreMenu()
+                    SettingsDemoSourceMoreMenu(onRoute: navigate)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 sourceSearchAndFilters
@@ -113,12 +126,13 @@ struct SettingsDemoShellView: View {
                     section: section,
                     values: valuesBinding,
                     expandedOptionKey: $expandedOptionKey,
-                    onConfirm: showConfirm
+                    onConfirm: showConfirm,
+                    onRoute: navigate
                 )
             }
 
             if !state.sourceRows.isEmpty {
-                SettingsDemoSourceListView(title: state.sourceListTitle, rows: displayedSourceRows, mode: state.sourceListMode)
+                SettingsDemoSourceListView(title: state.sourceListTitle, rows: displayedSourceRows, mode: state.sourceListMode, onRoute: navigate)
             }
 
             if !state.subPanels.isEmpty {
@@ -172,8 +186,8 @@ struct SettingsDemoShellView: View {
     private var sourceSearchAndFilters: some View {
         SettingsDemoSearchField(placeholder: "搜索书源名称或域名")
         Text("12 个书源 · 8 个启用 · 4 个异常 · 10:30 检测")
-            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
-            .foregroundStyle(.secondary)
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+            .foregroundStyle(ReaderDesignTokens.Color.muted)
             .frame(maxWidth: .infinity, alignment: .leading)
 
         DemoFilterDisclosure(
@@ -209,6 +223,34 @@ struct SettingsDemoShellView: View {
         motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
             activeConfirm = confirm
             toastMessage = nil
+        }
+    }
+
+    private func navigate(to route: String) {
+        motion.withMotionAnimation(AppMotion.Duration.tabSwitch) {
+            sourceMenuOpen = false
+            sourceFilterOpen = false
+            expandedOptionKey = nil
+            activeConfirm = nil
+            toastMessage = nil
+            routeStack.append(route)
+        }
+    }
+
+    private func handleBack() {
+        motion.withMotionAnimation(AppMotion.Duration.tabSwitch) {
+            sourceMenuOpen = false
+            sourceFilterOpen = false
+            expandedOptionKey = nil
+            activeConfirm = nil
+            toastMessage = nil
+            if !routeStack.isEmpty {
+                _ = routeStack.removeLast()
+            } else if let onExit {
+                onExit()
+            } else {
+                dismiss()
+            }
         }
     }
 }
@@ -276,15 +318,15 @@ private enum SettingsDemoTone: Equatable {
         case .normal:
             return ReaderDesignTokens.Color.primaryDark
         case .good:
-            return SwiftUI.Color(red: 0.11, green: 0.42, blue: 0.24)
+            return ReaderDesignTokens.Color.Semantic.success
         case .warn:
-            return SwiftUI.Color(red: 0.66, green: 0.38, blue: 0.08)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .info:
             return ReaderDesignTokens.Color.primary
         case .muted:
-            return SwiftUI.Color.secondary
+            return ReaderDesignTokens.Color.muted
         case .danger:
-            return SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14)
+            return ReaderDesignTokens.Color.Semantic.danger
         }
     }
 
@@ -293,15 +335,15 @@ private enum SettingsDemoTone: Equatable {
         case .normal:
             return ReaderDesignTokens.Color.chipBackground
         case .good:
-            return SwiftUI.Color(red: 0.78, green: 0.92, blue: 0.82, opacity: 0.78)
+            return ReaderDesignTokens.Color.Semantic.successTint
         case .warn:
-            return SwiftUI.Color(red: 1.0, green: 0.88, blue: 0.63, opacity: 0.82)
+            return ReaderDesignTokens.Color.Semantic.warningTint
         case .info:
-            return SwiftUI.Color(red: 0.72, green: 0.86, blue: 0.94, opacity: 0.78)
+            return ReaderDesignTokens.Color.Semantic.infoTint
         case .muted:
-            return SwiftUI.Color(red: 0.88, green: 0.85, blue: 0.80, opacity: 0.82)
+            return ReaderDesignTokens.Color.Semantic.neutralTint
         case .danger:
-            return SwiftUI.Color(red: 1.0, green: 0.79, blue: 0.76, opacity: 0.86)
+            return ReaderDesignTokens.Color.Semantic.dangerTint
         }
     }
 }
@@ -1545,12 +1587,12 @@ private struct SettingsDemoHero: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(state.title)
-                        .font(.system(size: 18, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .heavy))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         .lineLimit(1)
                     Text(state.subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1573,11 +1615,11 @@ private struct SettingsDemoMetricGrid: View {
                     ReaderIcon(metric.icon, size: 18, accessibilityLabel: metric.label)
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     Text(metric.value)
-                        .font(.system(size: 16, weight: .heavy).monospacedDigit())
+                        .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy).monospacedDigit())
                         .lineLimit(1)
                     Text(metric.label)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .bold))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
@@ -1605,7 +1647,7 @@ private struct SettingsDemoSearchField: View {
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Text(placeholder)
                 .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
@@ -1623,7 +1665,7 @@ private struct SettingsDemoChipRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(row.title)
-                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .lineLimit(1)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -1643,12 +1685,13 @@ private struct SettingsDemoSectionView: View {
     @Binding var values: [String: String]
     @Binding var expandedOptionKey: String?
     let onConfirm: (SettingsDemoConfirm?) -> Void
+    let onRoute: (String) -> Void
 
     var body: some View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text(section.title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .lineLimit(1)
 
@@ -1658,7 +1701,8 @@ private struct SettingsDemoSectionView: View {
                         row: row,
                         values: $values,
                         expandedOptionKey: $expandedOptionKey,
-                        onConfirm: onConfirm
+                        onConfirm: onConfirm,
+                        onRoute: onRoute
                     )
                 }
             }
@@ -1672,6 +1716,7 @@ private struct SettingsDemoRowView: View {
     @Binding var values: [String: String]
     @Binding var expandedOptionKey: String?
     let onConfirm: (SettingsDemoConfirm?) -> Void
+    let onRoute: (String) -> Void
     private let motion = MotionEnvironment()
 
     private var optionKey: String {
@@ -1736,19 +1781,21 @@ private struct SettingsDemoRowView: View {
                 baseRow {
                     HStack(spacing: 6) {
                         Text(currentValue ?? "")
-                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                         ReaderIcon(.chevron, size: 14, accessibilityLabel: optionOpen ? "收起" : "展开")
                             .rotationEffect(.degrees(optionOpen ? -90 : 90))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                     }
                 }
             }
             .buttonStyle(DemoPressButtonStyle())
         case .action:
             if let route = row.route {
-                NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
+                Button {
+                    onRoute(route)
+                } label: {
                     baseRow {
                         actionAccessory
                     }
@@ -1772,7 +1819,7 @@ private struct SettingsDemoRowView: View {
                     SettingsDemoBadge(text: detail, tone: row.tone)
                 } else {
                     ReaderIcon(.chevron, size: 14)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
             }
         }
@@ -1782,12 +1829,12 @@ private struct SettingsDemoRowView: View {
         HStack(spacing: 6) {
             if let detail = row.detail {
                 Text(detail)
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(row.tone.foreground)
                     .lineLimit(1)
             }
             ReaderIcon(.chevron, size: 14)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
     }
 
@@ -1803,18 +1850,18 @@ private struct SettingsDemoRowView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(row.title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                    .foregroundColor(row.tone == .danger && row.subtitle == nil ? row.tone.foreground : .primary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                    .foregroundColor(row.tone == .danger && row.subtitle == nil ? row.tone.foreground : ReaderDesignTokens.Color.ink)
                     .lineLimit(2)
                 if let subtitle = row.subtitle {
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
                 if let progress = row.progress {
-                    ProgressView(value: progress)
-                        .tint(row.tone.foreground)
+                    // demo `.fd-restore-progress-meter`：8px pill，背景 rgba(35,121,164,0.12)。
+                    DemoRestoreProgressMeter(progress: progress, tint: row.tone.foreground)
                         .frame(maxWidth: 168)
                 }
             }
@@ -1842,7 +1889,7 @@ private struct SettingsDemoSegment: View {
                     }
                 } label: {
                     Text(option)
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
                         .lineLimit(1)
                         .foregroundColor(option == selected ? .white : ReaderDesignTokens.Color.primaryDark)
                         .padding(.horizontal, 7)
@@ -1867,13 +1914,13 @@ private struct SettingsDemoStepper: View {
         HStack(spacing: 4) {
             Text("-")
             Text(value)
-                .font(.system(size: 11, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .frame(minWidth: 30)
             Text("+")
         }
-        .font(.system(size: 12, weight: .heavy))
-        .foregroundStyle(.secondary)
+        .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
+        .foregroundStyle(ReaderDesignTokens.Color.muted)
         .padding(.horizontal, 8)
         .frame(minHeight: 24)
         .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground.opacity(0.72)))
@@ -1894,7 +1941,7 @@ private struct SettingsDemoOptionDropdown: View {
                 } label: {
                     HStack(spacing: 8) {
                         Text(option)
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .lineLimit(1)
                         Spacer(minLength: 8)
@@ -1922,7 +1969,8 @@ private struct SettingsDemoOptionDropdown: View {
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
-                .shadow(color: SwiftUI.Color(red: 82/255, green: 66/255, blue: 48/255, opacity: 0.12), radius: 12, x: 0, y: 8)
+                // demo `.fd-settings-option-dropdown`: 0 14px 24px rgba(55,45,32,0.16)
+                .shadow(color: ReaderDesignTokens.Color.Shadow.settingsDropdown, radius: 24, x: 0, y: 14)
         )
     }
 }
@@ -1931,15 +1979,16 @@ private struct SettingsDemoSourceListView: View {
     let title: String
     let rows: [SettingsDemoSourceRow]
     let mode: SettingsDemoSourceListMode
+    let onRoute: (String) -> Void
 
     var body: some View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 ForEach(rows) { row in
-                    SettingsDemoSourceRowView(row: row, mode: mode)
+                    SettingsDemoSourceRowView(row: row, mode: mode, onRoute: onRoute)
                 }
             }
         }
@@ -1949,6 +1998,7 @@ private struct SettingsDemoSourceListView: View {
 private struct SettingsDemoSourceRowView: View {
     let row: SettingsDemoSourceRow
     let mode: SettingsDemoSourceListMode
+    let onRoute: (String) -> Void
 
     var body: some View {
         HStack(spacing: ReaderDesignTokens.settingsRowGap) {
@@ -1962,20 +2012,22 @@ private struct SettingsDemoSourceRowView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(row.title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .lineLimit(1)
                 Text(row.meta)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             SettingsDemoBadge(text: row.status, tone: row.tone)
             if mode == .plain {
-                NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-detect")) {
+                Button {
+                    onRoute("source-detect")
+                } label: {
                     Text("检测")
-                        .font(.system(size: 11, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         .frame(width: ReaderDesignTokens.sourceRowActionWidth)
                         .frame(minHeight: 28)
@@ -1995,6 +2047,8 @@ private struct SettingsDemoSourceRowView: View {
 }
 
 private struct SettingsDemoSourceMoreMenu: View {
+    let onRoute: (String) -> Void
+
     private let items: [(String, String)] = [
         ("网络导入", "source-import-preview"),
         ("本地导入", "source-import-preview"),
@@ -2009,9 +2063,11 @@ private struct SettingsDemoSourceMoreMenu: View {
         ReaderCard {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], spacing: 8) {
                 ForEach(items, id: \.0) { item in
-                    NavigationLink(destination: SettingsDemoShellView(demoRoute: item.1)) {
+                    Button {
+                        onRoute(item.1)
+                    } label: {
                         Text(item.0)
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .frame(maxWidth: .infinity, minHeight: 34)
                             .padding(.horizontal, 8)
@@ -2028,15 +2084,19 @@ private struct SettingsDemoSourceMoreMenu: View {
 }
 
 private struct SettingsDemoSourceBatchHeader: View {
+    let onRoute: (String) -> Void
+
     var body: some View {
         HStack(spacing: 10) {
-            NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
+            Button {
+                onRoute("source-management")
+            } label: {
                 Text("取消")
             }
             .buttonStyle(DemoPressButtonStyle())
 
             Text("已选 3 个")
-                .font(.system(size: 15, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
                 .frame(maxWidth: .infinity)
 
             Button {} label: {
@@ -2044,7 +2104,7 @@ private struct SettingsDemoSourceBatchHeader: View {
             }
             .buttonStyle(DemoPressButtonStyle())
         }
-        .font(.system(size: 12, weight: .heavy))
+        .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         .padding(.horizontal, 12)
         .frame(minHeight: 42)
@@ -2060,6 +2120,8 @@ private struct SettingsDemoSourceBatchHeader: View {
 }
 
 private struct SettingsDemoSourceImportSheet: View {
+    let onRoute: (String) -> Void
+
     private let items: [(ReaderAssetIcon, String, String, String)] = [
         (.cloud, "网络导入", "从 URL 拉取书源包", "source-import-preview"),
         (.folder, "本地导入", "选择本地 JSON 或 TXT 文件", "source-import-preview"),
@@ -2074,23 +2136,25 @@ private struct SettingsDemoSourceImportSheet: View {
                 .frame(width: 44, height: 4)
                 .frame(maxWidth: .infinity)
             Text("添加书源")
-                .font(.system(size: 17, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.rssBrowserConfirmTitleFontSize, weight: .heavy))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             ForEach(items, id: \.1) { item in
-                NavigationLink(destination: SettingsDemoShellView(demoRoute: item.3)) {
+                Button {
+                    onRoute(item.3)
+                } label: {
                     HStack(spacing: ReaderDesignTokens.settingsRowGap) {
                         ReaderIcon(item.0, size: 18, accessibilityLabel: item.1)
                             .frame(width: ReaderDesignTokens.settingsRowIconColumn)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(item.1)
-                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                             Text(item.2)
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         ReaderIcon(.chevron, size: 14)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                     }
                     .padding(.horizontal, 12)
                     .frame(minHeight: 44)
@@ -2101,9 +2165,11 @@ private struct SettingsDemoSourceImportSheet: View {
                 }
                 .buttonStyle(DemoPressButtonStyle())
             }
-            NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
+            Button {
+                onRoute("source-management")
+            } label: {
                 Text("取消")
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .frame(maxWidth: .infinity, minHeight: 40)
                     .background(
@@ -2123,7 +2189,11 @@ private struct SettingsDemoSourceImportSheet: View {
                     UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 20)
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
-                .shadow(color: SwiftUI.Color.black.opacity(0.16), radius: 18, x: 0, y: -8)
+                .shadow(
+                    // demo `--fd-shadow` (--reader-ds-shadow-elevated): 0 18px 46px rgba(89,70,50,0.16)
+                    color: ReaderDesignTokens.Color.Shadow.elevated,
+                    radius: 18, x: 0, y: -8
+                )
         )
     }
 }
@@ -2136,13 +2206,13 @@ private struct SettingsDemoSubPanelsView: View {
             ReaderCard {
                 VStack(alignment: .leading, spacing: 9) {
                     Text(panel.title)
-                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     ForEach(panel.rows, id: \.label) { row in
                         HStack(alignment: .top, spacing: 8) {
                             Text(row.label)
-                                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .frame(width: 54, alignment: .leading)
                             Text(row.value)
                                 .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .semibold))
@@ -2152,7 +2222,7 @@ private struct SettingsDemoSubPanelsView: View {
                     if let action = panel.action {
                         Button {} label: {
                             Text(action)
-                                .font(.system(size: 12, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                                 .foregroundColor(.white)
                                 .frame(minWidth: 74, minHeight: 32)
                                 .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
@@ -2174,10 +2244,10 @@ private struct SettingsDemoInfoGrid: View {
                 ForEach(items) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.label)
-                            .font(.system(size: 11, weight: .heavy))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                         Text(item.value)
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .lineLimit(2)
                     }
@@ -2202,7 +2272,7 @@ private struct SettingsDemoCodeBlock: View {
                 VStack(alignment: .leading, spacing: 5) {
                     ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                         Text("\(String(format: "%02d", index + 1))  \(line)")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .semibold, design: .monospaced))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .lineLimit(1)
                     }
@@ -2214,6 +2284,8 @@ private struct SettingsDemoCodeBlock: View {
 }
 
 private struct SettingsDemoDeleteDialog: View {
+    let onRoute: (String) -> Void
+
     var body: some View {
         ReaderCard {
             VStack(alignment: .leading, spacing: 12) {
@@ -2221,21 +2293,22 @@ private struct SettingsDemoDeleteDialog: View {
                     ReaderIcon(.trash, size: 24, accessibilityLabel: "删除")
                         .foregroundColor(SettingsDemoTone.danger.foreground)
                     Text("删除书源？")
-                        .font(.system(size: 18, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .heavy))
                         .foregroundColor(SettingsDemoTone.danger.foreground)
                 }
 
                 Text("将删除已选 3 个书源。不会删除书架书籍，但这些书源将不再参与搜索、发现和换源。")
                     .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(4)
 
                 HStack(spacing: ReaderDesignTokens.settingsRowGap) {
-                    Image(systemName: "square")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(SettingsDemoTone.warn.foreground)
+                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
+                        .stroke(SettingsDemoTone.warn.foreground, lineWidth: 2)
+                        .frame(width: 18, height: 18)
+                        .accessibilityLabel("未勾选")
                     Text("同时清除相关检测日志")
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
@@ -2246,11 +2319,15 @@ private struct SettingsDemoDeleteDialog: View {
                 )
 
                 HStack(spacing: 10) {
-                    NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-batch")) {
+                    Button {
+                        onRoute("source-batch")
+                    } label: {
                         SettingsDemoActionLabel(action: SettingsDemoAction(icon: .close, title: "取消"))
                     }
                     .buttonStyle(DemoPressButtonStyle())
-                    NavigationLink(destination: SettingsDemoShellView(demoRoute: "source-management")) {
+                    Button {
+                        onRoute("source-management")
+                    } label: {
                         SettingsDemoActionLabel(action: SettingsDemoAction(icon: .trash, title: "删除", tone: .danger))
                     }
                     .buttonStyle(DemoPressButtonStyle())
@@ -2263,19 +2340,20 @@ private struct SettingsDemoDeleteDialog: View {
 private struct SettingsDemoBottomActions: View {
     let actions: [SettingsDemoAction]
     let onConfirm: (SettingsDemoConfirm?) -> Void
+    let onRoute: (String) -> Void
 
     var body: some View {
         if actions.count == 2, let first = actions.first, let second = actions.dropFirst().first {
             BottomFixedActionRow {
-                SettingsDemoActionButton(action: first, onConfirm: onConfirm)
+                SettingsDemoActionButton(action: first, onConfirm: onConfirm, onRoute: onRoute)
             } trailing: {
-                SettingsDemoActionButton(action: second, onConfirm: onConfirm)
+                SettingsDemoActionButton(action: second, onConfirm: onConfirm, onRoute: onRoute)
             }
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: ReaderDesignTokens.rssModeRowGap) {
                     ForEach(actions) { action in
-                        SettingsDemoActionButton(action: action, onConfirm: onConfirm)
+                        SettingsDemoActionButton(action: action, onConfirm: onConfirm, onRoute: onRoute)
                             .frame(minWidth: 86, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                     }
                 }
@@ -2299,10 +2377,13 @@ private struct SettingsDemoBottomActions: View {
 private struct SettingsDemoActionButton: View {
     let action: SettingsDemoAction
     let onConfirm: (SettingsDemoConfirm?) -> Void
+    let onRoute: (String) -> Void
 
     var body: some View {
         if let route = action.route {
-            NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
+            Button {
+                onRoute(route)
+            } label: {
                 SettingsDemoActionLabel(action: action)
             }
             .buttonStyle(DemoPressButtonStyle())
@@ -2324,7 +2405,7 @@ private struct SettingsDemoActionLabel: View {
         HStack(spacing: 6) {
             ReaderIcon(action.icon, size: 16, accessibilityLabel: action.title)
             Text(action.title)
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
@@ -2339,12 +2420,15 @@ private struct SettingsDemoActionLabel: View {
 
 private struct SettingsDemoTopRouteButton: View {
     let action: SettingsDemoAction
+    let onRoute: (String) -> Void
 
     var body: some View {
         if let route = action.route {
-            NavigationLink(destination: SettingsDemoShellView(demoRoute: route)) {
+            Button {
+                onRoute(route)
+            } label: {
                 Text(action.title)
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .lineLimit(1)
             }
@@ -2364,16 +2448,16 @@ private struct SettingsDemoConfirmDialog: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: 12) {
                 Text(confirm.title)
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .heavy))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 Text(confirm.copy)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .semibold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(5)
                 HStack(spacing: 10) {
                     Button(action: onCancel) {
                         Text(confirm.cancelLabel)
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                             .frame(maxWidth: .infinity, minHeight: 38)
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground))
@@ -2381,7 +2465,7 @@ private struct SettingsDemoConfirmDialog: View {
                     .buttonStyle(DemoPressButtonStyle())
                     Button(action: onConfirm) {
                         Text(confirm.confirmLabel)
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                             .frame(maxWidth: .infinity, minHeight: 38)
                             .foregroundColor(.white)
                             .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark))
@@ -2398,7 +2482,7 @@ private struct SettingsDemoToast: View {
 
     var body: some View {
         Text(message)
-            .font(.system(size: 12, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
             .foregroundColor(.white)
             .lineLimit(2)
             .padding(.horizontal, 14)
@@ -2414,7 +2498,7 @@ private struct SettingsDemoBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
             .lineLimit(1)
             .foregroundColor(tone.foreground)
             .padding(.horizontal, 8)

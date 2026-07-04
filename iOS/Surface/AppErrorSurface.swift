@@ -13,38 +13,41 @@ public struct AppErrorSurface: View {
     public var body: some View {
         if let error = error {
             VStack(spacing: 16) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 34, weight: .medium))
-                    .foregroundStyle(.orange)
+                ReaderIcon(.warning, size: 34, accessibilityLabel: "错误")
+                    .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
 
                 Text(error.message)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 16)
 
                 if let failureType = error.failure?.type {
                     Text("Failure: \(failureType.rawValue)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
 
                 if let retry = onRetry {
                     Button(action: retry) {
                         Text("重试")
-                            .font(.body.weight(.medium))
-                            .frame(minWidth: 100)
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                            .foregroundColor(.white)
+                            .frame(minWidth: 100, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+                            .background(Capsule().fill(ReaderDesignTokens.Color.primary))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
                     .padding(.top, 8)
                 }
             }
             .padding(32)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(UIColor.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+            .background(ReaderDesignTokens.Color.paperSolid)
+            .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
+            .shadow(
+                // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                color: ReaderDesignTokens.Color.Shadow.soft,
+                radius: 26, x: 0, y: 8
+            )
         }
     }
 }

@@ -4,11 +4,18 @@ import ReaderAppPersistence
 import ReaderCoreModels
 
 public struct BookshelfView: View {
+    private enum BookshelfDestination {
+        case reader(ReaderContext)
+        case batchManagement
+        case groupManagement
+        case localImport
+        case search
+        case searchSettings
+    }
+
     @StateObject private var viewModel = BookshelfViewModel()
     @State private var selectedItem: BookshelfItem?
-    @State private var showLocalImport = false
-    @State private var immersiveEntry: ReaderContext?
-    @State private var navigateToReader = false
+    @State private var activeDestination: BookshelfDestination?
     @State private var bookshelfDisplayMode: BookshelfDisplayMode = .cover
     @State private var bookshelfGroup = "全部"
     @State private var bookshelfSort = "最近更新"
@@ -16,10 +23,6 @@ public struct BookshelfView: View {
     @State private var bookshelfFilterOpen = false
     @State private var focusedBookshelfItem: BookshelfItem?
     @State private var showBookshelfMore = false
-    @State private var showSearch = false
-    @State private var showBatchManagement = false
-    @State private var showGroupManagement = false
-    @State private var showBookshelfSearchSettings = false
     @ObservedObject private var navigationState: AppNavigationState
     @Binding private var topBarRequest: MainTabTopBarRequest?
     private let showsTopBar: Bool
@@ -42,7 +45,7 @@ public struct BookshelfView: View {
     }
 
     public var body: some View {
-        // NavigationStack 由 `AppShellView` 提供；root 模式下 top bar 由
+        // Route ownership 由 `AppShellView` 提供；root 模式下 top bar 由
         // DemoMainTabShell.appTopBar slot 承载，兼容/预览路径仍可内联显示。
         VStack(spacing: 0) {
             if showsTopBar {
@@ -56,7 +59,11 @@ public struct BookshelfView: View {
         }
         .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
         .overlay {
-            bookshelfOverlayLayer
+            ZStack {
+                bookshelfOverlayLayer
+                bookshelfDestinationLayer
+                    .zIndex(10)
+            }
         }
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
@@ -70,45 +77,7 @@ public struct BookshelfView: View {
         .refreshable {
             await viewModel.loadItems()
         }
-        .navigationDestination(isPresented: $navigateToReader) {
-            if let context = immersiveEntry {
-                ReaderView(
-                    chapterURL: context.chapterURL,
-                    chapterTitle: context.chapterTitle,
-                    chapterList: chapterList(for: context),
-                    currentChapterIndex: chapterIndex(for: context),
-                    bookID: context.bookID,
-                    sourceID: context.sourceID,
-                    immersiveStart: true
-                )
-                .onAppear { navigationState.enterImmersiveReading(context) }
-                .onDisappear {
-                    navigationState.exitImmersiveReading()
-                    immersiveEntry = nil
-                    navigateToReader = false
-                }
-            }
-        }
-        .navigationDestination(isPresented: $showBatchManagement) {
-            BookshelfBatchManagementView()
-        }
-        .navigationDestination(isPresented: $showGroupManagement) {
-            BookshelfGroupManagementView()
-        }
-        .navigationDestination(isPresented: $showLocalImport) {
-            BookshelfLocalImportView { summary in
-                Task {
-                    await viewModel.addOrUpdateLocalBook(summary)
-                    showLocalImport = false
-                }
-            }
-        }
-        .navigationDestination(isPresented: $showSearch) {
-            SearchView()
-        }
-        .navigationDestination(isPresented: $showBookshelfSearchSettings) {
-            SettingsDemoShellView(demoRoute: "bookshelf-search-settings")
-        }
+        .mainTabBarVisible(activeDestination == nil)
     }
 
     private var bookshelfTopBar: some View {
@@ -116,7 +85,7 @@ public struct BookshelfView: View {
             DemoTopActionButton(
                 icon: .search,
                 accessibilityLabel: "搜索书籍",
-                action: { showSearch = true }
+                action: { activeDestination = .search }
             )
 
             DemoTopActionButton(
@@ -130,7 +99,7 @@ public struct BookshelfView: View {
     private func handleTopBarRequest(_ request: MainTabTopBarRequest?) {
         switch request {
         case .bookshelfSearch:
-            showSearch = true
+            activeDestination = .search
             topBarRequest = nil
         case .bookshelfMore:
             openBookshelfMoreMenu()
@@ -146,7 +115,7 @@ public struct BookshelfView: View {
     }
 
     /// 继续阅读卡 —— 对齐 demo `.fd-continue-card` 规格（grid 62/1fr/82，min-h 100，
-    /// strong serif 20px，cover aspect 4:5，button pill primary）。
+    /// strong serif 20px，cover aspect 2:3，button pill primary）。
     /// 仅在有「最近阅读」书且带 `lastReadChapterURL` 时显示。
     @ViewBuilder
     private var continueReadingCard: some View {
@@ -172,15 +141,15 @@ public struct BookshelfView: View {
                     onDismiss: { showBookshelfMore = false },
                     onBatch: {
                         showBookshelfMore = false
-                        showBatchManagement = true
+                        activeDestination = .batchManagement
                     },
                     onGroups: {
                         showBookshelfMore = false
-                        showGroupManagement = true
+                        activeDestination = .groupManagement
                     },
                     onImport: {
                         showBookshelfMore = false
-                        showLocalImport = true
+                        activeDestination = .localImport
                     }
                 )
             }
@@ -191,11 +160,11 @@ public struct BookshelfView: View {
                     onDismiss: { self.focusedBookshelfItem = nil },
                     onBatch: {
                         self.focusedBookshelfItem = nil
-                        showBatchManagement = true
+                        activeDestination = .batchManagement
                     },
                     onGroups: {
                         self.focusedBookshelfItem = nil
-                        showGroupManagement = true
+                        activeDestination = .groupManagement
                     },
                     onDetail: {
                         self.focusedBookshelfItem = nil
@@ -225,16 +194,73 @@ public struct BookshelfView: View {
     }
 
     @ViewBuilder
+    private var bookshelfDestinationLayer: some View {
+        switch activeDestination {
+        case .some(.reader(let context)):
+            ReaderView(
+                chapterURL: context.chapterURL,
+                chapterTitle: context.chapterTitle,
+                chapterList: chapterList(for: context),
+                currentChapterIndex: chapterIndex(for: context),
+                bookID: context.bookID,
+                sourceID: context.sourceID,
+                immersiveStart: true,
+                onExit: closeActiveDestination
+            )
+            .transition(.opacity)
+
+        case .some(.batchManagement):
+            BookshelfBatchManagementView(
+                onExit: closeActiveDestination,
+                onGroups: { activeDestination = .groupManagement }
+            )
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+
+        case .some(.groupManagement):
+            BookshelfGroupManagementView(onExit: closeActiveDestination)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+
+        case .some(.localImport):
+            BookshelfLocalImportView(onImported: { summary in
+                Task {
+                    await viewModel.addOrUpdateLocalBook(summary)
+                    await MainActor.run {
+                        closeActiveDestination()
+                    }
+                }
+            }, onExit: closeActiveDestination)
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+
+        case .some(.search):
+            SearchView(onExit: closeActiveDestination)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+
+        case .some(.searchSettings):
+            SettingsDemoShellView(demoRoute: "bookshelf-search-settings", onExit: closeActiveDestination)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+
+        case .none:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
     private var bookshelfStateView: some View {
         switch viewModel.bookshelfState {
         case .idle:
             Text("加载中...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
 
         case .loading:
-            ProgressView("加载中...")
-                .frame(maxWidth: .infinity, minHeight: 200)
+            // demo `.fd-reader-loading-panel`：30×30 spinner + 文案，居中。
+            VStack(spacing: 8) {
+                DemoLoadingSpinner(size: .reader)
+                Text("加载中...")
+                    .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+            }
+            .frame(maxWidth: .infinity, minHeight: 200)
 
         case .loaded(let items):
             bookshelfShelfSection(items: items)
@@ -248,13 +274,13 @@ public struct BookshelfView: View {
                         .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
 
                     Text("书架还是空的")
-                        .font(.system(size: 18, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .heavy))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         .multilineTextAlignment(.center)
 
                     Text("添加网络书籍或导入本地文件后，会在这里显示继续阅读和书架内容。")
                         .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -264,14 +290,14 @@ public struct BookshelfView: View {
                             title: "搜索书籍",
                             subtitle: "按书名、作者或关键词查找",
                             isPrimary: true,
-                            action: { showSearch = true }
+                            action: { activeDestination = .search }
                         )
                         BookshelfEmptyActionButton(
                             icon: .folder,
                             title: "导入本地书",
                             subtitle: "添加本机文件到书架",
                             isPrimary: false,
-                            action: { showLocalImport = true }
+                            action: { activeDestination = .localImport }
                         )
                     }
                     .padding(.top, 4)
@@ -281,7 +307,7 @@ public struct BookshelfView: View {
                             navigationState.switchTab(.discover)
                         }
                         BookshelfEmptyHintButton(icon: .gear, title: "书架设置") {
-                            showBookshelfSearchSettings = true
+                            activeDestination = .searchSettings
                         }
                     }
                 }
@@ -297,10 +323,10 @@ public struct BookshelfView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("加载失败")
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         Text(message)
                             .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(2)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -335,7 +361,7 @@ public struct BookshelfView: View {
             if visibleItems.isEmpty {
                 Text("没有符合条件的书籍")
                     .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookListCardMinHeight)
             } else if bookshelfDisplayMode == .cover {
                 LazyVGrid(
@@ -460,9 +486,30 @@ public struct BookshelfView: View {
             sourceID: item.sourceID,
             source: source
         )
-        navigationState.enterImmersiveReading(context)
-        immersiveEntry = context
-        navigateToReader = true
+        // P2-A HERO-P0-1: 用 withAnimation 触发 matchedGeometryEffect 过渡。
+        // 真源：motion-controller.js line 412-417 reader.entry.coverToImmersive (240ms)
+        // 与 line 418-423 reader.entry.actionToImmersive (200ms)。
+        // 取 240ms（coverToImmersive 为主路径，actionToImmersive 为无封面入口的降级）。
+        // 对应 token：ReaderMotion.Duration.readerEntry。
+        // reduced motion 时 MotionEnvironment.animation 返回 nil，withAnimation(nil) 即时切换。
+        let motion = MotionEnvironment()
+        withAnimation(motion.animation(ReaderMotion.Duration.readerEntry)) {
+            navigationState.enterImmersiveReading(context)
+            activeDestination = .reader(context)
+        }
+    }
+
+    private func closeActiveDestination() {
+        if case .reader = activeDestination {
+            // P2-A: 退出沉浸阅读同样包裹 withAnimation，让 matchedGeometryEffect 反向过渡。
+            let motion = MotionEnvironment()
+            withAnimation(motion.animation(ReaderMotion.Duration.readerEntry)) {
+                navigationState.exitImmersiveReading()
+                activeDestination = nil
+            }
+        } else {
+            activeDestination = nil
+        }
     }
 
     private func chapterList(for context: ReaderContext) -> [TOCItem] {
@@ -543,7 +590,7 @@ private struct BookshelfSectionHeader: View {
                     width: ReaderDesignTokens.bookshelfSectionActionSize,
                     height: ReaderDesignTokens.bookshelfSectionActionSize
                 )
-                .foregroundColor(isActive ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0x6f/255, green: 0x69/255, blue: 0x62/255))
+                .foregroundColor(isActive ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.muted)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -582,7 +629,7 @@ private struct BookshelfFilterPopover: View {
     private func optionRow(title: String, options: [String], selection: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -592,7 +639,7 @@ private struct BookshelfFilterPopover: View {
                             selection.wrappedValue = option
                         } label: {
                             Text(option)
-                                .font(.system(size: 12, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                                 .lineLimit(1)
                                 .padding(.horizontal, 10)
                                 .frame(minHeight: 30)
@@ -600,9 +647,9 @@ private struct BookshelfFilterPopover: View {
                                     Capsule()
                                         .fill(selection.wrappedValue == option
                                               ? ReaderDesignTokens.Color.primary
-                                              : SwiftUI.Color(red: 238/255, green: 232/255, blue: 223/255, opacity: 0.9))
+                                              : ReaderDesignTokens.Color.chipBackground)
                                 )
-                                .foregroundColor(selection.wrappedValue == option ? .white : SwiftUI.Color(red: 0x2b/255, green: 0x25/255, blue: 0x1f/255))
+                                .foregroundColor(selection.wrappedValue == option ? .white : ReaderDesignTokens.Color.controlInkAlt)
                         }
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(selection.wrappedValue == option ? [.isButton, .isSelected] : [.isButton])
@@ -636,12 +683,12 @@ private struct BookshelfBookCoverCard: View {
                         .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize))
                         .lineLimit(ReaderDesignTokens.bookCardTitleLineLimit)
                         .multilineTextAlignment(.leading)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(ReaderDesignTokens.Color.ink)
 
                     Text(item.author ?? item.sourceName ?? "未知作者")
                         .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
                         .lineLimit(1)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -674,12 +721,12 @@ private struct BookshelfBookListCard: View {
                     Text(item.title)
                         .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize))
                         .lineLimit(1)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(ReaderDesignTokens.Color.ink)
 
                     Text(item.author ?? item.sourceName ?? "未知作者")
                         .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
                         .lineLimit(1)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -698,10 +745,16 @@ private struct BookshelfCoverFrame: View {
     let item: BookshelfItem
     let mode: Mode
 
+    // P2-A HERO-P0-1: 从 environment 读取 hero namespace，用于 coverToImmersive shared element。
+    // 真源：MOTION_EFFECTS.md line 611-635 reader.entry.coverToImmersive
+    // 封面作为"来源锚点"（isSource: true），与 ReaderView 入口锚点共享 id。
+    // 使用 @SwiftUI.Environment 避免与 ReaderCoreModels.Environment 类型歧义。
+    @SwiftUI.Environment(\.heroNamespace) private var heroNamespace
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(SwiftUI.Color.white.opacity(0.58))
+                .fill(ReaderDesignTokens.Color.overlayWhite58)
 
             if let demoCoverAssetName {
                 Image(demoCoverAssetName)
@@ -725,11 +778,19 @@ private struct BookshelfCoverFrame: View {
         .aspectRatio(ReaderDesignTokens.bookCoverAspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .shadow(
-            color: SwiftUI.Color(red: 52/255, green: 38/255, blue: 26/255, opacity: mode == .cover ? 0.13 : 0.12),
-            radius: mode == .cover ? 10 : 6,
+            // cover: demo `--fd-soft-shadow` 0 8px 26px rgba(89,70,50,0.1)
+            // list:  demo `.fd-book-grid.is-list-view .fd-book-cover-frame` 0 6px 12px rgba(52,38,26,0.12)
+            color: mode == .cover
+                ? ReaderDesignTokens.Color.Shadow.soft
+                : ReaderDesignTokens.Color.Shadow.bookList,
+            radius: mode == .cover ? 26 : 12,
             x: 0,
-            y: mode == .cover ? 10 : 6
+            y: mode == .cover ? 8 : 6
         )
+        // P2-A HERO-P0-1: 封面作为 coverToImmersive 的来源锚点（isSource: true）。
+        // 仅在 .cover 模式下挂载（list 模式尺寸过小，不参与 hero 过渡）。
+        // heroNamespace 为 nil 时（Preview / 未注入）原样返回，安全降级。
+        .heroMatchedGeometry(id: "bookCover-\(item.id)", namespace: heroNamespace, isSource: mode == .cover)
     }
 
     private var placeholder: some View {
@@ -820,7 +881,7 @@ private struct BookshelfBookFocusLayer: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: ReaderDesignTokens.bookFocusBackdropOpacity)
+            ReaderDesignTokens.Color.ink.opacity(ReaderDesignTokens.bookFocusBackdropOpacity)
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onDismiss)
 
@@ -845,12 +906,12 @@ private struct BookshelfBookFocusLayer: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
                     .lineLimit(1)
 
                 Text("\(item.author ?? "未知作者") · \(item.lastReadChapterTitle ?? item.latestChapter ?? "继续阅读")")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -876,22 +937,22 @@ private struct BookshelfBookFocusLayer: View {
             VStack(spacing: 5) {
                 ReaderIcon(icon, size: 18, accessibilityLabel: title)
                 Text(title)
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookFocusActionMinHeight)
+                }
+                .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookFocusActionMinHeight)
         }
         .buttonStyle(.plain)
-        .foregroundColor(role == .destructive ? .red : SwiftUI.Color(red: 0x3c/255, green: 0x35/255, blue: 0x2f/255))
+        .foregroundColor(role == .destructive ? ReaderDesignTokens.Color.danger : ReaderDesignTokens.Color.ink)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                .fill(SwiftUI.Color.white.opacity(0.48))
+                .fill(ReaderDesignTokens.Color.overlayWhite58)
         )
     }
 
     private var menuBackground: some View {
         RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
-            .fill(SwiftUI.Color(red: 1, green: 252/255, blue: 248/255, opacity: 0.97))
+            .fill(ReaderDesignTokens.Color.bookFocusMenuBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
                     .stroke(
@@ -904,8 +965,8 @@ private struct BookshelfBookFocusLayer: View {
                         lineWidth: 1
                     )
             )
-            .shadow(color: SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.22),
-                    radius: 22, x: 0, y: 22)
+            .shadow(color: ReaderDesignTokens.Color.Shadow.elevated,
+                    radius: 46, x: 0, y: 22)
     }
 }
 
@@ -917,7 +978,7 @@ private struct BookshelfMoreLayer: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: ReaderDesignTokens.bookshelfMoreBackdropOpacity)
+            ReaderDesignTokens.Color.ink.opacity(ReaderDesignTokens.bookshelfMoreBackdropOpacity)
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onDismiss)
 
@@ -953,11 +1014,11 @@ private struct BookshelfMoreLayer: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(meta)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -966,7 +1027,7 @@ private struct BookshelfMoreLayer: View {
             .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookshelfMoreActionMinHeight, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .foregroundColor(SwiftUI.Color(red: 0x3c/255, green: 0x35/255, blue: 0x2f/255))
+        .foregroundColor(ReaderDesignTokens.Color.ink)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                 .fill(SwiftUI.Color.clear)
@@ -975,7 +1036,7 @@ private struct BookshelfMoreLayer: View {
 
     private var menuBackground: some View {
         RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
-            .fill(SwiftUI.Color(red: 1, green: 252/255, blue: 248/255, opacity: 0.97))
+            .fill(ReaderDesignTokens.Color.bookFocusMenuBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
                     .stroke(
@@ -988,21 +1049,30 @@ private struct BookshelfMoreLayer: View {
                         lineWidth: 1
                     )
             )
-            .shadow(color: SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.18),
-                    radius: 22, x: 0, y: 22)
+            .shadow(color: ReaderDesignTokens.Color.Shadow.elevated,
+                    radius: 42, x: 0, y: 22)
     }
 }
 
 struct BookshelfBatchManagementView: View {
     @State private var selectedIDs = Set(BookBatchItem.demoBooks.prefix(3).map(\.id))
+    private let onExit: (() -> Void)?
+    private let onGroups: (() -> Void)?
+
+    init(onExit: (() -> Void)? = nil, onGroups: (() -> Void)? = nil) {
+        self.onExit = onExit
+        self.onGroups = onGroups
+    }
 
     var body: some View {
-        DemoBackScreen(title: "批量管理") {
+        DemoBackScreen(title: "批量管理", onBack: onExit) {
             batchSummary
             batchList
         } bottomActionHost: {
             BottomFixedActionRow {
-                NavigationLink(value: Route.bookshelfGroups) {
+                Button {
+                    onGroups?()
+                } label: {
                     BookBatchBottomLabel(title: "移动分组", isPrimary: true)
                 }
                 .buttonStyle(.plain)
@@ -1027,7 +1097,7 @@ struct BookshelfBatchManagementView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button(action: toggleAll) {
                         Text(selectedCount == BookBatchItem.demoBooks.count ? "取消全选" : "全选")
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                             .padding(.horizontal, 12)
                             .frame(minHeight: 30)
@@ -1038,7 +1108,7 @@ struct BookshelfBatchManagementView: View {
 
                 Text("长按书籍或从更多菜单进入，选择后统一移动分组、删除或取消选择。")
                     .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(2)
             }
             .padding(ReaderDesignTokens.bookBatchSummaryPadding - ReaderDesignTokens.cardPadding)
@@ -1049,7 +1119,7 @@ struct BookshelfBatchManagementView: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: 0) {
                 Text("书架书籍")
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .padding(.bottom, 4)
 
@@ -1117,18 +1187,18 @@ private struct BookBatchRow: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                        .foregroundStyle(ReaderDesignTokens.Color.ink)
                         .lineLimit(1)
                     Text("\(item.author) · \(item.chapter)")
                         .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(item.group)
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .padding(.horizontal, 9)
                     .frame(minHeight: 30)
@@ -1174,11 +1244,11 @@ private struct BookBatchCover: View {
             .fill(ReaderDesignTokens.Color.primary.opacity(0.14))
             .overlay(
                 Text(String(title.prefix(1)))
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             )
             .aspectRatio(2.0 / 3.0, contentMode: .fit)
-            .shadow(color: SwiftUI.Color(red: 45/255, green: 34/255, blue: 26/255, opacity: 0.12), radius: 10, x: 0, y: 3)
+            .shadow(color: ReaderDesignTokens.Color.Shadow.bookBatch, radius: 10, x: 0, y: 3)
     }
 }
 
@@ -1203,7 +1273,7 @@ private struct BookBatchBottomLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
             .lineLimit(1)
             .foregroundColor(foregroundColor)
             .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
@@ -1212,7 +1282,7 @@ private struct BookBatchBottomLabel: View {
 
     private var foregroundColor: SwiftUI.Color {
         if isDanger {
-            return .red
+            return ReaderDesignTokens.Color.danger
         }
         return isPrimary ? .white : ReaderDesignTokens.Color.primaryDark
     }
@@ -1245,7 +1315,7 @@ struct BookshelfItemDetailView: View {
             readingProgressCard
         } trailing: {
             Button("完成") { onClose() }
-                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
         } bottomActionHost: {
             BottomFixedActionRow {
@@ -1290,11 +1360,11 @@ struct BookshelfItemDetailView: View {
                     .frame(width: 54)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(item.title)
-                        .font(ReaderTypography.demoSerif(size: 20, weight: .bold))
+                        .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.continueCardTitleFontSize, weight: .bold))
                         .lineLimit(2)
                     Text(authorLabel)
                         .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                     Text(sourceLabel)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
@@ -1334,7 +1404,7 @@ struct BookshelfItemDetailView: View {
         HStack(spacing: 7) {
             ReaderIcon(icon, size: 16, accessibilityLabel: title)
             Text(title)
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                 .lineLimit(1)
         }
         .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
@@ -1412,12 +1482,12 @@ private struct BookshelfEmptyActionButton: View {
                     .frame(width: ReaderDesignTokens.settingsRowIconColumn)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
                         .lineLimit(2)
-                        .foregroundColor(isPrimary ? .white.opacity(0.82) : .secondary)
+                        .foregroundColor(isPrimary ? .white.opacity(0.82) : ReaderDesignTokens.Color.muted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -1448,7 +1518,7 @@ private struct BookshelfEmptyHintButton: View {
             HStack(spacing: 5) {
                 ReaderIcon(icon, size: 13, accessibilityLabel: title)
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.searchSectionActionMinHeight)
@@ -1469,7 +1539,7 @@ private struct BookshelfEmptyHintButton: View {
 /// - grid 62pt / 1fr / 82pt（cover / text / action button）
 /// - min-h 100pt / padding 10×16 / border 1 / radius 8 / surface bg / soft shadow
 /// - h2: 13pt/900/primary · strong: serif 20pt line-clamp 2
-/// - cover-button: 62pt wide / aspect 4:5 / radius 6
+/// - cover-button: 62pt wide / aspect 2:3 / radius 6
 /// - action-button: min 74×40 / radius pill / primary bg / white / 13pt-800
 struct ContinueReadingCard: View {
     let item: BookshelfItem
@@ -1478,7 +1548,7 @@ struct ContinueReadingCard: View {
 
     var body: some View {
         HStack(spacing: ReaderDesignTokens.continueCardGap) {
-            // 左：cover (62pt × aspect 4:5)
+            // 左：cover (62pt × aspect 2:3)
             BookshelfCoverAction(
                 item: item,
                 mode: .list,
@@ -1487,7 +1557,7 @@ struct ContinueReadingCard: View {
             ) {
                 coverView
                     .frame(width: ReaderDesignTokens.continueCoverButtonWidth)
-                    .aspectRatio(ReaderDesignTokens.bookCoverAspectRatio, contentMode: .fit)
+                    .aspectRatio(ReaderDesignTokens.continueCoverAspectRatio, contentMode: .fit)
             }
 
             // 中：title block
@@ -1503,8 +1573,8 @@ struct ContinueReadingCard: View {
 
                 if let author = item.author {
                     Text(author)
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize))
+                        .foregroundColor(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
             }
@@ -1513,7 +1583,7 @@ struct ContinueReadingCard: View {
             // 右：action button
             Button(action: onContinue) {
                 Text("继续")
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .foregroundColor(.white)
                     .frame(
                         minWidth: ReaderDesignTokens.continueActionButtonMinWidth,
@@ -1534,8 +1604,9 @@ struct ContinueReadingCard: View {
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
-                .shadow(color: SwiftUI.Color(red: 89/255, green: 70/255, blue: 50/255, opacity: 0.09),
-                        radius: 12, x: 0, y: 12)
+                // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                .shadow(color: ReaderDesignTokens.Color.Shadow.soft,
+                        radius: 26, x: 0, y: 8)
         )
     }
 

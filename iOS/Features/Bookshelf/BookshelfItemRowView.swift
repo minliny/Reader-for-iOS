@@ -23,34 +23,35 @@ public struct BookshelfItemRowView: View {
                     VStack(alignment: .leading, spacing: ReaderDesignTokens.bookListRowGap) {
                         Text(item.title)
                             .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .bold))
-                            .foregroundColor(.primary)
+                            .foregroundColor(ReaderDesignTokens.Color.ink)
                             .lineLimit(1)
 
                         if let author = item.author, !author.isEmpty {
                             Text(author)
                                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                         }
 
                         if let lastChapter = item.lastReadChapterTitle, !lastChapter.isEmpty {
                             Text("上次读到：\(lastChapter)")
                                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(1)
                         }
 
                         if item.readingProgress > 0 {
-                            ProgressView(value: item.readingProgress)
-                                .frame(maxWidth: 120)
-                                .tint(ReaderDesignTokens.Color.primaryDark)
+                            // demo `.fd-reader-book-progress`：文字百分比，无 bar。
+                            Text("\(Int(item.readingProgress * 100))%")
+                                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .semibold))
+                                .foregroundStyle(ReaderDesignTokens.Color.primaryDark)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     if onDelete != nil {
                         ReaderIcon(.trash, size: 16, accessibilityLabel: "删除")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(ReaderDesignTokens.Color.muted)
                     }
                 }
                 .padding(ReaderDesignTokens.bookGroupRowHorizontalPadding - ReaderDesignTokens.cardPadding)
@@ -68,7 +69,7 @@ public struct BookshelfItemRowView: View {
 
     private var coverPlaceholder: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
                 .fill(ReaderDesignTokens.Color.chipBackground)
                 .frame(width: ReaderDesignTokens.bookListCoverWidth, height: ReaderDesignTokens.bookListCoverWidth / ReaderDesignTokens.bookCoverAspectRatio)
 

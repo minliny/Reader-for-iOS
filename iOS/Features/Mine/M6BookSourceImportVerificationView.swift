@@ -56,9 +56,10 @@ struct M6BookSourceImportVerificationView: View {
                     }
                     if isRunning {
                         HStack(spacing: ReaderDesignTokens.settingsRowGap) {
-                            ProgressView()
+                            // demo `.fd-discover-bottom-loading i`：14×14 旋转圆。
+                            DemoLoadingSpinner(size: .inline)
                             Text("验证中...")
-                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                         }
                         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.settingsRowMinHeight, alignment: .leading)
@@ -101,7 +102,7 @@ struct M6BookSourceImportVerificationView: View {
                             if let id = source.id {
                                 Text("id: \(id.prefix(16))...")
                                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                                     .padding(.leading, ReaderDesignTokens.settingsRowIconColumn + ReaderDesignTokens.settingsRowGap + ReaderDesignTokens.settingsRowHorizontalPadding)
                             }
                         }
@@ -138,8 +139,8 @@ struct M6BookSourceImportVerificationView: View {
 
                     if let result = searchTestResult {
                         Text(result)
-                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
-                            .foregroundColor(result.contains("成功") ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.70, green: 0.42, blue: 0.12))
+                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                            .foregroundColor(result.contains("成功") ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.Semantic.warning)
                             .lineLimit(4)
                             .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,7 +148,7 @@ struct M6BookSourceImportVerificationView: View {
 
                     Text("手动触发，每次只测一个 operation，受 NetworkAccessController 控制")
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
                 }
             }
@@ -377,17 +378,17 @@ struct VerifyStepRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: ReaderDesignTokens.settingsRowGap) {
             ReaderIcon(step.passed ? .check : .close, size: 16, accessibilityLabel: step.passed ? "通过" : "失败")
-                .foregroundColor(step.passed ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.62, green: 0.18, blue: 0.14))
+                .foregroundColor(step.passed ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.Semantic.danger)
                 .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
-                .background(Circle().fill((step.passed ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.62, green: 0.18, blue: 0.14)).opacity(0.12)))
+                .background(Circle().fill((step.passed ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.Semantic.danger).opacity(0.12)))
             VStack(alignment: .leading, spacing: 2) {
                 Text(step.label)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 if let detail = step.detail {
                     Text(detail)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
             }
@@ -411,7 +412,7 @@ private struct M6VerificationSection<Content: View>: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
                 VStack(spacing: 0) {
@@ -437,7 +438,7 @@ private struct M6VerificationButton: View {
                     .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))

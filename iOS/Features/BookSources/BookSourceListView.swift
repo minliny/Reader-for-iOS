@@ -132,11 +132,11 @@ public struct BookSourceListView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("书源配置")
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     Text("启用 \(enabledSources.count) 个，停用 \(disabledSources.count) 个")
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -144,7 +144,7 @@ public struct BookSourceListView: View {
                     activeSheet = .importSheet
                 } label: {
                     Text("导入")
-                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                         .foregroundColor(.white)
                         .frame(minHeight: ReaderDesignTokens.rssImportListActionMinHeight)
                         .padding(.horizontal, 10)
@@ -160,7 +160,9 @@ public struct BookSourceListView: View {
     private func bookSourceSheetContent(_ sheet: BookSourceSheet) -> some View {
         switch sheet {
         case .importSheet:
-            BookSourceImportContent()
+            BookSourceImportContent { _ in
+                activeSheet = nil
+            }
 
         case .shareSheet:
             shareSheetContent
@@ -174,7 +176,7 @@ public struct BookSourceListView: View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
             ReaderCard {
                 Text(shareText)
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, design: .monospaced))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -188,7 +190,7 @@ public struct BookSourceListView: View {
                 HStack(spacing: 8) {
                     ReaderIcon(.file, size: 16, accessibilityLabel: "复制书源 JSON")
                     Text("复制书源 JSON")
-                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                 }
                 .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                 .foregroundColor(.white)
@@ -218,7 +220,7 @@ public struct BookSourceListView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("\(title) (\(sources.count))")
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 Spacer()
             }

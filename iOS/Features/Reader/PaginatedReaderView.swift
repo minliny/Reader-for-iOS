@@ -215,13 +215,13 @@ struct PaginatedReaderView: View {
         if pages.count > 1 {
             if isDualPageMode && currentPageIndex + 1 < pages.count {
                 Text("\(currentPageIndex + 1)-\(currentPageIndex + 2) / \(pages.count)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .padding(.bottom, 4)
             } else {
                 Text("\(currentPageIndex + 1) / \(pages.count)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .padding(.bottom, 4)
             }
         }

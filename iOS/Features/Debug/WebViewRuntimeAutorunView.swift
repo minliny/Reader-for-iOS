@@ -28,64 +28,49 @@ public struct WebViewRuntimeAutorunView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 16) {
+        DemoBackScreen(title: "WebView Autorun") {
             if viewModel.isLoading {
-                ProgressView("执行 WebView 渲染...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) {
+                    // demo `.fd-reader-loading-panel i`：30×30 旋转圆。
+                    DemoLoadingSpinner(size: .reader)
+                    Text("执行 WebView 渲染...")
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = viewModel.errorMessage {
                 VStack(spacing: 8) {
-                    Image(systemName: "xmark.octagon.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.red)
+                    ReaderIcon(.warning, size: 48, accessibilityLabel: "执行失败")
+                        .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
                     Text("执行失败")
-                        .font(.headline)
-                        .foregroundColor(.red)
+                        .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
                     Text(error)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                        .foregroundColor(ReaderDesignTokens.Color.muted)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
             } else {
                 VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.green)
+                    ReaderIcon(.check, size: 48, accessibilityLabel: "执行成功")
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     Text("执行成功")
-                        .font(.headline)
-                        .foregroundColor(.green)
+                        .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
-                    Group {
-                        LabeledContent("Final URL") {
-                            Text(viewModel.finalUrl.isEmpty ? "-" : viewModel.finalUrl)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        LabeledContent("Navigation Count") {
-                            Text("\(viewModel.navigationCount)")
-                        }
-                        LabeledContent("HTML Size") {
-                            Text("\(viewModel.renderedHtmlSize) bytes")
-                        }
-                        LabeledContent("Page Title") {
-                            Text(viewModel.pageTitle.isEmpty ? "-" : viewModel.pageTitle)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        LabeledContent("Execution Time") {
-                            Text("\(viewModel.executionTimeMs) ms")
-                        }
+                    VStack(alignment: .leading, spacing: 6) {
+                        AutorunMetricRow(label: "Final URL", value: viewModel.finalUrl.isEmpty ? "-" : viewModel.finalUrl)
+                        AutorunMetricRow(label: "Navigation Count", value: "\(viewModel.navigationCount)")
+                        AutorunMetricRow(label: "HTML Size", value: "\(viewModel.renderedHtmlSize) bytes")
+                        AutorunMetricRow(label: "Page Title", value: viewModel.pageTitle.isEmpty ? "-" : viewModel.pageTitle)
+                        AutorunMetricRow(label: "Execution Time", value: "\(viewModel.executionTimeMs) ms")
                     }
-                    .font(.caption)
 
                     if !viewModel.savedSnapshotPath.isEmpty {
                         Divider()
-                        LabeledContent("Snapshot") {
-                            Text(viewModel.savedSnapshotPath)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                        AutorunMetricRow(label: "Snapshot", value: viewModel.savedSnapshotPath)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -98,6 +83,24 @@ public struct WebViewRuntimeAutorunView: View {
             try? await Task.sleep(nanoseconds: 500_000_000)
             print("[WebViewHarness] executeRender scheduled")
             await viewModel.executeRender()
+        }
+    }
+}
+
+private struct AutorunMetricRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+            Spacer()
+            Text(value)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .multilineTextAlignment(.trailing)
         }
     }
 }

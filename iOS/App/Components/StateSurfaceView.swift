@@ -83,9 +83,9 @@ enum StateSurfaceKind: Equatable {
     var iconColor: SwiftUI.Color {
         switch self {
         case .error:
-            return SwiftUI.Color(red: 0x8b/255, green: 0x2f/255, blue: 0x29/255)
+            return ReaderDesignTokens.Color.Semantic.danger
         case .offline:
-            return SwiftUI.Color(red: 0x5c/255, green: 0x55/255, blue: 0x4b/255)
+            return ReaderDesignTokens.Color.muted
         case .permission:
             return ReaderDesignTokens.Color.primaryDark
         }
@@ -162,7 +162,7 @@ struct ConfirmDialog<Content: View>: View {
 
             Text(message)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmBodyFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineSpacing(3)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
@@ -191,8 +191,9 @@ struct ConfirmDialog<Content: View>: View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
                 .shadow(
-                    color: SwiftUI.Color(red: 80/255, green: 67/255, blue: 52/255, opacity: 0.08),
-                    radius: 12,
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
                     x: 0,
                     y: 8
                 )
@@ -222,7 +223,7 @@ struct ToastSurface: View {
         HStack(spacing: 8) {
             ReaderIcon(icon, size: 16, accessibilityLabel: message)
             Text(message)
-                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
                 .lineLimit(2)
         }
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
@@ -255,7 +256,7 @@ private struct StateSurfaceActionLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 13, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
             .lineLimit(1)
             .minimumScaleFactor(0.82)

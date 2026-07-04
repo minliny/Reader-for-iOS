@@ -11,6 +11,8 @@ import ReaderShellValidation
 public struct SettingsTabView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
     private let showsTopBar: Bool
+    @State private var activeDemoRoute: String?
+    private let motion = MotionEnvironment()
 
     static let demoRootRoutes: [String] = SettingsRootEntry.demoEntries.map(\.route)
 
@@ -20,6 +22,27 @@ public struct SettingsTabView: View {
     }
 
     public var body: some View {
+        ZStack {
+            if let activeDemoRoute {
+                SettingsDemoShellView(demoRoute: activeDemoRoute, onExit: {
+                    motion.withMotionAnimation(AppMotion.Duration.tabSwitch) {
+                        self.activeDemoRoute = nil
+                    }
+                })
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                rootSettingsList
+                    .transition(.opacity)
+            }
+        }
+        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+#if os(iOS)
+        .toolbar(.hidden, for: .navigationBar)
+#endif
+        .animation(motion.animation(AppMotion.Duration.tabSwitch), value: activeDemoRoute)
+    }
+
+    private var rootSettingsList: some View {
         VStack(spacing: 0) {
             if showsTopBar {
                 DemoTopBar(title: AppTab.settings.title)
@@ -28,26 +51,18 @@ public struct SettingsTabView: View {
             DemoPaperScreen(bottomPadding: ReaderDesignTokens.mainTabContentBottomPadding) {
                 SettingsSection(title: "设置") {
                     ForEach(SettingsRootEntry.demoEntries) { entry in
-                        NavigationLink(destination: settingsDestination(SettingsDemoShellView(demoRoute: entry.route))) {
+                        Button {
+                            motion.withMotionAnimation(AppMotion.Duration.tabSwitch) {
+                                activeDemoRoute = entry.route
+                            }
+                        } label: {
                             SettingsRootEntryRow(entry: entry)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(DemoPressButtonStyle())
                     }
                 }
             }
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
-#if os(iOS)
-        .toolbar(.hidden, for: .navigationBar)
-#endif
-    }
-
-    @ViewBuilder
-    private func settingsDestination<Content: View>(_ content: Content) -> some View {
-        content
-#if os(iOS)
-            .toolbar(.hidden, for: .navigationBar)
-#endif
     }
 }
 
@@ -77,13 +92,13 @@ private struct SettingsRootEntryRow: View {
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
             Text(entry.title)
-                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             ReaderIcon(.chevron, size: 14, accessibilityLabel: "进入\(entry.title)")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
         .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
@@ -104,7 +119,7 @@ private struct SettingsSection<Content: View>: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 content
             }

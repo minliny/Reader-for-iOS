@@ -14,6 +14,8 @@ import WebKit
 public struct ReaderApp: App {
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
+    // P3-B: 全局会话存储，注入到根视图供所有子视图通过 @EnvironmentObject 访问
+    @StateObject private var sessionStore: ReaderSessionStore = ReaderSessionStore()
     private let environment: ReaderShellEnvironment
 
     #if DEBUG && canImport(WebKit)
@@ -87,6 +89,12 @@ public struct ReaderApp: App {
 
     @ViewBuilder
     private var defaultRootContent: some View {
+        // P3-B: StateContainerView 是 4 态容器（需要 phase + content builders），
+        // 不适合做全局错误边界（错误边界需要响应任意来源的异常）。
+        // 改为在根视图注入 ReaderSessionStore，子视图通过 @EnvironmentObject 访问，
+        // 后续可基于 sessionStore.reportError 统一上报错误。
+        // TODO: 待 P3-B 后续落地全局错误边界包裹
+        Group {
             #if DEBUG && canImport(WebKit)
             if let config = autorunConfiguration, config.isEnabled && config.isValid {
                 WebViewRuntimeAutorunView(configuration: config)
@@ -104,5 +112,7 @@ public struct ReaderApp: App {
                 environment: environment
             )
             #endif
+        }
+        .environmentObject(sessionStore)
     }
 }

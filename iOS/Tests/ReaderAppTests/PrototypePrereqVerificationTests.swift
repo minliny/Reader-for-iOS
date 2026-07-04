@@ -10,6 +10,7 @@ final class PrototypePrereqVerificationTests: XCTestCase {
     // MARK: - Phase 1: Theme Token 可访问
 
     func testReaderColorsExist() {
+        // Legacy ReaderColors (deprecated, but still accessible)
         _ = ReaderColors.paperBg
         _ = ReaderColors.bodyText
         _ = ReaderColors.controlInk
@@ -27,6 +28,22 @@ final class PrototypePrereqVerificationTests: XCTestCase {
         _ = ReaderColors.nightPrimary
         _ = ReaderColors.nightBottomBarBg
         _ = ReaderColors.nightFloatingControlBg
+    }
+
+    func testReaderDesignTokensColorExist() {
+        // 新 token 镜像（demo baseline 真源），应优先使用
+        _ = ReaderDesignTokens.Color.paperSolid
+        _ = ReaderDesignTokens.Color.paperSolidAlt
+        _ = ReaderDesignTokens.Color.ink
+        _ = ReaderDesignTokens.Color.controlInk
+        _ = ReaderDesignTokens.Color.primary
+        _ = ReaderDesignTokens.Color.bottomBarBg
+        _ = ReaderDesignTokens.Color.floatingControlBg
+        _ = ReaderDesignTokens.Color.floatingControlBgAlt
+        _ = ReaderDesignTokens.Color.controlBackground
+        _ = ReaderDesignTokens.Color.metaBg
+        _ = ReaderDesignTokens.Color.muted
+        _ = ReaderDesignTokens.Color.mainNavBorder
     }
 
     func testReaderTypographyExist() {

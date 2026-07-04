@@ -10,7 +10,6 @@ public struct BookmarksListView: View {
     private let bookTitle: String
     private let onClose: (() -> Void)?
     @State private var bookmarks: [Bookmark] = []
-    @State private var navigateToReader = false
     @State private var selectedBookmark: Bookmark?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
@@ -22,32 +21,43 @@ public struct BookmarksListView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            DemoBackBar(title: "书签", onBack: close) {
-                Button("完成", action: close)
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy))
-                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-            }
+        ZStack {
+            if let selectedBookmark {
+                ReaderView(
+                    chapterURL: selectedBookmark.chapterURL,
+                    chapterTitle: selectedBookmark.chapterTitle,
+                    bookID: bookId,
+                    sourceID: sourceId,
+                    onExit: { self.selectedBookmark = nil }
+                )
+            } else {
+                VStack(spacing: 0) {
+                    DemoBackBar(title: "书签", onBack: close) {
+                        Button("完成", action: close)
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    }
 
-            DemoPaperScreen {
-                ReaderCard {
-                    if bookmarks.isEmpty {
-                        BookmarkEmptyState(bookTitle: bookTitle)
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(Array(bookmarks.enumerated()), id: \.element.id) { index, bookmark in
-                                BookmarkRowView(
-                                    bookmark: bookmark,
-                                    onOpen: {
-                                        selectedBookmark = bookmark
-                                        navigateToReader = true
-                                    },
-                                    onDelete: {
-                                        deleteBookmark(bookmark)
+                    DemoPaperScreen {
+                        ReaderCard {
+                            if bookmarks.isEmpty {
+                                BookmarkEmptyState(bookTitle: bookTitle)
+                            } else {
+                                VStack(spacing: 0) {
+                                    ForEach(Array(bookmarks.enumerated()), id: \.element.id) { index, bookmark in
+                                        BookmarkRowView(
+                                            bookmark: bookmark,
+                                            onOpen: {
+                                                selectedBookmark = bookmark
+                                            },
+                                            onDelete: {
+                                                deleteBookmark(bookmark)
+                                            }
+                                        )
+                                        if index < bookmarks.count - 1 {
+                                            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+                                        }
                                     }
-                                )
-                                if index < bookmarks.count - 1 {
-                                    Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
                                 }
                             }
                         }
@@ -59,16 +69,6 @@ public struct BookmarksListView: View {
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
-        .navigationDestination(isPresented: $navigateToReader) {
-            if let bm = selectedBookmark {
-                ReaderView(
-                    chapterURL: bm.chapterURL,
-                    chapterTitle: bm.chapterTitle,
-                    bookID: bookId,
-                    sourceID: sourceId
-                )
-            }
-        }
         .onAppear { loadBookmarks() }
     }
 
@@ -105,14 +105,14 @@ struct BookmarkRowView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(bookmark.chapterTitle)
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                            .foregroundColor(.primary)
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                            .foregroundColor(ReaderDesignTokens.Color.ink)
                             .lineLimit(1)
 
                         if let snippet = bookmark.snippet, !snippet.isEmpty {
                             Text(snippet)
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
                                 .lineLimit(2)
                         }
 
@@ -150,10 +150,10 @@ private struct BookmarkEmptyState: View {
                 .frame(width: 48, height: 48)
                 .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
             Text("暂无书签")
-                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
             Text("\(bookTitle) 的阅读书签会显示在这里")
                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, minHeight: 156)

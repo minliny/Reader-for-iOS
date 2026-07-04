@@ -45,9 +45,10 @@ struct RealNetworkVerifyView: View {
             if isRunning {
                 RealNetworkSection(title: "运行状态") {
                     HStack(spacing: ReaderDesignTokens.settingsRowGap) {
-                        ProgressView()
+                        // demo `.fd-discover-bottom-loading i`：14×14 旋转圆。
+                        DemoLoadingSpinner(size: .inline)
                         Text("正在等待 ReaderCoreServiceProvider 返回结果")
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     }
                     .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
@@ -137,7 +138,7 @@ private struct RealNetworkSection<Content: View>: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
                 VStack(spacing: 0) {
@@ -163,7 +164,7 @@ private struct RealNetworkActionButton: View {
                     .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))

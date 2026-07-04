@@ -1,6 +1,67 @@
 import SwiftUI
 import ReaderCoreModels
 import ReaderShellValidation
+// 注意：不在此处 `import ReaderUIContract`。
+// 该模块定义了 `public struct Content`，会与 SwiftUI `ViewModifier` 关联类型 `Content`
+// 产生命名歧义，导致 `HeroMatchedGeometryModifier` 无法 conform `ViewModifier`。
+// `ReaderViewState` 是本 target 内定义的派生类型，不需要在这里直接引用 contract 类型。
+
+/// Hero transition namespace environment key.
+///
+/// 真源：`frontend-demo/MOTION_EFFECTS.md` line 611-635 `reader.entry.coverToImmersive`
+/// 与 line 985-1001 `reader.session.controlSpace.enter/exit`。
+///
+/// 用途：在 AppShellView 顶层创建 `@Namespace`，通过 environment 注入到所有子视图，
+/// 让 BookshelfView 的封面与 ReaderView 的入口锚点（或会话胶囊与控制层运行空间）
+/// 能共享同一 `Namespace.ID`，从而驱动 `matchedGeometryEffect` 的 shared element 过渡。
+///
+/// 不复制 Web CSS / DOM；仅提供 SwiftUI 原生 `matchedGeometryEffect` 所需的 namespace 传递通道。
+private struct HeroNamespaceEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+extension EnvironmentValues {
+    /// Hero transition namespace。`nil` 表示当前视图层级未提供 namespace，
+    /// 子视图应跳过 `matchedGeometryEffect`（避免运行时崩溃）。
+    var heroNamespace: Namespace.ID? {
+        get { self[HeroNamespaceEnvironmentKey.self] }
+        set { self[HeroNamespaceEnvironmentKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// 注入 hero transition namespace。通常由 AppShellView 顶层调用一次。
+    func heroNamespace(_ namespace: Namespace.ID?) -> some View {
+        environment(\.heroNamespace, namespace)
+    }
+
+    /// 条件性应用 `matchedGeometryEffect`。
+    /// `namespace` 为 `nil` 时（如 Preview / 测试 / 未注入场景）原样返回 content，
+    /// 避免运行时崩溃。`isSource: true` 用于"来源锚点"（如书架封面），
+    /// `isSource: false` 用于"目标锚点"（如阅读器入口）。
+    ///
+    /// 真源：MOTION_EFFECTS.md line 611-635 `reader.entry.coverToImmersive`
+    /// 约束："封面是'来源锚点'，不是全屏 shared element 主体。可做轻量 shared element，
+    /// 但不能把 2:3 封面拉伸成阅读纸面"。
+    func heroMatchedGeometry(id: String, namespace: Namespace.ID?, isSource: Bool = false) -> some View {
+        modifier(HeroMatchedGeometryModifier(id: id, namespace: namespace, isSource: isSource))
+    }
+}
+
+/// `heroMatchedGeometry` 的 ViewModifier 实现。
+private struct HeroMatchedGeometryModifier: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID?
+    let isSource: Bool
+
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedGeometryEffect(id: id, in: namespace, isSource: isSource)
+        } else {
+            content
+        }
+    }
+}
 
 /// 原生 SwiftUI App Shell —— 4 主底栏：书架 / 发现 / RSS / 设置。
 ///
@@ -26,23 +87,34 @@ struct AppShellView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
     @ObservedObject var navigationState: AppNavigationState
     let environment: ReaderShellEnvironment
-    @State private var routePath: [Route] = []
     @State private var mainNavVisibleByContent = true
     @State private var mainTabTopBarRequest: MainTabTopBarRequest?
 
+    // P3-B: 会话级状态存储，作为 @StateObject 注入子视图
+    @StateObject private var sessionStore: ReaderSessionStore = ReaderSessionStore()
+
+    // P2-A HERO-P1-1: hero transition namespace。
+    // 真源：MOTION_EFFECTS.md line 611-635 reader.entry.coverToImmersive（封面 -> 沉浸阅读）
+    // 与 line 985-1001 reader.session.controlSpace.enter/exit（胶囊 <-> 控制层运行空间 morph）。
+    // 通过 .heroNamespace(heroNamespace) 注入 environment，让 BookshelfView / ReaderView
+    // 等子视图可通过 @Environment(\.heroNamespace) 读取并应用 matchedGeometryEffect。
+    @Namespace private var heroNamespace
+
     var body: some View {
-        NavigationStack(path: $routePath) {
-            GeometryReader { proxy in
-                let viewport = DemoViewportSnapshot.make(size: proxy.size)
-                shellBody(viewport: viewport)
-            }
-            .navigationDestination(for: Route.self) { route in
-                destinationView(for: route)
-            }
+        GeometryReader { proxy in
+            let viewport = DemoViewportSnapshot.make(size: proxy.size)
+            shellBody(viewport: viewport)
+        }
+        .overlay {
+            routeOverlay
         }
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
+        // P3-B: 注入 ReaderSessionStore 到所有子视图（包括 routeOverlay 中的 ReaderView）
+        .environmentObject(sessionStore)
+        // P2-A: 注入 hero namespace，供 BookshelfView / ReaderView 等子视图做 matchedGeometryEffect
+        .heroNamespace(heroNamespace)
     }
 
     @ViewBuilder
@@ -83,7 +155,7 @@ struct AppShellView: View {
 
     @ViewBuilder
     private var mainTabTopBar: some View {
-        if shouldShowMainNav && routePath.isEmpty {
+        if shouldShowMainNav && navigationState.navigationPath.isEmpty {
             switch navigationState.activeTab {
             case .bookshelf:
                 DemoTopBar(title: "书架") {
@@ -165,7 +237,17 @@ struct AppShellView: View {
     }
 
     var shouldShowMainNav: Bool {
-        mainNavVisibleByContent && navigationState.readerContext == nil
+        mainNavVisibleByContent && navigationState.readerContext == nil && navigationState.navigationPath.isEmpty
+    }
+
+    // MARK: - Contract ViewState（Slice 1）
+
+    /// 当前 contract `ReaderViewState`，用于 golden test 与 smoke 验证。
+    ///
+    /// 视图层仍直接消费 `navigationState.activeTab`，本属性只作为 contract 派生层入口，
+    /// 不参与渲染。后续 slice 会逐步让视图层改消费 `ViewState`。
+    var contractViewState: ReaderViewState {
+        ReaderViewState(from: navigationState)
     }
 
     /// 当前 Tab 的根视图。搜索、阅读、书源管理都不是主 Tab。
@@ -197,10 +279,22 @@ struct AppShellView: View {
     }
 
     /// Value-route fallback for legacy callers that still push `Route`.
-    /// Demo route ownership is tracked by `DemoRouteMappings`; this switch keeps
-    /// the native destination bridge for concrete `Route` values.
+    /// Demo route ownership is tracked by `DemoRouteMappings`; the app shell
+    /// renders the current route in-place instead of handing ownership to a
+    /// system navigation stack.
     @ViewBuilder
-    private func destinationView(for route: Route) -> some View {
+    private var routeOverlay: some View {
+        if let route = navigationState.navigationPath.last {
+            destinationView(for: route, onExit: {
+                navigationState.goBack()
+            })
+            .transition(.opacity)
+            .zIndex(10)
+        }
+    }
+
+    @ViewBuilder
+    private func destinationView(for route: Route, onExit: (() -> Void)? = nil) -> some View {
         switch route {
         case .home, .bookshelf:
             BookshelfView(
@@ -228,23 +322,24 @@ struct AppShellView: View {
             ReaderView(
                 chapterURL: chapterURL,
                 chapterTitle: chapterTitle,
-                bookID: bookID
+                bookID: bookID,
+                onExit: onExit
             )
 
         case .search:
-            SearchView()
+            SearchView(onExit: onExit)
 
         case .searchResults(let query):
-            SearchView(initialQuery: query)
+            SearchView(initialQuery: query, onExit: onExit)
 
         case .bookBatchManagement:
-            BookshelfBatchManagementView()
+            BookshelfBatchManagementView(onExit: onExit)
 
         case .bookshelfGroups:
-            BookshelfGroupManagementView()
+            BookshelfGroupManagementView(onExit: onExit)
 
         case .bookshelfImport:
-            BookshelfLocalImportView()
+            BookshelfLocalImportView(onExit: onExit)
 
         case .rssSearch:
             RSSSearchView()
@@ -364,41 +459,50 @@ struct AppShellView: View {
             BookSourceListView(coordinator: coordinator)
 
         case .bookSourceImport:
-            BookSourceImportView()
+            BookSourceImportView(onExit: onExit)
 
         case .settingsReading, .settingsAbout, .backupSettings, .syncProgress, .webdavBooks,
              .sourceDetail, .sourceAdd, .sourceEdit, .sourceTestResult:
-            SettingsDemoShellView(demoRoute: Self.settingsDemoFallbackRoute(for: route) ?? "settings-general")
+            SettingsDemoShellView(
+                demoRoute: Self.settingsDemoFallbackRoute(for: route) ?? "settings-general",
+                onExit: onExit
+            )
 
         case .bookDetail(let bookURL, let title, let author):
             BookDetailView(result: SearchResultItem(
                 title: title,
                 detailURL: bookURL,
                 author: author
-            ))
+            ), onExit: onExit)
 
         case .bookDetailToc(let bookURL, let title):
-            BookDirectoryPreviewView(bookURL: bookURL, title: title)
+            BookDirectoryPreviewView(bookURL: bookURL, title: title, onExit: onExit)
 
         case .sourceSwitch(let bookURL):
-            ReaderSourceSwitchFlowView(bookURL: bookURL)
+            ReaderSourceSwitchFlowView(bookURL: bookURL, onExit: onExit)
 
         case .toc:
             if let book = coordinator.selectedBook {
-                TOCView(coordinator: coordinator, book: book)
+                TOCView(coordinator: coordinator, book: book, onExit: onExit)
             } else {
-                ReaderDemoShellView(demoRoute: Self.readerContextFallbackRoute(for: route) ?? "reader-full-directory")
+                ReaderDemoShellView(
+                    demoRoute: Self.readerContextFallbackRoute(for: route) ?? "reader-full-directory",
+                    onExit: onExit
+                )
             }
 
         case .content:
             if let chapter = coordinator.selectedChapter {
-                ContentView(coordinator: coordinator, chapter: chapter)
+                ContentView(coordinator: coordinator, chapter: chapter, onExit: onExit)
             } else {
-                ReaderDemoShellView(demoRoute: Self.readerContextFallbackRoute(for: route) ?? "reader")
+                ReaderDemoShellView(
+                    demoRoute: Self.readerContextFallbackRoute(for: route) ?? "reader",
+                    onExit: onExit
+                )
             }
 
         case .webdavSettings:
-            WebDAVSettingsView()
+            SettingsDemoShellView(demoRoute: "webdav-config", onExit: onExit)
 
         case .prototypeGallery:
             PrototypeGalleryView()

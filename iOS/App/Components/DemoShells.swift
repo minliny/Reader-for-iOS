@@ -52,7 +52,7 @@ struct DemoMainTabShell<TopBar: View, ContentRegion: View, StateHost: View, Main
             mainNav
                 .accessibilityIdentifier("fd-main-tab-main-nav-slot")
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
         .accessibilityIdentifier("fd-main-tab-phone")
     }
 }
@@ -85,11 +85,13 @@ struct DemoLibraryShell<Content: View, Trailing: View, BottomActionHost: View, S
     let sheetHost: SheetHost
     let dialogHost: DialogHost
     let stateHost: StateHost
+    let onBack: (() -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     init(
         title: String,
         contentStyle: DemoBackScreenContentStyle = .paper,
+        onBack: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content,
         @ViewBuilder trailing: () -> Trailing,
         @ViewBuilder bottomActionHost: () -> BottomActionHost,
@@ -105,12 +107,13 @@ struct DemoLibraryShell<Content: View, Trailing: View, BottomActionHost: View, S
         self.sheetHost = sheetHost()
         self.dialogHost = dialogHost()
         self.stateHost = stateHost()
+        self.onBack = onBack
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                DemoBackBar(title: title, onBack: { dismiss() }) {
+                DemoBackBar(title: title, onBack: handleBack) {
                     trailing
                 }
                 .accessibilityIdentifier("fd-library-back-top-bar-slot")
@@ -130,13 +133,21 @@ struct DemoLibraryShell<Content: View, Trailing: View, BottomActionHost: View, S
             stateHost
                 .accessibilityIdentifier("fd-library-state-host")
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
 #endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-library-shell")
+    }
+
+    private func handleBack() {
+        if let onBack {
+            onBack()
+        } else {
+            dismiss()
+        }
     }
 
     @ViewBuilder
@@ -200,10 +211,12 @@ struct DemoSettingsShell<Content: View, Trailing: View, BottomActionHost: View, 
     let toastHost: ToastHost
     let dialogHost: DialogHost
     let stateHost: StateHost
+    let onBack: (() -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     init(
         title: String,
+        onBack: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content,
         @ViewBuilder trailing: () -> Trailing,
         @ViewBuilder bottomActionHost: () -> BottomActionHost,
@@ -220,12 +233,13 @@ struct DemoSettingsShell<Content: View, Trailing: View, BottomActionHost: View, 
         self.toastHost = toastHost()
         self.dialogHost = dialogHost()
         self.stateHost = stateHost()
+        self.onBack = onBack
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                DemoBackBar(title: title, onBack: { dismiss() }) {
+                DemoBackBar(title: title, onBack: handleBack) {
                     trailing
                 }
                 .accessibilityIdentifier("fd-settings-back-top-bar-slot")
@@ -247,7 +261,7 @@ struct DemoSettingsShell<Content: View, Trailing: View, BottomActionHost: View, 
             stateHost
                 .accessibilityIdentifier("fd-settings-state-host")
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
@@ -255,6 +269,14 @@ struct DemoSettingsShell<Content: View, Trailing: View, BottomActionHost: View, 
         .toolbar(.hidden, for: .tabBar)
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-settings-shell")
+    }
+
+    private func handleBack() {
+        if let onBack {
+            onBack()
+        } else {
+            dismiss()
+        }
     }
 }
 
@@ -294,7 +316,7 @@ struct DemoReaderShell<ReadingSurface: View, OverlayHost: View, BottomSheetHost:
                 .accessibilityIdentifier("fd-reader-state-host")
                 .zIndex(3)
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
@@ -307,42 +329,42 @@ struct DemoReaderShell<ReadingSurface: View, OverlayHost: View, BottomSheetHost:
     private var readerOverlaySlot: some View {
         ZStack {
             overlayHost
-
-            readerControlSlots
-                .accessibilityIdentifier("fd-reader-control-slots")
+            bottomSheetSlot
+                .accessibilityIdentifier("fd-reader-bottom-sheet-host")
+            moduleNavSlot
+                .accessibilityIdentifier("fd-reader-module-nav")
         }
         .accessibilityIdentifier("fd-reader-overlay-host")
     }
 
     @ViewBuilder
-    private var readerControlSlots: some View {
+    private var bottomSheetSlot: some View {
         if layout.usesTrailingDock {
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                VStack(spacing: layout.dockNavGap) {
-                    bottomSheetHost
-                        .frame(width: layout.dockWidth)
-                        .accessibilityIdentifier("fd-reader-bottom-sheet-host")
-                    moduleNav
-                        .frame(width: layout.dockWidth)
-                        .frame(minHeight: layout.dockNavHeight)
-                        .accessibilityIdentifier("fd-reader-module-nav")
-                }
+            bottomSheetHost
                 .frame(width: layout.dockWidth)
                 .padding(.trailing, layout.dockRightInset)
-                .padding(.bottom, layout.dockNavBottomInset)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.bottom, layout.dockNavBottomInset + layout.dockNavHeight + layout.dockNavGap)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         } else {
-            VStack(spacing: ReaderDesignTokens.readerControlSheetGap) {
-                Spacer(minLength: 0)
-                bottomSheetHost
-                    .accessibilityIdentifier("fd-reader-bottom-sheet-host")
-                moduleNav
-                    .accessibilityIdentifier("fd-reader-module-nav")
-            }
-            .padding(.bottom, ReaderDesignTokens.readerModuleNavBottomInset)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            bottomSheetHost
+                .padding(.bottom, ReaderDesignTokens.readerModuleNavBottomInset + layout.dockNavHeight + ReaderDesignTokens.readerControlSheetGap)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+    }
+
+    @ViewBuilder
+    private var moduleNavSlot: some View {
+        if layout.usesTrailingDock {
+            moduleNav
+                .frame(width: layout.dockWidth)
+                .frame(minHeight: layout.dockNavHeight)
+                .padding(.trailing, layout.dockRightInset)
+                .padding(.bottom, layout.dockNavBottomInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        } else {
+            moduleNav
+                .padding(.bottom, ReaderDesignTokens.readerModuleNavBottomInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }
 }
@@ -379,7 +401,7 @@ struct DemoFlowShell<StepRegion: View, ComparisonRegion: View, ResultRegion: Vie
             stateHost
                 .accessibilityIdentifier("fd-flow-state-host")
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif

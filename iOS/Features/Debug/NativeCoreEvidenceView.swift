@@ -204,7 +204,7 @@ private struct NativeCoreEvidenceSection<Content: View>: View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
                 VStack(spacing: 0) {
@@ -225,7 +225,7 @@ private struct NativeCoreEvidenceRow: View {
     var body: some View {
         DemoIconRow(icon: icon, title: title, subtitle: subtitle, detail: nil) {
             Text(value)
-                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .heavy, design: .monospaced))
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black, design: .monospaced))
                 .foregroundColor(valueColor)
                 .lineLimit(1)
         }
@@ -235,7 +235,7 @@ private struct NativeCoreEvidenceRow: View {
         guard let isPassing else {
             return ReaderDesignTokens.Color.primaryDark.opacity(0.74)
         }
-        return isPassing ? ReaderDesignTokens.Color.primary : SwiftUI.Color(red: 0.70, green: 0.42, blue: 0.12)
+        return isPassing ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.Semantic.warning
     }
 }
 
@@ -250,7 +250,9 @@ private struct NativeCoreEvidenceActionButton: View {
         Button(action: action) {
             HStack(spacing: ReaderDesignTokens.settingsRowGap) {
                 if isRunning {
-                    ProgressView()
+                    // demo `.fd-discover-bottom-loading i`：14×14 旋转圆，
+                    // 占位与 icon column 对齐。
+                    DemoLoadingSpinner(size: .inline)
                         .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
                 } else {
                     ReaderIcon(icon, size: 17, accessibilityLabel: title)
@@ -259,7 +261,7 @@ private struct NativeCoreEvidenceActionButton: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(isRunning ? "Running Host Request Loop" : title)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))

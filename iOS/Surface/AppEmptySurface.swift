@@ -3,38 +3,37 @@ import SwiftUI
 public struct AppEmptySurface: View {
     let title: String
     let message: String
-    let systemImage: String
+    let icon: ReaderAssetIcon
     let actionTitle: String?
     let onAction: (() -> Void)?
 
     public init(
         title: String,
         message: String,
-        systemImage: String = "doc.text",
+        icon: ReaderAssetIcon = .file,
         actionTitle: String? = nil,
         onAction: (() -> Void)? = nil
     ) {
         self.title = title
         self.message = message
-        self.systemImage = systemImage
+        self.icon = icon
         self.actionTitle = actionTitle
         self.onAction = onAction
     }
 
     public var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: systemImage)
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(.secondary)
+            ReaderIcon(icon, size: 48, accessibilityLabel: title)
+                .foregroundColor(ReaderDesignTokens.Color.muted)
 
             VStack(spacing: 8) {
                 Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
                 Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
@@ -42,14 +41,15 @@ public struct AppEmptySurface: View {
             if let actionTitle = actionTitle, let action = onAction {
                 Button(action: action) {
                     Text(actionTitle)
-                        .font(.body.weight(.medium))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                        .foregroundColor(.white)
+                        .frame(minWidth: 100, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+                        .background(Capsule().fill(ReaderDesignTokens.Color.primary))
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
                 .padding(.top, 8)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }

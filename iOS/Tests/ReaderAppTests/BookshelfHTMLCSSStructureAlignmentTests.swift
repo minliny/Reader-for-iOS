@@ -46,7 +46,7 @@ final class BookshelfHTMLCSSStructureAlignmentTests: XCTestCase {
         XCTAssertEqual(ReaderDesignTokens.continueActionButtonMinWidth, 74)
         XCTAssertEqual(ReaderDesignTokens.continueActionButtonMinHeight, 40)
         XCTAssertEqual(ReaderDesignTokens.continueCoverButtonWidth, 62)
-        XCTAssertEqual(ReaderDesignTokens.bookCoverAspectRatio, 4.0 / 5.0)
+        XCTAssertEqual(ReaderDesignTokens.bookCoverAspectRatio, 2.0 / 3.0)
     }
 
     func testBookGridTokensMatchDemoCSS() {
@@ -65,7 +65,7 @@ final class BookshelfHTMLCSSStructureAlignmentTests: XCTestCase {
     }
 
     func testBookCoverAndTextTokensMatchDemoCSS() {
-        XCTAssertEqual(ReaderDesignTokens.bookCoverAspectRatio, 4.0 / 5.0)
+        XCTAssertEqual(ReaderDesignTokens.bookCoverAspectRatio, 2.0 / 3.0)
         XCTAssertEqual(ReaderDesignTokens.bookCardTitleFontSize, 15)
         XCTAssertEqual(ReaderDesignTokens.bookCardMetaFontSize, 12)
         XCTAssertEqual(ReaderDesignTokens.bookCardTitleLineHeight, 1.22)

@@ -17,25 +17,27 @@ public struct ReaderTTSControlView: View {
                     ReaderIcon(.tts, size: ReaderDesignTokens.readerSessionCapsuleIconSize)
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     Text("TTS Player")
-                        .font(.system(size: 12, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
                     Spacer()
                     Text(stateLabel)
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
                 .frame(height: ReaderDesignTokens.readerSessionCapsuleHeight)
 
                 HStack(spacing: 8) {
-                    Slider(
+                    DemoRangeRail(
                         value: Binding(
                             get: { Double(player.speechRate) },
                             set: { player.speechRate = Float($0) }
                         ),
-                        in: 0.25...2.0,
-                        step: 0.25
+                        range: 0.25...2.0,
+                        step: 0.25,
+                        label: "朗读语速",
+                        valueText: String(format: "%.2fx", player.speechRate)
                     )
                     Text(String(format: "%.2fx", player.speechRate))
-                        .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black).monospacedDigit())
                         .frame(width: 48)
                 }
 

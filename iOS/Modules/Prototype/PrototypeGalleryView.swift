@@ -1,59 +1,114 @@
 import SwiftUI
 
 // MARK: - Prototype Gallery Catalog (38 entries, fixture-driven, debug-only)
+// 外壳已 demo 化：DemoBackScreen + ScrollView + ReaderCard entry list + .sheet(item:) detail。
+// 所有原型内部已去除 NavigationStack/List/Section/NavigationLink/SF Symbols/Form/GroupBox/LabeledContent/.borderedProminent/.bordered。
 
 public struct PrototypeGalleryView: View {
     @State private var selectedEntry: PrototypeEntry?
-    @State private var selectedTab: Tab = .bookshelf
 
     private let entries: [PrototypeEntry] = PrototypeGalleryView.allEntries
 
     public init() {}
 
     public var body: some View {
-        NavigationStack {
-            List {
-                ForEach(PrototypeGroup.allCases) { group in
-                    let groupEntries = entries.filter { $0.group == group }
-                    if !groupEntries.isEmpty {
-                        Section(group.rawValue) {
-                            ForEach(groupEntries) { entry in
-                                NavigationLink {
-                                    ScrollView {
-                                        entry.content()
-                                            .navigationTitle(entry.name)
-                                            .navigationBarTitleDisplayMode(.inline)
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(entry.name)
-                                            .font(ReaderTypography.listTitle)
-                                        if !entry.description.isEmpty {
-                                            Text(entry.description)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                }
+        DemoBackScreen(title: "[DEBUG] Prototype Gallery") {
+            ScrollView {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
+                    Text("38 个原型 · fixture-driven · 不接真实网络")
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
+                        .padding(.bottom, 4)
+
+                    ForEach(PrototypeGroup.allCases) { group in
+                        let groupEntries = entries.filter { $0.group == group }
+                        if !groupEntries.isEmpty {
+                            PrototypeGroupSection(group: group, entries: groupEntries) { entry in
+                                selectedEntry = entry
                             }
                         }
                     }
                 }
+                .padding(.horizontal, ReaderDesignTokens.demoContentHorizontalPadding)
+                .padding(.top, ReaderDesignTokens.demoContentVerticalPadding)
+                .padding(.bottom, ReaderDesignTokens.demoContentVerticalPadding)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .navigationTitle("Prototype Gallery")
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("[DEBUG] Prototype Gallery")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+            .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        }
+        .sheet(item: $selectedEntry) { entry in
+            PrototypeEntryDetailContainer(entry: entry)
+        }
+    }
+}
+
+private struct PrototypeGroupSection: View {
+    let group: PrototypeGroup
+    let entries: [PrototypeEntry]
+    let onSelect: (PrototypeEntry) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+            HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+                ReaderIcon(group.assetIcon, size: 18, accessibilityLabel: group.rawValue)
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                Text(group.rawValue)
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            }
+            .padding(.top, 8)
+
+            ForEach(entries) { entry in
+                Button {
+                    onSelect(entry)
+                } label: {
+                    ReaderCard {
+                        HStack(alignment: .top, spacing: ReaderDesignTokens.settingsRowGap) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(entry.name)
+                                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
+                                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                if !entry.description.isEmpty {
+                                    Text(entry.description)
+                                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                                        .foregroundStyle(ReaderDesignTokens.Color.muted)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            ReaderIcon(.chevron, size: 16, accessibilityLabel: "查看")
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
+                                .rotationEffect(.degrees(90))
+                        }
+                        .contentShape(Rectangle())
+                    }
                 }
+                .buttonStyle(DemoPressButtonStyle())
+                .accessibilityLabel(entry.name)
             }
         }
     }
 }
 
+private struct PrototypeEntryDetailContainer: View {
+    let entry: PrototypeEntry
+
+    var body: some View {
+        DemoBackScreen(title: entry.name) {
+            ScrollView {
+                entry.content()
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        }
+    }
+}
+
 extension PrototypeGalleryView {
+    /// 主底栏 4 Tab fixture（用于测试断言：不包含 阅读/搜索/设置）。
     enum Tab: String, CaseIterable {
         case bookshelf = "书架"
         case discover = "发现"
@@ -194,13 +249,121 @@ extension PrototypeGalleryView {
     ]
 }
 
+// MARK: - Demo Button Helpers (替换 .borderedProminent / .bordered)
+
+private struct DemoPrimaryActionButton: View {
+    let title: String
+    let icon: ReaderAssetIcon?
+    let action: () -> Void
+
+    init(_ title: String, icon: ReaderAssetIcon? = nil, action: @escaping () -> Void = {}) {
+        self.title = title
+        self.icon = icon
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon {
+                    ReaderIcon(icon, size: 16, accessibilityLabel: title)
+                }
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                    .lineLimit(1)
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+            .background(Capsule().fill(ReaderDesignTokens.Color.primary))
+        }
+        .buttonStyle(DemoPressButtonStyle())
+        .accessibilityLabel(title)
+    }
+}
+
+private struct DemoSecondaryActionButton: View {
+    let title: String
+    let icon: ReaderAssetIcon?
+    let action: () -> Void
+
+    init(_ title: String, icon: ReaderAssetIcon? = nil, action: @escaping () -> Void = {}) {
+        self.title = title
+        self.icon = icon
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon {
+                    ReaderIcon(icon, size: 16, accessibilityLabel: title)
+                }
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                    .lineLimit(1)
+            }
+            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
+            .background(
+                Capsule()
+                    .fill(ReaderDesignTokens.Color.surface)
+                    .overlay(Capsule().stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1))
+            )
+        }
+        .buttonStyle(DemoPressButtonStyle())
+        .accessibilityLabel(title)
+    }
+}
+
+/// `LabeledContent` 的 demo 替代。
+private struct PrototypeMetricRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+            Spacer()
+            Text(value)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+/// `GroupBox` 的 demo 替代。
+private struct PrototypeFieldGroup<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        ReaderCard {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 // MARK: - A. App Shell Prototype
 
 struct AppShellPrototype: View {
     @State private var selectedTab = 0
-    private let tabs: [(String, String)] = [
-        ("books.vertical", "书架"), ("safari", "发现"),
-        ("doc.text.magnifyingglass", "书源"), ("person.circle", "我的")
+    private let tabs: [(ReaderAssetIcon, String)] = [
+        (.bookshelf, "书架"), (.discover, "发现"),
+        (.source, "书源"), (.people, "我的")
     ]
 
     var body: some View {
@@ -212,18 +375,18 @@ struct AppShellPrototype: View {
                         selectedTab = idx
                     } label: {
                         VStack(spacing: 4) {
-                            Image(systemName: tabs[idx].0)
-                                .font(.system(size: 22))
+                            ReaderIcon(tabs[idx].0, size: 22, accessibilityLabel: tabs[idx].1)
                             Text(tabs[idx].1)
                                 .font(ReaderTypography.controlLabel)
                         }
-                        .foregroundColor(selectedTab == idx ? ReaderColors.primary : ReaderColors.controlInk)
+                        .foregroundColor(selectedTab == idx ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.controlInk)
                         .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(DemoPressButtonStyle())
                 }
             }
             .frame(height: ReaderControlMetrics.bottomBarHeight)
-            .background(ReaderColors.bottomBarBg)
+            .background(ReaderDesignTokens.Color.bottomBarBg)
             .overlay(Divider().opacity(0.3), alignment: .top)
 
             // 内容区
@@ -244,27 +407,70 @@ struct AppShellPrototype: View {
 /// 「我的」Tab 内容
 struct MineTabPrototype: View {
     var body: some View {
-        List {
-            Section {
-                NavigationLink(destination: { AnyView(GlobalSettingsPrototype()) }) {
-                    Label("设置", systemImage: "gearshape")
+        ScrollView {
+            VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                PrototypeSettingsGroup(header: "个人") {
+                    PrototypeNavRow(icon: .gear, title: "设置")
+                    PrototypeNavRow(icon: .clock, title: "阅读记录")
+                    PrototypeNavRow(icon: .activity, title: "阅读统计")
+                    PrototypeNavRow(icon: .bookmark, title: "收藏/书签")
                 }
-                Label("阅读记录", systemImage: "clock")
-                Label("阅读统计", systemImage: "chart.bar")
-                Label("收藏/书签", systemImage: "bookmark")
-            } header: { Text("个人") }
+                PrototypeSettingsGroup(header: "备份与同步") {
+                    PrototypeNavRow(icon: .cloud, title: "WebDAV 备份")
+                    PrototypeNavRow(icon: .sync, title: "同步进度")
+                    PrototypeNavRow(icon: .storage, title: "备份设置")
+                }
+            }
+            .padding(.horizontal, ReaderDesignTokens.demoContentHorizontalPadding)
+            .padding(.vertical, ReaderDesignTokens.demoContentVerticalPadding)
+        }
+        .background(ReaderDesignTokens.Color.paperSolid)
+    }
+}
 
-            Section {
-                NavigationLink(destination: { AnyView(WebDAVConfigPrototype()) }) {
-                    Label("WebDAV 备份", systemImage: "icloud")
+private struct PrototypeNavRow: View {
+    let icon: ReaderAssetIcon
+    let title: String
+
+    var body: some View {
+        HStack(spacing: ReaderDesignTokens.settingsRowGap) {
+            ReaderIcon(icon, size: 18, accessibilityLabel: title)
+                .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            Text(title)
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            Spacer()
+            ReaderIcon(.chevron, size: 14, accessibilityLabel: "查看")
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+                .rotationEffect(.degrees(90))
+        }
+        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+        .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
+    }
+}
+
+private struct PrototypeSettingsGroup<Content: View>: View {
+    let header: String
+    let content: Content
+
+    init(header: String, @ViewBuilder content: () -> Content) {
+        self.header = header
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(header)
+                .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+                .padding(.bottom, 6)
+            ReaderCard {
+                VStack(spacing: 0) {
+                    content
                 }
-                NavigationLink(destination: { AnyView(SyncProgressPrototype()) }) {
-                    Label("同步进度", systemImage: "arrow.triangle.2.circlepath")
-                }
-                NavigationLink(destination: { AnyView(BackupSettingsPrototype()) }) {
-                    Label("备份设置", systemImage: "externaldrive")
-                }
-            } header: { Text("备份与同步") }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }
@@ -279,38 +485,40 @@ struct BookshelfCoverPrototype: View {
         VStack(spacing: 0) {
             // 标题栏
             HStack {
-                Text("书架").font(ReaderTypography.pageTitle).foregroundColor(ReaderColors.controlInk)
+                Text("书架").font(ReaderTypography.pageTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
                 Spacer()
-                Image(systemName: "square.grid.2x2").font(.title3).foregroundColor(ReaderColors.primary)
-                Image(systemName: "magnifyingglass").font(.title3).foregroundColor(ReaderColors.controlInk).padding(.leading, 12)
-                Image(systemName: "ellipsis").font(.title3).foregroundColor(ReaderColors.controlInk).padding(.leading, 4)
+                ReaderIcon(.grid, size: 22, accessibilityLabel: "封面模式")
+                    .foregroundColor(ReaderDesignTokens.Color.primary)
+                ReaderIcon(.search, size: 22, accessibilityLabel: "搜索")
+                    .foregroundColor(ReaderDesignTokens.Color.controlInk).padding(.leading, 12)
+                ReaderIcon(.more, size: 22, accessibilityLabel: "更多")
+                    .foregroundColor(ReaderDesignTokens.Color.controlInk).padding(.leading, 4)
             }.padding(.horizontal, 16).padding(.top, 8)
 
             ScrollView {
                 LazyVGrid(columns: columns, spacing: ReaderSpacing.lg) {
                     ForEach(books) { book in
                         VStack(alignment: .leading, spacing: 4) {
-                            Image(systemName: book.cover)
-                                .font(.system(size: 32))
+                            ReaderIcon(.book, size: 32, accessibilityLabel: book.title)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 100)
-                                .background(ReaderColors.floatingControlBg)
+                                .background(ReaderDesignTokens.Color.floatingControlBg)
                                 .clipShape(ReaderShapes.card)
 
                             Text(book.title).font(ReaderTypography.listTitle)
-                                .foregroundColor(ReaderColors.controlInk).lineLimit(1)
-                            Text(book.author).font(.caption).foregroundStyle(.secondary)
-                            ProgressView(value: book.progress)
-                                .tint(ReaderColors.primary)
+                                .foregroundColor(ReaderDesignTokens.Color.controlInk).lineLimit(1)
+                            Text(book.author).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                            // demo `.fd-restore-progress-meter`：8px pill。
+                            DemoRestoreProgressMeter(progress: book.progress, tint: ReaderDesignTokens.Color.primary)
                             Text("\(Int(book.progress * 100))%")
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
                         }
                     }
                 }
                 .padding(16)
             }
         }
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
@@ -320,58 +528,65 @@ struct BookshelfListPrototype: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("书架").font(ReaderTypography.pageTitle).foregroundColor(ReaderColors.controlInk)
+                Text("书架").font(ReaderTypography.pageTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
                 Spacer()
-                Image(systemName: "list.bullet").font(.title3).foregroundColor(ReaderColors.primary)
+                ReaderIcon(.list, size: 22, accessibilityLabel: "列表模式")
+                    .foregroundColor(ReaderDesignTokens.Color.primary)
             }.padding(.horizontal, 16).padding(.top, 8)
 
-            List(books) { book in
-                HStack(spacing: 12) {
-                    Image(systemName: book.cover).font(.title2)
-                        .frame(width: 48, height: 64)
-                        .background(ReaderColors.floatingControlBg)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(books) { book in
+                        HStack(spacing: 12) {
+                            ReaderIcon(.book, size: 22, accessibilityLabel: book.title)
+                                .frame(width: 48, height: 64)
+                                .background(ReaderDesignTokens.Color.floatingControlBg)
+                                .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(book.title).font(ReaderTypography.listTitle)
-                                .foregroundColor(ReaderColors.controlInk)
-                            Spacer()
-                            Text(book.group).font(.caption2)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(ReaderColors.floatingControlBg)
-                                .clipShape(Capsule())
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(book.title).font(ReaderTypography.listTitle)
+                                        .foregroundColor(ReaderDesignTokens.Color.controlInk)
+                                    Spacer()
+                                    Text(book.group).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background(ReaderDesignTokens.Color.floatingControlBg)
+                                        .clipShape(Capsule())
+                                }
+                                Text(book.author).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                                // demo `.fd-restore-progress-meter`：8px pill。
+                                DemoRestoreProgressMeter(progress: book.progress, tint: ReaderDesignTokens.Color.primary)
+                                HStack {
+                                    Text(book.lastChapter).font(.system(size: ReaderDesignTokens.settingsRowValueFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).lineLimit(1)
+                                    Spacer()
+                                    Text("\(Int(book.progress * 100))%").font(.system(size: ReaderDesignTokens.settingsRowValueFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                                }
+                            }
                         }
-                        Text(book.author).font(.caption).foregroundStyle(.secondary)
-                        ProgressView(value: book.progress).tint(ReaderColors.primary)
-                        HStack {
-                            Text(book.lastChapter).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                            Spacer()
-                            Text("\(Int(book.progress * 100))%").font(.caption2).foregroundStyle(.secondary)
-                        }
+                        .padding(.vertical, 4)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(16)
             }
-            .listStyle(.plain)
         }
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
 struct BookshelfEmptyPrototype: View {
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "books.vertical").font(.system(size: 48)).foregroundStyle(.secondary)
-            Text("书架空空").font(.title2).fontWeight(.semibold)
-            Text("去搜索或发现页面添加书籍吧").font(.subheadline).foregroundStyle(.secondary)
+            ReaderIcon(.bookshelf, size: 48, accessibilityLabel: "书架空空")
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+            Text("书架空空").font(.system(size: ReaderDesignTokens.readerOverlayLargeTitleFontSize, weight: .semibold))
+            Text("去搜索或发现页面添加书籍吧").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             HStack(spacing: 16) {
-                Button("添加书籍") {}.buttonStyle(.borderedProminent).tint(ReaderColors.primary)
-                Button("导入书源") {}.buttonStyle(.bordered)
+                DemoPrimaryActionButton("添加书籍", icon: .add)
+                DemoSecondaryActionButton("导入书源", icon: .upload)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
@@ -382,21 +597,23 @@ struct SearchHomePrototype: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                ReaderIcon(.search, size: 18, accessibilityLabel: "搜索")
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                 TextField("搜索书名或作者", text: $query)
                     .font(ReaderTypography.readerBody)
             }
             .frame(height: 44).padding(.horizontal, 12)
-            .background(ReaderColors.quickButtonBg)
+            .background(ReaderDesignTokens.Color.metaBg)
             .clipShape(Capsule())
             .padding(.horizontal, 16)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("搜索历史").font(ReaderTypography.listTitle).foregroundColor(ReaderColors.controlInk)
+                Text("搜索历史").font(ReaderTypography.listTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
                 ForEach(PrototypeFixtures.searchHistory, id: \.self) { item in
                     HStack {
-                        Image(systemName: "clock").font(.caption).foregroundStyle(.secondary)
-                        Text(item).font(.subheadline).foregroundColor(ReaderColors.bodyText)
+                        ReaderIcon(.clock, size: 14, accessibilityLabel: "历史")
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
+                        Text(item).font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundColor(ReaderDesignTokens.Color.ink)
                         Spacer()
                     }.padding(.vertical, 4)
                 }
@@ -404,58 +621,66 @@ struct SearchHomePrototype: View {
             Spacer()
         }
         .padding(.top, 16)
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
 struct SearchResultsPrototype: View {
     let results = PrototypeFixtures.searchResults
     var body: some View {
-        List(results) { r in
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(r.title).font(ReaderTypography.listTitle).foregroundColor(ReaderColors.controlInk)
-                    Spacer()
-                    Text("\(r.sourceCount) 个书源").font(.caption2).foregroundStyle(ReaderColors.primary)
-                }
-                Text(r.author).font(.caption).foregroundStyle(.secondary)
-                Text(r.intro).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                HStack {
-                    Text("来源: \(r.sourceName)").font(.caption2).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("加入书架") {}.font(.caption).buttonStyle(.bordered).tint(ReaderColors.primary).controlSize(.small)
+        ScrollView {
+            VStack(spacing: 8) {
+                ForEach(results) { r in
+                    ReaderCard {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(r.title).font(ReaderTypography.listTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                                Spacer()
+                                Text("\(r.sourceCount) 个书源").font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize)).foregroundStyle(ReaderDesignTokens.Color.primary)
+                            }
+                            Text(r.author).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                            Text(r.intro).font(.system(size: ReaderDesignTokens.discoverBookRowBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).lineLimit(2)
+                            HStack {
+                                Text("来源: \(r.sourceName)").font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                                Spacer()
+                                DemoPrimaryActionButton("加入书架", icon: .add)
+                                    .frame(maxWidth: 120)
+                            }
+                        }
+                    }
                 }
             }
-            .padding(.vertical, 4)
+            .padding(16)
         }
-        .listStyle(.plain)
     }
 }
 
 struct SearchEmptyPrototype: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass").font(.system(size: 48)).foregroundStyle(.secondary)
-            Text("没有找到结果").font(.title3).fontWeight(.semibold)
+            ReaderIcon(.search, size: 48, accessibilityLabel: "没有找到结果")
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+            Text("没有找到结果").font(.system(size: ReaderDesignTokens.continueCardTitleFontSize, weight: .semibold))
             Text("试试换个关键词，或检查书源是否已启用")
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
 struct SearchErrorPrototype: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 48)).foregroundStyle(.orange)
-            Text("搜索失败").font(.title3).fontWeight(.semibold)
-            Text("千帆小说：连接超时").font(.subheadline).foregroundStyle(.secondary)
-            Button("重试") {}.buttonStyle(.borderedProminent).tint(ReaderColors.primary)
-            Text("书源异常，建议检查书源状态或切换书源").font(.caption).foregroundStyle(.secondary)
+            ReaderIcon(.warning, size: 48, accessibilityLabel: "搜索失败")
+                .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+            Text("搜索失败").font(.system(size: ReaderDesignTokens.continueCardTitleFontSize, weight: .semibold))
+            Text("千帆小说：连接超时").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+            DemoPrimaryActionButton("重试", icon: .refresh)
+            Text("书源异常，建议检查书源状态或切换书源").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
@@ -465,39 +690,34 @@ struct BookDetailPrototype: View {
         ScrollView {
             VStack(spacing: 16) {
                 HStack(alignment: .top, spacing: 16) {
-                    Image(systemName: detail.cover).font(.system(size: 48))
+                    ReaderIcon(.book, size: 48, accessibilityLabel: detail.title)
                         .frame(width: 96, height: 128)
-                        .background(ReaderColors.floatingControlBg)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .background(ReaderDesignTokens.Color.floatingControlBg)
+                        .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(detail.title).font(.title2).fontWeight(.bold).foregroundColor(ReaderColors.controlInk)
-                        Text(detail.author).font(.subheadline).foregroundStyle(.secondary)
+                        Text(detail.title).font(.system(size: ReaderDesignTokens.readerOverlayLargeTitleFontSize, weight: .bold)).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                        Text(detail.author).font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
                         HStack {
-                            Image(systemName: "link").font(.caption2)
-                            Text(detail.sourceName).font(.caption).foregroundStyle(ReaderColors.primary)
+                            ReaderIcon(.link, size: 12, accessibilityLabel: "书源")
+                            Text(detail.sourceName).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.primary)
                         }
-                        Text("更新: \(detail.lastUpdated)").font(.caption2).foregroundStyle(.secondary)
-                        Text("共 \(detail.tocCount) 章").font(.caption2).foregroundStyle(.secondary)
+                        Text("更新: \(detail.lastUpdated)").font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                        Text("共 \(detail.tocCount) 章").font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
                     }
                 }
                 .padding(.horizontal, 16)
 
-                Text(detail.intro).font(.subheadline).foregroundColor(ReaderColors.bodyText)
+                Text(detail.intro).font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize)).foregroundColor(ReaderDesignTokens.Color.ink)
                     .padding(.horizontal, 16)
 
                 HStack(spacing: 12) {
-                    Button(action: {}) {
-                        Label("开始阅读", systemImage: "book").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(ReaderColors.primary)
-                    Button(action: {}) {
-                        Label("加入书架", systemImage: "books.vertical")
-                    }.buttonStyle(.bordered)
+                    DemoPrimaryActionButton("开始阅读", icon: .bookOpen)
+                    DemoSecondaryActionButton("加入书架", icon: .bookshelf)
                 }.padding(.horizontal, 16)
             }
             .padding(.top, 16)
         }
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
@@ -506,33 +726,32 @@ struct BookDetailTOCPrototype: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("目录预览").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
+                Text("目录预览").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
                 Spacer()
-                Text("共 1205 章").font(.caption).foregroundStyle(.secondary)
-                Image(systemName: "arrow.up.arrow.down").font(.caption)
+                Text("共 1205 章").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                ReaderIcon(.sort, size: 14, accessibilityLabel: "排序")
             }
 
             ForEach(chapters.prefix(8)) { item in
                 HStack {
                     if item.isCurrent {
-                        Circle().fill(ReaderColors.primary).frame(width: 6, height: 6)
+                        Circle().fill(ReaderDesignTokens.Color.primary).frame(width: 6, height: 6)
                     } else {
                         Circle().fill(Color.clear).frame(width: 6, height: 6)
                     }
                     Text(item.title)
-                        .font(.subheadline)
-                        .foregroundColor(item.isCurrent ? ReaderColors.primary : ReaderColors.bodyText)
+                        .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize))
+                        .foregroundColor(item.isCurrent ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.ink)
                         .padding(.leading, CGFloat(item.level) * 16)
                     if item.hasBookmark {
-                        Image(systemName: "bookmark.fill").font(.caption2).foregroundStyle(.orange)
+                        ReaderIcon(.bookmark, size: 12, accessibilityLabel: "已加书签")
+                            .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
                     }
                     Spacer()
                 }
             }
 
-            Button("查看完整目录") {}.font(.subheadline).frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(ReaderColors.floatingControlBg).clipShape(Capsule())
+            DemoSecondaryActionButton("查看完整目录", icon: .list)
         }
         .padding()
     }
@@ -547,8 +766,8 @@ struct ReaderBasePrototype: View {
 
     var colors: (bg: Color, text: Color, ink: Color, pri: Color, float: Color, quick: Color, bar: Color) {
         isNight
-        ? (ReaderColors.nightPaperBg, ReaderColors.nightBodyText, ReaderColors.nightControlInk, ReaderColors.nightPrimary, ReaderColors.nightFloatingControlBg, ReaderColors.nightQuickButtonBg, ReaderColors.nightBottomBarBg)
-        : (ReaderColors.paperBg, ReaderColors.bodyText, ReaderColors.controlInk, ReaderColors.primary, ReaderColors.floatingControlBg, ReaderColors.quickButtonBg, ReaderColors.bottomBarBg)
+        ? (ReaderDesignTokens.Color.paperSolid, ReaderDesignTokens.Color.ink, ReaderDesignTokens.Color.controlInk, ReaderDesignTokens.Color.primary, ReaderDesignTokens.Color.floatingControlBg, ReaderDesignTokens.Color.metaBg, ReaderDesignTokens.Color.bottomBarBg)
+        : (ReaderDesignTokens.Color.paperSolid, ReaderDesignTokens.Color.ink, ReaderDesignTokens.Color.controlInk, ReaderDesignTokens.Color.primary, ReaderDesignTokens.Color.floatingControlBg, ReaderDesignTokens.Color.metaBg, ReaderDesignTokens.Color.bottomBarBg)
     }
 
     var body: some View {
@@ -579,8 +798,7 @@ struct ReaderBasePrototype: View {
                     .padding(.top, 8).padding(.leading, 20)
                 // 右上：电量
                 HStack(spacing: 2) {
-                    Image(systemName: "battery.75percent")
-                        .font(.caption2)
+                    ReaderIcon(.battery, size: 14, accessibilityLabel: "电量")
                     Text(PrototypeFixtures.batteryText)
                         .font(ReaderTypography.controlLabel)
                 }
@@ -607,24 +825,25 @@ struct ReaderBasePrototype: View {
             // Quick actions (no text labels)
             VStack { Spacer()
                 HStack(spacing: ReaderControlMetrics.quickCircleGap) {
-                    QuickButton(icon: "magnifyingglass", label: "搜索本章", ink: colors.ink, bg: colors.quick)
-                    QuickButton(icon: "arrow.triangle.2.circlepath", label: "自动翻页", ink: colors.ink, bg: colors.quick)
-                    QuickButton(icon: "text.magnifyingglass", label: "内容替换", ink: colors.ink, bg: colors.quick)
-                    QuickButton(icon: isNight ? "sun.max.fill" : "moon.fill", label: "夜间/日间", ink: colors.ink, bg: colors.quick)
+                    QuickButton(icon: .readerContentSearch, label: "搜索本章", ink: colors.ink, bg: colors.quick)
+                    QuickButton(icon: .readerAutoPage, label: "自动翻页", ink: colors.ink, bg: colors.quick)
+                    QuickButton(icon: .readerContentReplace, label: "内容替换", ink: colors.ink, bg: colors.quick)
+                    QuickButton(icon: isNight ? .sun : .nightMode, label: "夜间/日间", ink: colors.ink, bg: colors.quick)
                 }
                 .padding(.bottom, 8)
                 // Page control (本章内上一页/下一页)
                 HStack {
-                    Image(systemName: "chevron.left").foregroundColor(colors.pri).font(.title3)
-                        .accessibilityLabel("本章内上一页")
+                    ReaderIcon(.chevronLeft, size: 18, accessibilityLabel: "本章内上一页")
+                        .foregroundColor(colors.pri)
                     ZStack(alignment: .leading) {
                         Capsule().fill(colors.ink.opacity(0.16)).frame(height: 4)
                         Capsule().fill(colors.pri).frame(width: 342 * pageProgress, height: 4)
                         Circle().fill(colors.pri).frame(width: 16, height: 16)
                             .offset(x: 342 * pageProgress - 8)
                     }
-                    Image(systemName: "chevron.right").foregroundColor(colors.pri).font(.title3)
-                        .accessibilityLabel("本章内下一页")
+                    ReaderIcon(.chevron, size: 18, accessibilityLabel: "本章内下一页")
+                        .foregroundColor(colors.pri)
+                        .rotationEffect(.degrees(180))
                 }
                 .frame(width: ReaderControlMetrics.pageControlWidth, height: ReaderControlMetrics.pageControlHeight)
                 .padding(.horizontal, 24)
@@ -636,30 +855,26 @@ struct ReaderBasePrototype: View {
             // Bottom bar (目录/朗读/界面/设置 — 不含 WebDAV/书源/RSS)
             VStack { Spacer()
                 HStack(spacing: 0) {
-                    BottomBarButton(icon: "list.bullet", label: "目录", ink: colors.ink)
-                    BottomBarButton(icon: "waveform", label: "朗读", ink: colors.ink)
-                    BottomBarButton(icon: "paintpalette.fill", label: "界面", ink: colors.ink)
-                    BottomBarButton(icon: "gearshape", label: "设置", ink: colors.ink)
+                    BottomBarButton(icon: .readerModuleDirectory, label: "目录", ink: colors.ink)
+                    BottomBarButton(icon: .readerModuleTts, label: "朗读", ink: colors.ink)
+                    BottomBarButton(icon: .readerModuleAppearance, label: "界面", ink: colors.ink)
+                    BottomBarButton(icon: .readerModuleSettings, label: "设置", ink: colors.ink)
                 }
                 .frame(height: ReaderControlMetrics.bottomBarHeight)
                 .background(colors.bar)
             }
         }
         .overlay(alignment: .top) {
-            // Brightness — compact horizontal control row, limited height
-            HStack(spacing: 10) {
-                Image(systemName: "sun.min")
-                    .font(.caption).foregroundColor(colors.ink)
-                Slider(value: $brightness, in: 0...1)
-                    .tint(colors.pri)
-                Image(systemName: "sun.max.fill")
-                    .font(.caption).foregroundColor(colors.ink)
-                Text("系统")
-                    .font(.system(size: 11)).foregroundColor(colors.ink.opacity(0.6))
-            }
-            .frame(height: 44)
+            // Brightness — demo `.fd-reader-step-row` 风格 +/- 步进（非系统 Slider）
+            DemoSliderControl(
+                title: "亮度",
+                value: $brightness,
+                range: 0...1,
+                step: 0.1,
+                valueFormatter: { String(format: "%.0f%%", $0 * 100) }
+            )
             .padding(.horizontal, 16)
-            .background(colors.float, in: RoundedRectangle(cornerRadius: 12))
+            .background(colors.float, in: RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
             .padding(.horizontal, 20)
             .padding(.top, 56 + 48 + 8)  // topBar + metaRow + gap
         }
@@ -670,46 +885,49 @@ struct ReaderBaseTopBar: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Image(systemName: "chevron.left").font(.title3)
-                    .accessibilityLabel("返回").foregroundColor(ReaderColors.controlInk)
+                ReaderIcon(.chevronLeft, size: 18, accessibilityLabel: "返回")
+                    .foregroundColor(ReaderDesignTokens.Color.controlInk)
                 Spacer()
                 Text(PrototypeFixtures.bookDetail.title)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(ReaderColors.controlInk)
+                    .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .semibold))
+                    .foregroundColor(ReaderDesignTokens.Color.controlInk)
                 Spacer()
                 HStack(spacing: 16) {
-                    Image(systemName: "arrow.clockwise").accessibilityLabel("刷新当前章节")
-                    Image(systemName: "arrow.left.arrow.right").accessibilityLabel("换源")
-                    Image(systemName: "ellipsis").accessibilityLabel("更多操作")
+                    ReaderIcon(.refresh, size: 18, accessibilityLabel: "刷新当前章节")
+                    ReaderIcon(.sourceSwitch, size: 18, accessibilityLabel: "换源")
+                    ReaderIcon(.more, size: 18, accessibilityLabel: "更多操作")
                 }
-                .foregroundColor(ReaderColors.controlInk)
+                .foregroundColor(ReaderDesignTokens.Color.controlInk)
             }
             .frame(height: ReaderControlMetrics.topBarHeight)
             .padding(.horizontal, 16)
-            .background(ReaderColors.softTopBg)
+            .background(ReaderDesignTokens.Color.readerTopBackground)
 
             HStack {
                 HStack(spacing: 4) {
-                    Image(systemName: "link").font(.caption2)
-                    Text(PrototypeFixtures.bookDetail.sourceName).font(.caption)
+                    ReaderIcon(.link, size: 12, accessibilityLabel: "书源")
+                    Text(PrototypeFixtures.bookDetail.sourceName).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
                 }
-                .foregroundColor(ReaderColors.primary)
+                .foregroundColor(ReaderDesignTokens.Color.primary)
                 .padding(.horizontal, 10).padding(.vertical, 2)
-                .overlay(Capsule().stroke(ReaderColors.primary, lineWidth: 1))
+                .overlay(Capsule().stroke(ReaderDesignTokens.Color.primary, lineWidth: 1))
                 Spacer()
-                Text(PrototypeFixtures.chapterTitle).font(.caption).foregroundStyle(.secondary)
+                Text(PrototypeFixtures.chapterTitle).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             }
             .frame(height: ReaderControlMetrics.metaRowHeight)
             .padding(.horizontal, 16)
-            .background(ReaderColors.metaBg)
+            .background(ReaderDesignTokens.Color.metaBg)
         }
     }
 }
 
 struct QuickButton: View {
-    let icon: String; let label: String; let ink: Color; let bg: Color
+    let icon: ReaderAssetIcon
+    let label: String
+    let ink: Color
+    let bg: Color
     var body: some View {
-        Image(systemName: icon).font(.system(size: 20))
+        ReaderIcon(icon, size: 20, accessibilityLabel: label)
             .frame(width: ReaderControlMetrics.quickCircleSize, height: ReaderControlMetrics.quickCircleSize)
             .background(bg).clipShape(Circle()).foregroundColor(ink)
             .accessibilityLabel(label)
@@ -717,10 +935,12 @@ struct QuickButton: View {
 }
 
 struct BottomBarButton: View {
-    let icon: String; let label: String; let ink: Color
+    let icon: ReaderAssetIcon
+    let label: String
+    let ink: Color
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 20)).foregroundColor(ink)
+            ReaderIcon(icon, size: 20, accessibilityLabel: label).foregroundColor(ink)
             Text(label).font(ReaderTypography.controlLabel).foregroundColor(ink)
         }
         .frame(maxWidth: .infinity)
@@ -735,35 +955,39 @@ struct ReaderSearchOverlayPrototype: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("搜索本章").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
+                Text("搜索本章").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
                 Spacer()
-                Image(systemName: "xmark").foregroundColor(ReaderColors.controlInk)
+                ReaderIcon(.close, size: 18, accessibilityLabel: "关闭")
+                    .foregroundColor(ReaderDesignTokens.Color.controlInk)
             }
             HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                ReaderIcon(.search, size: 16, accessibilityLabel: "搜索")
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                 TextField("输入关键词", text: $searchText)
             }
             .frame(height: 42).padding(.horizontal, 12)
-            .background(ReaderColors.quickButtonBg).clipShape(RoundedRectangle(cornerRadius: 14))
+            .background(ReaderDesignTokens.Color.metaBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
 
             VStack(spacing: 8) {
                 HStack {
-                    Text("找到 3 处匹配").font(.caption).foregroundStyle(.secondary)
+                    Text("找到 3 处匹配").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
                     Spacer()
                     HStack(spacing: 16) {
-                        Image(systemName: "chevron.up").accessibilityLabel("上一个匹配")
-                        Image(systemName: "chevron.down").accessibilityLabel("下一个匹配")
+                        ReaderIcon(.chevron, size: 14, accessibilityLabel: "上一个匹配")
+                            .rotationEffect(.degrees(-90))
+                        ReaderIcon(.chevron, size: 14, accessibilityLabel: "下一个匹配")
+                            .rotationEffect(.degrees(90))
                     }
                 }
                 Text("...韩立，天色不早了，你怎么还在**写字**？...")
-                    .font(.subheadline).foregroundColor(ReaderColors.bodyText)
+                    .font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize)).foregroundColor(ReaderDesignTokens.Color.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
-                    .background(ReaderColors.floatingControlBgAlt).clipShape(RoundedRectangle(cornerRadius: 8))
+                    .background(ReaderDesignTokens.Color.floatingControlBgAlt).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
             }
         }
         .padding(16)
-        .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 22))
+        .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xl))
     }
 }
 
@@ -772,24 +996,21 @@ struct ReaderAutoScrollOverlayPrototype: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("自动翻页").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
-                Spacer(); Image(systemName: "xmark")
+                Text("自动翻页").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                Spacer()
+                ReaderIcon(.close, size: 18, accessibilityLabel: "关闭")
             }
             HStack {
                 ForEach(["滚动", "覆盖", "仿真"], id: \.self) { mode in
-                    Text(mode).font(.caption).padding(.horizontal, 16).padding(.vertical, 6)
-                        .background(ReaderColors.quickButtonBg).clipShape(Capsule())
+                    Text(mode).font(.system(size: ReaderDesignTokens.chipFontSize)).padding(.horizontal, 16).padding(.vertical, 6)
+                        .background(ReaderDesignTokens.Color.metaBg).clipShape(Capsule())
                 }
             }
-            VStack(spacing: 4) {
-                Text("翻页速度").font(.caption).foregroundStyle(.secondary)
-                Slider(value: $speed).tint(ReaderColors.primary)
-            }
-            Button(action: {}) { Label("开始", systemImage: "play.fill").frame(maxWidth: .infinity) }
-                .buttonStyle(.borderedProminent).tint(ReaderColors.primary).controlSize(.large)
+            DemoSliderControl(title: "翻页速度", value: $speed, range: 0...1, step: 0.1)
+            DemoPrimaryActionButton("开始", icon: .play)
         }
         .padding(16)
-        .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 22))
+        .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xl))
     }
 }
 
@@ -798,24 +1019,25 @@ struct ReaderReplaceOverlayPrototype: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("内容替换").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
-                Spacer(); Image(systemName: "xmark")
+                Text("内容替换").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                Spacer()
+                ReaderIcon(.close, size: 18, accessibilityLabel: "关闭")
             }
-            Text("仅显示当前书籍匹配规则").font(.caption).foregroundStyle(.secondary)
+            Text("仅显示当前书籍匹配规则").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             ForEach(rules) { rule in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(rule.pattern) → \(rule.replacement)").font(.subheadline).foregroundColor(ReaderColors.controlInk)
+                        Text("\(rule.pattern) → \(rule.replacement)").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundColor(ReaderDesignTokens.Color.controlInk)
                     }
                     Spacer()
-                    Toggle("", isOn: .constant(rule.enabled)).tint(ReaderColors.primary)
+                    DemoSettingsSwitch(isOn: rule.enabled)
                 }
-                .padding(10).background(ReaderColors.quickButtonBg).clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(10).background(ReaderDesignTokens.Color.metaBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
             }
-            Button("+ 添加规则") {}.font(.subheadline)
+            DemoSecondaryActionButton("+ 添加规则", icon: .add)
         }
         .padding(16)
-        .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 22))
+        .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xl))
     }
 }
 
@@ -825,25 +1047,24 @@ struct ReaderNightStatePrototype: View {
             ReaderBasePrototype(isNight: true)
             // Night toast (not a dialog)
             Text("已切换至夜间模式")
-                .font(.caption).foregroundColor(ReaderColors.nightControlInk)
+                .font(.system(size: ReaderDesignTokens.chipFontSize)).foregroundColor(ReaderDesignTokens.Color.controlInk)
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(ReaderColors.nightFloatingControlBgAlt).clipShape(Capsule())
+                .background(ReaderDesignTokens.Color.floatingControlBgAlt).clipShape(Capsule())
                 .offset(y: -100)
         }
     }
 }
 
 struct ReaderDirectoryOverlayPrototype: View {
-    @State private var tab = 0
+    @State private var tab: DemoTocSwitchRow.Tab = .toc
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("目录/书签").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
-                Spacer(); Image(systemName: "xmark")
+                Text("目录/书签").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                Spacer()
+                ReaderIcon(.close, size: 18, accessibilityLabel: "关闭")
             }
-            Picker("", selection: $tab) {
-                Text("目录").tag(0); Text("书签").tag(1)
-            }.pickerStyle(.segmented)
+            DemoTocSwitchRow(selection: $tab)
 
             ZStack(alignment: .trailing) {
                 ScrollView {
@@ -851,33 +1072,34 @@ struct ReaderDirectoryOverlayPrototype: View {
                         ForEach(PrototypeFixtures.tocItems) { item in
                             HStack(spacing: 4) {
                                 if item.isCurrent {
-                                    Circle().fill(ReaderColors.primary).frame(width: 6, height: 6)
+                                    Circle().fill(ReaderDesignTokens.Color.primary).frame(width: 6, height: 6)
                                 } else { Spacer().frame(width: 6) }
                                 Text(item.title)
-                                    .font(.subheadline)
-                                    .foregroundColor(item.isCurrent ? ReaderColors.primary : ReaderColors.bodyText)
+                                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize))
+                                    .foregroundColor(item.isCurrent ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.ink)
                                     .padding(.leading, CGFloat(item.level) * 14)
                                 if item.hasBookmark {
-                                    Image(systemName: "bookmark.fill").font(.caption2).foregroundStyle(.orange)
+                                    ReaderIcon(.bookmark, size: 12, accessibilityLabel: "已加书签")
+                                        .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
                                 }
                                 Spacer()
                             }
                             .padding(.vertical, 4).padding(.horizontal, 8)
-                            .background(item.isCurrent ? ReaderColors.primary.opacity(0.08) : .clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .background(item.isCurrent ? ReaderDesignTokens.Color.primary.opacity(0.08) : .clear)
+                            .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md))
                         }
                     }.padding(.trailing, 8)
                 }
                 // 右侧常驻进度条
-                Capsule().fill(ReaderColors.mutedTrack).frame(width: 4)
+                Capsule().fill(ReaderDesignTokens.Color.muted.opacity(0.16)).frame(width: 4)
                     .overlay(alignment: .top) {
-                        Capsule().fill(ReaderColors.primary).frame(height: 30)
+                        Capsule().fill(ReaderDesignTokens.Color.primary).frame(height: 30)
                     }
                     .frame(maxHeight: .infinity).padding(.vertical, 4)
             }
         }
         .padding(16)
-        .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 22))
+        .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xl))
     }
 }
 
@@ -886,22 +1108,24 @@ struct ReaderTTSOverlayPrototype: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("朗读").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
-                Spacer(); Image(systemName: "xmark")
+                Text("朗读").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                Spacer()
+                ReaderIcon(.close, size: 18, accessibilityLabel: "关闭")
             }
-            GroupBox("语音引擎") {
+            PrototypeFieldGroup("语音引擎") {
                 HStack {
-                    Text("系统默认").font(.subheadline).foregroundColor(ReaderColors.controlInk)
-                    Spacer(); Image(systemName: "chevron.right").font(.caption)
+                    Text("系统默认").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                    Spacer()
+                    ReaderIcon(.chevron, size: 12, accessibilityLabel: "选择引擎")
+                        .rotationEffect(.degrees(90))
                 }
             }
-            VStack(spacing: 4) { Text("语速").font(.caption).foregroundStyle(.secondary); Slider(value: $rate).tint(ReaderColors.primary) }
-            Button(action: {}) { Label("开始朗读", systemImage: "play.fill").frame(maxWidth: .infinity) }
-                .buttonStyle(.borderedProminent).tint(ReaderColors.primary)
-            Text("朗读仅控制播放，不使用章节跳转语义").font(.caption2).foregroundStyle(.secondary)
+            DemoSliderControl(title: "语速", value: $rate, range: 0...1, step: 0.1)
+            DemoPrimaryActionButton("开始朗读", icon: .play)
+            Text("朗读仅控制播放，不使用章节跳转语义").font(.system(size: ReaderDesignTokens.readerControlLabelFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .padding(16)
-        .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 22))
+        .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xl))
     }
 }
 
@@ -910,24 +1134,26 @@ struct ReaderAppearanceOverlayPrototype: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("界面设置").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
-                Spacer(); Image(systemName: "xmark")
+                Text("界面设置").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                Spacer()
+                ReaderIcon(.close, size: 18, accessibilityLabel: "关闭")
             }
-            GroupBox("字体") {
+            PrototypeFieldGroup("字体") {
                 HStack {
                     ForEach(["系统", "宋体", "黑体"], id: \.self) { f in
-                        Text(f).font(.caption).frame(maxWidth: .infinity).padding(.vertical, 4)
-                            .background(ReaderColors.quickButtonBg).clipShape(Capsule())
+                        Text(f).font(.system(size: ReaderDesignTokens.chipFontSize)).frame(maxWidth: .infinity).padding(.vertical, 4)
+                            .background(ReaderDesignTokens.Color.metaBg).clipShape(Capsule())
                     }
                 }
             }
-            VStack(spacing: 4) { Text("字号: \(Int(fontSize))").font(.caption); Slider(value: $fontSize, in: 12...32).tint(ReaderColors.primary) }
-            GroupBox("间距") {
-                VStack(spacing: 4) { Text("行间距").font(.caption); Slider(value: .constant(0.5)).tint(ReaderColors.primary) }
+            DemoSliderControl(title: "字号", value: $fontSize, range: 12...32, step: 1,
+                              valueFormatter: { "\(Int($0))" })
+            PrototypeFieldGroup("间距") {
+                DemoSliderControl(title: "行间距", value: .constant(0.5), range: 0...1, step: 0.1)
             }
         }
         .padding(16)
-        .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 22))
+        .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xl))
     }
 }
 
@@ -935,10 +1161,11 @@ struct ReaderSettingsOverlayPrototype: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("阅读设置").font(ReaderTypography.controlTitle).foregroundColor(ReaderColors.controlInk)
-                Spacer(); Image(systemName: "xmark")
+                Text("阅读设置").font(ReaderTypography.controlTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                Spacer()
+                ReaderIcon(.close, size: 18, accessibilityLabel: "关闭")
             }
-            Text("只含阅读行为设置，不含 WebDAV/书源/RSS").font(.caption2).foregroundStyle(.secondary)
+            Text("只含阅读行为设置，不含 WebDAV/书源/RSS").font(.system(size: ReaderDesignTokens.readerControlLabelFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             SettingsRowPrototype(title: "屏幕方向", trailing: "竖屏")
             SettingsRowPrototype(title: "音量键翻页", trailing: "关闭")
             SettingsRowPrototype(title: "点击翻页", trailing: "开启")
@@ -946,7 +1173,7 @@ struct ReaderSettingsOverlayPrototype: View {
             Spacer()
         }
         .padding(16)
-        .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 22))
+        .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xl))
     }
 }
 
@@ -955,48 +1182,68 @@ struct ReaderSettingsOverlayPrototype: View {
 struct SourceListPrototype: View {
     let sources = PrototypeFixtures.sources
     var body: some View {
-        List {
-            ForEach(sources) { s in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+        ScrollView {
+            VStack(spacing: 8) {
+                ForEach(sources) { s in
+                    ReaderCard {
                         HStack {
-                            Text(s.name).font(ReaderTypography.listTitle).foregroundColor(ReaderColors.controlInk)
-                            Circle().fill(s.enabled ? Color.green : Color.red).frame(width: 8, height: 8)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text(s.name).font(ReaderTypography.listTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                                    Circle()
+                                        .fill(s.enabled
+                                              ? ReaderDesignTokens.Color.Semantic.success
+                                              : ReaderDesignTokens.Color.Semantic.danger)
+                                        .frame(width: 8, height: 8)
+                                }
+                                Text(s.url).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).lineLimit(1)
+                            }
+                            Spacer()
+                            switch s.lastTest {
+                            case .notRun:
+                                Text("未测试").font(.system(size: ReaderDesignTokens.discoverBookRowSmallFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                            case .success:
+                                ReaderIcon(.check, size: 18, accessibilityLabel: "测试通过")
+                                    .foregroundColor(ReaderDesignTokens.Color.Semantic.success)
+                            case .failure:
+                                ReaderIcon(.close, size: 18, accessibilityLabel: "测试失败")
+                                    .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+                            }
+                            DemoSettingsSwitch(isOn: s.enabled)
                         }
-                        Text(s.url).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
-                    Spacer()
-                    switch s.lastTest {
-                    case .notRun: Text("未测试").font(.caption2).foregroundStyle(.secondary)
-                    case .success: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    case .failure(let msg): Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                    }
-                    Toggle("", isOn: .constant(s.enabled)).tint(ReaderColors.primary).labelsHidden()
                 }
-                .padding(.vertical, 2)
             }
+            .padding(16)
         }
-        .listStyle(.plain)
     }
 }
 
 struct SourceDetailPrototype: View {
     let s = PrototypeFixtures.sources[0]
     var body: some View {
-        List {
-            Section("基本信息") {
-                LabeledContent("名称", value: s.name)
-                LabeledContent("URL", value: s.url)
-                LabeledContent("分组", value: s.group)
+        ScrollView {
+            VStack(spacing: 12) {
+                PrototypeSettingsGroup(header: "基本信息") {
+                    PrototypeMetricRow(label: "名称", value: s.name)
+                    PrototypeMetricRow(label: "URL", value: s.url)
+                    PrototypeMetricRow(label: "分组", value: s.group)
+                }
+                PrototypeSettingsGroup(header: "规则摘要") {
+                    Text("搜索规则：css:.mh-list").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                    Text("详情规则：css:.mh-detail").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                }
+                DemoPrimaryActionButton("测试书源", icon: .play)
+                DemoSecondaryActionButton("编辑书源", icon: .edit)
+                HStack {
+                    Text("启用书源").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                    Spacer()
+                    DemoSettingsSwitch(isOn: true)
+                }
+                .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+                .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
             }
-            Section("规则摘要") {
-                Text("搜索规则：css:.mh-list").font(.caption).foregroundStyle(.secondary)
-                Text("详情规则：css:.mh-detail").font(.caption).foregroundStyle(.secondary)
-            }
-            Section { Button("测试书源") {}.tint(ReaderColors.primary)
-                Button("编辑书源") {}
-                Toggle("启用书源", isOn: .constant(true)).tint(ReaderColors.primary)
-            }
+            .padding(16)
         }
     }
 }
@@ -1007,10 +1254,11 @@ struct SourceEditImportPrototype: View {
         VStack(spacing: 16) {
             if showSuccess {
                 VStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(.green)
-                    Text("导入成功").font(.title3).fontWeight(.semibold)
-                    Text("已添加 1 个书源").font(.subheadline).foregroundStyle(.secondary)
-                    Button("前往书源列表") {}.buttonStyle(.borderedProminent).tint(ReaderColors.primary)
+                    ReaderIcon(.check, size: 48, accessibilityLabel: "导入成功")
+                        .foregroundColor(ReaderDesignTokens.Color.Semantic.success)
+                    Text("导入成功").font(.system(size: ReaderDesignTokens.continueCardTitleFontSize, weight: .semibold))
+                    Text("已添加 1 个书源").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                    DemoPrimaryActionButton("前往书源列表", icon: .list)
                 }
             }
             Divider().padding(.horizontal)
@@ -1019,7 +1267,8 @@ struct SourceEditImportPrototype: View {
                 .textFieldStyle(.roundedBorder)
             TextField("书源 URL", text: .constant("https://www.qianfanxs.com"))
                 .textFieldStyle(.roundedBorder)
-            Text("JSON 校验通过").font(.caption).foregroundStyle(.green)
+            Text("JSON 校验通过").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                .foregroundColor(ReaderDesignTokens.Color.Semantic.success)
         }
         .padding()
     }
@@ -1031,29 +1280,32 @@ struct SourceTestErrorPrototype: View {
             HStack {
                 VStack(alignment: .leading) {
                     Text("全本书屋").font(ReaderTypography.listTitle)
-                    Text("测试中...").font(.caption).foregroundStyle(.secondary)
+                    Text("测试中...").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
                 Spacer()
-                ProgressView()
-            }.padding().background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 12))
+                DemoLoadingSpinner(size: .inline)
+            }.padding().background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
 
             HStack {
                 VStack(alignment: .leading) {
                     Text("无名书源").font(ReaderTypography.listTitle)
-                    Text("连接超时 — 请检查网络和 URL").font(.caption).foregroundStyle(.red)
+                    Text("连接超时 — 请检查网络和 URL").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                        .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
                 }
                 Spacer()
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-            }.padding().background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 12))
+                ReaderIcon(.close, size: 22, accessibilityLabel: "测试失败")
+                    .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+            }.padding().background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
 
             HStack {
                 VStack(alignment: .leading) {
                     Text("禁用书源").font(ReaderTypography.listTitle)
-                    Text("已停用，点击启用").font(.caption).foregroundStyle(.secondary)
+                    Text("已停用，点击启用").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
                 Spacer()
-                Image(systemName: "pause.circle.fill").foregroundStyle(.orange)
-            }.padding().background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 12))
+                ReaderIcon(.pause, size: 22, accessibilityLabel: "已停用")
+                    .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
+            }.padding().background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
         }
         .padding()
     }
@@ -1066,20 +1318,20 @@ struct DiscoverHomePrototype: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("发现").font(ReaderTypography.pageTitle).foregroundColor(ReaderColors.controlInk).padding(.horizontal, 16)
+                Text("发现").font(ReaderTypography.pageTitle).foregroundColor(ReaderDesignTokens.Color.controlInk).padding(.horizontal, 16)
                 ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(section.title).font(ReaderTypography.listTitle).foregroundColor(ReaderColors.controlInk)
+                        Text(section.title).font(ReaderTypography.listTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
                             .padding(.horizontal, 16)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
                                 ForEach(section.items) { item in
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Image(systemName: "book.circle").font(.system(size: 36))
+                                        ReaderIcon(.book, size: 36, accessibilityLabel: item.title)
                                             .frame(width: 80, height: 100)
-                                            .background(ReaderColors.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: 10))
-                                        Text(item.title).font(.caption).fontWeight(.medium).lineLimit(1)
-                                        Text(item.author).font(.caption2).foregroundStyle(.secondary)
+                                            .background(ReaderDesignTokens.Color.floatingControlBg).clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg))
+                                        Text(item.title).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .medium)).lineLimit(1)
+                                        Text(item.author).font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
                                     }.frame(width: 100)
                                 }
                             }.padding(.horizontal, 16)
@@ -1089,102 +1341,120 @@ struct DiscoverHomePrototype: View {
             }
             .padding(.top, 16)
         }
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
 struct RSSListPrototype: View {
     let feeds = PrototypeFixtures.rssFeeds
     var body: some View {
-        List(feeds) { feed in
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(feed.name).font(ReaderTypography.listTitle).foregroundColor(ReaderColors.controlInk)
-                    Text("更新: \(feed.lastUpdate)").font(.caption2).foregroundStyle(.secondary)
+        ScrollView {
+            VStack(spacing: 8) {
+                ForEach(feeds) { feed in
+                    ReaderCard {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(feed.name).font(ReaderTypography.listTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                                Text("更新: \(feed.lastUpdate)").font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                            }
+                            Spacer()
+                            if feed.unreadCount > 0 {
+                                Text("\(feed.unreadCount)").font(.system(size: ReaderDesignTokens.chipFontSize)).padding(.horizontal, 8).padding(.vertical, 2)
+                                    .background(ReaderDesignTokens.Color.primary).foregroundStyle(.white).clipShape(Capsule())
+                            }
+                            Circle()
+                                .fill(feed.enabled
+                                      ? ReaderDesignTokens.Color.Semantic.success
+                                      : ReaderDesignTokens.Color.muted)
+                                .frame(width: 8, height: 8)
+                        }
+                    }
                 }
-                Spacer()
-                if feed.unreadCount > 0 {
-                    Text("\(feed.unreadCount)").font(.caption).padding(.horizontal, 8).padding(.vertical, 2)
-                        .background(ReaderColors.primary).foregroundStyle(.white).clipShape(Capsule())
-                }
-                Circle().fill(feed.enabled ? Color.green : Color.gray).frame(width: 8, height: 8)
             }
+            .padding(16)
         }
-        .listStyle(.plain)
     }
 }
 
 struct RSSDetailPrototype: View {
     let articles = PrototypeFixtures.rssArticles
     var body: some View {
-        List(articles) { article in
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    if !article.isRead { Circle().fill(ReaderColors.primary).frame(width: 6, height: 6) }
-                    Text(article.title).font(ReaderTypography.listTitle).foregroundColor(ReaderColors.controlInk)
-                }
-                Text(article.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                HStack {
-                    Text(article.feedName).font(.caption2).foregroundStyle(ReaderColors.primary)
-                    Spacer()
-                    Text(article.date).font(.caption2).foregroundStyle(.secondary)
+        ScrollView {
+            VStack(spacing: 8) {
+                ForEach(articles) { article in
+                    ReaderCard {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                if !article.isRead {
+                                    Circle().fill(ReaderDesignTokens.Color.primary).frame(width: 6, height: 6)
+                                }
+                                Text(article.title).font(ReaderTypography.listTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                            }
+                            Text(article.summary).font(.system(size: ReaderDesignTokens.discoverBookRowBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).lineLimit(2)
+                            HStack {
+                                Text(article.feedName).font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.primary)
+                                Spacer()
+                                Text(article.date).font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                            }
+                        }
+                    }
                 }
             }
+            .padding(16)
         }
-        .listStyle(.plain)
     }
 }
 
 struct RSSSubscriptionsPrototype: View {
     let feeds = PrototypeFixtures.rssFeeds
     var body: some View {
-        List {
-            ForEach(feeds) { feed in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(feed.name).font(ReaderTypography.listTitle)
-                        Text(feed.url).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        ScrollView {
+            VStack(spacing: 8) {
+                ForEach(feeds) { feed in
+                    ReaderCard {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(feed.name).font(ReaderTypography.listTitle)
+                                Text(feed.url).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).lineLimit(1)
+                            }
+                            Spacer()
+                            DemoSettingsSwitch(isOn: feed.enabled)
+                        }
                     }
-                    Spacer()
-                    Toggle("", isOn: .constant(feed.enabled)).tint(ReaderColors.primary).labelsHidden()
                 }
+                DemoPrimaryActionButton("添加订阅", icon: .add)
             }
-            Section {
-                Button(action: {}) { Label("添加订阅", systemImage: "plus").frame(maxWidth: .infinity) }
-            }
+            .padding(16)
         }
-        .listStyle(.plain)
     }
 }
 
 struct WebDAVConfigPrototype: View {
     let config = PrototypeFixtures.webdavConfig
     var body: some View {
-        Form {
-            Section("服务器配置") {
-                HStack {
-                    Text("服务器地址").foregroundStyle(.secondary)
-                    Spacer()
-                    Text(config.serverURL).font(.caption).lineLimit(1)
+        ScrollView {
+            VStack(spacing: 12) {
+                PrototypeSettingsGroup(header: "服务器配置") {
+                    PrototypeMetricRow(label: "服务器地址", value: config.serverURL)
+                    PrototypeMetricRow(label: "用户名", value: config.username)
+                    SecureField("密码", text: .constant("********")) {}.disabled(true)
                 }
-                HStack {
-                    Text("用户名").foregroundStyle(.secondary)
-                    Spacer()
-                    Text(config.username).font(.caption)
+                ReaderCard {
+                    HStack {
+                        ReaderIcon(.cloud, size: 18, accessibilityLabel: "连接状态")
+                        Text("连接状态").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize))
+                        Spacer()
+                        Text(config.isConnected ? "已连接" : "未连接")
+                            .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize))
+                            .foregroundColor(config.isConnected
+                                             ? ReaderDesignTokens.Color.Semantic.success
+                                             : ReaderDesignTokens.Color.muted)
+                    }
                 }
-                SecureField("密码", text: .constant("********")) {}.disabled(true)
+                DemoPrimaryActionButton("连接测试", icon: .refresh)
+                Text("不保存真实账号/token，仅原型展示").font(.system(size: ReaderDesignTokens.readerControlLabelFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             }
-            Section {
-                HStack {
-                    Label("连接状态", systemImage: config.isConnected ? "checkmark.icloud" : "xmark.icloud")
-                    Spacer()
-                    Text(config.isConnected ? "已连接" : "未连接").foregroundStyle(config.isConnected ? Color.green : .secondary)
-                }
-            }
-            Section {
-                Button("连接测试") {}.tint(ReaderColors.primary)
-            }
-            Text("不保存真实账号/token，仅原型展示").font(.caption2).foregroundStyle(.secondary)
+            .padding(16)
         }
     }
 }
@@ -1192,42 +1462,66 @@ struct WebDAVConfigPrototype: View {
 struct BackupSettingsPrototype: View {
     @State private var autoBackup = false
     var body: some View {
-        List {
-            Section("备份范围") {
-                Toggle("书籍数据", isOn: .constant(true)).tint(ReaderColors.primary)
-                Toggle("阅读进度", isOn: .constant(true)).tint(ReaderColors.primary)
-                Toggle("书源配置", isOn: .constant(false)).tint(ReaderColors.primary)
-            }
-            Section("自动备份") {
-                Toggle("自动备份", isOn: $autoBackup).tint(ReaderColors.primary)
-                if autoBackup {
-                    Text("频率：每日").font(.caption).foregroundStyle(.secondary)
+        ScrollView {
+            VStack(spacing: 12) {
+                PrototypeSettingsGroup(header: "备份范围") {
+                    PrototypeToggleRow(title: "书籍数据", isOn: true)
+                    PrototypeToggleRow(title: "阅读进度", isOn: true)
+                    PrototypeToggleRow(title: "书源配置", isOn: false)
                 }
+                PrototypeSettingsGroup(header: "自动备份") {
+                    PrototypeToggleRow(title: "自动备份", isOn: autoBackup)
+                    if autoBackup {
+                        Text("频率：每日").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                    }
+                }
+                DemoPrimaryActionButton("立即备份", icon: .upload)
+                Text("上次备份：2026-05-20 02:00").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             }
-            Section { Button("立即备份") {}.tint(ReaderColors.primary) }
-            Section { Text("上次备份：2026-05-20 02:00").font(.caption).foregroundStyle(.secondary) }
+            .padding(16)
         }
+    }
+}
+
+private struct PrototypeToggleRow: View {
+    let title: String
+    let isOn: Bool
+
+    var body: some View {
+        HStack {
+            Text(title).font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundColor(ReaderDesignTokens.Color.controlInk)
+            Spacer()
+            DemoSettingsSwitch(isOn: isOn)
+        }
+        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+        .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
     }
 }
 
 struct SyncProgressPrototype: View {
     let progress = PrototypeFixtures.syncProgress
     var body: some View {
-        List {
-            Section("阅读进度") {
-                LabeledContent("本地进度", value: progress.localProgress)
-                LabeledContent("云端进度", value: progress.remoteProgress)
-            }
-            if progress.hasConflict {
-                Section("冲突") {
-                    Text("本地与云端进度不一致").font(.caption).foregroundStyle(.orange)
-                    Button("保留本地") {}
-                    Button("保留云端") {}
-                    Button("合并") {}.tint(ReaderColors.primary)
+        ScrollView {
+            VStack(spacing: 12) {
+                PrototypeSettingsGroup(header: "阅读进度") {
+                    PrototypeMetricRow(label: "本地进度", value: progress.localProgress)
+                    PrototypeMetricRow(label: "云端进度", value: progress.remoteProgress)
                 }
+                if progress.hasConflict {
+                    PrototypeSettingsGroup(header: "冲突") {
+                        Text("本地与云端进度不一致").font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                            .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
+                        DemoSecondaryActionButton("保留本地")
+                        DemoSecondaryActionButton("保留云端")
+                        DemoPrimaryActionButton("合并", icon: .sync)
+                    }
+                }
+                PrototypeSettingsGroup(header: "同步状态") {
+                    PrototypeMetricRow(label: "上次同步", value: progress.lastSync)
+                }
+                DemoPrimaryActionButton("立即同步", icon: .sync)
             }
-            Section { LabeledContent("上次同步", value: progress.lastSync) }
-            Section { Button("立即同步") {}.tint(ReaderColors.primary) }
+            .padding(16)
         }
     }
 }
@@ -1235,22 +1529,33 @@ struct SyncProgressPrototype: View {
 struct RemoteWebDAVBooksPrototype: View {
     let books = PrototypeFixtures.remoteBooks
     var body: some View {
-        List(books) { book in
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(book.name).font(ReaderTypography.listTitle).foregroundColor(ReaderColors.controlInk)
-                    Text(book.size).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                switch book.status {
-                case .notDownloaded:
-                    Image(systemName: "icloud.and.arrow.down").foregroundStyle(ReaderColors.primary)
-                case .downloaded:
-                    Image(systemName: "checkmark.icloud").foregroundStyle(.green)
-                case .downloading(let p):
-                    ProgressView(value: p).frame(width: 40)
+        ScrollView {
+            VStack(spacing: 8) {
+                ForEach(books) { book in
+                    ReaderCard {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(book.name).font(ReaderTypography.listTitle).foregroundColor(ReaderDesignTokens.Color.controlInk)
+                                Text(book.size).font(.system(size: ReaderDesignTokens.bookCardMetaFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                            }
+                            Spacer()
+                            switch book.status {
+                            case .notDownloaded:
+                                ReaderIcon(.download, size: 18, accessibilityLabel: "未下载")
+                                    .foregroundStyle(ReaderDesignTokens.Color.primary)
+                            case .downloaded:
+                                ReaderIcon(.cloud, size: 18, accessibilityLabel: "已下载")
+                                    .foregroundColor(ReaderDesignTokens.Color.Semantic.success)
+                            case .downloading(let p):
+                                // demo `.fd-restore-progress-meter`：8px pill，缩窄到 40pt 宽。
+                                DemoRestoreProgressMeter(progress: p, tint: ReaderDesignTokens.Color.primary)
+                                    .frame(width: 40)
+                            }
+                        }
+                    }
                 }
             }
+            .padding(16)
         }
     }
 }
@@ -1258,19 +1563,21 @@ struct RemoteWebDAVBooksPrototype: View {
 struct SyncErrorPrototype: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "xmark.icloud.fill").font(.system(size: 48)).foregroundStyle(.red)
-            Text("WebDAV 认证失败").font(.title3).fontWeight(.semibold)
-            Text("用户名或密码错误，请重新配置").font(.subheadline).foregroundStyle(.secondary)
-            Button("重新登录") {}.buttonStyle(.borderedProminent).tint(ReaderColors.primary)
-            Button("跳过") {}.buttonStyle(.bordered)
+            ReaderIcon(.cloud, size: 48, accessibilityLabel: "WebDAV 认证失败")
+                .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+            Text("WebDAV 认证失败").font(.system(size: ReaderDesignTokens.continueCardTitleFontSize, weight: .semibold))
+            Text("用户名或密码错误，请重新配置").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+            DemoPrimaryActionButton("重新登录", icon: .refresh)
+            DemoSecondaryActionButton("跳过")
             Divider().padding(.horizontal, 40)
-            Image(systemName: "wifi.slash").font(.system(size: 48)).foregroundStyle(.orange)
-            Text("网络不可达").font(.title3).fontWeight(.semibold)
-            Text("请检查网络连接和服务器地址").font(.subheadline).foregroundStyle(.secondary)
-            Button("重试") {}.buttonStyle(.bordered)
+            ReaderIcon(.offline, size: 48, accessibilityLabel: "网络不可达")
+                .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
+            Text("网络不可达").font(.system(size: ReaderDesignTokens.continueCardTitleFontSize, weight: .semibold))
+            Text("请检查网络连接和服务器地址").font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+            DemoSecondaryActionButton("重试", icon: .refresh)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }
 
@@ -1278,27 +1585,31 @@ struct SyncErrorPrototype: View {
 
 struct GlobalSettingsPrototype: View {
     var body: some View {
-        List {
-            Section("外观") {
-                SettingsRowPrototype(title: "主题", trailing: "跟随系统")
-                SettingsRowPrototype(title: "字体", trailing: "系统默认")
+        ScrollView {
+            VStack(spacing: ReaderDesignTokens.settingsSectionGap) {
+                PrototypeSettingsGroup(header: "外观") {
+                    SettingsRowPrototype(title: "主题", trailing: "跟随系统")
+                    SettingsRowPrototype(title: "字体", trailing: "系统默认")
+                }
+                PrototypeSettingsGroup(header: "阅读") {
+                    SettingsRowPrototype(title: "阅读设置", trailing: "翻页/字号/间距")
+                    SettingsRowPrototype(title: "朗读设置", trailing: "语速/音色")
+                }
+                PrototypeSettingsGroup(header: "书架") {
+                    SettingsRowPrototype(title: "默认视图", trailing: "封面")
+                    SettingsRowPrototype(title: "自动刷新", trailing: "开启")
+                }
+                PrototypeSettingsGroup(header: "备份与同步") {
+                    SettingsRowPrototype(title: "WebDAV 备份", trailing: "未连接")
+                    SettingsRowPrototype(title: "阅读进度同步", trailing: "已同步")
+                }
+                PrototypeSettingsGroup(header: "关于") {
+                    SettingsRowPrototype(title: "版本", trailing: "0.1.0")
+                    SettingsRowPrototype(title: "开源许可", trailing: "")
+                }
             }
-            Section("阅读") {
-                SettingsRowPrototype(title: "阅读设置", trailing: "翻页/字号/间距")
-                SettingsRowPrototype(title: "朗读设置", trailing: "语速/音色")
-            }
-            Section("书架") {
-                SettingsRowPrototype(title: "默认视图", trailing: "封面")
-                SettingsRowPrototype(title: "自动刷新", trailing: "开启")
-            }
-            Section("备份与同步") {
-                SettingsRowPrototype(title: "WebDAV 备份", trailing: "未连接")
-                SettingsRowPrototype(title: "阅读进度同步", trailing: "已同步")
-            }
-            Section("关于") {
-                SettingsRowPrototype(title: "版本", trailing: "0.1.0")
-                SettingsRowPrototype(title: "开源许可", trailing: "")
-            }
+            .padding(.horizontal, ReaderDesignTokens.demoContentHorizontalPadding)
+            .padding(.vertical, ReaderDesignTokens.demoContentVerticalPadding)
         }
     }
 }
@@ -1307,11 +1618,15 @@ struct SettingsRowPrototype: View {
     let title: String; let trailing: String
     var body: some View {
         HStack {
-            Text(title).font(.subheadline).foregroundColor(ReaderColors.controlInk)
+            Text(title).font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundColor(ReaderDesignTokens.Color.controlInk)
             Spacer()
-            Text(trailing).font(.subheadline).foregroundStyle(.secondary)
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+            Text(trailing).font(.system(size: ReaderDesignTokens.bookCardTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+            ReaderIcon(.chevron, size: 12, accessibilityLabel: "查看")
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+                .rotationEffect(.degrees(90))
         }
+        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+        .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
     }
 }
 
@@ -1321,34 +1636,38 @@ struct StatePagePrototype: View {
         VStack(spacing: 20) {
             switch state {
             case .loading:
-                ProgressView().scaleEffect(1.5)
-                Text("加载中...").font(.headline).foregroundStyle(.secondary)
+                DemoLoadingSpinner(size: .reader)
+                Text("加载中...").font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewTitleFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             case .empty:
-                Image(systemName: "doc.text").font(.system(size: 48)).foregroundStyle(.secondary)
-                Text("暂无内容").font(.headline)
-                Text("试试添加一些内容吧").font(.subheadline).foregroundStyle(.secondary)
-                Button("去添加") {}.buttonStyle(.borderedProminent).tint(ReaderColors.primary)
+                ReaderIcon(.file, size: 48, accessibilityLabel: "暂无内容")
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                Text("暂无内容").font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewTitleFontSize))
+                Text("试试添加一些内容吧").font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
+                DemoPrimaryActionButton("去添加", icon: .add)
             case .error(let msg, let retryable):
-                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 48)).foregroundStyle(.orange)
-                Text("出错了").font(.headline)
-                Text(msg).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                ReaderIcon(.warning, size: 48, accessibilityLabel: "出错了")
+                    .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+                Text("出错了").font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewTitleFontSize))
+                Text(msg).font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).multilineTextAlignment(.center)
                 if retryable {
-                    Button("重试") {}.buttonStyle(.borderedProminent).tint(ReaderColors.primary)
+                    DemoPrimaryActionButton("重试", icon: .refresh)
                 }
             case .offline:
-                Image(systemName: "wifi.slash").font(.system(size: 48)).foregroundStyle(.secondary)
-                Text("离线状态").font(.headline)
-                Text("已缓存的内容仍可阅读").font(.subheadline).foregroundStyle(.secondary)
+                ReaderIcon(.offline, size: 48, accessibilityLabel: "离线状态")
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                Text("离线状态").font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewTitleFontSize))
+                Text("已缓存的内容仍可阅读").font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted)
             case .permissionRequired(let perm):
-                Image(systemName: "lock.shield").font(.system(size: 48)).foregroundStyle(.orange)
-                Text("需要权限").font(.headline)
-                Text("请在系统设置中允许「\(perm)」权限").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                Button("去设置") {}.buttonStyle(.borderedProminent).tint(ReaderColors.primary)
+                ReaderIcon(.shield, size: 48, accessibilityLabel: "需要权限")
+                    .foregroundColor(ReaderDesignTokens.Color.Semantic.warning)
+                Text("需要权限").font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewTitleFontSize))
+                Text("请在系统设置中允许「\(perm)」权限").font(.system(size: ReaderDesignTokens.rssReaderBodyFontSize)).foregroundStyle(ReaderDesignTokens.Color.muted).multilineTextAlignment(.center)
+                DemoPrimaryActionButton("去设置", icon: .gear)
             default:
-                Text("未知状态").font(.headline)
+                Text("未知状态").font(.system(size: ReaderDesignTokens.rssOriginalWebPreviewTitleFontSize))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ReaderColors.paperBg)
+        .background(ReaderDesignTokens.Color.paperSolid)
     }
 }

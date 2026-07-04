@@ -5,11 +5,11 @@ import SwiftUI
 /// 真源：`Reader UI/frontend-demo/styles/01-shell-layout.css` `.fd-main-nav` / `.fd-main-nav-item`
 ///
 /// 规格对齐（数值取自 `ReaderDesignTokens`，clean-room，不复制 CSS）：
-/// - 栏高 68pt / 圆角 24 / padding 7×8 / 边框 1px rgba(180,166,151,.42) /
-///   背景 rgba(255,252,248,.92) / 阴影 0 18px 36px rgba(89,70,50,.14)
+/// - 栏高 68pt / 圆角 24 / padding 7×8 / 边框 1px `--fd-border` #c1c7cd /
+///   背景 rgba(255,252,248,.92) / 阴影 `--fd-soft-shadow` 0 8px 26px rgba(89,70,50,.1)
 /// - 浮动于底部安全区上方（`safeAreaInset(.bottom)`），左右距安全区 -2pt
 /// - 4 列等分；item 内部 30pt icon / 18pt label / gap 3 / 字号 11pt·800 / nowrap
-/// - active: 背景 `primaryDark` + 白字；inactive: `#6b625a`
+/// - active: 背景 `primaryDark` + 白字；inactive: `--fd-muted` #756f69
 ///
 /// 契约对齐：
 /// - `tab.item.press` —— 按下时调用 `onSelect`（reducer 内部处理 `tabPress` 时长）
@@ -41,8 +41,8 @@ struct FloatingTabBar: View {
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.mainNavCornerRadius)
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
-                .shadow(color: SwiftUI.Color(red: 89/255, green: 70/255, blue: 50/255, opacity: 0.14),
-                        radius: 18, x: 0, y: 18)
+                .shadow(color: ReaderDesignTokens.Color.Shadow.soft,
+                        radius: 26, x: 0, y: 8)
         )
         .padding(.horizontal, ReaderDesignTokens.mainNavSideInsetAdjustment)
         .accessibilityIdentifier("fd-main-nav")
@@ -79,7 +79,7 @@ struct FloatingTabBar: View {
                     .frame(width: ReaderDesignTokens.tabItemIconShellSize,
                            height: ReaderDesignTokens.tabItemIconShellSize)
                 Text(tab.title)
-                    .font(.system(size: ReaderDesignTokens.tabItemFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.tabItemFontSize, weight: .black))
                     .lineLimit(1)
                     .truncationMode(.tail)
             }

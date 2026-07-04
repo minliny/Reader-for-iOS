@@ -8,13 +8,15 @@ struct BookshelfLocalImportView: View {
     @State private var showFilePicker = false
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
     private let onImported: ((CoreLocalBookImportSummary) -> Void)?
+    private let onExit: (() -> Void)?
 
-    init(onImported: ((CoreLocalBookImportSummary) -> Void)? = nil) {
+    init(onImported: ((CoreLocalBookImportSummary) -> Void)? = nil, onExit: (() -> Void)? = nil) {
         self.onImported = onImported
+        self.onExit = onExit
     }
 
     var body: some View {
-        DemoBackScreen(title: "本地书导入") {
+        DemoBackScreen(title: "本地书导入", onBack: onExit) {
             importEntryCard
             importOptionsList
             importResultsList
@@ -46,11 +48,11 @@ struct BookshelfLocalImportView: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("选择本地书文件")
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .lineLimit(1)
                     Text(importEntrySubtitle)
                         .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -59,7 +61,7 @@ struct BookshelfLocalImportView: View {
                     showFilePicker = true
                 } label: {
                     Text("选择")
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                         .foregroundColor(.white)
                         .padding(.horizontal, ReaderDesignTokens.bookImportEntryButtonHorizontalPadding)
                         .frame(minHeight: ReaderDesignTokens.bookImportEntryButtonMinHeight)
@@ -148,7 +150,7 @@ struct BookshelfLocalImportView: View {
 
     private func managementTitle(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             .padding(.horizontal, ReaderDesignTokens.bookGroupRowHorizontalPadding - ReaderDesignTokens.cardPadding)
             .padding(.bottom, 4)
@@ -170,7 +172,11 @@ struct BookshelfLocalImportView: View {
         if let importedSummary {
             onImported?(importedSummary)
         }
-        dismiss()
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
+        }
     }
 }
 
@@ -208,11 +214,11 @@ private struct BookshelfImportOptionRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .lineLimit(1)
                 Text(subtitle)
                     .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -235,11 +241,11 @@ private struct BookshelfImportResultRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(row.title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .lineLimit(1)
                 Text(row.meta)
                     .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -253,11 +259,11 @@ private struct BookshelfImportResultRow: View {
     private var toneColor: SwiftUI.Color {
         switch row.tone {
         case .good:
-            return SwiftUI.Color(red: 0x2f/255, green: 0x8a/255, blue: 0x50/255)
+            return ReaderDesignTokens.Color.Semantic.success
         case .warn:
-            return SwiftUI.Color(red: 0x9a/255, green: 0x68/255, blue: 0x17/255)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .danger:
-            return .red
+            return ReaderDesignTokens.Color.danger
         }
     }
 
@@ -286,7 +292,7 @@ private struct BookshelfImportStatePill: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 12, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .black))
             .lineLimit(1)
             .foregroundColor(foregroundColor)
             .padding(.horizontal, 10)
@@ -299,11 +305,11 @@ private struct BookshelfImportStatePill: View {
         case .neutral:
             return ReaderDesignTokens.Color.primaryDark
         case .good:
-            return SwiftUI.Color(red: 0x2f/255, green: 0x8a/255, blue: 0x50/255)
+            return ReaderDesignTokens.Color.Semantic.success
         case .warn:
-            return SwiftUI.Color(red: 0x9a/255, green: 0x68/255, blue: 0x17/255)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .danger:
-            return .red
+            return ReaderDesignTokens.Color.danger
         }
     }
 
@@ -312,11 +318,12 @@ private struct BookshelfImportStatePill: View {
         case .neutral:
             return ReaderDesignTokens.Color.primary.opacity(0.10)
         case .good:
-            return SwiftUI.Color(red: 0x4a/255, green: 0x95/255, blue: 0x60/255, opacity: 0.12)
+            return ReaderDesignTokens.Color.Semantic.successTint
         case .warn:
-            return SwiftUI.Color(red: 0xd1/255, green: 0x93/255, blue: 0x2f/255, opacity: 0.14)
+            return ReaderDesignTokens.Color.Semantic.warningTint
         case .danger:
-            return SwiftUI.Color.red.opacity(0.10)
+            // demo `--fd-danger: #d62222`（`00-foundation.css` line 14）
+            return ReaderDesignTokens.Color.danger.opacity(0.10)
         }
     }
 }
@@ -329,9 +336,9 @@ private struct BookshelfImportBottomButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .lineLimit(1)
-                .foregroundColor(isPrimary ? .white : SwiftUI.Color(red: 0x4e/255, green: 0x44/255, blue: 0x3a/255))
+                .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.ink)
                 .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                 .background(
                     Capsule()

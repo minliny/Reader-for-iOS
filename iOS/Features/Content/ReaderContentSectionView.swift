@@ -25,7 +25,7 @@ public struct ReaderContentSectionView: View {
                     if let bookTitle = bookTitle {
                         Text(bookTitle)
                             .font(.system(size: ReaderDesignTokens.readerTopSubtitleFontSize, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                     }
 
@@ -38,7 +38,7 @@ public struct ReaderContentSectionView: View {
                     if let sourceName = sourceName {
                         Text("来源：\(sourceName)")
                             .font(.system(size: ReaderDesignTokens.readerTopSubtitleFontSize, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
                             .lineLimit(1)
                     }
                 }
@@ -48,7 +48,7 @@ public struct ReaderContentSectionView: View {
                         Text(indentedParagraph(paragraph))
                             .font(ReaderTypography.demoSerif(size: ReaderDesignTokens.immersiveBodyFontSize))
                             .lineSpacing(ReaderDesignTokens.immersiveBodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1))
-                            .foregroundStyle(.primary.opacity(0.86))
+                            .foregroundStyle(ReaderDesignTokens.Color.ink.opacity(0.86))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

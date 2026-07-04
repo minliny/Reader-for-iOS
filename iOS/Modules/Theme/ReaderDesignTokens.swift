@@ -48,7 +48,7 @@ public enum ReaderDesignTokens {
     public static let demoContentHorizontalPadding: CGFloat = 16
     public static let demoContentVerticalPadding: CGFloat = 14
     public static let mainTabContentBottomPadding: CGFloat = 102
-    public static let cardPadding: CGFloat = 12
+    public static let cardPadding: CGFloat = 14
     public static let tabletNavWidth: CGFloat = 82
     public static let tabletNavItemHeight: CGFloat = 58
     public static let bottomFixedActionRowMinHeight: CGFloat = 52
@@ -200,6 +200,20 @@ public enum ReaderDesignTokens {
     public static let rssBrowserConfirmBodyFontSize: CGFloat = 13
     public static let rssBrowserConfirmDetailFontSize: CGFloat = 11
 
+    // MARK: - Reader section / overlay title sizes
+
+    /// 章节列表行标题 / 搜索结果章节标题等 14px 场景（demo `--reader-ds-type-book-title-size: 14px`）。
+    public static let readerSectionTitleFontSize: CGFloat = 14
+    /// 书详情大标题 / 空态错误态标题 22px（demo `.fd-book-detail-title` / `.fd-empty-title` 真源）。
+    public static let readerOverlayLargeTitleFontSize: CGFloat = 22
+    /// 阅读器覆盖层 hero 标题 23px（demo `.fd-reader-source-switch-title` 真源）。
+    public static let readerOverlayHeroTitleFontSize: CGFloat = 23
+    /// 阅读器覆盖层 section 标题 18px（demo `.fd-reader-panel-title` 实际 13px/900，
+    /// 此处 18px 作为 reader 覆盖层标题层级，已标注偏差）。
+    public static let readerOverlaySectionTitleFontSize: CGFloat = 18
+    /// 书详情内联小标签 9px（demo `.fd-book-detail-inline-source-button` 真源）。
+    public static let bookDetailInlineSourceButtonFontSize: CGFloat = 9
+
     // MARK: - Settings/source rows
 
     public static let settingsSectionGap: CGFloat = 8
@@ -273,7 +287,7 @@ public enum ReaderDesignTokens {
     public static let continueActionButtonMinWidth: CGFloat = 74
     /// `.fd-continue-action-button` 最小高（demo: 40px）。
     public static let continueActionButtonMinHeight: CGFloat = 40
-    /// `.fd-continue-cover-button` 宽（demo: 62px，aspect 4:5）。
+    /// `.fd-continue-cover-button` 宽（demo: 62px，aspect 2:3）。
     public static let continueCoverButtonWidth: CGFloat = 62
 
     // MARK: - 书架网格（.fd-book-grid / .fd-book-card）
@@ -304,8 +318,10 @@ public enum ReaderDesignTokens {
     public static let bookListColumnGap: CGFloat = 10
     /// `.fd-book-grid.is-list-view .fd-book-card` 行间距（demo: 2px）。
     public static let bookListRowGap: CGFloat = 2
-    /// `.fd-book-cover-frame` 宽高比（demo: aspect-ratio 4/5）。
-    public static let bookCoverAspectRatio: CGFloat = 4.0 / 5.0
+    /// `.fd-book-cover-frame` 宽高比（demo: aspect-ratio 2/3）。
+    public static let bookCoverAspectRatio: CGFloat = 2.0 / 3.0
+    /// `.fd-continue-cover-button` 宽高比（demo: aspect-ratio 2/3）。
+    public static let continueCoverAspectRatio: CGFloat = 2.0 / 3.0
     /// `.fd-book-card strong` 字号（serif，demo: 15px）。
     public static let bookCardTitleFontSize: CGFloat = 15
     /// `.fd-book-card span` 字号（demo: 12px）。
@@ -712,24 +728,61 @@ public enum ReaderDesignTokens {
     // MARK: - 颜色（来自 CSS 实际 rgba/hex 值）
 
     public enum Color {
-        /// `--fd-paper-solid` #f8f4ec
-        public static let paperSolid = SwiftUI.Color(red: 0xf8/255, green: 0xf4/255, blue: 0xec/255)
-        /// `--fd-surface` rgba(255,252,248,0.9)
-        public static let surface = SwiftUI.Color(red: 1, green: 252/255, blue: 248/255, opacity: 0.9)
-        /// `.fd-main-nav` 背景 rgba(255,252,248,0.92)
-        public static let mainNavBackground = SwiftUI.Color(red: 1, green: 252/255, blue: 248/255, opacity: 0.92)
-        /// `.fd-main-nav-item` 非选中色 #6b625a
-        public static let tabItemInactive = SwiftUI.Color(red: 0x6b/255, green: 0x62/255, blue: 0x5a/255)
-        /// `--fd-primary` rgba(35,121,164) = #2379a4
-        public static let primary = SwiftUI.Color(red: 35/255, green: 121/255, blue: 164/255)
-        /// `--fd-primary-dark` rgba(49,95,120) = #315f78
-        public static let primaryDark = SwiftUI.Color(red: 49/255, green: 95/255, blue: 120/255)
+        /// `--reader-ds-color-paper` #fff8f4（demo `tokens.css` line 4 真源，
+        /// `--fd-paper` 经 `--reader-ds-color-paper` 间接引用此值）
+        public static let paperSolid = SwiftUI.Color(red: 1, green: 0xf8/255, blue: 0xf4/255)
+        /// `--fd-paper-solid` #f8f4ec（demo `00-foundation.css` line 4 真源，
+        /// 用于 `.fd-phone` 外壳 / `body` / flow 容器等基础背景；比 `paperSolid` 更暗的米色）
+        public static let paperSolidAlt = SwiftUI.Color(red: 0xf8/255, green: 0xf4/255, blue: 0xec/255)
+        /// `--reader-ds-color-surface` rgba(255,255,255,0.88)（demo `tokens.css` line 6 真源，
+        /// `--fd-surface` 经 `--reader-ds-color-surface` 间接引用此值）
+        public static let surface = SwiftUI.Color(red: 1, green: 1, blue: 1, opacity: 0.88)
+        /// `--reader-ds-color-ink` #1f1b17（demo `tokens.css` line 8 真源，文字主色，
+        /// 用于 `.fd-*` 中所有 `color: var(--fd-ink)` 的文本，替代系统 `.primary`）
+        public static let ink = SwiftUI.Color(red: 0x1f/255, green: 0x1b/255, blue: 0x17/255)
+        /// `--reader-ds-color-control-ink` #41484c（demo `tokens.css` line 9 真源，控制文字色，
+        /// 用于 reader 控件标签等）
+        public static let controlInk = SwiftUI.Color(red: 0x41/255, green: 0x48/255, blue: 0x4c/255)
+        /// `--reader-ds-color-accent` #f48b13（demo `tokens.css` line 14 真源，品牌强调橙）
+        public static let accent = SwiftUI.Color(red: 0xf4/255, green: 0x8b/255, blue: 0x13/255)
+        /// `--reader-ds-color-bottom-bar-bg` #fbf2eb（demo `tokens.css` line 15 真源，底栏背景）
+        public static let bottomBarBg = SwiftUI.Color(red: 0xfb/255, green: 0xf2/255, blue: 0xeb/255)
+        /// `--reader-ds-color-floating-control-bg` #fbf2eb（demo `tokens.css` line 16 真源，浮动控件背景）
+        public static let floatingControlBg = SwiftUI.Color(red: 0xfb/255, green: 0xf2/255, blue: 0xeb/255)
+        /// `--reader-ds-color-floating-control-bg-alt` #eae1da（demo `tokens.css` line 17 真源，浮动控件 alt 背景）
+        public static let floatingControlBgAlt = SwiftUI.Color(red: 0xea/255, green: 0xe1/255, blue: 0xda/255)
+        /// `--reader-ds-color-meta-bg` #f5ece6（demo `tokens.css` line 18 真源，meta 区背景）
+        public static let metaBg = SwiftUI.Color(red: 0xf5/255, green: 0xec/255, blue: 0xe6/255)
+        /// `.fd-main-nav` 背景 `var(--fd-surface)` rgba(255,255,255,0.88)
+        public static let mainNavBackground = SwiftUI.Color(red: 1, green: 1, blue: 1, opacity: 0.88)
+        /// `.fd-main-nav-item` 非选中色 `--fd-muted` #756f69 = rgba(117,111,105)
+        public static let tabItemInactive = SwiftUI.Color(red: 117/255, green: 111/255, blue: 105/255)
+        /// `--fd-muted` #756f69 = rgba(117,111,105)（demo 次要文字色，用于 meta/author 等 muted 文本）
+        public static let muted = SwiftUI.Color(red: 117/255, green: 111/255, blue: 105/255)
+        /// `--fd-primary` #366179 = rgba(54,97,121)（demo tokens.css 真值）
+        public static let primary = SwiftUI.Color(red: 54/255, green: 97/255, blue: 121/255)
+        /// `--fd-primary-dark` #274f66 = rgba(39,79,102)（demo tokens.css 真值）
+        public static let primaryDark = SwiftUI.Color(red: 39/255, green: 79/255, blue: 102/255)
+        /// `.fd-bottom-fixed-action-primary` 渐变起点 #436f88
+        /// （demo `01-shell-layout.css` line 1168/1352 真值，与 `--fd-primary` #366179 不同的亮色变体）
+        public static let primaryGradientStart = SwiftUI.Color(red: 0x43/255, green: 0x6f/255, blue: 0x88/255)
+        /// `.fd-bottom-fixed-action-primary` 渐变终点 #315f78
+        /// （demo `01-shell-layout.css` line 1168/1352 真值，与 `--fd-primary-dark` #274f66 不同的暗色变体）
+        public static let primaryGradientEnd = SwiftUI.Color(red: 0x31/255, green: 0x5f/255, blue: 0x78/255)
+        /// `--reader-control-surface-solid` #fffaf4（demo `02-main-library.css` line 410 真值，
+        /// 用于 progress thumb fill 等控件实色表面）
+        public static let controlSurfaceSolid = SwiftUI.Color(red: 1, green: 250/255, blue: 244/255)
+        /// `--fd-danger` #d62222 = rgba(214,34,34)（demo `00-foundation.css` line 14 真值，
+        /// 用于 `.is-danger` / destructive / `accent-color` / `.fd-source-delete-dialog input`）
+        public static let danger = SwiftUI.Color(red: 214/255, green: 34/255, blue: 34/255)
         /// `.fd-reader-top` 背景 rgba(255,250,244,0.92)
         public static let readerTopBackground = SwiftUI.Color(red: 1, green: 250/255, blue: 244/255, opacity: 0.92)
         /// `.fd-reader-top` 边框 rgba(154,139,124,0.35)
         public static let readerTopBorder = SwiftUI.Color(red: 154/255, green: 139/255, blue: 124/255, opacity: 0.35)
-        /// `.fd-main-nav` 边框 rgba(180,166,151,0.42)
-        public static let mainNavBorder = SwiftUI.Color(red: 180/255, green: 166/255, blue: 151/255, opacity: 0.42)
+        /// `--fd-border` #c1c7cd = rgba(193,199,205)（demo `.fd-main-nav` / 通用卡边框真值）
+        public static let mainNavBorder = SwiftUI.Color(red: 193/255, green: 199/255, blue: 205/255)
+        /// `.fd-search-result-row` 边框 rgba(180,166,151,0.42)（demo 暖棕半透明，仅用于搜索结果行）
+        public static let searchResultBorder = SwiftUI.Color(red: 180/255, green: 166/255, blue: 151/255, opacity: 0.42)
         /// `.fd-discover-book-row` 顶分隔 rgba(180,166,151,0.24)
         public static let discoverRowBorder = SwiftUI.Color(red: 180/255, green: 166/255, blue: 151/255, opacity: 0.24)
         /// `.fd-rss-article-row` 顶分隔 rgba(180,166,151,0.2)
@@ -747,7 +800,196 @@ public enum ReaderDesignTokens {
         /// Shared muted chip background from demo control rows.
         public static let chipBackground = SwiftUI.Color(red: 238/255, green: 232/255, blue: 223/255, opacity: 0.9)
         /// Settings row/input background.
-        public static let controlBackground = SwiftUI.Color(red: 1, green: 250/255, blue: 244/255, opacity: 0.72)
+        public static let controlBackground = SwiftUI.Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.72)
+
+        /// 阴影色子集（demo `tokens.css` line 61-62 定义 `--reader-ds-shadow-*`；
+        /// `01-shell-layout.css:433` 等处另有 `rgba(48,35,22,*)` 系列，用于搜索框等 inset shadow）。
+        public enum Shadow {
+            /// `--reader-ds-shadow-soft` rgba(89,70,50,0.1)（demo `tokens.css` line 62 真源）
+            public static let soft = SwiftUI.Color(red: 89/255, green: 70/255, blue: 50/255, opacity: 0.1)
+            /// `--reader-ds-shadow-elevated` rgba(89,70,50,0.16)（demo `tokens.css` line 61 真源）
+            public static let elevated = SwiftUI.Color(red: 89/255, green: 70/255, blue: 50/255, opacity: 0.16)
+            /// `.fd-search-entry` / `.fd-top-bar` 等 inset shadow rgba(48,35,22,0.16)
+            /// （demo `01-shell-layout.css` line 433 真源，与 `shadowSoft` 不同的棕黑色）
+            public static let insetAlt = SwiftUI.Color(red: 48/255, green: 35/255, blue: 22/255, opacity: 0.16)
+            /// `.fd-book-detail-hero img` shadow rgba(52,38,26,0.18)
+            /// （demo `04-settings-source.css` line 280 真源）
+            public static let bookDetailHero = SwiftUI.Color(red: 52/255, green: 38/255, blue: 26/255, opacity: 0.18)
+            /// `.fd-settings-option-dropdown` shadow rgba(55,45,32,0.16)
+            /// （demo `05-flow-adaptive.css` line 705 真源）
+            public static let settingsDropdown = SwiftUI.Color(red: 55/255, green: 45/255, blue: 32/255, opacity: 0.16)
+            /// `.fd-book-batch-cover` shadow rgba(45,34,26,0.12)
+            /// （demo `04-settings-source.css` line 691 真源）
+            public static let bookBatch = SwiftUI.Color(red: 45/255, green: 34/255, blue: 26/255, opacity: 0.12)
+            /// `.fd-book-grid.is-list-view .fd-book-cover-frame` shadow rgba(52,38,26,0.12)
+            /// （demo `00-foundation.css` line 1262 真源）
+            public static let bookList = SwiftUI.Color(red: 52/255, green: 38/255, blue: 26/255, opacity: 0.12)
+            /// `.fd-book-detail-hero` shadow rgba(82,66,48,0.18)
+            /// （demo `01-shell-layout.css` line 1185 真源）
+            public static let bookHero = SwiftUI.Color(red: 82/255, green: 66/255, blue: 48/255, opacity: 0.18)
+            /// reader inset shadow rgba(31,27,23,0.16)
+            /// （demo `05-flow-adaptive.css` line 666 真源）
+            public static let insetDark = SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.16)
+            /// reader inset shadow rgba(55,44,32,0.22)
+            /// （demo `03-reader.css` line 750 真源）
+            public static let readerInset = SwiftUI.Color(red: 55/255, green: 44/255, blue: 32/255, opacity: 0.22)
+        }
+
+        /// `--reader-control-ink` #2b251f（demo `02-main-library.css` line 255 真源，
+        /// 用于 reader 控件文字色；与 `Color.controlInk` #41484c 不同，后者来自 tokens.css）
+        public static let controlInkAlt = SwiftUI.Color(red: 0x2b/255, green: 0x25/255, blue: 0x1f/255)
+        /// `--reader-control-icon` #3f372f（demo `02-main-library.css` line 346 真源，
+        /// 用于 reader 控件图标色）
+        public static let controlIcon = SwiftUI.Color(red: 0x3f/255, green: 0x37/255, blue: 0x2f/255)
+        /// `#4e443a`（demo `01-shell-layout.css` line 220/402 真源，
+        /// reader 控件图标色的另一个 fallback 值，用于次要图标文字）
+        public static let controlIconAlt = SwiftUI.Color(red: 0x4e/255, green: 0x44/255, blue: 0x3a/255)
+        /// `.fd-discover-dialog-backdrop` rgba(35,28,22,0.26)
+        /// （demo `01-shell-layout.css` line 1804 真源，用于发现页对话框遮罩）
+        public static let dialogBackdrop = SwiftUI.Color(red: 35/255, green: 28/255, blue: 22/255, opacity: 0.26)
+        /// `.fd-book-focus-backdrop` rgba(31,27,23,0.34)
+        /// （demo `00-foundation.css` line 1343 真源，用于书架焦点遮罩）
+        public static let focusBackdrop = SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.34)
+        /// neutral border rgba(140,130,118,0.26)
+        /// （demo `05-flow-adaptive.css` line 657 真源，用于 reader 控件边框）
+        public static let neutralBorder26 = SwiftUI.Color(red: 140/255, green: 130/255, blue: 118/255, opacity: 0.26)
+        /// reader track fill #aaa39a
+        /// （demo `03-reader.css` line 738 真源，用于 reader 进度轨道填充）
+        public static let readerTrackFill = SwiftUI.Color(red: 170/255, green: 163/255, blue: 154/255)
+        /// `--reader-control-panel-soft` rgba(238,230,219,0.56)
+        /// （demo `02-main-library.css` line 898 真源，用于 reader 控件面板半透明背景）
+        public static let controlPanelSoft56 = SwiftUI.Color(red: 238/255, green: 230/255, blue: 219/255, opacity: 0.56)
+        /// reader paper 渐变起点 rgba(255,249,242,0.94)
+        /// （demo `01-shell-layout.css` line 2497 真源，`.fd-ir-reading-layer` paper 渐变）
+        public static let readerPaperGradientStart = SwiftUI.Color(red: 255/255, green: 249/255, blue: 242/255, opacity: 0.94)
+        /// reader paper 渐变终点 rgba(248,236,222,0.96)
+        /// （demo `01-shell-layout.css` line 2497 真源，`.fd-ir-reading-layer` paper 渐变）
+        public static let readerPaperGradientEnd = SwiftUI.Color(red: 248/255, green: 236/255, blue: 222/255, opacity: 0.96)
+        /// `.fd-book-focus-menu` 背景 rgba(255,252,248,0.97)
+        /// （demo `00-foundation.css` line 1366 真源，书架 focus menu / more menu 共用背景）
+        public static let bookFocusMenuBackground = SwiftUI.Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.97)
+
+        /// 语义色子集（demo `tokens.css` 无 success/warning token，仅 `00-foundation.css`
+        /// 有 `--fd-danger: #d62222`。success/warning 取自既有视图统一值，danger 复用
+        /// `Color.danger`，消除原先 #8b2f29/#b82824/#9e2e24 三种危险红并存）。
+        public enum Semantic {
+            /// 成功绿 #2f8a50（统一值，源自书源测试通过/导入成功状态）
+            public static let success = SwiftUI.Color(red: 0x2f/255, green: 0x8a/255, blue: 0x50/255)
+            /// 成功 tint rgba(74,149,96,0.12)
+            /// （demo `04-settings-source.css` line 667 `.fd-management-list article.is-good em` 真源）
+            public static let successTint = SwiftUI.Color(red: 0x4a/255, green: 0x95/255, blue: 0x60/255, opacity: 0.12)
+            /// 警告橙 #9a6817（统一值，源自测试警告/未检测状态；注意与品牌 accent #f48b13 区分）
+            public static let warning = SwiftUI.Color(red: 0x9a/255, green: 0x68/255, blue: 0x17/255)
+            /// 警告 tint rgba(209,147,47,0.14)
+            /// （demo `04-settings-source.css` line 672 `.fd-management-list article.is-warn em` 真源）
+            public static let warningTint = SwiftUI.Color(red: 0xd1/255, green: 0x93/255, blue: 0x2f/255, opacity: 0.14)
+            /// 危险红 #d62222（= `Color.danger`，demo `00-foundation.css` line 14 真值）
+            public static let danger = SwiftUI.Color(red: 214/255, green: 34/255, blue: 34/255)
+            /// 危险 tint rgba(201,68,54,0.12)
+            /// （demo `05-flow-adaptive.css` line 647 `.fd-settings-badge.is-danger` 真源；
+            ///  亦匹配 `04-settings-source.css` line 677 `.fd-management-list article.is-danger em`）
+            public static let dangerTint = SwiftUI.Color(red: 201/255, green: 68/255, blue: 54/255, opacity: 0.12)
+            /// 信息蓝 tint rgba(35,121,164,0.13)
+            /// （demo `05-flow-adaptive.css` line 642 `.fd-settings-badge.is-info` 真源）
+            public static let infoTint = SwiftUI.Color(red: 35/255, green: 121/255, blue: 164/255, opacity: 0.13)
+            /// 中性 tint rgba(224,217,204,0.82)（用于 muted chip 背景）
+            public static let neutralTint = SwiftUI.Color(red: 0xe0/255, green: 0xd9/255, blue: 0xcc/255, opacity: 0.82)
+        }
+
+        // MARK: - Overlay white（白色半透明 overlay token，替代散落的 Color.white.opacity(...)）
+
+        /// 白色 58% 透明度（demo `.fd-book-cover-overlay` / search entry 背景）
+        public static let overlayWhite58 = SwiftUI.Color(red: 1, green: 1, blue: 1, opacity: 0.58)
+        /// 白色 52% 透明度（demo spinner border / 阅读器控制层装饰）
+        public static let overlayWhite52 = SwiftUI.Color(red: 1, green: 1, blue: 1, opacity: 0.52)
+        /// 白色 82% 透明度（demo `.fd-book-focus-action.primary` 文字）
+        public static let overlayWhite82 = SwiftUI.Color(red: 1, green: 1, blue: 1, opacity: 0.82)
+
+        // MARK: - Night mode control tokens
+        /// 对照 demo `render-runtime.js` `readerThemeStyle()` night control 对象（lines 2765-2797）
+        /// 32 个 token 与 Day 一一对应，alpha 独立核算（不复制 day alpha）
+        public enum Night {
+            /// `control.surface` night rgba(38,35,31,0.96)
+            public static let surface = SwiftUI.Color(red: 38/255, green: 35/255, blue: 31/255, opacity: 0.96)
+            /// `control.surfaceSolid` night rgba(34,31,28,0.98)
+            public static let surfaceSolid = SwiftUI.Color(red: 34/255, green: 31/255, blue: 28/255, opacity: 0.98)
+            /// `control.panel` night rgba(46,42,37,0.82)（day 0.62，alpha 独立）
+            public static let panel = SwiftUI.Color(red: 46/255, green: 42/255, blue: 37/255, opacity: 0.82)
+            /// `control.panelSoft` night rgba(66,59,51,0.66)
+            public static let panelSoft = SwiftUI.Color(red: 66/255, green: 59/255, blue: 51/255, opacity: 0.66)
+            /// `control.elevated` night rgba(52,47,42,0.92)（day 0.74，alpha 独立）
+            public static let elevated = SwiftUI.Color(red: 52/255, green: 47/255, blue: 42/255, opacity: 0.92)
+            /// `control.field` night rgba(58,52,46,0.78)
+            public static let field = SwiftUI.Color(red: 58/255, green: 52/255, blue: 46/255, opacity: 0.78)
+            /// `control.line` night rgba(226,209,185,0.16)（day 0.18，alpha 独立）
+            public static let line = SwiftUI.Color(red: 226/255, green: 209/255, blue: 185/255, opacity: 0.16)
+            /// `control.lineStrong` night rgba(226,209,185,0.28)（day 0.34，alpha 独立）
+            public static let lineStrong = SwiftUI.Color(red: 226/255, green: 209/255, blue: 185/255, opacity: 0.28)
+            /// `control.ink` night #eadfce
+            public static let ink = SwiftUI.Color(red: 0xea/255, green: 0xdf/255, blue: 0xce/255)
+            /// `control.muted` night #baad9c
+            public static let muted = SwiftUI.Color(red: 0xba/255, green: 0xad/255, blue: 0x9c/255)
+            /// `control.icon` night #d4c5b2
+            public static let icon = SwiftUI.Color(red: 0xd4/255, green: 0xc5/255, blue: 0xb2/255)
+            /// `control.primary` night #7a684f（暖棕，day 是 #2f6373 蓝绿，色相完全不同）
+            public static let primary = SwiftUI.Color(red: 0x7a/255, green: 0x68/255, blue: 0x4f/255)
+            /// `control.primaryText` night #fffaf4（与 day 一致）
+            public static let primaryText = SwiftUI.Color(red: 1, green: 0xfa/255, blue: 0xf4/255)
+            /// `control.action` night #d2bd96（金色，day 是 #2f6373）
+            public static let action = SwiftUI.Color(red: 0xd2/255, green: 0xbd/255, blue: 0x96/255)
+            /// `control.activeBg` night rgba(210,189,150,0.18)（day 0.10）
+            public static let activeBg = SwiftUI.Color(red: 210/255, green: 189/255, blue: 150/255, opacity: 0.18)
+            /// `control.activeStrong` night rgba(210,189,150,0.28)（day 0.16）
+            public static let activeStrong = SwiftUI.Color(red: 210/255, green: 189/255, blue: 150/255, opacity: 0.28)
+            /// `control.activeSoft` night rgba(210,189,150,0.12)（day 0.08）
+            public static let activeSoft = SwiftUI.Color(red: 210/255, green: 189/255, blue: 150/255, opacity: 0.12)
+            /// `control.disabledBg` night rgba(226,209,185,0.12)（day 0.56，差异最大）
+            public static let disabledBg = SwiftUI.Color(red: 226/255, green: 209/255, blue: 185/255, opacity: 0.12)
+            /// `control.handle` night rgba(215,203,188,0.42)（day 是 #b9ad9f 不透明，结构差异）
+            public static let handle = SwiftUI.Color(red: 215/255, green: 203/255, blue: 188/255, opacity: 0.42)
+            /// `control.selectionToolbar` night rgba(28,25,22,0.96)
+            public static let selectionToolbar = SwiftUI.Color(red: 28/255, green: 25/255, blue: 22/255, opacity: 0.96)
+            /// `control.selectionToolbarLine` night rgba(235,222,204,0.16)（day 0.24）
+            public static let selectionToolbarLine = SwiftUI.Color(red: 235/255, green: 222/255, blue: 204/255, opacity: 0.16)
+            /// `control.selectionToolbarText` night #fff7ec
+            public static let selectionToolbarText = SwiftUI.Color(red: 1, green: 0xf7/255, blue: 0xec/255)
+            /// `control.selectionFill` night rgba(235,222,204,0.14)（day 0.12）
+            public static let selectionFill = SwiftUI.Color(red: 235/255, green: 222/255, blue: 204/255, opacity: 0.14)
+            /// `control.selectionLine` night rgba(235,222,204,0.38)（day 0.26，night 更强）
+            public static let selectionLine = SwiftUI.Color(red: 235/255, green: 222/255, blue: 204/255, opacity: 0.38)
+            /// `control.selectionHandle` night #d7c7b2
+            public static let selectionHandle = SwiftUI.Color(red: 0xd7/255, green: 0xc7/255, blue: 0xb2/255)
+            /// `control.selectionHandleBorder` night rgba(28,25,22,0.92)（day 是 #fffaf4 不透明）
+            public static let selectionHandleBorder = SwiftUI.Color(red: 28/255, green: 25/255, blue: 22/255, opacity: 0.92)
+            /// `control.ttsCursor` night rgba(234,223,206,0.46)（day 0.42）
+            public static let ttsCursor = SwiftUI.Color(red: 234/255, green: 223/255, blue: 206/255, opacity: 0.46)
+            /// `control.ttsCursorSoft` night rgba(234,223,206,0.08)（day 0.045，night 几乎 2x）
+            public static let ttsCursorSoft = SwiftUI.Color(red: 234/255, green: 223/255, blue: 206/255, opacity: 0.08)
+
+            /// `--fd-paper` night #24211e（demo `00-foundation.css` line 102）
+            public static let paperSolid = SwiftUI.Color(red: 0x24/255, green: 0x21/255, blue: 0x1e/255)
+            /// `--fd-paper-solid` night #1c1a18（demo `00-foundation.css` line 104）
+            public static let paperSolidAlt = SwiftUI.Color(red: 0x1c/255, green: 0x1a/255, blue: 0x18/255)
+            /// `--fd-accent` night #d69b5f（demo `00-foundation.css` line 108；runtime control 无 accent 字段）
+            public static let accent = SwiftUI.Color(red: 0xd6/255, green: 0x9b/255, blue: 0x5f/255)
+            /// `--fd-primary-dark` night #7a684f（与 control.primary 一致）
+            public static let primaryDark = SwiftUI.Color(red: 0x7a/255, green: 0x68/255, blue: 0x4f/255)
+        }
+    }
+
+    // MARK: - Font Weight tokens（对照 demo CSS font-weight 数值）
+
+    /// demo CSS 显式指定 `font-weight: 500/700/800/900`，对应 SwiftUI `Font.Weight`。
+    /// 字号 ≤13 用 .black(900) / .heavy(800)；字号 ≥14 用 .heavy(800) / .bold(700) / .medium(500)。
+    public enum Weight {
+        /// 500（demo `font-weight: 500`）
+        public static let w500: Font.Weight = .medium
+        /// 700（demo `font-weight: 700`）
+        public static let w700: Font.Weight = .bold
+        /// 800（demo `font-weight: 800`，字号 ≥14 用）
+        public static let w800: Font.Weight = .heavy
+        /// 900（demo `font-weight: 900`，字号 ≤13 用）
+        public static let w900: Font.Weight = .black
     }
 
     // MARK: - 圆角
@@ -767,5 +1009,50 @@ public enum ReaderDesignTokens {
         public static let pill: CGFloat = 999
         /// `--fd-radius-circle` 50%
         public static let circle: CGFloat = 0.5
+    }
+
+    // MARK: - Shadow Metric（对照 demo box-shadow 完整定义：x / y / blur / color）
+
+    /// demo CSS `box-shadow` 完整规格：x 偏移 / y 偏移 / blur 半径 / 颜色。
+    /// `Color.Shadow.*` 仅含颜色；此结构补全 metric，供 `.readerShadow(.soft)` modifier 使用。
+    public struct ShadowMetric {
+        public let x: CGFloat
+        public let y: CGFloat
+        public let blur: CGFloat
+        public let color: SwiftUI.Color
+
+        public init(x: CGFloat, y: CGFloat, blur: CGFloat, color: SwiftUI.Color) {
+            self.x = x
+            self.y = y
+            self.blur = blur
+            self.color = color
+        }
+    }
+
+    public enum Shadow {
+        /// `.fd-continue-card` box-shadow 0 4px 12px rgba(89,70,50,0.1)
+        /// （demo `02-main-library.css` line 50 真源，soft token 对应规格）
+        public static let soft: ShadowMetric = .init(x: 0, y: 4, blur: 12, color: Color.Shadow.soft)
+        /// `.fd-book-focus-menu` box-shadow 0 8px 24px rgba(89,70,50,0.16)
+        /// （demo `00-foundation.css` line 1366 真源，elevated token 对应规格）
+        public static let elevated: ShadowMetric = .init(x: 0, y: 8, blur: 24, color: Color.Shadow.elevated)
+        /// `.fd-search-entry` inset box-shadow 0 0 0 1px rgba(48,35,22,0.16)
+        /// （demo `01-shell-layout.css` line 433 真源，inset 描边型阴影）
+        public static let insetAlt: ShadowMetric = .init(x: 0, y: 0, blur: 1, color: Color.Shadow.insetAlt)
+        /// `.fd-book-detail-hero img` box-shadow 0 4px 12px rgba(52,38,26,0.18)
+        /// （demo `04-settings-source.css` line 280 真源）
+        public static let bookDetailHero: ShadowMetric = .init(x: 0, y: 4, blur: 12, color: Color.Shadow.bookDetailHero)
+        /// `.fd-book-grid.is-list-view .fd-book-cover-frame` box-shadow 0 2px 6px rgba(52,38,26,0.12)
+        /// （demo `00-foundation.css` line 1262 真源）
+        public static let bookList: ShadowMetric = .init(x: 0, y: 2, blur: 6, color: Color.Shadow.bookList)
+    }
+}
+
+// MARK: - Shadow modifier（demo box-shadow SwiftUI 镜像）
+
+public extension View {
+    /// 应用 demo box-shadow 规格。`isInset = true` 对应 `inset` 关键字（描边型阴影）。
+    func readerShadow(_ metric: ReaderDesignTokens.ShadowMetric, isInset: Bool = false) -> some View {
+        shadow(color: metric.color, radius: metric.blur / 2, x: metric.x, y: metric.y)
     }
 }

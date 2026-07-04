@@ -2,6 +2,11 @@ import SwiftUI
 import ReaderCoreModels
 
 public struct SearchView: View {
+    private enum SearchDestination {
+        case detail(SearchResultItem, String, BookSource?)
+        case reader(SearchResultItem, BookSource?)
+    }
+
     private enum SearchScope: String, CaseIterable {
         case all = "全部"
         case title = "书名"
@@ -17,14 +22,48 @@ public struct SearchView: View {
     @State private var showDemoHistoryFallback = true
     @State private var didApplyInitialQuery = false
     @State private var toastMessage: String?
+    @State private var activeDestination: SearchDestination?
     private let initialQuery: String
+    private let onExit: (() -> Void)?
 
-    public init(initialQuery: String = "") {
+    public init(initialQuery: String = "", onExit: (() -> Void)? = nil) {
         self.initialQuery = initialQuery
+        self.onExit = onExit
     }
 
     public var body: some View {
-        DemoBackScreen(title: "书籍搜索") {
+        ZStack {
+            switch activeDestination {
+            case .some(.detail(let result, let sourceName, let source)):
+                BookDetailView(result: result, sourceName: sourceName, source: source) {
+                    activeDestination = nil
+                }
+            case .some(.reader(let result, let source)):
+                ReaderView(
+                    chapterURL: result.detailURL,
+                    chapterTitle: result.title,
+                    chapterList: [],
+                    currentChapterIndex: 0,
+                    bookID: result.detailURL,
+                    sourceID: sourceID(for: source),
+                    source: source,
+                    onExit: { activeDestination = nil }
+                )
+            case .none:
+                searchShell
+            }
+        }
+        .onAppear {
+            loadSearchHistory()
+            applyInitialQueryIfNeeded()
+        }
+        .task {
+            await bookshelfVM.loadItems()
+        }
+    }
+
+    private var searchShell: some View {
+        DemoBackScreen(title: "书籍搜索", onBack: onExit) {
             if let toastMessage {
                 SearchToastCard(message: toastMessage)
             }
@@ -35,13 +74,6 @@ public struct SearchView: View {
             searchStateSurface
         } bottomActionHost: {
             bottomActions
-        }
-        .onAppear {
-            loadSearchHistory()
-            applyInitialQueryIfNeeded()
-        }
-        .task {
-            await bookshelfVM.loadItems()
         }
     }
 
@@ -86,25 +118,42 @@ public struct SearchView: View {
     }
 
     private var searchEntry: some View {
-        HStack(spacing: ReaderDesignTokens.searchEntryGap) {
-            ReaderIcon(.search, size: 18, accessibilityLabel: "搜索")
-                .frame(width: ReaderDesignTokens.searchEntryIconColumn, height: ReaderDesignTokens.searchEntryIconColumn)
-                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+        Button {
+            if viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                viewModel.keyword = "长夜余火"
+            } else {
+                performSearch()
+            }
+        } label: {
+            HStack(spacing: ReaderDesignTokens.searchEntryGap) {
+                ReaderIcon(.search, size: 18, accessibilityLabel: "搜索")
+                    .frame(width: ReaderDesignTokens.searchEntryIconColumn, height: ReaderDesignTokens.searchEntryIconColumn)
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
-            TextField("搜索书名、作者、关键词", text: $viewModel.keyword)
-                .font(.system(size: 14))
-                .foregroundColor(.primary)
-                .submitLabel(.search)
-                .onSubmit {
-                    performSearch()
+                Text(searchEntryText)
+                    .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: viewModel.keyword.isEmpty ? .medium : .semibold))
+                    .foregroundStyle(viewModel.keyword.isEmpty ? ReaderDesignTokens.Color.muted : ReaderDesignTokens.Color.ink)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !viewModel.keyword.isEmpty {
+                    ReaderIcon(.clear, size: 14, accessibilityLabel: "清空搜索")
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                 }
+            }
         }
+        .buttonStyle(DemoPressButtonStyle())
         .padding(.horizontal, ReaderDesignTokens.searchEntryHorizontalPadding)
         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.searchEntryMinHeight)
-        .background(SwiftUI.Color.white.opacity(0.58), in: Capsule())
+        .background(ReaderDesignTokens.Color.overlayWhite58, in: Capsule())
         .overlay(Capsule().stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("书籍搜索输入")
+    }
+
+    private var searchEntryText: String {
+        let keyword = viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        return keyword.isEmpty ? "搜索书名、作者、关键词" : keyword
     }
 
     private var scopeChips: some View {
@@ -114,11 +163,11 @@ public struct SearchView: View {
                     selectScope(scope)
                 } label: {
                     Text(scope.rawValue)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .bold))
                         .lineLimit(1)
                         .padding(.horizontal, 12)
                         .frame(minWidth: 56, maxWidth: ReaderDesignTokens.chipMaxWidth, minHeight: 34)
-                        .foregroundColor(selectedScope == scope ? .white : .primary)
+                        .foregroundColor(selectedScope == scope ? .white : ReaderDesignTokens.Color.ink)
                         .background(
                             Capsule()
                                 .fill(selectedScope == scope ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.surface)
@@ -138,8 +187,7 @@ public struct SearchView: View {
             searchHistorySurface
         case .loading:
             SearchStateCard(title: "正在搜索", message: "正在请求书源并整理结果。", icon: .refresh, tone: .info) {
-                ProgressView()
-                    .tint(ReaderDesignTokens.Color.primary)
+                DemoLoadingSpinner(size: .reader)
             }
         case .success(let results):
             searchResultsSurface(results: results, warnings: [])
@@ -175,8 +223,8 @@ public struct SearchView: View {
 
             if visibleHistory.isEmpty {
                 Text("暂无搜索历史")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.searchHistoryRowMinHeight, alignment: .leading)
             } else {
                 VStack(spacing: 0) {
@@ -205,8 +253,8 @@ public struct SearchView: View {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.searchStateGap) {
                 SearchSectionHeader(title: "搜索结果", actionTitle: nil) {}
                 Text(resultSummaryText(count: results.count, warnings: warnings))
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(2)
 
                 VStack(spacing: ReaderDesignTokens.searchResultListGap) {
@@ -216,23 +264,11 @@ public struct SearchView: View {
                             result: result,
                             sourceName: viewModel.sourceName(for: result),
                             isInShelf: isInBookshelf(result: result, source: source),
-                            detailDestination: {
-                                BookDetailView(
-                                    result: result,
-                                    sourceName: viewModel.sourceName(for: result),
-                                    source: source
-                                )
+                            onOpenDetail: {
+                                activeDestination = .detail(result, viewModel.sourceName(for: result), source)
                             },
-                            readerDestination: {
-                                ReaderView(
-                                    chapterURL: result.detailURL,
-                                    chapterTitle: result.title,
-                                    chapterList: [],
-                                    currentChapterIndex: 0,
-                                    bookID: result.detailURL,
-                                    sourceID: sourceID(for: source),
-                                    source: source
-                                )
+                            onRead: {
+                                activeDestination = .reader(result, source)
                             },
                             onAddToBookshelf: {
                                 addToBookshelf(result: result, source: source)
@@ -258,12 +294,8 @@ public struct SearchView: View {
             } trailing: {
                 if let result = firstSearchResult {
                     let source = viewModel.source(for: result) ?? viewModel.selectedSource
-                    NavigationLink {
-                        BookDetailView(
-                            result: result,
-                            sourceName: viewModel.sourceName(for: result),
-                            source: source
-                        )
+                    Button {
+                        activeDestination = .detail(result, viewModel.sourceName(for: result), source)
                     } label: {
                         SearchBottomActionLabel(title: "查看详情", isPrimary: false)
                     }
@@ -310,6 +342,9 @@ public struct SearchView: View {
     }
 
     private func performSearch() {
+        if viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            viewModel.keyword = "长夜余火"
+        }
         selectScope(selectedScope)
         saveSearchHistory(viewModel.keyword)
         Task {
@@ -402,13 +437,13 @@ private struct SearchSectionHeader: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
-                .font(.system(size: 16, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let actionTitle {
                 Button(actionTitle, action: action)
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primary)
                     .lineLimit(1)
                     .padding(.horizontal, 8)
@@ -434,18 +469,18 @@ private struct SearchHistoryRow: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(keyword)
-                        .font(.system(size: 13, weight: .heavy))
-                        .foregroundColor(.primary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                        .foregroundColor(ReaderDesignTokens.Color.ink)
                         .lineLimit(1)
                     Text(meta)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text("填入")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primary)
                     .lineLimit(1)
                     .frame(width: ReaderDesignTokens.searchHistoryActionColumn, alignment: .trailing)
@@ -458,34 +493,34 @@ private struct SearchHistoryRow: View {
     }
 }
 
-private struct SearchResultDemoRow<DetailDestination: View, ReaderDestination: View>: View {
+private struct SearchResultDemoRow: View {
     let result: SearchResultItem
     let sourceName: String
     let isInShelf: Bool
-    let detailDestination: DetailDestination
-    let readerDestination: ReaderDestination
+    let onOpenDetail: () -> Void
+    let onRead: () -> Void
     let onAddToBookshelf: () -> Void
 
     init(
         result: SearchResultItem,
         sourceName: String,
         isInShelf: Bool,
-        @ViewBuilder detailDestination: () -> DetailDestination,
-        @ViewBuilder readerDestination: () -> ReaderDestination,
+        onOpenDetail: @escaping () -> Void,
+        onRead: @escaping () -> Void,
         onAddToBookshelf: @escaping () -> Void
     ) {
         self.result = result
         self.sourceName = sourceName
         self.isInShelf = isInShelf
-        self.detailDestination = detailDestination()
-        self.readerDestination = readerDestination()
+        self.onOpenDetail = onOpenDetail
+        self.onRead = onRead
         self.onAddToBookshelf = onAddToBookshelf
     }
 
     var body: some View {
         HStack(spacing: ReaderDesignTokens.searchResultRowGap) {
-            NavigationLink {
-                detailDestination
+            Button {
+                onOpenDetail()
             } label: {
                 HStack(spacing: ReaderDesignTokens.searchResultRowGap) {
                     SearchResultCover(coverURL: result.coverURL, title: result.title)
@@ -497,8 +532,8 @@ private struct SearchResultDemoRow<DetailDestination: View, ReaderDestination: V
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if isInShelf {
-                NavigationLink {
-                    readerDestination
+                Button {
+                    onRead()
                 } label: {
                     SearchResultActionLabel(title: "阅读")
                 }
@@ -517,7 +552,7 @@ private struct SearchResultDemoRow<DetailDestination: View, ReaderDestination: V
                 .fill(ReaderDesignTokens.Color.surface.opacity(0.78))
                 .overlay(
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
-                        .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                        .stroke(ReaderDesignTokens.Color.searchResultBorder, lineWidth: 1)
                 )
         )
     }
@@ -525,23 +560,23 @@ private struct SearchResultDemoRow<DetailDestination: View, ReaderDestination: V
     private var resultText: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(result.title)
-                .font(.system(size: 14, weight: .heavy))
-                .foregroundColor(.primary)
+                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .lineLimit(1)
             HStack(spacing: 8) {
                 Text(result.author?.isEmpty == false ? result.author! : "作者待补齐")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .bold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
                 Text(sourceName.isEmpty ? "当前书源" : sourceName)
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primary)
                     .lineLimit(1)
                     .frame(maxWidth: 64, alignment: .leading)
             }
             Text(latestText)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.rssArticleRowBodyFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -580,7 +615,8 @@ private struct SearchResultCover: View {
         }
         .frame(width: ReaderDesignTokens.searchResultCoverWidth, height: ReaderDesignTokens.searchResultCoverHeight)
         .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs))
-        .shadow(color: SwiftUI.Color(red: 48/255, green: 35/255, blue: 22/255, opacity: 0.16), radius: 5, x: 0, y: 4)
+        // demo `.fd-search-result-row img`: 0 5px 10px rgba(48,35,22,0.16)
+        .shadow(color: ReaderDesignTokens.Color.Shadow.insetAlt, radius: 10, x: 0, y: 5)
         .accessibilityLabel(Text("\(title)封面"))
     }
 
@@ -598,13 +634,13 @@ private struct SearchResultShelfStateLabel: View {
 
     var body: some View {
         Text(isInShelf ? "已在书架" : "未加入")
-            .font(.system(size: 10, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .padding(.horizontal, 6)
             .frame(width: ReaderDesignTokens.searchResultStateColumn)
             .frame(minHeight: 24)
-            .foregroundColor(isInShelf ? ReaderDesignTokens.Color.primary : .secondary)
+            .foregroundColor(isInShelf ? ReaderDesignTokens.Color.primary : ReaderDesignTokens.Color.muted)
             .background(Capsule().fill(isInShelf ? ReaderDesignTokens.Color.primary.opacity(0.10) : ReaderDesignTokens.Color.chipBackground))
     }
 }
@@ -614,7 +650,7 @@ private struct SearchResultActionLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 11, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
             .lineLimit(1)
             .minimumScaleFactor(0.78)
             .frame(width: ReaderDesignTokens.searchResultActionColumn)
@@ -631,7 +667,7 @@ private struct SearchBottomActionLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 13, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .frame(maxWidth: .infinity)
@@ -647,7 +683,7 @@ private struct SearchBottomActionLabel: View {
 
     private var foreground: SwiftUI.Color {
         if isDisabled {
-            return .secondary
+            return ReaderDesignTokens.Color.muted
         }
         return isPrimary ? .white : ReaderDesignTokens.Color.primaryDark
     }
@@ -671,11 +707,11 @@ private enum SearchStateTone {
         case .info:
             return ReaderDesignTokens.Color.primaryDark
         case .warning:
-            return SwiftUI.Color(red: 0.66, green: 0.38, blue: 0.08)
+            return ReaderDesignTokens.Color.Semantic.warning
         case .danger:
-            return SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14)
+            return ReaderDesignTokens.Color.Semantic.danger
         case .muted:
-            return .secondary
+            return ReaderDesignTokens.Color.muted
         }
     }
 
@@ -684,9 +720,9 @@ private enum SearchStateTone {
         case .info:
             return ReaderDesignTokens.Color.primary.opacity(0.10)
         case .warning:
-            return SwiftUI.Color(red: 0.96, green: 0.74, blue: 0.36, opacity: 0.18)
+            return ReaderDesignTokens.Color.Semantic.warningTint
         case .danger:
-            return SwiftUI.Color(red: 0.72, green: 0.16, blue: 0.14, opacity: 0.10)
+            return ReaderDesignTokens.Color.Semantic.danger.opacity(0.10)
         case .muted:
             return ReaderDesignTokens.Color.chipBackground.opacity(0.78)
         }
@@ -723,11 +759,11 @@ private struct SearchStateCard<Accessory: View>: View {
                     .background(Circle().fill(tone.background))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
                         .lineLimit(1)
                     Text(message)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(3)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -751,7 +787,7 @@ private struct SearchToastCard: View {
 
     var body: some View {
         Text(message)
-            .font(.system(size: 12, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
             .foregroundColor(.white)
             .lineLimit(1)
             .padding(.horizontal, 12)

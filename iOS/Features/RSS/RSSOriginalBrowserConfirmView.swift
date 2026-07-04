@@ -84,14 +84,14 @@ private struct RSSBrowserConfirmCard: View {
 
             Text(heading)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmTitleFontSize, weight: .heavy))
-                .foregroundColor(SwiftUI.Color(red: 0x34/255, green: 0x2f/255, blue: 0x2a/255))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
 
             Text(copy)
                 .font(.system(size: ReaderDesignTokens.rssBrowserConfirmBodyFontSize))
                 .lineSpacing(ReaderDesignTokens.rssBrowserConfirmBodyFontSize * 0.7)
-                .foregroundColor(SwiftUI.Color(red: 0x51/255, green: 0x48/255, blue: 0x3f/255))
+                .foregroundColor(ReaderDesignTokens.Color.muted)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: ReaderDesignTokens.rssBrowserConfirmTextMaxWidth)
@@ -100,7 +100,7 @@ private struct RSSBrowserConfirmCard: View {
                 Text(detail)
                     .font(.system(size: ReaderDesignTokens.rssBrowserConfirmDetailFontSize))
                     .lineSpacing(ReaderDesignTokens.rssBrowserConfirmDetailFontSize * 0.55)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
                     .truncationMode(.middle)
@@ -118,7 +118,11 @@ private struct RSSBrowserConfirmCard: View {
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                 .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.72), lineWidth: 1)
         )
-        .shadow(color: SwiftUI.Color.black.opacity(0.04), radius: 14, x: 0, y: 8)
+        .shadow(
+            // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+            color: ReaderDesignTokens.Color.Shadow.soft,
+            radius: 26, x: 0, y: 8
+        )
         .accessibilityElement(children: .combine)
     }
 }
@@ -131,7 +135,7 @@ private struct RSSBrowserConfirmButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.primaryDark)
                 .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                 .background(

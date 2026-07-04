@@ -203,8 +203,12 @@ final class PrototypeGalleryVerificationTests: XCTestCase {
     // MARK: - Theme/Token 在 Prototype 中可访问
 
     func testThemeTokensAccessibleInTests() {
+        // Legacy ReaderColors (deprecated, but still accessible)
         _ = ReaderColors.paperBg
         _ = ReaderColors.nightPaperBg
+        // 新 token 镜像
+        _ = ReaderDesignTokens.Color.paperSolid
+        _ = ReaderDesignTokens.Color.paperSolidAlt
         _ = ReaderTypography.readerTitle
         _ = ReaderTypography.readerBody
         _ = ReaderSpacing.xs

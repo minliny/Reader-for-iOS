@@ -15,7 +15,7 @@ struct ChapterNavigation: Hashable {
 
 public struct ChapterListView: View {
     @StateObject private var viewModel: ChapterListViewModel
-    @State private var navigationPath = NavigationPath()
+    @State private var activeChapter: ChapterNavigation?
     let sourceName: String
     let source: BookSource?
     private var resolvedBookID: String { viewModel.bookURL }
@@ -33,23 +33,25 @@ public struct ChapterListView: View {
     }
 
     public var body: some View {
-        NavigationStack(path: $navigationPath) {
+        ZStack {
+            if let activeChapter {
+                ReaderView(
+                    chapterURL: activeChapter.chapterURL,
+                    chapterTitle: activeChapter.chapterTitle,
+                    chapterList: viewModel.chaptersForReader,
+                    currentChapterIndex: activeChapter.chapterIndex,
+                    bookID: resolvedBookID,
+                    sourceID: resolvedSourceID,
+                    source: source,
+                    onExit: { self.activeChapter = nil }
+                )
+            } else {
             DemoBackScreen(title: "目录") {
                 directoryCard
             }
             .onAppear {
                 Task { await viewModel.loadChapters() }
             }
-            .navigationDestination(for: ChapterNavigation.self) { nav in
-                ReaderView(
-                    chapterURL: nav.chapterURL,
-                    chapterTitle: nav.chapterTitle,
-                    chapterList: viewModel.chaptersForReader,
-                    currentChapterIndex: nav.chapterIndex,
-                    bookID: resolvedBookID,
-                    sourceID: resolvedSourceID,
-                    source: source
-                )
             }
         }
     }
@@ -76,13 +78,13 @@ public struct ChapterListView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(viewModel.bookTitle)
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                     .lineLimit(1)
 
                 Text("\(displaySourceName) · \(chapterCountDescription)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .medium))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,7 +154,10 @@ public struct ChapterListView: View {
     }
 
     private func chapterList(_ chapters: [TOCItem]) -> some View {
-        VStack(spacing: 0) {
+        // P2-B: 使用 LazyVStack 虚拟化长目录列表，避免一次性渲染全部章节行。
+        // 真源：demo `.fd-reader-directory-list` 在长目录场景下用虚拟滚动；
+        // iOS 用 LazyVStack 等价（仅在 ScrollView 内可见区域渲染行）。
+        LazyVStack(spacing: 0) {
             ForEach(Array(chapters.enumerated()), id: \.element.chapterURL) { index, chapter in
                 ChapterRowView(
                     chapter: chapter,
@@ -176,11 +181,11 @@ public struct ChapterListView: View {
     }
 
     private func showChapterAction(chapter: TOCItem, index: Int) {
-        navigationPath.append(ChapterNavigation(
+        activeChapter = ChapterNavigation(
             chapterURL: chapter.chapterURL,
             chapterTitle: chapter.chapterTitle,
             chapterIndex: index
-        ))
+        )
     }
 
     private var displaySourceName: String {

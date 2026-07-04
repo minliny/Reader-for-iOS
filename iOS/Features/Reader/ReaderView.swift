@@ -6,6 +6,8 @@ import ReaderShellValidation
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
     @StateObject private var ttsPlayer = ReaderTTSPlayer()
+    // P3-B: 会话存储（由 AppShellView 注入），并行记录会话状态，不取代既有 ReaderViewModel
+    @EnvironmentObject private var sessionStore: ReaderSessionStore
     @State private var showTTS = false
     @State private var readerControlPresentation: ReaderControlPresentation = .control
     @State private var scrollOffset: CGFloat = 0
@@ -17,6 +19,7 @@ public struct ReaderView: View {
     private let brightnessController = ScreenBrightnessController()
     private let volumeKeyPageTurner = VolumeKeyPageTurner()
     private let motion = MotionEnvironment()
+    private let onExit: (() -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     /// `immersiveStart = true` 时进入「沉浸阅读」终态：阅读控制层（进度面/动作条/
@@ -31,7 +34,8 @@ public struct ReaderView: View {
         bookID: String? = nil,
         sourceID: String? = nil,
         source: BookSource? = nil,
-        immersiveStart: Bool = false
+        immersiveStart: Bool = false,
+        onExit: (() -> Void)? = nil
     ) {
         self._viewModel = StateObject(wrappedValue: ReaderViewModel(
             chapterURL: chapterURL,
@@ -43,25 +47,21 @@ public struct ReaderView: View {
             source: source
         ))
         self._chromeVisible = State(initialValue: !immersiveStart)
+        self.onExit = onExit
     }
 
     public var body: some View {
         GeometryReader { proxy in
             readerBody(layout: ReaderResponsiveLayout.make(size: proxy.size))
         }
+        .overlay {
+            readerInlineDestinationLayer
+        }
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
         .toolbar(.hidden, for: .tabBar)
         .mainTabBarVisible(false)
-        .navigationDestination(item: $readerDestination) { destination in
-            switch destination {
-            case .sourceSwitch(let bookURL):
-                ReaderSourceSwitchFlowView(bookURL: bookURL)
-            case .demoRoute(let route):
-                ReaderDemoShellView(demoRoute: route)
-            }
-        }
         .onAppear {
             Task { await viewModel.loadContent() }
             brightnessController.apply(BrightnessPolicy(
@@ -77,12 +77,40 @@ public struct ReaderView: View {
                 }
                 volumeKeyPageTurner.start()
             }
+            // P3-B: 启动阅读会话（并行记录，不影响既有 ReaderViewModel 加载逻辑）
+            if sessionStore.currentSession == nil {
+                sessionStore.startSession(
+                    bookId: viewModel.currentBookID ?? viewModel.chapterURL,
+                    chapterURL: viewModel.chapterURL,
+                    sourceId: viewModel.currentSourceID
+                )
+            }
         }
         .onDisappear {
             viewModel.saveSettings()
             ttsPlayer.stop()
             brightnessController.restore()
             volumeKeyPageTurner.stop()
+            // P3-B: 结束阅读会话
+            sessionStore.endSession()
+        }
+    }
+
+    @ViewBuilder
+    private var readerInlineDestinationLayer: some View {
+        switch readerDestination {
+        case .some(.sourceSwitch(let bookURL)):
+            ReaderSourceSwitchFlowView(bookURL: bookURL, onExit: {
+                readerDestination = nil
+            })
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+        case .some(.demoRoute(let route)):
+            ReaderDemoShellView(demoRoute: route, onExit: {
+                readerDestination = nil
+            })
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+        case .none:
+            EmptyView()
         }
     }
 
@@ -162,7 +190,7 @@ public struct ReaderView: View {
                 progressPercentage: viewModel.readingProgress,
                 title: viewModel.chapterTitle,
                 subtitle: readerTopSubtitle,
-                onBack: { dismiss() },
+                onBack: exitReader,
                 onSourceSwitch: { readerDestination = .sourceSwitch(viewModel.chapterURL) },
                 onMore: openReaderSettings,
                 style: topBarStyle(for: layout)
@@ -170,6 +198,14 @@ public struct ReaderView: View {
             // `.fd-reader-top` inset：top 18 / 左右 14
             .padding(.horizontal, topBarHorizontalInset(for: layout))
             .padding(.top, topBarTopInset(for: layout))
+        }
+    }
+
+    private func exitReader() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 
@@ -375,14 +411,20 @@ public struct ReaderView: View {
 
     private var idleStateView: some View {
         Text("Loading...")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize))
+            .foregroundStyle(ReaderDesignTokens.Color.muted)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var loadingStateView: some View {
-        ProgressView("Loading content...")
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // demo `.fd-reader-loading-panel`：30×30 spinner + 文案，居中。
+        VStack(spacing: 8) {
+            DemoLoadingSpinner(size: .reader)
+            Text("Loading content...")
+                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func loadedContentView(_ content: ContentPage, layout: ReaderResponsiveLayout) -> some View {
@@ -949,6 +991,15 @@ private struct ReaderControlSheet: View {
     let onSelectChapter: (Int) -> Void
     let onSessionAction: (ReaderControlSessionAction) -> Void
 
+    // P2-B HANDLE-P0-1: grabber 拖拽预览状态
+    // 对应 demo `reader.control.handle.press/drag/release`：
+    // - press: 0-80ms pressed 反馈（宽度 46→48，颜色加深）
+    // - drag: 面板跟手移动，最大预览位移 18pt（handlePullY）
+    // - release: 超过阈值（18pt 或容器 8%）→ onExpandModule；否则 handleSnap(120ms) 回原位
+    @State private var grabberDragOffset: CGFloat = 0
+    @State private var grabberIsPressed: Bool = false
+    private let motion = MotionEnvironment()
+
     var body: some View {
         ReaderCard {
             VStack(alignment: .leading, spacing: ReaderDesignTokens.readerControlSheetGap) {
@@ -978,19 +1029,50 @@ private struct ReaderControlSheet: View {
         .accessibilityIdentifier("fd-reader-sheet")
     }
 
+    /// P2-B HANDLE-P0-1: grabber 视图。
+    ///
+    /// 真源：demo `MOTION_EFFECTS.md` §`reader.control.handle.press/drag/release`。
+    /// - press 反馈：0-80ms 视觉宽度 46→48，颜色加深（opacity 0.5→0.7）
+    /// - drag：向上拖动跟手，最大预览位移 `handlePullY`(18pt)；向下拖动不预览
+    /// - release：向上超过阈值（18pt）→ onExpandModule；否则 120ms (handleSnap) 回原位
+    /// - reduced motion：press/drag 仍可用，但 snap 用 instant (0ms)
     private var grabber: some View {
-        Button {
-            onExpandModule(presentation.expansionModule)
-        } label: {
-            Capsule()
-                .fill(ReaderDesignTokens.Color.mainNavBorder)
-                .frame(width: 46, height: 5)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("展开完整控制页")
-        .accessibilityIdentifier("fd-reader-grabber")
+        let grabberWidth: CGFloat = grabberIsPressed ? 48 : 46
+        let grabberColorOpacity: Double = grabberIsPressed ? 0.7 : 0.5
+
+        return Capsule()
+            .fill(ReaderDesignTokens.Color.mainNavBorder.opacity(grabberColorOpacity))
+            .frame(width: grabberWidth, height: 5)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        // press 反馈（不论是否开始拖动）
+                        if !grabberIsPressed {
+                            grabberIsPressed = true
+                        }
+                        // 向上拖动预览（value.translation.height 为负数），向下不允许
+                        let pull = min(0, value.translation.height)
+                        // clamp 到 handlePullY (18pt) 上限
+                        grabberDragOffset = max(pull, -ReaderMotion.Distance.handlePullY)
+                    }
+                    .onEnded { value in
+                        grabberIsPressed = false
+                        let threshold = ReaderMotion.Distance.handlePullY
+                        let triggeredExpand = value.translation.height <= -threshold
+                        // 释放后清空 dragOffset，使用 handleSnap (120ms) 动画
+                        withAnimation(motion.animation(ReaderMotion.Duration.handleSnap)) {
+                            grabberDragOffset = 0
+                        }
+                        if triggeredExpand {
+                            onExpandModule(presentation.expansionModule)
+                        }
+                    }
+            )
+            .offset(y: grabberDragOffset)
+            .accessibilityLabel("展开完整控制页")
+            .accessibilityIdentifier("fd-reader-grabber")
     }
 }
 
@@ -1002,13 +1084,13 @@ private struct ReaderSessionCapsule: View {
             ReaderIcon(session.icon, size: ReaderDesignTokens.readerSessionCapsuleIconSize, accessibilityLabel: session.title)
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Text("\(session.title) · \(session.statusLabel)")
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
                 .lineLimit(1)
             Spacer(minLength: 0)
             Text(session.countdownLabel)
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
                 .frame(width: ReaderDesignTokens.readerSessionCapsuleCountdownSize)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .padding(.horizontal, 12)
         .frame(height: ReaderDesignTokens.readerSessionCapsuleHeight)
@@ -1058,18 +1140,18 @@ private struct ReaderDirectoryQuickPanel: View {
             HStack(spacing: ReaderDesignTokens.settingsRowGap) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title.isEmpty ? "当前章节" : title)
-                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
-                        .foregroundColor(.primary)
+                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
+                        .foregroundColor(ReaderDesignTokens.Color.ink)
                         .lineLimit(1)
                     Text(isCurrent ? "当前阅读位置" : "第 \(index + 1) 章")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 if isCurrent {
                     Text("当前")
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 }
             }
@@ -1106,11 +1188,11 @@ private struct ReaderTTSQuickPanel: View {
                 .frame(width: ReaderDesignTokens.settingsRowIconColumn)
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             Text(title)
-                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(detail)
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
@@ -1124,7 +1206,7 @@ private struct ReaderAppearanceQuickPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text("阅读主题")
-                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 ForEach(ReaderBackgroundMode.allCases, id: \.self) { mode in
                     Button {
@@ -1159,7 +1241,7 @@ private struct ReaderAppearanceQuickPanel: View {
             )
             HStack(spacing: 8) {
                 Text("翻页")
-                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 ForEach(PageTurnMode.allCases, id: \.self) { mode in
                     PillChip(mode == .scroll ? "滚动" : "分页", isSelected: displaySettings.pageTurnMode == mode) {
@@ -1196,7 +1278,7 @@ private struct ReaderAppearanceQuickStepper: View {
     var body: some View {
         HStack(spacing: ReaderDesignTokens.settingsRowGap) {
             Text(title)
-                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: decrease) {
                 ReaderIcon(.clear, size: 13, accessibilityLabel: "\(title)减少")
@@ -1204,7 +1286,7 @@ private struct ReaderAppearanceQuickStepper: View {
             }
             .buttonStyle(.plain)
             Text(value)
-                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy).monospacedDigit())
+                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black).monospacedDigit())
                 .frame(width: 34)
             Button(action: increase) {
                 ReaderIcon(.add, size: 13, accessibilityLabel: "\(title)增加")
@@ -1273,11 +1355,11 @@ private struct ReaderSettingsQuickToggleRow: View {
                     .frame(width: ReaderDesignTokens.settingsRowIconColumn)
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 Text(title)
-                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(isOn ? "开" : "关")
-                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                 Capsule()
                     .fill(isOn ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder)
                     .frame(width: 34, height: 18)
@@ -1381,7 +1463,7 @@ private struct ReaderControlMain: View {
                                     .fill(ReaderDesignTokens.Color.readerModuleIconShellBackground)
                             )
                         Text(action.title)
-                            .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity)
@@ -1406,13 +1488,14 @@ private struct ReaderControlMain: View {
 
             HStack(spacing: 8) {
                 Text("\(Int(progressPercentage * 100))%")
-                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy).monospacedDigit())
-                    .foregroundStyle(.secondary)
-                ProgressView(value: progressPercentage)
-                    .tint(ReaderDesignTokens.Color.primary)
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black).monospacedDigit())
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                // demo `.fd-reader-progress`：30px 容器 + 5px bar + 12px thumb。
+                DemoReaderProgressBar(progress: progressPercentage, tint: ReaderDesignTokens.Color.primary)
+                    .frame(maxWidth: .infinity)
                 Text("共 \(max(chapterCount, 1)) 章")
-                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
             }
         }
         .padding(10)
@@ -1451,15 +1534,15 @@ private struct ReaderControlMain: View {
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                     Text(description)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)
                 Text("展开")
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                     .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             }
             .padding(10)
@@ -1506,6 +1589,7 @@ extension ReaderView {
             fixtureContent: fixtureContent
         ))
         self._chromeVisible = State(initialValue: true)
+        self.onExit = nil
     }
 }
 #endif

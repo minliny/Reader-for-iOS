@@ -3,9 +3,14 @@ import SwiftUI
 struct BookshelfGroupManagementView: View {
     @State private var selectedGroupID = BookshelfGroupItem.demoGroups.first?.id ?? "default"
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
+    private let onExit: (() -> Void)?
+
+    init(onExit: (() -> Void)? = nil) {
+        self.onExit = onExit
+    }
 
     var body: some View {
-        DemoBackScreen(title: "分组管理") {
+        DemoBackScreen(title: "分组管理", onBack: onExit) {
             groupList
             assignmentList
         } bottomActionHost: {
@@ -15,7 +20,11 @@ struct BookshelfGroupManagementView: View {
                 }
             } trailing: {
                 BookshelfGroupBottomButton(title: "完成", isPrimary: false) {
-                    dismiss()
+                    if let onExit {
+                        onExit()
+                    } else {
+                        dismiss()
+                    }
                 }
             }
         }
@@ -63,7 +72,7 @@ struct BookshelfGroupManagementView: View {
 
     private func managementTitle(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             .padding(.horizontal, ReaderDesignTokens.bookGroupRowHorizontalPadding - ReaderDesignTokens.cardPadding)
             .padding(.bottom, 4)
@@ -114,12 +123,12 @@ private struct BookshelfGroupRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(group.name)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.ink)
                     .lineLimit(1)
                 Text(group.meta)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,12 +167,12 @@ private struct BookshelfGroupAssignmentRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                    .foregroundStyle(ReaderDesignTokens.Color.ink)
                     .lineLimit(1)
                 Text(item.meta)
                     .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -181,7 +190,7 @@ private struct BookshelfGroupPill: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 12, weight: .heavy))
+            .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
             .lineLimit(1)
             .foregroundColor(isSelected ? .white : ReaderDesignTokens.Color.primaryDark)
             .padding(.horizontal, 10)
@@ -197,9 +206,9 @@ private struct BookshelfGroupDeleteButton: View {
     var body: some View {
         Button(role: .destructive, action: {}) {
             ReaderIcon(.trash, size: 15, accessibilityLabel: "删除分组")
-                .foregroundColor(.red)
+                .foregroundColor(ReaderDesignTokens.Color.danger)
                 .frame(width: ReaderDesignTokens.bookGroupDeleteButtonSize, height: ReaderDesignTokens.bookGroupDeleteButtonSize)
-                .background(Circle().fill(SwiftUI.Color.red.opacity(0.08)))
+                .background(Circle().fill(ReaderDesignTokens.Color.danger.opacity(0.08)))
         }
         .buttonStyle(.plain)
     }
@@ -213,9 +222,9 @@ private struct BookshelfGroupBottomButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .lineLimit(1)
-                .foregroundColor(isPrimary ? .white : SwiftUI.Color(red: 0x4e/255, green: 0x44/255, blue: 0x3a/255))
+                .foregroundColor(isPrimary ? .white : ReaderDesignTokens.Color.controlIconAlt)
                 .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bottomFixedActionButtonMinHeight)
                 .background(
                     Capsule()

@@ -8,15 +8,17 @@ struct BookDirectoryPreviewView: View {
 
     let bookURL: String
     let title: String
+    let onExit: (() -> Void)?
     @State private var mode: Mode = .directory
 
-    init(bookURL: String = "demo://book/long-night", title: String = "长夜余火") {
+    init(bookURL: String = "demo://book/long-night", title: String = "长夜余火", onExit: (() -> Void)? = nil) {
         self.bookURL = bookURL
         self.title = title
+        self.onExit = onExit
     }
 
     var body: some View {
-        DemoBackScreen(title: "书籍目录") {
+        DemoBackScreen(title: "书籍目录", onBack: onExit) {
             directoryCard
         }
     }
@@ -47,8 +49,9 @@ struct BookDirectoryPreviewView: View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
                 .shadow(
-                    color: SwiftUI.Color(red: 80/255, green: 67/255, blue: 52/255, opacity: 0.08),
-                    radius: 12,
+                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    color: ReaderDesignTokens.Color.Shadow.soft,
+                    radius: 26,
                     x: 0,
                     y: 8
                 )
@@ -61,12 +64,12 @@ struct BookDirectoryPreviewView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 16, weight: .heavy))
-                .foregroundColor(SwiftUI.Color(red: 0x2b/255, green: 0x24/255, blue: 0x1d/255))
+                .font(.system(size: ReaderDesignTokens.readerTopTitleFontSize, weight: .heavy))
+                .foregroundColor(ReaderDesignTokens.Color.ink)
                 .lineLimit(1)
             Text("爱潜水的乌贼 · 共 \(BookDirectoryChapter.demoChapters.count) 章")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .medium))
+                .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookDirectoryHeaderMinHeight, alignment: .leading)
@@ -80,10 +83,10 @@ struct BookDirectoryPreviewView: View {
                     mode = item
                 } label: {
                     Text(item.rawValue)
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .bold))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.bookDirectorySwitchButtonMinHeight)
-                        .foregroundColor(mode == item ? .white : SwiftUI.Color(red: 0x33/255, green: 0x2c/255, blue: 0x25/255))
+                        .foregroundColor(mode == item ? .white : ReaderDesignTokens.Color.controlInkAlt)
                         .background(
                             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                                 .fill(mode == item ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.chipBackground.opacity(0.70))
@@ -137,8 +140,8 @@ private struct BookDirectoryChapterRow: View {
     var body: some View {
         HStack(spacing: ReaderDesignTokens.bookGroupRowGap) {
             Text(chapter.title)
-                .font(.system(size: 14, weight: chapter.isCurrent ? .heavy : .regular))
-                .foregroundColor(chapter.isCurrent ? ReaderDesignTokens.Color.primaryDark : .primary)
+                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: chapter.isCurrent ? .heavy : .regular))
+                .foregroundColor(chapter.isCurrent ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.ink)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -157,7 +160,7 @@ private struct BookDirectoryChapterRow: View {
 
     private func markerIcon(_ icon: ReaderAssetIcon, isActive: Bool, accessibilityLabel: String) -> some View {
         ReaderIcon(icon, size: 14, accessibilityLabel: accessibilityLabel)
-            .foregroundColor(isActive ? ReaderDesignTokens.Color.primaryDark : SwiftUI.Color.secondary.opacity(0.58))
+            .foregroundColor(isActive ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.muted.opacity(0.58))
             .frame(width: ReaderDesignTokens.bookDirectoryMarkerSize, height: ReaderDesignTokens.bookDirectoryMarkerSize)
             .background(
                 Capsule()

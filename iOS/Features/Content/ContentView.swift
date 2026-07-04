@@ -5,10 +5,12 @@ import ReaderShellValidation
 public struct ContentView: View {
     @ObservedObject public var coordinator: ReadingFlowCoordinator
     public let chapter: TOCItem
+    private let onExit: (() -> Void)?
 
-    public init(coordinator: ReadingFlowCoordinator, chapter: TOCItem) {
+    public init(coordinator: ReadingFlowCoordinator, chapter: TOCItem, onExit: (() -> Void)? = nil) {
         self.coordinator = coordinator
         self.chapter = chapter
+        self.onExit = onExit
     }
 
     private var surfaceKind: ContentSurfaceKind {
@@ -51,7 +53,7 @@ public struct ContentView: View {
     }
 
     public var body: some View {
-        DemoBackScreen(title: "正文") {
+        DemoBackScreen(title: "正文", onBack: onExit) {
             contentSurface
         }
         .task {
@@ -141,7 +143,7 @@ public struct ContentView: View {
             action?()
         } label: {
             Text(title)
-                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .heavy))
+                .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                 .frame(maxWidth: .infinity, minHeight: 40)
         }
         .buttonStyle(.plain)

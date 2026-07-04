@@ -40,20 +40,21 @@ public enum PrototypeGroup: String, CaseIterable, Identifiable {
 
     public var id: String { rawValue }
 
-    public var icon: String {
+    /// demo 资产图标（替换原 SF Symbols `icon: String`）。
+    public var assetIcon: ReaderAssetIcon {
         switch self {
-        case .appShell: return "rectangle.split.2x2"
-        case .bookshelf: return "books.vertical"
-        case .searchDetail: return "magnifyingglass"
-        case .reader: return "book"
-        case .sourceMgmt: return "doc.text.magnifyingglass"
-        case .discover: return "safari"
-        case .rss: return "dot.radiowaves.left.and.right"
-        case .webdav: return "icloud"
-        case .sync: return "arrow.triangle.2.circlepath"
-        case .settings: return "gearshape"
-        case .states: return "exclamationmark.triangle"
-        case .debug: return "wrench"
+        case .appShell: return .grid
+        case .bookshelf: return .bookshelf
+        case .searchDetail: return .search
+        case .reader: return .book
+        case .sourceMgmt: return .source
+        case .discover: return .discover
+        case .rss: return .rss
+        case .webdav: return .cloud
+        case .sync: return .sync
+        case .settings: return .gear
+        case .states: return .warning
+        case .debug: return .bug
         }
     }
 }

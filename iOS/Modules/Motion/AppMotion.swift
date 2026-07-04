@@ -56,6 +56,8 @@ public enum AppMotion {
     public enum Distance {
         /// `app.motion.distance.dropdownY` = 6pt。
         public static let dropdownY: CGFloat = 6
+        /// `app.motion.distance.firstOpenY` = 8pt。冷启动首屏进入轻位移。
+        public static let firstOpenY: CGFloat = 8
         /// `app.motion.distance.feedbackY` = 8pt。
         public static let feedbackY: CGFloat = 8
         /// `app.motion.distance.selectionToolbarY` = 6pt。

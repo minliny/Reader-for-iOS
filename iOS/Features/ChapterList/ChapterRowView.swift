@@ -18,8 +18,8 @@ public struct ChapterRowView: View {
         }) {
             HStack(spacing: ReaderDesignTokens.bookGroupRowGap) {
                 Text(chapter.chapterTitle)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.primary)
+                    .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .regular))
+                    .foregroundColor(ReaderDesignTokens.Color.ink)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -50,7 +50,7 @@ public struct ChapterRowView: View {
 
     private func markerText(_ value: String) -> some View {
         Text(value)
-            .font(.system(size: 10, weight: .heavy).monospacedDigit())
+            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black).monospacedDigit())
             .foregroundColor(ReaderDesignTokens.Color.primaryDark)
             .lineLimit(1)
             .minimumScaleFactor(0.78)

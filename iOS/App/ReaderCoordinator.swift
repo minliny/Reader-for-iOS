@@ -1,0 +1,78 @@
+import Foundation
+import SwiftUI
+import ReaderUIContract
+
+/// ReaderCoordinator — 协调 navigation stack / overlay / activeSession。
+///
+/// 职责（CONTRACT_FIRST_NATIVE_UI_PLAN.md §6）：
+/// - 协调 navigation stack（route push/pop）
+/// - 协调 overlay 显隐
+/// - 协调 activeSession（reading / tts / autoPage）
+///
+/// 设计：
+/// - Slice 1 仅作为骨架，所有方法留给后续 slice 落地。
+/// - 不持有状态，状态由 `AppNavigationState` 持有；coordinator 只发指令。
+/// - 包装既有 `AppNavigationState.navigate / enterImmersiveReading / exitImmersiveReading`，
+///   不重写。
+@MainActor
+public final class ReaderCoordinator {
+    private let navigationState: AppNavigationState
+
+    public init(navigationState: AppNavigationState) {
+        self.navigationState = navigationState
+    }
+
+    // MARK: - Slice 1 占位（后续 slice 落地）
+
+    /// Slice 2：bookshelf → open book → reader surface
+    public func openBook(_ bookId: String) {
+        // Slice 2 落地：route.push(book-detail) + activeSession=reading
+        breakPoint("Slice 2 未落地：openBook(\(bookId))")
+    }
+
+    /// Slice 3：reader overlay / control dock / reader mode
+    public func toggleReaderControl() {
+        // Slice 3 落地：reader.control.toggle
+        breakPoint("Slice 3 未落地：toggleReaderControl")
+    }
+
+    /// Slice 4：progress / session / focus / TTS
+    public func startTts() {
+        // Slice 4 落地：tts.queue.start + activeSession=tts
+        breakPoint("Slice 4 未落地：startTts")
+    }
+
+    /// Slice 5：RSS / source / search
+    public func openSearch() {
+        // Slice 5 落地：route.push(search-home)
+        breakPoint("Slice 5 未落地：openSearch")
+    }
+
+    /// Slice 6：sync / conflict / offline state
+    public func runSync() {
+        // Slice 6 落地：sync.run
+        breakPoint("Slice 6 未落地：runSync")
+    }
+
+    // MARK: - 既有 navigation 包装（不重写）
+
+    public func navigate(to route: Route) {
+        navigationState.navigate(to: route)
+    }
+
+    public func enterImmersiveReading(_ context: ReaderContext) {
+        navigationState.enterImmersiveReading(context)
+    }
+
+    public func exitImmersiveReading() {
+        navigationState.exitImmersiveReading()
+    }
+
+    private func breakPoint(_ msg: String) {
+        // Slice 1 阶段：后续 slice 未落地前，记录但不执行。
+        // 后续 slice 落地时替换为真实实现。
+        #if DEBUG
+        print("[ReaderCoordinator] \(msg)")
+        #endif
+    }
+}
