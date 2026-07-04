@@ -69,11 +69,61 @@ public struct NativeCoreEvidenceAutorunConfiguration: Sendable, Equatable {
 public struct NativeCoreEvidenceView: View {
     @State private var report: ReaderCoreNativeAppEvidenceReport?
     @State private var isRunning = false
+    @State private var unifiedArtifact: UnifiedEvidenceArtifact?
+    @State private var unifiedJSONText: String = ""
+    @State private var isRunningUnified = false
 
     public init() {}
 
     public var body: some View {
         DemoBackScreen(title: "Native Core Evidence") {
+            NativeCoreEvidenceSection(title: "Unified Evidence (15 capabilities)") {
+                NativeCoreEvidenceActionButton(
+                    icon: .shield,
+                    title: "Run Unified Evidence (15 capabilities)",
+                    subtitle: "Run unified-evidence/1 runner covering all 15 canonical capabilities",
+                    isRunning: isRunningUnified
+                ) {
+                    runUnifiedEvidence()
+                }
+
+                if let summary = unifiedArtifact?.summary {
+                    NativeCoreEvidenceRow(
+                        icon: .check,
+                        title: "Summary",
+                        subtitle: "passed / total",
+                        value: "\(summary.passed)/\(summary.total)"
+                    )
+                    NativeCoreEvidenceRow(
+                        icon: .progress,
+                        title: "Pass Rate",
+                        subtitle: "summary.passRate",
+                        value: "\(Int((summary.passRate * 100).rounded()))%"
+                    )
+                    NativeCoreEvidenceRow(
+                        icon: .warning,
+                        title: "Failed",
+                        subtitle: "summary.failed",
+                        value: "\(summary.failed)"
+                    )
+                    NativeCoreEvidenceRow(
+                        icon: .activity,
+                        title: "Skipped",
+                        subtitle: "summary.skipped (blocked counts as skipped)",
+                        value: "\(summary.skipped)"
+                    )
+                }
+
+                if !unifiedJSONText.isEmpty {
+                    Text(unifiedJSONText)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark.opacity(0.74))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
+                }
+            }
+
             NativeCoreEvidenceSection(title: "Native Core") {
                 NativeCoreEvidenceRow(
                     icon: .code,
@@ -152,6 +202,22 @@ public struct NativeCoreEvidenceView: View {
             }.value
             report = nextReport
             isRunning = false
+        }
+    }
+
+    private func runUnifiedEvidence() {
+        guard !isRunningUnified else { return }
+        isRunningUnified = true
+        Task {
+            let artifact = await UnifiedEvidenceRunner.run(tier: "simulator")
+            unifiedArtifact = artifact
+            do {
+                let data = try UnifiedEvidenceArtifactCodec.encode(artifact)
+                unifiedJSONText = String(data: data, encoding: .utf8) ?? "<encoding-failure>"
+            } catch {
+                unifiedJSONText = "<encode-error: \(error)>"
+            }
+            isRunningUnified = false
         }
     }
 }

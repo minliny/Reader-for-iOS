@@ -25,6 +25,7 @@ public struct ReaderApp: App {
     #endif
     #if DEBUG && canImport(ReaderCoreNativeAdapter)
     @State private var nativeCoreEvidenceAutorunConfiguration: NativeCoreEvidenceAutorunConfiguration?
+    @State private var unifiedEvidenceAutorunConfiguration: UnifiedEvidenceAutorunConfiguration?
     #endif
 
     public init() {
@@ -72,13 +73,22 @@ public struct ReaderApp: App {
         if nativeConfig.isEnabled && nativeConfig.isValid {
             _nativeCoreEvidenceAutorunConfiguration = State(wrappedValue: nativeConfig)
         }
+
+        let unifiedConfig = UnifiedEvidenceAutorunConfiguration.parse(CommandLine.arguments)
+        print("[UnifiedEvidence] autorun args parsed enabled=\(unifiedConfig.isEnabled) valid=\(unifiedConfig.isValid)")
+        print("[UnifiedEvidence] bundleId=com.reader.ios")
+        if unifiedConfig.isEnabled && unifiedConfig.isValid {
+            _unifiedEvidenceAutorunConfiguration = State(wrappedValue: unifiedConfig)
+        }
         #endif
     }
 
     public var body: some Scene {
         WindowGroup {
             #if DEBUG && canImport(ReaderCoreNativeAdapter)
-            if let config = nativeCoreEvidenceAutorunConfiguration, config.isEnabled && config.isValid {
+            if let config = unifiedEvidenceAutorunConfiguration, config.isEnabled && config.isValid {
+                UnifiedEvidenceAutorunView(configuration: config)
+            } else if let config = nativeCoreEvidenceAutorunConfiguration, config.isEnabled && config.isValid {
                 NativeCoreEvidenceAutorunView(configuration: config)
             } else {
                 defaultRootContent

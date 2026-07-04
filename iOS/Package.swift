@@ -61,7 +61,8 @@ let package = Package(
             sources: [
                 "ReaderCoreNativeRuntime.swift",
                 "ReaderCoreNativeEvidenceRunner.swift",
-                "RustCoreRuntimeHolder.swift"
+                "RustCoreRuntimeHolder.swift",
+                "UnifiedEvidenceArtifact.swift"
             ]
         ),
         .target(
