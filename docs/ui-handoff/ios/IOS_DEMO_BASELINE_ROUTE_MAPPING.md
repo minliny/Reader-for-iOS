@@ -220,20 +220,20 @@ Latest focused result: selected tests passed, including `DemoRouteMappingTests`,
 
 `frontend-demo/route-contract.js` exposes `200` routes; before 2026-07-05 the Swift side only owned `131`. The `69` missing routes were distributed across the five shells in `iOS/Navigation/DemoRouteMapping.swift`:
 
-| Shell | Before | Added | After | Planned (no concrete mapping yet) |
+| Shell | Before | Added | After | Planned after M2 |
 |---|---:|---:|---:|---:|
-| MainTabShell | 36 | 12 | 48 | 5 |
-| LibraryShell | 51 | 15 | 66 | 15 |
+| MainTabShell | 36 | 12 | 48 | 0 |
+| LibraryShell | 51 | 15 | 66 | 0 |
 | SettingsShell | 28 | 26 | 54 | 0 |
 | ReaderShell | 15 | 15 | 30 | 0 |
-| FlowShell | 1 | 1 | 2 | 1 |
-| **Total** | **131** | **69** | **200** | **21** |
+| FlowShell | 1 | 1 | 2 | 0 |
+| **Total** | **131** | **69** | **200** | **0** |
 
 Gate: `node scripts/verify_demo_slice_mapping.mjs` → `PASS demo slice mapping: 8 slices, 6 required fields each, 131 high-priority demo routes present, 200 Swift-owned routes`.
 
-Status legend: `done` = has concrete `DemoRouteMapping` with native route / feature state / reader context; `planned` = listed in `expected*ShellRoutes` and auto-generated via `plannedMapping(route:shell:)` pending P2 interaction work; `partial` = concrete mapping exists but flow/evidence still incomplete; `blocked` = blocked on dependency.
+Status legend: `done` = has concrete `DemoRouteMapping` with native route / feature state / reader context; `planned` = fallback only for future route-contract drift through `plannedMapping(route:shell:)`; `partial` = concrete mapping exists but flow/evidence still incomplete; `blocked` = blocked on dependency. As of the M2 closure on 2026-07-05, the current `200`-route contract has `0` planned routes.
 
-### MainTabShell — 48 routes (43 done, 5 planned)
+### MainTabShell — 48 routes (48 done, 0 planned)
 
 | Route | Status | Platform target | State model | Navigation entry |
 |---|---|---|---|---|
@@ -280,13 +280,13 @@ Status legend: `done` = has concrete `DemoRouteMapping` with native route / feat
 | `discover-cache-empty` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-empty state | discover tab feature-state transition |
 | `discover-cache-stale` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-stale state | discover tab feature-state transition |
 | `discover-cache-fresh` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-fresh state | discover tab feature-state transition |
-| `bookshelf-cover-mode` | planned | `BookshelfViewModel` cover mode | planned bookshelf display-mode state | planned bookshelf toolbar mode toggle |
-| `bookshelf-list-mode` | planned | `BookshelfViewModel` list mode | planned bookshelf display-mode state | planned bookshelf toolbar mode toggle |
-| `bookshelf-book-more-menu` | planned | `BookshelfBookFocusLayer` / `BookshelfMoreLayer` | planned bookshelf focus/more menu state | planned bookshelf item long-press / more action |
-| `app-shell` | planned | `AppShellView` shell chrome | planned app-shell root state | planned app-shell entry evidence |
-| `main-tabs` | planned | `FloatingTabBar` + `DemoMainTabShell` | planned main-tabs state | planned main-tabs entry evidence |
+| `bookshelf-cover-mode` | done | `BookshelfDisplayMode.cover` | `BookshelfView` + `BookshelfBookCoverCard` + selected grid toggle | bookshelf display-mode toggle, no route push |
+| `bookshelf-list-mode` | done | `BookshelfDisplayMode.list` | `BookshelfView` + `BookshelfBookListCard` + selected list toggle | bookshelf display-mode toggle, no route push |
+| `bookshelf-book-more-menu` | done | `BookshelfBookFocusLayer` | `BookshelfView` + `focusedBookshelfItem` + more/focus overlay actions | item long-press opens overlay; actions stay in Library/MainTab shell |
+| `app-shell` | done | `AppShellView` | `DemoMainTabShell` + `ReadingFlowCoordinator` + `AppNavigationState` root shell slots | app root view, no route push |
+| `main-tabs` | done | `FloatingTabBar` + `AppTab.contractOrder` | `AppNavigationState.activeTab` + mainNav tab slot | bottom tab selection updates active tab |
 
-### LibraryShell — 66 routes (51 done, 15 planned)
+### LibraryShell — 66 routes (66 done, 0 planned)
 
 | Route | Status | Platform target | State model | Navigation entry |
 |---|---|---|---|---|
@@ -341,21 +341,21 @@ Status legend: `done` = has concrete `DemoRouteMapping` with native route / feat
 | `book-batch-management` | done | `Route.bookBatchManagement` + `BookshelfBatchManagementView` | `BookBatchItem` | bookshelf more/focus menu push |
 | `group-management` | done | `Route.bookshelfGroups` + `BookshelfGroupManagementView` | `BookshelfGroupItem` | bookshelf more/focus menu + batch move |
 | `local-import` | done | `Route.bookshelfImport` + `BookshelfLocalImportView` | `FileImportViewModel` | bookshelf toolbar/more menu push |
-| `bookshelf-group-management` | planned | `BookshelfGroupManagementView` | planned bookshelf group assignment state | planned bookshelf group management entry |
-| `search-home` | planned | `SearchView` home | planned search home state | planned search entry from bookshelf/discover |
-| `search-results` | planned | `SearchView` results | planned search results state | planned search submit |
-| `search-loading` | planned | `SearchView` loading | planned search loading state | planned search in-flight |
-| `search-empty` | planned | `SearchView` empty | planned search empty state | planned search no-results |
-| `search-error` | planned | `SearchView` error | planned search error state | planned search failure |
-| `book-detail-toc-preview` | planned | `BookDetailView` TOC preview section | planned book-detail toc preview state | planned book detail TOC preview entry |
-| `rss-source-category-novel` | planned | `RSSFeedView(demoRoute:)` | planned RSS novel category state | planned RSS category switch |
-| `rss-source-category-tech` | planned | `RSSFeedView(demoRoute:)` | planned RSS tech category state | planned RSS category switch |
-| `rss-source-category-booklist` | planned | `RSSFeedView(demoRoute:)` | planned RSS booklist category state | planned RSS category switch |
-| `rss-source-add` | planned | `RSSSourceEditView` add mode | planned RSS source add state | planned RSS subscription management add |
-| `rss-source-delete-confirm` | planned | `RSSSourceConfirmationPage` delete | planned RSS source delete state | planned RSS source delete action |
-| `rss-rule-subscription-create` | planned | `RSSRuleSubscriptionEditView` create | planned RSS rule subscription create state | planned RSS rule subscription create |
-| `rss-favorite-add` | planned | `RSSFavoriteGroupEditView` add | planned RSS favorite add state | planned RSS favorite add action |
-| `rss-favorite-remove` | planned | `RSSFavoriteGroupEditView` remove | planned RSS favorite remove state | planned RSS favorite remove action |
+| `bookshelf-group-management` | done | `Route.bookshelfGroups` + `BookshelfGroupManagementView` | `BookshelfGroupItem` assignment state | bookshelf more/focus menu and batch move push group management |
+| `search-home` | done | `SearchState.idle` | `SearchView` + `SearchViewModel` + history + `SearchScope` | bookshelf toolbar search entry |
+| `search-results` | done | `SearchState.success/partial` | `SearchResultDemoRow` + result list + warnings for partial state | search submit transitions to results; rows route to detail/reader |
+| `search-loading` | done | `SearchState.loading` | `SearchStateCard(tone: .info)` + `DemoLoadingSpinner` | in-flight search state |
+| `search-empty` | done | `SearchState.empty` | muted `SearchStateCard` + history fallback | no-results search state |
+| `search-error` | done | `SearchState.failed/unsupported` | danger `SearchStateCard` + retry action | failed or unsupported search state |
+| `book-detail-toc-preview` | done | `BookDetailView.chapterPreviewCard` | inline chapter preview rows + `previewChapters(prefix: 4)` | book detail TOC preview; full directory button routes to `book-directory` |
+| `rss-source-category-novel` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSDemoCategory.novel` + category filter | RSS category chip/filter switch |
+| `rss-source-category-tech` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSDemoCategory.tech` + category filter | RSS category chip/filter switch |
+| `rss-source-category-booklist` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSDemoCategory.booklist` + category filter | RSS category chip/filter switch |
+| `rss-source-add` | done | `RSSSourceEditView(sourceID: "new")` | create-mode `RSSEditField` state | subscription management add action |
+| `rss-source-delete-confirm` | done | `RSSSourceDeleteConfirmView` | `RSSSourceConfirmationPage` danger confirmation | source actions delete confirmation |
+| `rss-rule-subscription-create` | done | `RSSRuleSubscriptionEditView(subscriptionID: "new-subscription")` | create-mode rule subscription edit state | rule subscription create action |
+| `rss-favorite-add` | done | `RSSFavoriteGroupEditView(groupID: "new")` | new favorite group edit state | favorite groups add action |
+| `rss-favorite-remove` | done | `RSSFavoriteRemoveConfirmView` | favorite group remove confirmation state | favorite groups remove action |
 
 ### SettingsShell — 54 routes (54 done, 0 planned)
 
@@ -455,16 +455,29 @@ All ReaderShell routes (except `immersive-reading` and `reader`) render through 
 | `reader-night-state-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` night-state-v2 | reader night state v2 |
 | `control-layer-base-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` control-layer-base-v2 | reader control layer baseline v2 |
 
-### FlowShell — 2 routes (1 done, 1 planned)
+### FlowShell — 2 routes (2 done, 0 planned)
 
 | Route | Status | Platform target | State model | Navigation entry |
 |---|---|---|---|---|
 | `source-switch` | done | `Route.sourceSwitch(bookURL:)` + `DemoFlowShell` + `ReaderSourceSwitchFlowView` | `SourceSwitchCandidate` selection | reader inline source-switch flow push |
-| `source-switch-results` | planned | `ReaderSourceSwitchFlowView` results region | planned source-switch results state | planned source-switch results entry |
+| `source-switch-results` | done | `SourceSwitchResultState.confirmed` | `ReaderSourceSwitchFlowView` + `SourceSwitchResultCard` + confirmed candidate | source-switch confirm action transitions the same flow to results |
 
 ### P0 Route Gap Closure Summary
 
-The `69` routes added on 2026-07-05 close the `200`-route contract. The remaining `21` `planned` routes are tracked as P2 interaction work — they have shell ownership and platform-target placeholders but no concrete SwiftUI view yet. No route is `blocked`. P1 structural closure (every route has a Shell and a native entry path) is satisfied for all `200` routes via the `expected*ShellRoutes` arrays and the `plannedMapping(route:shell:)` fallback.
+The `69` routes added on 2026-07-05 close the `200`-route contract. The follow-up M2 closure converts the remaining `21` planned placeholders into concrete feature-state/native mappings in `closedPlannedRouteMappings`. No current route is `planned` or `blocked`; `plannedMapping(route:shell:)` remains only as a future contract-drift fallback.
+
+M2 verification on 2026-07-05:
+
+```bash
+node scripts/verify_demo_slice_mapping.mjs
+bash scripts/check_ios_boundary.sh
+swift build --package-path iOS --build-tests
+swift test --package-path iOS --filter 'DemoRouteMappingTests|SearchFlowStateClosureTests|RSSCategoryExtensionTests|RSSSourceAddAndDeleteConfirmTests|RSSRuleSubscriptionCreateTests|RSSFavoriteAddRemoveTests|SourceSwitchResultsTests'
+xcodebuild test -project ReaderForIOS.xcodeproj -scheme ReaderForIOSApp -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' -only-testing:ReaderAppTests/DemoRouteMappingTests -only-testing:ReaderAppTests/SearchFlowStateClosureTests -only-testing:ReaderAppTests/RSSCategoryExtensionTests -only-testing:ReaderAppTests/RSSSourceAddAndDeleteConfirmTests -only-testing:ReaderAppTests/RSSRuleSubscriptionCreateTests -only-testing:ReaderAppTests/RSSFavoriteAddRemoveTests -only-testing:ReaderAppTests/SourceSwitchResultsTests
+git diff --check
+```
+
+Latest M2 result: route mapping gate passed with `200` Swift-owned routes; boundary gate passed with `checked_files=188`; SwiftPM focused tests passed with `107` tests and `0` failures; iOS Simulator `xcodebuild test` on iPhone 17 Simulator / iOS 26.5 passed with `107` tests and `0` failures. Result bundle: `/Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.05_15-49-15-+0800.xcresult`.
 
 ## Closure Status - 2026-07-03
 
