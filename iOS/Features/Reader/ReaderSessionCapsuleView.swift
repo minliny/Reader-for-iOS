@@ -94,7 +94,13 @@ public struct ReaderSessionCapsuleView: View {
                 .frame(width: ReaderDesignTokens.readerSessionCapsuleCountdownSize + 10)
                 .id(countdown)
                 .transition(.move(edge: .top).combined(with: .opacity))
-                .animation(motionEnvironment.animation(ReaderMotion.Duration.capsuleTick), value: countdown)
+                .animation(
+                    ReaderMotionAdapter.animation(
+                        for: MotionRequest(operation: .update, containerRole: .sessionCapsule),
+                        motion: motionEnvironment
+                    ),
+                    value: countdown
+                )
         case .tts:
             Text("朗读中")
                 .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))

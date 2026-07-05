@@ -88,7 +88,13 @@ struct PaginatedReaderView: View {
             tapZoneOverlay
         }
         .gesture(swipeGesture)
-        .animation(motion.animation(ReaderMotion.Duration.pageTurn), value: currentPageIndex)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .update, sourceRole: "page", containerRole: .readerSurface),
+                motion: motion
+            ),
+            value: currentPageIndex
+        )
         .overlay(alignment: .bottom) {
             pageIndicator
         }

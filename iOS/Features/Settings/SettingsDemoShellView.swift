@@ -83,7 +83,13 @@ struct SettingsDemoShellView: View {
             EmptyView()
         }
         .animation(motion.animation(ReaderMotion.Duration.overlay), value: activeConfirm)
-        .animation(motion.animation(AppMotion.Duration.feedbackToast), value: toastMessage)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .enter, targetRole: "toast", containerRole: .overlayHost),
+                motion: motion
+            ),
+            value: toastMessage
+        )
         .animation(
             ReaderMotionAdapter.animation(
                 for: MotionRequest(operation: .tabSwitch, containerRole: .mainTabShell),
@@ -1761,7 +1767,15 @@ private struct SettingsDemoRowView: View {
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                 .fill(rowBackground)
         )
-        .animation(motion.animation(optionOpen ? AppMotion.Duration.dropdownExpand : AppMotion.Duration.dropdownCollapse), value: optionOpen)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: optionOpen
+                    ? MotionRequest(operation: .enter, targetRole: "dropdown", containerRole: .overlayHost)
+                    : MotionRequest(operation: .exit, targetRole: "dropdown", containerRole: .overlayHost),
+                motion: motion
+            ),
+            value: optionOpen
+        )
     }
 
     @ViewBuilder
@@ -1909,7 +1923,13 @@ private struct SettingsDemoSegment: View {
             }
         }
         .frame(maxWidth: 142, alignment: .trailing)
-        .animation(motion.animation(AppMotion.Duration.chipSelect), value: selected)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .update, sourceRole: "chipItem", containerRole: .listItem),
+                motion: motion
+            ),
+            value: selected
+        )
     }
 }
 
@@ -1964,7 +1984,13 @@ private struct SettingsDemoOptionDropdown: View {
                     )
                 }
                 .buttonStyle(DemoPressButtonStyle())
-                .animation(motion.animation(AppMotion.Duration.chipSelect), value: selected)
+                .animation(
+                    ReaderMotionAdapter.animation(
+                        for: MotionRequest(operation: .update, sourceRole: "chipItem", containerRole: .listItem),
+                        motion: motion
+                    ),
+                    value: selected
+                )
             }
         }
         .padding(8)
@@ -2527,7 +2553,13 @@ private struct SettingsDemoSwitch: View {
                 .padding(2)
         }
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : [.isButton])
-        .animation(MotionEnvironment().animation(AppMotion.Duration.toggleSwitch), value: isOn)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .update, sourceRole: "toggle", containerRole: .listItem),
+                motion: MotionEnvironment()
+            ),
+            value: isOn
+        )
     }
 }
 

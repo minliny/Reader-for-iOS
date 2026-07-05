@@ -466,7 +466,15 @@ private struct DiscoverSourceBar: View {
                     .frame(width: ReaderDesignTokens.discoverSourceChevronColumn)
                     .foregroundStyle(ReaderDesignTokens.Color.muted)
                     .rotationEffect(.degrees(isControlPanelExpanded ? 90 : 0))
-                    .animation(motion.animation(AppMotion.Duration.dropdownSelect), value: isControlPanelExpanded)
+                    .animation(
+                        ReaderMotionAdapter.animation(
+                            for: isControlPanelExpanded
+                                ? MotionRequest(operation: .enter, targetRole: "dropdown", containerRole: .overlayHost)
+                                : MotionRequest(operation: .exit, targetRole: "dropdown", containerRole: .overlayHost),
+                            motion: motion
+                        ),
+                        value: isControlPanelExpanded
+                    )
             }
             .padding(ReaderDesignTokens.discoverSourcePadding)
             .frame(minHeight: ReaderDesignTokens.discoverSourceBarMinHeight)

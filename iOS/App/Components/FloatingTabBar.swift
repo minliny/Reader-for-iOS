@@ -105,7 +105,10 @@ struct TabPressButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? AppMotion.Scale.pressMin : 1)
             .animation(
-                MotionEnvironment().animation(AppMotion.Duration.tabPress),
+                ReaderMotionAdapter.animation(
+                    for: MotionRequest(operation: .update, sourceRole: "tabItem", containerRole: .mainTabShell),
+                    motion: MotionEnvironment()
+                ),
                 value: configuration.isPressed
             )
     }

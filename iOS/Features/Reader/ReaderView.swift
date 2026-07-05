@@ -1073,8 +1073,15 @@ private struct ReaderControlSheet: View {
                         grabberIsPressed = false
                         let threshold = ReaderMotion.Distance.handlePullY
                         let triggeredExpand = value.translation.height <= -threshold
-                        // 释放后清空 dragOffset，使用 handleSnap (120ms) 动画
-                        withAnimation(motion.animation(ReaderMotion.Duration.handleSnap)) {
+                        // 释放后清空 dragOffset，使用 reader.control.handle.release 动画
+                        // resolver: operation=.dragRelease + sourceRole="handle" + readerSurface
+                        // → .reader_control_handle_release (priority 300)
+                        let releaseRequest = MotionRequest(
+                            operation: .dragRelease,
+                            sourceRole: "handle",
+                            containerRole: .readerSurface
+                        )
+                        withAnimation(ReaderMotionAdapter.animation(for: releaseRequest, motion: motion)) {
                             grabberDragOffset = 0
                         }
                         if triggeredExpand {
