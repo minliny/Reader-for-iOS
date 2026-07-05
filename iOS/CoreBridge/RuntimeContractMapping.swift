@@ -80,7 +80,7 @@ extension RuntimeResult {
 
 #if canImport(WebKit) && canImport(UIKit)
 
-extension ProductionWebViewAdapter: @preconcurrency RuntimeExecutorProtocol {
+extension ProductionWebViewAdapter: RuntimeExecutorProtocol {
 
     public func execute(request: RuntimeRequest) async throws -> RuntimeResult {
         // 1. Map Core policy to iOS policy for gate check
