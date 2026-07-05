@@ -11,6 +11,9 @@
 // Reader-iOS MUST only depend on Reader-Core public products.
 // Direct source imports from Core/Sources/** are FORBIDDEN.
 import PackageDescription
+import Foundation
+
+let shellCIOnly = ProcessInfo.processInfo.environment["READER_IOS_SHELL_CI"] == "1"
 
 let package = Package(
     name: "ReaderApp",
@@ -150,7 +153,8 @@ let package = Package(
                 .product(name: "ReaderCoreServices", package: "Reader-Core")
             ],
             path: "Tests/ShellSmokeTests"
-        ),
+        )
+    ] + (shellCIOnly ? [] : [
         .testTarget(
             name: "ReaderCoreNativeAdapterSmokeTests",
             dependencies: [
@@ -185,5 +189,5 @@ let package = Package(
             ],
             path: "Tests/ReaderAppTests"
         )
-    ]
+    ])
 )
