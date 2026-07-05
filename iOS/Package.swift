@@ -19,85 +19,84 @@ let readerCoreParserDependency: [Target.Dependency] = shellCIOnly ? [] : [
     .product(name: "ReaderCoreParser", package: "Reader-Core")
 ]
 
-let package = Package(
-    name: "ReaderApp",
-    platforms: [
-        .iOS(.v17),
-        .macOS(.v13)
-    ],
-    products: [
-        .library(name: "ReaderApp", targets: ["ReaderApp"])
-    ],
-    dependencies: [
-        // Local dev: Reader-Core sibling checkout
-        .package(path: "../Reader-Core")
-    ],
-    targets: [
-        // Rust Reader-Core-Native C ABI as a merged xcframework binaryTarget.
-        // fetch-cabi.sh --xcframework builds ReaderCore.xcframework (macOS +
-        // iOS-sim slices, gitignored) from Native's libreader_core.a. A binaryTarget
-        // lets a single SwiftPM/xcodebuild configuration link the correct slice per
-        // platform without platform-conditional linkerSettings. The module name is
-        // `ReaderCore` (from the in-xcframework module.modulemap). Run
-        // `bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework` first.
-        .binaryTarget(
-            name: "ReaderCoreNative",
-            path: "ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework"
-        ),
-        .target(
-            name: "ReaderCoreNativeAdapter",
-            dependencies: [
-                "ReaderCoreNative"
-            ],
-            path: "ReaderCoreNativeAdapter",
-            exclude: [
-                "cabi",
-                "README.md",
-                "STATUS.md",
-                "fetch-cabi.sh",
-                "run-shell-smoke.sh",
-                "run-sim-smoke.sh",
-                "ShellSmokeTests",
-                "sim-smoke-report.txt"
-            ],
-            sources: [
-                "ReaderCoreNativeRuntime.swift",
-                "ReaderCoreNativeEvidenceRunner.swift",
-                "RustCoreRuntimeHolder.swift"
-            ]
-        ),
-        .target(
-            name: "ReaderShellValidation",
-            dependencies: [
-                "ReaderAppSupport",
-                "ReaderCoreNativeAdapter",
-                .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
-                .product(name: "ReaderCoreModels", package: "Reader-Core"),
-                .product(name: "ReaderCoreProtocols", package: "Reader-Core")
-            ] + readerCoreParserDependency + [
-                .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
-                .product(name: "ReaderCoreServices", package: "Reader-Core"),
-                .product(name: "ReaderCoreAPI", package: "Reader-Core"),
-                .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
-            ],
-            path: ".",
-            exclude: [
-                "App",
-                "AppSupport",
-                "Features",
-                "Modules",
-                "Navigation",
-                "Surface",
-                "Tests",
-            ],
-            sources: [
-                "CoreIntegration",
-                "CoreBridge",
-                "Shell"
-            ],
-            swiftSettings: shellCISwiftSettings
-        ),
-        .target(
+let readerShellValidationDependencies: [Target.Dependency] = [
+    "ReaderAppSupport",
+    "ReaderCoreNativeAdapter",
+    .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
+    .product(name: "ReaderCoreModels", package: "Reader-Core"),
+    .product(name: "ReaderCoreProtocols", package: "Reader-Core")
+] + readerCoreParserDependency + [
+    .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
+    .product(name: "ReaderCoreServices", package: "Reader-Core"),
+    .product(name: "ReaderCoreAPI", package: "Reader-Core"),
+    .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
+]
+
+let shellSmokeTestDependencies: [Target.Dependency] = [
+    "ReaderShellValidation",
+    "ReaderAppSupport",
+    .product(name: "ReaderCoreModels", package: "Reader-Core"),
+    .product(name: "ReaderCoreProtocols", package: "Reader-Core")
+] + readerCoreParserDependency + [
+    .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
+    .product(name: "ReaderCoreServices", package: "Reader-Core")
+]
+
+let baseTargets: [Target] = [
+    // Rust Reader-Core-Native C ABI as a merged xcframework binaryTarget.
+    // fetch-cabi.sh --xcframework builds ReaderCore.xcframework (macOS +
+    // iOS-sim slices, gitignored) from Native's libreader_core.a. A binaryTarget
+    // lets a single SwiftPM/xcodebuild configuration link the correct slice per
+    // platform without platform-conditional linkerSettings. The module name is
+    // `ReaderCore` (from the in-xcframework module.modulemap). Run
+    // `bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework` first.
+    .binaryTarget(
+        name: "ReaderCoreNative",
+        path: "ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework"
+    ),
+    .target(
+        name: "ReaderCoreNativeAdapter",
+        dependencies: [
+            "ReaderCoreNative"
+        ],
+        path: "ReaderCoreNativeAdapter",
+        exclude: [
+            "cabi",
+            "README.md",
+            "STATUS.md",
+            "fetch-cabi.sh",
+            "run-shell-smoke.sh",
+            "run-sim-smoke.sh",
+            "ShellSmokeTests",
+            "sim-smoke-report.txt"
+        ],
+        sources: [
+            "ReaderCoreNativeRuntime.swift",
+            "ReaderCoreNativeEvidenceRunner.swift",
+            "RustCoreRuntimeHolder.swift"
+        ]
+    ),
+    .target(
+        name: "ReaderShellValidation",
+        dependencies: readerShellValidationDependencies,
+        path: ".",
+        exclude: [
+            "App",
+            "AppSupport",
+            "Features",
+            "Modules",
+            "Navigation",
+            "Surface",
+            "Tests",
+        ],
+        sources: [
+            "CoreIntegration",
+            "CoreBridge",
+            "Shell"
+        ],
+        swiftSettings: shellCISwiftSettings
+    ),
+    .target(
         name: "ReaderAppSupport",
         dependencies: [
             .product(name: "ReaderCoreModels", package: "Reader-Core")
@@ -113,7 +112,7 @@ let package = Package(
             "BookshelfItemFactory.swift"
         ]
     ),
-        .target(
+    .target(
         name: "ReaderAppPersistence",
         dependencies: [
             "ReaderAppSupport",
@@ -121,78 +120,89 @@ let package = Package(
         ],
         path: "App/Persistence"
     ),
-        .target(
-            name: "ReaderApp",
-            dependencies: [
-                "ReaderShellValidation",
-                "ReaderAppSupport",
-                "ReaderAppPersistence",
-                "ReaderCoreNativeAdapter"
-            ],
-            path: ".",
-            exclude: [
-                "App/Persistence",
-                "AppSupport",
-                "CoreIntegration",
-                "CoreBridge",
-                "Shell",
-                "Tests",
-            ],
-            sources: [
-                "App",
-                "Features",
-                "Modules",
-                "Navigation",
-                "Surface"
-            ]
-        ),
-        .testTarget(
-            name: "ShellSmokeTests",
-            dependencies: [
-                "ReaderShellValidation",
-                "ReaderAppSupport",
-                .product(name: "ReaderCoreModels", package: "Reader-Core"),
-                .product(name: "ReaderCoreProtocols", package: "Reader-Core")
-            ] + readerCoreParserDependency + [
-                .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
-                .product(name: "ReaderCoreServices", package: "Reader-Core")
-            ],
-            path: "Tests/ShellSmokeTests"
-        )
-    ] + (shellCIOnly ? [] : [
-        .testTarget(
-            name: "ReaderCoreNativeAdapterSmokeTests",
-            dependencies: [
-                "ReaderCoreNativeAdapter"
-            ],
-            path: "Tests/ReaderCoreNativeAdapterSmokeTests"
-        ),
-        .testTarget(
-            name: "ReaderAppPersistenceTests",
-            dependencies: [
-                "ReaderAppPersistence",
-                "ReaderAppSupport"
-            ],
-            path: "Tests/ReaderAppPersistenceTests"
-        ),
-        .executableTarget(
-            name: "ReaderAppPersistenceTestRunner",
-            dependencies: [
-                "ReaderAppPersistence",
-                "ReaderAppSupport"
-            ],
-            path: "Tests/ReaderAppPersistenceTestRunner"
-        ),
-        .testTarget(
-            name: "ReaderAppTests",
-            dependencies: [
-                "ReaderApp",
-                "ReaderAppSupport",
-                "ReaderAppPersistence",
-                "ReaderShellValidation",
-                .product(name: "ReaderCoreModels", package: "Reader-Core")
-            ],
-            path: "Tests/ReaderAppTests"
-        )
-    ])
+    .target(
+        name: "ReaderApp",
+        dependencies: [
+            "ReaderShellValidation",
+            "ReaderAppSupport",
+            "ReaderAppPersistence",
+            "ReaderCoreNativeAdapter"
+        ],
+        path: ".",
+        exclude: [
+            "App/Persistence",
+            "AppSupport",
+            "CoreIntegration",
+            "CoreBridge",
+            "Shell",
+            "Tests",
+        ],
+        sources: [
+            "App",
+            "Features",
+            "Modules",
+            "Navigation",
+            "Surface"
+        ]
+    ),
+    .testTarget(
+        name: "ShellSmokeTests",
+        dependencies: shellSmokeTestDependencies,
+        path: "Tests/ShellSmokeTests"
+    )
+]
+
+let nonShellCITargets: [Target] = [
+    .testTarget(
+        name: "ReaderCoreNativeAdapterSmokeTests",
+        dependencies: [
+            "ReaderCoreNativeAdapter"
+        ],
+        path: "Tests/ReaderCoreNativeAdapterSmokeTests"
+    ),
+    .testTarget(
+        name: "ReaderAppPersistenceTests",
+        dependencies: [
+            "ReaderAppPersistence",
+            "ReaderAppSupport"
+        ],
+        path: "Tests/ReaderAppPersistenceTests"
+    ),
+    .executableTarget(
+        name: "ReaderAppPersistenceTestRunner",
+        dependencies: [
+            "ReaderAppPersistence",
+            "ReaderAppSupport"
+        ],
+        path: "Tests/ReaderAppPersistenceTestRunner"
+    ),
+    .testTarget(
+        name: "ReaderAppTests",
+        dependencies: [
+            "ReaderApp",
+            "ReaderAppSupport",
+            "ReaderAppPersistence",
+            "ReaderShellValidation",
+            .product(name: "ReaderCoreModels", package: "Reader-Core")
+        ],
+        path: "Tests/ReaderAppTests"
+    )
+]
+
+let packageTargets: [Target] = shellCIOnly ? baseTargets : baseTargets + nonShellCITargets
+
+let package = Package(
+    name: "ReaderApp",
+    platforms: [
+        .iOS(.v17),
+        .macOS(.v13)
+    ],
+    products: [
+        .library(name: "ReaderApp", targets: ["ReaderApp"])
+    ],
+    dependencies: [
+        // Local dev: Reader-Core sibling checkout
+        .package(path: "../Reader-Core")
+    ],
+    targets: packageTargets
 )
