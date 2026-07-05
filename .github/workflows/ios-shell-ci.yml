@@ -71,7 +71,7 @@ jobs:
           set -euo pipefail
           # Interim compile gate validates only the host-compilable shell composition root.
           # iOS-only Features/UI stay outside this macOS-hosted SwiftPM validation scope.
-          swift build --package-path iOS --target ReaderShellValidation 2>&1 | tee ios-shell-build.log
+          swift build --package-path iOS --target ReaderShellValidation -Xswiftc -strict-concurrency=minimal 2>&1 | tee ios-shell-build.log
 
       - name: Diagnose ReaderApp target compilation
         shell: bash
@@ -79,7 +79,7 @@ jobs:
           set +e
           # Diagnostic only: validate whether ReaderApp can be compiled as a test dependency.
           # This step logs errors but does not fail the job.
-          swift build --package-path iOS --target ReaderApp 2>&1 | tee ios-readerapp-build.log
+          swift build --package-path iOS --target ReaderApp -Xswiftc -strict-concurrency=minimal 2>&1 | tee ios-readerapp-build.log
           echo "=== ReaderApp compile diagnostic (non-failing) ==="
           cat ios-readerapp-build.log
 
@@ -88,56 +88,56 @@ jobs:
         run: |
           set -euo pipefail
           # Construction-only smoke stays bound to the isolated shell validation test product.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
 
       - name: Run reader functional validation
         shell: bash
         run: |
           set -euo pipefail
           # Functional validation reuses fixture-backed sources without widening the ReaderShellValidation compile target.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderFlowFunctionalValidationTests 2>&1 | tee ios-reader-functional.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderFlowFunctionalValidationTests 2>&1 | tee ios-reader-functional.log
 
       - name: Run reader hardening validation
         shell: bash
         run: |
           set -euo pipefail
           # Hardening validation stays on the same isolated test product and only checks state-transition consistency.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderFlowHardeningTests 2>&1 | tee ios-reader-hardening.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderFlowHardeningTests 2>&1 | tee ios-reader-hardening.log
 
       - name: Run reader UX foundation validation
         shell: bash
         run: |
           set -euo pipefail
           # UX foundation validation is additive and only checks state-driven presentation surfaces on the minimal reader path.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderUXFoundationStateTests 2>&1 | tee ios-reader-ux-foundation.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderUXFoundationStateTests 2>&1 | tee ios-reader-ux-foundation.log
 
       - name: Run reader interaction foundation validation
         shell: bash
         run: |
           set -euo pipefail
           # Interaction validation tests minimal interactions like retry and reload without full UI automation.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderInteractionValidationTests 2>&1 | tee ios-reader-interaction-foundation.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderInteractionValidationTests 2>&1 | tee ios-reader-interaction-foundation.log
 
       - name: Run reader session polish validation
         shell: bash
         run: |
           set -euo pipefail
           # Session polish validation tests session continuity and minimal resume affordances.
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderSessionValidationTests 2>&1 | tee ios-reader-session-polish.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderSessionValidationTests 2>&1 | tee ios-reader-session-polish.log
 
       - name: Run reader navigation and progress foundation validation
         shell: bash
         run: |
           set -euo pipefail
           # Navigation validation tests chapter position awareness and progress features
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderNavigationValidationTests 2>&1 | tee ios-reader-navigation-foundation.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderNavigationValidationTests 2>&1 | tee ios-reader-navigation-foundation.log
 
       - name: Run reader presentation polish validation
         shell: bash
         run: |
           set -euo pipefail
           # Presentation validation tests consistency of surfaces across the reader feature
-          swift test --package-path iOS --test-product ReaderAppPackageTests --filter ReaderPresentationValidationTests 2>&1 | tee ios-reader-presentation-polish.log
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderPresentationValidationTests 2>&1 | tee ios-reader-presentation-polish.log
 
       - name: Upload iOS Shell logs
         if: always()

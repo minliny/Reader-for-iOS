@@ -14,6 +14,10 @@ import PackageDescription
 import Foundation
 
 let shellCIOnly = ProcessInfo.processInfo.environment["READER_IOS_SHELL_CI"] == "1"
+let shellCISwiftSettings: [SwiftSetting] = shellCIOnly ? [.define("READER_IOS_SHELL_CI")] : []
+let readerCoreParserDependency: [Target.Dependency] = shellCIOnly ? [] : [
+    .product(name: "ReaderCoreParser", package: "Reader-Core")
+]
 
 let package = Package(
     name: "ReaderApp",
@@ -69,8 +73,8 @@ let package = Package(
                 "ReaderCoreNativeAdapter",
                 .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
-                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
-                .product(name: "ReaderCoreParser", package: "Reader-Core"),
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core")
+            ] + readerCoreParserDependency + [
                 .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
                 .product(name: "ReaderCoreServices", package: "Reader-Core"),
                 .product(name: "ReaderCoreAPI", package: "Reader-Core"),
@@ -90,7 +94,8 @@ let package = Package(
                 "CoreIntegration",
                 "CoreBridge",
                 "Shell"
-            ]
+            ],
+            swiftSettings: shellCISwiftSettings
         ),
         .target(
         name: "ReaderAppSupport",
@@ -147,8 +152,8 @@ let package = Package(
                 "ReaderShellValidation",
                 "ReaderAppSupport",
                 .product(name: "ReaderCoreModels", package: "Reader-Core"),
-                .product(name: "ReaderCoreProtocols", package: "Reader-Core"),
-                .product(name: "ReaderCoreParser", package: "Reader-Core"),
+                .product(name: "ReaderCoreProtocols", package: "Reader-Core")
+            ] + readerCoreParserDependency + [
                 .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
                 .product(name: "ReaderCoreServices", package: "Reader-Core")
             ],

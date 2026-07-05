@@ -1,7 +1,20 @@
 import Foundation
 import ReaderCoreModels
+#if !READER_IOS_SHELL_CI
 import ReaderCoreParser
+#endif
 import ReaderCoreProtocols
+
+public enum RSSParserHostAdapterError: Error, Equatable, LocalizedError, Sendable {
+    case parserUnavailableInShellCI
+
+    public var errorDescription: String? {
+        switch self {
+        case .parserUnavailableInShellCI:
+            return "RSS parser host adapter is unavailable in shell CI."
+        }
+    }
+}
 
 /// Host adapter that bridges the Core `RSSParser` (from `ReaderCoreParser`)
 /// behind the `ReaderCoreFeedParserAdapter` protocol so that iOS layers under
@@ -30,6 +43,10 @@ public struct RSSParserHostAdapter: ReaderCoreFeedParserAdapter {
     }
 
     public func parseFeed(_ request: ReaderCoreFeedParseRequest) async throws -> ReaderCoreFeedParseResult {
-        RSSParser().parseFeed(request)
+        #if READER_IOS_SHELL_CI
+        throw RSSParserHostAdapterError.parserUnavailableInShellCI
+        #else
+        return RSSParser().parseFeed(request)
+        #endif
     }
 }
