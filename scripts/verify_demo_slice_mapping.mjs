@@ -225,6 +225,8 @@ for (let index = 0; index < headings.length; index += 1) {
   }
 }
 
+let swiftRouteCount = 0;
+
 if (!fs.existsSync(demoRouteContractPath)) {
   fail(`missing demo route contract: ${demoRouteContractPath}`);
 } else {
@@ -254,6 +256,7 @@ if (!fs.existsSync(demoRouteContractPath)) {
         swiftRoutes.add(routeMatch[1]);
       }
     }
+    swiftRouteCount = swiftRoutes.size;
 
     const missingFromSwift = [...routeNames].filter((route) => !swiftRoutes.has(route)).sort();
     const extraInSwift = [...swiftRoutes].filter((route) => !routeNames.has(route)).sort();
@@ -273,6 +276,6 @@ if (!fs.existsSync(demoRouteContractPath)) {
 
 if (!process.exitCode) {
   console.log(
-    `PASS demo slice mapping: ${headings.length} slices, ${requiredSliceFields.length} required fields each, ${highPriorityDemoRoutes.length} high-priority demo routes present, 131 Swift-owned routes`
+    `PASS demo slice mapping: ${headings.length} slices, ${requiredSliceFields.length} required fields each, ${highPriorityDemoRoutes.length} high-priority demo routes present, ${swiftRouteCount} Swift-owned routes`
   );
 }

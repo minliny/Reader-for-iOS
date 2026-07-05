@@ -2,6 +2,8 @@
 
 Frozen at: 2026-07-02 11:00:37 +0800
 
+Updated at: 2026-07-05 (P0/M0 route-contract closure: 131 → 200 routes)
+
 Demo source: `/Users/minliny/Documents/Reader UI/frontend-demo`
 
 iOS target: `/Users/minliny/Documents/Reader for iOS`
@@ -14,14 +16,16 @@ iOS target: `/Users/minliny/Documents/Reader for iOS`
 | Reader UI commit | `a596e2bbd75b564e1b21b14929c5c455e260044d` |
 | Baseline cleanliness | Dirty baseline. Freeze includes current disk state plus the dirty-file list below. |
 | Route source | `frontend-demo/route-contract.js` |
-| Route count | 131 |
-| Shell distribution | `MainTabShell=36`, `LibraryShell=51`, `SettingsShell=28`, `ReaderShell=15`, `FlowShell=1` |
+| Route count | 200 (was 131 before 2026-07-05 P0 closure) |
+| Shell distribution | `MainTabShell=48`, `LibraryShell=66`, `SettingsShell=54`, `ReaderShell=30`, `FlowShell=2` |
 | Deep closure groups | `discover=34`, `rss=45`, `settings=7` |
 | Handoff readiness | `8/8` passed |
 | Motion coverage from handoff gate | `29/29`; routes `131`; unresolved `0` |
 | Motion evidence from handoff gate | entries `9`; missing `0`; fileProblems `0` |
 | Syntax checks | `render-runtime.js`, `motion-controller.js`, `route-contract.js`, `render.js` passed `node --check` |
 | Icon asset baseline | `92` tokens imported from `frontend-demo/asset-library/icons.js` into `ReaderIcons.xcassets` |
+| Route contract gate (2026-07-05) | `node scripts/verify_demo_slice_mapping.mjs` PASS with `200` Swift-owned routes |
+| Boundary gate (2026-07-05) | `bash scripts/check_ios_boundary.sh` PASS with `182` checked files, `0` violations |
 
 Dirty Reader UI files at freeze:
 
@@ -211,6 +215,256 @@ git diff --check
 ```
 
 Latest focused result: selected tests passed, including `DemoRouteMappingTests`, `AppShellAlignmentTests`, `ReaderIconAssetAlignmentTests`, `MotionTokenAlignmentTests`, `BookshelfHTMLCSSStructureAlignmentTests`, `DemoComponentPrimitiveAlignmentTests`, and `DemoRouteFamilySimulatorSmokeTests`. `scripts/verify_demo_slice_mapping.mjs` now cross-checks all 131 high-priority / Swift-owned routes against Reader UI `route-contract.js`. `DemoRouteFamilySimulatorSmokeTests` executed 8 simulator-render tests with 0 failures on iPhone 17 Simulator `4647E187-8F40-44D2-AEF4-71B5B4B6F7BB`; result bundle: `/Users/minliny/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.03_15-35-15-+0800.xcresult`. Committed screenshot attachments: `docs/ui-handoff/ios/screenshots/demo-route-smoke-20260703/` (`110` PNG files plus `manifest.json`).
+
+## Route Contract Closure - 2026-07-05 (P0/M0)
+
+`frontend-demo/route-contract.js` exposes `200` routes; before 2026-07-05 the Swift side only owned `131`. The `69` missing routes were distributed across the five shells in `iOS/Navigation/DemoRouteMapping.swift`:
+
+| Shell | Before | Added | After | Planned (no concrete mapping yet) |
+|---|---:|---:|---:|---:|
+| MainTabShell | 36 | 12 | 48 | 5 |
+| LibraryShell | 51 | 15 | 66 | 15 |
+| SettingsShell | 28 | 26 | 54 | 0 |
+| ReaderShell | 15 | 15 | 30 | 0 |
+| FlowShell | 1 | 1 | 2 | 1 |
+| **Total** | **131** | **69** | **200** | **21** |
+
+Gate: `node scripts/verify_demo_slice_mapping.mjs` → `PASS demo slice mapping: 8 slices, 6 required fields each, 131 high-priority demo routes present, 200 Swift-owned routes`.
+
+Status legend: `done` = has concrete `DemoRouteMapping` with native route / feature state / reader context; `planned` = listed in `expected*ShellRoutes` and auto-generated via `plannedMapping(route:shell:)` pending P2 interaction work; `partial` = concrete mapping exists but flow/evidence still incomplete; `blocked` = blocked on dependency.
+
+### MainTabShell — 48 routes (43 done, 5 planned)
+
+| Route | Status | Platform target | State model | Navigation entry |
+|---|---|---|---|---|
+| `bookshelf` | done | `AppTab.bookshelf` | `AppNavigationState.activeTab` + `BookshelfView` | main tab root, no push |
+| `discover` | done | `AppTab.discover` | `AppNavigationState.activeTab` + `DiscoverHomeShellView` | main tab root, no push |
+| `rss` | done | `AppTab.rss` | `AppNavigationState.activeTab` + `RSSFeedView` | main tab root, no push |
+| `settings` | done | `AppTab.settings` | `AppNavigationState.activeTab` + `SettingsTabView` | main tab root, no push |
+| `bookshelf-empty` | done | `BookshelfState.empty` | `BookshelfViewModel` + `BookshelfState` | bookshelf tab root state replacement |
+| `sort-filter` | done | `BookshelfFilterSheet` | `BookshelfView` + filter popover state | bookshelf toolbar sort/filter control |
+| `discover-control` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + `DiscoverPresentation` | discover tab feature-state transition |
+| `discover-sort` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + sort state | discover tab feature-state transition |
+| `discover-entry-ranking` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry state | discover tab feature-state transition |
+| `discover-entry-bestseller` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry state | discover tab feature-state transition |
+| `discover-entry-category` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry state | discover tab feature-state transition |
+| `discover-entry-finished` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry state | discover tab feature-state transition |
+| `discover-entry-latest` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry state | discover tab feature-state transition |
+| `discover-entry-new` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry state | discover tab feature-state transition |
+| `discover-entry-booklist` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry state | discover tab feature-state transition |
+| `discover-filter-keyword` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + filter state | discover tab feature-state transition |
+| `discover-filter-male` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + filter state | discover tab feature-state transition |
+| `discover-filter-female` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + filter state | discover tab feature-state transition |
+| `discover-sort-popularity` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + sort state | discover tab feature-state transition |
+| `discover-sort-update` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + sort state | discover tab feature-state transition |
+| `discover-sort-collection` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + sort state | discover tab feature-state transition |
+| `discover-sort-finished` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + sort state | discover tab feature-state transition |
+| `discover-sort-words` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + sort state | discover tab feature-state transition |
+| `discover-no-results` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + no-results state | discover tab feature-state transition |
+| `discover-loading` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + loading state | discover tab feature-state transition |
+| `discover-refreshing` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + refreshing state | discover tab feature-state transition |
+| `discover-infinite-loading` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + infinite-loading state | discover tab feature-state transition |
+| `discover-page-two` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + page-two state | discover tab feature-state transition |
+| `discover-cache-confirm` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-confirm state | discover tab feature-state transition |
+| `discover-cache-toast` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-toast state | discover tab feature-state transition |
+| `discover-login-return` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + login-return state | discover tab feature-state transition |
+| `discover-switching-source` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + switching-source state | discover tab feature-state transition |
+| `discover-switched-source` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + switched-source state | discover tab feature-state transition |
+| `discover-entry-error` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry-error state | discover tab feature-state transition |
+| `discover-empty` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + empty state | discover tab feature-state transition |
+| `discover-error` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + error state | discover tab feature-state transition |
+| `discover-home` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + home state | discover tab feature-state transition |
+| `discover-entry-source` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + entry-source state | discover tab feature-state transition |
+| `discover-filter-source-type` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + filter-source-type state | discover tab feature-state transition |
+| `discover-filter-category` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + filter-category state | discover tab feature-state transition |
+| `discover-cache-empty` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-empty state | discover tab feature-state transition |
+| `discover-cache-stale` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-stale state | discover tab feature-state transition |
+| `discover-cache-fresh` | done | `DiscoverHomeShellView(demoRoute:)` | `DiscoverDemoState` + cache-fresh state | discover tab feature-state transition |
+| `bookshelf-cover-mode` | planned | `BookshelfViewModel` cover mode | planned bookshelf display-mode state | planned bookshelf toolbar mode toggle |
+| `bookshelf-list-mode` | planned | `BookshelfViewModel` list mode | planned bookshelf display-mode state | planned bookshelf toolbar mode toggle |
+| `bookshelf-book-more-menu` | planned | `BookshelfBookFocusLayer` / `BookshelfMoreLayer` | planned bookshelf focus/more menu state | planned bookshelf item long-press / more action |
+| `app-shell` | planned | `AppShellView` shell chrome | planned app-shell root state | planned app-shell entry evidence |
+| `main-tabs` | planned | `FloatingTabBar` + `DemoMainTabShell` | planned main-tabs state | planned main-tabs entry evidence |
+
+### LibraryShell — 66 routes (51 done, 15 planned)
+
+| Route | Status | Platform target | State model | Navigation entry |
+|---|---|---|---|---|
+| `discover-source-login` | done | `DiscoverSourceLoginView` | source login UI state + cookie persistence | Discover control login action |
+| `rss-all` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSFeedState` | RSS tab LibraryShell feature-state transition |
+| `rss-starred` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSFeedState` | RSS tab LibraryShell feature-state transition |
+| `rss-source-feed` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSFeedState` | RSS tab LibraryShell feature-state transition |
+| `rss-source-category-releases` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSFeedState` | RSS tab LibraryShell feature-state transition |
+| `rss-source-category-issues` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSFeedState` | RSS tab LibraryShell feature-state transition |
+| `rss-source-category-discussions` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSFeedState` | RSS tab LibraryShell feature-state transition |
+| `rss-refreshing` | done | `RSSFeedView(demoRoute:)` | `RSSDemoRouteState` + `RSSFeedState` | RSS tab LibraryShell feature-state transition |
+| `rss-search` | done | `Route.rssSearch` + `RSSSearchView` | `RSSFeedViewModel` + search scope | RSSFeedView top search action |
+| `rss-detail` | done | `Route.rssDetail(rssID:)` + `RSSArticleDetailView` | `SubscriptionItem` | RSS article row push |
+| `rss-original` | done | `Route.rssOriginal(url:title:sourceTitle:)` + `RSSOriginalPreviewView` | WKWebView original | RSSArticleDetailView original action |
+| `rss-original-browser` | done | `Route.rssOriginalBrowser(...)` + `RSSOriginalBrowserConfirmView` | OpenURLAction | RSSOriginalPreviewView browser action |
+| `rss-subscription-management` | done | `Route.rssSubscriptions` + `RSSSubscriptionManagementView` | `RSSManagementSource` | RSS tab manage action |
+| `rss-source-actions` | done | `Route.rssSourceActions(sourceID:title:)` + `RSSSourceActionsView` | `RSSManagementSource` | subscription management source more action |
+| `rss-source-edit` | done | `Route.rssSourceEdit(...)` + `RSSSourceEditView` | `RSSEditField` | source actions edit |
+| `rss-source-debug` | done | `Route.rssSourceDebug(...)` + `RSSSourceDebugView` | `RSSDebugPanel` | source actions debug |
+| `rss-source-vars` | done | `Route.rssSourceVars(...)` + `RSSSourceVarsView` | `RSSEditField` | source actions vars |
+| `rss-source-login` | done | `Route.rssSourceLogin(...)` + `RSSSourceLoginView` | `RSSSourceInfoPanel` | source actions login |
+| `rss-source-login-web` | done | `Route.rssSourceLoginWeb(...)` + `RSSSourceLoginWebView` | `RSSLoginWebPreview` | login web sub-action |
+| `rss-source-login-cookie` | done | `Route.rssSourceLoginCookie(...)` + `RSSSourceLoginCookieView` | `RSSSourceInfoPanel` | login cookie sub-action |
+| `rss-source-login-clear` | done | `Route.rssSourceLoginClear(...)` + `RSSSourceLoginClearView` | `RSSSourceConfirmCard` | login clear sub-action |
+| `rss-source-groups` | done | `Route.rssSourceGroups` + `RSSSourceGroupsView` | `RSSManagementIconRow` | subscription management group action |
+| `rss-source-group-edit` | done | `Route.rssSourceGroupEdit(...)` + `RSSSourceGroupEditView` | `RSSEditField` | groups add/rename |
+| `rss-source-batch` | done | `Route.rssSourceBatch` + `RSSSourceBatchView` | `RSSManagementIconRow` | subscription management batch action |
+| `rss-source-export` | done | `Route.rssSourceExport` + `RSSSourceExportView` | `RSSImportOptionPanel` | batch export action |
+| `rss-source-export-detail` | done | `Route.rssSourceExportDetail(...)` + `RSSSourceExportDetailView` | `RSSSourceInfoPanel` | export preview rows |
+| `rss-source-export-result` | done | `Route.rssSourceExportResult` + `RSSSourceExportResultView` | `RSSSourceConfirmationPage` | export confirm |
+| `rss-source-pin` | done | `Route.rssSourcePin(...)` + `RSSSourcePinConfirmView` | `RSSSourceConfirmationPage` | source actions pin |
+| `rss-source-disable` | done | `Route.rssSourceDisable(...)` + `RSSSourceDisableConfirmView` | `RSSSourceConfirmationPage` | source actions disable |
+| `rss-source-batch-disable` | done | `Route.rssSourceBatchDisable` + `RSSSourceBatchDisableConfirmView` | `RSSSourceConfirmationPage` | batch disable action |
+| `rss-source-import` | done | `Route.rssSourceImport` + `RSSSourceImportView` | `RSSImportOptionPanel` | subscription management import action |
+| `rss-source-import-detail` | done | `Route.rssSourceImportDetail(...)` + `RSSSourceImportDetailView` | `RSSSourceInfoPanel` | import preview rows |
+| `rss-source-import-result` | done | `Route.rssSourceImportResult` + `RSSSourceImportResultView` | `RSSSourceConfirmationPage` | import confirm |
+| `rss-read-record` | done | `Route.rssReadRecord(...)` + `RSSReadRecordView` | `RSSReadRecord` | source actions read-record |
+| `rss-record-clear` | done | `Route.rssRecordClear` + `RSSRecordClearConfirmView` | `RSSSupplementalConfirmPage` | read-record clear action |
+| `rss-rule-subscription` | done | `Route.rssRuleSubscription` + `RSSRuleSubscriptionView` | `RSSRuleSubscription` | subscription management rule-subscription action |
+| `rss-rule-subscription-detail` | done | `Route.rssRuleSubscriptionDetail(...)` + `RSSRuleSubscriptionDetailView` | `RSSImportChangeList` | rule subscription rows |
+| `rss-rule-subscription-edit` | done | `Route.rssRuleSubscriptionEdit(...)` + `RSSRuleSubscriptionEditView` | `RSSSupplementalEditField` | detail edit action |
+| `rss-rule-subscription-test` | done | `Route.rssRuleSubscriptionTest(...)` + `RSSRuleSubscriptionTestView` | `RSSSupplementalInfoPanel` | edit test action |
+| `rss-rule-subscription-apply` | done | `Route.rssRuleSubscriptionApply` + `RSSRuleSubscriptionApplyConfirmView` | `RSSSupplementalConfirmPage` | detail apply action |
+| `rss-favorite-groups` | done | `Route.rssFavoriteGroups` + `RSSFavoriteGroupsView` | `RSSFavoriteGroup` | favorites management action |
+| `rss-favorite-group-edit` | done | `Route.rssFavoriteGroupEdit(...)` + `RSSFavoriteGroupEditView` | `RSSSupplementalEditField` | favorite groups add/sort |
+| `rss-favorite-clear` | done | `Route.rssFavoriteClear` + `RSSFavoriteClearConfirmView` | `RSSSupplementalConfirmPage` | favorite clear action |
+| `rss-empty` | done | `Route.rssEmpty` + `RSSStateView(kind: .empty)` | `RSSStateKind` | RSS empty state route |
+| `rss-error` | done | `Route.rssError` + `RSSStateView(kind: .error)` | `RSSStateKind` | RSS error state route |
+| `book-search` | done | `Route.search` + `SearchView(initialQuery:)` | `SearchViewModel` + `SearchScope` | bookshelf toolbar search action |
+| `book-detail` | done | `Route.bookDetail(...)` + `BookDetailView` | `BookDetailViewModel` + `BookDetailPreviewChapter` | search result / bookshelf item push |
+| `book-directory` | done | `Route.bookDetailToc(...)` + `BookDirectoryPreviewView` | `BookDirectoryChapter` | book detail TOC entry push |
+| `book-batch-management` | done | `Route.bookBatchManagement` + `BookshelfBatchManagementView` | `BookBatchItem` | bookshelf more/focus menu push |
+| `group-management` | done | `Route.bookshelfGroups` + `BookshelfGroupManagementView` | `BookshelfGroupItem` | bookshelf more/focus menu + batch move |
+| `local-import` | done | `Route.bookshelfImport` + `BookshelfLocalImportView` | `FileImportViewModel` | bookshelf toolbar/more menu push |
+| `bookshelf-group-management` | planned | `BookshelfGroupManagementView` | planned bookshelf group assignment state | planned bookshelf group management entry |
+| `search-home` | planned | `SearchView` home | planned search home state | planned search entry from bookshelf/discover |
+| `search-results` | planned | `SearchView` results | planned search results state | planned search submit |
+| `search-loading` | planned | `SearchView` loading | planned search loading state | planned search in-flight |
+| `search-empty` | planned | `SearchView` empty | planned search empty state | planned search no-results |
+| `search-error` | planned | `SearchView` error | planned search error state | planned search failure |
+| `book-detail-toc-preview` | planned | `BookDetailView` TOC preview section | planned book-detail toc preview state | planned book detail TOC preview entry |
+| `rss-source-category-novel` | planned | `RSSFeedView(demoRoute:)` | planned RSS novel category state | planned RSS category switch |
+| `rss-source-category-tech` | planned | `RSSFeedView(demoRoute:)` | planned RSS tech category state | planned RSS category switch |
+| `rss-source-category-booklist` | planned | `RSSFeedView(demoRoute:)` | planned RSS booklist category state | planned RSS category switch |
+| `rss-source-add` | planned | `RSSSourceEditView` add mode | planned RSS source add state | planned RSS subscription management add |
+| `rss-source-delete-confirm` | planned | `RSSSourceConfirmationPage` delete | planned RSS source delete state | planned RSS source delete action |
+| `rss-rule-subscription-create` | planned | `RSSRuleSubscriptionEditView` create | planned RSS rule subscription create state | planned RSS rule subscription create |
+| `rss-favorite-add` | planned | `RSSFavoriteGroupEditView` add | planned RSS favorite add state | planned RSS favorite add action |
+| `rss-favorite-remove` | planned | `RSSFavoriteGroupEditView` remove | planned RSS favorite remove state | planned RSS favorite remove action |
+
+### SettingsShell — 54 routes (54 done, 0 planned)
+
+All SettingsShell routes render through `DemoBackScreen` + `SettingsDemoShellView(demoRoute:)` feature states. Routes marked `done` have concrete `DemoRouteMapping` entries via `settingsFeatureMappings`.
+
+| Route | Status | Platform target | State model | Navigation entry |
+|---|---|---|---|---|
+| `discover-rule-test` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` rule-test | settings stack feature-state transition |
+| `discover-source-bulk` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-bulk | settings stack feature-state transition |
+| `settings-general` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` general | settings stack feature-state transition |
+| `bookshelf-search-settings` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` bookshelf-search | settings stack feature-state transition |
+| `about-feedback` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` about-feedback | settings stack feature-state transition |
+| `sync-backup` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` sync-backup | settings stack feature-state transition |
+| `webdav-config` | done | `SettingsDemoShellView(demoRoute:)` + `WebDAVSettingsView` live | `SettingsDemoRouteState` webdav + `WebDAVSettingsViewModel` | settings stack feature-state transition |
+| `restore-confirm` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` restore-confirm | settings stack feature-state transition |
+| `restore-progress` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` restore-progress | settings stack feature-state transition |
+| `restore-conflict` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` restore-conflict | settings stack feature-state transition |
+| `restore-result` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` restore-result | settings stack feature-state transition |
+| `source-management` | done | `SettingsDemoShellView(demoRoute:)` + `BookSourceListView` live | `SettingsDemoRouteState` source-mgmt + `BookSourceViewModel` | settings stack feature-state transition |
+| `source-import-options` | done | `SettingsDemoShellView(demoRoute:)` + `BookSourceImportView` live | `SettingsDemoRouteState` source-import-options + `BookSourceImportValidator` | settings stack feature-state transition |
+| `source-import-preview` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-import-preview | settings stack feature-state transition |
+| `source-batch` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-batch | settings stack feature-state transition |
+| `source-groups` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-groups | settings stack feature-state transition |
+| `source-detail` | done | `SettingsDemoShellView(demoRoute:)` + `BookSourceDetailSheet` live | `SettingsDemoRouteState` source-detail + `BookSourceStore` | settings stack feature-state transition |
+| `source-detect` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-detect | settings stack feature-state transition |
+| `source-rule-edit` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-rule-edit | settings stack feature-state transition |
+| `source-debug` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-debug | settings stack feature-state transition |
+| `source-debug-search-result` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-debug-search-result | settings stack feature-state transition |
+| `source-debug-detail-result` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-debug-detail-result | settings stack feature-state transition |
+| `source-debug-catalog-result` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-debug-catalog-result | settings stack feature-state transition |
+| `source-debug-content-log` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-debug-content-log | settings stack feature-state transition |
+| `source-edit-debug` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-edit-debug | settings stack feature-state transition |
+| `source-logs` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-logs | settings stack feature-state transition |
+| `source-code-view` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-code-view | settings stack feature-state transition |
+| `source-delete-confirm` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-delete-confirm | settings stack feature-state transition |
+| `global-settings` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` global-settings | settings stack feature-state transition |
+| `global-loading` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` global-loading | settings stack feature-state transition |
+| `global-empty` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` global-empty | settings stack feature-state transition |
+| `global-error` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` global-error | settings stack feature-state transition |
+| `offline-state` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` offline-state | settings stack feature-state transition |
+| `permission-required` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` permission-required | settings stack feature-state transition |
+| `state-error` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` state-error | settings stack feature-state transition |
+| `state-offline` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` state-offline | settings stack feature-state transition |
+| `restore-scopes` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` restore-scopes | settings stack feature-state transition |
+| `restore-preview` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` restore-preview | settings stack feature-state transition |
+| `restore-running` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` restore-running | settings stack feature-state transition |
+| `source-edit` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-edit | settings stack feature-state transition |
+| `source-add` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-add | settings stack feature-state transition |
+| `source-debug-running` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-debug-running | settings stack feature-state transition |
+| `source-debug-result` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-debug-result | settings stack feature-state transition |
+| `source-test-result` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-test-result | settings stack feature-state transition |
+| `source-settings-entry` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` source-settings-entry | settings stack feature-state transition |
+| `sync-settings-entry` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` sync-settings-entry | settings stack feature-state transition |
+| `reading-settings-entry` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` reading-settings-entry | settings stack feature-state transition |
+| `progress-sync` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` progress-sync | settings stack feature-state transition |
+| `progress-sync-status` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` progress-sync-status | settings stack feature-state transition |
+| `sync-error` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` sync-error | settings stack feature-state transition |
+| `backup-settings` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` backup-settings | settings stack feature-state transition |
+| `remote-webdav-books` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` remote-webdav-books | settings stack feature-state transition |
+| `about` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` about | settings stack feature-state transition |
+| `about-version` | done | `SettingsDemoShellView(demoRoute:)` | `SettingsDemoRouteState` about-version | settings stack feature-state transition |
+
+### ReaderShell — 30 routes (30 done, 0 planned)
+
+All ReaderShell routes (except `immersive-reading` and `reader`) render through `ReaderDemoShellView(demoRoute:)` inline overlay/control module states with hidden system navigation chrome.
+
+| Route | Status | Platform target | State model | Navigation entry |
+|---|---|---|---|---|
+| `immersive-reading` | done | `ReaderContext(.coverToImmersive)` | `ReaderContext` + `ReaderView` + `ReaderReadingLayer` | BookshelfView.enterImmersive push |
+| `reader` | done | `Route.reader(bookID:chapterURL:chapterTitle:)` | `ReaderViewModel` + `ReaderSession` + `OverlayState` | reader destination push from detail/continue-reading |
+| `toc-bookmarks` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` + `ReaderDemoModule.compactRoute` | reader module switch |
+| `reader-appearance` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` + `ReaderAppearanceQuickAction` | reader module switch |
+| `tts` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` + `ReaderControlSession` | reader module switch |
+| `reader-settings` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` + `ReaderSettingsQuickAction` | reader module switch |
+| `reader-full-directory` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` | compact header expand |
+| `reader-full-tts` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` | compact header expand |
+| `reader-full-appearance` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` | compact header expand |
+| `reader-full-settings` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` | compact header expand |
+| `reader-book-cache` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` book-cache | reader utility module |
+| `reader-debug-info` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` debug-info | reader utility module |
+| `auto-page` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderControlSession` + autoPage | reader module switch |
+| `content-search` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` content-search | reader module switch |
+| `content-replacement` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` content-replacement | reader module switch |
+| `reader_content` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` reader_content | reader content body state |
+| `reader-appearance-overlay-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` appearance-overlay-v2 | reader overlay v2 switch |
+| `reader-directory-overlay-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` directory-overlay-v2 | reader overlay v2 switch |
+| `reader-tts-overlay-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` tts-overlay-v2 | reader overlay v2 switch |
+| `reader-settings-overlay-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` settings-overlay-v2 | reader overlay v2 switch |
+| `reader-full-font` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` font | reader full panel expand |
+| `reader-full-theme` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` theme | reader full panel expand |
+| `reader-full-theme-edit` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` theme-edit | reader full panel expand |
+| `reader-full-layout` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` layout | reader full panel expand |
+| `reader-full-page-turn` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoModule.fullRoute` page-turn | reader full panel expand |
+| `reader-auto-scroll-overlay-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` auto-scroll-overlay-v2 | reader overlay v2 switch |
+| `reader-search-overlay-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` search-overlay-v2 | reader overlay v2 switch |
+| `reader-replace-overlay-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` replace-overlay-v2 | reader overlay v2 switch |
+| `reader-night-state-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` night-state-v2 | reader night state v2 |
+| `control-layer-base-v2` | done | `ReaderDemoShellView(demoRoute:)` | `ReaderDemoRouteState` control-layer-base-v2 | reader control layer baseline v2 |
+
+### FlowShell — 2 routes (1 done, 1 planned)
+
+| Route | Status | Platform target | State model | Navigation entry |
+|---|---|---|---|---|
+| `source-switch` | done | `Route.sourceSwitch(bookURL:)` + `DemoFlowShell` + `ReaderSourceSwitchFlowView` | `SourceSwitchCandidate` selection | reader inline source-switch flow push |
+| `source-switch-results` | planned | `ReaderSourceSwitchFlowView` results region | planned source-switch results state | planned source-switch results entry |
+
+### P0 Route Gap Closure Summary
+
+The `69` routes added on 2026-07-05 close the `200`-route contract. The remaining `21` `planned` routes are tracked as P2 interaction work — they have shell ownership and platform-target placeholders but no concrete SwiftUI view yet. No route is `blocked`. P1 structural closure (every route has a Shell and a native entry path) is satisfied for all `200` routes via the `expected*ShellRoutes` arrays and the `plannedMapping(route:shell:)` fallback.
 
 ## Closure Status - 2026-07-03
 

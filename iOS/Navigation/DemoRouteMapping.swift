@@ -108,7 +108,12 @@ public enum DemoRouteMappings {
         "discover-filter-male", "discover-filter-female", "discover-sort-popularity", "discover-sort-update", "discover-sort-collection", "discover-sort-finished",
         "discover-sort-words", "discover-no-results", "discover-loading", "discover-refreshing", "discover-infinite-loading", "discover-page-two",
         "discover-cache-confirm", "discover-cache-toast", "discover-login-return", "discover-switching-source", "discover-switched-source", "discover-entry-error",
-        "discover-empty", "discover-error", "rss", "settings", "bookshelf-empty", "sort-filter"
+        "discover-empty", "discover-error", "rss", "settings", "bookshelf-empty", "sort-filter",
+        // P0/M0 route-contract closure additions (200-route baseline)
+        "bookshelf-cover-mode", "bookshelf-list-mode", "bookshelf-book-more-menu",
+        "discover-home", "discover-entry-source", "discover-filter-source-type", "discover-filter-category",
+        "discover-cache-empty", "discover-cache-stale", "discover-cache-fresh",
+        "app-shell", "main-tabs"
     ]
 
     public static let expectedLibraryShellRoutes: [String] = [
@@ -120,7 +125,15 @@ public enum DemoRouteMappings {
         "rss-source-import", "rss-source-import-detail", "rss-source-import-result", "rss-read-record", "rss-record-clear", "rss-rule-subscription",
         "rss-rule-subscription-detail", "rss-rule-subscription-edit", "rss-rule-subscription-test", "rss-rule-subscription-apply", "rss-favorite-groups", "rss-favorite-group-edit",
         "rss-favorite-clear", "rss-empty", "rss-error", "book-search", "book-detail", "book-directory",
-        "book-batch-management", "group-management", "local-import"
+        "book-batch-management", "group-management", "local-import",
+        // P0/M0 route-contract closure additions (200-route baseline)
+        "bookshelf-group-management",
+        "search-home", "search-results", "search-loading", "search-empty", "search-error",
+        "book-detail-toc-preview",
+        "rss-source-category-novel", "rss-source-category-tech", "rss-source-category-booklist",
+        "rss-source-add", "rss-source-delete-confirm",
+        "rss-rule-subscription-create",
+        "rss-favorite-add", "rss-favorite-remove"
     ]
 
     public static let expectedSettingsShellRoutes: [String] = [
@@ -128,17 +141,36 @@ public enum DemoRouteMappings {
         "webdav-config", "restore-confirm", "restore-progress", "restore-conflict", "restore-result", "source-management",
         "source-import-options", "source-import-preview", "source-batch", "source-groups", "source-detail", "source-detect",
         "source-rule-edit", "source-debug", "source-debug-search-result", "source-debug-detail-result", "source-debug-catalog-result", "source-debug-content-log",
-        "source-edit-debug", "source-logs", "source-code-view", "source-delete-confirm"
+        "source-edit-debug", "source-logs", "source-code-view", "source-delete-confirm",
+        // P0/M0 route-contract closure additions (200-route baseline)
+        "global-settings", "global-loading", "global-empty", "global-error",
+        "offline-state", "permission-required",
+        "state-error", "state-offline",
+        "restore-scopes", "restore-preview", "restore-running",
+        "source-edit", "source-add",
+        "source-debug-running", "source-debug-result", "source-test-result",
+        "source-settings-entry", "sync-settings-entry", "reading-settings-entry",
+        "progress-sync", "progress-sync-status", "sync-error",
+        "backup-settings", "remote-webdav-books",
+        "about", "about-version"
     ]
 
     public static let expectedReaderShellRoutes: [String] = [
         "immersive-reading", "reader", "toc-bookmarks", "reader-appearance", "tts", "reader-settings",
         "reader-full-directory", "reader-full-tts", "reader-full-appearance", "reader-full-settings", "reader-book-cache", "reader-debug-info",
-        "auto-page", "content-search", "content-replacement"
+        "auto-page", "content-search", "content-replacement",
+        // P0/M0 route-contract closure additions (200-route baseline)
+        "reader_content",
+        "reader-appearance-overlay-v2", "reader-directory-overlay-v2", "reader-tts-overlay-v2", "reader-settings-overlay-v2",
+        "reader-full-font", "reader-full-theme", "reader-full-theme-edit", "reader-full-layout", "reader-full-page-turn",
+        "reader-auto-scroll-overlay-v2", "reader-search-overlay-v2", "reader-replace-overlay-v2",
+        "reader-night-state-v2", "control-layer-base-v2"
     ]
 
     public static let expectedFlowShellRoutes: [String] = [
-        "source-switch"
+        "source-switch",
+        // P0/M0 route-contract closure additions (200-route baseline)
+        "source-switch-results"
     ]
 
     public static let expectedRoutesByShell: [(shell: String, routes: [String])] = [

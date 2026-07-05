@@ -1,6 +1,5 @@
 import XCTest
 import ReaderCoreProtocols
-import ReaderCoreNetwork
 @testable import ReaderShellValidation
 
 /// S4 host proof — verifies the three host-side HTTP capabilities implemented in
@@ -13,7 +12,7 @@ final class URLSessionHTTPClientCapabilitiesTests: XCTestCase {
     // MARK: - Cookie jar
 
     func testCookieJarReadStampsRequestCookieHeader() async throws {
-        let jar = BasicCookieJar()
+        let jar = HostScopedCookieJarFactory.makeBasicCookieJar()
         let scopeKey = CookieJarScopeKey(sourceId: "src-1", host: "cookie.example.test")
         await jar.setCookie(
             Cookie(name: "session", value: "abc123", domain: "cookie.example.test"),
@@ -50,7 +49,7 @@ final class URLSessionHTTPClientCapabilitiesTests: XCTestCase {
     }
 
     func testCookieJarWriteStoresSetCookieResponse() async throws {
-        let jar = BasicCookieJar()
+        let jar = HostScopedCookieJarFactory.makeBasicCookieJar()
         let scopeKey = CookieJarScopeKey(sourceId: "src-1", host: "cookie.example.test")
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -83,7 +82,7 @@ final class URLSessionHTTPClientCapabilitiesTests: XCTestCase {
     }
 
     func testCookieJarScopeIsolationDoesNotLeakAcrossSources() async throws {
-        let jar = BasicCookieJar()
+        let jar = HostScopedCookieJarFactory.makeBasicCookieJar()
         let scopeA = CookieJarScopeKey(sourceId: "src-a", host: "iso.example.test")
         let scopeB = CookieJarScopeKey(sourceId: "src-b", host: "iso.example.test")
         await jar.setCookie(

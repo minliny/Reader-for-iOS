@@ -1,6 +1,5 @@
 import Foundation
 import ReaderCoreModels
-import ReaderCoreParser
 import ReaderCoreProtocols
 
 public struct CoreRSSFeedSummary: Equatable, Sendable {
@@ -54,13 +53,17 @@ public protocol CoreRSSFeedLoading: Sendable {
 }
 
 public struct CoreRSSFeedService: CoreRSSFeedLoading {
-    public init() {}
+    private let parser: any ReaderCoreFeedParserAdapter
+
+    public init(parser: any ReaderCoreFeedParserAdapter = RSSParserHostAdapter()) {
+        self.parser = parser
+    }
 
     public func parseFeed(data: Data, source: RSSSource) async throws -> CoreRSSFeedSummary {
         guard !data.isEmpty else {
             throw CoreRSSFeedBridgeError.emptyFeed
         }
-        let result = RSSParser().parseFeed(
+        let result = try await parser.parseFeed(
             ReaderCoreFeedParseRequest(
                 data: data,
                 sourceURL: source.url,
