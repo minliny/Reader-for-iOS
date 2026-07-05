@@ -15,9 +15,19 @@ import Foundation
 
 let shellCIOnly = ProcessInfo.processInfo.environment["READER_IOS_SHELL_CI"] == "1"
 let shellCISwiftSettings: [SwiftSetting] = shellCIOnly ? [.define("READER_IOS_SHELL_CI")] : []
-let readerCoreParserDependency: [Target.Dependency] = shellCIOnly ? [] : [
-    .product(name: "ReaderCoreParser", package: "Reader-Core")
+let parserBackedCoreDependencies: [Target.Dependency] = shellCIOnly ? [] : [
+    .product(name: "ReaderCoreParser", package: "Reader-Core"),
+    .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
+    .product(name: "ReaderCoreServices", package: "Reader-Core"),
+    .product(name: "ReaderCoreAPI", package: "Reader-Core"),
+    .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
 ]
+let shellValidationExcludes: [String] = shellCIOnly ? [
+    "CoreIntegration/CoreLocalBookImportService.swift"
+] : []
+let shellSmokeTestExcludes: [String] = shellCIOnly ? [
+    "RealServiceOfflineReplayTests.swift"
+] : []
 
 let readerShellValidationDependencies: [Target.Dependency] = [
     "ReaderAppSupport",
@@ -25,22 +35,18 @@ let readerShellValidationDependencies: [Target.Dependency] = [
     .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
     .product(name: "ReaderCoreModels", package: "Reader-Core"),
     .product(name: "ReaderCoreProtocols", package: "Reader-Core")
-] + readerCoreParserDependency + [
-    .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
-    .product(name: "ReaderCoreServices", package: "Reader-Core"),
-    .product(name: "ReaderCoreAPI", package: "Reader-Core"),
-    .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
-]
+] + parserBackedCoreDependencies
 
 let shellSmokeTestDependencies: [Target.Dependency] = [
     "ReaderShellValidation",
     "ReaderAppSupport",
     .product(name: "ReaderCoreModels", package: "Reader-Core"),
     .product(name: "ReaderCoreProtocols", package: "Reader-Core")
-] + readerCoreParserDependency + [
+] + (shellCIOnly ? [] : [
+    .product(name: "ReaderCoreParser", package: "Reader-Core"),
     .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
     .product(name: "ReaderCoreServices", package: "Reader-Core")
-]
+])
 
 let baseTargets: [Target] = [
     // Rust Reader-Core-Native C ABI as a merged xcframework binaryTarget.
@@ -88,7 +94,7 @@ let baseTargets: [Target] = [
             "Navigation",
             "Surface",
             "Tests",
-        ],
+        ] + shellValidationExcludes,
         sources: [
             "CoreIntegration",
             "CoreBridge",
@@ -148,7 +154,9 @@ let baseTargets: [Target] = [
     .testTarget(
         name: "ShellSmokeTests",
         dependencies: shellSmokeTestDependencies,
-        path: "Tests/ShellSmokeTests"
+        path: "Tests/ShellSmokeTests",
+        exclude: shellSmokeTestExcludes,
+        swiftSettings: shellCISwiftSettings
     )
 ]
 

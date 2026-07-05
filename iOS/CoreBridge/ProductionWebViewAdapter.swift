@@ -1,6 +1,8 @@
 import Foundation
 import ReaderCoreModels
+#if !READER_IOS_SHELL_CI
 import ReaderPlatformAdapters
+#endif
 
 #if canImport(WebKit) && canImport(UIKit)
 import WebKit

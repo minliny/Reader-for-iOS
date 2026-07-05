@@ -1,7 +1,9 @@
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
+#if !READER_IOS_SHELL_CI
 import ReaderCoreServices
+#endif
 #if canImport(ReaderCoreNativeAdapter)
 import ReaderCoreNativeAdapter
 #endif
@@ -94,6 +96,14 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
 
     /// M2: 通过 NetworkAccessController 创建全部 real service（不走 RealNetworkGate）
     public func prepareControlledOnlineAllServices() -> Bool {
+        #if READER_IOS_SHELL_CI
+        lock.lock()
+        realSearchService = ShellCIRealSearchService()
+        realTOCService = ShellCIRealTOCService()
+        realContentService = ShellCIRealContentService()
+        lock.unlock()
+        return true
+        #else
         let policy = SourceNetworkPolicy.m1Candidate
         let userPref = UserNetworkPreference.productDefault
         let decision = networkController.evaluate(userPreference: userPref, sourcePolicy: policy, operation: .search)
@@ -109,6 +119,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         realContentService = factory.makeContentService()
         lock.unlock()
         return realSearchService != nil && realTOCService != nil && realContentService != nil
+        #endif
     }
 
     public var currentMode: ServiceMode {
@@ -128,6 +139,15 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     /// 尝试启用 real mode。必须先通过 RealNetworkGate 检查。
     /// 返回 true 表示 real service 已配置并可用。
     public func configureRealMode() -> Bool {
+        #if READER_IOS_SHELL_CI
+        lock.lock()
+        realSearchService = ShellCIRealSearchService()
+        realTOCService = ShellCIRealTOCService()
+        realContentService = ShellCIRealContentService()
+        mode = .real
+        lock.unlock()
+        return true
+        #else
         let gate = DefaultRealNetworkGate()
         let policy = RealNetworkPolicyStore.shared.current
         guard case .allowed = gate.evaluate(policy) else {
@@ -143,6 +163,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         mode = .real
         lock.unlock()
         return realSearchService != nil && realTOCService != nil && realContentService != nil
+        #endif
     }
 
     #if canImport(ReaderCoreNativeAdapter)
