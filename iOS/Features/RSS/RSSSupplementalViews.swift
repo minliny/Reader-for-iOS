@@ -638,6 +638,40 @@ struct RSSFavoriteClearConfirmView: View {
     }
 }
 
+/// P0/M2 closed-planned route: rss-favorite-remove
+///
+/// Closes the rss-favorite-remove demo route via a dedicated confirm page
+/// (matches the pattern of RSSFavoriteClearConfirmView).
+/// `RSSFavoriteGroupsView` remove action pushes this view; confirm removes the
+/// favorite group and returns to the list.
+struct RSSFavoriteRemoveConfirmView: View {
+    private let groupName: String
+    private let onExit: (() -> Void)?
+
+    init(groupName: String = "默认分组", onExit: (() -> Void)? = nil) {
+        self.groupName = groupName
+        self.onExit = onExit
+    }
+
+    var body: some View {
+        RSSSupplementalConfirmPage(
+            title: "删除收藏分组",
+            icon: .trash,
+            heading: "删除 \(groupName)？",
+            copy: "仅删除当前收藏分组，分组内已收藏文章不会被永久删除。",
+            detail: "其他收藏分组、阅读记录和订阅源状态不会受影响。",
+            cancelTitle: "返回分组",
+            confirmTitle: "确认删除",
+            onCancel: close,
+            onConfirm: close
+        )
+    }
+
+    private func close() {
+        onExit?()
+    }
+}
+
 struct RSSStateView: View {
     let kind: RSSStateKind
     private let onExit: (() -> Void)?

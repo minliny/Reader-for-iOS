@@ -6,6 +6,8 @@ struct ReaderSourceSwitchFlowView: View {
     private let onExit: (() -> Void)?
     private let candidates: [SourceSwitchCandidate]
     @State private var selectedSource: String
+    @State private var resultState: SourceSwitchResultState = .browsing
+    @State private var confirmedCandidate: SourceSwitchCandidate?
 
     init(bookURL: String, onExit: (() -> Void)? = nil) {
         self.bookURL = bookURL
@@ -28,9 +30,33 @@ struct ReaderSourceSwitchFlowView: View {
                 selectedSource: $selectedSource
             )
         } resultRegion: {
-            SourceSwitchResultCard(candidate: selectedCandidate)
+            SourceSwitchResultCard(
+                candidate: selectedCandidate,
+                resultState: resultState,
+                confirmedCandidate: confirmedCandidate,
+                onConfirm: {
+                    confirmedCandidate = selectedCandidate
+                    resultState = .confirmed
+                },
+                onReset: {
+                    confirmedCandidate = nil
+                    resultState = .browsing
+                }
+            )
         }
     }
+}
+
+/// Source-switch flow result state machine.
+///
+/// Closes the `source-switch-results` demo route: the result region is not a
+/// separate pushed page but a feature-state transition inside `DemoFlowShell.resultRegion`.
+/// - `.browsing`: user is comparing candidates; result card shows live selection preview.
+/// - `.confirmed`: user tapped "确认换源"; result card shows confirmed candidate with
+///   "已确认换源" status and dismiss/reset action.
+enum SourceSwitchResultState: Equatable, Sendable {
+    case browsing
+    case confirmed
 }
 
 private struct SourceSwitchCandidate: Identifiable, Hashable {
@@ -404,25 +430,36 @@ private struct SourceSwitchCandidateRow: View {
 
 private struct SourceSwitchResultCard: View {
     let candidate: SourceSwitchCandidate
+    let resultState: SourceSwitchResultState
+    let confirmedCandidate: SourceSwitchCandidate?
+    let onConfirm: () -> Void
+    let onReset: () -> Void
+
+    private var displayCandidate: SourceSwitchCandidate {
+        if resultState == .confirmed, let confirmed = confirmedCandidate {
+            return confirmed
+        }
+        return candidate
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.sourceSwitchResultGap) {
-            ReaderIcon(.check, size: 20, accessibilityLabel: "确认")
+            ReaderIcon(.check, size: 20, accessibilityLabel: resultState == .confirmed ? "已确认" : "确认")
                 .frame(width: ReaderDesignTokens.sourceSwitchResultIconSize, height: ReaderDesignTokens.sourceSwitchResultIconSize)
                 .foregroundColor(ReaderDesignTokens.Color.primaryDark)
                 .background(Circle().fill(ReaderDesignTokens.Color.primary.opacity(0.10)))
 
-            Text(candidate.source)
+            Text(displayCandidate.source)
                 .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .heavy))
                 .foregroundColor(ReaderDesignTokens.Color.ink)
                 .lineLimit(1)
 
-            Text("\(candidate.state) · \(candidate.speed) · \(candidate.latestChapter)")
+            Text(resultHeadline)
                 .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
-                .foregroundStyle(ReaderDesignTokens.Color.muted)
+                .foregroundStyle(resultState == .confirmed ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.muted)
                 .lineLimit(2)
 
-            Text("确认后保持当前阅读位置，仅替换正文来源与章节解析结果。")
+            Text(resultCopy)
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .semibold))
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
                 .lineSpacing(3)
@@ -430,18 +467,18 @@ private struct SourceSwitchResultCard: View {
 
             Spacer(minLength: 0)
 
-            Button {} label: {
-                Text("确认换源")
+            Button(action: resultState == .confirmed ? onReset : onConfirm) {
+                Text(resultState == .confirmed ? "返回换源" : "确认换源")
                     .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, minHeight: ReaderDesignTokens.sourceSwitchResultButtonMinHeight)
                     .background(
                         Capsule()
-                            .fill(ReaderDesignTokens.Color.primaryDark)
+                            .fill(resultState == .confirmed ? ReaderDesignTokens.Color.muted : ReaderDesignTokens.Color.primaryDark)
                     )
             }
             .buttonStyle(.plain)
-            .disabled(!candidate.canSwitch && !candidate.isCurrent)
+            .disabled(resultState == .browsing && !candidate.canSwitch && !candidate.isCurrent)
         }
         .padding(ReaderDesignTokens.sourceSwitchResultPadding)
         .frame(maxWidth: .infinity, minHeight: 248, alignment: .topLeading)
@@ -453,6 +490,24 @@ private struct SourceSwitchResultCard: View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
         )
+    }
+
+    private var resultHeadline: String {
+        switch resultState {
+        case .browsing:
+            return "\(displayCandidate.state) · \(displayCandidate.speed) · \(displayCandidate.latestChapter)"
+        case .confirmed:
+            return "已确认换源 · \(displayCandidate.speed)"
+        }
+    }
+
+    private var resultCopy: String {
+        switch resultState {
+        case .browsing:
+            return "确认后保持当前阅读位置，仅替换正文来源与章节解析结果。"
+        case .confirmed:
+            return "已切换至 \(displayCandidate.source)，当前章节同步完成。可继续阅读或返回重新选择候选源。"
+        }
     }
 }
 

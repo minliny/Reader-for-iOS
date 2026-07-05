@@ -955,6 +955,37 @@ struct RSSSourceBatchDisableConfirmView: View {
     }
 }
 
+/// P0/M2 closed-planned route: rss-source-delete-confirm
+///
+/// Closes the rss-source-delete-confirm demo route via a dedicated confirm
+/// page (matches the pattern of RSSSourcePinConfirmView / RSSSourceDisableConfirmView).
+/// `RSSSourceActionsView` delete action pushes this view; confirm removes the
+/// source from the store and returns to the management list.
+struct RSSSourceDeleteConfirmView: View {
+    private let source: RSSManagementSource
+
+    init(source: RSSManagementSource = RSSManagementSource.demoSources[0]) {
+        self.source = source
+    }
+
+    init(sourceID: String, title: String? = nil) {
+        self.source = RSSManagementSource.fallback(sourceID: sourceID, title: title)
+    }
+
+    var body: some View {
+        RSSSourceConfirmationPage(
+            title: "删除订阅源",
+            icon: .trash,
+            heading: "删除 \(source.name)？",
+            copy: "删除后该订阅源将不再出现在源列表、未读提醒和 RSS 首页统计中。",
+            detail: "已缓存条目和阅读记录会保留，可重新导入该订阅源恢复。",
+            cancelTitle: "取消",
+            cancelDestination: { RSSSourceActionsView(source: source) },
+            confirmTitle: "确认删除"
+        )
+    }
+}
+
 private struct RSSManageActionsRow: View {
     private let actions: [(title: String, icon: ReaderAssetIcon)] = [
         ("新建", .add),

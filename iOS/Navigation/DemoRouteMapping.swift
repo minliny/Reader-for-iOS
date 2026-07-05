@@ -786,7 +786,225 @@ public enum DemoRouteMappings {
         )
     ]
 
-    private static let concreteMappings: [DemoRouteMapping] = baseConcreteMappings + discoverFeatureMappings + libraryFeatureMappings + readerFeatureMappings + settingsFeatureMappings
+    private static let closedPlannedRouteMappings: [DemoRouteMapping] = [
+        // MARK: - Group A: Search flow state closure (LibraryShell)
+        DemoRouteMapping(
+            demoRoute: "search-home",
+            slice: 2,
+            shell: "LibraryShell",
+            platformTarget: .featureState("SearchState.idle"),
+            stateModel: "Route.search + DemoLibraryShell via DemoBackScreen slot facade + SearchView + SearchViewModel + SearchState.idle + SearchHistoryRow + SearchScope",
+            navigationEntry: "bookshelf toolbar search action pushes SearchView; idle state shows search history and SearchScope selector",
+            motionIDs: ["input.focus", "button.press", "button.activate", "app.route.push.forward"],
+            acceptanceTests: ["DemoRouteMappingTests", "SearchFlowStateClosureTests", "AppShellAlignmentTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "search-results",
+            slice: 2,
+            shell: "LibraryShell",
+            platformTarget: .featureState("SearchState.success/partial"),
+            stateModel: "SearchView + SearchViewModel + SearchState.success(results:) / .partial(results:warnings:) + SearchResultDemoRow + BottomFixedActionRow",
+            navigationEntry: "search submit transitions SearchState to success/partial; result rows push BookDetailView or open ReaderView",
+            motionIDs: ["input.focus", "button.press", "listRow.route", "state.content.replace", "motion.async.resultGuard"],
+            acceptanceTests: ["DemoRouteMappingTests", "SearchFlowStateClosureTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "search-loading",
+            slice: 2,
+            shell: "LibraryShell",
+            platformTarget: .featureState("SearchState.loading"),
+            stateModel: "SearchView + SearchViewModel + SearchState.loading + SearchStateCard(tone: .info) + DemoLoadingSpinner(size: .reader)",
+            navigationEntry: "search submit transitions SearchState to loading; SearchStateCard renders DemoLoadingSpinner",
+            motionIDs: ["state.content.replace", "motion.async.resultGuard"],
+            acceptanceTests: ["DemoRouteMappingTests", "SearchFlowStateClosureTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "search-empty",
+            slice: 2,
+            shell: "LibraryShell",
+            platformTarget: .featureState("SearchState.empty"),
+            stateModel: "SearchView + SearchViewModel + SearchState.empty + SearchStateCard(tone: .muted) + search history fallback",
+            navigationEntry: "search submit returns no results; SearchState transitions to empty with muted-tone card",
+            motionIDs: ["state.content.replace", "motion.async.resultGuard"],
+            acceptanceTests: ["DemoRouteMappingTests", "SearchFlowStateClosureTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "search-error",
+            slice: 2,
+            shell: "LibraryShell",
+            platformTarget: .featureState("SearchState.failed/unsupported"),
+            stateModel: "SearchView + SearchViewModel + SearchState.failed(message:) / .unsupported(reason:) + SearchStateCard(tone: .danger) + retry action",
+            navigationEntry: "search submit fails or source unsupported; SearchState transitions to failed/unsupported with danger-tone card and retry",
+            motionIDs: ["state.content.replace", "motion.async.resultGuard", "button.press", "button.activate"],
+            acceptanceTests: ["DemoRouteMappingTests", "SearchFlowStateClosureTests"]
+        ),
+        // MARK: - Group B: Bookshelf display mode / more menu / app-shell / main-tabs (MainTabShell)
+        DemoRouteMapping(
+            demoRoute: "bookshelf-cover-mode",
+            slice: 2,
+            shell: "MainTabShell",
+            platformTarget: .featureState("BookshelfDisplayMode.cover"),
+            stateModel: "BookshelfView + BookshelfDisplayMode.cover + BookshelfBookCoverCard + LazyVGrid + BookshelfSectionHeader grid button selected",
+            navigationEntry: "bookshelf section header grid button switches BookshelfDisplayMode to .cover; no route push, no main-tab change",
+            motionIDs: ["button.press", "button.activate", "state.content.replace"],
+            acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "AppShellAlignmentTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "bookshelf-list-mode",
+            slice: 2,
+            shell: "MainTabShell",
+            platformTarget: .featureState("BookshelfDisplayMode.list"),
+            stateModel: "BookshelfView + BookshelfDisplayMode.list + BookshelfBookListCard + VStack + BookshelfSectionHeader list button selected",
+            navigationEntry: "bookshelf section header list button switches BookshelfDisplayMode to .list; no route push, no main-tab change",
+            motionIDs: ["button.press", "button.activate", "state.content.replace"],
+            acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "AppShellAlignmentTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "bookshelf-book-more-menu",
+            slice: 2,
+            shell: "MainTabShell",
+            platformTarget: .featureState("BookshelfBookFocusLayer"),
+            stateModel: "BookshelfView + BookshelfBookFocusLayer overlay + focusedBookshelfItem + batch/groups/detail/delete actions",
+            navigationEntry: "long-press bookshelf item opens BookshelfBookFocusLayer overlay; actions push batch/groups/detail or delete inline; no main-tab change",
+            motionIDs: ["overlay.sheet.enter", "overlay.sheet.exit", "button.press", "button.activate", "state.content.replace"],
+            acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "app-shell",
+            slice: 1,
+            shell: "MainTabShell",
+            platformTarget: .featureState("AppShellView"),
+            stateModel: "AppShellView + DemoMainTabShell + ReadingFlowCoordinator + AppNavigationState + ReaderShellEnvironment + mainTabTopBar/contentRegion/stateHost/mainNav slots",
+            navigationEntry: "AppShellView is application root view loaded by ReaderApp; tab selection writes AppNavigationState.activeTab; no route push",
+            motionIDs: ["app.tab.switch", "motion.interrupt.cancel"],
+            acceptanceTests: ["DemoRouteMappingTests", "AppShellAlignmentTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "main-tabs",
+            slice: 1,
+            shell: "MainTabShell",
+            platformTarget: .featureState("FloatingTabBar + AppTab.contractOrder"),
+            stateModel: "FloatingTabBar + AppTab.contractOrder + AppNavigationState.activeTab + DemoMainTabShell.mainNav slot + tab.item.press/select/switch",
+            navigationEntry: "FloatingTabBar in DemoMainTabShell mainNav slot; tab selection writes AppNavigationState.activeTab via switchTab(_:)",
+            motionIDs: ["tab.item.press", "tab.item.select", "tab.item.switch", "app.tab.switch"],
+            acceptanceTests: ["DemoRouteMappingTests", "AppShellAlignmentTests"]
+        ),
+        // MARK: - Group C: bookshelf-group-management + book-detail-toc-preview (LibraryShell)
+        DemoRouteMapping(
+            demoRoute: "bookshelf-group-management",
+            slice: 2,
+            shell: "LibraryShell",
+            platformTarget: .nativeRoute(.bookshelfGroups),
+            stateModel: "Route.bookshelfGroups + DemoLibraryShell via DemoBackScreen slot facade + BookshelfGroupManagementView + BookshelfGroupItem assignment state",
+            navigationEntry: "bookshelf more/focus menu and batch move action push BookshelfGroupManagementView; alias of group-management route with same BookshelfGroupItem assignment state",
+            motionIDs: ["app.route.push.forward", "button.press", "button.activate"],
+            acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests", "AppShellAlignmentTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "book-detail-toc-preview",
+            slice: 2,
+            shell: "LibraryShell",
+            platformTarget: .featureState("BookDetailView.chapterPreviewCard"),
+            stateModel: "BookDetailView + chapterPreviewCard + BookDetailPreviewChapterRow + previewChapters(prefix: 4) + BookDetailPreviewChapter.demoChapters fallback + full-directory entry",
+            navigationEntry: "BookDetailView chapterPreviewCard renders first 4 chapters inline; full directory button pushes book-directory route",
+            motionIDs: ["button.press", "button.activate", "listRow.route"],
+            acceptanceTests: ["DemoRouteMappingTests", "BookshelfHTMLCSSStructureAlignmentTests"]
+        ),
+        // MARK: - Group D: RSS category/add/delete/rule-create/favorite-add/remove (LibraryShell)
+        DemoRouteMapping(
+            demoRoute: "rss-source-category-novel",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSFeedView(demoRoute: \"rss-source-category-novel\")"),
+            stateModel: "RSSFeedView(demoRoute:) + DemoLibraryShell + RSSDemoRouteState + RSSDemoCategory.novel + RSSDemoSourceToolbar + RSSDemoCategoryFilter + RSSFeedDemoArticleSection",
+            navigationEntry: "RSS source feed category filter selects novel; RSSDemoCategoryFilter.onSelectRoute transitions to novel category",
+            motionIDs: ["chip.item.press", "chip.item.select", "dropdown.option.select", "state.content.replace"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSCategoryExtensionTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "rss-source-category-tech",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSFeedView(demoRoute: \"rss-source-category-tech\")"),
+            stateModel: "RSSFeedView(demoRoute:) + DemoLibraryShell + RSSDemoRouteState + RSSDemoCategory.tech + RSSDemoSourceToolbar + RSSDemoCategoryFilter + RSSFeedDemoArticleSection",
+            navigationEntry: "RSS source feed category filter selects tech; RSSDemoCategoryFilter.onSelectRoute transitions to tech category",
+            motionIDs: ["chip.item.press", "chip.item.select", "dropdown.option.select", "state.content.replace"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSCategoryExtensionTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "rss-source-category-booklist",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSFeedView(demoRoute: \"rss-source-category-booklist\")"),
+            stateModel: "RSSFeedView(demoRoute:) + DemoLibraryShell + RSSDemoRouteState + RSSDemoCategory.booklist + RSSDemoSourceToolbar + RSSDemoCategoryFilter + RSSFeedDemoArticleSection",
+            navigationEntry: "RSS source feed category filter selects booklist; RSSDemoCategoryFilter.onSelectRoute transitions to booklist category",
+            motionIDs: ["chip.item.press", "chip.item.select", "dropdown.option.select", "state.content.replace"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSCategoryExtensionTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "rss-source-add",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSSourceEditView(sourceID: \"new\")"),
+            stateModel: "RSSSourceEditView + RSSEditField + new-source create state + DemoLibraryShell via DemoBackScreen slot facade + RSSImportExportRow",
+            navigationEntry: "RSSSubscriptionManagementView add action pushes RSSSourceEditView in create mode; save persists new RSSSource to store",
+            motionIDs: ["button.press", "button.activate", "input.focus", "app.route.push.forward"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSSourceAddAndDeleteConfirmTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "rss-source-delete-confirm",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSSourceDeleteConfirmView"),
+            stateModel: "RSSSourceDeleteConfirmView + RSSSourceConfirmationPage + danger icon .trash + cancel/confirm actions + RSSManagementSource",
+            navigationEntry: "RSSSourceActionsView delete action pushes RSSSourceDeleteConfirmView; confirm removes source from store and returns to management list",
+            motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSSourceAddAndDeleteConfirmTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "rss-rule-subscription-create",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSRuleSubscriptionEditView(subscriptionID: \"new-subscription\")"),
+            stateModel: "RSSRuleSubscriptionEditView + RSSSupplementalEditField + new-subscription create state + RSSSupplementalRouteHost",
+            navigationEntry: "RSSRuleSubscriptionView create action pushes RSSRuleSubscriptionEditView in create mode; test action pushes RSSRuleSubscriptionTestView",
+            motionIDs: ["button.press", "button.activate", "input.focus", "app.route.push.forward"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSRuleSubscriptionCreateTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "rss-favorite-add",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSFavoriteGroupEditView(groupID: \"new\")"),
+            stateModel: "RSSFavoriteGroupEditView + RSSSupplementalEditField + new-favorite-group create state + RSSSupplementalRouteHost",
+            navigationEntry: "RSSFavoriteGroupsView add action pushes RSSFavoriteGroupEditView in create mode; save persists new favorite group",
+            motionIDs: ["button.press", "button.activate", "input.focus", "app.route.push.forward"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSFavoriteAddRemoveTests"]
+        ),
+        DemoRouteMapping(
+            demoRoute: "rss-favorite-remove",
+            slice: 5,
+            shell: "LibraryShell",
+            platformTarget: .featureState("RSSFavoriteRemoveConfirmView"),
+            stateModel: "RSSFavoriteRemoveConfirmView + RSSSupplementalConfirmPage + danger icon + cancel/confirm actions + RSSFavoriteGroup",
+            navigationEntry: "RSSFavoriteGroupsView remove action pushes RSSFavoriteRemoveConfirmView; confirm removes favorite group and returns to list",
+            motionIDs: ["button.press", "button.activate", "overlay.dialog.enter", "overlay.dialog.exit", "app.route.push.forward"],
+            acceptanceTests: ["DemoRouteMappingTests", "RSSFavoriteAddRemoveTests"]
+        ),
+        // MARK: - Group E: source-switch-results (FlowShell)
+        DemoRouteMapping(
+            demoRoute: "source-switch-results",
+            slice: 3,
+            shell: "FlowShell",
+            platformTarget: .featureState("SourceSwitchResultState.confirmed"),
+            stateModel: "ReaderSourceSwitchFlowView + DemoFlowShell + SourceSwitchResultCard + SourceSwitchResultState.confirmed + SourceSwitchCandidate selection persisted + ReaderContinuitySlot",
+            navigationEntry: "ReaderSourceSwitchFlowView confirm action transitions SourceSwitchResultState from .browsing to .confirmed; result card displays confirmed candidate and dismisses flow",
+            motionIDs: ["reader.sourceSwitch.close", "overlay.sheet.exit", "state.content.replace"],
+            acceptanceTests: ["DemoRouteMappingTests", "SourceSwitchResultsTests"]
+        )
+    ]
+
+    private static let concreteMappings: [DemoRouteMapping] = baseConcreteMappings + discoverFeatureMappings + libraryFeatureMappings + readerFeatureMappings + settingsFeatureMappings + closedPlannedRouteMappings
 
     private static var concreteRouteNames: Set<String> {
         Set(concreteMappings.map(\.demoRoute))

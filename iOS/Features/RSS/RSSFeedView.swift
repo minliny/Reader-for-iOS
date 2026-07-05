@@ -441,7 +441,11 @@ struct RSSDemoRouteState {
         RSSDemoCategory(label: "全部", route: "rss-source-feed", title: "GitHub Releases", meta: "默认 RSS 解析 · 18 条"),
         RSSDemoCategory(label: "Releases", route: "rss-source-category-releases", title: "Releases", meta: "版本发布 · 8 条"),
         RSSDemoCategory(label: "Issues", route: "rss-source-category-issues", title: "Issues", meta: "问题讨论 · 6 条"),
-        RSSDemoCategory(label: "Discussions", route: "rss-source-category-discussions", title: "Discussions", meta: "社区讨论 · 4 条")
+        RSSDemoCategory(label: "Discussions", route: "rss-source-category-discussions", title: "Discussions", meta: "社区讨论 · 4 条"),
+        // P0/M2 closed-planned route additions: extend RSS source feed category filter
+        RSSDemoCategory(label: "Novel", route: "rss-source-category-novel", title: "Novel", meta: "小说连载 · 12 条"),
+        RSSDemoCategory(label: "Tech", route: "rss-source-category-tech", title: "Tech", meta: "技术博客 · 9 条"),
+        RSSDemoCategory(label: "Booklist", route: "rss-source-category-booklist", title: "Booklist", meta: "书单推荐 · 5 条")
     ]
 
     private static let demoArticles: [RSSFeedDemoArticle] = [

@@ -75,7 +75,7 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
     @MainActor
     func testDiscoverFeatureStateViewsCanInitFromDemoRoutes() {
         let routes = DemoRouteMappings.expectedMainTabShellRoutes.filter { $0.hasPrefix("discover-") }
-        XCTAssertEqual(routes.count, 30)
+        XCTAssertEqual(routes.count, 37)
         for route in routes {
             let view = DiscoverHomeShellView(demoRoute: route)
             XCTAssertNotNil(view)
@@ -438,7 +438,7 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
 
     @MainActor
     func testSettingsDemoFeatureStateViewsCanInitFromDemoRoutes() {
-        XCTAssertEqual(DemoRouteMappings.expectedSettingsShellRoutes.count, 28)
+        XCTAssertEqual(DemoRouteMappings.expectedSettingsShellRoutes.count, 54)
         for route in DemoRouteMappings.expectedSettingsShellRoutes {
             let view = SettingsDemoShellView(demoRoute: route)
             XCTAssertNotNil(view)
@@ -947,7 +947,7 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         let routes = DemoRouteMappings.expectedReaderShellRoutes.filter {
             $0 != "immersive-reading" && $0 != "reader"
         }
-        XCTAssertEqual(routes.count, 13)
+        XCTAssertEqual(routes.count, 28)
         for route in routes {
             let view = ReaderDemoShellView(demoRoute: route)
             XCTAssertNotNil(view)

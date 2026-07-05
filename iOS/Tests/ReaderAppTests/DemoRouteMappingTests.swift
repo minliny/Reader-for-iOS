@@ -220,7 +220,7 @@ final class DemoRouteMappingTests: XCTestCase {
 
     func testDiscoverMainTabRoutesMapToFeatureStatesNotPushedRoutes() {
         let discoverRoutes = DemoRouteMappings.expectedMainTabShellRoutes.filter { $0.hasPrefix("discover-") }
-        XCTAssertEqual(discoverRoutes.count, 30)
+        XCTAssertEqual(discoverRoutes.count, 37)
 
         for route in discoverRoutes {
             let mapping = DemoRouteMappings.mapping(for: route)
@@ -296,7 +296,7 @@ final class DemoRouteMappingTests: XCTestCase {
         let readerRoutes = DemoRouteMappings.expectedReaderShellRoutes.filter {
             $0 != "immersive-reading" && $0 != "reader"
         }
-        XCTAssertEqual(readerRoutes.count, 13)
+        XCTAssertEqual(readerRoutes.count, 28)
 
         for route in readerRoutes {
             let mapping = DemoRouteMappings.mapping(for: route)
@@ -321,7 +321,7 @@ final class DemoRouteMappingTests: XCTestCase {
 
     func testSettingsShellRoutesMapToFeatureStatesNotMainTabs() {
         let settingsRoutes = DemoRouteMappings.expectedSettingsShellRoutes
-        XCTAssertEqual(settingsRoutes.count, 28)
+        XCTAssertEqual(settingsRoutes.count, 54)
 
         for route in settingsRoutes {
             let mapping = DemoRouteMappings.mapping(for: route)
@@ -532,7 +532,7 @@ final class DemoRouteMappingTests: XCTestCase {
     }
 
     func testAllDemoContractRoutesAreOwnedByIOSMapping() {
-        XCTAssertEqual(DemoRouteMappings.expectedRouteCount, 131)
+        XCTAssertEqual(DemoRouteMappings.expectedRouteCount, 200)
         XCTAssertEqual(DemoRouteMappings.all.count, DemoRouteMappings.expectedRouteCount)
 
         let mappedRoutes = Set(DemoRouteMappings.all.map(\.demoRoute))
@@ -547,11 +547,11 @@ final class DemoRouteMappingTests: XCTestCase {
         let counts = Dictionary(grouping: DemoRouteMappings.all, by: \.shell)
             .mapValues(\.count)
 
-        XCTAssertEqual(counts["MainTabShell"], 36)
-        XCTAssertEqual(counts["LibraryShell"], 51)
-        XCTAssertEqual(counts["SettingsShell"], 28)
-        XCTAssertEqual(counts["ReaderShell"], 15)
-        XCTAssertEqual(counts["FlowShell"], 1)
+        XCTAssertEqual(counts["MainTabShell"], 48)
+        XCTAssertEqual(counts["LibraryShell"], 66)
+        XCTAssertEqual(counts["SettingsShell"], 54)
+        XCTAssertEqual(counts["ReaderShell"], 30)
+        XCTAssertEqual(counts["FlowShell"], 2)
     }
 
     func testNoUnimplementedRoutesRemainPlanned() {
@@ -569,5 +569,99 @@ final class DemoRouteMappingTests: XCTestCase {
             XCTAssertFalse(mapping.motionIDs.isEmpty, "\(mapping.demoRoute) planned mapping missing motion IDs")
             XCTAssertTrue(mapping.acceptanceTests.contains("PlannedRouteMappingTests"))
         }
+    }
+
+    // MARK: - P0/M2 closed-planned routes: Group B (MainTabShell display modes / app-shell / main-tabs)
+
+    func testBookshelfCoverModeRouteIsConcreteFeatureState() {
+        let mapping = DemoRouteMappings.mapping(for: "bookshelf-cover-mode")
+        XCTAssertNotNil(mapping)
+        XCTAssertEqual(mapping?.shell, "MainTabShell")
+        guard case .featureState(let stateName) = mapping?.platformTarget else {
+            return XCTFail("bookshelf-cover-mode must map to a feature state")
+        }
+        XCTAssertTrue(stateName.contains("BookshelfDisplayMode.cover"))
+        XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookshelfDisplayMode.cover") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookshelfBookCoverCard") == true)
+    }
+
+    func testBookshelfListModeRouteIsConcreteFeatureState() {
+        let mapping = DemoRouteMappings.mapping(for: "bookshelf-list-mode")
+        XCTAssertNotNil(mapping)
+        XCTAssertEqual(mapping?.shell, "MainTabShell")
+        guard case .featureState(let stateName) = mapping?.platformTarget else {
+            return XCTFail("bookshelf-list-mode must map to a feature state")
+        }
+        XCTAssertTrue(stateName.contains("BookshelfDisplayMode.list"))
+        XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookshelfDisplayMode.list") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookshelfBookListCard") == true)
+    }
+
+    func testBookshelfBookMoreMenuRouteIsConcreteFeatureState() {
+        let mapping = DemoRouteMappings.mapping(for: "bookshelf-book-more-menu")
+        XCTAssertNotNil(mapping)
+        XCTAssertEqual(mapping?.shell, "MainTabShell")
+        guard case .featureState(let stateName) = mapping?.platformTarget else {
+            return XCTFail("bookshelf-book-more-menu must map to a feature state")
+        }
+        XCTAssertTrue(stateName.contains("BookshelfBookFocusLayer"))
+        XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookshelfBookFocusLayer") == true)
+    }
+
+    func testAppShellRouteIsConcreteFeatureState() {
+        let mapping = DemoRouteMappings.mapping(for: "app-shell")
+        XCTAssertNotNil(mapping)
+        XCTAssertEqual(mapping?.shell, "MainTabShell")
+        XCTAssertEqual(mapping?.slice, 1)
+        guard case .featureState(let stateName) = mapping?.platformTarget else {
+            return XCTFail("app-shell must map to a feature state")
+        }
+        XCTAssertTrue(stateName.contains("AppShellView"))
+        XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("DemoMainTabShell") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("AppNavigationState") == true)
+    }
+
+    func testMainTabsRouteIsConcreteFeatureState() {
+        let mapping = DemoRouteMappings.mapping(for: "main-tabs")
+        XCTAssertNotNil(mapping)
+        XCTAssertEqual(mapping?.shell, "MainTabShell")
+        XCTAssertEqual(mapping?.slice, 1)
+        guard case .featureState(let stateName) = mapping?.platformTarget else {
+            return XCTFail("main-tabs must map to a feature state")
+        }
+        XCTAssertTrue(stateName.contains("FloatingTabBar"))
+        XCTAssertTrue(stateName.contains("AppTab.contractOrder"))
+        XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("FloatingTabBar") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("AppNavigationState.activeTab") == true)
+    }
+
+    // MARK: - P0/M2 closed-planned routes: Group C (bookshelf-group-management / book-detail-toc-preview)
+
+    func testBookshelfGroupManagementRouteIsConcreteNativeRoute() {
+        let mapping = DemoRouteMappings.mapping(for: "bookshelf-group-management")
+        XCTAssertNotNil(mapping)
+        XCTAssertEqual(mapping?.shell, "LibraryShell")
+        XCTAssertEqual(mapping?.platformTarget, .nativeRoute(.bookshelfGroups))
+        XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookshelfGroupManagementView") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookshelfGroupItem") == true)
+    }
+
+    func testBookDetailTocPreviewRouteIsConcreteFeatureState() {
+        let mapping = DemoRouteMappings.mapping(for: "book-detail-toc-preview")
+        XCTAssertNotNil(mapping)
+        XCTAssertEqual(mapping?.shell, "LibraryShell")
+        guard case .featureState(let stateName) = mapping?.platformTarget else {
+            return XCTFail("book-detail-toc-preview must map to a feature state")
+        }
+        XCTAssertTrue(stateName.contains("BookDetailView.chapterPreviewCard"))
+        XCTAssertFalse(mapping?.stateModel.contains("planned") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("chapterPreviewCard") == true)
+        XCTAssertTrue(mapping?.stateModel.contains("BookDetailPreviewChapterRow") == true)
     }
 }
