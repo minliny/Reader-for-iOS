@@ -1,0 +1,34 @@
+# Raw animation whitelist — 允许的裸 .animation/withAnimation 调用点
+#
+# 格式：相对路径:行号:原因
+# # 开头为注释
+#
+# 维护规则：
+#   1. 新增裸调用必须先在此文件登记并说明原因，否则 lint 脚本会 warn（--strict 模式 fail）
+#   2. 已迁移到 ReaderMotionAdapter 的调用点应从此白名单移除
+#   3. 原因必须说明为什么不能用 resolver（如：repeatForever 连续动画 / 框架内部 API / 无对应 policy）
+
+# === DemoPrimitives.swift —— 组件库原语，被多个 caller 复用 ===
+# 这些是 demo 组件库内部的实现，迁移需要同步所有 caller。
+# 优先级：等 caller 全部迁移到 ReaderMotionAdapter 后，再统一迁移 DemoPrimitives。
+iOS/App/Components/DemoPrimitives.swift:410: DemoLoadingSpinner 旋转动画，使用 MotionEnvironment().animation(duration) 驱动
+iOS/App/Components/DemoPrimitives.swift:411: DemoLoadingSpinner 旋转动画（motion.animation 调用）
+iOS/App/Components/DemoPrimitives.swift:546: DemoChip 选中切换，使用 AppMotion.Duration.chipSelect
+iOS/App/Components/DemoPrimitives.swift:630: DemoDropdown open 切换，使用 AppMotion.Duration.dropdownSelect
+iOS/App/Components/DemoPrimitives.swift:734: DemoDropdownOption active 切换，使用 AppMotion.Duration.chipSelect
+iOS/App/Components/DemoPrimitives.swift:760: DemoDropdown expand/collapse，使用 AppMotion.Duration.dropdownExpand/Collapse
+iOS/App/Components/DemoPrimitives.swift:873: DemoSettingsSwitch isOn 切换，使用 AppMotion.Duration.toggleSwitch
+iOS/App/Components/DemoPrimitives.swift:1207: DemoLoadingSpinner repeatForever 旋转，连续动画不适用 resolver
+iOS/App/Components/DemoPrimitives.swift:1238: DemoRestoreProgressMeter repeatForever 旋转，连续动画不适用 resolver
+iOS/App/Components/DemoPrimitives.swift:1382: DemoReaderSwitch isOn 切换，使用 AppMotion.Duration.toggleSwitch
+iOS/App/Components/DemoPrimitives.swift:1420: DemoTocSwitchRow isOn 切换，使用 AppMotion.Duration.toggleSwitch
+iOS/App/Components/DemoPrimitives.swift:1458: DemoSliderControl +/- 按钮切换，使用 AppMotion.Duration.toggleSwitch
+
+# === ReaderSessionCapsuleView.swift —— 语音脉动 ===
+# repeatForever 连续动画，resolver 只返回一次性动画，模式不匹配
+iOS/Features/Reader/ReaderSessionCapsuleView.swift:159: reader.session.capsule.voiceIcon.active repeatForever 脉动，连续动画不适用 resolver
+
+# === ReaderView.swift —— toggleReaderChrome ===
+# withAnimation(animation) 里的 animation 是 ReaderMotionAdapter.animation(for:) 的返回值，
+# 属于 transitive adapter 调用，lint 脚本无法静态识别局部变量来源
+iOS/Features/Reader/ReaderView.swift:629: withAnimation(animation) — animation 来自 ReaderMotionAdapter.animation(for: request)，transitive adapter 调用
