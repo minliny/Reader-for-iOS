@@ -116,6 +116,65 @@ public enum ReaderMotionAdapter {
         )
     }
 
+    // MARK: - Resolver-based API (P0/M3 motion contract integration)
+    //
+    // 业务 View 通过 `MotionRequest`（纯数据 struct，9 个可选字段）描述当前 route/shell/
+    // operation 等上下文，由 adapter 内部调用 generated `ReaderMotionResolver.resolve`
+    // 匹配 `MotionPolicyRegistry` 里 priority/specificity 最高的策略，返回 `MotionId`。
+    //
+    // 业务 View 不直接碰 `ReaderMotionResolver`（generated 算法），只碰 `MotionRequest`
+    // （generated 数据 struct）。这样 codegen 改 resolver 算法时，iOS 调用点不需要改。
+    //
+    // 真源：Reader UI `frontend-demo/MOTION_CONTRACT.md` §5 MotionPolicy / §6 ReaderMotionResolver
+
+    /// 根据运动请求解析契约 MotionId。
+    ///
+    /// 内部调用 `ReaderUIContract.ReaderMotionResolver.resolve(_:)`，按
+    /// `MotionPolicyRegistry.all` 的 priority 降序、specificity 降序匹配第一个命中的策略。
+    /// 业务 View 应优先使用此 API，而不是硬编码 MotionId。
+    public static func resolve(request: ReaderUIContract.MotionRequest) -> ReaderUIContract.MotionId? {
+        ReaderUIContract.ReaderMotionResolver.resolve(request)
+    }
+
+    /// 根据运动请求解析 MotionId 并返回对应的 SwiftUI Animation。
+    ///
+    /// 等价于 `resolve(request:)` + `animation(for:)` 两步合一。
+    /// 解析失败（无策略命中）时返回 `nil`，调用方应回退到无动画或 `MotionEnvironment` 默认。
+    public static func animation(
+        for request: ReaderUIContract.MotionRequest,
+        motion: MotionEnvironment = .shared
+    ) -> Animation? {
+        guard let motionId = resolve(request: request) else { return nil }
+        return animation(for: motionId, motion: motion)
+    }
+
+    /// 根据运动请求解析 MotionId 并启动 MotionController 事务。
+    ///
+    /// 等价于 `resolve(request:)` + `start(_:from:to:...)` 两步合一。
+    /// 解析失败时返回 `nil`，调用方应回退到无动画或跳过事务追踪。
+    @discardableResult
+    @MainActor
+    public static func start(
+        request: ReaderUIContract.MotionRequest,
+        from fromState: String,
+        to toState: String,
+        interruptMode: MotionInterruptMode = .redirect,
+        finalState: String,
+        controller: MotionController = .shared,
+        motion: MotionEnvironment = .shared
+    ) -> UUID? {
+        guard let motionId = resolve(request: request) else { return nil }
+        return start(
+            motionId,
+            from: fromState,
+            to: toState,
+            interruptMode: interruptMode,
+            finalState: finalState,
+            controller: controller,
+            motion: motion
+        )
+    }
+
     private static func baseDuration(for contractId: ReaderUIContract.MotionId) -> TimeInterval {
         switch contractId {
         case .app_firstOpen_enter:
