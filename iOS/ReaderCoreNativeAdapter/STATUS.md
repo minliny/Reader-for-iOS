@@ -1,5 +1,248 @@
 # iOS Rust Core Host Adapter — STATUS
 
+## S4 iOS Host proof 第一阶段完成（2026-07-05 +0800）
+
+### 结论
+
+S4 第一阶段 **Host proof 已在真机完成**。本轮只改 Host 仓 iOS app / Swift host adapter
+与签名配置；未回 Native 仓修改 C ABI、`reader-ffi` 或 `include/reader_core.h`。
+
+### 真机与签名
+
+| 项 | 结果 |
+|----|------|
+| 物理设备 | `Minliny`, Xcode UDID `00008120-001A15601A6BC01E`, devicectl id `526CEF8D-A82C-519E-BEA0-D1FEF24982E1` |
+| 设备系统 | iOS `26.5` (`23F77`) |
+| 设备型号 | `productType=iPhone15,3`, `marketingName=iPhone 14 Pro Max`（不是原提示里的 “iPhone 15 Pro”） |
+| 连接状态 | `connected`, paired, wired, Developer Mode enabled |
+| Team | Personal Team `42MGMRS9BW` |
+| Bundle ID | `com.minliny.readerforios.s4proof` |
+| Signing identity | `Apple Development: 2018211124@mail.hfut.edu.cn (D97L774LKT)`, SHA1 `4DCB2F72BC2F49DAC5E19C417EAFE71B9EF4E8AF` |
+| Provisioning profile | `iOS Team Provisioning Profile: com.minliny.readerforios.s4proof`, UUID `7c99c56b-3029-44b6-bee4-a474a2538da9`, Team `42MGMRS9BW`, expires `2026-07-12 01:02:37 CST` |
+
+签名诊断日志：
+`docs/frontend-complete-app/evidence/ios-s4-host-proof/codesigning-identities-current.log`,
+`mobileprovision-files-current.log`, `mobileprovision-current-details.log`。
+
+### 真机 build / test
+
+| Gate | 结果 | 证据 |
+|------|------|------|
+| `xcodebuild build` 真机签名 | **PASS** | `docs/frontend-complete-app/evidence/ios-s4-host-proof/physical-build-after-device-tier-tmp-deriveddata.log` |
+| App install | **PASS** | `docs/frontend-complete-app/evidence/ios-s4-host-proof/physical-install-after-device-tier.log` |
+| Cookie jar / Redirect / URLAuthenticationChallenge 真机 XCTest | **PASS**：`Executed 8 tests, with 0 failures` | `docs/frontend-complete-app/evidence/ios-s4-host-proof/urlsession-capabilities-physical-test-current.log` |
+
+说明：Documents 仓内 `.build` DerivedData 会被 macOS FileProvider 加 `com.apple.FinderInfo`
+扩展属性，导致 app bundle 最终 codesign 报
+`resource fork, Finder information, or similar detritus not allowed`。最终真机 build/test 使用
+`/tmp/reader-ios-s4-host-proof-derived`，签名通过。
+
+### Host HTTP capability
+
+| Capability | Host 实现 | 证明 |
+|------------|-----------|------|
+| Cookie jar | `URLSessionHTTPClient` 使用 `ScopedCookieJar`，通过 shared `HTTPCookieStorage` 按 `CookieJarScopeKey` 隔离读写 `Set-Cookie` / `Cookie` | 真机 XCTest PASS |
+| Redirect | `URLSessionTaskDelegate.willPerformHTTPRedirection`，支持 follow / intercept，并记录 `finalUrl` | 真机 XCTest PASS |
+| URLAuthenticationChallenge | `URLSessionTaskDelegate.didReceive challenge`，Basic/Digest 不 crash，Basic header 可转 `URLCredential` | 真机 XCTest PASS |
+
+### unified-evidence/1 真机 artifact
+
+| 项 | 结果 |
+|----|------|
+| artifact | `docs/frontend-complete-app/evidence/ios-s4-host-proof/evidence-run-ios-device.json` |
+| 原始容器文件 | `docs/frontend-complete-app/evidence/ios-s4-host-proof/physical-device-unified-evidence/evidence-run-ios-2026-07-04T17-17-48Z.json` |
+| validator | **PASS**：Native 仓 `tools/platform-evidence-validator/platform_evidence_validator.py` |
+| validator log | `docs/frontend-complete-app/evidence/ios-s4-host-proof/unified-evidence-device-stable-validator.log` |
+| tier | `device` |
+| generatedAt | `2026-07-04T17:17:48Z`（本地 `2026-07-05 01:17:48 +0800`） |
+| summary | total `15`, passed `8`, skipped/blocked `7`, failed `0` |
+| covered set | 覆盖 15 canonical capabilities |
+| host.request | `runtime.hostSmoke -> host.request -> host.complete -> result`，status `pass` |
+
+真机 launch / copy 日志：
+`unified-evidence-physical-launch-retry.log`, `unified-evidence-physical-copy.log`。
+第一次 launch 被设备锁屏拒绝，日志保留在 `unified-evidence-physical-launch.log`；解锁后重试通过。
+
+### Native Core App-process host loop 真机 evidence
+
+| 项 | 结果 |
+|----|------|
+| artifact | `docs/frontend-complete-app/evidence/ios-s4-host-proof/native_core_evidence_device.json` |
+| status | `docs/frontend-complete-app/evidence/ios-s4-host-proof/native_core_evidence_status_device.json` |
+| 原始容器目录 | `docs/frontend-complete-app/evidence/ios-s4-host-proof/physical-device-native-core-evidence/67A84FE2-15AA-4DA8-9656-DA6105168E78/` |
+| validator log | `docs/frontend-complete-app/evidence/ios-s4-host-proof/native-core-evidence-device-stable-validator.log` |
+| generatedAt | `2026-07-04T17:18:09Z`（本地 `2026-07-05 01:18:09 +0800`） |
+| app_launch | `measuredPass`, `liveExecutionClaimed=true` |
+| host_request_loop | `measuredPass`, `liveExecutionClaimed=true` |
+| capability | `http.execute` |
+| loop | `book.search -> http.execute host.request -> host.complete -> result` |
+| result | `resultBookCount=1`, `firstBookTitle="App Host Loop"` |
+
+真机 launch / copy 日志：
+`native-core-evidence-physical-launch.log`, `native-core-evidence-physical-copy.log`。
+
+### S4 验收项状态
+
+| 验收项 | 状态 |
+|--------|------|
+| DEVELOPMENT_TEAM 配置完成，xcodebuild build 签名通过 | **PASS**：Personal Team `42MGMRS9BW` + generated profile +真机 build PASS |
+| Cookie jar / Redirect / URLAuthenticationChallenge 三个 capability 实现且有测试 | **PASS**：真机 XCTest 8/8 |
+| iPhone 真机 connectedAndroidTest 等价（xcodebuild test on physical device）PASS | **PASS**：`urlsession-capabilities-physical-test-current.log` |
+| 产出 unified-evidence/1 artifact，通过 validator | **PASS**：`evidence-run-ios-device.json` |
+| Core host.request -> Host execute -> host.complete/error -> Core result 真机闭环 | **PASS**：`native_core_evidence_device.json`，`http.execute` / `resultBookCount=1` |
+| evidence artifact 路径 + 真机截图/日志记录到 STATUS.md | **PASS**：真机日志与 artifact 路径已记录；本阶段使用 devicectl console/container artifacts，未单独截屏 |
+
+### 当前限制 / 后续注意
+
+- Personal Team provisioning profile 有 7 天有效期，本次 profile 到期时间为 `2026-07-12 01:02:37 CST`。
+- `unified-evidence/1` 覆盖 15 canonical capabilities；其中 7 个 capability 仍是 iOS 未接线的
+  `blocked`，这符合当前 Host proof 第一阶段范围，不等于全 capability 产品完成。
+- `com.reader.ios` 在 Personal Team 下不可用，本轮为真机 proof 使用
+  `com.minliny.readerforios.s4proof`。正式包名需要付费团队或后续重新配置。
+
+## 历史：S4 iOS Host proof 阻塞复核（已解除，2026-07-05 +0800）
+
+以下内容为签名修复前的历史记录，当前状态以上方 “S4 iOS Host proof 第一阶段完成” 为准。
+
+### 结论
+
+本轮只推进到 **host 代码 + simulator/App-process evidence 就绪**，未完成真机 proof。
+真机阻塞点是 Apple signing/account/provisioning，不是 Swift 编译、xcframework slice 或 Host
+HTTP capability 代码。
+
+### 当前设备与签名状态
+
+| 项 | 结果 |
+|----|------|
+| 物理设备 | `Minliny`, UDID `00008120-001A15601A6BC01E`, devicectl id `526CEF8D-A82C-519E-BEA0-D1FEF24982E1` |
+| 设备系统 | iOS `26.5` (`23F77`) |
+| 设备型号 | `productType=iPhone15,3`, `marketingName=iPhone 14 Pro Max`（注意：不是提示中的 “iPhone 15 Pro”） |
+| 连接状态 | `connected`, paired, wired, Developer Mode enabled |
+| 工程签名配置 | `DEVELOPMENT_TEAM=8XRCD9DWVJ`, `CODE_SIGN_STYLE=Automatic`, `CODE_SIGN_IDENTITY=Apple Development` 已通过 `xcodegen generate` 同步到 pbxproj |
+| 本机 signing identity | `security find-identity -p codesigning -v` -> `0 valid identities found` |
+| 本机 provisioning profile | `~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision` 未发现可用文件 |
+| 真机构建 | **BLOCKED**：`No Account for Team "8XRCD9DWVJ"` + `No profiles for 'com.reader.ios' were found` |
+
+真机构建日志：`docs/frontend-complete-app/evidence/ios-s4-host-proof/physical-build.log`
+设备/签名诊断：
+`devicectl-list-devices.log`, `devicectl-device-details.log`,
+`codesigning-identities.log`, `mobileprovision-files.log`
+
+### xcframework / Native 产物引用
+
+| 项 | 结果 |
+|----|------|
+| Host 引用 | `project.yml` / pbxproj 指向 `iOS/ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework` |
+| 真机 slice | `ReaderCore.xcframework/ios-arm64/libreader_core_device.a` 存在（约 12 MB） |
+| Simulator slice | `ReaderCore.xcframework/ios-arm64-simulator/libreader_core_sim.a` 存在 |
+| macOS slice | `ReaderCore.xcframework/macos-arm64/libreader_core.a` 存在 |
+| Native 仓 C ABI | 本轮未改 Native 仓、未改 `reader-ffi`、未改 `include/reader_core.h` |
+
+不签名的 device 编译已通过：
+
+```bash
+xcodebuild -project ReaderForIOS.xcodeproj \
+  -scheme ReaderForIOSApp \
+  -destination 'generic/platform=iOS' \
+  -configuration Debug \
+  build CODE_SIGNING_ALLOWED=NO
+```
+
+观察到 Native 静态库若干 object 带 iOS 26.5 build-version，而 Host deployment target 是
+iOS 18.0；当前不阻塞编译，但属于 Native 产物部署目标一致性风险，本轮只记录，不回 Native 仓修改。
+
+### Host HTTP capability
+
+本轮 Host 仓已有并验证：
+
+| Capability | Host 实现 | 测试 |
+|------------|-----------|------|
+| Cookie jar | `URLSessionHTTPClient` 使用 `ScopedCookieJar`，按 `CookieJarScopeKey` 隔离读写 `Set-Cookie` / `Cookie` | PASS |
+| Redirect | `URLSessionTaskDelegate.willPerformHTTPRedirection`，支持 follow/intercept，记录 `finalUrl` | PASS |
+| URLAuthenticationChallenge | `URLSessionTaskDelegate.didReceive challenge`，Basic/Digest 不 crash，Basic header 可转 `URLCredential` | PASS |
+
+测试命令：
+
+```bash
+xcodebuild -project ReaderForIOS.xcodeproj \
+  -scheme ReaderForIOSApp \
+  -destination 'id=4647E187-8F40-44D2-AEF4-71B5B4B6F7BB' \
+  -configuration Debug \
+  -only-testing:ReaderAppTests/URLSessionHTTPClientCapabilitiesTests \
+  test
+```
+
+结果：`Executed 8 tests, with 0 failures`。
+日志：`docs/frontend-complete-app/evidence/ios-s4-host-proof/urlsession-capabilities-sim-test.log`
+
+### Simulator evidence（不能替代真机）
+
+1. `unified-evidence/1` artifact
+
+| 项 | 结果 |
+|----|------|
+| artifact | `docs/frontend-complete-app/evidence/ios-s4-host-proof/evidence-run-ios-simulator.json` |
+| validator | Native 仓 `tools/platform-evidence-validator/platform_evidence_validator.py` PASS |
+| tier | `simulator` |
+| generatedAt | `2026-07-04T16:47:54Z` |
+| summary | total 15, passed 8, skipped/blocked 7, failed 0 |
+| covered set | 覆盖 15 canonical capabilities |
+
+Validator log：
+`docs/frontend-complete-app/evidence/ios-s4-host-proof/unified-evidence-sim-validator.log`
+
+2. App-process host request loop evidence
+
+| 项 | 结果 |
+|----|------|
+| artifact | `docs/frontend-complete-app/evidence/ios-s4-host-proof/native_core_evidence_simulator.json` |
+| generatedAt | `2026-07-04T16:49:50Z` |
+| app_launch | `measuredPass`, `liveExecutionClaimed=true` |
+| host_request_loop | `measuredPass`, `liveExecutionClaimed=true` |
+| capability | `http.execute` |
+| loop | `book.search -> http.execute host.request -> host.complete -> result` |
+| result | `resultBookCount=1`, `firstBookTitle="App Host Loop"` |
+
+Fresh run log：
+`docs/frontend-complete-app/evidence/ios-s4-host-proof/native-core-evidence-sim-fresh.log`
+
+脚本修正：`scripts/run_native_core_app_evidence_simulator.sh` 现在会在 launch 前清理旧
+`NativeCoreEvidenceRuns`，并按 mtime 选最新目录，避免误读历史 artifact。
+
+### S4 验收项状态
+
+| 验收项 | 状态 |
+|--------|------|
+| DEVELOPMENT_TEAM 配置完成 | **PARTIAL**：工程已配置 `8XRCD9DWVJ`，但本机没有该 team 的 Xcode account / valid identity / provisioning profile |
+| xcodebuild 真机 build 签名通过 | **BLOCKED**：见 `physical-build.log` |
+| Cookie jar / Redirect / URLAuthenticationChallenge 实现且有测试 | **PASS**：8/8 simulator XCTest |
+| iPhone 真机 xcodebuild test PASS | **BLOCKED**：真机 build 尚无法签名 |
+| 产出 unified-evidence/1 artifact 并通过 validator | **SIMULATOR PASS**：真机 artifact 未产出 |
+| Core host.request -> Host execute -> host.complete/error -> Core result 真机闭环 | **SIMULATOR PASS / DEVICE BLOCKED**：模拟器 app-process `http.execute` 闭环通过，真机未运行 |
+| evidence artifact 路径 + 真机截图/日志记录 | **PARTIAL**：已记录 logs/artifacts；无真机 app 截图，因为 app 未能签名安装 |
+
+### 解除真机阻塞所需外部动作
+
+1. 在 Xcode Accounts 中登录拥有 team `8XRCD9DWVJ` 权限的 Apple ID，或把
+   `DEVELOPMENT_TEAM` 改为当前登录账号可用 team。
+2. 安装有效 `Apple Development` signing identity（`security find-identity -p codesigning -v`
+   至少应显示 1 个 valid identity）。
+3. 让 Xcode 自动生成或手动导入匹配 `com.reader.ios` 的 iOS App Development
+   `.mobileprovision`。
+4. 重新执行：
+
+```bash
+xcodebuild -project ReaderForIOS.xcodeproj \
+  -scheme ReaderForIOSApp \
+  -destination 'id=00008120-001A15601A6BC01E' \
+  -configuration Debug \
+  -allowProvisioningUpdates \
+  build
+```
+
+签名 build 通过后，再跑真机 `xcodebuild test` / app autorun，复制真机
+`unified-evidence/1` artifact 并用 Native validator 校验。
+
 ## Round 7: ReaderForIOSApp App/Simulator evidence path (IN PROGRESS)
 
 ### Round 7 新增范围

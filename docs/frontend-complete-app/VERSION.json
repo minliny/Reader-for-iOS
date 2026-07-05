@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.2",
   "schema": {
     "route": "1.0.0",
     "ui-event": "1.0.0",
@@ -17,6 +17,50 @@
   },
   "changelog": [
     {
+      "version": "1.4.2",
+      "date": "2026-07-04",
+      "summary": "Demo/schema strict exception gate 起点",
+      "changes": [
+        "新增 frontend-demo/verify/contract/demo-contract-exceptions.json：route/token unknown 必须为 0，motion unknown 只能来自 explicit alias/deprecated/exception policy",
+        "verify-demo-contract-consistency.mjs 不再使用宽松 unknown 阈值，当前 baseline 为 found=433 / unknown=111 / approved=111 / unapproved=0",
+        "motion-controller.js 增加首批 MotionId alias：reader.session.capsule.control.press/toggle -> reader.session.capsule.control.press-toggle，reader.page.turn.next/prev -> reader.page.turn.next-prev，tab.item.switch -> tab.switch",
+        "demo-consistency.test.mjs 扩展为 6 项，校验 baseline unapproved=0 与 exception policy 结构",
+        "Reader UI contract tests 当前 162/162 pass"
+      ]
+    },
+    {
+      "version": "1.4.1",
+      "date": "2026-07-04",
+      "summary": "Reader UI P0 防漂移门禁补齐",
+      "changes": [
+        "新增 matrix-coverage.test.mjs：校验 P0 route 在 ROUTE_COMPONENT_MATRIX.md 中有 token/motion 映射，且矩阵只引用 schema 中的 MotionId 与 TOKEN_SPEC 语义分组",
+        "新增 motion-guard.test.mjs：校验 MOTION_SPEC.md 中 40 个 P0 MotionId 全部有 motion fixture、token refs 与 guardRules",
+        "新增 token-group.test.mjs：校验 TOKEN_SPEC.md 语义分组、token fixtures 引用、Route × Token 分组一致性",
+        "新增 core-host-boundary.test.mjs：校验 CORE_HOST_BOUNDARY.md 中业务域归属、UiEvent/CoreCommand/HostRequest 引用一致性和 initiator 规则",
+        "motion.fixtures.json 从 47 项扩展到 56 项，补齐 P0 缺失的 9 个 motion fixtures，并为 P0 fixtures 增加 guardRules",
+        "ROUTE_COMPONENT_MATRIX.md 统一 token 分组命名，补齐 global-settings 与 offline-state 的 token 映射，并标记本仓矩阵检查已实现",
+        "CORE_HOST_BOUNDARY.md 将缩写事件名收敛为 schema 中的完整 UiEvent 名称",
+        "demo baseline 更新为 found=432 / unknown=111；unknown 仍可追踪但不阻塞",
+        "Reader UI contract tests 从 143 项扩展到 161 项，当前 161/161 pass"
+      ]
+    },
+    {
+      "version": "1.4.0",
+      "date": "2026-07-04",
+      "summary": "Reader UI 三类补全：P0 可执行参考规格 + 完整矩阵 + 验收和防漂移机制",
+      "changes": [
+        "新增 PAGE_REFERENCE.md：Slice 1-6 P0 route 的页面结构、组件树、状态归属 [C]/[R]/[E]、入口返回 overlay keyboard 行为、与 docs/ui-design 页面包对应表",
+        "新增 TOKEN_SPEC.md：10 个语义 token 分组（reading-theme / reading-typography / card / list / button / tab / overlay / night-mode / rss-status / motion）+ 三端 TokenAdapter 映射规则（SwiftUI / Compose / ArkUI）+ 禁止 raw color/spacing/radius/duration 的检查口径 + fixtures platforms 字段补全策略",
+        "新增 MOTION_SPEC.md：40 个 P0 MotionId 的触发条件 / 结束状态 / 打断规则 / reduced-motion 降级 + 手势阈值表 + 拖拽边界 + 焦点恢复 + system back 等价表 + 键盘 inset + safe area / fold posture + demo 等价性边界（区分 demo proof 与 platform implementation）",
+        "新增 CORE_HOST_BOUNDARY.md：业务域归属表（14 业务域 + 平台持久化禁令）+ UiEvent→CoreCommand 映射（6 业务域：路由 / 书架 / 阅读 / TTS / 发现-RSS-搜索 / 设置-同步-备份）+ HostRequest 能力清单（30 项含 initiator 归属）+ 异常处理 + async guard",
+        "新增 ROUTE_COMPONENT_MATRIX.md：全量 RouteId（200+）× Shell × mainTab 矩阵 + ComponentType（64 项）× Shell 归属 + PageState × Route 集合 + Route × MotionId 关键链路映射 + Route × Token 分组映射 + 防漂移检查口径",
+        "新增 SLICE_PLAN.md：Slice 0-8 启动顺序 + 每个 slice 输入文档清单 + 每端 iOS/Android/HarmonyOS 必须产出的源码/测试/截图/录屏/设备证据 + 并行/串行约束 + Core bridge 串行依赖 + 三端禁止项",
+        "新增 PLATFORM_EVIDENCE_SPEC.md：每端 evidence 要求（源码/测试/截图/录屏/设备证据）+ 防漂移本仓层检查 + 三端层检查（generated 编译 / raw 值 grep / TokenAdapter coverage / reducer golden / demo baseline）+ contract 变更传导流程 + evidence 提交格式与命名规范 + 防漂移机制汇总表",
+        "更新 ACCEPTANCE.md：补 P0 可执行参考规格文档清单 + 完成度汇总扩展到 7 个新文档",
+        "本次未修改任何 schema / fixtures / generated types，仅补文档层规格；测试保持通过"
+      ]
+    },
+    {
       "version": "1.3.0",
       "date": "2026-07-04",
       "summary": "Reader UI 收尾：StateRule schema + Slice 5-6 fixtures + demo 一致性校验 + 验收门槛文档",
@@ -27,12 +71,12 @@
         "view-state schema ComponentType enum 新增 5 个（BackTopBar / List / FilterBar / Content / WebView）",
         "phase1-slice.test.mjs 扩展 25→40 项：覆盖 Slice 1-6 链路 + RSS / source 搜索 / source 换源 / sync / restore 链路 + Slice 5→6 过渡",
         "新增 demo 一致性校验：frontend-demo/verify/contract/verify-demo-contract-consistency.mjs + demo-contract-baseline.json + demo-consistency.test.mjs（5 项）",
-        "demo baseline 策略：found=432 / unknown=209，unknown 可追踪但不阻塞（退出码恒为 0）",
+        "demo baseline 策略：unknown 可追踪但不阻塞（退出码恒为 0）",
         "新增 ACCEPTANCE.md：§10 合并门槛 7 问逐项回答 + 当前完成度汇总 + 测试入口",
-        "更新 README.md：加入 13 schema / 598 fixtures / 39 generated / 143 tests 已交付清单与目录结构",
+        "更新 README.md：加入 schema / fixtures / generated / tests 已交付清单与目录结构",
         "新增 codegen-idempotent.test.mjs（6 项）：校验 codegen 可执行、39 个 generated 文件存在、byte-for-byte 幂等、无多余文件产生",
         "明确 CoreCommand / CoreEvent 是 Reader UI 侧 Core bridge 规划契约，不等于 Reader-Core-Native 当前协议已完全对齐；后续仍需 Core bridge mapping / 协议收敛",
-        "fixtures 总计 598 项（validate.mjs 0 errors），测试总计 143 项 / 0 fail"
+        "fixtures 与 contract tests 均通过 validate/test 校验"
       ]
     },
     {

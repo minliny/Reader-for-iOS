@@ -11,10 +11,17 @@
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
+import ReaderCoreNetwork
 import ReaderCoreNativeAdapter
 
 /// Shared support for Rust Core service adapters.
 public enum RustCoreServiceSupport {
+
+    /// Shared scoped cookie jar for all host HTTP clients. Partitioned by
+    /// `CookieJarScopeKey` (sourceId + host) so cookies never leak across
+    /// sources or hosts. Injected into every `URLSessionHTTPClient` so cookies
+    /// set in one service are visible to the others within the same scope.
+    public static let sharedCookieJar: ScopedCookieJar = BasicCookieJar()
 
     /// Returns the booted runtime, or throws if not booted.
     @MainActor
@@ -27,7 +34,10 @@ public enum RustCoreServiceSupport {
 
     /// Build a `HostRequestRouter` wired to `URLSessionHTTPClient` + the shared runtime.
     public static func makeRouter(runtime: ReaderCoreNativeRuntime) -> HostRequestRouter {
-        HostRequestRouter(httpClient: URLSessionHTTPClient(), runtime: runtime)
+        HostRequestRouter(
+            httpClient: URLSessionHTTPClient(cookieJar: sharedCookieJar),
+            runtime: runtime
+        )
     }
 
     /// Poll the runtime for the next event for `requestId`, with timeout.

@@ -105,6 +105,11 @@ public final class AppNavigationState: ObservableObject {
     /// Reduced-motion 适配器（测试可 override）。
     @Published public var motion: MotionEnvironment = MotionEnvironment()
 
+    /// 当前可恢复焦点目标。对齐 generated `UiState.focusTarget`。
+    @Published public var focusTarget: String?
+
+    private var focusTargetByScope: [String: String] = [:]
+
     public init() {}
 
     // MARK: - Tab switch（app.tab.switch / tab.item.switch / motion.interrupt.cancel）
@@ -117,6 +122,7 @@ public final class AppNavigationState: ObservableObject {
         motionInterrupt = .cancel
         motion.withMotionAnimation(AppMotion.Duration.tabSwitch) {
             activeTab = tab
+            focusTarget = focusTargetByScope[focusScopeKey]
         }
         // 收尾后清回 none，表示最终状态已落定。
         DispatchQueue.main.async {
@@ -157,10 +163,23 @@ public final class AppNavigationState: ObservableObject {
         if !navigationPath.contains(route) {
             navigationPath.append(route)
         }
+        restoreFocusForCurrentScope()
     }
 
     public func push(_ route: Route) {
+        currentRoute = route
         navigationPath.append(route)
+        restoreFocusForCurrentScope()
+    }
+
+    public func replaceTop(with route: Route) {
+        if navigationPath.isEmpty {
+            navigationPath.append(route)
+        } else {
+            navigationPath[navigationPath.count - 1] = route
+        }
+        currentRoute = route
+        restoreFocusForCurrentScope()
     }
 
     public func goBack() {
@@ -171,10 +190,195 @@ public final class AppNavigationState: ObservableObject {
         } else {
             currentRoute = .home
         }
+        restoreFocusForCurrentScope()
     }
 
     public func popToRoot() {
         navigationPath.removeAll()
         currentRoute = .home
+        restoreFocusForCurrentScope()
+    }
+
+    public func setOverlay(_ overlay: OverlayState) {
+        overlayState = overlay
+    }
+
+    public func startSession(_ session: ReaderSession) {
+        activeSession = session
+        overlayState = .none
+    }
+
+    public func clearSession() {
+        activeSession = .none
+    }
+
+    public func setReducedMotion(_ enabled: Bool) {
+        motion = MotionEnvironment(override: enabled)
+    }
+
+    public func focus(_ target: String) {
+        focusTarget = target
+        focusTargetByScope[focusScopeKey] = target
+    }
+
+    public func blurFocus() {
+        focusTarget = nil
+        focusTargetByScope.removeValue(forKey: focusScopeKey)
+    }
+
+    private func restoreFocusForCurrentScope() {
+        focusTarget = focusTargetByScope[focusScopeKey]
+    }
+
+    private var focusScopeKey: String {
+        if let route = navigationPath.last {
+            return route.focusScopeID
+        }
+        return activeTab.rawValue
+    }
+}
+
+private extension Route {
+    var focusScopeID: String {
+        switch self {
+        case .home:
+            return "home"
+        case .bookshelf:
+            return "bookshelf"
+        case .bookshelfGroups:
+            return "bookshelf-groups"
+        case .bookshelfImport:
+            return "bookshelf-import"
+        case .bookBatchManagement:
+            return "book-batch-management"
+        case .discover:
+            return "discover"
+        case .search:
+            return "search-home"
+        case .searchResults:
+            return "search-results"
+        case .bookDetail:
+            return "book-detail"
+        case .bookDetailToc:
+            return "book-detail-toc-preview"
+        case .sourceSwitch:
+            return "source-switch"
+        case .reader:
+            return "reader"
+        case .content:
+            return "reader_content"
+        case .bookSources:
+            return "source-management"
+        case .bookSourceImport:
+            return "source-import-options"
+        case .sourceDetail:
+            return "source-detail"
+        case .sourceAdd:
+            return "source-add"
+        case .sourceEdit:
+            return "source-edit"
+        case .sourceTestResult:
+            return "source-test-result"
+        case .toc:
+            return "toc-bookmarks"
+        case .rssList:
+            return "rss"
+        case .rssSearch:
+            return "rss-search"
+        case .rssDetail:
+            return "rss-detail"
+        case .rssOriginal:
+            return "rss-original"
+        case .rssOriginalBrowser:
+            return "rss-original-browser"
+        case .rssSubscriptions:
+            return "rss-subscription-management"
+        case .rssSourceActions:
+            return "rss-source-actions"
+        case .rssSourceEdit:
+            return "rss-source-edit"
+        case .rssSourceDebug:
+            return "rss-source-debug"
+        case .rssSourceVars:
+            return "rss-source-vars"
+        case .rssSourceLogin:
+            return "rss-source-login"
+        case .rssSourceLoginWeb:
+            return "rss-source-login-web"
+        case .rssSourceLoginCookie:
+            return "rss-source-login-cookie"
+        case .rssSourceLoginClear:
+            return "rss-source-login-clear"
+        case .rssSourceGroups:
+            return "rss-source-groups"
+        case .rssSourceGroupEdit:
+            return "rss-source-group-edit"
+        case .rssSourceBatch:
+            return "rss-source-batch"
+        case .rssSourceExport:
+            return "rss-source-export"
+        case .rssSourceExportDetail:
+            return "rss-source-export-detail"
+        case .rssSourceExportResult:
+            return "rss-source-export-result"
+        case .rssSourcePin:
+            return "rss-source-pin"
+        case .rssSourceDisable:
+            return "rss-source-disable"
+        case .rssSourceBatchDisable:
+            return "rss-source-batch-disable"
+        case .rssSourceImport:
+            return "rss-source-import"
+        case .rssSourceImportDetail:
+            return "rss-source-import-detail"
+        case .rssSourceImportResult:
+            return "rss-source-import-result"
+        case .rssReadRecord:
+            return "rss-read-record"
+        case .rssRecordClear:
+            return "rss-record-clear"
+        case .rssRuleSubscription:
+            return "rss-rule-subscription"
+        case .rssRuleSubscriptionDetail:
+            return "rss-rule-subscription-detail"
+        case .rssRuleSubscriptionEdit:
+            return "rss-rule-subscription-edit"
+        case .rssRuleSubscriptionTest:
+            return "rss-rule-subscription-test"
+        case .rssRuleSubscriptionApply:
+            return "rss-rule-subscription-apply"
+        case .rssFavoriteGroups:
+            return "rss-favorite-groups"
+        case .rssFavoriteGroupEdit:
+            return "rss-favorite-group-edit"
+        case .rssFavoriteClear:
+            return "rss-favorite-clear"
+        case .rssEmpty:
+            return "rss-empty"
+        case .rssError:
+            return "rss-error"
+        case .webdavSettings:
+            return "webdav-config"
+        case .webdavBooks:
+            return "remote-webdav-books"
+        case .backupSettings:
+            return "backup-settings"
+        case .syncProgress:
+            return "progress-sync"
+        case .settings:
+            return "settings"
+        case .settingsReading:
+            return "reading-settings-entry"
+        case .settingsAbout:
+            return "about"
+        case .stateError:
+            return "state-error"
+        case .stateOffline:
+            return "state-offline"
+        case .statePermission:
+            return "permission-required"
+        case .prototypeGallery:
+            return "prototype-gallery"
+        }
     }
 }

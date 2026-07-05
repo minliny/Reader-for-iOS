@@ -22,10 +22,10 @@ Reader UI 仓库不持有任何运行时状态。schema 只定义形状与 enum�
 ### 2. 是否已经进入 schema？
 
 **Phase 1 契约基础（6 schema）**：
-- ✓ `route.schema.json` —— 139 个 RouteId
+- ✓ `route.schema.json` —— 200 个 RouteId
 - ✓ `ui-event.schema.json` —— 209 个 UiEventType
 - ✓ `ui-state.schema.json` —— 9 必填字段 + 派生状态
-- ✓ `view-state.schema.json` —— 64 个 ComponentType
+- ✓ `view-state.schema.json` —— 66 个 ComponentType
 - ✓ `motion.schema.json` —— 84 个 MotionId
 - ✓ `token.schema.json` —— 12 个 TokenCategory
 
@@ -97,11 +97,12 @@ Reader UI 仓库提供的是 `state-rule.fixtures.json`（13 项规则），定�
 - 三端从同一套 schema 生成类型，schema breaking change 会触发三端编译或测试失败
 - `state-rule.fixtures.json` 定义统一的状态约束，三端 reducer 必须遵守
 - `phase1-slice.test.mjs`（40 项）校验 6 个优先链路（Slice 1-6）在 fixtures 中的覆盖完整
-- `demo-consistency.test.mjs`（5 项）校验 frontend-demo 与 schema 的一致性，baseline unknown=209 可追踪
+- `demo-consistency.test.mjs`（6 项）校验 frontend-demo 与 schema 的一致性：route/token unknown 必须为 0，motion unknown 必须为 schema 命中或 `demo-contract-exceptions.json` 中的 explicit alias/deprecated/exception；当前 `found=433 unknown=111 approved=111 unapproved=0`
+- `matrix-coverage.test.mjs` / `motion-guard.test.mjs` / `token-group.test.mjs` / `core-host-boundary.test.mjs` 校验 P0 矩阵、motion guard、token 分组、Core/Host 边界引用一致性
 
 剩余风险：
 - 三端 reducer 实现可能对同一 StateRule 有不同解释（需 Phase 3 golden test 验证）
-- demo 中 209 个 id 未在 schema 中（需产品决策是否补入）
+- demo 中 111 个 motion-like id 未在 schema 中，当前已全部列为 explicit alias/deprecated/exception；仍需后续产品/契约决策逐步补入 schema、归一化或删除例外，不能视为 0 drift
 
 ## 当前完成度汇总
 
@@ -110,16 +111,32 @@ Reader UI 仓库提供的是 `state-rule.fixtures.json`（13 项规则），定�
 | Phase 0 架构冻结 | ✓ 完成 | Reader UI/contracts |
 | Phase 1 契约基础 | ✓ 完成（6 schema + codegen + tests + Slice 1-6 fixtures + StateRule） | Reader UI |
 | Phase 2 Core bridge 规划契约 | ✓ Reader UI 侧完成（6 schema + codegen + tests + FFI 协议）；跨仓 Core bridge mapping / 协议收敛未完成 | Reader UI + Reader-Core-Native |
-| Phase 3 三端 reducer 落地 | ✗ 未开始（归三端仓库） | iOS / Android / HarmonyOS |
-| Phase 4 Host Adapter 补齐 | ✗ 未开始（归三端仓库） | iOS / Android / HarmonyOS |
-| Phase 5 一致性验证 | 部分（contract test ✓ / reducer golden test ✗ / core protocol test ✗ / device smoke ✗） | 跨仓 |
+| P0 可执行参考规格 | ✓ 完成（PAGE_REFERENCE + TOKEN_SPEC + MOTION_SPEC + CORE_HOST_BOUNDARY） | Reader UI |
+| 完整矩阵 | ✓ 完成（ROUTE_COMPONENT_MATRIX：route × component × state × motion × token） | Reader UI |
+| 三端开发切片 | ✓ 完成（SLICE_PLAN：Slice 0-8 启动顺序 + 输入文档 + 每端交付物 + 并行/串行约束） | Reader UI |
+| 验收和防漂移机制 | ✓ 本仓 P0 脚本完成（matrix-coverage / motion-guard / token-group / core-host-boundary）；三端 CI 检查仍归平台仓库 | Reader UI + platforms |
+| Phase 3 三端 reducer 落地 | ✗ 未开始（归三端仓库，按 [SLICE_PLAN.md](./SLICE_PLAN.md) 推进） | iOS / Android / HarmonyOS |
+| Phase 4 Host Adapter 补齐 | ✗ 未开始（归三端仓库，按 [SLICE_PLAN.md](./SLICE_PLAN.md) Slice 7 推进） | iOS / Android / HarmonyOS |
+| Phase 5 一致性验证 | 部分（Reader UI contract 防漂移测试 ✓ / reducer golden test ✗ / core protocol test ✗ / device smoke ✗） | 跨仓 |
+
+## P0 可执行参考规格文档清单
+
+| 文档 | 覆盖 | 状态 |
+|---|---|---|
+| [PAGE_REFERENCE.md](./PAGE_REFERENCE.md) | Slice 1-6 P0 route 的页面结构 / 组件树 / 状态归属 [C]/[R]/[E] / 入口返回 overlay keyboard 行为 | ✓ 完成 |
+| [TOKEN_SPEC.md](./TOKEN_SPEC.md) | 10 个语义 token 分组 + 三端 TokenAdapter 映射规则 + raw 值禁止检查口径 | ✓ 完成 |
+| [MOTION_SPEC.md](./MOTION_SPEC.md) | 40 个 P0 MotionId 触发/结束/打断/reduced-motion + 手势阈值 + 拖拽边界 + 焦点恢复 + system back + 键盘 inset + demo 等价性边界 | ✓ 完成 |
+| [CORE_HOST_BOUNDARY.md](./CORE_HOST_BOUNDARY.md) | 业务域归属表 + UiEvent→CoreCommand 映射（6 业务域）+ HostRequest 能力清单（30 项）+ 平台持久化禁令 | ✓ 完成 |
+| [ROUTE_COMPONENT_MATRIX.md](./ROUTE_COMPONENT_MATRIX.md) | 全量 RouteId × Shell × mainTab + ComponentType × Shell + PageState × Route + Route × MotionId + Route × Token 分组 | ✓ 完成 |
+| [SLICE_PLAN.md](./SLICE_PLAN.md) | Slice 0-8 启动顺序 + 输入文档 + 每端 iOS/Android/HarmonyOS 交付物 + 并行/串行约束 + Core bridge 串行约束 | ✓ 完成 |
+| [PLATFORM_EVIDENCE_SPEC.md](./PLATFORM_EVIDENCE_SPEC.md) | 每端 evidence 要求 + 防漂移本仓层/三端层检查口径 + contract 变更传导 + evidence 提交格式 + 防漂移机制汇总 | ✓ 完成 |
 
 ## 测试与校验入口
 
 ```bash
 # 全量契约测试
 node --test contracts/tests/*.test.mjs
-# 当前结果：143 tests / 143 pass / 0 fail
+# 当前结果：162 tests / 162 pass / 0 fail
 
 # fixtures 校验
 node contracts/tests/validate.mjs
@@ -133,4 +150,4 @@ node frontend-demo/verify/contract/verify-demo-contract-consistency.mjs
 
 ## 版本
 
-见 [VERSION.json](./VERSION.json)。当前 1.3.0。
+见 [VERSION.json](./VERSION.json)。当前 1.4.2。

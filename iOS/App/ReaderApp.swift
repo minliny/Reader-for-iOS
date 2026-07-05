@@ -58,7 +58,7 @@ public struct ReaderApp: App {
         // 解析 autorun 配置
         let config = WebViewRuntimeAutorunConfiguration.parse(CommandLine.arguments)
         print("[WebViewHarness] autorun args parsed enabled=\(config.isEnabled) valid=\(config.isValid)")
-        print("[WebViewHarness] bundleId=com.reader.ios")
+        print("[WebViewHarness] bundleId=\(Bundle.main.bundleIdentifier ?? "nil")")
         let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         print("[WebViewHarness] documentsDirectory=\(docsDir?.path ?? "nil")")
         if config.isEnabled && config.isValid {
@@ -69,14 +69,14 @@ public struct ReaderApp: App {
         #if DEBUG && canImport(ReaderCoreNativeAdapter)
         let nativeConfig = NativeCoreEvidenceAutorunConfiguration.parse(CommandLine.arguments)
         print("[NativeCoreEvidence] autorun args parsed enabled=\(nativeConfig.isEnabled) valid=\(nativeConfig.isValid)")
-        print("[NativeCoreEvidence] bundleId=com.reader.ios")
+        print("[NativeCoreEvidence] bundleId=\(Bundle.main.bundleIdentifier ?? "nil")")
         if nativeConfig.isEnabled && nativeConfig.isValid {
             _nativeCoreEvidenceAutorunConfiguration = State(wrappedValue: nativeConfig)
         }
 
         let unifiedConfig = UnifiedEvidenceAutorunConfiguration.parse(CommandLine.arguments)
         print("[UnifiedEvidence] autorun args parsed enabled=\(unifiedConfig.isEnabled) valid=\(unifiedConfig.isValid)")
-        print("[UnifiedEvidence] bundleId=com.reader.ios")
+        print("[UnifiedEvidence] bundleId=\(Bundle.main.bundleIdentifier ?? "nil")")
         if unifiedConfig.isEnabled && unifiedConfig.isValid {
             _unifiedEvidenceAutorunConfiguration = State(wrappedValue: unifiedConfig)
         }

@@ -10,12 +10,17 @@ This directory is the iOS-local entry for frontend complete-app work. It contain
 
 - `FRONTEND_COMPLETE_APP_GAP_MATRIX.md` — cross-repo parent matrix copied from Reader UI for local context.
 - `IOS_GAP_MATRIX.md` — iOS-specific implementation and evidence matrix.
+- `COMPLETE_APP_CLOSURE_WORKBREAKDOWN.md` — split closure plan for Reader UI, Core bridge, and platform repos.
 - `CONTRACT_FIRST_NATIVE_UI_PLAN.md` — shared architecture plan snapshot for local iOS development.
 - `ARCHITECTURE.md` — frozen Contract-first Native UI architecture snapshot.
 - `BOUNDARY_RULES.md` — allowed/forbidden layer and repository dependency rules.
 - `STATE_OWNERSHIP.md` — DomainState / UiState / EphemeralState ownership rules.
 - `CONTRACT_VERSIONING.md` and `VERSION.json` — UI Contract versioning snapshot.
 - `ACCEPTANCE.md` — Reader UI contract acceptance baseline and remaining cross-repo gates.
+- `CORE_HOST_BOUNDARY.md` — Core command/event and Host Adapter ownership boundary.
+- `ROUTE_COMPONENT_MATRIX.md` and `PAGE_REFERENCE.md` — route, page, component, and unresolved selector reference.
+- `TOKEN_SPEC.md` and `MOTION_SPEC.md` — token and motion contract requirements for native adapters.
+- `SLICE_PLAN.md` and `PLATFORM_EVIDENCE_SPEC.md` — development slice order and evidence requirements.
 - `ffi-protocol-version.md` — FFI protocol shape snapshot.
 - `handoff/` — route, screen, state, slice, evidence, and motion platform mapping snapshots.
 - `motion/` — demo motion contract, effects, selector matrix, and motion gap/audit snapshots.

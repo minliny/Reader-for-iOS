@@ -278,7 +278,7 @@ public enum UnifiedEvidenceRunner {
         }
 
         // Order capabilities by the canonical order for stable output.
-        let ordered = CANONICAL_CAPABILITIES.compactMap { name in
+        var ordered = CANONICAL_CAPABILITIES.compactMap { name in
             capabilities.first { $0.capability == name }
         }
         // Defensive: if any canonical capability was somehow missed, append the
@@ -537,10 +537,11 @@ public enum UnifiedEvidenceRunner {
     private static func collectDeviceInfo() -> DeviceInfo {
         var systemInfo = utsname()
         uname(&systemInfo)
+        let machineSize = MemoryLayout.size(ofValue: systemInfo.machine)
         let arch = withUnsafePointer(to: &systemInfo.machine) { ptr -> String in
             ptr.withMemoryRebound(
                 to: CChar.self,
-                capacity: MemoryLayout.size(ofValue: systemInfo.machine)
+                capacity: machineSize
             ) { String(cString: $0) }
         }
         let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
@@ -674,7 +675,7 @@ public final class UnifiedEvidenceAutorunViewModel: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
 
-        let artifact = await UnifiedEvidenceRunner.run(tier: "simulator")
+        let artifact = await UnifiedEvidenceRunner.run(tier: Self.evidenceTier)
 
         let summary = artifact.summary
         let passRatePercent = Int((summary.passRate * 100).rounded())
@@ -722,6 +723,14 @@ public final class UnifiedEvidenceAutorunViewModel: ObservableObject {
                 return lhs > rhs
             }
             .first
+    }
+
+    private static var evidenceTier: String {
+        #if targetEnvironment(simulator)
+        return "simulator"
+        #else
+        return "device"
+        #endif
     }
 }
 

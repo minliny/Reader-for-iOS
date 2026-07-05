@@ -6,7 +6,7 @@
 set -euo pipefail
 
 DEVICE="iPhone 17 Pro"
-BUNDLE_ID="com.reader.ios"
+BUNDLE_ID="com.minliny.readerforios.s4proof"
 BOOT_IF_NEEDED=0
 
 while [[ $# -gt 0 ]]; do
@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--device \"iPhone 17 Pro\"] [--bundle-id com.reader.ios] [--boot-if-needed]"
+            echo "Usage: $0 [--device \"iPhone 17 Pro\"] [--bundle-id com.minliny.readerforios.s4proof] [--boot-if-needed]"
             exit 1
             ;;
     esac
@@ -82,20 +82,22 @@ fi
 echo "Installing app on $BOOTED_UDID..."
 xcrun simctl install "$BOOTED_UDID" "$APP_PATH"
 
+DATA_CONTAINER=$(xcrun simctl get_app_container "$BOOTED_UDID" "$BUNDLE_ID" data)
+RESULT_ROOT="$DATA_CONTAINER/Documents/NativeCoreEvidenceRuns"
+echo "Clearing previous evidence under $RESULT_ROOT..."
+rm -rf "$RESULT_ROOT"
+
 echo "Launching app evidence autorun..."
 xcrun simctl terminate "$BOOTED_UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 xcrun simctl launch "$BOOTED_UDID" "$BUNDLE_ID" \
     --native-core-evidence-autorun \
     --native-core-evidence-exit-after-run
 
-DATA_CONTAINER=$(xcrun simctl get_app_container "$BOOTED_UDID" "$BUNDLE_ID" data)
-RESULT_ROOT="$DATA_CONTAINER/Documents/NativeCoreEvidenceRuns"
-
 echo "Waiting for native_core_evidence_status.json and native_core_evidence.json..."
 LATEST_RUN=""
 for _ in {1..40}; do
     if [[ -d "$RESULT_ROOT" ]]; then
-        LATEST_RUN=$(find "$RESULT_ROOT" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)
+        LATEST_RUN=$(find "$RESULT_ROOT" -mindepth 1 -maxdepth 1 -type d -exec stat -f "%m %N" {} \; | sort -n | tail -1 | cut -d' ' -f2-)
         if [[ -n "$LATEST_RUN" && -f "$LATEST_RUN/native_core_evidence_status.json" && -f "$LATEST_RUN/native_core_evidence.json" ]]; then
             break
         fi

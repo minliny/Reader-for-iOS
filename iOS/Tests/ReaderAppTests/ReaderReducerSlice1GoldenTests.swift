@@ -135,21 +135,66 @@ final class ReaderReducerSlice1GoldenTests: XCTestCase {
         XCTAssertEqual(nav.activeTab, .bookshelf)
     }
 
-    // MARK: - Golden: 非 mainTab.select 事件在 Slice 1 应被忽略
+    // MARK: - Golden: route stack minimal behavior
 
-    func testGolden_unhandledEvent_ignored() {
+    func testGolden_routePushReplacePop_updatesNativeStackAndViewState() {
         let nav = AppNavigationState()
         nav.activeTab = .bookshelf
         let reducer = ReaderReducer(navigationState: nav)
 
-        // route.push 在 Slice 1 未实现，应被忽略
         reducer.dispatch(UiEvent(
             type: .route_push,
             payload: ["route": AnyCodable("search-home")]
         ))
 
-        // 状态不变
+        XCTAssertEqual(nav.currentRoute, .search)
+        XCTAssertEqual(nav.navigationPath, [.search])
+        XCTAssertEqual(ReaderViewState(from: nav).routeId, .searchHome)
+
+        reducer.dispatch(UiEvent(
+            type: .route_replace,
+            payload: ["route": AnyCodable("book-batch-management")]
+        ))
+
+        XCTAssertEqual(nav.currentRoute, .bookBatchManagement)
+        XCTAssertEqual(nav.navigationPath, [.bookBatchManagement])
+        XCTAssertEqual(ReaderViewState(from: nav).routeId, .bookBatchManagement)
+
+        reducer.dispatch(UiEvent(type: .route_pop))
+
+        XCTAssertEqual(nav.currentRoute, .home)
+        XCTAssertTrue(nav.navigationPath.isEmpty)
+        XCTAssertEqual(ReaderViewState(from: nav).routeId, .bookshelf)
+    }
+
+    func testGolden_routePush_mainTabRouteSwitchesTabWithoutStackPush() {
+        let nav = AppNavigationState()
+        nav.activeTab = .bookshelf
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .route_push,
+            payload: ["route": AnyCodable("settings")]
+        ))
+
+        XCTAssertEqual(nav.activeTab, .settings)
+        XCTAssertTrue(nav.navigationPath.isEmpty)
+        XCTAssertEqual(ReaderViewState(from: nav).mainTab, .settings)
+        XCTAssertEqual(ReaderViewState(from: nav).routeId, .settings)
+    }
+
+    func testGolden_routePush_unknownRoute_ignored() {
+        let nav = AppNavigationState()
+        nav.activeTab = .bookshelf
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .route_push,
+            payload: ["route": AnyCodable("unknown-route")]
+        ))
+
         XCTAssertEqual(nav.activeTab, .bookshelf)
+        XCTAssertTrue(nav.navigationPath.isEmpty)
     }
 
     // MARK: - Golden: AppTab <-> MainTab 桥接一致性
@@ -165,6 +210,7 @@ final class ReaderReducerSlice1GoldenTests: XCTestCase {
             XCTAssertEqual(MainTab(appTab: appTab), mainTab)
             XCTAssertEqual(RouteId(appTab: appTab), routeId)
         }
+        XCTAssertEqual(AppTab.contractOrder.map(MainTab.init(appTab:)), MainTab.allCases)
     }
 
     // MARK: - Golden: ReaderViewState 默认 pageState
@@ -173,5 +219,125 @@ final class ReaderReducerSlice1GoldenTests: XCTestCase {
         let nav = AppNavigationState()
         let vs = ReaderViewState(from: nav)
         XCTAssertEqual(vs.pageState, .defaultValue)
+    }
+
+    // MARK: - Golden: overlay/session mutex 起点
+
+    func testGolden_overlayOpenIsSingleSlotAndCloseClearsViewStateOverlay() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(type: .overlay_dialog_open))
+        XCTAssertEqual(nav.overlayState, .dialog)
+        XCTAssertEqual(ReaderViewState(from: nav).overlay, .dialog)
+
+        reducer.dispatch(UiEvent(type: .overlay_sheet_open))
+        XCTAssertEqual(nav.overlayState, .sheet)
+        XCTAssertEqual(ReaderViewState(from: nav).overlay, .sheet)
+
+        reducer.dispatch(UiEvent(type: .overlay_sheet_close))
+        XCTAssertEqual(nav.overlayState, .none)
+        XCTAssertNil(ReaderViewState(from: nav).overlay)
+    }
+
+    func testGolden_activeSessionIsSingleSlotAndClearsOverlayOnStart() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(type: .overlay_sheet_open))
+        reducer.dispatch(UiEvent(type: .reader_session_ttsStart))
+
+        XCTAssertEqual(nav.activeSession, .tts(playing: true))
+        XCTAssertEqual(nav.overlayState, .none)
+        XCTAssertEqual(ReaderViewState(from: nav).activeSession, .tts)
+        XCTAssertNil(ReaderViewState(from: nav).overlay)
+
+        reducer.dispatch(UiEvent(type: .reader_session_autoPageStart))
+
+        XCTAssertEqual(nav.activeSession, .autoPage(playing: true))
+        XCTAssertEqual(ReaderViewState(from: nav).activeSession, .autoPage)
+
+        reducer.dispatch(UiEvent(type: .reader_session_capsuleExit))
+
+        XCTAssertEqual(nav.activeSession, .none)
+        XCTAssertNil(ReaderViewState(from: nav).activeSession)
+    }
+
+    // MARK: - Golden: reducedMotion bridge
+
+    func testGolden_reducedMotionBridgeUpdatesMotionEnvironmentAndViewState() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(type: .reducedMotion_enable))
+
+        XCTAssertTrue(nav.motion.isReducedMotionEnabled)
+        XCTAssertTrue(ReaderViewState(from: nav).reducedMotion)
+        XCTAssertEqual(
+            ReaderMotionAdapter.duration(for: .tab_switch, motion: nav.motion),
+            ReaderMotion.Duration.instant,
+            accuracy: 0.0001
+        )
+
+        reducer.dispatch(UiEvent(
+            type: .mainTab_select,
+            payload: ["tab": AnyCodable("discover")]
+        ))
+
+        XCTAssertEqual(nav.activeTab, .discover)
+
+        reducer.dispatch(UiEvent(type: .reducedMotion_disable))
+
+        XCTAssertFalse(nav.motion.isReducedMotionEnabled)
+        XCTAssertFalse(ReaderViewState(from: nav).reducedMotion)
+        XCTAssertEqual(
+            ReaderMotionAdapter.duration(for: .tab_switch, motion: nav.motion),
+            AppMotion.Duration.tabSwitch,
+            accuracy: 0.0001
+        )
+    }
+
+    // MARK: - Golden: focus restore 可测试部分
+
+    func testGolden_focusRestoresToPreviousScopeAfterRoutePop() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .input_focus,
+            payload: ["target": AnyCodable("bookshelf.search.button")]
+        ))
+        XCTAssertEqual(ReaderViewState(from: nav).focusTarget, "bookshelf.search.button")
+
+        reducer.dispatch(UiEvent(
+            type: .route_push,
+            payload: ["route": AnyCodable("search-home")]
+        ))
+        XCTAssertNil(ReaderViewState(from: nav).focusTarget)
+
+        reducer.dispatch(UiEvent(
+            type: .input_focus,
+            payload: ["target": AnyCodable("search.query.field")]
+        ))
+        XCTAssertEqual(ReaderViewState(from: nav).focusTarget, "search.query.field")
+
+        reducer.dispatch(UiEvent(type: .route_pop))
+
+        XCTAssertEqual(nav.currentRoute, .home)
+        XCTAssertEqual(ReaderViewState(from: nav).focusTarget, "bookshelf.search.button")
+    }
+
+    func testGolden_inputBlurClearsCurrentFocusScope() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .input_focus,
+            payload: ["focusTarget": AnyCodable("bookshelf.search.button")]
+        ))
+        reducer.dispatch(UiEvent(type: .input_blur))
+
+        XCTAssertNil(nav.focusTarget)
+        XCTAssertNil(ReaderViewState(from: nav).focusTarget)
     }
 }

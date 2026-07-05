@@ -1,0 +1,134 @@
+{
+  "capabilities" : [
+    {
+      "capability" : "source.import",
+      "durationMs" : 11,
+      "method" : "source.import",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
+    },
+    {
+      "capability" : "book.search",
+      "durationMs" : 12,
+      "method" : "book.search",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
+    },
+    {
+      "capability" : "book.detail",
+      "durationMs" : 12,
+      "method" : "book.detail",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
+    },
+    {
+      "capability" : "book.toc",
+      "durationMs" : 12,
+      "method" : "book.toc",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
+    },
+    {
+      "capability" : "chapter.content",
+      "durationMs" : 12,
+      "method" : "chapter.content",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
+    },
+    {
+      "capability" : "manga.pages.extract",
+      "error" : "not yet wired on iOS",
+      "status" : "blocked"
+    },
+    {
+      "capability" : "rss.parse",
+      "error" : "not yet wired on iOS",
+      "status" : "blocked"
+    },
+    {
+      "capability" : "local_book.parse",
+      "error" : "not yet wired on iOS",
+      "status" : "blocked"
+    },
+    {
+      "capability" : "reading.progress.update",
+      "durationMs" : 12,
+      "method" : "reading.progress.update",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
+    },
+    {
+      "capability" : "bookmark.crud",
+      "error" : "not yet wired on iOS",
+      "status" : "blocked"
+    },
+    {
+      "capability" : "tts.queue",
+      "error" : "not yet wired on iOS",
+      "status" : "blocked"
+    },
+    {
+      "capability" : "http-tts",
+      "error" : "not yet wired on iOS",
+      "status" : "blocked"
+    },
+    {
+      "capability" : "sync.webdav",
+      "error" : "not yet wired on iOS",
+      "status" : "blocked"
+    },
+    {
+      "capability" : "runtime.ping",
+      "durationMs" : 13,
+      "method" : "runtime.ping",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
+    },
+    {
+      "capability" : "host.request",
+      "durationMs" : 12,
+      "hostRequests" : [
+        {
+          "capability" : "host.smoke.echo",
+          "completed" : true,
+          "operationId" : 1
+        }
+      ],
+      "method" : "runtime.hostSmoke",
+      "redactedEvidence" : "host.request completed; result.type=result",
+      "status" : "pass"
+    }
+  ],
+  "coreCommit" : "unknown",
+  "device" : {
+    "arch" : "iPhone15,3",
+    "model" : "iPhone15,3",
+    "osVersion" : "Version 26.5 (Build 23F77)"
+  },
+  "generatedAt" : "2026-07-04T17:17:48Z",
+  "hostCommit" : "unknown",
+  "hostRequestLoop" : {
+    "capability" : "host.smoke.echo",
+    "durationMs" : 12,
+    "operationId" : 1,
+    "requestId" : 8010,
+    "resultBookCount" : 0
+  },
+  "notes" : [
+    "Unified evidence runner covering 15 canonical capabilities (unified-evidence\/1).",
+    "Pass-on-round-trip capabilities: Core round-trip = PASS (structured CoreError still proves the bridge).",
+    "host.request exercised via runtime.hostSmoke -> host.request -> host.complete -> result.",
+    "Blocked capabilities are not yet wired on iOS and will be enabled in later phases.",
+    "totalDurationMs=101"
+  ],
+  "platform" : "ios",
+  "schemaVersion" : "unified-evidence\/1",
+  "summary" : {
+    "failed" : 0,
+    "passRate" : 0.5333333333333333,
+    "passed" : 8,
+    "skipped" : 7,
+    "total" : 15
+  },
+  "tier" : "device"
+}

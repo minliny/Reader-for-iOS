@@ -9,9 +9,12 @@
 #
 # Usage:
 #   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh              # macOS host lib only
-#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --sim        # also iOS-sim lib
+#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --sim          # also iOS-sim lib
+#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --device      # also iOS-device lib
 #   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework # build merged xcframework
 #                                                              #   (macOS + iOS-sim slices)
+#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework --device
+#                                                              #   (macOS + iOS-device + iOS-sim slices)
 #   READER_CORE_NATIVE=/path/to/Reader-Core-Native bash .../fetch-cabi.sh
 #   bash .../fetch-cabi.sh --refresh-headers
 set -euo pipefail
@@ -31,11 +34,13 @@ modulemap_src="$native_root/bindings/ios/module.modulemap"
 
 refresh_headers=0
 fetch_sim=0
+fetch_device=0
 fetch_xcframework=0
 for arg in "$@"; do
   case "$arg" in
     --refresh-headers) refresh_headers=1 ;;
     --sim) fetch_sim=1 ;;
+    --device) fetch_device=1 ;;
     --xcframework) fetch_xcframework=1 ;;
     *) echo "fetch-cabi: unknown flag $arg" >&2; exit 1 ;;
   esac
@@ -70,11 +75,37 @@ if (( fetch_sim == 1 || fetch_xcframework == 1 )); then
   echo "fetch-cabi: materialized $cabi_dir/libreader_core_sim.a (iOS-sim arm64)"
 fi
 
-# Optionally build a merged xcframework (macOS + iOS-sim slices) consumed by the
-# Package.swift `binaryTarget`. This lets a single SwiftPM/xcodebuild configuration
-# link the correct slice per platform without platform-conditional linkerSettings.
+# Optionally materialize the iOS-device static library (arm64, aarch64-apple-ios).
+# Required for physical-device builds (xcodebuild -destination 'id=<UDID>').
+if (( fetch_device == 1 )); then
+  device_lib="$native_root/target/aarch64-apple-ios/release/libreader_core.a"
+  if [[ ! -f "$device_lib" ]]; then
+    echo "fetch-cabi: building iOS-device libreader_core_device.a (aarch64-apple-ios, release)"
+    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios)
+  fi
+  cp "$device_lib" "$cabi_dir/libreader_core_device.a"
+  echo "fetch-cabi: materialized $cabi_dir/libreader_core_device.a (iOS-device arm64)"
+fi
+
+# Optionally build a merged xcframework consumed by the Package.swift `binaryTarget`.
+# Default slices: macOS + iOS-sim. With --device, also includes iOS-device so the
+# same binaryTarget links the correct slice per platform (macOS host / iOS device /
+# iOS simulator) without platform-conditional linkerSettings.
 if (( fetch_xcframework == 1 )); then
-  echo "fetch-cabi: building merged ReaderCore.xcframework (macOS + iOS-sim)"
+  include_device=0
+  if (( fetch_device == 1 )); then
+    include_device=1
+  else
+    echo "fetch-cabi: note: --xcframework without --device builds macOS + iOS-sim only"
+    echo "fetch-cabi: pass --device to also include the iOS-device slice for physical-device builds"
+  fi
+
+  if (( include_device == 1 )); then
+    echo "fetch-cabi: building merged ReaderCore.xcframework (macOS + iOS-device + iOS-sim)"
+  else
+    echo "fetch-cabi: building merged ReaderCore.xcframework (macOS + iOS-sim)"
+  fi
+
   tmp_xc="$(mktemp -d -t reader-cabi-xcframework)"
   trap 'rm -rf "$tmp_xc"' EXIT
   mkdir -p "$tmp_xc/mac-headers" "$tmp_xc/sim-headers"
@@ -82,12 +113,23 @@ if (( fetch_xcframework == 1 )); then
   cp "$cabi_dir/module.modulemap" "$tmp_xc/mac-headers/"
   cp "$cabi_dir/reader_core.h" "$tmp_xc/sim-headers/"
   cp "$cabi_dir/module.modulemap" "$tmp_xc/sim-headers/"
+
+  xc_args=(-library "$cabi_dir/libreader_core.a" -headers "$tmp_xc/mac-headers")
+  if (( include_device == 1 )); then
+    mkdir -p "$tmp_xc/device-headers"
+    cp "$cabi_dir/reader_core.h" "$tmp_xc/device-headers/"
+    cp "$cabi_dir/module.modulemap" "$tmp_xc/device-headers/"
+    xc_args+=(-library "$cabi_dir/libreader_core_device.a" -headers "$tmp_xc/device-headers")
+  fi
+  xc_args+=(-library "$cabi_dir/libreader_core_sim.a" -headers "$tmp_xc/sim-headers")
+
   rm -rf "$cabi_dir/ReaderCore.xcframework"
-  xcodebuild -create-xcframework \
-    -library "$cabi_dir/libreader_core.a" -headers "$tmp_xc/mac-headers" \
-    -library "$cabi_dir/libreader_core_sim.a" -headers "$tmp_xc/sim-headers" \
-    -output "$cabi_dir/ReaderCore.xcframework" >/dev/null
-  echo "fetch-cabi: materialized $cabi_dir/ReaderCore.xcframework (macOS + iOS-sim)"
+  xcodebuild -create-xcframework "${xc_args[@]}" -output "$cabi_dir/ReaderCore.xcframework" >/dev/null
+  if (( include_device == 1 )); then
+    echo "fetch-cabi: materialized $cabi_dir/ReaderCore.xcframework (macOS + iOS-device + iOS-sim)"
+  else
+    echo "fetch-cabi: materialized $cabi_dir/ReaderCore.xcframework (macOS + iOS-sim)"
+  fi
 fi
 
 

@@ -34,12 +34,12 @@ Use this file as the parent checklist. Use the follow-up matrices as platform/Co
 | --- | --- | --- |
 | Demo route render | Browser smoke previously verified `131/131` `captureRoute` pages open with non-empty active stage. | Demo is useful as canonical visual and interaction sample. |
 | Motion coverage | `node frontend-demo/verify/motion/verify-motion-coverage.mjs` passes `29/29`; route render coverage `131`, unresolved `0`, selector data coverage `151/183`. | Demo motion registry is strong, but not a full native implementation. |
-| Contract tests | `node --test contracts/tests/*.test.mjs` passes `143/143`. | Schema, fixtures, generated type consistency, and slice fixtures are healthy. |
+| Contract tests | `node --test contracts/tests/*.test.mjs` passes `162/162`. | Schema, fixtures, generated type consistency, slice fixtures, P0 matrix, motion guard, token group, Core/Host boundary checks, and demo strict/exception consistency are healthy. |
 | Codegen drift | `node tools/codegen/check-drift.mjs` passes; `generated/` matches schema + fixtures. | Generated Swift / Kotlin / ArkTS files are reproducible. |
 | Handoff readiness | `verify-ui-handoff-readiness.mjs` has `1/8` failure: `Package.swift` is treated as an unexpected production entry. | Handoff policy needs to allow contract-only Swift Package or remove it. |
-| Demo contract consistency | `verify-demo-contract-consistency.mjs` reports `found=432 unknown=209`. | Current "unknown" is tracked but not blocking. Complete app work needs hard gates. |
-| Route source drift | `route.schema.json` has `139` route ids; `frontend-demo/route-contract.js` has `131` routes. | Canonical route source is not fully converged. |
-| Motion spec completeness | `motion.schema.json` has `84` MotionId values; `motion.fixtures.json` has `47` specs. | Missing `37` concrete MotionSpec fixture entries. |
+| Demo contract consistency | `verify-demo-contract-consistency.mjs` reports `found=433 unknown=111 approved=111 unapproved=0`. | Route/token unknown are hard-gated at 0; motion unknown is allowed only through `demo-contract-exceptions.json`. This is a strict/exception starting point, not 0 drift. |
+| Route source status | `route.schema.json` has `200` route ids; demo route references currently have route unknown `0`. | Contract is the canonical superset; demo does not prove all long-tail native routes. |
+| Motion spec completeness | `motion.schema.json` has `84` MotionId values; `motion.fixtures.json` has `56` specs. P0 `40/40` MotionId fixtures are present and guardRules-tested. | Full 84/84 generated MotionSpec registry remains P1/Phase 5 work. |
 | Production app shape | No top-level production Web app entry such as app-level `package.json`, Vite config, React/Vue/TS app, build pipeline, or release script. | `Reader UI` is not a standalone production frontend app. |
 
 ## 3. Completion Levels
@@ -62,11 +62,11 @@ Current overall assessment:
 
 | ID | Gap | Owner | Current evidence | Impact | Acceptance |
 | --- | --- | --- | --- | --- | --- |
-| P0-01 | Canonical route source not converged | Reader UI | Schema `139` ids, demo `131` routes, two-way route drift exists. | Platform route mapping can fork from demo and generated types. | Choose canonical route source; update schema, fixtures, demo, generated; strict check passes with route unknown `0`. |
-| P0-02 | Demo contract consistency is non-blocking | Reader UI | `demo-consistency.test.mjs` allows total unknown `< 500`; current unknown `209`. | Drift is visible but still mergeable. | Add strict mode and CI gate: route unknown `0`, motion unknown `0`, token unknown `0`, or documented deprecated exceptions. |
-| P0-03 | MotionId naming drift | Reader UI | Demo runtime uses historical ids such as `reader.session.capsule.control.press/toggle`; schema uses `reader.session.capsule.control.press-toggle`. | Platform codegen and demo runtime can describe different animations. | Normalize MotionId names; keep aliases only through explicit deprecated mapping; generated drift and motion coverage pass. |
-| P0-04 | MotionSpec registry incomplete | Reader UI | `84` MotionId values, `47` fixture specs, `37` missing concrete specs. | Platforms cannot consume complete duration/easing/token/guard data from generated code. | `motion.fixtures.json` covers `84/84`; codegen emits Swift/Kotlin/ArkTS `MotionSpecRegistry`; tests enforce full coverage. |
-| P0-05 | Token registry not strong enough | Reader UI + platforms | Token schema/category exists, `tokens.css` names pass pattern, but platform value usage is not gated. | Native teams can handwrite colors, spacing, radius, font, and motion duration, causing drift. | Generate token registries with values; platform lint or tests reject non-contract color/spacing/radius/type/motion values for contract-owned UI. |
+| P0-01 | Canonical route source needs policy lock | Reader UI | Schema `200` ids; demo route references have unknown `0`, but demo covers only a subset of long-tail contract routes. | Platforms can still confuse demo coverage with full route delivery. | Keep contract as canonical superset; every native route claim must cite schema id, priority, owner, and evidence. |
+| P0-02 | Demo contract consistency needs exception burn-down | Reader UI | `demo-consistency.test.mjs` no longer allows total unknown by loose threshold: route/token unknown must be `0`; current motion unknown is `111/111` approved by explicit policy. | New route/token drift now fails; motion/controller drift is still visible as an explicit exception backlog. | Burn down `demo-contract-exceptions.json` until motion unknown is `0`, or convert each remaining item to a canonical schema id / deprecated alias decision. |
+| P0-03 | MotionId naming drift | Reader UI | Demo runtime now has a first alias table for `reader.session.capsule.control.press/toggle` -> `reader.session.capsule.control.press-toggle`, `reader.page.turn.next/prev` -> `reader.page.turn.next-prev`, and `tab.item.switch` -> `tab.switch`; other historical/internal ids remain exceptions. | Platform codegen and demo runtime can still diverge until all historical ids are burned down. | Normalize MotionId names; keep aliases only through explicit deprecated mapping; generated drift and motion coverage pass. |
+| P0-04 | Full MotionSpec registry incomplete | Reader UI | P0 `40/40` MotionId fixtures + guardRules are tested; full schema still has `84` MotionId values and `56` fixture specs. | Platforms can start P0 safely, but P1/long-tail animation specs remain incomplete. | `motion.fixtures.json` covers `84/84`; codegen emits Swift/Kotlin/ArkTS `MotionSpecRegistry`; tests enforce full coverage. |
+| P0-05 | Token registry not strong enough across native repos | Reader UI + platforms | Token grouping and matrix checks exist in Reader UI; platform value usage is not yet gated. | Native teams can handwrite colors, spacing, radius, font, and motion duration, causing drift. | Generate token registries with values; platform lint or tests reject non-contract color/spacing/radius/type/motion values for contract-owned UI. |
 | P0-06 | Handoff readiness policy conflicts with contract package | Reader UI | Handoff readiness fails only on `Package.swift`. | CI may block a valid contract-only package or hide a real production runtime violation. | Update verifier to allow contract-only Swift package, or move/remove `Package.swift`; readiness passes `8/8`. |
 | P0-07 | Platform reducer not proven | Android / iOS / HarmonyOS | `ACCEPTANCE.md` says Phase 3 reducer landing is not started in Reader UI scope. | UI behavior can diverge even when ViewState types compile. | Each platform has reducer/coordinator golden tests for navigation, overlay, activeSession, focus, loading, async guard, and reduced motion. |
 | P0-08 | Native UI does not have required evidence | Android / iOS / HarmonyOS | `FRONTEND_DEVELOPMENT_READINESS.md` lists platform implementation evidence as missing outside Reader UI. | Demo proof can be mistaken for app completion. | Each platform provides build, route, screenshot/recording, and test evidence for Slice 1 to Slice 5 before broad route migration. |
@@ -190,12 +190,11 @@ Minimum cross-repo acceptance set:
 
 The next work should not be "implement all screens". It should be:
 
-1. Reader UI P0 gate closure:
-   - strict demo/schema consistency
-   - route source convergence
-   - MotionId normalization
-   - `84/84` MotionSpec fixtures
-   - TokenRegistry generation
+1. Reader UI remaining gate closure:
+   - burn down strict demo/schema exception list for current `unknown=111 approved=111 unapproved=0`
+   - complete MotionId normalization beyond the first alias table
+   - `84/84` MotionSpec fixtures and generated MotionSpec registry
+   - TokenRegistry generation with values
    - handoff readiness `8/8`
 2. Platform Slice 0 to Slice 3:
    - AppShell and main tabs

@@ -12,6 +12,9 @@ packages:
     # not under ../Reader-Core/Core (that subdir only holds a .build cache).
     path: ../Reader-Core
     from: "0.1.0"
+  ReaderUI:
+    # Contract-only package. Exposes generated/swift as ReaderUIContract.
+    path: "../Reader UI"
 
 targets:
   ReaderAppPersistence:
@@ -60,6 +63,8 @@ targets:
     dependencies:
       - target: ReaderAppSupport
       - target: ReaderCoreNativeAdapter
+      - package: ReaderUI
+        product: ReaderUIContract
       - package: ReaderCore
         product: ReaderCoreFoundation
       - package: ReaderCore
@@ -127,6 +132,8 @@ targets:
       - target: ReaderAppSupport
       - target: ReaderAppPersistence
       - target: ReaderCoreNativeAdapter
+      - package: ReaderUI
+        product: ReaderUIContract
       - package: ReaderCore
         product: ReaderCoreModels
       - package: ReaderCore
@@ -139,7 +146,7 @@ targets:
         product: ReaderPlatformAdapters
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.reader.ios
+        PRODUCT_BUNDLE_IDENTIFIER: com.minliny.readerforios.s4proof
         PRODUCT_MODULE_NAME: ReaderApp
         INFOPLIST_FILE: iOS/Info.plist
         MARKETING_VERSION: "1.0.0"
@@ -149,6 +156,15 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
         ENABLE_BITCODE: NO
         DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
+        # Code signing (S4 host proof). Automatic signing resolves the team
+        # via the Apple ID logged into Xcode; pass -allowProvisioningUpdates to
+        # xcodebuild to let Xcode create/repair the provisioning profile.
+        # DEVELOPMENT_TEAM is the team-identifier from the existing
+        # mobileprovision; update if the logged-in Apple ID resolves a
+        # different personal team ID (check `security find-identity -p codesigning`).
+        DEVELOPMENT_TEAM: 42MGMRS9BW
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
     info:
       path: iOS/Info.plist
       properties:
@@ -197,6 +213,9 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: 42MGMRS9BW
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
 
   ReaderAppTests:
     type: bundle.unit-test
@@ -210,6 +229,8 @@ targets:
       - target: ReaderAppSupport
       - target: ReaderAppPersistence
       - target: ReaderCoreNativeAdapter
+      - package: ReaderUI
+        product: ReaderUIContract
       - package: ReaderCore
         product: ReaderCoreFoundation
       - package: ReaderCore
@@ -227,6 +248,9 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: 42MGMRS9BW
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
 
 schemes:
   ReaderForIOSApp:

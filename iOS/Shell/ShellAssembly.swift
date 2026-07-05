@@ -55,7 +55,7 @@ public enum ShellAssembly {
             return makeMockReadingFlowCoordinator()
         }
 
-        let httpClient = URLSessionHTTPClient()
+        let httpClient = URLSessionHTTPClient(cookieJar: RustCoreServiceSupport.sharedCookieJar)
         let factory = ReaderCoreServiceFactory(httpClient: httpClient)
         let realSearchService = factory.makeSearchService()
         let realTOCService = factory.makeTOCService()

@@ -101,7 +101,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
             print("[M2] controlledOnline services denied: \(decision)")
             return false
         }
-        let httpClient = URLSessionHTTPClient()
+        let httpClient = URLSessionHTTPClient(cookieJar: RustCoreServiceSupport.sharedCookieJar)
         let factory = ReaderCoreServiceFactory(httpClient: httpClient)
         lock.lock()
         realSearchService = factory.makeSearchService()
@@ -134,7 +134,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
             print("[RealNetworkGate] configureRealMode denied: \(policy.denialReason ?? "disabled")")
             return false
         }
-        let httpClient = URLSessionHTTPClient()
+        let httpClient = URLSessionHTTPClient(cookieJar: RustCoreServiceSupport.sharedCookieJar)
         let factory = ReaderCoreServiceFactory(httpClient: httpClient)
         lock.lock()
         realSearchService = factory.makeSearchService()

@@ -32,13 +32,51 @@ public final class ReaderReducer: ObservableObject {
 
     /// 派发 contract `UiEvent`。
     ///
-    /// Slice 1 仅处理 `mainTab.select`。其他事件留待后续 slice。
+    /// Slice 1 处理 AppShell 级事件；深层业务事件留待后续 slice。
     public func dispatch(_ event: UiEvent) {
         switch event.type {
+        case .route_push:
+            handleRoutePush(event)
+        case .route_replace:
+            handleRouteReplace(event)
+        case .route_pop:
+            navigationState.goBack()
+        case .route_popToRoot:
+            navigationState.popToRoot()
         case .mainTab_select:
             handleMainTabSelect(event)
+        case .overlay_dialog_open:
+            navigationState.setOverlay(.dialog)
+        case .overlay_sheet_open:
+            navigationState.setOverlay(.sheet)
+        case .overlay_keyboard_open:
+            navigationState.setOverlay(.keyboard)
+        case .overlay_dialog_close,
+             .overlay_sheet_close,
+             .overlay_keyboard_close:
+            navigationState.setOverlay(.none)
+        case .reader_session_ttsStart,
+             .tts_queue_start,
+             .reader_tts_start:
+            navigationState.startSession(.tts(playing: true))
+        case .reader_session_autoPageStart,
+             .reader_autoPage_start:
+            navigationState.startSession(.autoPage(playing: true))
+        case .reader_session_capsuleExit,
+             .tts_queue_stop,
+             .reader_tts_stop,
+             .reader_autoPage_stop:
+            navigationState.clearSession()
+        case .input_focus:
+            handleInputFocus(event)
+        case .input_blur:
+            navigationState.blurFocus()
+        case .reducedMotion_enable:
+            navigationState.setReducedMotion(true)
+        case .reducedMotion_disable:
+            navigationState.setReducedMotion(false)
         default:
-            // Slice 1 不处理其他事件。后续 slice 逐步接入。
+            // 后续 slice 逐步接入业务事件。
             break
         }
     }
@@ -52,6 +90,132 @@ public final class ReaderReducer: ObservableObject {
         }
         let appTab = AppTab(contract: tab)
         navigationState.switchTab(appTab)
+    }
+
+    // MARK: - route.*
+
+    private func handleRoutePush(_ event: UiEvent) {
+        guard let route = nativeRoute(from: event) else { return }
+        navigationState.push(route)
+    }
+
+    private func handleRouteReplace(_ event: UiEvent) {
+        guard let route = nativeRoute(from: event) else { return }
+        navigationState.replaceTop(with: route)
+    }
+
+    private func nativeRoute(from event: UiEvent) -> Route? {
+        guard let routeId = contractRouteId(from: event) else { return nil }
+        switch routeId {
+        case .bookshelf:
+            navigationState.switchTab(.bookshelf)
+            return nil
+        case .discover:
+            navigationState.switchTab(.discover)
+            return nil
+        case .rss:
+            navigationState.switchTab(.rss)
+            return nil
+        case .settings:
+            navigationState.switchTab(.settings)
+            return nil
+        case .searchHome, .bookSearch:
+            return .search
+        case .searchResults:
+            return .searchResults(query: stringPayload(event, keys: ["query", "q"]) ?? "")
+        case .bookBatchManagement:
+            return .bookBatchManagement
+        case .localImport:
+            return .bookshelfImport
+        case .bookDetail:
+            return .bookDetail(
+                bookURL: stringPayload(event, keys: ["bookURL", "bookUrl", "url"]) ?? "slice1://book",
+                title: stringPayload(event, keys: ["title"]) ?? "Book Detail",
+                author: stringPayload(event, keys: ["author"])
+            )
+        case .bookDetailTocPreview, .bookDirectory:
+            return .bookDetailToc(
+                bookURL: stringPayload(event, keys: ["bookURL", "bookUrl", "url"]) ?? "slice1://book",
+                title: stringPayload(event, keys: ["title"]) ?? "Directory"
+            )
+        case .sourceSwitch:
+            return .sourceSwitch(bookURL: stringPayload(event, keys: ["bookURL", "bookUrl", "url"]) ?? "slice1://book")
+        case .immersiveReading, .reader:
+            return .reader(
+                bookID: stringPayload(event, keys: ["bookID", "bookId"]) ?? "slice1-book",
+                chapterURL: stringPayload(event, keys: ["chapterURL", "chapterUrl"]) ?? "slice1://chapter",
+                chapterTitle: stringPayload(event, keys: ["chapterTitle", "title"]) ?? "Chapter"
+            )
+        case .rssSearch:
+            return .rssSearch
+        case .rssDetail:
+            return .rssDetail(rssID: stringPayload(event, keys: ["rssID", "rssId", "id"]) ?? "slice1-rss")
+        case .rssOriginal:
+            return .rssOriginal(
+                url: stringPayload(event, keys: ["url"]) ?? "https://example.invalid",
+                title: stringPayload(event, keys: ["title"]) ?? "Original",
+                sourceTitle: stringPayload(event, keys: ["sourceTitle"]) ?? "RSS"
+            )
+        case .rssOriginalBrowser:
+            return .rssOriginalBrowser(
+                url: stringPayload(event, keys: ["url"]) ?? "https://example.invalid",
+                title: stringPayload(event, keys: ["title"]) ?? "Original",
+                sourceTitle: stringPayload(event, keys: ["sourceTitle"]) ?? "RSS"
+            )
+        case .sourceManagement:
+            return .bookSources
+        case .sourceImportOptions:
+            return .bookSourceImport
+        case .sourceDetail:
+            return .sourceDetail(sourceID: stringPayload(event, keys: ["sourceID", "sourceId", "id"]) ?? "slice1-source")
+        case .sourceAdd:
+            return .sourceAdd
+        case .sourceEdit:
+            return .sourceEdit(sourceID: stringPayload(event, keys: ["sourceID", "sourceId", "id"]) ?? "slice1-source")
+        case .sourceTestResult:
+            return .sourceTestResult(sourceID: stringPayload(event, keys: ["sourceID", "sourceId", "id"]) ?? "slice1-source")
+        case .webdavConfig:
+            return .webdavSettings
+        case .remoteWebdavBooks:
+            return .webdavBooks
+        case .backupSettings:
+            return .backupSettings
+        case .progressSync:
+            return .syncProgress
+        case .readingSettingsEntry:
+            return .settingsReading
+        case .about, .aboutVersion:
+            return .settingsAbout
+        case .stateError, .globalError:
+            return .stateError(message: stringPayload(event, keys: ["message"]) ?? "Error")
+        case .stateOffline, .offlineState:
+            return .stateOffline
+        case .permissionRequired:
+            return .statePermission(permission: stringPayload(event, keys: ["permission"]) ?? "unknown")
+        default:
+            return nil
+        }
+    }
+
+    private func contractRouteId(from event: UiEvent) -> ReaderUIContract.RouteId? {
+        guard let raw = stringPayload(event, keys: ["route", "routeId", "id"]) else { return nil }
+        return ReaderUIContract.RouteId(rawValue: raw)
+    }
+
+    // MARK: - focus
+
+    private func handleInputFocus(_ event: UiEvent) {
+        guard let target = stringPayload(event, keys: ["target", "focusTarget", "id"]) else { return }
+        navigationState.focus(target)
+    }
+
+    private func stringPayload(_ event: UiEvent, keys: [String]) -> String? {
+        for key in keys {
+            if let value = event.payload[key]?.value as? String {
+                return value
+            }
+        }
+        return nil
     }
 }
 
