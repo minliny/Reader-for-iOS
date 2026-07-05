@@ -82,7 +82,13 @@ struct SettingsDemoShellView: View {
         } stateHost: {
             EmptyView()
         }
-        .animation(motion.animation(ReaderMotion.Duration.overlay), value: activeConfirm)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .enter, targetRole: "dialog", containerRole: .settingsShell),
+                motion: motion
+            ),
+            value: activeConfirm
+        )
         .animation(
             ReaderMotionAdapter.animation(
                 for: MotionRequest(operation: .enter, targetRole: "toast", containerRole: .overlayHost),

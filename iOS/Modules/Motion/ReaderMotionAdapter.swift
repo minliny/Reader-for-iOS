@@ -96,7 +96,32 @@ public enum ReaderMotionAdapter {
     public static func animation(for contractId: ReaderUIContract.MotionId, motion: MotionEnvironment = .shared) -> Animation? {
         let seconds = duration(for: contractId, motion: motion)
         guard seconds > 0 else { return nil }
-        return .easeInOut(duration: seconds)
+
+        let spec = ReaderUIContract.MotionSpecRegistry.spec(for: contractId)
+        let easing = spec?.easing ?? .ease_in_out
+        let base = animation(easing: easing, duration: seconds)
+
+        // 连续动画：当 spec 声明 loop.forever 时，叠加 repeatForever(autoreverses:)
+        if let loop = spec?.loop, loop.forever {
+            return base.repeatForever(autoreverses: loop.autoreverses)
+        }
+        return base
+    }
+
+    /// 将契约 MotionEasing 映射到 SwiftUI Animation。
+    private static func animation(easing: ReaderUIContract.MotionEasing, duration: TimeInterval) -> Animation {
+        switch easing {
+        case .ease, .ease_in_out:
+            return .easeInOut(duration: duration)
+        case .ease_in:
+            return .easeIn(duration: duration)
+        case .ease_out:
+            return .easeOut(duration: duration)
+        case .linear:
+            return .linear(duration: duration)
+        case .noneValue:
+            return .linear(duration: 0)
+        }
     }
 
     @discardableResult

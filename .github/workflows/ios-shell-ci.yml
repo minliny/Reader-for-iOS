@@ -13,6 +13,8 @@ on:
       - ".github/workflows/ios-shell-ci.yml"
       - "iOS/**"
       - "scripts/check_ios_boundary.sh"
+      - "scripts/check_ios_raw_animation.sh"
+      - "scripts/ios_raw_animation_whitelist.txt"
       - "docs/ios_shell_ci_gate.yml"
   push:
     branches:
@@ -21,6 +23,8 @@ on:
       - ".github/workflows/ios-shell-ci.yml"
       - "iOS/**"
       - "scripts/check_ios_boundary.sh"
+      - "scripts/check_ios_raw_animation.sh"
+      - "scripts/ios_raw_animation_whitelist.txt"
 
 jobs:
   ios-shell-ci:
@@ -47,6 +51,12 @@ jobs:
         run: |
           chmod +x scripts/check_ios_boundary.sh
           ./scripts/check_ios_boundary.sh
+
+      - name: Raw animation lint (strict)
+        shell: bash
+        run: |
+          chmod +x scripts/check_ios_raw_animation.sh
+          ./scripts/check_ios_raw_animation.sh --strict
 
       - name: Show Swift toolchain
         run: swift --version

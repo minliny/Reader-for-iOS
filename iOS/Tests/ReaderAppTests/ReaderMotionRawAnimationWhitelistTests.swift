@@ -40,8 +40,8 @@ final class ReaderMotionRawAnimationWhitelistTests: XCTestCase {
             .map { String($0) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
 
-        XCTAssertGreaterThanOrEqual(entries.count, 14,
-                                    "白名单至少应有 14 条（DemoPrimitives 12 + ReaderSessionCapsuleView 1 + ReaderView 1）")
+        XCTAssertGreaterThanOrEqual(entries.count, 13,
+                                    "白名单至少应有 13 条（DemoPrimitives 12 + ReaderView 1）")
     }
 
     func testWhitelistEntriesHaveValidFormat() throws {
@@ -69,13 +69,6 @@ final class ReaderMotionRawAnimationWhitelistTests: XCTestCase {
     }
 
     // MARK: - 关键白名单条目存在性
-
-    func testWhitelistContainsVoicePulseEntry() throws {
-        let url = Self.whitelistURL
-        let content = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(content.contains("iOS/Features/Reader/ReaderSessionCapsuleView.swift:159:"),
-                      "白名单必须包含 ReaderSessionCapsuleView:159（voice pulse repeatForever）")
-    }
 
     func testWhitelistContainsToggleReaderChromeEntry() throws {
         let url = Self.whitelistURL

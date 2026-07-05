@@ -121,6 +121,22 @@ final class ReaderMotionFirstBatchMigrationTests: XCTestCase {
                        "exit + controlLayer + readerSurface must resolve to .reader_control_hide")
     }
 
+    // MARK: - 5. Settings shell dialog enter (SettingsDemoShellView.activeConfirm)
+
+    func testSettingsDialogEnterResolvesToOverlayDialogEnterMotionId() {
+        // SettingsDemoShellView.swift: activeConfirm 出现 → enter + dialog + settingsShell
+        let request = MotionRequest(operation: .enter, targetRole: "dialog", containerRole: .settingsShell)
+        XCTAssertEqual(ReaderMotionAdapter.resolve(request: request), .overlay_dialog_enter,
+                       "enter + dialog + settingsShell must resolve to .overlay_dialog_enter")
+    }
+
+    func testSettingsDialogExitResolvesToOverlayDialogExitMotionId() {
+        // SettingsDemoShellView.swift: activeConfirm 消失 → exit + dialog + settingsShell
+        let request = MotionRequest(operation: .exit, targetRole: "dialog", containerRole: .settingsShell)
+        XCTAssertEqual(ReaderMotionAdapter.resolve(request: request), .overlay_dialog_exit,
+                       "exit + dialog + settingsShell must resolve to .overlay_dialog_exit")
+    }
+
     // MARK: - Migration completeness: all first-batch requests resolve (never nil)
 
     func testAllFirstBatchMigrationRequestsResolve() {
@@ -139,6 +155,8 @@ final class ReaderMotionFirstBatchMigrationTests: XCTestCase {
             MotionRequest(operation: .enter, targetRole: "sheet", containerRole: .readerShell),
             // reader control hide
             MotionRequest(operation: .exit, sourceRole: "controlLayer", containerRole: .readerSurface),
+            // settings shell dialog enter
+            MotionRequest(operation: .enter, targetRole: "dialog", containerRole: .settingsShell),
         ]
         for request in requests {
             XCTAssertNotNil(ReaderMotionAdapter.resolve(request: request),

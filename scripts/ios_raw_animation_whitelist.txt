@@ -24,10 +24,6 @@ iOS/App/Components/DemoPrimitives.swift:1382: DemoReaderSwitch isOn 切换，使
 iOS/App/Components/DemoPrimitives.swift:1420: DemoTocSwitchRow isOn 切换，使用 AppMotion.Duration.toggleSwitch
 iOS/App/Components/DemoPrimitives.swift:1458: DemoSliderControl +/- 按钮切换，使用 AppMotion.Duration.toggleSwitch
 
-# === ReaderSessionCapsuleView.swift —— 语音脉动 ===
-# repeatForever 连续动画，resolver 只返回一次性动画，模式不匹配
-iOS/Features/Reader/ReaderSessionCapsuleView.swift:159: reader.session.capsule.voiceIcon.active repeatForever 脉动，连续动画不适用 resolver
-
 # === ReaderView.swift —— toggleReaderChrome ===
 # withAnimation(animation) 里的 animation 是 ReaderMotionAdapter.animation(for:) 的返回值，
 # 属于 transitive adapter 调用，lint 脚本无法静态识别局部变量来源

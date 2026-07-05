@@ -116,6 +116,29 @@ final class ReaderMotionSecondBatchMigrationTests: XCTestCase {
                        "update + tabItem + mainTabShell must resolve to .tab_item_select")
     }
 
+    // MARK: - 9. Voice pulse loop (ReaderSessionCapsuleView.startVoicePulse)
+
+    func testVoicePulseSpecHasLoopForever() {
+        // voice pulse 直接用 MotionId 调用 adapter（不走 resolver），验证 spec 有 loop
+        let spec = ReaderMotionAdapter.spec(for: .reader_session_capsule_voiceIcon_active)
+        XCTAssertNotNil(spec?.loop, "voiceIcon.active spec must have loop config")
+        XCTAssertEqual(spec?.loop?.forever, true, "voiceIcon.active loop.forever must be true")
+        XCTAssertEqual(spec?.loop?.autoreverses, true, "voiceIcon.active loop.autoreverses must be true")
+    }
+
+    func testVoicePulseAnimationIsRepeatForeverWhenReducedMotionOff() {
+        let motion = MotionEnvironment(override: false)
+        let animation = ReaderMotionAdapter.animation(for: .reader_session_capsule_voiceIcon_active, motion: motion)
+        XCTAssertNotNil(animation, "voice pulse must yield a non-nil Animation when reduced motion is off")
+        // Animation 非 nil 即可；SwiftUI Animation 类型不透明，无法静态断言 repeatForever
+    }
+
+    func testVoicePulseAnimationNilWhenReducedMotionOn() {
+        let motion = MotionEnvironment(override: true)
+        let animation = ReaderMotionAdapter.animation(for: .reader_session_capsule_voiceIcon_active, motion: motion)
+        XCTAssertNil(animation, "voice pulse must yield nil when reduced motion is on (forceZeroDuration → seconds=0)")
+    }
+
     // MARK: - Migration completeness: all second-batch requests resolve (never nil)
 
     func testAllSecondBatchMigrationRequestsResolve() {

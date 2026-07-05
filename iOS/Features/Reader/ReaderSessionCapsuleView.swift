@@ -156,9 +156,11 @@ public struct ReaderSessionCapsuleView: View {
     }
 
     private func startVoicePulse() {
+        // voice pulse 走 resolver：spec=reader.session.capsule.voiceIcon.active，
+        // loop={forever:true, autoreverses:true}，easing=linear，duration=960ms。
+        // reduced-motion 下 adapter 返回 nil，voicePulse 仍被设为 true（静态保留语义）。
         withAnimation(
-            .linear(duration: ReaderMotion.Duration.voicePulse)
-                .repeatForever(autoreverses: true)
+            ReaderMotionAdapter.animation(for: .reader_session_capsule_voiceIcon_active, motion: motionEnvironment)
         ) {
             voicePulse = true
         }
