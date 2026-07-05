@@ -39,7 +39,13 @@ public struct SettingsTabView: View {
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
-        .animation(motion.animation(AppMotion.Duration.tabSwitch), value: activeDemoRoute)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .tabSwitch, containerRole: .mainTabShell),
+                motion: motion
+            ),
+            value: activeDemoRoute
+        )
     }
 
     private var rootSettingsList: some View {

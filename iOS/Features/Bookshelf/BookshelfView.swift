@@ -13,7 +13,7 @@ public struct BookshelfView: View {
         case searchSettings
     }
 
-    @StateObject private var viewModel = BookshelfViewModel()
+    @StateObject private var viewModel: BookshelfViewModel
     @State private var selectedItem: BookshelfItem?
     @State private var activeDestination: BookshelfDestination?
     @State private var bookshelfDisplayMode: BookshelfDisplayMode = .cover
@@ -26,6 +26,7 @@ public struct BookshelfView: View {
     @ObservedObject private var navigationState: AppNavigationState
     @Binding private var topBarRequest: MainTabTopBarRequest?
     private let showsTopBar: Bool
+    private let autoloadOnAppear: Bool
 
     /// `navigationState` 为契约单一状态源，承载 `readerContext` / `motionInterrupt`，
     /// 用于对齐 `reader.entry.coverToImmersive` / `reader.entry.actionToImmersive`。
@@ -35,6 +36,39 @@ public struct BookshelfView: View {
         showsTopBar: Bool = true,
         topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
     ) {
+        self.init(
+            navigationState: navigationState,
+            showsTopBar: showsTopBar,
+            topBarRequest: topBarRequest,
+            initialDemoRoute: nil
+        )
+    }
+
+    init(
+        demoRoute: String,
+        navigationState: AppNavigationState? = nil,
+        showsTopBar: Bool = true,
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+    ) {
+        self.init(
+            navigationState: navigationState,
+            showsTopBar: showsTopBar,
+            topBarRequest: topBarRequest,
+            initialDemoRoute: demoRoute
+        )
+    }
+
+    private init(
+        navigationState: AppNavigationState?,
+        showsTopBar: Bool,
+        topBarRequest: Binding<MainTabTopBarRequest?>,
+        initialDemoRoute: String?
+    ) {
+        let demoItems = initialDemoRoute == nil ? nil : DemoBookshelfFixture.items
+        let initialState = demoItems.map { BookshelfState.loaded(items: $0) }
+        self._viewModel = StateObject(wrappedValue: BookshelfViewModel(initialState: initialState))
+        self._bookshelfFilterOpen = State(initialValue: initialDemoRoute == "sort-filter")
+        self._focusedBookshelfItem = State(initialValue: initialDemoRoute == "bookshelf-book-more-menu" ? DemoBookshelfFixture.items.first : nil)
         if let navigationState {
             self._navigationState = ObservedObject(wrappedValue: navigationState)
         } else {
@@ -42,6 +76,7 @@ public struct BookshelfView: View {
         }
         self.showsTopBar = showsTopBar
         self._topBarRequest = topBarRequest
+        self.autoloadOnAppear = initialDemoRoute == nil
     }
 
     public var body: some View {
@@ -69,6 +104,7 @@ public struct BookshelfView: View {
         .toolbar(.hidden, for: .navigationBar)
 #endif
         .onAppear {
+            guard autoloadOnAppear else { return }
             Task { await viewModel.loadItems() }
         }
         .onChange(of: topBarRequest) { request in
@@ -489,11 +525,18 @@ public struct BookshelfView: View {
         // P2-A HERO-P0-1: 用 withAnimation 触发 matchedGeometryEffect 过渡。
         // 真源：motion-controller.js line 412-417 reader.entry.coverToImmersive (240ms)
         // 与 line 418-423 reader.entry.actionToImmersive (200ms)。
-        // 取 240ms（coverToImmersive 为主路径，actionToImmersive 为无封面入口的降级）。
-        // 对应 token：ReaderMotion.Duration.readerEntry。
-        // reduced motion 时 MotionEnvironment.animation 返回 nil，withAnimation(nil) 即时切换。
+        // 通过 ReaderMotionAdapter.resolve(request:) 解析契约 MotionId：
+        // - sourceRole="bookCover" → .reader_entry_coverToImmersive (priority 350)
+        // - sourceRole="actionButton" → .reader_entry_actionToImmersive (priority 350)
+        // reduced motion 时 adapter 返回 nil，withAnimation(nil) 即时切换。
         let motion = MotionEnvironment()
-        withAnimation(motion.animation(ReaderMotion.Duration.readerEntry)) {
+        let entryRequest = MotionRequest(
+            fromShell: .mainTabShell,
+            toShell: .readerShell,
+            operation: .push,
+            sourceRole: source == .coverToImmersive ? "bookCover" : "actionButton"
+        )
+        withAnimation(ReaderMotionAdapter.animation(for: entryRequest, motion: motion)) {
             navigationState.enterImmersiveReading(context)
             activeDestination = .reader(context)
         }
@@ -502,8 +545,16 @@ public struct BookshelfView: View {
     private func closeActiveDestination() {
         if case .reader = activeDestination {
             // P2-A: 退出沉浸阅读同样包裹 withAnimation，让 matchedGeometryEffect 反向过渡。
+            // operation: .pop from readerShell → mainTabShell 无特定 policy，
+            // resolver 回退到 .motion_interrupt_redirect (80ms)，
+            // 适合快速退出沉浸阅读。
             let motion = MotionEnvironment()
-            withAnimation(motion.animation(ReaderMotion.Duration.readerEntry)) {
+            let exitRequest = MotionRequest(
+                fromShell: .readerShell,
+                toShell: .mainTabShell,
+                operation: .pop
+            )
+            withAnimation(ReaderMotionAdapter.animation(for: exitRequest, motion: motion)) {
                 navigationState.exitImmersiveReading()
                 activeDestination = nil
             }

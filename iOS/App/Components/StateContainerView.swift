@@ -182,8 +182,17 @@ public struct StateContainerView<T: Sendable & Equatable, Content: View, ResultC
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        // 用 stateReplace（160ms）驱动 4 态切换 transition。
-        .animation(motionEnvironment.animation(AppMotion.Duration.stateReplace), value: phase)
+        // 用 state.content.replace（160ms）驱动 4 态切换 transition。
+        // 通过 ReaderMotionAdapter.resolve(request:) 解析契约 MotionId，
+        // operation: .replace + sourceRole: "content" + containerRole: .inlineState
+        // → .state_content_replace (priority 200)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .replace, sourceRole: "content", containerRole: .inlineState),
+                motion: motionEnvironment
+            ),
+            value: phase
+        )
         // phase 切换时同步 reduced-motion 状态，保证后续动画归一化与系统设置一致。
         .onChange(of: phase) { _ in
             motionEnvironment.refreshFromSystem()

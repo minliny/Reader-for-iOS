@@ -84,7 +84,13 @@ struct SettingsDemoShellView: View {
         }
         .animation(motion.animation(ReaderMotion.Duration.overlay), value: activeConfirm)
         .animation(motion.animation(AppMotion.Duration.feedbackToast), value: toastMessage)
-        .animation(motion.animation(AppMotion.Duration.tabSwitch), value: currentRoute)
+        .animation(
+            ReaderMotionAdapter.animation(
+                for: MotionRequest(operation: .tabSwitch, containerRole: .mainTabShell),
+                motion: motion
+            ),
+            value: currentRoute
+        )
     }
 
     private var currentRoute: String {

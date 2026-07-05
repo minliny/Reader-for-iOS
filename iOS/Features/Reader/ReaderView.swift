@@ -617,7 +617,19 @@ public struct ReaderView: View {
 
     private func toggleReaderChrome() {
         // `reader.control.show/hide` —— latest-intent-wins，旧动画被打断。
-        motion.withMotionAnimation(ReaderMotion.Duration.readerEntry) {
+        // 通过 ReaderMotionAdapter.resolve(request:) 解析契约 MotionId：
+        // - show (enter): targetRole="sheet" + containerRole=.readerShell → .overlay_sheet_enter (priority 300)
+        // - hide (exit): sourceRole="controlLayer" + containerRole=.readerSurface → .reader_control_hide (priority 300)
+        let willShow = !chromeVisible
+        let request: MotionRequest = willShow
+            ? MotionRequest(operation: .enter, targetRole: "sheet", containerRole: .readerShell)
+            : MotionRequest(operation: .exit, sourceRole: "controlLayer", containerRole: .readerSurface)
+        let animation = ReaderMotionAdapter.animation(for: request, motion: motion)
+        if let animation {
+            withAnimation(animation) {
+                chromeVisible.toggle()
+            }
+        } else {
             chromeVisible.toggle()
         }
     }

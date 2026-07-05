@@ -1,6 +1,11 @@
 import SwiftUI
 import ReaderUIContract
 
+/// Re-export `MotionRequest` so business Views don't need to `import ReaderUIContract`.
+/// Views construct `MotionRequest`（纯数据 struct）and pass to `ReaderMotionAdapter.resolve(request:)` /
+/// `animation(for:)` / `start(request:)`，不直接碰 generated `ReaderMotionResolver`。
+public typealias MotionRequest = ReaderUIContract.MotionRequest
+
 /// Adapter from generated Reader UI motion contracts to native SwiftUI motion.
 public enum ReaderMotionAdapter {
     public static func spec(for contractId: ReaderUIContract.MotionId) -> ReaderUIContract.Motion? {

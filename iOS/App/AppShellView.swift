@@ -129,7 +129,10 @@ struct AppShellView: View {
             contentRegion: {
                 tabContentRegion
                     .animation(
-                        navigationState.motion.animation(AppMotion.Duration.tabSwitch),
+                        ReaderMotionAdapter.animation(
+                            for: MotionRequest(operation: .tabSwitch, containerRole: .mainTabShell),
+                            motion: navigationState.motion
+                        ),
                         value: navigationState.activeTab
                     )
             },
