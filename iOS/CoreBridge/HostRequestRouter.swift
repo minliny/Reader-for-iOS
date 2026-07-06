@@ -1,12 +1,14 @@
 // CoreBridge
 //
 // HostRequestRouter: routes Rust Core `host.request` events (capability=http.execute,
-// cookie.get, cookie.set) to the iOS Host's `URLSessionHTTPClient` + `ScopedCookieJar`,
-// then sends `host.complete` or `host.error` back to Core.
+// cookie.get, cookie.set, webview.evaluateJavaScript, anti_bot.challenge,
+// media.download) to the iOS Host's executors, then sends `host.complete` or
+// `host.error` back to Core.
 //
 // This is the Core/Host boundary wiring: Core produces request descriptors,
-// Host executes real HTTP via URLSession and manages cookies via the scoped jar.
-// Core never opens a socket or touches the cookie store directly.
+// Host executes real HTTP via URLSession, manages cookies via the scoped jar,
+// renders via WKWebView, runs anti-bot detection, and downloads media. Core
+// never opens a socket, touches the cookie store, or drives a WebView directly.
 //
 // S6.1: This router is the single HTTP execution path for Rust Core's
 // http.execute capability. It is shared by all RustCore*Service adapters.
@@ -14,6 +16,14 @@
 // login_cookie lane: the router also handles cookie.get / cookie.set so Core
 // can read and write host-side cookies through the same boundary contract as
 // Android (cookie.get → {cookies:[...]}, cookie.set → {stored:true}).
+//
+// webview_render / anti_bot / media_download lanes: the router dispatches
+// `webview.evaluateJavaScript`, `anti_bot.challenge`, and `media.download`
+// host requests to the corresponding handlers. Executors are injected as
+// stubs (notImplemented) until device-tier proof lands; the dispatch path is
+// complete so a Core host.request for these lanes reaches the handler (which
+// returns a structured notImplemented error), not a "capability not supported"
+// rejection.
 
 import Foundation
 import ReaderCoreProtocols
@@ -28,18 +38,33 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
     case hostHTTPFailed(String)
     case cookieJarNotConfigured
     case webViewExecutorNotConfigured
+    case antiBotExecutorNotConfigured
+    case mediaDownloadExecutorNotConfigured
 
     public var errorDescription: String? {
         switch self {
         case .runtimeNotBooted: return "Rust Core runtime is not booted"
         case .missingOperationId: return "host.request missing operationId"
         case .unexpectedHostRequestType(let t): return "expected host.request, got \(t)"
-        case .unexpectedCapability(let c): return "expected http.execute/cookie.get/cookie.set/webview.evaluateJavaScript, got \(c)"
+        case .unexpectedCapability(let c): return "expected http.execute/cookie.get/cookie.set/webview.evaluateJavaScript/anti_bot.challenge/media.download, got \(c)"
         case .hostHTTPFailed(let m): return "Host HTTP failed: \(m)"
         case .cookieJarNotConfigured: return "cookie.get/cookie.set requires a ScopedCookieJar"
         case .webViewExecutorNotConfigured: return "webview.evaluateJavaScript requires a WebViewExecutor"
+        case .antiBotExecutorNotConfigured: return "anti_bot.challenge requires an AntiBotExecutor"
+        case .mediaDownloadExecutorNotConfigured: return "media.download requires a MediaDownloadExecutor"
         }
     }
+}
+
+/// Internal error used to signal that the anti_bot lane detected a challenge
+/// (CHALLENGE_REQUIRED). The router catches this in `handleHostRequest` and
+/// sends `host.error` with the CHALLENGE_REQUIRED code and the diagnostics
+/// details, so Core can route the source into its `host_required` channel
+/// (fail-closed, no retry). Internal because this is an implementation detail
+/// of the router's dispatch; callers only see the `host.error` event sent into
+/// the runtime.
+internal struct AntiBotChallengeRequiredError: Error {
+    let diagnostics: [String: Any]
 }
 
 /// Routes Core `host.request` events to host-side executors and replies with
@@ -54,6 +79,14 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
 /// - `webview.evaluateJavaScript`: delegates to `WebViewExecutor`, returns
 ///   `{value: Any, finalUrl?, title?}`. Throws `webViewExecutorNotConfigured`
 ///   if no executor is wired.
+/// - `anti_bot.challenge`: delegates to `AntiBotChallengeHandler`, returns
+///   `{body, finalUrl}` on clean response or sends `host.error` with code
+///   `CHALLENGE_REQUIRED` on challenge detection. Throws
+///   `antiBotExecutorNotConfigured` if no executor is wired.
+/// - `media.download`: delegates to `MediaDownloadHandler`, returns
+///   `{resourceId, tempPath?, statusCode, contentType?, contentLength?, etag?,
+///   byteLength, sha256?, fromCache, finalUrl?}`. Throws
+///   `mediaDownloadExecutorNotConfigured` if no executor is wired.
 ///
 /// The router is a stateless helper: each call handles exactly one
 /// `host.request` event for one `requestId`. Callers (RustCore*Service)
@@ -64,21 +97,28 @@ public struct HostRequestRouter: Sendable {
     private let runtime: ReaderCoreNativeRuntime
     private let cookieJar: ScopedCookieJar?
     private let webViewExecutor: WebViewExecutor?
+    private let antiBotExecutor: AntiBotExecutor?
+    private let mediaDownloadExecutor: MediaDownloadExecutor?
 
     public init(
         httpClient: HTTPClient,
         runtime: ReaderCoreNativeRuntime,
         cookieJar: ScopedCookieJar? = nil,
-        webViewExecutor: WebViewExecutor? = nil
+        webViewExecutor: WebViewExecutor? = nil,
+        antiBotExecutor: AntiBotExecutor? = nil,
+        mediaDownloadExecutor: MediaDownloadExecutor? = nil
     ) {
         self.httpClient = httpClient
         self.runtime = runtime
         self.cookieJar = cookieJar
         self.webViewExecutor = webViewExecutor
+        self.antiBotExecutor = antiBotExecutor
+        self.mediaDownloadExecutor = mediaDownloadExecutor
     }
 
     /// Handle a single `host.request` event for `http.execute` / `cookie.get` /
-    /// `cookie.set` / `webview.evaluateJavaScript`:
+    /// `cookie.set` / `webview.evaluateJavaScript` / `anti_bot.challenge` /
+    /// `media.download`:
     /// 1. Dispatch on `capability` to the right host executor.
     /// 2. Send `host.complete` (with the executor's result) or `host.error`.
     public func handleHostRequest(_ event: ReaderCoreNativeEvent) async throws {
@@ -112,10 +152,28 @@ public struct HostRequestRouter: Sendable {
                 result = try await executeCookieSet(params: params)
             case "webview.evaluateJavaScript":
                 result = try await executeWebViewEvaluate(params: params)
+            case "anti_bot.challenge":
+                result = try executeAntiBotChallenge(params: params)
+            case "media.download":
+                result = try executeMediaDownload(params: params)
             default:
                 throw HostRequestRouterError.unexpectedCapability(capability)
             }
             try sendHostComplete(operationId: operationId, result: result)
+        } catch let challengeError as AntiBotChallengeRequiredError {
+            // anti_bot challenge detection: send host.error with the
+            // CHALLENGE_REQUIRED code + diagnostics details so Core can route
+            // the source into its host_required channel (fail-closed, no retry).
+            let diagnostics = challengeError.diagnostics
+            let code = diagnostics["code"] as? String ?? "CHALLENGE_REQUIRED"
+            let message = diagnostics["message"] as? String ?? "anti-bot challenge required"
+            let details = diagnostics["details"] as? [String: Any] ?? [:]
+            try sendHostError(
+                operationId: operationId,
+                code: code,
+                message: message,
+                details: details
+            )
         } catch {
             try sendHostError(
                 operationId: operationId,
@@ -128,6 +186,7 @@ public struct HostRequestRouter: Sendable {
     /// Supported capability names routed by this router.
     private static let supportedCapabilities: Set<String> = [
         "http.execute", "cookie.get", "cookie.set", "webview.evaluateJavaScript",
+        "anti_bot.challenge", "media.download",
     ]
 
     // MARK: - http.execute
@@ -268,6 +327,62 @@ public struct HostRequestRouter: Sendable {
         return try await WebViewEvaluateJavaScriptHandler(executor: executor).handle(params: params)
     }
 
+    // MARK: - anti_bot.challenge
+
+    /// Route `anti_bot.challenge` to `AntiBotChallengeHandler`. Throws if no
+    /// anti-bot executor is configured. On challenge detection, throws
+    /// `AntiBotChallengeRequiredError` (caught by `handleHostRequest` and
+    /// forwarded as `host.error` with code `CHALLENGE_REQUIRED`).
+    ///
+    /// The handler is a lane coordinator (not a single-shot CapabilityHandler):
+    /// it takes `url` / `headers` / `cookieJarId` rather than a params dict.
+    /// This method extracts those fields from the Core `host.request` params
+    /// (mirroring the `http.execute` field extraction) and adapts the
+    /// `AntiBotHandleResult` enum into a `host.complete` result dict
+    /// (`.completed`) or a `host.error` event (`.challengeRequired`).
+    internal func executeAntiBotChallenge(params: [String: Any]) throws -> [String: Any] {
+        guard let executor = antiBotExecutor else {
+            throw HostRequestRouterError.antiBotExecutorNotConfigured
+        }
+        let url = (params["url"] as? String) ?? ""
+        let headersDict = (params["headers"] as? [String: Any]) ?? [:]
+        let headers = headersDict.reduce(into: [String: String]()) { acc, kv in
+            if let s = kv.value as? String { acc[kv.key] = s }
+        }
+        let cookieJarId = params["cookieJarId"] as? String
+
+        let handler = AntiBotChallengeHandler(executor: executor)
+        let handleResult = try handler.handle(
+            url: url,
+            headers: headers,
+            cookieJarId: cookieJarId
+        )
+
+        switch handleResult {
+        case .completed(let body, let finalUrl):
+            return [
+                "body": body,
+                "finalUrl": finalUrl,
+            ]
+        case .challengeRequired(let diagnostics):
+            // Throwing here lets `handleHostRequest`'s catch block send
+            // `host.error` with the CHALLENGE_REQUIRED code + details, so Core
+            // routes the source into its `host_required` channel.
+            throw AntiBotChallengeRequiredError(diagnostics: diagnostics)
+        }
+    }
+
+    // MARK: - media.download
+
+    /// Route `media.download` to `MediaDownloadHandler`. Throws if no media
+    /// download executor is configured.
+    internal func executeMediaDownload(params: [String: Any]) throws -> [String: Any] {
+        guard let executor = mediaDownloadExecutor else {
+            throw HostRequestRouterError.mediaDownloadExecutorNotConfigured
+        }
+        return try MediaDownloadHandler(executor: executor).handle(params: params)
+    }
+
     // MARK: - host.complete / host.error
 
     /// Send `host.complete` for the given operationId with a pre-built result
@@ -291,24 +406,32 @@ public struct HostRequestRouter: Sendable {
         try runtime.send(json: json)
     }
 
-    /// Send `host.error` for the given operationId.
+    /// Send `host.error` for the given operationId. The optional `details`
+    /// dict is included in the error payload when present (e.g. anti-bot
+    /// challenge diagnostics carry `lane` / `challengeType` / `url` /
+    /// `autoRetryable` / `cookieJarId` for Core's `host_required` routing).
     private func sendHostError(
         operationId: UInt64,
         code: String,
-        message: String
+        message: String,
+        details: [String: Any]? = nil
     ) throws {
         let errorRequestId: UInt64 = 9_100_000_000 + operationId
+        var errorDict: [String: Any] = [
+            "code": code,
+            "message": message,
+            "retryable": false,
+        ]
+        if let details = details {
+            errorDict["details"] = details
+        }
         let payload: [String: Any] = [
             "protocolVersion": 1,
             "requestId": NSNumber(value: errorRequestId),
             "method": "host.error",
             "params": [
                 "operationId": NSNumber(value: operationId),
-                "error": [
-                    "code": code,
-                    "message": message,
-                    "retryable": false,
-                ] as [String: Any],
+                "error": errorDict,
             ] as [String: Any],
         ]
         let json = try JSONSerialization.data(withJSONObject: payload)

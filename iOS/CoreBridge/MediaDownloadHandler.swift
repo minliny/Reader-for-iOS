@@ -441,7 +441,8 @@ public final class StubMediaDownloadExecutor: MediaDownloadExecutor, @unchecked 
 
 /// Production URLSession executor for `media.download`.
 ///
-/// NOT YET IMPLEMENTED — this is a `fatalError` stub. Real URLSession download
+/// NOT YET IMPLEMENTED — this is a `notImplemented` stub (throws
+/// `MediaDownloadExecutorError.notImplemented`). Real URLSession download
 /// (range requests via the `Range` header, ETag/304 handling via
 /// `If-None-Match` / `If-Modified-Since`, sha256 hashing of the body,
 /// save-path management, cookie jar session affinity via `sessionId`,
@@ -453,12 +454,11 @@ public final class StubMediaDownloadExecutor: MediaDownloadExecutor, @unchecked 
 /// exists so the router can be wired with a real executor once device-tier
 /// proof lands, without changing the handler contract.
 public final class URLSessionMediaDownloadExecutor: MediaDownloadExecutor, @unchecked Sendable {
-    public init() {
-        fatalError("URLSessionMediaDownloadExecutor not implemented — device-headless beta")
-    }
+    public init() {}
 
     public func download(request: HostMediaDownloadRequest) throws -> HostMediaDownloadResult {
-        // Unreachable — init aborts before any instance can be constructed.
-        fatalError("URLSessionMediaDownloadExecutor not implemented — device-headless beta")
+        throw MediaDownloadExecutorError.notImplemented(
+            "URLSessionMediaDownloadExecutor production executor pending device-tier proof"
+        )
     }
 }

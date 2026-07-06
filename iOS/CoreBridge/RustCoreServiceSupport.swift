@@ -40,11 +40,35 @@ public enum RustCoreServiceSupport {
     /// runtime + the shared scoped cookie jar. The jar is injected so the router
     /// can serve `cookie.get` / `cookie.set` requests through the same boundary
     /// contract as `http.execute` (login_cookie lane parity with Android).
+    ///
+    /// The router is also wired with stub executors for the `webview_render`,
+    /// `anti_bot`, and `media_download` lanes so a Core `host.request` for
+    /// `webview.evaluateJavaScript` / `anti_bot.challenge` / `media.download`
+    /// reaches the corresponding handler (which returns a structured
+    /// `notImplemented` error from the stub executor), not a "capability not
+    /// supported" rejection. The executors are `notImplemented` stubs until
+    /// device-tier proof lands; real WKWebView / URLSession execution is a
+    /// separate task.
     public static func makeRouter(runtime: ReaderCoreNativeRuntime) -> HostRequestRouter {
-        HostRequestRouter(
+        // Stub executors for the webview_render / anti_bot / media_download
+        // lanes. These throw `notImplemented` so the round-trip completes with
+        // a structured `host.error` event (not a crash, not a capability
+        // rejection). Wrapped in `canImport(WebKit)` because `WKWebViewExecutor`
+        // and `WKAntiBotExecutor` are declared under that guard; on iOS WebKit
+        // is always available so the stubs are always injected.
+        var webViewExecutor: WebViewExecutor? = nil
+        var antiBotExecutor: AntiBotExecutor? = nil
+        #if canImport(WebKit)
+        webViewExecutor = WKWebViewExecutor()
+        antiBotExecutor = WKAntiBotExecutor()
+        #endif
+        return HostRequestRouter(
             httpClient: URLSessionHTTPClient(cookieJar: sharedCookieJar),
             runtime: runtime,
-            cookieJar: sharedCookieJar
+            cookieJar: sharedCookieJar,
+            webViewExecutor: webViewExecutor,
+            antiBotExecutor: antiBotExecutor,
+            mediaDownloadExecutor: URLSessionMediaDownloadExecutor()
         )
     }
 
