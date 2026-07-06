@@ -27,15 +27,17 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
     case unexpectedCapability(String)
     case hostHTTPFailed(String)
     case cookieJarNotConfigured
+    case webViewExecutorNotConfigured
 
     public var errorDescription: String? {
         switch self {
         case .runtimeNotBooted: return "Rust Core runtime is not booted"
         case .missingOperationId: return "host.request missing operationId"
         case .unexpectedHostRequestType(let t): return "expected host.request, got \(t)"
-        case .unexpectedCapability(let c): return "expected http.execute/cookie.get/cookie.set, got \(c)"
+        case .unexpectedCapability(let c): return "expected http.execute/cookie.get/cookie.set/webview.evaluateJavaScript, got \(c)"
         case .hostHTTPFailed(let m): return "Host HTTP failed: \(m)"
         case .cookieJarNotConfigured: return "cookie.get/cookie.set requires a ScopedCookieJar"
+        case .webViewExecutorNotConfigured: return "webview.evaluateJavaScript requires a WebViewExecutor"
         }
     }
 }
@@ -49,6 +51,9 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
 /// - `cookie.get`: reads cookies from `ScopedCookieJar` for the URL's host/path,
 ///   returns `{cookies: [{name, value, domain, path, secure?, httpOnly?, expiresAt?}]}`.
 /// - `cookie.set`: writes a cookie into `ScopedCookieJar`, returns `{stored: true}`.
+/// - `webview.evaluateJavaScript`: delegates to `WebViewExecutor`, returns
+///   `{value: Any, finalUrl?, title?}`. Throws `webViewExecutorNotConfigured`
+///   if no executor is wired.
 ///
 /// The router is a stateless helper: each call handles exactly one
 /// `host.request` event for one `requestId`. Callers (RustCore*Service)
@@ -58,19 +63,22 @@ public struct HostRequestRouter: Sendable {
     private let httpClient: HTTPClient
     private let runtime: ReaderCoreNativeRuntime
     private let cookieJar: ScopedCookieJar?
+    private let webViewExecutor: WebViewExecutor?
 
     public init(
         httpClient: HTTPClient,
         runtime: ReaderCoreNativeRuntime,
-        cookieJar: ScopedCookieJar? = nil
+        cookieJar: ScopedCookieJar? = nil,
+        webViewExecutor: WebViewExecutor? = nil
     ) {
         self.httpClient = httpClient
         self.runtime = runtime
         self.cookieJar = cookieJar
+        self.webViewExecutor = webViewExecutor
     }
 
     /// Handle a single `host.request` event for `http.execute` / `cookie.get` /
-    /// `cookie.set`:
+    /// `cookie.set` / `webview.evaluateJavaScript`:
     /// 1. Dispatch on `capability` to the right host executor.
     /// 2. Send `host.complete` (with the executor's result) or `host.error`.
     public func handleHostRequest(_ event: ReaderCoreNativeEvent) async throws {
@@ -102,6 +110,8 @@ public struct HostRequestRouter: Sendable {
                 result = try await executeCookieGet(params: params)
             case "cookie.set":
                 result = try await executeCookieSet(params: params)
+            case "webview.evaluateJavaScript":
+                result = try await executeWebViewEvaluate(params: params)
             default:
                 throw HostRequestRouterError.unexpectedCapability(capability)
             }
@@ -117,7 +127,7 @@ public struct HostRequestRouter: Sendable {
 
     /// Supported capability names routed by this router.
     private static let supportedCapabilities: Set<String> = [
-        "http.execute", "cookie.get", "cookie.set",
+        "http.execute", "cookie.get", "cookie.set", "webview.evaluateJavaScript",
     ]
 
     // MARK: - http.execute
@@ -245,6 +255,17 @@ public struct HostRequestRouter: Sendable {
             throw HostRequestRouterError.cookieJarNotConfigured
         }
         return try await CookieSetHandler(cookieJar: jar).handle(params: params)
+    }
+
+    // MARK: - webview.evaluateJavaScript
+
+    /// Route `webview.evaluateJavaScript` to `WebViewEvaluateJavaScriptHandler`.
+    /// Throws if no WebView executor is configured on this router.
+    internal func executeWebViewEvaluate(params: [String: Any]) async throws -> [String: Any] {
+        guard let executor = webViewExecutor else {
+            throw HostRequestRouterError.webViewExecutorNotConfigured
+        }
+        return try await WebViewEvaluateJavaScriptHandler(executor: executor).handle(params: params)
     }
 
     // MARK: - host.complete / host.error
