@@ -9,12 +9,21 @@ struct ReaderSourceSwitchFlowView: View {
     @State private var resultState: SourceSwitchResultState = .browsing
     @State private var confirmedCandidate: SourceSwitchCandidate?
 
-    init(bookURL: String, onExit: (() -> Void)? = nil) {
+    init(
+        bookURL: String,
+        onExit: (() -> Void)? = nil,
+        initialResultState: SourceSwitchResultState = .browsing
+    ) {
         self.bookURL = bookURL
         self.onExit = onExit
         let candidates = SourceSwitchCandidate.demoCandidates.sortedByLatency()
+        let initialCandidate = initialResultState == .confirmed
+            ? candidates.first(where: { $0.canSwitch }) ?? candidates.first ?? SourceSwitchCandidate.fallback
+            : candidates.first(where: { $0.state == "当前" }) ?? candidates.first ?? SourceSwitchCandidate.fallback
         self.candidates = candidates
-        self._selectedSource = State(initialValue: candidates.first(where: { $0.state == "当前" })?.source ?? candidates.first?.source ?? "")
+        self._selectedSource = State(initialValue: initialCandidate.source)
+        self._resultState = State(initialValue: initialResultState)
+        self._confirmedCandidate = State(initialValue: initialResultState == .confirmed ? initialCandidate : nil)
     }
 
     private var selectedCandidate: SourceSwitchCandidate {

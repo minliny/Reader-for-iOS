@@ -136,7 +136,9 @@ struct DemoPaperScreen<Content: View>: View {
             .padding(.bottom, bottomPadding)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        // demo body/`.fd-phone` 真源是 `--fd-paper-solid` #f8f4ec（`paperSolidAlt`），
+        // 不是 `--reader-ds-color-paper` #fff8f4（`paperSolid`）。
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
     }
 }
 
@@ -321,7 +323,7 @@ struct DemoTopBar<Actions: View>: View {
         .padding(.horizontal, ReaderDesignTokens.topBarHorizontalPadding)
         .padding(.top, ReaderDesignTokens.topBarTopPadding)
         .frame(minHeight: ReaderDesignTokens.topBarMinHeight)
-        .background(ReaderDesignTokens.Color.paperSolid)
+        .background(ReaderDesignTokens.Color.paperSolidAlt)
     }
 }
 
@@ -365,7 +367,7 @@ struct DemoBackBar<Trailing: View>: View {
         .padding(.horizontal, ReaderDesignTokens.topBarHorizontalPadding)
         .padding(.top, ReaderDesignTokens.topBarTopPadding)
         .frame(minHeight: ReaderDesignTokens.topBarMinHeight)
-        .background(ReaderDesignTokens.Color.paperSolid)
+        .background(ReaderDesignTokens.Color.paperSolidAlt)
     }
 }
 

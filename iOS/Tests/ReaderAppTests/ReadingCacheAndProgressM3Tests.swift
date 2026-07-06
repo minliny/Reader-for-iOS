@@ -242,6 +242,47 @@ final class ReadingCacheAndProgressM3Tests: XCTestCase {
         }
     }
 
+    func testDemoBookshelfChapterIgnoresStaleBlankSnapshot() async {
+        let demoItem = DemoBookshelfFixture.items[0]
+        let chapterURL = demoItem.lastReadChapterURL ?? demoItem.bookURL
+        let chapterList = demoItem.localChapterList ?? []
+        let snapStore = SnapshotStore(
+            snapshotRoot: URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("demo_reader_stale_\(UUID().uuidString)")
+        )
+        _ = snapStore.saveContentSnapshot(
+            sourceId: demoItem.sourceID,
+            sourceName: demoItem.sourceName ?? DemoBookshelfFixture.sourceName,
+            host: "frontend-demo",
+            chapterURL: chapterURL,
+            chapterTitle: "",
+            content: "",
+            nextChapterURL: nil
+        )
+
+        let readerVM = ReaderViewModel(
+            chapterURL: chapterURL,
+            chapterTitle: demoItem.lastReadChapterTitle ?? "继续阅读",
+            chapterList: chapterList,
+            currentChapterIndex: chapterList.firstIndex { $0.chapterURL == chapterURL } ?? 0,
+            bookID: demoItem.id,
+            sourceID: demoItem.sourceID,
+            snapshotStore: snapStore
+        )
+
+        await readerVM.loadContent()
+
+        switch readerVM.readerState {
+        case .loaded(let page):
+            XCTAssertEqual(page.chapterURL, chapterURL)
+            XCTAssertTrue(page.content.contains(DemoReaderFixture.readingText[0]))
+        case .cached:
+            XCTFail("Demo bookshelf chapters must not be shadowed by stale local snapshots")
+        default:
+            XCTFail("Expected demo bookshelf chapter to render canonical reader fixture, got \(readerVM.readerState)")
+        }
+    }
+
     // MARK: - M2 Regression: Reading Progress Still Works
 
     func testReadingProgressStoreNoRealNetwork() {

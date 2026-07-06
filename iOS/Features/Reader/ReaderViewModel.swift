@@ -126,6 +126,13 @@ public final class ReaderViewModel: ObservableObject {
     public func loadContent() async {
         readerState = .loading
 
+        // Demo routes must stay anchored to the canonical frontend fixture.
+        // A stale simulator snapshot for `frontend-demo` should not turn the
+        // audit surface into an empty paper background.
+        if loadFrontendDemoContentIfNeeded() {
+            return
+        }
+
         // M3: Try reading cache first (offline-capable)
         if let sid = sourceID, !sid.isEmpty {
             if let cached = snapshotStore.loadChapterContentSnapshot(sourceId: sid, chapterURL: chapterURL) {
@@ -144,11 +151,6 @@ public final class ReaderViewModel: ObservableObject {
                 }
                 return
             }
-        }
-
-        if isFrontendDemoChapter {
-            readerState = .loaded(content: frontendDemoContentPage())
-            return
         }
 
         // B.3: Local books must not fall back to network providers.
@@ -188,6 +190,13 @@ public final class ReaderViewModel: ObservableObject {
 
     public func reload() async {
         await loadContent()
+    }
+
+    @discardableResult
+    public func loadFrontendDemoContentIfNeeded() -> Bool {
+        guard isFrontendDemoChapter else { return false }
+        readerState = .loaded(content: frontendDemoContentPage())
+        return true
     }
 
     // MARK: - Chapter Navigation

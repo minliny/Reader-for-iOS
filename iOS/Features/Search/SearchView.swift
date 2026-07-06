@@ -14,7 +14,7 @@ public struct SearchView: View {
         case source = "书源"
     }
 
-    @StateObject private var viewModel = SearchViewModel()
+    @StateObject private var viewModel: SearchViewModel
     @StateObject private var bookshelfVM = BookshelfViewModel()
     @AppStorage("search_history") private var historyData: Data = Data()
     @State private var searchHistory: [String] = []
@@ -27,6 +27,13 @@ public struct SearchView: View {
     private let onExit: (() -> Void)?
 
     public init(initialQuery: String = "", onExit: (() -> Void)? = nil) {
+        self.init(initialQuery: initialQuery, demoState: .idle, onExit: onExit)
+    }
+
+    init(initialQuery: String = "", demoState: SearchState, onExit: (() -> Void)? = nil) {
+        self._viewModel = StateObject(
+            wrappedValue: SearchViewModel(initialKeyword: initialQuery, initialSearchState: demoState)
+        )
         self.initialQuery = initialQuery
         self.onExit = onExit
     }

@@ -38,8 +38,14 @@ public final class BookshelfViewModel: ObservableObject {
 
     private let store: BookshelfStore
 
-    public init(store: BookshelfStore = .shared) {
+    public init(store: BookshelfStore = .shared, initialState: BookshelfState? = nil) {
         self.store = store
+        if let initialState {
+            bookshelfState = initialState
+            if case .loaded(let items) = initialState {
+                self.items = items
+            }
+        }
     }
 
     public func loadItems() async {

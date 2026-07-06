@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 import ReaderAppSupport
 import ReaderAppPersistence
 import ReaderCoreModels
@@ -69,6 +72,8 @@ public struct BookshelfView: View {
         self._viewModel = StateObject(wrappedValue: BookshelfViewModel(initialState: initialState))
         self._bookshelfFilterOpen = State(initialValue: initialDemoRoute == "sort-filter")
         self._focusedBookshelfItem = State(initialValue: initialDemoRoute == "bookshelf-book-more-menu" ? DemoBookshelfFixture.items.first : nil)
+        // 对齐 demo `mainTabBookshelf(view=cover|list)`：cover-mode/list-mode 显式设初始 display mode。
+        self._bookshelfDisplayMode = State(initialValue: initialDemoRoute == "bookshelf-list-mode" ? .list : .cover)
         if let navigationState {
             self._navigationState = ObservedObject(wrappedValue: navigationState)
         } else {
@@ -92,7 +97,7 @@ public struct BookshelfView: View {
                 bookshelfStateView
             }
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
         .overlay {
             ZStack {
                 bookshelfOverlayLayer
@@ -103,6 +108,10 @@ public struct BookshelfView: View {
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
+        // NavigationStack 即使 `.toolbar(.hidden, for: .navigationBar)` 仍会预留 ~132pt 导航栏 safe area，
+        // 把 DemoTopBar 推到 y≈132pt。当 BookshelfView 自带 top bar（测试/独立预览）时忽略顶部 safe area，
+        // 让 top bar 回到 y≈6pt（对齐 web demo）。AppShellView 内嵌时 showsTopBar=false，safe area 由 shell 承载。
+        .ignoresSafeArea(.container, edges: showsTopBar ? .top : [])
         .onAppear {
             guard autoloadOnAppear else { return }
             Task { await viewModel.loadItems() }
@@ -807,8 +816,9 @@ private struct BookshelfCoverFrame: View {
             RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(ReaderDesignTokens.Color.overlayWhite58)
 
-            if let demoCoverAssetName {
-                Image(demoCoverAssetName)
+            #if canImport(UIKit)
+            if let demoCoverPNG {
+                Image(uiImage: demoCoverPNG)
                     .resizable()
                     .scaledToFill()
             } else if let url = coverURL {
@@ -825,6 +835,9 @@ private struct BookshelfCoverFrame: View {
             } else {
                 placeholder
             }
+            #else
+            placeholder
+            #endif
         }
         .aspectRatio(ReaderDesignTokens.bookCoverAspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -861,30 +874,21 @@ private struct BookshelfCoverFrame: View {
         return URL(fileURLWithPath: coverURL)
     }
 
-    private var demoCoverAssetName: String? {
+    /// 从内联 base64 数据加载 demo 封面 PNG。
+    /// `demo-cover://<key>` → `DemoCoverImageStore.uiImage(forCoverKey:)`。
+    /// 资源通过 `DemoCoverImagesData.swift` 内联，避免 SPM 资源 bundle 在
+    /// xcodebuild 下的不稳定性（`SWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE`）。
+    #if canImport(UIKit)
+    private var demoCoverPNG: UIImage? {
         guard let coverURL = item.coverURL,
               let url = URL(string: coverURL),
               url.scheme == "demo-cover" else {
             return nil
         }
         let key = url.host ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        switch key {
-        case "longNight":
-            return "demo-cover-long-night"
-        case "mysteryLord":
-            return "demo-cover-mystery-lord"
-        case "brightMoon":
-            return "demo-cover-bright-moon"
-        case "threeBody":
-            return "demo-cover-three-body"
-        case "renjian":
-            return "demo-cover-renjian-cihua"
-        case "androidNotes":
-            return "demo-cover-android-notes"
-        default:
-            return nil
-        }
+        return DemoCoverImageStore.uiImage(forCoverKey: key)
     }
+    #endif
 }
 
 private struct BookshelfCoverAction<Content: View>: View {

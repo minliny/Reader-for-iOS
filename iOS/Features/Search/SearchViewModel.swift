@@ -54,10 +54,12 @@ public final class SearchViewModel: ObservableObject {
 
     public init(
         initialKeyword: String = "",
+        initialSearchState: SearchState = .idle,
         store: BookSourceStore = .shared,
         provider: ReaderCoreServiceProvider? = nil
     ) {
         self.keyword = initialKeyword
+        self.searchState = initialSearchState
         self.store = store
         self.provider = provider ?? ReaderCoreServiceProvider.shared
         Task {

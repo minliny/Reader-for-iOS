@@ -148,10 +148,14 @@ public struct RSSFeedView: View {
                 )
             }
         }
-        .background(ReaderDesignTokens.Color.paperSolid.ignoresSafeArea())
+        .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
+        // NavigationStack 即使 `.toolbar(.hidden, for: .navigationBar)` 仍会预留 ~132pt 导航栏 safe area，
+        // 把 DemoTopBar 推到 y≈132pt。当 RSSFeedView 自带 top bar（测试/独立预览）时忽略顶部 safe area，
+        // 让 top bar 回到 y≈6pt（对齐 web demo）。AppShellView 内嵌时 showsTopBar=false，safe area 由 shell 承载。
+        .ignoresSafeArea(.container, edges: showsTopBar ? .top : [])
         .task {
             guard loadsLiveSubscriptions else { return }
             await viewModel.loadSubscriptions()
@@ -722,7 +726,7 @@ struct RSSRootTopBar: View {
         .padding(.horizontal, ReaderDesignTokens.topBarHorizontalPadding)
         .padding(.top, ReaderDesignTokens.topBarTopPadding)
         .frame(minHeight: ReaderDesignTokens.topBarMinHeight)
-        .background(ReaderDesignTokens.Color.paperSolid)
+        .background(ReaderDesignTokens.Color.paperSolidAlt)
     }
 }
 

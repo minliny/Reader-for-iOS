@@ -19,10 +19,13 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
     func testBookshelfRouteFamilyRendersDemoSurfacesOnSimulator() {
         let navigationState = AppNavigationState()
 
+        // bookshelf-root / bookshelf-book-more-menu / sort-filter 走 LazyVGrid 渲染真实封面，
+        // 需要 wait≥0.6 让 demoCoverPNG 解码 + layout 落定，否则截图会是空纸面。
         assertRenders(
-            NavigationStack { BookshelfView(navigationState: navigationState) },
+            NavigationStack { BookshelfView(demoRoute: "bookshelf", navigationState: navigationState) },
             family: "bookshelf",
-            name: "root"
+            name: "root",
+            wait: 0.6
         )
         assertRenders(NavigationStack { SearchView(initialQuery: "长夜余火") }, family: "bookshelf", name: "search")
         assertRenders(
@@ -37,10 +40,56 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         )
         assertRenders(NavigationStack { BookshelfBatchManagementView() }, family: "bookshelf", name: "batch")
         assertRenders(NavigationStack { BookshelfGroupManagementView() }, family: "bookshelf", name: "groups")
+        assertRenders(NavigationStack { BookshelfGroupManagementView() }, family: "bookshelf", name: "bookshelf-group-management")
         assertRenders(NavigationStack { BookshelfLocalImportView() }, family: "bookshelf", name: "local-import")
+        // bookshelf-cover-mode / bookshelf-list-mode 对齐 demo `mainTabBookshelf(view=cover|list)`，
+        // 用真实 BookshelfView + 初始 display mode，而非 PrototypeGalleryView 里的占位 prototype。
+        assertRenders(NavigationStack { BookshelfView(demoRoute: "bookshelf-cover-mode") }, family: "bookshelf", name: "bookshelf-cover-mode", wait: 0.6)
+        assertRenders(NavigationStack { BookshelfView(demoRoute: "bookshelf-list-mode") }, family: "bookshelf", name: "bookshelf-list-mode", wait: 0.6)
+        assertRenders(NavigationStack { BookshelfEmptyPrototype() }, family: "bookshelf", name: "bookshelf-empty")
+        assertRenders(NavigationStack { BookDetailTOCPrototype() }, family: "bookshelf", name: "book-detail-toc-preview")
+        // bookshelf-book-more-menu 在 web demo 是 contractStaticRouteScreen（静态合同页），
+        // 不是交互式书架。用 ContractStaticRouteScreen 对齐 web 语义。
+        assertRenders(
+            NavigationStack {
+                ContractStaticRouteScreen(
+                    route: "bookshelf-book-more-menu",
+                    title: "书籍更多菜单",
+                    shell: "MainTabShell",
+                    activeType: "bookshelf",
+                    iconName: "more",
+                    summary: "书籍长按或更多菜单的静态合同页；平台实现应展示真实选中书籍上下文、焦点恢复和系统返回行为。",
+                    actions: [
+                        ("批量管理", "book-batch-management"),
+                        ("书籍详情", "book-detail")
+                    ]
+                )
+            },
+            family: "bookshelf",
+            name: "bookshelf-book-more-menu",
+            wait: 0.6
+        )
+        assertRenders(NavigationStack { BookshelfView(demoRoute: "sort-filter") }, family: "bookshelf", name: "sort-filter", wait: 0.6)
     }
 
     func testReaderRouteFamilyRendersResponsiveDemoSurfacesOnSimulator() {
+        assertRenders(
+            NavigationStack {
+                ReaderView(
+                    chapterURL: "demo://chapter/32",
+                    chapterTitle: "第 32 章 雨夜",
+                    chapterList: demoChapterList,
+                    currentChapterIndex: 1,
+                    bookID: "demo-book",
+                    sourceID: "demo-source",
+                    immersiveStart: true
+                )
+            },
+            family: "reader",
+            name: "immersive-reading",
+            wait: 0.6
+        )
+
         assertRenders(
             NavigationStack {
                 ReaderView(
@@ -54,7 +103,8 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
                 )
             },
             family: "reader",
-            name: "reader-phone"
+            name: "reader-phone",
+            wait: 0.6
         )
 
         for route in DemoRouteMappings.expectedReaderShellRoutes where route != "immersive-reading" && route != "reader" {
@@ -71,6 +121,22 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
             family: "reader",
             name: "tablet-right-dock",
             size: tablet
+        )
+
+        assertRenders(
+            NavigationStack { ReaderSourceSwitchFlowView(bookURL: "demo://book/lighthouse") },
+            family: "reader",
+            name: "source-switch"
+        )
+        assertRenders(
+            NavigationStack {
+                ReaderSourceSwitchFlowView(
+                    bookURL: "demo://book/lighthouse",
+                    initialResultState: .confirmed
+                )
+            },
+            family: "reader",
+            name: "source-switch-results"
         )
 
         assertReaderVisualAudit(size: phone, expectedClass: .phonePortrait)
@@ -129,6 +195,9 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
             "rss-source-category-releases",
             "rss-source-category-issues",
             "rss-source-category-discussions",
+            "rss-source-category-novel",
+            "rss-source-category-tech",
+            "rss-source-category-booklist",
             "rss-refreshing"
         ] {
             assertRenders(NavigationStack { RSSFeedView(demoRoute: route) }, family: "rss", name: route)
@@ -152,8 +221,50 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         assertRenders(NavigationStack { RSSSubscriptionManagementView() }, family: "rss", name: "subscription-management")
         assertRenders(NavigationStack { RSSSourceActionsView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "source-actions")
         assertRenders(NavigationStack { RSSSearchView() }, family: "rss", name: "search")
+        assertRenders(NavigationStack { RSSReadRecordView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-read-record")
+        assertRenders(NavigationStack { RSSRecordClearConfirmView() }, family: "rss", name: "rss-record-clear")
+        assertRenders(NavigationStack { RSSSourceEditView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-source-edit")
+        assertRenders(NavigationStack { RSSSourceEditView(sourceID: "new", title: "新增 RSS 源") }, family: "rss", name: "rss-source-add")
+        assertRenders(NavigationStack { RSSSourceDebugView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-source-debug")
+        assertRenders(NavigationStack { RSSSourceVarsView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-source-vars")
+        assertRenders(NavigationStack { RSSSourceLoginView(sourceID: "source-maintenance", title: "书源维护公告") }, family: "rss", name: "rss-source-login")
+        assertRenders(NavigationStack { RSSSourceLoginWebView(sourceID: "source-maintenance", title: "书源维护公告") }, family: "rss", name: "rss-source-login-web")
+        assertRenders(NavigationStack { RSSSourceLoginCookieView(sourceID: "source-maintenance", title: "书源维护公告") }, family: "rss", name: "rss-source-login-cookie")
+        assertRenders(NavigationStack { RSSSourceLoginClearView(sourceID: "source-maintenance", title: "书源维护公告") }, family: "rss", name: "rss-source-login-clear")
+        assertRenders(NavigationStack { RSSSourceGroupsView() }, family: "rss", name: "rss-source-groups")
+        assertRenders(NavigationStack { RSSSourceGroupEditView(groupID: "open-source", title: "开源项目") }, family: "rss", name: "rss-source-group-edit")
+        assertRenders(NavigationStack { RSSSourceBatchView() }, family: "rss", name: "rss-source-batch")
+        assertRenders(NavigationStack { RSSSourceExportView() }, family: "rss", name: "rss-source-export")
+        assertRenders(NavigationStack { RSSSourceExportDetailView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-source-export-detail")
+        assertRenders(NavigationStack { RSSSourceExportResultView() }, family: "rss", name: "rss-source-export-result")
+        assertRenders(NavigationStack { RSSSourcePinConfirmView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-source-pin")
+        assertRenders(NavigationStack { RSSSourceDisableConfirmView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-source-disable")
+        assertRenders(NavigationStack { RSSSourceBatchDisableConfirmView() }, family: "rss", name: "rss-source-batch-disable")
+        assertRenders(NavigationStack { RSSSourceDeleteConfirmView(sourceID: "github-releases", title: "GitHub Releases") }, family: "rss", name: "rss-source-delete-confirm")
+        assertRenders(NavigationStack { RSSSourceImportView() }, family: "rss", name: "rss-source-import")
+        assertRenders(NavigationStack { RSSSourceImportDetailView(sourceID: "source-maintenance", title: "书源维护公告") }, family: "rss", name: "rss-source-import-detail")
+        assertRenders(NavigationStack { RSSSourceImportResultView() }, family: "rss", name: "rss-source-import-result")
+        assertRenders(NavigationStack { RSSRuleSubscriptionView() }, family: "rss", name: "rss-rule-subscription")
+        assertRenders(NavigationStack { RSSRuleSubscriptionDetailView(subscriptionID: "community-rss", title: "社区 RSS 源订阅") }, family: "rss", name: "rss-rule-subscription-detail")
+        assertRenders(NavigationStack { RSSRuleSubscriptionEditView(subscriptionID: "community-rss", title: "社区 RSS 源订阅") }, family: "rss", name: "rss-rule-subscription-edit")
+        assertRenders(NavigationStack { RSSRuleSubscriptionEditView(subscriptionID: "new-subscription", title: "新增规则订阅") }, family: "rss", name: "rss-rule-subscription-create")
+        assertRenders(NavigationStack { RSSRuleSubscriptionTestView(subscriptionID: "community-rss", title: "社区 RSS 源订阅") }, family: "rss", name: "rss-rule-subscription-test")
+        assertRenders(NavigationStack { RSSRuleSubscriptionApplyConfirmView(subscriptionID: "community-rss", title: "社区 RSS 源订阅") }, family: "rss", name: "rss-rule-subscription-apply")
+        assertRenders(NavigationStack { RSSFavoriteGroupsView() }, family: "rss", name: "rss-favorite-groups")
+        assertRenders(NavigationStack { RSSFavoriteGroupEditView(groupID: "default", title: "默认分组") }, family: "rss", name: "rss-favorite-group-edit")
+        assertRenders(NavigationStack { RSSFavoriteGroupEditView(groupID: "new", title: "新建收藏分组") }, family: "rss", name: "rss-favorite-add")
+        assertRenders(NavigationStack { RSSFavoriteClearConfirmView() }, family: "rss", name: "rss-favorite-clear")
+        assertRenders(NavigationStack { RSSFavoriteRemoveConfirmView(groupName: "默认分组") }, family: "rss", name: "rss-favorite-remove")
         assertRenders(NavigationStack { RSSStateView(kind: .empty) }, family: "rss", name: "empty")
         assertRenders(NavigationStack { RSSStateView(kind: .error) }, family: "rss", name: "error")
+    }
+
+    func testSearchAndDetailPrototypeRoutesRenderOnSimulator() {
+        assertRenders(NavigationStack { SearchHomePrototype() }, family: "search", name: "search-home")
+        assertRenders(NavigationStack { SearchView(initialQuery: "长夜余火", demoState: .loading) }, family: "search", name: "search-loading")
+        assertRenders(NavigationStack { SearchResultsPrototype() }, family: "search", name: "search-results")
+        assertRenders(NavigationStack { SearchEmptyPrototype() }, family: "search", name: "search-empty")
+        assertRenders(NavigationStack { SearchErrorPrototype() }, family: "search", name: "search-error")
     }
 
     func testSettingsBackupImportAndSharedStateFamiliesRenderOnSimulator() {
@@ -191,6 +302,9 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         assertRenders(shell, family: "app-shell", name: "phone", size: phone)
         assertRenders(shell, family: "app-shell", name: "expanded-width-bottom-nav", size: expandedWidth)
         assertRenders(shell, family: "app-shell", name: "tablet-left-rail", size: tablet)
+        // demo `main-tabs` 与 `bookshelf-cover-mode` 同源：mainTabBookshelf(view=cover)。
+        // 用真实 BookshelfView + cover mode，对齐 web contract，而非 AppShellPrototype 占位。
+        assertRenders(NavigationStack { BookshelfView(demoRoute: "bookshelf-cover-mode") }, family: "app-shell", name: "main-tabs", size: phone, wait: 0.6)
 
         XCTAssertEqual(ReaderDesignTokens.tabletNavWidth, 82)
         XCTAssertEqual(ReaderDesignTokens.tabletNavItemHeight, 58)
@@ -266,6 +380,7 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         family: String,
         name: String,
         size: CGSize = CGSize(width: 390, height: 844),
+        wait: TimeInterval = 0.03,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -277,12 +392,22 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         host.view.frame = window.bounds
         host.view.setNeedsLayout()
         host.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        RunLoop.main.run(until: Date().addingTimeInterval(wait))
+        // 实际渲染 ReaderView 等异步内容（demo chapter）需要二次 layout：
+        // onAppear → Task { await loadContent() } → readerState=.loaded → SwiftUI 重建
+        if wait > 0.03 {
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(wait))
+        }
 
         var rendered = false
         let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { _ in
-            rendered = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+        let image = renderer.image { ctx in
+            // iOS 26.5 模拟器上 drawHierarchy(afterScreenUpdates: true) 产出全黑图，
+            // 改用 layer.render(in:) 同步渲染 Core Animation 层级，不依赖 GPU 渲染管线。
+            host.view.layer.render(in: ctx.cgContext)
+            rendered = true
         }
 
         XCTAssertTrue(rendered, "\(family)/\(name) should render through UIKit on Simulator", file: file, line: line)
@@ -328,10 +453,15 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(wait))
         host.view.setNeedsLayout()
         host.view.layoutIfNeeded()
+        if wait > 0.03 {
+            RunLoop.main.run(until: Date().addingTimeInterval(wait))
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+        }
 
         let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { _ in
-            XCTAssertTrue(host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true), file: file, line: line)
+        let image = renderer.image { ctx in
+            host.view.layer.render(in: ctx.cgContext)
         }
         window.isHidden = true
         return image
@@ -377,6 +507,14 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
             }
         }
 
+        if darkPixelCount <= 900 {
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "\(name)-visible-text-diagnostic"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            writeTextAuditDiagnostic(image, name: name)
+        }
+
         XCTAssertGreaterThan(
             darkPixelCount,
             900,
@@ -384,6 +522,22 @@ final class DemoRouteFamilySimulatorSmokeTests: XCTestCase {
             file: file,
             line: line
         )
+    }
+
+    private func writeTextAuditDiagnostic(_ image: UIImage, name: String) {
+        guard let data = image.pngData() else {
+            return
+        }
+        let diagnosticsURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("reader-ios-demo-smoke-diagnostics", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: diagnosticsURL, withIntermediateDirectories: true)
+            let outputURL = diagnosticsURL.appendingPathComponent("\(sanitizePathComponent(name))-visible-text.png")
+            try data.write(to: outputURL, options: .atomic)
+            print("[DemoRouteFamilySimulatorSmokeTests] wrote diagnostic screenshot \(outputURL.path)")
+        } catch {
+            XCTFail("\(name) diagnostic screenshot write failed: \(error)")
+        }
     }
 
     private func writeScreenshot(

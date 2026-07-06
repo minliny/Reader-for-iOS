@@ -77,7 +77,8 @@ let package = Package(
                 .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
                 .product(name: "ReaderCoreServices", package: "Reader-Core"),
                 .product(name: "ReaderCoreAPI", package: "Reader-Core"),
-                .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
+                .product(name: "ReaderPlatformAdapters", package: "Reader-Core"),
+                .product(name: "ReaderUIContract", package: "Reader UI")
             ],
             path: ".",
             exclude: [
@@ -138,6 +139,7 @@ let package = Package(
             path: ".",
             exclude: [
                 "App/Persistence",
+                "App/Resources",
                 "AppSupport",
                 "build",
                 "CoreIntegration",

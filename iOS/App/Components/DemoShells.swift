@@ -137,6 +137,9 @@ struct DemoLibraryShell<Content: View, Trailing: View, BottomActionHost: View, S
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        // NavigationStack 即使 `.toolbar(.hidden, for: .navigationBar)` 仍会预留 ~132pt 导航栏 safe area，
+        // 把 DemoBackBar 推到 y≈132pt。忽略顶部 safe area 让 top bar 回到 y≈6pt（对齐 web demo）。
+        .ignoresSafeArea(.container, edges: .top)
 #endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-library-shell")
@@ -266,6 +269,9 @@ struct DemoSettingsShell<Content: View, Trailing: View, BottomActionHost: View, 
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .tabBar)
+        // NavigationStack 即使 `.toolbar(.hidden, for: .navigationBar)` 仍会预留 ~132pt 导航栏 safe area，
+        // 把 DemoBackBar 推到 y≈132pt。忽略顶部 safe area 让 top bar 回到 y≈6pt（对齐 web demo）。
+        .ignoresSafeArea(.container, edges: .top)
 #endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-settings-shell")
@@ -321,6 +327,9 @@ struct DemoReaderShell<ReadingSurface: View, OverlayHost: View, BottomSheetHost:
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .tabBar)
+        // NavigationStack 即使 `.toolbar(.hidden, for: .navigationBar)` 仍会预留 ~132pt 导航栏 safe area。
+        // 忽略顶部 safe area 让 reader shell 内容回到 y≈0pt（对齐 web demo）。
+        .ignoresSafeArea(.container, edges: .top)
 #endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-reader-frame")
@@ -405,6 +414,9 @@ struct DemoFlowShell<StepRegion: View, ComparisonRegion: View, ResultRegion: Vie
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
+        // NavigationStack 即使 `.toolbar(.hidden, for: .navigationBar)` 仍会预留 ~132pt 导航栏 safe area。
+        // 忽略顶部 safe area 让 flow shell 内容回到 y≈0pt（对齐 web demo）。
+        .ignoresSafeArea(.container, edges: .top)
 #endif
         .mainTabBarVisible(false)
         .accessibilityIdentifier("fd-flow-frame")

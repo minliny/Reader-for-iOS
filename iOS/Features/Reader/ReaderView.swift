@@ -63,7 +63,7 @@ public struct ReaderView: View {
 #endif
         .mainTabBarVisible(false)
         .onAppear {
-            Task { await viewModel.loadContent() }
+            loadContentOnAppear()
             brightnessController.apply(BrightnessPolicy(
                 enabled: viewModel.displaySettings.brightnessOverrideEnabled,
                 level: viewModel.displaySettings.brightnessLevel,
@@ -77,14 +77,6 @@ public struct ReaderView: View {
                 }
                 volumeKeyPageTurner.start()
             }
-            // P3-B: 启动阅读会话（并行记录，不影响既有 ReaderViewModel 加载逻辑）
-            if sessionStore.currentSession == nil {
-                sessionStore.startSession(
-                    bookId: viewModel.currentBookID ?? viewModel.chapterURL,
-                    chapterURL: viewModel.chapterURL,
-                    sourceId: viewModel.currentSourceID
-                )
-            }
         }
         .onDisappear {
             viewModel.saveSettings()
@@ -93,6 +85,51 @@ public struct ReaderView: View {
             volumeKeyPageTurner.stop()
             // P3-B: 结束阅读会话
             sessionStore.endSession()
+        }
+    }
+
+    private func loadContentOnAppear() {
+        let requestId = startReaderSessionIfNeeded()
+        if viewModel.loadFrontendDemoContentIfNeeded() {
+            completeReaderSession(for: requestId)
+            return
+        }
+
+        Task {
+            await viewModel.loadContent()
+            completeReaderSession(for: requestId)
+        }
+    }
+
+    private func startReaderSessionIfNeeded() -> UUID? {
+        if let requestId = sessionStore.currentSession?.currentRequestId {
+            return requestId
+        }
+        return sessionStore.startSession(
+            bookId: viewModel.currentBookID ?? viewModel.chapterURL,
+            chapterURL: viewModel.chapterURL,
+            sourceId: viewModel.currentSourceID
+        )
+    }
+
+    private func completeReaderSession(for requestId: UUID?) {
+        switch viewModel.readerState {
+        case .loaded, .cached, .partial:
+            if let requestId {
+                _ = sessionStore.completeLoading(requestId: requestId)
+            }
+        case .failed(let message), .unsupported(let message):
+            sessionStore.reportError(
+                StateError(kind: .parse, message: message),
+                requestId: requestId
+            )
+        case .empty:
+            sessionStore.reportError(
+                StateError(kind: .notFound, message: "章节内容为空", retryable: false),
+                requestId: requestId
+            )
+        case .idle, .loading:
+            break
         }
     }
 
@@ -178,7 +215,20 @@ public struct ReaderView: View {
 
     @ViewBuilder
     private var contentBackground: some View {
-        Color(hex: viewModel.displaySettings.backgroundMode.backgroundColor)
+        switch viewModel.displaySettings.backgroundMode {
+        case .light:
+            // 对齐 demo `.fd-reader-paper`：暖色纸张渐变，非纯白
+            LinearGradient(
+                colors: [
+                    ReaderDesignTokens.Color.readerPaperGradientStart,
+                    ReaderDesignTokens.Color.readerPaperGradientEnd
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .sepia, .dark:
+            Color(hex: viewModel.displaySettings.backgroundMode.backgroundColor)
+        }
     }
 
     @ViewBuilder
