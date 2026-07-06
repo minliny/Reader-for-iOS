@@ -128,11 +128,15 @@ public struct DiscoverHomeShellView: View {
                             DiscoverBackTopButton()
                         }
                     }
-
-                    if state.showsCacheConfirm {
-                        DiscoverCacheConfirmCard()
-                    }
                 }
+            }
+        }
+        // 对齐 web demo `discoverDialogHtml()`：确认卡片是 overlay（.fd-discover-dialog-backdrop +
+        // .fd-discover-confirm-dialog），不是内联追加。用 ZStack overlay 在内容区上方渲染半透明遮罩
+        // + 居中卡片，让背景列表仍可见但被压暗。
+        .overlay {
+            if state.showsCacheConfirm {
+                DiscoverCacheConfirmOverlay()
             }
         }
         .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
@@ -978,31 +982,44 @@ private struct DiscoverToast: View {
     }
 }
 
-private struct DiscoverCacheConfirmCard: View {
+private struct DiscoverCacheConfirmOverlay: View {
     var body: some View {
-        VStack(spacing: 10) {
-            Text("清除发现缓存？")
-                .font(.system(size: ReaderDesignTokens.discoverBookRowTitleFontSize, weight: .heavy))
-                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-            Text("将清除优书网的发现入口缓存，不影响书架和阅读进度。")
-                .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-                .foregroundStyle(ReaderDesignTokens.Color.muted)
-                .multilineTextAlignment(.center)
-            HStack(spacing: 8) {
-                Text("取消")
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
-                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                    .frame(maxWidth: .infinity, minHeight: 34)
-                    .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground))
-                Text("确认清除")
-                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, minHeight: 34)
-                    .background(Capsule().fill(ReaderDesignTokens.Color.primary))
+        ZStack {
+            // 对齐 web `.fd-discover-dialog-backdrop`：rgba(35,28,22,0.26) 半透明遮罩
+            Color(red: 35/255, green: 28/255, blue: 22/255, opacity: 0.26)
+                .ignoresSafeArea()
+
+            // 对齐 web `.fd-discover-confirm-dialog`：top 44% + translateY(-50%) 居中
+            VStack(spacing: 10) {
+                Text("清除发现缓存？")
+                    .font(.system(size: 17, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.ink)
+                Text("将清除优书网的发现入口缓存，不影响书架和阅读进度。")
+                    .font(.system(size: 13))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 8) {
+                    Text("取消")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(ReaderDesignTokens.Color.ink)
+                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .background(Capsule().fill(Color(red: 238/255, green: 232/255, blue: 223/255, opacity: 0.92)))
+                    Text("确认清除")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .background(Capsule().fill(ReaderDesignTokens.Color.primary))
+                }
             }
+            .padding(18)
+            .frame(maxWidth: 318)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                    .fill(Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.98))
+            )
+            .shadow(color: Color.black.opacity(0.16), radius: 22, x: 0, y: 22)
+            .offset(y: -10)
         }
-        .padding(ReaderDesignTokens.cardPadding)
-        .backgroundCard(cornerRadius: ReaderDesignTokens.Radius.md)
     }
 }
 

@@ -27,7 +27,7 @@ struct SettingsDemoShellView: View {
                 mainContent
             }
             .disabled(activeConfirm != nil || state.presentation.showsRouteOverlay)
-            .blur(radius: activeConfirm != nil || state.presentation == .deleteDialog ? 1.2 : 0)
+            .blur(radius: activeConfirm != nil ? 1.2 : 0)
         } trailing: {
             if state.presentation == .source, state.route == "source-management" {
                 DemoTopActionButton(icon: .more, accessibilityLabel: "更多") {
@@ -58,9 +58,9 @@ struct SettingsDemoShellView: View {
             }
         } dialogHost: {
             if state.presentation == .deleteDialog {
+                // 对齐 web `.fd-demo-dialog`：dialog 自带 backdrop + 居中布局，
+                // 这里只保留 transition，不再额外加 horizontal/bottom padding。
                 SettingsDemoDeleteDialog(onRoute: navigate)
-                    .padding(.horizontal, ReaderDesignTokens.cardPadding)
-                    .padding(.bottom, 28)
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
 
@@ -129,7 +129,11 @@ struct SettingsDemoShellView: View {
                     SettingsDemoSourceMoreMenu(onRoute: navigate)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                sourceSearchAndFilters
+                // 对齐 web demo：source-code-view 路由不渲染书源搜索/筛选器，
+                // web `sourceCodeViewScreen` 只有头部行 + 输入参数 + 请求摘要 + chip + 代码块。
+                if state.route != "source-code-view" {
+                    sourceSearchAndFilters
+                }
             } else if let searchPlaceholder = state.searchPlaceholder {
                 SettingsDemoSearchField(placeholder: searchPlaceholder)
             }
@@ -2305,73 +2309,123 @@ private struct SettingsDemoCodeBlock: View {
     let lines: [String]
 
     var body: some View {
-        ReaderCard {
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 5) {
-                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                        Text("\(String(format: "%02d", index + 1))  \(line)")
-                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .semibold, design: .monospaced))
-                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                            .lineLimit(1)
-                    }
+        // 对齐 web `.fd-source-code pre`：深棕黑底 rgba(43,39,35,0.94) + 浅米色字 #f7ead9，
+        // 等宽字体，min-height 430px，垂直滚动，带 1px 边框 + radius-lg。
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                    Text("\(String(format: "%02d", index + 1))  \(line)")
+                        .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .regular, design: .monospaced))
+                        .foregroundColor(Color(red: 247/255, green: 234/255, blue: 217/255))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
         }
+        .frame(minHeight: 430)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                .fill(Color(red: 43/255, green: 39/255, blue: 35/255, opacity: 0.94))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
+                .stroke(Color(red: 180/255, green: 166/255, blue: 151/255, opacity: 0.42), lineWidth: 1)
+        )
     }
 }
 
 private struct SettingsDemoDeleteDialog: View {
     let onRoute: (String) -> Void
+    @State private var clearLogs = false
 
     var body: some View {
-        ReaderCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    ReaderIcon(.trash, size: 24, accessibilityLabel: "删除")
-                        .foregroundColor(SettingsDemoTone.danger.foreground)
-                    Text("删除书源？")
-                        .font(.system(size: ReaderDesignTokens.readerOverlaySectionTitleFontSize, weight: .heavy))
-                        .foregroundColor(SettingsDemoTone.danger.foreground)
-                }
+        // 对齐 web `sourceDeleteConfirmScreen`：源列表作为 underlay（aria-hidden + inert），
+        // `.fd-settings-phone.has-dialog::after` 提供半透明遮罩 rgba(31,27,23,0.24)，
+        // `.fd-demo-dialog` 在 top:50% + translateY(-50%) 居中。这里用 ZStack 把遮罩 + 居中 dialog
+        // 一起渲染，让背景列表仍可见但被压暗。
+        ZStack {
+            Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.24)
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("删除书源？")
+                    .font(.system(size: 17, weight: .heavy))
+                    .foregroundColor(ReaderDesignTokens.Color.ink)
 
                 Text("将删除已选 3 个书源。不会删除书架书籍，但这些书源将不再参与搜索、发现和换源。")
-                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .semibold))
+                    .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .regular))
                     .foregroundStyle(ReaderDesignTokens.Color.muted)
-                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: ReaderDesignTokens.settingsRowGap) {
-                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
-                        .stroke(SettingsDemoTone.warn.foreground, lineWidth: 2)
-                        .frame(width: 18, height: 18)
-                        .accessibilityLabel("未勾选")
-                    Text("同时清除相关检测日志")
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    clearLogs.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
+                            .stroke(ReaderDesignTokens.Color.Semantic.danger, lineWidth: 1.5)
+                            .frame(width: 16, height: 16)
+                            .overlay(
+                                Group {
+                                    if clearLogs {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 11, weight: .black))
+                                            .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
+                                    }
+                                }
+                            )
+                        Text("同时清除相关检测日志")
+                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .regular))
+                            .foregroundStyle(ReaderDesignTokens.Color.muted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(minHeight: 28)
                 }
-                .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
-                .frame(minHeight: ReaderDesignTokens.settingsRowMinHeight)
-                .background(
-                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                        .fill(ReaderDesignTokens.Color.controlBackground.opacity(0.72))
-                )
+                .buttonStyle(.plain)
 
                 HStack(spacing: 10) {
                     Button {
                         onRoute("source-batch")
                     } label: {
-                        SettingsDemoActionLabel(action: SettingsDemoAction(icon: .close, title: "取消"))
+                        Text("取消")
+                            .font(.system(size: 13, weight: .heavy))
+                            .foregroundColor(ReaderDesignTokens.Color.ink)
+                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .background(
+                                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                                    .fill(Color(red: 238/255, green: 232/255, blue: 223/255, opacity: 0.9))
+                            )
                     }
                     .buttonStyle(DemoPressButtonStyle())
                     Button {
                         onRoute("source-management")
                     } label: {
-                        SettingsDemoActionLabel(action: SettingsDemoAction(icon: .trash, title: "删除", tone: .danger))
+                        Text("删除")
+                            .font(.system(size: 13, weight: .heavy))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .background(
+                                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                                    .fill(ReaderDesignTokens.Color.Semantic.danger)
+                            )
                     }
                     .buttonStyle(DemoPressButtonStyle())
                 }
             }
+            .padding(18)
+            .frame(maxWidth: 306)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .fill(Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.98))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .stroke(Color(red: 164/255, green: 149/255, blue: 132/255, opacity: 0.42), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.16), radius: 22, x: 0, y: 22)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
