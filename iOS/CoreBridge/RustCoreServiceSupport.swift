@@ -21,6 +21,10 @@ public enum RustCoreServiceSupport {
     /// `CookieJarScopeKey` (sourceId + host) so cookies never leak across
     /// sources or hosts. Injected into every `URLSessionHTTPClient` so cookies
     /// set in one service are visible to the others within the same scope.
+    ///
+    /// Also injected into `HostRequestRouter` so the router can serve
+    /// `cookie.get` / `cookie.set` host requests through the same jar
+    /// (login_cookie lane parity with Android).
     public static let sharedCookieJar: ScopedCookieJar = BasicCookieJar()
 
     /// Returns the booted runtime, or throws if not booted.
@@ -32,11 +36,15 @@ public enum RustCoreServiceSupport {
         return rt
     }
 
-    /// Build a `HostRequestRouter` wired to `URLSessionHTTPClient` + the shared runtime.
+    /// Build a `HostRequestRouter` wired to `URLSessionHTTPClient` + the shared
+    /// runtime + the shared scoped cookie jar. The jar is injected so the router
+    /// can serve `cookie.get` / `cookie.set` requests through the same boundary
+    /// contract as `http.execute` (login_cookie lane parity with Android).
     public static func makeRouter(runtime: ReaderCoreNativeRuntime) -> HostRequestRouter {
         HostRequestRouter(
             httpClient: URLSessionHTTPClient(cookieJar: sharedCookieJar),
-            runtime: runtime
+            runtime: runtime,
+            cookieJar: sharedCookieJar
         )
     }
 
