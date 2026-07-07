@@ -1,0 +1,167 @@
+// CoreBridge
+//
+// HostPermissionCapability — UI/reducer-initiated `permission.request/check`.
+//
+// Bridges the contract `HostRequest` to iOS permission APIs:
+// - `notification`: `UNUserNotificationCenter.requestAuthorization`
+// - `camera`/`microphone`: `AVCaptureDevice.requestAccess`
+// - `location`: `CLLocationManager.requestWhenInUseAuthorization` (returns
+//   status only — the actual auth prompt is async)
+//
+// Tier: simulatorProof — the permission dialog appears on the sim but some
+// flows (e.g. camera) require hardware. The handler exercises the API; full
+// proof requires a real device for camera/microphone.
+//
+// Payload contract:
+// - `.permission_request`:
+//   `{ type: "notification"|"camera"|"microphone"|"location" }`
+//   → `{ granted: Bool, status: String }`
+// - `.permission_check`:
+//   `{ type: "notification"|"camera"|"microphone"|"location" }`
+//   → `{ status: String }`
+//
+// Status values: "notDetermined", "restricted", "denied", "authorized",
+// "provisional" (notification only), "ephemeral" (notification only).
+
+import Foundation
+import ReaderUIContract
+
+#if canImport(UIKit)
+import UIKit
+import UserNotifications
+import AVFoundation
+import CoreLocation
+#endif
+
+public struct HostPermissionCapability: HostCapabilityHandler {
+    public let supportedTypes: Set<HostRequestType> = [.permission_request, .permission_check]
+    public let tier: HostCapabilityTier = .simulatorProof
+
+    public init() {}
+
+    public func handle(_ request: HostRequest) async throws -> HostCapabilityOutcome {
+        switch request.type {
+        case .permission_request:
+            return try await handleRequest(request.payload)
+        case .permission_check:
+            return try await handleCheck(request.payload)
+        default:
+            return .failure(.notImplemented(request.type, "HostPermissionCapability does not handle \(request.type.rawValue)"))
+        }
+    }
+
+    private func handleRequest(_ payload: [String: AnyCodable]) async throws -> HostCapabilityOutcome {
+        guard let type = payload["type"]?.value as? String else {
+            return .failure(.invalidParams("permission.request requires `type` string"))
+        }
+        #if canImport(UIKit)
+        switch type {
+        case "notification":
+            return try await requestNotification()
+        case "camera":
+            return try await requestAVMediaType(.video, label: type)
+        case "microphone":
+            return try await requestAVMediaType(.audio, label: type)
+        case "location":
+            // Location authorization requires a CLLocationManager instance
+            // retained on the main thread; the handler cannot synchronously
+            // resolve the post-prompt status. We report "notDetermined" and
+            // the UI is expected to re-check after the system prompts.
+            return .success([
+                "granted": AnyCodable(false),
+                "status": AnyCodable("notDetermined"),
+                "note": AnyCodable("location authorization is async — UI must re-check after system prompt"),
+            ])
+        default:
+            return .failure(.invalidParams("permission.request unknown type: \(type)"))
+        }
+        #else
+        return .failure(.notImplemented(.permission_request, "permissions require UIKit — not available on macOS swift build (type=\(type))"))
+        #endif
+    }
+
+    private func handleCheck(_ payload: [String: AnyCodable]) async throws -> HostCapabilityOutcome {
+        guard let type = payload["type"]?.value as? String else {
+            return .failure(.invalidParams("permission.check requires `type` string"))
+        }
+        #if canImport(UIKit)
+        switch type {
+        case "notification":
+            return try await checkNotification()
+        case "camera":
+            return .success(["status": AnyCodable(Self.avStatusString(AVCaptureDevice.authorizationStatus(for: .video)))])
+        case "microphone":
+            return .success(["status": AnyCodable(Self.avStatusString(AVCaptureDevice.authorizationStatus(for: .audio)))])
+        case "location":
+            return .success(["status": AnyCodable(Self.locationStatusString(CLLocationManager.authorizationStatus()))])
+        default:
+            return .failure(.invalidParams("permission.check unknown type: \(type)"))
+        }
+        #else
+        return .failure(.notImplemented(.permission_check, "permissions require UIKit — not available on macOS swift build (type=\(type))"))
+        #endif
+    }
+
+    // MARK: - iOS implementations
+
+    #if canImport(UIKit)
+    private func requestNotification() async throws -> HostCapabilityOutcome {
+        let center = UNUserNotificationCenter.current()
+        do {
+            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            let settings = await center.notificationSettings()
+            return .success([
+                "granted": AnyCodable(granted),
+                "status": AnyCodable(Self.unStatusString(settings.authorizationStatus)),
+            ])
+        } catch {
+            return .failure(.underlying("notification permission failed: \(error.localizedDescription)"))
+        }
+    }
+
+    private func requestAVMediaType(_ mediaType: AVMediaType, label: String) async throws -> HostCapabilityOutcome {
+        let granted = await AVCaptureDevice.requestAccess(for: mediaType)
+        return .success([
+            "granted": AnyCodable(granted),
+            "status": AnyCodable(Self.avStatusString(AVCaptureDevice.authorizationStatus(for: mediaType))),
+        ])
+    }
+
+    private func checkNotification() async throws -> HostCapabilityOutcome {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        return .success(["status": AnyCodable(Self.unStatusString(settings.authorizationStatus))])
+    }
+
+    private static func unStatusString(_ status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .notDetermined: return "notDetermined"
+        case .denied: return "denied"
+        case .authorized: return "authorized"
+        case .provisional: return "provisional"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
+        }
+    }
+
+    private static func avStatusString(_ status: AVAuthorizationStatus) -> String {
+        switch status {
+        case .notDetermined: return "notDetermined"
+        case .restricted: return "restricted"
+        case .denied: return "denied"
+        case .authorized: return "authorized"
+        @unknown default: return "unknown"
+        }
+    }
+
+    private static func locationStatusString(_ status: CLAuthorizationStatus) -> String {
+        switch status {
+        case .notDetermined: return "notDetermined"
+        case .restricted: return "restricted"
+        case .denied: return "denied"
+        case .authorizedAlways: return "authorizedAlways"
+        case .authorizedWhenInUse: return "authorizedWhenInUse"
+        @unknown default: return "unknown"
+        }
+    }
+    #endif
+}

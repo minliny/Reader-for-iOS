@@ -2,6 +2,9 @@ import XCTest
 import AVFoundation
 import ReaderCoreNativeAdapter
 @testable import ReaderShellValidation
+#if canImport(UIKit)
+@testable import ReaderApp
+#endif
 
 /// Item 8d: iOS TTS 播放 proof — Core-driven TTS queue lifecycle.
 ///
@@ -304,6 +307,11 @@ final class HostTtsQueueLifecycleProofTests: XCTestCase {
     /// Combined with proofs 1-4 (Core queue lifecycle), this satisfies
     /// "TTS 播放成功": Core slices text → Core drives queue → Host system TTS
     /// vocalizes each slice.
+    ///
+    /// Tier: realDeviceProof — `ReaderTTSPlayer` lives in the `ReaderApp`
+    /// target and depends on `AVSpeechSynthesizer` (UIKit-only). macOS
+    /// `swift test` skips this proof; the iOS simulator / real device runs it.
+    #if canImport(UIKit)
     @MainActor
     func testAVSpeechSynthesizerSpeaksTextAndFinishes() async throws {
         let player = ReaderTTSPlayer()
@@ -335,6 +343,7 @@ final class HostTtsQueueLifecycleProofTests: XCTestCase {
 
         player.stop()
     }
+    #endif
 
     // MARK: - Proof 6: TtsSlicePlan from Core can drive AVSpeechSynthesizer
 
@@ -344,6 +353,11 @@ final class HostTtsQueueLifecycleProofTests: XCTestCase {
     ///
     /// This test does NOT drive the full queue lifecycle (proof 3 covers that).
     /// It proves the data flow: Core slice.text → AVSpeechUtterance.string.
+    ///
+    /// Tier: realDeviceProof — `ReaderTTSPlayer` lives in the `ReaderApp`
+    /// target and depends on `AVSpeechSynthesizer` (UIKit-only). macOS
+    /// `swift test` skips this proof; the iOS simulator / real device runs it.
+    #if canImport(UIKit)
     @MainActor
     func testCoreSlicePlanDrivesAVSpeechSynthesizer() async throws {
         let runtime = try makeRuntime()
@@ -389,4 +403,5 @@ final class HostTtsQueueLifecycleProofTests: XCTestCase {
 
         player.stop()
     }
+    #endif
 }
