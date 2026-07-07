@@ -115,9 +115,9 @@ Reader UI 仓库提供的是 `state-rule.fixtures.json`（13 项规则），定�
 | 完整矩阵 | ✓ 完成（ROUTE_COMPONENT_MATRIX：route × component × state × motion × token） | Reader UI |
 | 三端开发切片 | ✓ 完成（SLICE_PLAN：Slice 0-8 启动顺序 + 输入文档 + 每端交付物 + 并行/串行约束） | Reader UI |
 | 验收和防漂移机制 | ✓ 本仓 P0 脚本完成（matrix-coverage / motion-guard / token-group / core-host-boundary）；三端 CI 检查仍归平台仓库 | Reader UI + platforms |
-| Phase 3 三端 reducer 落地 | ✗ 未开始（归三端仓库，按 [SLICE_PLAN.md](./SLICE_PLAN.md) 推进） | iOS / Android / HarmonyOS |
-| Phase 4 Host Adapter 补齐 | ✗ 未开始（归三端仓库，按 [SLICE_PLAN.md](./SLICE_PLAN.md) Slice 7 推进） | iOS / Android / HarmonyOS |
-| Phase 5 一致性验证 | 部分（Reader UI contract 防漂移测试 ✓ / reducer golden test ✗ / core protocol test ✗ / device smoke ✗） | 跨仓 |
+| Phase 3 三端 reducer 落地 | 进行中（平台仓负责；Android / iOS 已有局部 reducer/golden evidence，HarmonyOS reducer/store 工作已开放；完成度以各端 gap matrix 和 evidence 为准） | iOS / Android / HarmonyOS |
+| Phase 4 Host Adapter 补齐 | 进行中/部分证明（平台仓负责；Android / iOS 已有部分 Host Adapter / Core bridge executor proof，HarmonyOS NAPI / Host Adapter 工作已开放；仍需跨端 App/device proof） | iOS / Android / HarmonyOS |
+| Phase 5 一致性验证 | 部分（Reader UI contract 防漂移测试 ✓；平台 reducer / Core protocol / Host Adapter / device smoke 仍按各端 evidence 收口） | 跨仓 |
 
 ## P0 可执行参考规格文档清单
 

@@ -13,10 +13,21 @@ import ReaderCoreProtocols
 /// `HostErrorDiagnostics` dict). They use `StubAntiBotExecutor` — no real
 /// network or WKWebView is exercised.
 ///
-/// Device-headless/App tier (pending): real anti_bot source L1-L5 (Cloudflare
-/// JS challenge solving, slider/reCAPTCHA delegation, cookie jar persistence)
-/// requires device-tier proof (simulator / real device). The production
-/// `WKAntiBotExecutor` is a `notImplemented` stub until that tier lands.
+/// Production executor status (do NOT conflate with "backend ready"):
+/// `WKAntiBotExecutor` is a REAL two-layer implementation (L1 URLSession HTTP
+/// fetch + L2 headless WKWebView fallback when `shouldAttemptWebViewFallback`
+/// detects `jschl` / `cf-browser-verification` / `cf-challenge`). It is
+/// iOS-only because the L2 path imports WebKit; on macOS `swift build` the
+/// router leaves `antiBotExecutor = nil` and fails closed with
+/// `antiBotExecutorNotConfigured`.
+///
+/// Device-tier gaps (still pending, NOT covered by macOS `swift test`):
+/// - `cookieJarId` is accepted but NOT bound to `WKWebsiteDataStore` —
+///   cookie persistence across L1/L2 is per-source but not yet persistent.
+/// - Slider / reCAPTCHA human-verifier delegation is fail-closed only
+///   (`ChallengeRequired` returned; no UI to solve).
+/// - Real Cloudflare JS challenge solving depends on real-device user-agent /
+///   JIT, which the simulator does not faithfully emulate.
 ///
 /// Mirrors Core contract in `crates/reader-contract/src/host.rs`:
 /// - `HostErrorCode::ChallengeRequired` → `"CHALLENGE_REQUIRED"`
@@ -32,7 +43,7 @@ final class HostAntiBotProofTests: XCTestCase {
     /// handler returns `.completed` with the canned body and `finalUrl`.
     /// This is the happy path — no challenge, Core can consume the body
     /// directly.
-    func testCleanResponseReturnsCompletedResult() throws {
+    func testCleanResponseReturnsCompletedResult() async throws {
         let executor = StubAntiBotExecutor(defaultResponse: AntiBotHttpResponse(
             statusCode: 200,
             body: "<html><body><h1>Real Book Content</h1><p>chapter text...</p></body></html>",
@@ -41,7 +52,7 @@ final class HostAntiBotProofTests: XCTestCase {
         ))
         let handler = AntiBotChallengeHandler(executor: executor)
 
-        let result = try handler.handle(
+        let result = try await handler.handle(
             url: "https://example.test/book/chapter-1",
             headers: ["User-Agent": "Reader/1.0"],
             cookieJarId: "source-clean-001"
@@ -65,7 +76,7 @@ final class HostAntiBotProofTests: XCTestCase {
     /// `code = "CHALLENGE_REQUIRED"`, `challengeType = "cloudflare_js"`,
     /// `lane = "anti_bot"`, `autoRetryable = false`. This is the fail-closed
     /// path — Core marks the source as `host_required` and skips retries.
-    func testCloudflareJsChallengeReturnsChallengeRequired() throws {
+    func testCloudflareJsChallengeReturnsChallengeRequired() async throws {
         let executor = StubAntiBotExecutor(defaultResponse: AntiBotHttpResponse(
             statusCode: 503,
             body: "<html><head><title>Just a moment...</title><script src=\"/jschl.js\"></script></head><body>cf-browser-verification</body></html>",
@@ -74,7 +85,7 @@ final class HostAntiBotProofTests: XCTestCase {
         ))
         let handler = AntiBotChallengeHandler(executor: executor)
 
-        let result = try handler.handle(
+        let result = try await handler.handle(
             url: "https://protected.test/chapter-1",
             headers: [:],
             cookieJarId: nil
@@ -110,7 +121,7 @@ final class HostAntiBotProofTests: XCTestCase {
     /// `challengeType = "slider_captcha"`. This proves the detector's
     /// dual-marker rule (avoid false positives on copy that mentions only one
     /// of the two).
-    func testSliderCaptchaReturnsChallengeRequired() throws {
+    func testSliderCaptchaReturnsChallengeRequired() async throws {
         let executor = StubAntiBotExecutor(defaultResponse: AntiBotHttpResponse(
             statusCode: 200,
             body: "<html><body><div class=\"slider-captcha-widget\">slide to verify</div></body></html>",
@@ -119,7 +130,7 @@ final class HostAntiBotProofTests: XCTestCase {
         ))
         let handler = AntiBotChallengeHandler(executor: executor)
 
-        let result = try handler.handle(
+        let result = try await handler.handle(
             url: "https://captcha.test/page",
             headers: [:],
             cookieJarId: nil
@@ -148,7 +159,7 @@ final class HostAntiBotProofTests: XCTestCase {
     /// `.challengeRequired` with `challengeType = "recaptcha_v2"`. This
     /// proves the detector catches both `recaptcha` and `g-recaptcha`
     /// (Google's div class) markers.
-    func testRecaptchaReturnsChallengeRequired() throws {
+    func testRecaptchaReturnsChallengeRequired() async throws {
         let executor = StubAntiBotExecutor(defaultResponse: AntiBotHttpResponse(
             statusCode: 200,
             body: "<html><body><div class=\"g-recaptcha\" data-sitekey=\"6Le_example\"></div><script src=\"https://www.google.com/recaptcha/api.js\"></script></body></html>",
@@ -157,7 +168,7 @@ final class HostAntiBotProofTests: XCTestCase {
         ))
         let handler = AntiBotChallengeHandler(executor: executor)
 
-        let result = try handler.handle(
+        let result = try await handler.handle(
             url: "https://verified.test/entry",
             headers: [:],
             cookieJarId: nil
@@ -188,7 +199,7 @@ final class HostAntiBotProofTests: XCTestCase {
     /// `.challengeRequired` diagnostics `details` must include this
     /// `cookieJarId` so Core can preserve per-source session affinity when
     /// retrying the source after a human solves the challenge.
-    func testCookieJarIdPreservedInErrorDetails() throws {
+    func testCookieJarIdPreservedInErrorDetails() async throws {
         let executor = StubAntiBotExecutor(defaultResponse: AntiBotHttpResponse(
             statusCode: 503,
             body: "<html><body>jschlvcf-browser-verification</body></html>",
@@ -197,7 +208,7 @@ final class HostAntiBotProofTests: XCTestCase {
         ))
         let handler = AntiBotChallengeHandler(executor: executor)
 
-        let result = try handler.handle(
+        let result = try await handler.handle(
             url: "https://protected.test/chapter-2",
             headers: [:],
             cookieJarId: "source-abc-123"
@@ -226,7 +237,7 @@ final class HostAntiBotProofTests: XCTestCase {
     /// `.challengeRequired` with `challengeType` starting with `"unsupported"`.
     /// This proves the catch-all rule — unknown challenges still fail closed
     /// (Core stops retrying) rather than silently passing as `.completed`.
-    func testUnsupportedChallengeReturnsChallengeRequired() throws {
+    func testUnsupportedChallengeReturnsChallengeRequired() async throws {
         let executor = StubAntiBotExecutor(defaultResponse: AntiBotHttpResponse(
             statusCode: 403,
             body: "<html><body>Access denied. You do not have permission to access this resource.</body></html>",
@@ -235,7 +246,7 @@ final class HostAntiBotProofTests: XCTestCase {
         ))
         let handler = AntiBotChallengeHandler(executor: executor)
 
-        let result = try handler.handle(
+        let result = try await handler.handle(
             url: "https://forbidden.test/page",
             headers: [:],
             cookieJarId: "source-forbidden-456"

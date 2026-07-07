@@ -41,24 +41,28 @@ public enum RustCoreServiceSupport {
     /// can serve `cookie.get` / `cookie.set` requests through the same boundary
     /// contract as `http.execute` (login_cookie lane parity with Android).
     ///
-    /// The router is also wired with stub executors for the `webview_render`,
-    /// `anti_bot`, and `media_download` lanes so a Core `host.request` for
-    /// `webview.evaluateJavaScript` / `anti_bot.challenge` / `media.download`
-    /// reaches the corresponding handler (which returns a structured
-    /// `notImplemented` error from the stub executor), not a "capability not
-    /// supported" rejection. The executors are `notImplemented` stubs until
-    /// device-tier proof lands; real WKWebView / URLSession execution is a
-    /// separate task.
+    /// The router is wired with the production executors for the `webview`,
+    /// `anti_bot`, and `media_download` lanes:
+    /// - `media.download` → `URLSessionMediaDownloadExecutor` (cross-platform,
+    ///   URLSession + CryptoKit sha256 + range/ETag/304).
+    /// - `webview.evaluateJavaScript` → `WKWebViewExecutor` (iOS only; macOS
+    ///   `swift build` leaves it nil — webview lane fails closed with
+    ///   `webViewExecutorNotConfigured` on macOS CI, which is the intended
+    ///   behavior since WKWebView execution requires UIKit).
+    /// - `anti_bot.challenge` → `WKAntiBotExecutor` (iOS only for the L2
+    ///   WKWebView fallback; L1 URLSession HTTP fetch is cross-platform but
+    ///   the executor type itself is iOS-only because it imports WebKit for
+    ///   the L2 path).
+    ///
+    /// On macOS `swift build` / macOS CI, `webViewExecutor` and
+    /// `antiBotExecutor` are nil. `host.request` for those lanes then throws
+    /// `webViewExecutorNotConfigured` / `antiBotExecutorNotConfigured` — a
+    /// structured fail-closed rejection, not a crash. Simulator/real-device
+    /// iOS runs get the real executors.
     public static func makeRouter(runtime: ReaderCoreNativeRuntime) -> HostRequestRouter {
-        // Stub executors for the webview_render / anti_bot / media_download
-        // lanes. These throw `notImplemented` so the round-trip completes with
-        // a structured `host.error` event (not a crash, not a capability
-        // rejection). Wrapped in `canImport(WebKit)` because `WKWebViewExecutor`
-        // and `WKAntiBotExecutor` are declared under that guard; on iOS WebKit
-        // is always available so the stubs are always injected.
         var webViewExecutor: WebViewExecutor? = nil
         var antiBotExecutor: AntiBotExecutor? = nil
-        #if canImport(WebKit)
+        #if canImport(WebKit) && canImport(UIKit)
         webViewExecutor = WKWebViewExecutor()
         antiBotExecutor = WKAntiBotExecutor()
         #endif

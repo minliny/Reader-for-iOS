@@ -5,6 +5,11 @@
 > 阶段：M-IOS-1 Batch 1/2 Architecture Design
 > 日期：2026-04-16
 
+> 当前说明：本文是 M-IOS-1 shell 阶段的历史设计文档。其范围限制只适用于
+> 当时的 Batch 3 骨架交付，不得覆盖当前 `docs/frontend-complete-app/`
+> 下的 complete-app 开发计划、Host Adapter、Core bridge、WebView、cache、
+> login 或 JS runtime 工作。
+
 ---
 
 ## 1. 本次生成文件列表
@@ -557,18 +562,18 @@ ReaderApp.init()
 
 ---
 
-## 17. Batch 3 不该做什么列表
+## 17. Batch 3 历史范围限制
 
 | 禁止项 | 原因 |
 |--------|------|
 | 实现完整路由系统 | M-IOS-1 只需 NavigationStack |
 | 实现独立 AppState | Coordinator 已足够 |
 | 实现复杂状态管理 | 避免过度设计 |
-| 实现 Login 功能 | future feature |
-| 实现 Cache 功能 | future feature |
-| 实现 JS Rendering | future feature |
+| 实现 Login 功能 | 仅 M-IOS-1 Batch 3 不做；当前 complete-app/Host Adapter 计划可继续推进 |
+| 实现 Cache 功能 | 仅 M-IOS-1 Batch 3 不做；当前 Core bridge / persistence 计划可继续推进 |
+| 实现 JS Rendering | 仅 M-IOS-1 Batch 3 不做；当前 WebView/JS runtime 计划可继续推进 |
 | 实现高保真 UI | M-IOS-1 只做骨架 |
-| 修改 Reader-Core | 本阶段禁止 |
+| 修改 Reader-Core | 仅 M-IOS-1 Batch 3 不跨仓修改；当前工作需按用户明确授权和仓库边界执行 |
 | 实现完整错误处理链 | 只做最小 surface |
 
 ---

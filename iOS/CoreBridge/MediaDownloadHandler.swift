@@ -149,12 +149,12 @@ public struct HostMediaDownloadResult: Sendable, Equatable {
 /// sha256 hashing) and returns the result. Core never opens a socket directly
 /// (Core/Host boundary, red line 4).
 ///
-/// Synchronous (`throws` rather than `async throws`) because the alpha proof
-/// uses a stub executor with canned responses. The production executor will be
-/// `async throws` once device-tier proof lands (real URLSession + sha256
-/// hashing + save-path management).
+/// `async throws` because the production executor (`URLSessionMediaDownloadExecutor`)
+/// performs real URLSession download (range requests, ETag/304 caching, sha256
+/// hashing, save-path management) — all inherently asynchronous. The stub
+/// executor used in proof tests is also `async throws` for protocol conformance.
 public protocol MediaDownloadExecutor: Sendable {
-    func download(request: HostMediaDownloadRequest) throws -> HostMediaDownloadResult
+    func download(request: HostMediaDownloadRequest) async throws -> HostMediaDownloadResult
 }
 
 // MARK: - MediaDownloadHandler
@@ -181,7 +181,7 @@ public struct MediaDownloadHandler: Sendable {
     /// Handle a `media.download` request.
     /// - Parameter params: the `HostMediaDownloadRequest` JSON dict.
     /// - Returns: the `HostMediaDownloadResponse` JSON dict on success.
-    public func handle(params: [String: Any]) throws -> [String: Any] {
+    public func handle(params: [String: Any]) async throws -> [String: Any] {
         let url = try parseUrl(params)
         let method = try parseMethod(params)
         let headers = parseHeaders(params)
@@ -210,7 +210,7 @@ public struct MediaDownloadHandler: Sendable {
             timeoutMillis: timeoutMillis
         )
 
-        let result = try executor.download(request: request)
+        let result = try await executor.download(request: request)
         return Self.buildResultDict(result)
     }
 
@@ -421,7 +421,7 @@ public final class StubMediaDownloadExecutor: MediaDownloadExecutor, @unchecked 
         self.cannedError = error
     }
 
-    public func download(request: HostMediaDownloadRequest) throws -> HostMediaDownloadResult {
+    public func download(request: HostMediaDownloadRequest) async throws -> HostMediaDownloadResult {
         lock.lock()
         _lastRequest = request
         lock.unlock()
@@ -437,28 +437,10 @@ public final class StubMediaDownloadExecutor: MediaDownloadExecutor, @unchecked 
     }
 }
 
-// MARK: - URLSessionMediaDownloadExecutor (production, device-tier proof pending)
-
-/// Production URLSession executor for `media.download`.
-///
-/// NOT YET IMPLEMENTED — this is a `notImplemented` stub (throws
-/// `MediaDownloadExecutorError.notImplemented`). Real URLSession download
-/// (range requests via the `Range` header, ETag/304 handling via
-/// `If-None-Match` / `If-Modified-Since`, sha256 hashing of the body,
-/// save-path management, cookie jar session affinity via `sessionId`,
-/// `maxBytes` enforcement, `timeoutMillis` enforcement) requires device-tier
-/// proof (simulator / real device with live network).
-///
-/// The handler/router proof in `HostMediaDownloadProofTests` uses
-/// `StubMediaDownloadExecutor` and does NOT depend on this class. This stub
-/// exists so the router can be wired with a real executor once device-tier
-/// proof lands, without changing the handler contract.
-public final class URLSessionMediaDownloadExecutor: MediaDownloadExecutor, @unchecked Sendable {
-    public init() {}
-
-    public func download(request: HostMediaDownloadRequest) throws -> HostMediaDownloadResult {
-        throw MediaDownloadExecutorError.notImplemented(
-            "URLSessionMediaDownloadExecutor production executor pending device-tier proof"
-        )
-    }
-}
+// MARK: - URLSessionMediaDownloadExecutor
+//
+// The real `URLSessionMediaDownloadExecutor` implementation lives in
+// `URLSessionMediaDownloadExecutor.swift` (range requests, redirect, ETag/304,
+// sha256, temp-file/cache management). It was extracted from this file so the
+// handler/router proof (`StubMediaDownloadExecutor`) and the production
+// executor can evolve independently.

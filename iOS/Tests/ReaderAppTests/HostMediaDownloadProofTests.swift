@@ -13,12 +13,26 @@ import ReaderCoreProtocols
 /// delegates to the `MediaDownloadExecutor`, and builds the response dict.
 /// They use `StubMediaDownloadExecutor` — no real URLSession is exercised.
 ///
-/// Device-headless/App tier (pending): real URLSession download (range
-/// requests, ETag/304 caching, sha256 hashing, save-path management, cookie
-/// jar session affinity, maxBytes/timeout enforcement) requires device-tier
-/// proof (simulator / real device with live network). The production
-/// `URLSessionMediaDownloadExecutor` is a `fatalError` stub until that tier
-/// lands.
+/// Production executor status (do NOT conflate with "backend ready"):
+/// `URLSessionMediaDownloadExecutor` is a REAL cross-platform implementation
+/// backed by URLSession + CryptoKit — range requests (`Range: bytes=start-end`
+/// header), ETag / 304 caching (`If-None-Match` / `If-Modified-Since`), sha256
+/// hex digest, temp-file management under `Caches/ReaderApp/MediaDownloads/`,
+/// `maxBytes` enforcement, and `timeoutMillis` → `URLRequest.timeoutInterval`.
+/// It is wired into `RustCoreServiceSupport.makeRouter` on every platform
+/// (macOS `swift build` included).
+///
+/// Device-tier gaps (still pending, NOT covered by macOS `swift test` against
+/// `example.test` fixtures):
+/// - Live-CDN range / 304 / sha256 round-trip requires a real reachable host
+///   (verified by `URLSessionMediaDownloadExecutorProofTests` via `URLProtocol`
+///   interception on the simulator, NOT by macOS `swift test` against
+///   `cdn.example.test`).
+/// - Background URLSession for large downloads, cellular policy, and
+///   resume-data persistence are NOT implemented — current executor uses a
+///   foreground `URLSession.shared`-style task only.
+/// - Cookie jar session affinity is NOT wired (media downloads do not yet
+///   attach `ScopedCookieJar` cookies to the request).
 ///
 /// Mirrors Core contract in `crates/reader-contract/src/host.rs`
 /// (HostMediaDownloadRequest / HostMediaDownloadResponse, commit 3e4fcb7b).
@@ -30,7 +44,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
     /// called with a url and NO method (default GET). Response must carry
     /// resourceId, statusCode=200, byteLength, fromCache=false. The stub's
     /// captured request must have method="GET" (default).
-    func testFullGetDownloadReturnsResponse() throws {
+    func testFullGetDownloadReturnsResponse() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "res-full-001",
             tempPath: "/tmp/reader/res-full-001.bin",
@@ -49,7 +63,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
             "url": "https://cdn.example.com/file.png",
         ]
 
-        let result = try handler.handle(params: params)
+        let result = try await handler.handle(params: params)
 
         XCTAssertEqual(result["resourceId"] as? String, "res-full-001",
                        "resourceId must match the canned stub result")
@@ -75,7 +89,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
     /// (partial content). The handler must pass the range info to the
     /// executor (verified via the stub's captured request) and return
     /// statusCode=206.
-    func testRangeDownloadWithRangeStartAndRangeEnd() throws {
+    func testRangeDownloadWithRangeStartAndRangeEnd() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "res-range-002",
             tempPath: "/tmp/reader/res-range-002.bin",
@@ -96,7 +110,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
             "rangeEnd": 8191,
         ]
 
-        let result = try handler.handle(params: params)
+        let result = try await handler.handle(params: params)
 
         XCTAssertEqual(result["statusCode"] as? Int, 206,
                        "statusCode must be 206 (partial content)")
@@ -115,7 +129,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
     /// method=HEAD, stub returns 200 + contentLength + no tempPath (no file
     /// written for HEAD). Response must carry statusCode=200 + tempPath=nil
     /// (key absent). The stub's captured request must have method="HEAD".
-    func testHeadProbeReturnsMetadataOnly() throws {
+    func testHeadProbeReturnsMetadataOnly() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "res-head-003",
             tempPath: nil,
@@ -135,7 +149,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
             "method": "HEAD",
         ]
 
-        let result = try handler.handle(params: params)
+        let result = try await handler.handle(params: params)
 
         XCTAssertEqual(result["statusCode"] as? Int, 200,
                        "statusCode must be 200 for HEAD probe")
@@ -154,7 +168,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
     /// cacheKey set, stub returns fromCache=true + statusCode=304 + byteLength=0.
     /// Response must carry fromCache=true + statusCode=304 + byteLength=0. The
     /// stub's captured request must have the cacheKey forwarded.
-    func testCachedResponseReturnsFromCacheTrue() throws {
+    func testCachedResponseReturnsFromCacheTrue() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "res-cached-004",
             tempPath: nil,
@@ -174,7 +188,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
             "cacheKey": "cache-slot-004",
         ]
 
-        let result = try handler.handle(params: params)
+        let result = try await handler.handle(params: params)
 
         XCTAssertEqual(result["fromCache"] as? Bool, true,
                        "fromCache must be true for a 304 cached response")
@@ -190,7 +204,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
 
     /// url="file:///etc/passwd" — handler must reject before reaching the
     /// executor. Error message must mention "http or https scheme".
-    func testRejectsNonHttpScheme() {
+    func testRejectsNonHttpScheme() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "should-not-reach",
             statusCode: 200,
@@ -203,7 +217,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
         ]
 
         do {
-            _ = try handler.handle(params: params)
+            _ = try await handler.handle(params: params)
             XCTFail("handler should reject file:// scheme")
         } catch let error as MediaDownloadExecutorError {
             switch error {
@@ -222,7 +236,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
 
     /// method="POST" — handler must reject (only GET/HEAD allowed). Error
     /// message must mention "must be GET or HEAD".
-    func testRejectsPostMethod() {
+    func testRejectsPostMethod() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "should-not-reach",
             statusCode: 200,
@@ -236,7 +250,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
         ]
 
         do {
-            _ = try handler.handle(params: params)
+            _ = try await handler.handle(params: params)
             XCTFail("handler should reject POST method")
         } catch let error as MediaDownloadExecutorError {
             switch error {
@@ -255,7 +269,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
 
     /// rangeEnd=1024 + rangeStart=nil — handler must reject. Error message
     /// must mention "rangeEnd requires rangeStart".
-    func testRejectsRangeEndWithoutRangeStart() {
+    func testRejectsRangeEndWithoutRangeStart() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "should-not-reach",
             statusCode: 200,
@@ -269,7 +283,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
         ]
 
         do {
-            _ = try handler.handle(params: params)
+            _ = try await handler.handle(params: params)
             XCTFail("handler should reject rangeEnd without rangeStart")
         } catch let error as MediaDownloadExecutorError {
             switch error {
@@ -288,7 +302,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
 
     /// rangeStart=2048 + rangeEnd=1024 — handler must reject. Error message
     /// must mention "rangeEnd (1024) must be >= rangeStart (2048)".
-    func testRejectsRangeEndBelowRangeStart() {
+    func testRejectsRangeEndBelowRangeStart() async throws {
         let executor = StubMediaDownloadExecutor(result: HostMediaDownloadResult(
             resourceId: "should-not-reach",
             statusCode: 200,
@@ -303,7 +317,7 @@ final class HostMediaDownloadProofTests: XCTestCase {
         ]
 
         do {
-            _ = try handler.handle(params: params)
+            _ = try await handler.handle(params: params)
             XCTFail("handler should reject rangeEnd < rangeStart")
         } catch let error as MediaDownloadExecutorError {
             switch error {

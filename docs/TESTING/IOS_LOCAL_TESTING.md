@@ -1,5 +1,9 @@
 # iOS Local Testing Guide
 
+Scope: this guide covers the legacy SwiftPM targets under `iOS/`. App-level
+SwiftUI / contract / reducer verification now uses the canonical Xcode project
+commands recorded in `docs/frontend-complete-app/IOS_GAP_MATRIX.md`.
+
 ## Prerequisites
 
 Reader-Core must be available as a sibling directory:
@@ -68,7 +72,10 @@ Exit code 0 = all pass.
 swift build --target ReaderAppPersistenceTests
 ```
 
-Builds the XCTest test bundle (for CI use). Does NOT run tests (blocked by ReaderApp).
+Builds the SwiftPM XCTest bundle for CI build checks. It does not replace
+app-level XCTest execution; use the Xcode `build-for-testing` and
+`test-without-building` commands in `docs/frontend-complete-app/IOS_GAP_MATRIX.md`
+for current app tests.
 
 ### 6. ShellSmokeTests Build
 
@@ -78,32 +85,33 @@ swift build --target ShellSmokeTests
 
 ## Known Limitations
 
-### full swift test is BLOCKED
+### SwiftPM full-package test is not the app-level gate
 
-`swift test` builds the `ReaderApp` library product, which has pre-existing compile errors
-(`ReaderCoreServiceProvider` scope, platform availability, `UIColor`/`CGColor` references).
+`swift test` exercises the SwiftPM package graph, not the canonical app scheme.
+It can still fail or diverge from the Xcode app target because several app
+surfaces are platform-specific.
 
-**Do NOT use `swift test` as the sole verification gate** until ReaderApp target compile
-errors are fixed.
+Do not use `swift test` as the sole verification gate for the iOS app.
 
-**Workaround**: Use `swift run ReaderAppPersistenceTestRunner` for local persistence
-verification, and `swift build --target <name>` for individual target verification.
+Use `swift run ReaderAppPersistenceTestRunner` for local persistence
+verification, `swift build --target <name>` for individual SwiftPM target
+verification, and the Xcode commands in `IOS_GAP_MATRIX.md` for app-level
+build/test evidence.
 
-### When full swift test will be available
+### Current app-level gate
 
-After ReaderApp target compile errors are resolved:
-- `ReaderCoreServiceProvider` not found in scope
-- `navigationBarTitleDisplayMode` unavailable on macOS
-- `CGColor.secondarySystemBackground` iOS-only
-- `UIColor` iOS-only
-- `SearchResultItem` members
+Current local app-level evidence is:
+- `xcodebuild build ... ReaderForIOSApp ... ARCHS=arm64` PASS.
+- `xcodebuild build-for-testing ... ReaderContractAdapterSlice0Tests ... ReaderReducerSlice1GoldenTests` PASS.
+- `xcodebuild test-without-building ... ReaderContractAdapterSlice0Tests` PASS.
+- `xcodebuild test-without-building ... ReaderReducerSlice1GoldenTests` PASS.
 
-### Do NOT confuse runner pass with full swift test pass
+### Do not confuse evidence tiers
 
 - `swift run ReaderAppPersistenceTestRunner` PASS → persistence stores work correctly
-- `swift test` FAIL → ReaderApp library product has pre-existing compile errors
-- These are independent facts. Runner tests prove store correctness. full swift test fail
-  is a separate ReaderApp target issue.
+- app-level Xcode tests PASS → selected app/test bundle behavior is verified
+- These are independent facts. Runner tests prove store correctness; they do
+  not prove SwiftUI route, reducer, or Core bridge behavior.
 
 ## Boundary Check
 

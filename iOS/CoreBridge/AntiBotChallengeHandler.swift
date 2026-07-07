@@ -138,12 +138,13 @@ public struct AntiBotHttpResponse: Sendable, Equatable {
 /// opens a socket or touches a WebView directly (Core/Host boundary, red
 /// line 4).
 ///
-/// Synchronous (`throws` rather than `async throws`) because the alpha proof
-/// uses a stub executor with canned responses. The production executor will
-/// be `async throws` once device-tier proof lands (real WKWebView + cookie
-/// storage).
+/// `async throws` because the production executor (`WKAntiBotExecutor`)
+/// performs real WKWebView navigation + HTTP fetch (cloudflare JS challenge
+/// solving, cookie jar persistence) — all inherently asynchronous. The stub
+/// executor used in proof tests is also `async throws` for protocol
+/// conformance.
 public protocol AntiBotExecutor: Sendable {
-    func fetch(url: String, headers: [String: String], cookieJarId: String?) throws -> AntiBotHttpResponse
+    func fetch(url: String, headers: [String: String], cookieJarId: String?) async throws -> AntiBotHttpResponse
 }
 
 // MARK: - AntiBotChallengeDetector
@@ -282,8 +283,8 @@ public struct AntiBotChallengeHandler: Sendable {
         url: String,
         headers: [String: String],
         cookieJarId: String?
-    ) throws -> AntiBotHandleResult {
-        let response = try executor.fetch(url: url, headers: headers, cookieJarId: cookieJarId)
+    ) async throws -> AntiBotHandleResult {
+        let response = try await executor.fetch(url: url, headers: headers, cookieJarId: cookieJarId)
         let detection = detector.detect(response: response, url: url, cookieJarId: cookieJarId)
 
         switch detection.challengeType {
@@ -353,35 +354,16 @@ public final class StubAntiBotExecutor: AntiBotExecutor, @unchecked Sendable {
         self.perUrlResponses = perUrlResponses
     }
 
-    public func fetch(url: String, headers: [String: String], cookieJarId: String?) throws -> AntiBotHttpResponse {
+    public func fetch(url: String, headers: [String: String], cookieJarId: String?) async throws -> AntiBotHttpResponse {
         return perUrlResponses[url] ?? defaultResponse
     }
 }
 
-// MARK: - WKAntiBotExecutor (production, device-tier proof pending)
-
-#if canImport(WebKit)
-import WebKit
-
-/// Production WKWebView-based anti-bot executor for the `anti_bot` host lane.
-///
-/// NOT YET IMPLEMENTED — this is a `notImplemented` stub. Real anti_bot
-/// source L1-L5 (Cloudflare JS challenge solving via headless WKWebView,
-/// slider/reCAPTCHA delegation to a human-verifier UI, cookie jar persistence
-/// across fetches) requires device-tier proof (simulator / real device with a
-/// live WKWebView + persistent cookie storage).
-///
-/// The handler/router proof in `HostAntiBotProofTests` uses
-/// `StubAntiBotExecutor` and does NOT depend on this class. This stub exists
-/// so the router can be wired with a real executor once device-tier proof
-/// lands, without changing the handler contract.
-public final class WKAntiBotExecutor: AntiBotExecutor, @unchecked Sendable {
-    public init() {}
-
-    public func fetch(url: String, headers: [String: String], cookieJarId: String?) throws -> AntiBotHttpResponse {
-        throw AntiBotExecutorError.notImplemented(
-            "WKAntiBotExecutor production executor pending device-tier proof"
-        )
-    }
-}
-#endif
+// MARK: - WKAntiBotExecutor
+//
+// The real `WKAntiBotExecutor` implementation lives in
+// `WKAntiBotExecutor.swift` (WKWebView navigation + HTTP fetch, cookie jar
+// persistence, challenge detection via `AntiBotChallengeDetector`). It was
+// extracted from this file so the handler/router proof
+// (`StubAntiBotExecutor`) and the production executor can evolve
+// independently.

@@ -19,15 +19,38 @@
 //
 // webview_render / anti_bot / media_download lanes: the router dispatches
 // `webview.evaluateJavaScript`, `anti_bot.challenge`, and `media.download`
-// host requests to the corresponding handlers. Executors are injected as
-// stubs (notImplemented) until device-tier proof lands; the dispatch path is
-// complete so a Core host.request for these lanes reaches the handler (which
-// returns a structured notImplemented error), not a "capability not supported"
-// rejection.
+// host requests to the corresponding handlers. Executors are wired with REAL
+// implementations via `RustCoreServiceSupport.makeRouter`:
+// - `media.download` → `URLSessionMediaDownloadExecutor` (cross-platform:
+//   URLSession + CryptoKit sha256 + range / ETag / 304 + temp-file cache).
+// - `webview.evaluateJavaScript` → `WKWebViewExecutor` (iOS only; macOS
+//   `swift build` leaves it nil — the lane FAILS CLOSED with
+//   `webViewExecutorNotConfigured`, it is NOT a stub executor that returns
+//   `notImplemented`).
+// - `anti_bot.challenge` → `WKAntiBotExecutor` (iOS only for the L2 WKWebView
+//   fallback; L1 URLSession HTTP fetch is cross-platform, but the executor
+//   type is iOS-only because it imports WebKit for the L2 path).
+//
+// On macOS `swift build`, the iOS-only executors are nil and the router throws
+// a structured `*ExecutorNotConfigured` error — NOT a generic stub throw. The
+// dispatch path is complete so a Core `host.request` for these lanes reaches
+// the handler on every platform, never a "capability not supported" rejection.
+//
+// Tier caveat (do NOT conflate with "backend ready"): real-executor proof
+// still has device-tier gaps — WKWebView login-cookie persistence across
+// `WKWebsiteDataStore`, `cookieJarId` binding for `WKAntiBotExecutor`, slider
+// / reCAPTCHA human-verifier delegation, background URLSession for large media
+// downloads, and real-device user-agent / JIT differences for anti-bot JS
+// challenge solving. macOS `swift build` proving the dispatch path is NOT the
+// same as the host backend being release-ready; simulator / real-device proof
+// is required per the `HostCapabilityTier` manifest.
 
 import Foundation
 import ReaderCoreProtocols
 import ReaderCoreNativeAdapter
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Errors thrown by `HostRequestRouter`.
 public enum HostRequestRouterError: Error, Equatable, LocalizedError {
@@ -46,7 +69,7 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
         case .runtimeNotBooted: return "Rust Core runtime is not booted"
         case .missingOperationId: return "host.request missing operationId"
         case .unexpectedHostRequestType(let t): return "expected host.request, got \(t)"
-        case .unexpectedCapability(let c): return "expected http.execute/cookie.get/cookie.set/webview.evaluateJavaScript/anti_bot.challenge/media.download, got \(c)"
+        case .unexpectedCapability(let c): return "unsupported host.request capability: \(c)"
         case .hostHTTPFailed(let m): return "Host HTTP failed: \(m)"
         case .cookieJarNotConfigured: return "cookie.get/cookie.set requires a ScopedCookieJar"
         case .webViewExecutorNotConfigured: return "webview.evaluateJavaScript requires a WebViewExecutor"
@@ -144,6 +167,8 @@ public struct HostRequestRouter: Sendable {
         do {
             let result: [String: Any]
             switch capability {
+            case "host.smoke.echo":
+                result = try executeHostSmokeEcho(params: params)
             case "http.execute":
                 result = try await executeHTTP(params: params)
             case "cookie.get":
@@ -152,10 +177,28 @@ public struct HostRequestRouter: Sendable {
                 result = try await executeCookieSet(params: params)
             case "webview.evaluateJavaScript":
                 result = try await executeWebViewEvaluate(params: params)
-            case "anti_bot.challenge":
-                result = try executeAntiBotChallenge(params: params)
+            case "file.read":
+                result = try executeFileRead(params: params)
+            case "file.write":
+                result = try executeFileWrite(params: params)
+            case "cache.get":
+                result = try HostCacheStore.shared.get(params: params)
+            case "cache.put":
+                result = try HostCacheStore.shared.put(params: params)
+            case "log.emit":
+                result = try executeLogEmit(params: params)
+            case "time.now":
+                result = try executeTimeNow(params: params)
+            case "system.info":
+                result = try executeSystemInfo(params: params)
+            case "persistence.get":
+                result = try HostPersistenceStore.shared.get(params: params)
+            case "persistence.put":
+                result = try HostPersistenceStore.shared.put(params: params)
             case "media.download":
-                result = try executeMediaDownload(params: params)
+                result = try await executeMediaDownload(params: params)
+            case "anti_bot.challenge":
+                result = try await executeAntiBotChallenge(params: params)
             default:
                 throw HostRequestRouterError.unexpectedCapability(capability)
             }
@@ -184,9 +227,28 @@ public struct HostRequestRouter: Sendable {
     }
 
     /// Supported capability names routed by this router.
+    /// Covers all 15 Core `HostCapability` variants (host.rs enum) plus the
+    /// iOS-side `anti_bot.challenge` lane (which aggregates http.execute +
+    /// cookie.get/set + webview.evaluateJavaScript via `WKAntiBotExecutor`).
     private static let supportedCapabilities: Set<String> = [
-        "http.execute", "cookie.get", "cookie.set", "webview.evaluateJavaScript",
-        "anti_bot.challenge", "media.download",
+        // Core 15 HostCapability variants (host.rs)
+        "host.smoke.echo",
+        "http.execute",
+        "cookie.get",
+        "cookie.set",
+        "webview.evaluateJavaScript",
+        "file.read",
+        "file.write",
+        "cache.get",
+        "cache.put",
+        "log.emit",
+        "time.now",
+        "system.info",
+        "persistence.get",
+        "persistence.put",
+        "media.download",
+        // iOS-side lane aggregation (not a Core HostCapability variant)
+        "anti_bot.challenge",
     ]
 
     // MARK: - http.execute
@@ -340,7 +402,7 @@ public struct HostRequestRouter: Sendable {
     /// (mirroring the `http.execute` field extraction) and adapts the
     /// `AntiBotHandleResult` enum into a `host.complete` result dict
     /// (`.completed`) or a `host.error` event (`.challengeRequired`).
-    internal func executeAntiBotChallenge(params: [String: Any]) throws -> [String: Any] {
+    internal func executeAntiBotChallenge(params: [String: Any]) async throws -> [String: Any] {
         guard let executor = antiBotExecutor else {
             throw HostRequestRouterError.antiBotExecutorNotConfigured
         }
@@ -352,7 +414,7 @@ public struct HostRequestRouter: Sendable {
         let cookieJarId = params["cookieJarId"] as? String
 
         let handler = AntiBotChallengeHandler(executor: executor)
-        let handleResult = try handler.handle(
+        let handleResult = try await handler.handle(
             url: url,
             headers: headers,
             cookieJarId: cookieJarId
@@ -376,11 +438,11 @@ public struct HostRequestRouter: Sendable {
 
     /// Route `media.download` to `MediaDownloadHandler`. Throws if no media
     /// download executor is configured.
-    internal func executeMediaDownload(params: [String: Any]) throws -> [String: Any] {
+    internal func executeMediaDownload(params: [String: Any]) async throws -> [String: Any] {
         guard let executor = mediaDownloadExecutor else {
             throw HostRequestRouterError.mediaDownloadExecutorNotConfigured
         }
-        return try MediaDownloadHandler(executor: executor).handle(params: params)
+        return try await MediaDownloadHandler(executor: executor).handle(params: params)
     }
 
     // MARK: - host.complete / host.error
@@ -436,5 +498,382 @@ public struct HostRequestRouter: Sendable {
         ]
         let json = try JSONSerialization.data(withJSONObject: payload)
         try runtime.send(json: json)
+    }
+
+    // MARK: - host.smoke.echo
+
+    /// `host.smoke.echo` — Core host-bus self-check. Echoes the incoming
+    /// `params` back as `{echoed: params}` so Core can verify the
+    /// `host.request` → `host.complete` round-trip without depending on any
+    /// business capability.
+    private func executeHostSmokeEcho(params: [String: Any]) throws -> [String: Any] {
+        return ["echoed": params]
+    }
+
+    // MARK: - file.read
+
+    /// `file.read` — read a file from the Host sandbox.
+    /// Supports `encoding` (utf8/base64), `byteOffset`, `maxBytes`.
+    private func executeFileRead(params: [String: Any]) throws -> [String: Any] {
+        guard let path = params["path"] as? String, !path.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("file.read requires non-empty `path`")
+        }
+        let url = Self.resolveSandboxURL(path: path)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw HostRequestRouterError.hostHTTPFailed("file.read: file not found at \(url.path)")
+        }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw HostRequestRouterError.hostHTTPFailed("file.read failed: \(error.localizedDescription)")
+        }
+        let offset = (params["byteOffset"] as? UInt64) ?? 0
+        let maxBytes = params["maxBytes"] as? UInt64
+        let sliced: Data
+        if offset > 0 || maxBytes != nil {
+            let start = data.startIndex.advanced(by: Int(min(offset, UInt64(data.count))))
+            let end: Data.Index
+            if let max = maxBytes {
+                end = data.startIndex.advanced(by: min(Int(offset) + Int(max), data.count))
+            } else {
+                end = data.endIndex
+            }
+            sliced = start < end ? data.subdata(in: start..<end) : Data()
+        } else {
+            sliced = data
+        }
+        let encoding = (params["encoding"] as? String) ?? "utf8"
+        var result: [String: Any] = ["byteLength": sliced.count]
+        if encoding == "base64" {
+            result["contentBase64"] = sliced.base64EncodedString()
+        } else {
+            result["content"] = String(data: sliced, encoding: .utf8) ?? ""
+            result["encoding"] = "utf8"
+        }
+        return result
+    }
+
+    // MARK: - file.write
+
+    /// `file.write` — write a file to the Host sandbox.
+    /// Supports `createDirectories`, `append`, `content`/`contentBase64`.
+    private func executeFileWrite(params: [String: Any]) throws -> [String: Any] {
+        guard let path = params["path"] as? String, !path.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("file.write requires non-empty `path`")
+        }
+        let url = Self.resolveSandboxURL(path: path)
+        let createDirs = (params["createDirectories"] as? Bool) ?? false
+        if createDirs {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                    withIntermediateDirectories: true)
+        }
+        let content = params["content"] as? String
+        let contentBase64 = params["contentBase64"] as? String
+        let data: Data
+        if let base64 = contentBase64 {
+            guard let decoded = Data(base64Encoded: base64) else {
+                throw HostRequestRouterError.hostHTTPFailed("file.write: invalid base64 content")
+            }
+            data = decoded
+        } else if let text = content {
+            data = Data(text.utf8)
+        } else {
+            throw HostRequestRouterError.hostHTTPFailed("file.write requires `content` or `contentBase64`")
+        }
+        let append = (params["append"] as? Bool) ?? false
+        if append && FileManager.default.fileExists(atPath: url.path) {
+            if let handle = try? FileHandle(forWritingTo: url) {
+                handle.seekToEndOfFile()
+                handle.write(data)
+                handle.closeFile()
+            } else {
+                try data.write(to: url, options: .atomic)
+            }
+        } else {
+            try data.write(to: url, options: .atomic)
+        }
+        return ["written": true, "byteLength": data.count]
+    }
+
+    // MARK: - log.emit
+
+    /// `log.emit` — forward Core log events to the Host log system.
+    private func executeLogEmit(params: [String: Any]) throws -> [String: Any] {
+        let level = (params["level"] as? String) ?? "info"
+        let message = (params["message"] as? String) ?? ""
+        let target = (params["target"] as? String) ?? "ReaderCore"
+        HostLogForwarder.shared.emit(level: level, message: message, target: target)
+        return ["emitted": true]
+    }
+
+    // MARK: - time.now
+
+    /// `time.now` — return current Host time.
+    private func executeTimeNow(params: [String: Any]) throws -> [String: Any] {
+        let now = Date()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let iso8601 = formatter.string(from: now)
+        let unixMillis = UInt64(now.timeIntervalSince1970 * 1000)
+        var result: [String: Any] = [
+            "unixMillis": unixMillis,
+            "iso8601": iso8601,
+        ]
+        if let tz = params["timezone"] as? String, !tz.isEmpty {
+            result["timezone"] = tz
+        }
+        return result
+    }
+
+    // MARK: - system.info
+
+    /// `system.info` — return Host system info.
+    private func executeSystemInfo(params: [String: Any]) throws -> [String: Any] {
+        let info = HostSystemInfoProvider.shared.collectInfo()
+        if let keys = params["keys"] as? [String], !keys.isEmpty {
+            let allowed = Set(keys)
+            return ["info": info.filter { allowed.contains($0.key) }]
+        }
+        return ["info": info]
+    }
+
+    // MARK: - Sandbox path resolution
+
+    /// Resolve a path to a sandbox-safe URL. Supports `documents:` /
+    /// `cache:` / `temp:` prefixes; bare paths are resolved relative to
+    /// the documents directory. Absolute paths outside the app container
+    /// are rejected (fail-closed).
+    private static func resolveSandboxURL(path: String) -> URL {
+        let fm = FileManager.default
+        if path.hasPrefix("documents:") {
+            let relative = String(path.dropFirst("documents:".count))
+            return fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(relative)
+        }
+        if path.hasPrefix("cache:") {
+            let relative = String(path.dropFirst("cache:".count))
+            return fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(relative)
+        }
+        if path.hasPrefix("temp:") {
+            let relative = String(path.dropFirst("temp:".count))
+            return fm.temporaryDirectory.appendingPathComponent(relative)
+        }
+        // Bare path: resolve relative to documents directory.
+        return fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(path)
+    }
+}
+
+// MARK: - HostCacheStore
+
+/// In-memory cache store for `cache.get` / `cache.put` host requests.
+/// Entries carry a TTL (expires_at); reads past expiry return a miss.
+final class HostCacheStore: @unchecked Sendable {
+    static let shared = HostCacheStore()
+
+    private struct Entry {
+        let value: String
+        let valueBase64: String?
+        let expiresAt: Date?
+    }
+
+    private var entries: [String: Entry] = [:]
+    private let lock = NSLock()
+
+    func get(params: [String: Any]) throws -> [String: Any] {
+        guard let ns = params["namespace"] as? String, !ns.isEmpty,
+              let key = params["key"] as? String, !key.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("cache.get requires `namespace` and `key`")
+        }
+        let compositeKey = "\(ns):\(key)"
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = entries[compositeKey] else {
+            return ["hit": false]
+        }
+        if let expiresAt = entry.expiresAt, expiresAt < Date() {
+            entries.removeValue(forKey: compositeKey)
+            return ["hit": false]
+        }
+        var result: [String: Any] = ["hit": true, "value": entry.value]
+        if let b64 = entry.valueBase64 {
+            result["valueBase64"] = b64
+        }
+        if let expiresAt = entry.expiresAt {
+            let formatter = ISO8601DateFormatter()
+            result["expiresAt"] = formatter.string(from: expiresAt)
+        }
+        return result
+    }
+
+    func put(params: [String: Any]) throws -> [String: Any] {
+        guard let ns = params["namespace"] as? String, !ns.isEmpty,
+              let key = params["key"] as? String, !key.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("cache.put requires `namespace` and `key`")
+        }
+        let value = params["value"] as? String
+        let valueBase64 = params["valueBase64"] as? String
+        guard value != nil || valueBase64 != nil else {
+            throw HostRequestRouterError.hostHTTPFailed("cache.put requires `value` or `valueBase64`")
+        }
+        let ttlMillis = params["ttlMillis"] as? UInt64
+        let expiresAt: Date? = ttlMillis.map { Date().addingTimeInterval(Double($0) / 1000.0) }
+        let compositeKey = "\(ns):\(key)"
+        lock.lock()
+        defer { lock.unlock() }
+        entries[compositeKey] = Entry(
+            value: value ?? "",
+            valueBase64: valueBase64,
+            expiresAt: expiresAt
+        )
+        var result: [String: Any] = ["stored": true]
+        if let expiresAt = expiresAt {
+            let formatter = ISO8601DateFormatter()
+            result["expiresAt"] = formatter.string(from: expiresAt)
+        }
+        return result
+    }
+}
+
+// MARK: - HostPersistenceStore
+
+/// Persistence store backed by `UserDefaults` for `persistence.get` /
+/// `persistence.put` host requests. Supports `expected_revision` optimistic
+/// locking.
+final class HostPersistenceStore: @unchecked Sendable {
+    static let shared = HostPersistenceStore()
+
+    private let defaults = UserDefaults.standard
+    private let lock = NSLock()
+
+    private func storageKey(namespace: String, key: String) -> String {
+        "host.persistence.\(namespace).\(key)"
+    }
+
+    private func revisionKey(namespace: String, key: String) -> String {
+        "host.persistence.\(namespace).\(key).revision"
+    }
+
+    func get(params: [String: Any]) throws -> [String: Any] {
+        guard let ns = params["namespace"] as? String, !ns.isEmpty,
+              let key = params["key"] as? String, !key.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("persistence.get requires `namespace` and `key`")
+        }
+        let sKey = storageKey(namespace: ns, key: key)
+        let rKey = revisionKey(namespace: ns, key: key)
+        if let value = defaults.string(forKey: sKey) {
+            let revision = defaults.string(forKey: rKey) ?? "0"
+            return ["found": true, "value": value, "revision": revision]
+        }
+        return ["found": false]
+    }
+
+    func put(params: [String: Any]) throws -> [String: Any] {
+        guard let ns = params["namespace"] as? String, !ns.isEmpty,
+              let key = params["key"] as? String, !key.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("persistence.put requires `namespace` and `key`")
+        }
+        let value = params["value"] as? String
+        let valueBase64 = params["valueBase64"] as? String
+        guard value != nil || valueBase64 != nil else {
+            throw HostRequestRouterError.hostHTTPFailed("persistence.put requires `value` or `valueBase64`")
+        }
+        let sKey = storageKey(namespace: ns, key: key)
+        let rKey = revisionKey(namespace: ns, key: key)
+        let expectedRevision = params["expectedRevision"] as? String
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        // Optimistic lock: if expectedRevision is provided, it must match the
+        // current revision (or be "0" for a new entry).
+        let currentRevision = defaults.string(forKey: rKey)
+        if let expected = expectedRevision {
+            if expected != (currentRevision ?? "0") {
+                throw HostRequestRouterError.hostHTTPFailed(
+                    "persistence.put revision mismatch: expected \(expected), got \(currentRevision ?? "0")"
+                )
+            }
+        }
+        let newRevision = String((Int(currentRevision ?? "0") ?? 0) + 1)
+        defaults.set(value ?? valueBase64, forKey: sKey)
+        defaults.set(newRevision, forKey: rKey)
+        return ["stored": true, "revision": newRevision]
+    }
+}
+
+// MARK: - HostLogForwarder
+
+/// Forwards Core log events to `os.Logger` so they appear in the unified
+/// log system. Singleton; thread-safe via a serial queue.
+final class HostLogForwarder: @unchecked Sendable {
+    static let shared = HostLogForwarder()
+
+    private let queue = DispatchQueue(label: "host.log-forwarder")
+
+    func emit(level: String, message: String, target: String) {
+        queue.async {
+            let prefix = "[\(target)]"
+            switch level.lowercased() {
+            case "trace", "debug":
+                print("\(prefix) DEBUG: \(message)")
+            case "info":
+                print("\(prefix) INFO: \(message)")
+            case "warn":
+                print("\(prefix) WARN: \(message)")
+            case "error":
+                print("\(prefix) ERROR: \(message)")
+            default:
+                print("\(prefix) \(level.uppercased()): \(message)")
+            }
+        }
+    }
+}
+
+// MARK: - HostSystemInfoProvider
+
+/// Collects Host system info for `system.info` host requests.
+final class HostSystemInfoProvider: @unchecked Sendable {
+    static let shared = HostSystemInfoProvider()
+
+    func collectInfo() -> [String: String] {
+        var info: [String: String] = [:]
+        info["platform"] = "ios"
+        info["swiftVersion"] = SwiftCompilerVersion.current
+        #if canImport(UIKit)
+        info["deviceModel"] = UIDevice.current.model
+        info["systemName"] = UIDevice.current.systemName
+        info["systemVersion"] = UIDevice.current.systemVersion
+        #endif
+        if let bundleId = Bundle.main.bundleIdentifier {
+            info["bundleId"] = bundleId
+        }
+        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            info["appVersion"] = version
+        }
+        if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
+            info["buildNumber"] = build
+        }
+        info["locale"] = Locale.current.identifier
+        info["timezone"] = TimeZone.current.identifier
+        return info
+    }
+}
+
+// MARK: - Swift compiler version helper
+
+private enum SwiftCompilerVersion {
+    static var current: String {
+        #if swift(>=6.0)
+        return "Swift 6.0"
+        #elseif swift(>=5.10)
+        return "Swift 5.10"
+        #elseif swift(>=5.9)
+        return "Swift 5.9"
+        #else
+        return "Swift 5.x"
+        #endif
     }
 }

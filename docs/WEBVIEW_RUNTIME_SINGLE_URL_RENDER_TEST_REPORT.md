@@ -7,6 +7,10 @@
 **当前仓库**: Reader for iOS, Reader-Core
 **当前 HEAD**: Reader for iOS `729b3234c3131cccd1d7723aadd8d146507d1f8b`, Reader-Core `0486a9d2ff385a7781ed918a506b7baf02d3c712`
 
+> 历史报告说明：本文记录 2026-05-09 单 URL WebView 验证的当时状态，
+> 不作为当前 iOS complete-app 开发的全局限制。当前 app-level 构建、
+> 测试和截图证据以 `docs/frontend-complete-app/IOS_GAP_MATRIX.md` 为准。
+
 ---
 
 ## 一、测试授权
@@ -177,7 +181,7 @@ NO_RECURSION ✅
 NO_BASELINE_PROMOTION ✅
 BUILD_SUCCEEDED ✅
 READER_CORE_TESTS_PASSED ✅
-SIMULATOR_CLI_APP_MANAGEMENT_BLOCKED ✅ (workaround: use Xcode GUI)
+SIMULATOR_CLI_APP_MANAGEMENT_LIMITATION_RECORDED ✅ (historical report; not a current global blocker)
 REAL_DEVICE_TEST_OPTIONAL ✅
 ```
 

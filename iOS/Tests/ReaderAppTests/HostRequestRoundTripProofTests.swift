@@ -203,11 +203,13 @@ final class HostRequestRoundTripProofTests: XCTestCase {
         defer { runtime.destroy() }
         let router = HostRequestRouter(httpClient: client, runtime: runtime)
 
-        // Build a host.request for an unsupported capability ("file.read").
+        // Build a host.request for an unsupported capability.
+        // Note: `file.read` was previously unsupported but is now a registered
+        // lane. Use a truly unknown capability name.
         let event = try makeHostRequestEvent(
             operationId: 2003,
-            capability: "file.read",
-            params: ["path": "/some/file"] as [String: Any]
+            capability: "unknown.capability",
+            params: ["foo": "bar"] as [String: Any]
         )
 
         // handleHostRequest must throw unexpectedCapability — this is the
@@ -217,8 +219,8 @@ final class HostRequestRoundTripProofTests: XCTestCase {
             try await router.handleHostRequest(event)
             XCTFail("handleHostRequest must throw for unsupported capabilities")
         } catch HostRequestRouterError.unexpectedCapability(let capability) {
-            XCTAssertEqual(capability, "file.read",
-                           "rejected capability must be 'file.read'")
+            XCTAssertEqual(capability, "unknown.capability",
+                           "rejected capability must be 'unknown.capability'")
         } catch {
             XCTFail("expected unexpectedCapability, got: \(type(of: error))")
         }

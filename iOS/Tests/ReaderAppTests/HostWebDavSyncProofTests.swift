@@ -141,7 +141,7 @@ final class HostWebDavSyncProofTests: XCTestCase {
         let runtime = try makeRuntime()
         defer { runtime.destroy() }
 
-        let backupBytes = Array("{\"backup\":\"test\"}".utf8)
+        let backupBytes = Array("{\"backup\":\"test\"}".utf8).map { Int($0) }
         let params: [String: Any] = [
             "baseUrl": "https://dav.example.com/",
             "requests": [
@@ -216,7 +216,7 @@ final class HostWebDavSyncProofTests: XCTestCase {
                 webDavRequest(
                     method: "PUT",
                     path: "reader-backups/backup-001.json",
-                    body: Array("{\"v\":1}".utf8)
+                    body: Array("{\"v\":1}".utf8).map { Int($0) }
                 ),
                 webDavRequest(method: "PROPFIND", path: "reader-backups/", depth: 1),
             ],
@@ -281,12 +281,24 @@ final class HostWebDavSyncProofTests: XCTestCase {
 
         let params: [String: Any] = [
             "package": [
-                "backupId": "backup-001",
-                "createdAt": 1720000000,
-                "files": [["path": "bookshelf.json", "size": 1024]],
+                "manifest": [
+                    "backupID": "backup-001",
+                    "createdAt": 1_720_000_000,
+                    "entries": [
+                        [
+                            "relativePath": "bookshelf.json",
+                            "sizeBytes": 1_024,
+                            "modifiedAt": 1_720_000_000,
+                        ],
+                    ],
+                    "totalBytes": 1_024,
+                    "bookCount": 1,
+                ],
+                "format": "zip",
             ],
             "policy": [
                 "mode": "full",
+                "overwriteExisting": false,
             ],
         ]
 

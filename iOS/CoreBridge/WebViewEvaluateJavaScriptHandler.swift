@@ -308,31 +308,11 @@ public final class StubWebViewExecutor: WebViewExecutor, @unchecked Sendable {
     }
 }
 
-// MARK: - WKWebViewExecutor (production, device-tier proof pending)
-
-#if canImport(WebKit)
-import WebKit
-
-/// Production WKWebView executor for `webview.evaluateJavaScript`.
-///
-/// NOT YET IMPLEMENTED — this is a `notImplemented` stub. Real WKWebView
-/// execution (load HTML via `loadHTMLString` / load URL via `load(_:)`,
-/// evaluate JS via `evaluateJavaScript(_:in:in:completionHandler:)`, capture
-/// finalUrl via `WKWebView.url` and title via `WKWebView.title`, enforce
-/// `timeoutMillis` via `Task` cancellation) requires device-tier proof
-/// (simulator / real device with a live WKWebView).
-///
-/// The handler/router proof in `HostWebViewRenderProofTests` uses
-/// `StubWebViewExecutor` and does NOT depend on this class. This stub exists
-/// so the router can be wired with a real executor once device-tier proof
-/// lands, without changing the handler contract.
-public final class WKWebViewExecutor: WebViewExecutor, @unchecked Sendable {
-    public init() {}
-
-    public func evaluate(request: WebViewEvaluationRequest) async throws -> WebViewEvaluationResult {
-        throw WebViewExecutorError.notImplemented(
-            "WKWebView production executor pending device-tier proof"
-        )
-    }
-}
-#endif
+// MARK: - WKWebViewExecutor
+//
+// The real `WKWebViewExecutor` implementation lives in
+// `WKWebViewExecutor.swift` (WKWebView load HTML/URL, evaluate JS, capture
+// finalUrl/title, timeout via Task cancellation, security gate via
+// `WebViewSecurityGate` + `ProductionWebViewAdapter`). It was extracted from
+// this file so the handler/router proof (`StubWebViewExecutor`) and the
+// production executor can evolve independently.
