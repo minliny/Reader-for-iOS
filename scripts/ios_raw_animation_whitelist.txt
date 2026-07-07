@@ -11,20 +11,20 @@
 # === DemoPrimitives.swift —— 组件库原语，被多个 caller 复用 ===
 # 这些是 demo 组件库内部的实现，迁移需要同步所有 caller。
 # 优先级：等 caller 全部迁移到 ReaderMotionAdapter 后，再统一迁移 DemoPrimitives。
-iOS/App/Components/DemoPrimitives.swift:410: DemoLoadingSpinner 旋转动画，使用 MotionEnvironment().animation(duration) 驱动
-iOS/App/Components/DemoPrimitives.swift:411: DemoLoadingSpinner 旋转动画（motion.animation 调用）
-iOS/App/Components/DemoPrimitives.swift:546: DemoChip 选中切换，使用 AppMotion.Duration.chipSelect
-iOS/App/Components/DemoPrimitives.swift:630: DemoDropdown open 切换，使用 AppMotion.Duration.dropdownSelect
-iOS/App/Components/DemoPrimitives.swift:734: DemoDropdownOption active 切换，使用 AppMotion.Duration.chipSelect
-iOS/App/Components/DemoPrimitives.swift:760: DemoDropdown expand/collapse，使用 AppMotion.Duration.dropdownExpand/Collapse
-iOS/App/Components/DemoPrimitives.swift:873: DemoSettingsSwitch isOn 切换，使用 AppMotion.Duration.toggleSwitch
-iOS/App/Components/DemoPrimitives.swift:1207: DemoLoadingSpinner repeatForever 旋转，连续动画不适用 resolver
-iOS/App/Components/DemoPrimitives.swift:1238: DemoRestoreProgressMeter repeatForever 旋转，连续动画不适用 resolver
-iOS/App/Components/DemoPrimitives.swift:1382: DemoReaderSwitch isOn 切换，使用 AppMotion.Duration.toggleSwitch
-iOS/App/Components/DemoPrimitives.swift:1420: DemoTocSwitchRow isOn 切换，使用 AppMotion.Duration.toggleSwitch
-iOS/App/Components/DemoPrimitives.swift:1458: DemoSliderControl +/- 按钮切换，使用 AppMotion.Duration.toggleSwitch
+iOS/App/Components/DemoPrimitives.swift:412: DemoLoadingSpinner 旋转动画，使用 MotionEnvironment().animation(duration) 驱动
+iOS/App/Components/DemoPrimitives.swift:413: DemoLoadingSpinner 旋转动画（motion.animation 调用）
+iOS/App/Components/DemoPrimitives.swift:548: DemoChip 选中切换，使用 AppMotion.Duration.chipSelect
+iOS/App/Components/DemoPrimitives.swift:632: DemoDropdown open 切换，使用 AppMotion.Duration.dropdownSelect
+iOS/App/Components/DemoPrimitives.swift:736: DemoDropdownOption active 切换，使用 AppMotion.Duration.chipSelect
+iOS/App/Components/DemoPrimitives.swift:762: DemoDropdown expand/collapse，使用 AppMotion.Duration.dropdownExpand/Collapse
+iOS/App/Components/DemoPrimitives.swift:875: DemoSettingsSwitch isOn 切换，使用 AppMotion.Duration.toggleSwitch
+iOS/App/Components/DemoPrimitives.swift:1209: DemoLoadingSpinner repeatForever 旋转，连续动画不适用 resolver
+iOS/App/Components/DemoPrimitives.swift:1240: DemoRestoreProgressMeter repeatForever 旋转，连续动画不适用 resolver
+iOS/App/Components/DemoPrimitives.swift:1384: DemoReaderSwitch isOn 切换，使用 AppMotion.Duration.toggleSwitch
+iOS/App/Components/DemoPrimitives.swift:1422: DemoTocSwitchRow isOn 切换，使用 AppMotion.Duration.toggleSwitch
+iOS/App/Components/DemoPrimitives.swift:1460: DemoSliderControl +/- 按钮切换，使用 AppMotion.Duration.toggleSwitch
 
 # === ReaderView.swift —— toggleReaderChrome ===
 # withAnimation(animation) 里的 animation 是 ReaderMotionAdapter.animation(for:) 的返回值，
 # 属于 transitive adapter 调用，lint 脚本无法静态识别局部变量来源
-iOS/Features/Reader/ReaderView.swift:629: withAnimation(animation) — animation 来自 ReaderMotionAdapter.animation(for: request)，transitive adapter 调用
+iOS/Features/Reader/ReaderView.swift:679: withAnimation(animation) — animation 来自 ReaderMotionAdapter.animation(for: request)，transitive adapter 调用
