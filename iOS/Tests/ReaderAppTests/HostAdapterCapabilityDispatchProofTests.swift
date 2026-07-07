@@ -155,7 +155,7 @@ final class HostAdapterCapabilityDispatchProofTests: XCTestCase {
     /// configuration gap, not a handler code bug. Skip on simulator to keep
     /// the sim signal clean — the real-device proof covers this capability.
     func testCredentialSetGetDeleteRoundTrip() async throws {
-        #if targetEnvironment(Simulator)
+        #if targetEnvironment(simulator)
         throw XCTSkip("credential.* requires keychain-access-groups entitlement; iOS Simulator host-app built with CODE_SIGNING_ALLOWED=NO lacks it (errSecMissingEntitlement -34018). Verified on macOS swift test + real device instead.")
         #else
         let adapter = HostAdapter()

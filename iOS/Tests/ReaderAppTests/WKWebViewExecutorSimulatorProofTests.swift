@@ -16,7 +16,7 @@ import UIKit
 /// - **Validation-only tests** (no live WKWebView needed): security gate host
 ///   rejection, invalid URL string. These run on the simulator without
 ///   depending on WKWebView's navigation pipeline.
-/// - **Simulator-exercising tests** (`#if targetEnvironment(Simulator)`):
+/// - **Simulator-exercising tests** (`#if targetEnvironment(simulator)`):
 ///   HTML document JS evaluation, title capture. These need a live WKWebView
 ///   which only works on the simulator (or real device). They are skipped on
 ///   macOS `swift test` because the whole file is guarded out.
@@ -111,7 +111,7 @@ final class WKWebViewExecutorSimulatorProofTests: XCTestCase {
 
     // MARK: - Simulator-only proofs (need a live WKWebView)
 
-    #if targetEnvironment(Simulator)
+    #if targetEnvironment(simulator)
     /// HTML document with a simple JS expression (`1+1`) must return `2`.
     /// This exercises the full WKWebView pipeline: load HTML string → wait
     /// for navigation → evaluate JS → return value.

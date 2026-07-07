@@ -225,7 +225,7 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
         // Skipped on iOS Simulator: host-app built with CODE_SIGNING_ALLOWED=NO
         // has no keychain-access-groups entitlement -> errSecMissingEntitlement.
         // Verified on macOS swift test + real device (entitlement injected).
-        #if !targetEnvironment(Simulator)
+        #if !targetEnvironment(simulator)
         let service = "com.reader.manifest-proof"
         let account = "manifest-\(UUID().uuidString)"
         let credSet = await adapter.dispatch(HostRequest(
