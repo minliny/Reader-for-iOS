@@ -188,7 +188,14 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
     /// `crossPlatform` capabilities must succeed on macOS `swift test` (no
     /// UIKit required). This is the baseline guarantee for the
     /// `crossPlatform` tier.
-    func testCrossPlatformTypesSucceedOnMacOS() async {
+    ///
+    /// On iOS Simulator, `credential.*` is skipped because the host app
+    /// built with `CODE_SIGNING_ALLOWED=NO` (CI gate) lacks the
+    /// `keychain-access-groups` entitlement (`SecItemAdd` returns
+    /// `-34018 errSecMissingEntitlement`). `cookie.*` and `clipboard.*`
+    /// don't need the entitlement and still run on sim. The credential
+    /// capability is verified on macOS `swift test` and real device instead.
+    func testCrossPlatformTypesSucceedOnMacOS() async throws {
         let adapter = HostAdapter()
 
         // cookie.set + cookie.get round-trip (use root path so cookie path "/"
@@ -214,7 +221,11 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
         XCTAssertTrue(getOutcome.succeeded,
                       "cookie.get must succeed on macOS; got: \(String(describing: getOutcome.error))")
 
-        // credential.set + credential.get round-trip
+        // credential.set + credential.get round-trip.
+        // Skipped on iOS Simulator: host-app built with CODE_SIGNING_ALLOWED=NO
+        // has no keychain-access-groups entitlement -> errSecMissingEntitlement.
+        // Verified on macOS swift test + real device (entitlement injected).
+        #if !targetEnvironment(Simulator)
         let service = "com.reader.manifest-proof"
         let account = "manifest-\(UUID().uuidString)"
         let credSet = await adapter.dispatch(HostRequest(
@@ -237,6 +248,7 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
         ))
         XCTAssertTrue(credGet.succeeded,
                       "credential.get must succeed on macOS; got: \(String(describing: credGet.error))")
+        #endif
 
         // clipboard.copy + clipboard.paste round-trip
         let clipText = "manifest-clipboard-\(UUID().uuidString)"
