@@ -10,11 +10,15 @@
 # Usage:
 #   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh              # macOS host lib only
 #   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --sim          # also iOS-sim lib
+#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --universal-sim
+#                                                              # iOS-sim arm64+x86_64 lib
 #   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --device      # also iOS-device lib
 #   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework # build merged xcframework
 #                                                              #   (macOS + iOS-sim slices)
 #   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework --device
 #                                                              #   (macOS + iOS-device + iOS-sim slices)
+#   bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework --device --universal-sim
+#                                                              # include x86_64 simulator support
 #   READER_CORE_NATIVE=/path/to/Reader-Core-Native bash .../fetch-cabi.sh
 #   bash .../fetch-cabi.sh --refresh-headers
 set -euo pipefail
@@ -36,10 +40,12 @@ refresh_headers=0
 fetch_sim=0
 fetch_device=0
 fetch_xcframework=0
+fetch_universal_sim=0
 for arg in "$@"; do
   case "$arg" in
     --refresh-headers) refresh_headers=1 ;;
     --sim) fetch_sim=1 ;;
+    --universal-sim|--sim-universal) fetch_sim=1; fetch_universal_sim=1 ;;
     --device) fetch_device=1 ;;
     --xcframework) fetch_xcframework=1 ;;
     *) echo "fetch-cabi: unknown flag $arg" >&2; exit 1 ;;
@@ -64,15 +70,28 @@ cp "$host_lib" "$cabi_dir/libreader_core.a"
 echo "fetch-cabi: materialized $cabi_dir/libreader_core.a (macOS arm64)"
 echo "fetch-cabi: headers in $cabi_dir (reader_core.h, module.modulemap)"
 
-# Optionally materialize the iOS-simulator static library (arm64, platform 7).
+# Optionally materialize the iOS-simulator static library. By default this
+# builds arm64 simulator for Apple Silicon. With --universal-sim it lipo-merges
+# arm64 + x86_64 simulator slices so Intel Mac simulators can link too.
 if (( fetch_sim == 1 || fetch_xcframework == 1 )); then
   sim_lib="$native_root/target/aarch64-apple-ios-sim/release/libreader_core.a"
   if [[ ! -f "$sim_lib" ]]; then
     echo "fetch-cabi: building iOS-sim libreader_core_sim.a (aarch64-apple-ios-sim, release)"
-    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios-sim)
+    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios-sim --features bindgen)
   fi
-  cp "$sim_lib" "$cabi_dir/libreader_core_sim.a"
-  echo "fetch-cabi: materialized $cabi_dir/libreader_core_sim.a (iOS-sim arm64)"
+
+  if (( fetch_universal_sim == 1 )); then
+    sim_x86_64_lib="$native_root/target/x86_64-apple-ios/release/libreader_core.a"
+    if [[ ! -f "$sim_x86_64_lib" ]]; then
+      echo "fetch-cabi: building iOS-sim libreader_core_sim.a (x86_64-apple-ios, release)"
+      (cd "$native_root" && cargo build -p reader-ffi --release --target x86_64-apple-ios --features bindgen)
+    fi
+    lipo -create "$sim_lib" "$sim_x86_64_lib" -output "$cabi_dir/libreader_core_sim.a"
+    echo "fetch-cabi: materialized $cabi_dir/libreader_core_sim.a (iOS-sim arm64+x86_64)"
+  else
+    cp "$sim_lib" "$cabi_dir/libreader_core_sim.a"
+    echo "fetch-cabi: materialized $cabi_dir/libreader_core_sim.a (iOS-sim arm64)"
+  fi
 fi
 
 # Optionally materialize the iOS-device static library (arm64, aarch64-apple-ios).
@@ -81,7 +100,7 @@ if (( fetch_device == 1 )); then
   device_lib="$native_root/target/aarch64-apple-ios/release/libreader_core.a"
   if [[ ! -f "$device_lib" ]]; then
     echo "fetch-cabi: building iOS-device libreader_core_device.a (aarch64-apple-ios, release)"
-    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios)
+    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios --features bindgen)
   fi
   cp "$device_lib" "$cabi_dir/libreader_core_device.a"
   echo "fetch-cabi: materialized $cabi_dir/libreader_core_device.a (iOS-device arm64)"
@@ -131,5 +150,3 @@ if (( fetch_xcframework == 1 )); then
     echo "fetch-cabi: materialized $cabi_dir/ReaderCore.xcframework (macOS + iOS-sim)"
   fi
 fi
-
-

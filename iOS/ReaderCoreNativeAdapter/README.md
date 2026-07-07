@@ -67,11 +67,16 @@ bash ./fetch-cabi.sh
 bash ./run-shell-smoke.sh
 
 # iOS 模拟器 smoke（需先 fetch-cabi.sh --sim 拉 iOS-sim lib）
+# Apple Silicon-only: arm64 simulator.
 bash ./fetch-cabi.sh --sim
+# Intel Mac compatibility: arm64+x86_64 universal simulator.
+bash ./fetch-cabi.sh --sim --universal-sim
 bash ./run-sim-smoke.sh
 
 # iOS 模拟器 XCTest（需先 fetch-cabi.sh --xcframework 构建 binaryTarget xcframework）
 bash ./fetch-cabi.sh --xcframework
+# 若需要 Intel Mac/x86_64 simulator，把 simulator slice 生成成 universal：
+bash ./fetch-cabi.sh --xcframework --device --universal-sim
 cd ..
 xcodebuild -scheme ReaderCoreNativeAdapterSmokeTests \
   -destination 'platform=iOS Simulator,name=iPhone 17' test
@@ -82,6 +87,8 @@ bash scripts/run_native_core_app_evidence_simulator.sh --device "iPhone 17 Pro"
 ```
 
 注：`ReaderCoreNative` 是 `binaryTarget`（合并 xcframework，macOS + iOS-sim slice）。
+默认 iOS-sim slice 是 Apple Silicon arm64；需要支持 Intel Mac 时，用
+`--universal-sim` 生成 arm64+x86_64 simulator slice。
 独立 scheme `ReaderCoreNativeAdapterSmokeTests` 只构建 adapter 依赖链，绕过 pre-existing
 的 `ReaderApp` target 构建问题（不在本 goal 范围）。`ReaderApp-Package` scheme 仍会拉
 损坏的 `ReaderApp`，不要用它跑 adapter 测试。

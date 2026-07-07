@@ -38,6 +38,9 @@ let package = Package(
         // platform without platform-conditional linkerSettings. The module name is
         // `ReaderCore` (from the in-xcframework module.modulemap). Run
         // `bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework` first.
+        // For Intel Mac simulator support, rebuild with
+        // `--xcframework --device --universal-sim` so the iOS-sim slice contains
+        // arm64 + x86_64.
         .binaryTarget(
             name: "ReaderCoreNative",
             path: "ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework"
