@@ -295,6 +295,8 @@ final class PersistencePublicSurfaceTests: XCTestCase {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("PersistenceTests", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent(name)
+        let url = dir.appendingPathComponent(name)
+        try? FileManager.default.removeItem(at: url)
+        return url
     }
 }
