@@ -61,7 +61,9 @@ macOS `swift test` 上同一 handler 通过（keychain 在 macOS 不需要 entit
 > `keychain-access-groups`；② sim build 启用 `CODE_SIGNING_ALLOWED=YES`（偏离当前 CI gate）。
 > 该修复不在本次两组提交范围，列为后续 host-app 配置任务。
 
-### 真机 device proof（Xcode IDE, 2026-07-07 23:03 +0800）
+### 真机 device proof（Xcode IDE, 2026-07-07 23:03 +0800）+ fixture 修复后状态（2026-07-08 00:10 +0800）
+
+#### 第一轮真机 test（fixture 修复前）
 
 | 项 | 结果 |
 |----|------|
@@ -71,7 +73,7 @@ macOS `swift test` 上同一 handler 通过（keychain 在 macOS 不需要 entit
 | 总计 | **396 cases executed, 395 passed, 1 failed** |
 | 失败项 | `HostRouterRoundTripProofTests/testWebViewEvaluateJavaScriptDispatchPathComplete()` — failureText: "Testing was canceled" |
 
-#### 唯一失败项分析
+##### 唯一失败项分析（fixture 修复前）
 
 | 项 | 详情 |
 |----|------|
@@ -79,9 +81,21 @@ macOS `swift test` 上同一 handler 通过（keychain 在 macOS 不需要 entit
 | 失败原因 | "Testing was canceled"（**不是** assertion failure，**不是** codesign/entitlement 问题） |
 | 根因 | 真机上 `makeRouter` 注入真实 `WKWebViewExecutor`，测试参数 `url=https://example.test/render` + `javaScript=document.title`。`example.test` 是不存在的域名，WKWebView 加载该 URL 时 didFail 回调未及时触发，`await` 挂起超过 Xcode 默认测试超时，导致整个测试 session 被 cancel |
 | 性质 | **真机 WKWebView 真实执行路径的超时问题**，不是代码 bug。反向证明了真机上 `WKWebViewExecutor` 确实被调用并尝试加载页面（fail-closed 路径走通了，只是超时阈值不够） |
-| 修复方向 | ① 测试侧：把 `url` 换成可达的 fixture（如 `about:blank` 或本地 HTML）；② executor 侧：给 `evaluateJavaScript` 加显式超时（目前依赖 WKWebView 默认行为）。**不在本次两组提交范围** |
+| 修复 | 测试 fixture 从 `kind: "url"` + `https://example.test/render` 改为 `kind: "html"` + inline HTML 字符串（commit `87b0cd1`），WKWebView 直接 `loadHTMLString` 从内存加载，无网络依赖 |
 
-#### 通过项（395/396）按 tier 分类
+#### 第二轮验证（fixture 修复后，commit `87b0cd1`）
+
+| 平台 | 结果 | 证据 |
+|------|------|------|
+| macOS `swift test --filter HostRouterRoundTripProofTests` | **7/7 passed**（0.000s，executor=nil 走 fail-closed 路径） | 本地跑 |
+| iOS Simulator `test-without-building` (iPhone 17, iOS 26.5) | **7/7 passed**（webview case 62s — sim WKWebView 进程启动开销，无超时，无 cancel） | `~/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.07_23-33-14-+0800.xcresult` |
+| 真机 396/396 确认 | **BLOCKED** — 命令行 codesign 阻塞于 keychain ACL `errSecInternalComponent`（签名身份有 4 个重复副本分布在 `reader-ios-build.keychain-db` + `login.keychain-db`，并发 ACL 竞态；keychain 锁住，无法非交互 `set-key-partition-list` 预授权） | 需 Xcode IDE Product > Test 重跑确认 |
+
+> ⚠️ **真机 396/396 待确认**：fixture 修复后 iOS Sim 7/7 passed（含 webview 测试），但真机重跑阻塞于 codesign keychain ACL。
+> **不强行声称真机 396/396 pass** — 这符合"本地 handler 可编译 ≠ host 后端完整可发布"的 tier 诚实分类。
+> 真机 396/396 确认需要：① 在 Xcode IDE 里 Product > Test 重跑（IDE 能通过 Touch ID / 已授权 session 绕过 keychain ACL）；或 ② 提供 macOS 登录密码，用 `security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <password>` 预授权后命令行跑。
+
+#### 第一轮通过项（395/396）按 tier 分类（fixture 修复前，webview 为唯一失败）
 
 | Tier | 测试套件 | 真机结果 |
 |------|----------|----------|
@@ -89,14 +103,14 @@ macOS `swift test` 上同一 handler 通过（keychain 在 macOS 不需要 entit
 | tier manifest | `HostAdapterRealDeviceProofManifestTests`（含 `testCrossPlatformTypesSucceedOnMacOS` 真机上 credential.* 通过 — 真机有 keychain entitlement） | **PASS** |
 | Core host.request router — media.download | `HostRouterRoundTripProofTests/testMediaDownloadDispatchPathComplete` | **PASS** |
 | Core host.request router — anti_bot.challenge | `HostRouterRoundTripProofTests/testAntiBotChallengeDispatchPathComplete` | **PASS** |
-| Core host.request router — webview.evaluateJavaScript | `HostRouterRoundTripProofTests/testWebViewEvaluateJavaScriptDispatchPathComplete` | **FAIL**（Testing was canceled，见上） |
+| Core host.request router — webview.evaluateJavaScript | `HostRouterRoundTripProofTests/testWebViewEvaluateJavaScriptDispatchPathComplete` | **FAIL**（fixture 修复前：Testing was canceled；fixture 修复后：iOS Sim 7/7 passed，真机待确认） |
 | anti-bot real-executor | `HostAntiBotProofTests`（6/6） | **PASS** |
 | media real-executor | `HostMediaDownloadProofTests`（8/8） | **PASS** |
 | WKWebView real-executor (真机) | `WKWebViewExecutorSimulatorProofTests`（4/4 编译期 + 安全门测试） | **PASS** |
 | URLSession media real-executor | `URLSessionMediaDownloadExecutorProofTests`（11/11） | **PASS** |
 | ShellSmokeTests（非 host proof 范围） | 全套通过 | **PASS** |
 
-> ✅ **真机 device proof 结论**：395/396 真机测试通过，唯一失败项是 `webview.evaluateJavaScript` 真机 WKWebView 加载不存在的 `example.test` 域名导致超时（测试 fixture 问题，非代码 bug）。
+> ✅ **真机 device proof 结论（fixture 修复前）**：395/396 真机测试通过，唯一失败项是 `webview.evaluateJavaScript` 真机 WKWebView 加载不存在的 `example.test` 域名导致超时（测试 fixture 问题，非代码 bug）。
 > 与 iOS Simulator 上的 2 个 keychain -34018 失败对比：**真机上 credential.* 全部通过** — 因为真机 app bundle 携带 keychain-access-groups entitlement（Personal Team 自动签名生成），而 iOS Simulator 的 host-app 未配置 entitlement（CI gate `CODE_SIGNING_ALLOWED=NO`）。
 > 这正好验证了 tier 分类的正确性：credential.* 标记为 `crossPlatform` 在 macOS 通过；在 iOS Sim 受 entitlement 配置缺口阻塞；在真机完整可用。
 
