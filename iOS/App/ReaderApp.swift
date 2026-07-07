@@ -54,6 +54,21 @@ public struct ReaderApp: App {
         }
         #endif
 
+        // Inject production TTS / Share providers into the shared HostAdapter.
+        // Before this call, tts.system.* and share.invoke return .notImplemented.
+        // After injection, they route to ReaderTTSPlayer (AVSpeechSynthesizer)
+        // and ReaderSharePresenter (UIActivityViewController).
+        #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
+        let ttsPlayer = ReaderTTSPlayer()
+        HostAdapterHolder.adapter.setTTSSynthProvider { [weak ttsPlayer] in
+            return ttsPlayer
+        }
+        HostAdapterHolder.adapter.setSharePresenterProvider {
+            return ReaderSharePresenter()
+        }
+        print("[HostAdapter] TTS + Share providers injected into HostAdapterHolder")
+        #endif
+
         #if DEBUG && canImport(WebKit) && canImport(UIKit)
         // 解析 autorun 配置
         let config = WebViewRuntimeAutorunConfiguration.parse(CommandLine.arguments)
