@@ -76,6 +76,17 @@ final class HostRouterRoundTripProofTests: XCTestCase {
     /// `WKWebViewExecutor` runs and either succeeds or surfaces a structured
     /// `WebViewExecutorError`. The method returns normally (no throw) —
     /// proving the capability is registered and the handler is reached.
+    ///
+    /// Fixture: uses `kind: "html"` with an inline HTML string instead of a
+    /// remote URL so the test does not depend on network reachability or
+    /// WKWebView navigation timeout. On real device / simulator the executor
+    /// calls `WKWebView.loadHTMLString(_:baseURL:)` which resolves
+    /// synchronously from memory, then evaluates `document.title` against the
+    /// loaded DOM. This previously used `https://example.test/render` (an
+    /// unreachable reserved TLD) which caused WKWebView navigation to hang
+    /// past the Xcode test timeout on real device, surfacing as
+    /// "Testing was canceled" — not a code bug, but a fixture reliability
+    /// issue. The inline-HTML fixture removes that flakiness.
     func testWebViewEvaluateJavaScriptDispatchPathComplete() async throws {
         let runtime = try ReaderCoreNativeRuntime()
         defer { runtime.destroy() }
@@ -83,8 +94,8 @@ final class HostRouterRoundTripProofTests: XCTestCase {
 
         let params: [String: Any] = [
             "document": [
-                "kind": "url",
-                "url": "https://example.test/render",
+                "kind": "html",
+                "body": "<!DOCTYPE html><html><head><title>HostProof</title></head><body>round-trip</body></html>",
             ] as [String: Any],
             "javaScript": "document.title",
         ]
