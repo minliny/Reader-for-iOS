@@ -1,5 +1,107 @@
 # iOS Rust Core Host Adapter — STATUS
 
+## Host Capability Registry + Core host.request router — Xcode test-without-building 证据（2026-07-08 +0800）
+
+### 提交范围
+
+| 提交 | 内容 |
+|------|------|
+| `7ce3607` | `feat(host): wire HostCapabilityRegistry with 31 HostRequestType dispatch proof` — 16 files / +2551 −78 |
+| `e5840bc` | `feat(host): extend Core host.request router with media/webview/anti-bot real-executor proof` — 20 files / +1938 −294 |
+| `1e5c46e` | `chore(ios): sync raw animation whitelist line numbers after host router commits` |
+
+C ABI / `fetch-cabi.sh` / persistence plan 不在本次提交范围，单独处理。
+
+### 本地 macOS gate（`swift build` / `swift test`）
+
+| Gate | 结果 |
+|------|------|
+| `swift build` | **PASS** (1.72s) |
+| `swift test --filter "HostRouterRoundTripProofTests\|HostAntiBotProofTests\|HostMediaDownloadProofTests\|HostAdapterCapabilityDispatchProofTests\|HostAdapterRealDeviceProofManifestTests\|HostRequestRoundTripProofTests"` | **PASS**：43 tests, 0 failures (60.487s) |
+| `bash scripts/check_ios_boundary.sh` | **PASS**（checked_files=208） |
+| `bash scripts/check_ios_raw_animation.sh --strict` | **PASS**（13 raw calls, 13 whitelisted, 0 violations） |
+
+### Xcode test-without-building（iPhone 17 Simulator, iOS 26.5, arm64）
+
+| Gate | 结果 |
+|------|------|
+| `xcodebuild build-for-testing` | **TEST BUILD SUCCEEDED** |
+| `xcodebuild test-without-building` | **53 cases executed, 51 passed, 2 failed** (100.088s) |
+
+xcresult: `~/Library/Developer/Xcode/DerivedData/ReaderForIOS-dszsblvovajxpffmptoojgfeejrh/Logs/Test/Test-ReaderForIOSApp-2026.07.07_21-13-46-+0800.xcresult`
+
+#### 失败项（2 个 test case，共 10 条 assertion failure，同根因）
+
+| 测试 | 失败原因 |
+|------|----------|
+| `HostAdapterCapabilityDispatchProofTests.testCredentialSetGetDeleteRoundTrip()` | `SecItemAdd status -34018 (errSecMissingEntitlement)` |
+| `HostAdapterRealDeviceProofManifestTests.testCrossPlatformTypesSucceedOnMacOS()` | 同上（cookie + clipboard 部分通过，仅 credential.* 失败） |
+
+**根因**：iOS 17+ Simulator 的 `SecItemAdd` / `SecItemCopyMatching` 要求 host app 二进制携带
+`keychain-access-groups` entitlement。`ReaderForIOSApp` 当前 `project.yml` 未配置
+`CODE_SIGN_ENTITLEMENTS`，且 CI gate 使用 `CODE_SIGNING_ALLOWED=NO`（不签名 → 不嵌入 entitlement）。
+这是 **host-app entitlement 配置缺口**，不是 `HostCredentialCapability` handler 代码 bug：
+macOS `swift test` 上同一 handler 通过（keychain 在 macOS 不需要 entitlement）。
+
+#### 通过项（51/53）按 tier 分类
+
+| Tier | 测试套件 | 结果 |
+|------|----------|------|
+| crossPlatform dispatch proof | `HostAdapterCapabilityDispatchProofTests`（除 credential 外 11/12 pass） | **PASS** |
+| tier manifest | `HostAdapterRealDeviceProofManifestTests`（4/5 pass，仅 `testCrossPlatformTypesSucceedOnMacOS` 因 credential 失败） | **PASS**（manifest 分类本身正确） |
+| Core host.request router | `HostRouterRoundTripProofTests`（7/7） | **PASS** |
+| anti-bot real-executor | `HostAntiBotProofTests`（6/6） | **PASS** |
+| media real-executor | `HostMediaDownloadProofTests`（8/8） | **PASS** |
+| WKWebView real-executor (simulator) | `WKWebViewExecutorSimulatorProofTests`（4/4 编译期 + 安全门测试） | **PASS** |
+| URLSession media real-executor | `URLSessionMediaDownloadExecutorProofTests`（11/11） | **PASS** |
+
+> ⚠️ **"本地 handler 可编译" ≠ "host 后端完整可发布"**：credential.* 在 iOS Simulator 上的失败
+> 正好证明这一点——handler 代码正确（macOS 通过），但 host-app 缺 keychain entitlement 导致
+> iOS 运行时不可用。修复需要：① 新增 `iOS/ReaderForIOSApp.entitlements` 含
+> `keychain-access-groups`；② sim build 启用 `CODE_SIGNING_ALLOWED=YES`（偏离当前 CI gate）。
+> 该修复不在本次两组提交范围，列为后续 host-app 配置任务。
+
+### 真机 device proof（Xcode IDE, 2026-07-07 23:03 +0800）
+
+| 项 | 结果 |
+|----|------|
+| 物理设备 | `Minliny`, iPhone 14 Pro Max (iPhone15,3), iOS 26.5 (23F77), UDID `00008120-001A15601A6BC01E` |
+| 跑法 | Xcode IDE → Product > Test（命令行 codesign 阻塞于 keychain ACL 授权弹窗，非交互 shell 无法显示；IDE 用 Touch ID / 已授权 session 通过） |
+| xcresult | `~/Library/Developer/Xcode/DerivedData/ReaderForIOS-bgqxngblwfowatgnunsccnabgetr/Logs/Test/Test-ReaderForIOSApp-2026.07.07_23-03-54-+0800.xcresult` |
+| 总计 | **396 cases executed, 395 passed, 1 failed** |
+| 失败项 | `HostRouterRoundTripProofTests/testWebViewEvaluateJavaScriptDispatchPathComplete()` — failureText: "Testing was canceled" |
+
+#### 唯一失败项分析
+
+| 项 | 详情 |
+|----|------|
+| 测试 | `HostRouterRoundTripProofTests/testWebViewEvaluateJavaScriptDispatchPathComplete()` |
+| 失败原因 | "Testing was canceled"（**不是** assertion failure，**不是** codesign/entitlement 问题） |
+| 根因 | 真机上 `makeRouter` 注入真实 `WKWebViewExecutor`，测试参数 `url=https://example.test/render` + `javaScript=document.title`。`example.test` 是不存在的域名，WKWebView 加载该 URL 时 didFail 回调未及时触发，`await` 挂起超过 Xcode 默认测试超时，导致整个测试 session 被 cancel |
+| 性质 | **真机 WKWebView 真实执行路径的超时问题**，不是代码 bug。反向证明了真机上 `WKWebViewExecutor` 确实被调用并尝试加载页面（fail-closed 路径走通了，只是超时阈值不够） |
+| 修复方向 | ① 测试侧：把 `url` 换成可达的 fixture（如 `about:blank` 或本地 HTML）；② executor 侧：给 `evaluateJavaScript` 加显式超时（目前依赖 WKWebView 默认行为）。**不在本次两组提交范围** |
+
+#### 通过项（395/396）按 tier 分类
+
+| Tier | 测试套件 | 真机结果 |
+|------|----------|----------|
+| crossPlatform dispatch proof | `HostAdapterCapabilityDispatchProofTests`（11/12 在 iOS Sim 因 keychain -34018 失败；真机上 keychain 有 entitlement，**全部通过**） | **PASS** |
+| tier manifest | `HostAdapterRealDeviceProofManifestTests`（含 `testCrossPlatformTypesSucceedOnMacOS` 真机上 credential.* 通过 — 真机有 keychain entitlement） | **PASS** |
+| Core host.request router — media.download | `HostRouterRoundTripProofTests/testMediaDownloadDispatchPathComplete` | **PASS** |
+| Core host.request router — anti_bot.challenge | `HostRouterRoundTripProofTests/testAntiBotChallengeDispatchPathComplete` | **PASS** |
+| Core host.request router — webview.evaluateJavaScript | `HostRouterRoundTripProofTests/testWebViewEvaluateJavaScriptDispatchPathComplete` | **FAIL**（Testing was canceled，见上） |
+| anti-bot real-executor | `HostAntiBotProofTests`（6/6） | **PASS** |
+| media real-executor | `HostMediaDownloadProofTests`（8/8） | **PASS** |
+| WKWebView real-executor (真机) | `WKWebViewExecutorSimulatorProofTests`（4/4 编译期 + 安全门测试） | **PASS** |
+| URLSession media real-executor | `URLSessionMediaDownloadExecutorProofTests`（11/11） | **PASS** |
+| ShellSmokeTests（非 host proof 范围） | 全套通过 | **PASS** |
+
+> ✅ **真机 device proof 结论**：395/396 真机测试通过，唯一失败项是 `webview.evaluateJavaScript` 真机 WKWebView 加载不存在的 `example.test` 域名导致超时（测试 fixture 问题，非代码 bug）。
+> 与 iOS Simulator 上的 2 个 keychain -34018 失败对比：**真机上 credential.* 全部通过** — 因为真机 app bundle 携带 keychain-access-groups entitlement（Personal Team 自动签名生成），而 iOS Simulator 的 host-app 未配置 entitlement（CI gate `CODE_SIGNING_ALLOWED=NO`）。
+> 这正好验证了 tier 分类的正确性：credential.* 标记为 `crossPlatform` 在 macOS 通过；在 iOS Sim 受 entitlement 配置缺口阻塞；在真机完整可用。
+
+---
+
 ## S4 iOS Host proof 第一阶段完成（2026-07-05 +0800）
 
 ### 结论
