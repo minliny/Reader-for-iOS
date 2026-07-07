@@ -85,7 +85,12 @@ public struct UnifiedEvidenceAutorunConfiguration: Sendable, Equatable {
 ///   Core round-trips (even with a structured CoreError), FAIL on
 ///   exception/timeout.
 /// - `manga.pages.extract`, `rss.parse`, `local_book.parse`, `bookmark.crud`,
-///   `tts.queue`, `http-tts`, `sync.webdav`: blocked — not yet wired on iOS.
+///   `tts.queue`, `http-tts`, `sync.webdav`: blocked — split by root cause:
+///   - Core gap (requires Native repo C ABI): `manga.pages.extract`,
+///     `local_book.parse`, `http-tts`, `sync.webdav`
+///   - iOS runner not wired: `rss.parse` (Core has it, runner doesn't call),
+///     `bookmark.crud` (iOS has BookmarkStore, Core has no runtime method),
+///     `tts.queue` (iOS has ReaderTTSPlayer injected, Core has no runtime method)
 public enum UnifiedEvidenceRunner {
     /// Run all 15 canonical capabilities and return the unified evidence artifact.
     ///
@@ -259,21 +264,32 @@ public enum UnifiedEvidenceRunner {
         let hostLoopResult = measureHostRequestLoop(runtime: runtime, timeout: 5)
         capabilities.append(hostLoopResult.capability)
 
-        // ---- Blocked capabilities: not yet wired on iOS ----
-        let blockedCapabilities = [
-            "manga.pages.extract",
-            "rss.parse",
-            "local_book.parse",
-            "bookmark.crud",
-            "tts.queue",
-            "http-tts",
-            "sync.webdav",
+        // ---- Blocked capabilities: split by root cause ----
+        // Two distinct categories:
+        // 1. Core gap: Core does not expose a runtime method for this
+        //    capability (no `manga.pages.extract`, `local_book.parse`,
+        //    `http-tts`, or `sync.webdav` method in reader-ffi). These
+        //    require Native repo changes (C ABI + Core implementation).
+        // 2. iOS runner not wired: Core exposes the method OR iOS has a
+        //    local implementation, but UnifiedEvidenceRunner does not
+        //    exercise it. These are iOS-side wiring tasks.
+        let blockedCapabilities: [(name: String, reason: String)] = [
+            // Category 1: Core gap — requires Native repo C ABI extension
+            ("manga.pages.extract", "Core gap: reader-ffi does not expose manga.pages.extract method"),
+            ("local_book.parse", "Core gap: reader-ffi does not expose local_book.parse method"),
+            ("http-tts", "Core gap: reader-ffi does not expose http-tts method (HTTP TTS protocol engine)"),
+            ("sync.webdav", "Core gap: reader-ffi does not expose sync.webdav method (WebDAV sync engine)"),
+            // Category 2: iOS runner not wired — Core has the method or iOS
+            // has a local implementation, but this runner doesn't exercise it
+            ("rss.parse", "iOS runner not wired: Core exposes rss.parse (proven by HostRssParseProofTests), but UnifiedEvidenceRunner doesn't invoke it"),
+            ("bookmark.crud", "iOS runner not wired: iOS has BookmarkStore (App/Persistence), but Core doesn't expose a bookmark.crud runtime method; runner cannot round-trip via Core"),
+            ("tts.queue", "iOS runner not wired: iOS has ReaderTTSPlayer + HostTTSSynth injected into HostAdapter, but Core doesn't expose a tts.queue runtime method; runner cannot round-trip via Core"),
         ]
-        for capability in blockedCapabilities {
+        for (name, reason) in blockedCapabilities {
             capabilities.append(CapabilityResult(
-                capability: capability,
+                capability: name,
                 status: .blocked,
-                error: "not yet wired on iOS"
+                error: reason
             ))
         }
 
@@ -301,7 +317,7 @@ public enum UnifiedEvidenceRunner {
             "Unified evidence runner covering 15 canonical capabilities (unified-evidence/1).",
             "Pass-on-round-trip capabilities: Core round-trip = PASS (structured CoreError still proves the bridge).",
             "host.request exercised via runtime.hostSmoke -> host.request -> host.complete -> result.",
-            "Blocked capabilities are not yet wired on iOS and will be enabled in later phases.",
+            "Blocked capabilities split by root cause: Core gap (manga/local_book/http-tts/sync.webdav need Native C ABI) vs iOS runner not wired (rss.parse/bookmark.crud/tts.queue have iOS impls but runner doesn't exercise them).",
             "totalDurationMs=\(totalDurationMs)",
         ]
 
