@@ -22,6 +22,9 @@ let parserBackedCoreDependencies: [Target.Dependency] = shellCIOnly ? [] : [
     .product(name: "ReaderCoreAPI", package: "Reader-Core"),
     .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
 ]
+let shellCIHostRouterDependencies: [Target.Dependency] = shellCIOnly ? [
+    .product(name: "ReaderCoreNetwork", package: "Reader-Core")
+] : []
 // ReaderUIContract is needed by CoreBridge host capability files
 // (HostAdapter, HostCapabilityRegistry, etc.) and UnifiedEvidenceRunner.
 // In shell CI mode, those files are excluded via shellValidationExcludes.
@@ -30,9 +33,10 @@ let uiContractDependencies: [Target.Dependency] = shellCIOnly ? [] : [
 ]
 let shellValidationExcludes: [String] = shellCIOnly ? [
     "CoreIntegration/CoreLocalBookImportService.swift",
-    // CoreBridge host capability files import ReaderUIContract, which is not
-    // available in shell CI. Exclude them so ReaderShellValidation compiles
-    // with only the parser/network/service seam (RSSParserHostAdapter etc.).
+    // CoreBridge HostAdapter/HostCapability files import ReaderUIContract, which
+    // is not available in shell CI. Keep HostRequestRouter included: RustCore*
+    // services depend on it and it consumes Core host.request events, not UI
+    // contract HostRequest values.
     "CoreBridge/HostAdapter.swift",
     "CoreBridge/HostAdapterHolder.swift",
     "CoreBridge/HostCapabilityRegistry.swift",
@@ -47,7 +51,6 @@ let shellValidationExcludes: [String] = shellCIOnly ? [
     "CoreBridge/HostPermissionCapability.swift",
     "CoreBridge/HostNotificationCapability.swift",
     "CoreBridge/HostDeviceCapability.swift",
-    "CoreBridge/HostRequestRouter.swift",
     "CoreBridge/ReaderCoreBridge.swift",
 ] : []
 let shellSmokeTestExcludes: [String] = shellCIOnly ? [
@@ -60,7 +63,7 @@ let readerShellValidationDependencies: [Target.Dependency] = [
     .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
     .product(name: "ReaderCoreModels", package: "Reader-Core"),
     .product(name: "ReaderCoreProtocols", package: "Reader-Core")
-] + parserBackedCoreDependencies + uiContractDependencies
+] + parserBackedCoreDependencies + uiContractDependencies + shellCIHostRouterDependencies
 
 let shellSmokeTestDependencies: [Target.Dependency] = [
     "ReaderShellValidation",
@@ -71,6 +74,17 @@ let shellSmokeTestDependencies: [Target.Dependency] = [
     .product(name: "ReaderCoreParser", package: "Reader-Core"),
     .product(name: "ReaderCoreNetwork", package: "Reader-Core"),
     .product(name: "ReaderCoreServices", package: "Reader-Core")
+])
+
+let packageDependencies: [Package.Dependency] = [
+    // Local dev / CI: Reader-Core sibling checkout.
+    .package(path: "../Reader-Core")
+] + (shellCIOnly ? [] : [
+    // Reader UI Contract（Contract-first Native UI Architecture）
+    // 提供 generated Swift 类型：RouteId / UiEvent / UiState / ViewState / Motion / Token /
+    // CoreCommand / CoreEvent / HostRequest / ProgressLocation / Content / SyncConflict / StateRule
+    // 接入路径：Reader for iOS/iOS/Package.swift -> ../../Reader UI
+    .package(path: "../../Reader UI")
 ])
 
 let baseTargets: [Target] = [
@@ -85,13 +99,13 @@ let baseTargets: [Target] = [
     // `--xcframework --device --universal-sim` so the iOS-sim slice contains
     // arm64 + x86_64.
     .binaryTarget(
-        name: "ReaderCoreNative",
+        name: "ReaderCore",
         path: "ReaderCoreNativeAdapter/cabi/ReaderCore.xcframework"
     ),
     .target(
         name: "ReaderCoreNativeAdapter",
         dependencies: [
-            "ReaderCoreNative"
+            "ReaderCore"
         ],
         path: "ReaderCoreNativeAdapter",
         exclude: [
@@ -246,14 +260,6 @@ let package = Package(
     products: [
         .library(name: "ReaderApp", targets: ["ReaderApp"])
     ],
-    dependencies: [
-        // Local dev: Reader-Core sibling checkout
-        .package(path: "../Reader-Core"),
-        // Reader UI Contract（Contract-first Native UI Architecture）
-        // 提供 generated Swift 类型：RouteId / UiEvent / UiState / ViewState / Motion / Token /
-        // CoreCommand / CoreEvent / HostRequest / ProgressLocation / Content / SyncConflict / StateRule
-        // 接入路径：Reader for iOS/iOS/Package.swift -> ../../Reader UI
-        .package(path: "../../Reader UI")
-    ],
+    dependencies: packageDependencies,
     targets: packageTargets
 )
