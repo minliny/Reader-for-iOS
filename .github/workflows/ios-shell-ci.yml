@@ -100,54 +100,18 @@ jobs:
           # Construction-only smoke stays bound to the isolated shell validation test product.
           swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
 
-      - name: Run reader functional validation
+      - name: Run remaining ShellSmokeTests
         shell: bash
         run: |
           set -euo pipefail
-          # Functional validation reuses fixture-backed sources without widening the ReaderShellValidation compile target.
-          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderFlowFunctionalValidationTests 2>&1 | tee ios-reader-functional.log
-
-      - name: Run reader hardening validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Hardening validation stays on the same isolated test product and only checks state-transition consistency.
-          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderFlowHardeningTests 2>&1 | tee ios-reader-hardening.log
-
-      - name: Run reader UX foundation validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # UX foundation validation is additive and only checks state-driven presentation surfaces on the minimal reader path.
-          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderUXFoundationStateTests 2>&1 | tee ios-reader-ux-foundation.log
-
-      - name: Run reader interaction foundation validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Interaction validation tests minimal interactions like retry and reload without full UI automation.
-          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderInteractionValidationTests 2>&1 | tee ios-reader-interaction-foundation.log
-
-      - name: Run reader session polish validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Session polish validation tests session continuity and minimal resume affordances.
-          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderSessionValidationTests 2>&1 | tee ios-reader-session-polish.log
-
-      - name: Run reader navigation and progress foundation validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Navigation validation tests chapter position awareness and progress features
-          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderNavigationValidationTests 2>&1 | tee ios-reader-navigation-foundation.log
-
-      - name: Run reader presentation polish validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Presentation validation tests consistency of surfaces across the reader feature
-          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ReaderPresentationValidationTests 2>&1 | tee ios-reader-presentation-polish.log
+          # Run the full ShellSmokeTests target (all classes, no --filter).
+          # Previously this had 7 separate --filter steps pointing to
+          # non-existent test classes (ReaderFlowFunctionalValidationTests,
+          # ReaderFlowHardeningTests, ReaderUXFoundationStateTests, etc.),
+          # each producing "No matching test cases were run" (0-test green).
+          # Under READADER_IOS_SHELL_CI=1 only ShellSmokeTests is compiled,
+          # so running without --filter covers all available tests (~89).
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal 2>&1 | tee ios-shell-smoke-all.log
 
       - name: Upload iOS Shell logs
         if: always()
@@ -159,10 +123,4 @@ jobs:
             ios-shell-build.log
             ios-readerapp-build.log
             ios-shell-smoke.log
-            ios-reader-functional.log
-            ios-reader-hardening.log
-            ios-reader-ux-foundation.log
-            ios-reader-interaction-foundation.log
-            ios-reader-session-polish.log
-            ios-reader-navigation-foundation.log
-            ios-reader-presentation-polish.log
+            ios-shell-smoke-all.log
