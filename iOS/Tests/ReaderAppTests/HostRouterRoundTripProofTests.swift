@@ -98,6 +98,11 @@ final class HostRouterRoundTripProofTests: XCTestCase {
                 "body": "<!DOCTYPE html><html><head><title>HostProof</title></head><body>round-trip</body></html>",
             ] as [String: Any],
             "javaScript": "document.title",
+            // Explicit 10s timeout — well under Xcode's default per-test timeout.
+            // The inline-HTML fixture completes in <1s, but this prevents a
+            // future fixture regression (e.g. switching back to a URL kind)
+            // from hanging the test session with "Testing was canceled".
+            "timeoutMillis": 10_000,
         ]
         let event = try makeHostRequestEvent(
             operationId: 3001,
