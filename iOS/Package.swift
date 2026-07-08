@@ -22,9 +22,6 @@ let parserBackedCoreDependencies: [Target.Dependency] = shellCIOnly ? [] : [
     .product(name: "ReaderCoreAPI", package: "Reader-Core"),
     .product(name: "ReaderPlatformAdapters", package: "Reader-Core")
 ]
-let shellCIHostRouterDependencies: [Target.Dependency] = shellCIOnly ? [
-    .product(name: "ReaderCoreNetwork", package: "Reader-Core")
-] : []
 // ReaderUIContract is needed by CoreBridge host capability files
 // (HostAdapter, HostCapabilityRegistry, etc.) and UnifiedEvidenceRunner.
 // In shell CI mode, those files are excluded via shellValidationExcludes.
@@ -63,7 +60,7 @@ let readerShellValidationDependencies: [Target.Dependency] = [
     .product(name: "ReaderCoreFoundation", package: "Reader-Core"),
     .product(name: "ReaderCoreModels", package: "Reader-Core"),
     .product(name: "ReaderCoreProtocols", package: "Reader-Core")
-] + parserBackedCoreDependencies + uiContractDependencies + shellCIHostRouterDependencies
+] + parserBackedCoreDependencies + uiContractDependencies
 
 let shellSmokeTestDependencies: [Target.Dependency] = [
     "ReaderShellValidation",

@@ -11,7 +11,6 @@
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
-import ReaderCoreNetwork
 import ReaderCoreNativeAdapter
 
 /// Shared support for Rust Core service adapters.
@@ -25,7 +24,7 @@ public enum RustCoreServiceSupport {
     /// Also injected into `HostRequestRouter` so the router can serve
     /// `cookie.get` / `cookie.set` host requests through the same jar
     /// (login_cookie lane parity with Android).
-    public static let sharedCookieJar: ScopedCookieJar = BasicCookieJar()
+    public static let sharedCookieJar: ScopedCookieJar = HostScopedCookieJarFactory.makeBasicCookieJar()
 
     /// Returns the booted runtime, or throws if not booted.
     @MainActor
