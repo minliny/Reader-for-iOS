@@ -122,15 +122,22 @@ public final class URLSessionHTTPClient: HTTPClient, Sendable {
             }
         }
 
+        #if READER_IOS_SHELL_CI
+        return HTTPResponse(
+            statusCode: payload.response.statusCode,
+            headers: headers,
+            data: payload.data
+        )
+        #else
         // finalUrl: HTTPURLResponse.url reflects the final URL after redirects.
         let finalUrl: String? = payload.response.url?.absoluteString
-
         return HTTPResponse(
             statusCode: payload.response.statusCode,
             headers: headers,
             data: payload.data,
             finalUrl: finalUrl
         )
+        #endif
     }
 
     // MARK: - Set-Cookie extraction

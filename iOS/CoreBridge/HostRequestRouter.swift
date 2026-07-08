@@ -298,9 +298,11 @@ public struct HostRequestRouter: Sendable {
             "headers": response.headers.isEmpty ? [:] : response.headers,
             "body": bodyString,
         ]
+        #if !READER_IOS_SHELL_CI
         if let finalUrl = response.finalUrl {
             result["finalUrl"] = finalUrl
         }
+        #endif
         let cookies = Self.extractCookies(from: response.headers)
         if !cookies.isEmpty {
             result["cookies"] = cookies
