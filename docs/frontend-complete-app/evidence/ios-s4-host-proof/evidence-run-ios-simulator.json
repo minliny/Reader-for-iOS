@@ -2,91 +2,97 @@
   "capabilities" : [
     {
       "capability" : "source.import",
-      "durationMs" : 14,
+      "durationMs" : 12,
       "method" : "source.import",
       "redactedEvidence" : "type=result",
       "status" : "pass"
     },
     {
       "capability" : "book.search",
-      "durationMs" : 13,
+      "durationMs" : 11,
       "method" : "book.search",
       "redactedEvidence" : "type=result",
       "status" : "pass"
     },
     {
       "capability" : "book.detail",
-      "durationMs" : 15,
+      "durationMs" : 12,
       "method" : "book.detail",
       "redactedEvidence" : "type=result",
       "status" : "pass"
     },
     {
       "capability" : "book.toc",
-      "durationMs" : 12,
+      "durationMs" : 10,
       "method" : "book.toc",
       "redactedEvidence" : "type=result",
       "status" : "pass"
     },
     {
       "capability" : "chapter.content",
-      "durationMs" : 12,
+      "durationMs" : 10,
       "method" : "chapter.content",
       "redactedEvidence" : "type=result",
       "status" : "pass"
     },
     {
       "capability" : "manga.pages.extract",
-      "error" : "not yet wired on iOS",
+      "error" : "Core gap: reader-ffi does not expose manga.pages.extract method",
       "status" : "blocked"
     },
     {
       "capability" : "rss.parse",
-      "error" : "not yet wired on iOS",
-      "status" : "blocked"
+      "durationMs" : 11,
+      "method" : "rss.parse",
+      "redactedEvidence" : "type=result",
+      "status" : "pass"
     },
     {
       "capability" : "local_book.parse",
-      "error" : "not yet wired on iOS",
+      "error" : "Core gap: reader-ffi does not expose local_book.parse method",
       "status" : "blocked"
     },
     {
       "capability" : "reading.progress.update",
-      "durationMs" : 13,
+      "durationMs" : 12,
       "method" : "reading.progress.update",
       "redactedEvidence" : "type=result",
       "status" : "pass"
     },
     {
       "capability" : "bookmark.crud",
-      "error" : "not yet wired on iOS",
-      "status" : "blocked"
+      "durationMs" : 2,
+      "method" : "BookmarkStore.add+load+delete",
+      "redactedEvidence" : "crudRoundTrip=ok; store=file-backed",
+      "status" : "pass"
     },
     {
       "capability" : "tts.queue",
-      "error" : "not yet wired on iOS",
-      "status" : "blocked"
+      "durationMs" : 135,
+      "method" : "HostAdapter.dispatch(tts.system.start)",
+      "redactedEvidence" : "started=true; providerInjected=true",
+      "status" : "pass"
     },
     {
       "capability" : "http-tts",
-      "error" : "not yet wired on iOS",
+      "error" : "Core gap: reader-ffi does not expose http-tts method (HTTP TTS protocol engine)",
       "status" : "blocked"
     },
     {
       "capability" : "sync.webdav",
-      "error" : "not yet wired on iOS",
+      "error" : "Core gap: reader-ffi does not expose sync.webdav method (WebDAV sync engine)",
       "status" : "blocked"
     },
     {
       "capability" : "runtime.ping",
-      "durationMs" : 14,
+      "durationMs" : 12,
       "method" : "runtime.ping",
       "redactedEvidence" : "type=result",
       "status" : "pass"
     },
     {
       "capability" : "host.request",
-      "durationMs" : 15,
+      "durationMs" : 11,
       "hostRequests" : [
         {
           "capability" : "host.smoke.echo",
@@ -102,14 +108,14 @@
   "coreCommit" : "unknown",
   "device" : {
     "arch" : "arm64",
-    "model" : "iPhone18,3",
+    "model" : "iPhone18,1",
     "osVersion" : "Version 26.5 (Build 23F77)"
   },
-  "generatedAt" : "2026-07-04T16:47:54Z",
+  "generatedAt" : "2026-07-08T01:31:32Z",
   "hostCommit" : "unknown",
   "hostRequestLoop" : {
     "capability" : "host.smoke.echo",
-    "durationMs" : 15,
+    "durationMs" : 11,
     "operationId" : 1,
     "requestId" : 8010,
     "resultBookCount" : 0
@@ -118,16 +124,19 @@
     "Unified evidence runner covering 15 canonical capabilities (unified-evidence\/1).",
     "Pass-on-round-trip capabilities: Core round-trip = PASS (structured CoreError still proves the bridge).",
     "host.request exercised via runtime.hostSmoke -> host.request -> host.complete -> result.",
-    "Blocked capabilities are not yet wired on iOS and will be enabled in later phases.",
-    "totalDurationMs=111"
+    "rss.parse: Core round-trip via rss.parse method with RSS 2.0 sample XML.",
+    "bookmark.crud: iOS BookmarkStore CRUD round-trip (temp storage, no user data touched).",
+    "tts.queue: iOS HostAdapter.dispatch(tts.system.start) — PASS if not .notImplemented (provider injected).",
+    "Blocked: Core gap (manga\/local_book\/http-tts\/sync.webdav need Native C ABI).",
+    "totalDurationMs=245"
   ],
   "platform" : "ios",
   "schemaVersion" : "unified-evidence\/1",
   "summary" : {
     "failed" : 0,
-    "passRate" : 0.5333333333333333,
-    "passed" : 8,
-    "skipped" : 7,
+    "passRate" : 0.7333333333333333,
+    "passed" : 11,
+    "skipped" : 4,
     "total" : 15
   },
   "tier" : "simulator"

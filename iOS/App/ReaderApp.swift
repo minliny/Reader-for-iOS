@@ -28,6 +28,12 @@ public struct ReaderApp: App {
     @State private var unifiedEvidenceAutorunConfiguration: UnifiedEvidenceAutorunConfiguration?
     #endif
 
+    #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
+    // The production TTS player for the HostAdapter is created in init() and
+    // strongly captured by the provider closure (see comment in init). The
+    // reader UI creates its own @StateObject in ReaderView.
+    #endif
+
     public init() {
         // S6.2: Rust Core is the default business path. The legacy
         // useRealServices UserDefaults toggle is removed — production never
@@ -58,10 +64,19 @@ public struct ReaderApp: App {
         // Before this call, tts.system.* and share.invoke return .notImplemented.
         // After injection, they route to ReaderTTSPlayer (AVSpeechSynthesizer)
         // and ReaderSharePresenter (UIActivityViewController).
+        //
+        // The TTS provider closure captures `ttsPlayer` by strong reference
+        // (not [weak]) so the player survives past init(). The closure is
+        // stored in HostAdapterHolder.adapter (a process-wide static let
+        // registry), so this strong reference lives for the app's lifetime —
+        // no leak. The `@StateObject var ttsPlayer` above is the SwiftUI-visible
+        // owner for the reader UI; this local instance is the HostAdapter-side
+        // owner. They are separate instances by design (the reader view creates
+        // its own @StateObject in ReaderView).
         #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
-        let ttsPlayer = ReaderTTSPlayer()
-        HostAdapterHolder.adapter.setTTSSynthProvider { [weak ttsPlayer] in
-            return ttsPlayer
+        let hostTTSPlayer = ReaderTTSPlayer()
+        HostAdapterHolder.adapter.setTTSSynthProvider { [hostTTSPlayer] in
+            return hostTTSPlayer
         }
         HostAdapterHolder.adapter.setSharePresenterProvider {
             return ReaderSharePresenter()
