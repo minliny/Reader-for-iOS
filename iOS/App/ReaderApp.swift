@@ -28,12 +28,6 @@ public struct ReaderApp: App {
     @State private var unifiedEvidenceAutorunConfiguration: UnifiedEvidenceAutorunConfiguration?
     #endif
 
-    #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
-    // The production TTS player for the HostAdapter is created in init() and
-    // strongly captured by the provider closure (see comment in init). The
-    // reader UI creates its own @StateObject in ReaderView.
-    #endif
-
     public init() {
         // S6.2: Rust Core is the default business path. The legacy
         // useRealServices UserDefaults toggle is removed — production never
@@ -65,14 +59,30 @@ public struct ReaderApp: App {
         // After injection, they route to ReaderTTSPlayer (AVSpeechSynthesizer)
         // and ReaderSharePresenter (UIActivityViewController).
         //
-        // The TTS provider closure captures `ttsPlayer` by strong reference
+        // The TTS provider closure captures `hostTTSPlayer` by strong reference
         // (not [weak]) so the player survives past init(). The closure is
         // stored in HostAdapterHolder.adapter (a process-wide static let
         // registry), so this strong reference lives for the app's lifetime —
-        // no leak. The `@StateObject var ttsPlayer` above is the SwiftUI-visible
-        // owner for the reader UI; this local instance is the HostAdapter-side
-        // owner. They are separate instances by design (the reader view creates
-        // its own @StateObject in ReaderView).
+        // no leak.
+        //
+        // Ownership design (intentional split, not a bug):
+        // - `hostTTSPlayer` (here) is the HostAdapter-side owner. It serves
+        //   Core-driven `tts.system.*` HostRequests (e.g. the unified evidence
+        //   `tts.queue` capability and Core-driven TTS queue lifecycle). It
+        //   does NOT drive the reader UI's TTS control panel.
+        // - `ReaderView` creates its own `@StateObject private var ttsPlayer`
+        //   for the reader UI's TTS control (`ReaderTTSControlView`, playback
+        //   state, word-range highlighting). That instance is bound to SwiftUI
+        //   `@Published` state and is NOT the same instance as `hostTTSPlayer`.
+        //
+        // Convergence path (product-state, not backend proof):
+        //   If the product later requires the reader UI's TTS state to reflect
+        //   Core-driven `tts.system.*` calls (e.g. Core queue advancing slices
+        //   should update the UI playback state), converge by injecting
+        //   `hostTTSPlayer` into `ReaderView` via `@EnvironmentObject` or a
+        //   shared `ReaderTTSPlayer` holder, instead of creating a new
+        //   `@StateObject` in `ReaderView`. The backend proof (`tts.queue`
+        //   PASS) already holds with the current split.
         #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
         let hostTTSPlayer = ReaderTTSPlayer()
         HostAdapterHolder.adapter.setTTSSynthProvider { [hostTTSPlayer] in
