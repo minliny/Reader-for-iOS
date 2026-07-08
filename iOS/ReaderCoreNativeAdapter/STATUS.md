@@ -272,6 +272,8 @@ S4 第一阶段 **Host proof 已在真机完成**。本轮只改 Host 仓 iOS ap
 - `unified-evidence/1` 覆盖 15 canonical capabilities；其中 4 个 capability（`manga.pages.extract`,
   `local_book.parse`, `http-tts`, `sync.webdav`）仍是 Core gap blocked（reader-ffi 未暴露对应
   method），11 个 capability 已 pass（含 `rss.parse`/`bookmark.crud`/`tts.queue` 三个 iOS runner 接入项）。
+  **口径声明：simulator iOS 侧已全通（11/11），4 个 blocked 全部归因于 Core 侧（reader-ffi C ABI 未暴露对应 method），
+  非 iOS 侧缺口。Core 侧补齐后预期 15/15。**
 - `com.reader.ios` 在 Personal Team 下不可用，本轮为真机 proof 使用
   `com.minliny.readerforios.s4proof`。正式包名需要付费团队或后续重新配置。
 
