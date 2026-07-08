@@ -14,6 +14,27 @@ import WebKit
 @main
 #endif
 public struct ReaderApp: App {
+
+    /// Process-wide shared TTS player.
+    ///
+    /// A single `ReaderTTSPlayer` instance shared between:
+    /// - **HostAdapter** (Core-driven `tts.system.*` HostRequests via `HostAdapterHolder`)
+    /// - **ReaderView** (UI TTS control via `@EnvironmentObject`)
+    ///
+    /// This converges the previously split ownership (HostAdapter created its
+    /// own local instance; ReaderView created a separate `@StateObject`). Now
+    /// both sides observe the same `@Published playbackState`, so Core-driven
+    /// TTS queue advances are immediately reflected in the reader UI.
+    ///
+    /// `@MainActor` isolation on the holder ensures all access is serialized
+    /// on the main thread — `AVSpeechSynthesizer` is main-thread-bound, and
+    /// `ReaderTTSPlayer`'s public methods are `@MainActor`-isolated.
+    #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
+    @MainActor
+    private enum SharedTTSPlayer {
+        static let shared = ReaderTTSPlayer()
+    }
+    #endif
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
     // P3-B: 全局会话存储，注入到根视图供所有子视图通过 @EnvironmentObject 访问
@@ -56,42 +77,27 @@ public struct ReaderApp: App {
 
         // Inject production TTS / Share providers into the shared HostAdapter.
         // Before this call, tts.system.* and share.invoke return .notImplemented.
-        // After injection, they route to ReaderTTSPlayer (AVSpeechSynthesizer)
-        // and ReaderSharePresenter (UIActivityViewController).
+        // After injection, they route to the shared ReaderTTSPlayer
+        // (AVSpeechSynthesizer) and ReaderSharePresenter
+        // (UIActivityViewController).
         //
-        // The TTS provider closure captures `hostTTSPlayer` by strong reference
-        // (not [weak]) so the player survives past init(). The closure is
-        // stored in HostAdapterHolder.adapter (a process-wide static let
-        // registry), so this strong reference lives for the app's lifetime —
-        // no leak.
-        //
-        // Ownership design (intentional split, not a bug):
-        // - `hostTTSPlayer` (here) is the HostAdapter-side owner. It serves
-        //   Core-driven `tts.system.*` HostRequests (e.g. the unified evidence
-        //   `tts.queue` capability and Core-driven TTS queue lifecycle). It
-        //   does NOT drive the reader UI's TTS control panel.
-        // - `ReaderView` creates its own `@StateObject private var ttsPlayer`
-        //   for the reader UI's TTS control (`ReaderTTSControlView`, playback
-        //   state, word-range highlighting). That instance is bound to SwiftUI
-        //   `@Published` state and is NOT the same instance as `hostTTSPlayer`.
-        //
-        // Convergence path (product-state, not backend proof):
-        //   If the product later requires the reader UI's TTS state to reflect
-        //   Core-driven `tts.system.*` calls (e.g. Core queue advancing slices
-        //   should update the UI playback state), converge by injecting
-        //   `hostTTSPlayer` into `ReaderView` via `@EnvironmentObject` or a
-        //   shared `ReaderTTSPlayer` holder, instead of creating a new
-        //   `@StateObject` in `ReaderView`. The backend proof (`tts.queue`
-        //   PASS) already holds with the current split.
+        // TTS ownership convergence:
+        //   The single `SharedTTSPlayer.shared` instance is injected into both
+        //   HostAdapter (here) and the SwiftUI view hierarchy (via
+        //   `.environmentObject(SharedTTSPlayer.shared)` in `defaultRootContent`).
+        //   ReaderView reads it via `@EnvironmentObject`. This means Core-driven
+        //   `tts.system.*` calls and UI-initiated TTS controls mutate the same
+        //   AVSpeechSynthesizer — playbackState is observed by both sides.
+        //   All public methods on ReaderTTSPlayer are @MainActor-isolated, so
+        //   there is no concurrent access.
         #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
-        let hostTTSPlayer = ReaderTTSPlayer()
-        HostAdapterHolder.adapter.setTTSSynthProvider { [hostTTSPlayer] in
-            return hostTTSPlayer
+        HostAdapterHolder.adapter.setTTSSynthProvider {
+            return SharedTTSPlayer.shared
         }
         HostAdapterHolder.adapter.setSharePresenterProvider {
             return ReaderSharePresenter()
         }
-        print("[HostAdapter] TTS + Share providers injected into HostAdapterHolder")
+        print("[HostAdapter] TTS + Share providers injected into HostAdapterHolder (shared TTS player)")
         #endif
 
         #if DEBUG && canImport(WebKit) && canImport(UIKit)
@@ -166,5 +172,8 @@ public struct ReaderApp: App {
             #endif
         }
         .environmentObject(sessionStore)
+        #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
+        .environmentObject(SharedTTSPlayer.shared)
+        #endif
     }
 }

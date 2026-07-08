@@ -5,7 +5,11 @@ import ReaderShellValidation
 
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
-    @StateObject private var ttsPlayer = ReaderTTSPlayer()
+    // Converged TTS ownership: the shared ReaderTTSPlayer instance is injected
+    // from ReaderApp via @EnvironmentObject. This is the same instance that
+    // HostAdapter uses for Core-driven tts.system.* calls, so UI playback
+    // state and Core queue state stay in sync.
+    @EnvironmentObject private var ttsPlayer: ReaderTTSPlayer
     // P3-B: 会话存储（由 AppShellView 注入），并行记录会话状态，不取代既有 ReaderViewModel
     @EnvironmentObject private var sessionStore: ReaderSessionStore
     @State private var showTTS = false
