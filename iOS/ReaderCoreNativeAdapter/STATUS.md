@@ -269,8 +269,9 @@ S4 第一阶段 **Host proof 已在真机完成**。本轮只改 Host 仓 iOS ap
 ### 当前限制 / 后续注意
 
 - Personal Team provisioning profile 有 7 天有效期，本次 profile 到期时间为 `2026-07-12 01:02:37 CST`。
-- `unified-evidence/1` 覆盖 15 canonical capabilities；其中 7 个 capability 仍是 iOS 未接线的
-  `blocked`，这符合当前 Host proof 第一阶段范围，不等于全 capability 产品完成。
+- `unified-evidence/1` 覆盖 15 canonical capabilities；其中 4 个 capability（`manga.pages.extract`,
+  `local_book.parse`, `http-tts`, `sync.webdav`）仍是 Core gap blocked（reader-ffi 未暴露对应
+  method），11 个 capability 已 pass（含 `rss.parse`/`bookmark.crud`/`tts.queue` 三个 iOS runner 接入项）。
 - `com.reader.ios` 在 Personal Team 下不可用，本轮为真机 proof 使用
   `com.minliny.readerforios.s4proof`。正式包名需要付费团队或后续重新配置。
 
@@ -358,9 +359,12 @@ xcodebuild -project ReaderForIOS.xcodeproj \
 | artifact | `docs/frontend-complete-app/evidence/ios-s4-host-proof/evidence-run-ios-simulator.json` |
 | validator | Native 仓 `tools/platform-evidence-validator/platform_evidence_validator.py` PASS |
 | tier | `simulator` |
-| generatedAt | `2026-07-04T16:47:54Z` |
-| summary | total 15, passed 8, skipped/blocked 7, failed 0 |
+| generatedAt | `2026-07-08T01:31:32Z` |
+| summary | total 15, passed 11, skipped/blocked 4, failed 0 |
 | covered set | 覆盖 15 canonical capabilities |
+| pass list | source.import, book.search, book.detail, book.toc, chapter.content, rss.parse, reading.progress.update, bookmark.crud, tts.queue, runtime.ping, host.request |
+| blocked list | manga.pages.extract, local_book.parse, http-tts, sync.webdav (Core gap: reader-ffi 未暴露对应 method) |
+| 重跑脚本 | `scripts/run_unified_evidence_simulator.sh` |
 
 Validator log：
 `docs/frontend-complete-app/evidence/ios-s4-host-proof/unified-evidence-sim-validator.log`
