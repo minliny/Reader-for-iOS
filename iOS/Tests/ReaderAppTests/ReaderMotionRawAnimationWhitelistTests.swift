@@ -73,8 +73,8 @@ final class ReaderMotionRawAnimationWhitelistTests: XCTestCase {
     func testWhitelistContainsToggleReaderChromeEntry() throws {
         let url = Self.whitelistURL
         let content = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(content.contains("iOS/Features/Reader/ReaderView.swift:629:"),
-                      "白名单必须包含 ReaderView:629（transitive adapter 调用）")
+        XCTAssertTrue(content.contains("iOS/Features/Reader/ReaderView.swift:679:"),
+                      "白名单必须包含 ReaderView:679（transitive adapter 调用）")
     }
 
     func testWhitelistContainsDemoPrimitivesEntries() throws {
