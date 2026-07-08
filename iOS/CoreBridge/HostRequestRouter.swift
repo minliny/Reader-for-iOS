@@ -79,6 +79,24 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
     }
 }
 
+/// Host-side provider for Legado-compatible `source.getLoginHeaderMap`.
+///
+/// The current iOS app does not have a production per-source login-header
+/// store. Keeping this behind a provider lets a future credential/login store
+/// plug in without changing the Core event routing, while the default provider
+/// returns an empty map instead of surfacing the call as unsupported.
+public protocol SourceLoginHeaderMapProvider: Sendable {
+    func loginHeaderMap(sourceId: String?, url: String?, host: String?) async throws -> [String: String]?
+}
+
+public struct EmptySourceLoginHeaderMapProvider: SourceLoginHeaderMapProvider {
+    public init() {}
+
+    public func loginHeaderMap(sourceId: String?, url: String?, host: String?) async throws -> [String: String]? {
+        [:]
+    }
+}
+
 /// Internal error used to signal that the anti_bot lane detected a challenge
 /// (CHALLENGE_REQUIRED). The router catches this in `handleHostRequest` and
 /// sends `host.error` with the CHALLENGE_REQUIRED code and the diagnostics
@@ -110,6 +128,8 @@ internal struct AntiBotChallengeRequiredError: Error {
 ///   `{resourceId, tempPath?, statusCode, contentType?, contentLength?, etag?,
 ///   byteLength, sha256?, fromCache, finalUrl?}`. Throws
 ///   `mediaDownloadExecutorNotConfigured` if no executor is wired.
+/// - `source.getLoginHeaderMap`: delegates to `SourceLoginHeaderMapProvider`,
+///   returns `{headers, headerMap}` and defaults to an empty map.
 ///
 /// The router is a stateless helper: each call handles exactly one
 /// `host.request` event for one `requestId`. Callers (RustCore*Service)
@@ -122,6 +142,7 @@ public struct HostRequestRouter: Sendable {
     private let webViewExecutor: WebViewExecutor?
     private let antiBotExecutor: AntiBotExecutor?
     private let mediaDownloadExecutor: MediaDownloadExecutor?
+    private let sourceLoginHeaderMapProvider: any SourceLoginHeaderMapProvider
 
     public init(
         httpClient: HTTPClient,
@@ -129,7 +150,8 @@ public struct HostRequestRouter: Sendable {
         cookieJar: ScopedCookieJar? = nil,
         webViewExecutor: WebViewExecutor? = nil,
         antiBotExecutor: AntiBotExecutor? = nil,
-        mediaDownloadExecutor: MediaDownloadExecutor? = nil
+        mediaDownloadExecutor: MediaDownloadExecutor? = nil,
+        sourceLoginHeaderMapProvider: any SourceLoginHeaderMapProvider = EmptySourceLoginHeaderMapProvider()
     ) {
         self.httpClient = httpClient
         self.runtime = runtime
@@ -137,6 +159,7 @@ public struct HostRequestRouter: Sendable {
         self.webViewExecutor = webViewExecutor
         self.antiBotExecutor = antiBotExecutor
         self.mediaDownloadExecutor = mediaDownloadExecutor
+        self.sourceLoginHeaderMapProvider = sourceLoginHeaderMapProvider
     }
 
     /// Handle a single `host.request` event for `http.execute` / `cookie.get` /
@@ -155,7 +178,12 @@ public struct HostRequestRouter: Sendable {
         guard let operationId = event.operationId else {
             throw HostRequestRouterError.missingOperationId
         }
-        guard let params = event.hostParams else {
+        let params: [String: Any]
+        if let hostParams = event.hostParams {
+            params = hostParams
+        } else if capability == "source.getLoginHeaderMap" {
+            params = [:]
+        } else {
             try sendHostError(
                 operationId: operationId,
                 code: "INTERNAL",
@@ -197,6 +225,8 @@ public struct HostRequestRouter: Sendable {
                 result = try HostPersistenceStore.shared.put(params: params)
             case "media.download":
                 result = try await executeMediaDownload(params: params)
+            case "source.getLoginHeaderMap":
+                result = try await executeSourceGetLoginHeaderMap(params: params)
             case "anti_bot.challenge":
                 result = try await executeAntiBotChallenge(params: params)
             default:
@@ -227,9 +257,10 @@ public struct HostRequestRouter: Sendable {
     }
 
     /// Supported capability names routed by this router.
-    /// Covers all 15 Core `HostCapability` variants (host.rs enum) plus the
-    /// iOS-side `anti_bot.challenge` lane (which aggregates http.execute +
-    /// cookie.get/set + webview.evaluateJavaScript via `WKAntiBotExecutor`).
+    /// Covers all 15 Core `HostCapability` variants (host.rs enum), the
+    /// Legado compatibility `source.getLoginHeaderMap` shim, plus the iOS-side
+    /// `anti_bot.challenge` lane (which aggregates http.execute + cookie.get/set
+    /// + webview.evaluateJavaScript via `WKAntiBotExecutor`).
     private static let supportedCapabilities: Set<String> = [
         // Core 15 HostCapability variants (host.rs)
         "host.smoke.echo",
@@ -247,6 +278,10 @@ public struct HostRequestRouter: Sendable {
         "persistence.get",
         "persistence.put",
         "media.download",
+        // Legado AnalyzeUrl compatibility shim. Current iOS has no production
+        // login-header store, so this returns an empty map by default instead
+        // of rejecting the source call as unsupported.
+        "source.getLoginHeaderMap",
         // iOS-side lane aggregation (not a Core HostCapability variant)
         "anti_bot.challenge",
     ]
@@ -445,6 +480,36 @@ public struct HostRequestRouter: Sendable {
             throw HostRequestRouterError.mediaDownloadExecutorNotConfigured
         }
         return try await MediaDownloadHandler(executor: executor).handle(params: params)
+    }
+
+    // MARK: - source.getLoginHeaderMap
+
+    /// Route Legado-compatible `source.getLoginHeaderMap` calls to the
+    /// host-side login-header provider. When no store is wired, return an empty
+    /// map so AnalyzeUrl compatibility code sees "no login headers" rather
+    /// than an unsupported host capability.
+    internal func executeSourceGetLoginHeaderMap(params: [String: Any]) async throws -> [String: Any] {
+        let source = params["source"] as? [String: Any]
+        let sourceId = (params["sourceId"] as? String)
+            ?? (source?["sourceId"] as? String)
+            ?? (source?["id"] as? String)
+        let url = (params["url"] as? String)
+            ?? (params["baseUrl"] as? String)
+            ?? (source?["baseUrl"] as? String)
+            ?? (source?["bookSourceUrl"] as? String)
+        let host = (params["host"] as? String)
+            ?? url.flatMap { URL(string: $0)?.host }
+
+        let headers = try await sourceLoginHeaderMapProvider.loginHeaderMap(
+            sourceId: sourceId,
+            url: url,
+            host: host
+        ) ?? [:]
+
+        return [
+            "headers": headers,
+            "headerMap": headers,
+        ]
     }
 
     // MARK: - host.complete / host.error
