@@ -64,7 +64,7 @@ final class HostAdapterAppContextInjectionTests: XCTestCase {
 
     /// Restore the holder to its default (nil-provider) state after each test
     /// so injection doesn't leak across tests in the same process.
-    override func tearDown() async {
+    override func tearDown() async throws {
         HostAdapterHolder.adapter.setTTSSynthProvider { nil }
         HostAdapterHolder.adapter.setSharePresenterProvider { nil }
     }
