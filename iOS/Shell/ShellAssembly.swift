@@ -1,7 +1,9 @@
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
+#if !READER_IOS_SHELL_CI
 import ReaderCoreServices
+#endif
 #if canImport(ReaderCoreNativeAdapter)
 import ReaderCoreNativeAdapter
 #endif
@@ -46,6 +48,19 @@ public enum ShellAssembly {
 
     @available(*, deprecated, message: "S6.2: use makeRustCoreReadingFlowCoordinator — old Swift Core ReaderCoreServiceFactory path will be removed in S7")
     public static func makeRealReadingFlowCoordinator() -> ReadingFlowCoordinator {
+        #if READER_IOS_SHELL_CI
+        guard ReaderCoreServiceProvider.shared.configureRealMode() else {
+            return makeMockReadingFlowCoordinator()
+        }
+        return ReadingFlowCoordinator(
+            bookSourceRepository: InMemoryBookSourceRepository(),
+            bookSourceDecoder: DefaultBookSourceDecoder(),
+            searchService: ShellCIRealSearchService(),
+            tocService: ShellCIRealTOCService(),
+            contentService: ShellCIRealContentService(),
+            errorLogger: InMemoryErrorLogger()
+        )
+        #else
         // Unify with the singleton provider: configureRealMode() flips the
         // provider to .real AND runs the RealNetworkGate. If the gate denies,
         // fall back to mock so the app never silently runs real services.
@@ -69,6 +84,7 @@ public enum ShellAssembly {
             contentService: realContentService,
             errorLogger: InMemoryErrorLogger()
         )
+        #endif
     }
 
     // MARK: - Default
