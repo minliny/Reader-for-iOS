@@ -62,6 +62,18 @@ final class HostAdapterAppContextInjectionTests: XCTestCase {
 
     // MARK: - Setup / teardown
 
+    /// Reset the holder to a clean (nil-provider) state before each test.
+    ///
+    /// Under Xcode hosted-app tests, `ReaderApp.init()` runs before the test
+    /// bundle and injects real TTS/Share providers into `HostAdapterHolder.adapter`.
+    /// Without this reset, `testDefaultHolderWithoutInjectionIsNotImplemented`
+    /// would see the app-injected providers and fail. Under SwiftPM `swift test`
+    /// there is no host app, so this is a no-op (providers are already nil).
+    override func setUp() async throws {
+        HostAdapterHolder.adapter.setTTSSynthProvider { nil }
+        HostAdapterHolder.adapter.setSharePresenterProvider { nil }
+    }
+
     /// Restore the holder to its default (nil-provider) state after each test
     /// so injection doesn't leak across tests in the same process.
     override func tearDown() async throws {
@@ -164,9 +176,11 @@ final class HostAdapterAppContextInjectionTests: XCTestCase {
     /// Sanity check: without injection, the holder returns `.notImplemented`.
     /// This confirms the test's "after injection" assertions are meaningful
     /// (i.e. injection actually changes the outcome).
+    ///
+    /// `setUp` has already reset providers to nil before this test runs, so
+    /// the holder is in its default state regardless of whether a host app
+    /// injected providers earlier in the process.
     func testDefaultHolderWithoutInjectionIsNotImplemented() async {
-        // tearDown from the previous test has reset providers to nil, so the
-        // holder is in its default state here.
         let request = HostRequest(type: .tts_system_start, payload: [
             "text": AnyCodable("default holder check"),
         ])
