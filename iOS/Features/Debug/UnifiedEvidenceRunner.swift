@@ -2,6 +2,9 @@
 
 import Foundation
 import ReaderCoreNativeAdapter
+import ReaderAppPersistence
+import ReaderShellValidation
+import ReaderUIContract
 import SwiftUI
 
 // MARK: - Autorun configuration
@@ -80,17 +83,18 @@ public struct UnifiedEvidenceAutorunConfiguration: Sendable, Equatable {
 /// Capability policy:
 /// - `runtime.ping`, `host.request`: exercised end-to-end — should PASS.
 /// - `source.import`, `book.search`, `book.detail`, `book.toc`,
-///   `chapter.content`, `reading.progress.update`: invoked via
+///   `chapter.content`, `reading.progress.update`, `rss.parse`: invoked via
 ///   `ReaderCoreNativeRuntime.request(method:...)` with minimal params. PASS if
 ///   Core round-trips (even with a structured CoreError), FAIL on
 ///   exception/timeout.
-/// - `manga.pages.extract`, `rss.parse`, `local_book.parse`, `bookmark.crud`,
-///   `tts.queue`, `http-tts`, `sync.webdav`: blocked — split by root cause:
-///   - Core gap (requires Native repo C ABI): `manga.pages.extract`,
-///     `local_book.parse`, `http-tts`, `sync.webdav`
-///   - iOS runner not wired: `rss.parse` (Core has it, runner doesn't call),
-///     `bookmark.crud` (iOS has BookmarkStore, Core has no runtime method),
-///     `tts.queue` (iOS has ReaderTTSPlayer injected, Core has no runtime method)
+/// - `bookmark.crud`: iOS-side only (Core has no runtime method). Exercised
+///   via `BookmarkStore` CRUD round-trip against a temp storage URL. PASS if
+///   create → read → delete → verify-empty succeeds.
+/// - `tts.queue`: iOS-side only (Core has no runtime method). Exercised via
+///   `HostAdapterHolder.adapter.dispatch(.tts_system_start)`. PASS if the
+///   outcome is NOT `.notImplemented` (provider injected = handler reached).
+/// - `manga.pages.extract`, `local_book.parse`, `http-tts`, `sync.webdav`:
+///   blocked — Core gap (requires Native repo C ABI).
 public enum UnifiedEvidenceRunner {
     /// Run all 15 canonical capabilities and return the unified evidence artifact.
     ///
@@ -119,7 +123,7 @@ public enum UnifiedEvidenceRunner {
 
         return await Task.detached(priority: .userInitiated) {
             defer { if ownsRuntime { runtime.destroy() } }
-            return Self.performRun(runtime: runtime, tier: tier)
+            return await Self.performRun(runtime: runtime, tier: tier)
         }.value
     }
 
@@ -128,7 +132,7 @@ public enum UnifiedEvidenceRunner {
     private static func performRun(
         runtime: ReaderCoreNativeRuntime,
         tier: String
-    ) -> UnifiedEvidenceArtifact {
+    ) async -> UnifiedEvidenceArtifact {
         let startedAt = Date()
         var capabilities: [CapabilityResult] = []
         capabilities.reserveCapacity(CANONICAL_CAPABILITIES.count)
@@ -264,28 +268,62 @@ public enum UnifiedEvidenceRunner {
         let hostLoopResult = measureHostRequestLoop(runtime: runtime, timeout: 5)
         capabilities.append(hostLoopResult.capability)
 
-        // ---- Blocked capabilities: split by root cause ----
-        // Two distinct categories:
-        // 1. Core gap: Core does not expose a runtime method for this
-        //    capability (no `manga.pages.extract`, `local_book.parse`,
-        //    `http-tts`, or `sync.webdav` method in reader-ffi). These
-        //    require Native repo changes (C ABI + Core implementation).
-        // 2. iOS runner not wired: Core exposes the method OR iOS has a
-        //    local implementation, but UnifiedEvidenceRunner does not
-        //    exercise it. These are iOS-side wiring tasks.
-        let blockedCapabilities: [(name: String, reason: String)] = [
-            // Category 1: Core gap — requires Native repo C ABI extension
+        // ---- rss.parse: Core round-trip (Core exposes rss.parse method) ----
+        // Core parses RSS 2.0/Atom XML and returns feed title + entries.
+        // Use a minimal RSS 2.0 sample to exercise the parser.
+        let rssSampleXML = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Unified Evidence Runner Feed</title>
+            <link>https://unified-evidence.example.test/rss.xml</link>
+            <description>RSS parse proof for unified evidence runner</description>
+            <item>
+              <title>Entry 1</title>
+              <link>https://unified-evidence.example.test/1</link>
+              <guid>entry-1</guid>
+            </item>
+            <item>
+              <title>Entry 2</title>
+              <link>https://unified-evidence.example.test/2</link>
+              <guid>entry-2</guid>
+            </item>
+          </channel>
+        </rss>
+        """
+        capabilities.append(measureRoundTrip(
+            capability: "rss.parse",
+            method: "rss.parse",
+            runtime: runtime,
+            requestId: 8_010,
+            params: [
+                "feedUrl": "https://unified-evidence.example.test/rss.xml",
+                "xml": rssSampleXML,
+            ],
+            timeout: 5
+        ))
+
+        // ---- bookmark.crud: iOS local store (Core has no runtime method) ----
+        // BookmarkStore lives in App/Persistence. We exercise it directly
+        // (not via Core round-trip) to prove the iOS-side capability exists.
+        capabilities.append(measureBookmarkCRUD())
+
+        // ---- tts.queue: iOS HostAdapter (Core has no runtime method) ----
+        // HostAdapterHolder.adapter has TTS provider injected by ReaderApp.
+        // We dispatch tts.system.start to prove the Host capability path
+        // is wired (not .notImplemented).
+        capabilities.append(await measureTTSQueue())
+
+        // ---- Blocked capabilities: Core gap (requires Native repo C ABI) ----
+        // These 4 capabilities have no reader-ffi method and no iOS local
+        // implementation — they require Native repo changes.
+        let coreGapCapabilities: [(name: String, reason: String)] = [
             ("manga.pages.extract", "Core gap: reader-ffi does not expose manga.pages.extract method"),
             ("local_book.parse", "Core gap: reader-ffi does not expose local_book.parse method"),
             ("http-tts", "Core gap: reader-ffi does not expose http-tts method (HTTP TTS protocol engine)"),
             ("sync.webdav", "Core gap: reader-ffi does not expose sync.webdav method (WebDAV sync engine)"),
-            // Category 2: iOS runner not wired — Core has the method or iOS
-            // has a local implementation, but this runner doesn't exercise it
-            ("rss.parse", "iOS runner not wired: Core exposes rss.parse (proven by HostRssParseProofTests), but UnifiedEvidenceRunner doesn't invoke it"),
-            ("bookmark.crud", "iOS runner not wired: iOS has BookmarkStore (App/Persistence), but Core doesn't expose a bookmark.crud runtime method; runner cannot round-trip via Core"),
-            ("tts.queue", "iOS runner not wired: iOS has ReaderTTSPlayer + HostTTSSynth injected into HostAdapter, but Core doesn't expose a tts.queue runtime method; runner cannot round-trip via Core"),
         ]
-        for (name, reason) in blockedCapabilities {
+        for (name, reason) in coreGapCapabilities {
             capabilities.append(CapabilityResult(
                 capability: name,
                 status: .blocked,
@@ -317,7 +355,10 @@ public enum UnifiedEvidenceRunner {
             "Unified evidence runner covering 15 canonical capabilities (unified-evidence/1).",
             "Pass-on-round-trip capabilities: Core round-trip = PASS (structured CoreError still proves the bridge).",
             "host.request exercised via runtime.hostSmoke -> host.request -> host.complete -> result.",
-            "Blocked capabilities split by root cause: Core gap (manga/local_book/http-tts/sync.webdav need Native C ABI) vs iOS runner not wired (rss.parse/bookmark.crud/tts.queue have iOS impls but runner doesn't exercise them).",
+            "rss.parse: Core round-trip via rss.parse method with RSS 2.0 sample XML.",
+            "bookmark.crud: iOS BookmarkStore CRUD round-trip (temp storage, no user data touched).",
+            "tts.queue: iOS HostAdapter.dispatch(tts.system.start) — PASS if not .notImplemented (provider injected).",
+            "Blocked: Core gap (manga/local_book/http-tts/sync.webdav need Native C ABI).",
             "totalDurationMs=\(totalDurationMs)",
         ]
 
@@ -491,6 +532,134 @@ public enum UnifiedEvidenceRunner {
             )
             return (capability, nil)
         }
+    }
+
+    /// Measure bookmark.crud via the iOS local `BookmarkStore`.
+    ///
+    /// Core has no `bookmark.crud` runtime method — this capability is
+    /// iOS-side only. We exercise the full CRUD round-trip (create → read →
+    /// delete → verify-empty) against a temporary storage URL (not the shared
+    /// `Documents/bookmarks.json`) to avoid polluting user data.
+    private static func measureBookmarkCRUD() -> CapabilityResult {
+        let start = Date()
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unified-evidence-bookmark-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let storageURL = tempDir.appendingPathComponent("bookmarks.json")
+            let store = BookmarkStore(storageURL: storageURL)
+
+            // Create
+            let bookmark = Bookmark(
+                bookId: "unified-evidence-book",
+                sourceId: "unified-evidence-source",
+                sourceName: "Unified Evidence",
+                title: "Bookmark CRUD Proof",
+                chapterURL: "chapter://1",
+                chapterTitle: "Chapter 1",
+                progress: 0.42,
+                snippet: "proof snippet"
+            )
+            try store.addBookmark(bookmark)
+
+            // Read
+            let loaded = try store.loadBookmarksForBook(bookId: "unified-evidence-book")
+            guard loaded.count == 1 else {
+                throw UnifiedEvidenceRunnerFailure.unexpectedEvent(
+                    type: "count=\(loaded.count)",
+                    context: "bookmark.crud read"
+                )
+            }
+            guard loaded[0].id == bookmark.id else {
+                throw UnifiedEvidenceRunnerFailure.unexpectedEvent(
+                    type: "id-mismatch",
+                    context: "bookmark.crud read"
+                )
+            }
+
+            // Delete
+            try store.deleteBookmark(id: bookmark.id)
+            let afterDelete = try store.loadBookmarksForBook(bookId: "unified-evidence-book")
+            guard afterDelete.isEmpty else {
+                throw UnifiedEvidenceRunnerFailure.unexpectedEvent(
+                    type: "not-empty",
+                    context: "bookmark.crud delete"
+                )
+            }
+
+            try? FileManager.default.removeItem(at: tempDir)
+            let durationMs = Int(Date().timeIntervalSince(start) * 1000)
+            return CapabilityResult(
+                capability: "bookmark.crud",
+                status: .pass,
+                method: "BookmarkStore.add+load+delete",
+                durationMs: durationMs,
+                redactedEvidence: "crudRoundTrip=ok; store=file-backed"
+            )
+        } catch {
+            try? FileManager.default.removeItem(at: tempDir)
+            let durationMs = Int(Date().timeIntervalSince(start) * 1000)
+            return CapabilityResult(
+                capability: "bookmark.crud",
+                status: .fail,
+                method: "BookmarkStore.add+load+delete",
+                durationMs: durationMs,
+                error: String(describing: error)
+            )
+        }
+    }
+
+    /// Measure tts.queue via the iOS `HostAdapter` (production holder).
+    ///
+    /// Core has no `tts.queue` runtime method — TTS is an iOS-side Host
+    /// capability. We dispatch `tts.system.start` through
+    /// `HostAdapterHolder.adapter` (the production adapter with TTS provider
+    /// injected by ReaderApp at launch) and verify the outcome is NOT
+    /// `.notImplemented` (which would indicate the provider was not injected).
+    ///
+    /// A non-`.notImplemented` outcome (success OR invalidParams OR underlying)
+    /// proves the handler was reached — the Host capability path is wired.
+    private static func measureTTSQueue() async -> CapabilityResult {
+        let start = Date()
+        let adapter = await MainActor.run { HostAdapterHolder.adapter }
+        let request = HostRequest(type: .tts_system_start, payload: [
+            "text": AnyCodable("unified evidence tts queue proof"),
+        ])
+        let outcome = await adapter.dispatch(request)
+        let durationMs = Int(Date().timeIntervalSince(start) * 1000)
+
+        // The key assertion: the outcome must NOT be .notImplemented.
+        // notImplemented means the TTS synth provider was not injected
+        // (ReaderApp didn't call setTTSSynthProvider at launch).
+        if case .notImplemented(.tts_system_start, let message) = outcome.error {
+            return CapabilityResult(
+                capability: "tts.queue",
+                status: .fail,
+                method: "HostAdapter.dispatch(tts.system.start)",
+                durationMs: durationMs,
+                error: "tts provider not injected: \(message)"
+            )
+        }
+
+        if outcome.succeeded {
+            return CapabilityResult(
+                capability: "tts.queue",
+                status: .pass,
+                method: "HostAdapter.dispatch(tts.system.start)",
+                durationMs: durationMs,
+                redactedEvidence: "started=true; providerInjected=true"
+            )
+        }
+
+        // Non-notImplemented failure (e.g. invalidParams, underlying) still
+        // proves the handler was reached — the Host path is wired.
+        return CapabilityResult(
+            capability: "tts.queue",
+            status: .pass,
+            method: "HostAdapter.dispatch(tts.system.start)",
+            durationMs: durationMs,
+            redactedEvidence: "handlerReached=true; error=\(String(describing: outcome.error))"
+        )
     }
 
     private static func pollUntil(

@@ -6,7 +6,7 @@ import Foundation
 /// and is constructed with default handlers. The TTS / Share capabilities
 /// need concrete types from the app target (`ReaderTTSPlayer`,
 /// `ReaderSharePresenter`), so the app calls
-/// `HostAdapterHolder.shared.adapter.setTTSSynthProvider(...)` /
+/// `HostAdapterHolder.adapter.setTTSSynthProvider(...)` /
 /// `setSharePresenterProvider(...)` at launch to inject them.
 ///
 /// The holder is `@MainActor` because `HostAdapter` is `@MainActor`-isolated.
