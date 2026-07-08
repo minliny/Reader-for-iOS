@@ -52,6 +52,23 @@ for arg in "$@"; do
   esac
 done
 
+reader_ffi_manifest="$native_root/crates/reader-ffi/Cargo.toml"
+reader_ffi_has_bindgen=0
+if [[ -f "$reader_ffi_manifest" ]] && grep -Eq '^[[:space:]]*bindgen[[:space:]]*=' "$reader_ffi_manifest"; then
+  reader_ffi_has_bindgen=1
+else
+  echo "fetch-cabi: reader-ffi bindgen feature not found; building cross-target slices without --features bindgen"
+fi
+
+build_reader_ffi_for_target() {
+  local target="$1"
+  if (( reader_ffi_has_bindgen == 1 )); then
+    cargo build -p reader-ffi --release --target "$target" --features bindgen
+  else
+    cargo build -p reader-ffi --release --target "$target"
+  fi
+}
+
 if (( refresh_headers == 1 )); then
   echo "fetch-cabi: refreshing headers from $native_root"
   cp "$header_src" "$cabi_dir/reader_core.h"
@@ -77,14 +94,14 @@ if (( fetch_sim == 1 || fetch_xcframework == 1 )); then
   sim_lib="$native_root/target/aarch64-apple-ios-sim/release/libreader_core.a"
   if [[ ! -f "$sim_lib" ]]; then
     echo "fetch-cabi: building iOS-sim libreader_core_sim.a (aarch64-apple-ios-sim, release)"
-    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios-sim --features bindgen)
+    (cd "$native_root" && build_reader_ffi_for_target aarch64-apple-ios-sim)
   fi
 
   if (( fetch_universal_sim == 1 )); then
     sim_x86_64_lib="$native_root/target/x86_64-apple-ios/release/libreader_core.a"
     if [[ ! -f "$sim_x86_64_lib" ]]; then
       echo "fetch-cabi: building iOS-sim libreader_core_sim.a (x86_64-apple-ios, release)"
-      (cd "$native_root" && cargo build -p reader-ffi --release --target x86_64-apple-ios --features bindgen)
+      (cd "$native_root" && build_reader_ffi_for_target x86_64-apple-ios)
     fi
     lipo -create "$sim_lib" "$sim_x86_64_lib" -output "$cabi_dir/libreader_core_sim.a"
     echo "fetch-cabi: materialized $cabi_dir/libreader_core_sim.a (iOS-sim arm64+x86_64)"
@@ -100,7 +117,7 @@ if (( fetch_device == 1 )); then
   device_lib="$native_root/target/aarch64-apple-ios/release/libreader_core.a"
   if [[ ! -f "$device_lib" ]]; then
     echo "fetch-cabi: building iOS-device libreader_core_device.a (aarch64-apple-ios, release)"
-    (cd "$native_root" && cargo build -p reader-ffi --release --target aarch64-apple-ios --features bindgen)
+    (cd "$native_root" && build_reader_ffi_for_target aarch64-apple-ios)
   fi
   cp "$device_lib" "$cabi_dir/libreader_core_device.a"
   echo "fetch-cabi: materialized $cabi_dir/libreader_core_device.a (iOS-device arm64)"
