@@ -366,7 +366,10 @@ xcodebuild -project ReaderForIOS.xcodeproj \
 | blocked list | manga.pages.extract, local_book.parse, http-tts, sync.webdav (Core gap: reader-ffi 未暴露对应 method) |
 | 重跑脚本 | `scripts/run_unified_evidence_simulator.sh` |
 
-Validator log：
+Validator result（可提交 artifact）：
+`docs/frontend-complete-app/evidence/ios-s4-host-proof/unified-evidence-sim-validator-result.json`
+
+Validator 原始 log（gitignored，本地保留）：
 `docs/frontend-complete-app/evidence/ios-s4-host-proof/unified-evidence-sim-validator.log`
 
 2. App-process host request loop evidence
