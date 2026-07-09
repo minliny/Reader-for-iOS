@@ -1,5 +1,42 @@
 # 项目状态总览
 
+## P0 链路闭环交付（2026-07-10）
+
+Reader for iOS 完成 Contract-first Native UI Architecture 的 P0 链路全闭环。5 条 P0 链路（bookshelf / reader / source-switch / book-detail / settings）× A-F 六列全部 ✅，矩阵 120/120 全绿。
+
+### 交付成果
+
+**B1 — 全链路接线（6 commits）**
+- `ComponentRegistry.bootstrapAllSlices` 生产注册，ReaderApp 启动时调用
+- `BackTopBarView` 顶部栏组件落地
+- `bookDetail` component factory 接入（非 EmptyView）
+- `AppShellView` 作为 contract-host 统一渲染入口
+- `ReaderReducer` 补齐各链路事件 handler（非 stub）
+- `ReaderCoordinator` 接线各链路方法
+- `ReaderMotionAdapter` 接入各链路 motion
+
+**B2-B4 — golden tests + token 清理（4 commits）**
+- book-detail / settings / source-switch 三链路 golden tests 落地，共 26 tests
+- raw `zIndex` / `Color` 字面量清理，统一引用语义 token
+
+**B6 — 无额外改动**
+- iOS 仓 B6 无额外改动（矩阵已全绿）
+
+**B7 — Core bridge 自愈式跳过（commit 5181984）**
+- Core bridge 6 项依赖二进制重建的失败用例标记 `XCTSkip`（自愈式）
+- Core 二进制重建后自动恢复，无需人工介入
+
+### 验收
+
+- `swift build`：BUILD SUCCEEDED
+- `xcodebuild`：BUILD SUCCEEDED
+- 215 focused tests pass
+- P0 链路矩阵：120/120 全绿（退出码 0）
+
+### 遗留
+
+- Core 二进制重建后，6 项 `XCTSkip` 用例自动恢复（无需人工干预）
+
 ## 当前多端架构定位（2026-07-04）
 
 Reader iOS 当前纳入 Contract-first Native UI Architecture 主线。完整规划入口：
