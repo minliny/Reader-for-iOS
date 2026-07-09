@@ -64,6 +64,36 @@ public final class ReaderCoordinator {
         breakPoint("Slice 6 未落地：runSync")
     }
 
+    // MARK: - B1-iOS P0: 通过 reducer dispatch 的协调方法
+
+    /// 内部 reducer facade。包装既有 navigationState，提供 UiEvent dispatch 入口。
+    private lazy var reducer: ReaderReducer = ReaderReducer(navigationState: navigationState)
+
+    /// 打开书籍详情页。dispatch `.book_detail_open` → reducer 推入 bookDetail 路由。
+    public func openBookDetail(bookId: String, title: String? = nil, author: String? = nil) {
+        var payload: [String: AnyCodable] = ["bookURL": AnyCodable(bookId)]
+        if let title { payload["title"] = AnyCodable(title) }
+        if let author { payload["author"] = AnyCodable(author) }
+        reducer.dispatch(UiEvent(type: .book_detail_open, payload: payload))
+    }
+
+    /// 打开书源切换页。dispatch `.source_switch_open` → reducer 推入 sourceSwitch 路由。
+    public func openSourceSwitch(bookId: String) {
+        reducer.dispatch(UiEvent(type: .source_switch_open, payload: [
+            "bookURL": AnyCodable(bookId)
+        ]))
+    }
+
+    /// 打开设置覆盖层。dispatch `.settings_overlay_open` → reducer 设置 overlay 为 .dialog。
+    public func openSettings() {
+        reducer.dispatch(UiEvent(type: .settings_overlay_open))
+    }
+
+    /// 切换阅读器控制层。dispatch `.reader_control_toggle` → reducer 切换 overlay sheet。
+    public func readerControl(action: String? = nil) {
+        reducer.dispatch(UiEvent(type: .reader_control_toggle))
+    }
+
     // MARK: - 既有 navigation 包装（不重写）
 
     public func navigate(to route: Route) {
