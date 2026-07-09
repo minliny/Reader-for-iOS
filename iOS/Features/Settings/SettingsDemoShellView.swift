@@ -2423,7 +2423,7 @@ private struct SettingsDemoDeleteDialog: View {
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                     .stroke(ReaderDesignTokens.Color.dialogBorder, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.16), radius: 22, x: 0, y: 22)
+            .shadow(color: ReaderDesignTokens.Color.Shadow.elevated, radius: 22, x: 0, y: 22)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

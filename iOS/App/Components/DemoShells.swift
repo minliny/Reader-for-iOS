@@ -316,11 +316,11 @@ struct DemoReaderShell<ReadingSurface: View, OverlayHost: View, BottomSheetHost:
                 .accessibilityIdentifier("fd-reader-reading-surface-slot")
 
             readerOverlaySlot
-                .zIndex(2)
+                .zIndex(ReaderZIndex.overlay.rawValue)
 
             stateHost
                 .accessibilityIdentifier("fd-reader-state-host")
-                .zIndex(3)
+                .zIndex(ReaderZIndex.overlay.rawValue)
         }
         .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
 #if os(iOS)

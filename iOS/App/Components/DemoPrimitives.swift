@@ -758,7 +758,7 @@ struct DemoFilterDisclosure: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .zIndex(8)
+        .zIndex(ReaderZIndex.overlay.rawValue)
         .animation(motion.animation(isOpen ? AppMotion.Duration.dropdownExpand : AppMotion.Duration.dropdownCollapse), value: isOpen)
     }
 }
@@ -1229,7 +1229,7 @@ struct DemoLoadingSpinnerInlineOnPrimary: View {
             .overlay(
                 Circle()
                     .trim(from: 0.0, to: 0.25)
-                    .stroke(SwiftUI.Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .stroke(ReaderTokenAdapter.color(named: "--fd-ds-color-surface") ?? ReaderDesignTokens.Color.surface, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             )
             .frame(width: 14, height: 14)

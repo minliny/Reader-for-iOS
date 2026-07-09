@@ -1438,7 +1438,7 @@ private struct ReaderSettingsQuickToggleRow: View {
                     .frame(width: 34, height: 18)
                     .overlay(alignment: isOn ? .trailing : .leading) {
                         Circle()
-                            .fill(Color.white)
+                            .fill(ReaderTokenAdapter.color(named: "--fd-ds-color-surface") ?? ReaderDesignTokens.Color.surface)
                             .frame(width: 14, height: 14)
                             .padding(2)
                     }

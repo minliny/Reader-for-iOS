@@ -1036,7 +1036,7 @@ private struct ReaderDemoToggleRow: View {
                     .frame(width: ReaderDesignTokens.settingsSwitchTrackWidth, height: ReaderDesignTokens.settingsSwitchTrackHeight)
                     .overlay(alignment: isOn ? .trailing : .leading) {
                         Circle()
-                            .fill(Color.white)
+                            .fill(ReaderTokenAdapter.color(named: "--fd-ds-color-surface") ?? ReaderDesignTokens.Color.surface)
                             .frame(width: ReaderDesignTokens.settingsSwitchThumbSize, height: ReaderDesignTokens.settingsSwitchThumbSize)
                             .padding(2)
                     }

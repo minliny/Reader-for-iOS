@@ -102,7 +102,7 @@ public struct BookshelfView: View {
             ZStack {
                 bookshelfOverlayLayer
                 bookshelfDestinationLayer
-                    .zIndex(10)
+                    .zIndex(ReaderZIndex.overlay.rawValue)
             }
         }
 #if os(iOS)
@@ -233,7 +233,7 @@ public struct BookshelfView: View {
                     }
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(3)
+                .zIndex(ReaderZIndex.overlay.rawValue)
             }
         }
     }

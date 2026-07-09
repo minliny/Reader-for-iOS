@@ -118,7 +118,7 @@ struct ContractStaticRouteScreen: View {
                         let action = actions[index]
                         Text(action.label)
                             .font(.system(size: 14, weight: .heavy))
-                            .foregroundColor(Color.white)
+                            .foregroundColor(ReaderTokenAdapter.color(named: "--fd-ds-color-surface") ?? ReaderDesignTokens.Color.surface)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
                             .background(ReaderDesignTokens.Color.primaryDark)

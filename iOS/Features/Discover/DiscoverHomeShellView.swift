@@ -1017,7 +1017,7 @@ private struct DiscoverCacheConfirmOverlay: View {
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
                     .fill(ReaderDesignTokens.Color.bookFocusMenuBackground)
             )
-            .shadow(color: Color.black.opacity(0.16), radius: 22, x: 0, y: 22)
+            .shadow(color: ReaderDesignTokens.Color.Shadow.elevated, radius: 22, x: 0, y: 22)
             .offset(y: -10)
         }
     }
