@@ -137,7 +137,7 @@ struct DemoPaperScreen<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         // demo body/`.fd-phone` 真源是 `--fd-paper-solid` #f8f4ec（`paperSolidAlt`），
-        // 不是 `--reader-ds-color-paper` #fff8f4（`paperSolid`）。
+        // 不是 `--fd-ds-color-paper` #fff8f4（`paperSolid`）。
         .background(ReaderDesignTokens.Color.paperSolidAlt.ignoresSafeArea())
     }
 }
@@ -433,7 +433,7 @@ struct ReaderCard<Content: View>: View {
                         RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                             .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                     )
-                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    // demo `--fd-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
                     .shadow(
                         color: ReaderDesignTokens.Color.Shadow.soft,
                         radius: 26,
@@ -1039,7 +1039,7 @@ struct DemoBottomSheet<Content: View>: View {
                             .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                     )
                     .shadow(
-                        // demo `--fd-shadow` (--reader-ds-shadow-elevated): 0 18px 46px rgba(89,70,50,0.16)
+                        // demo `--fd-shadow` (--fd-ds-shadow-elevated): 0 18px 46px rgba(89,70,50,0.16)
                         color: ReaderDesignTokens.Color.Shadow.elevated,
                         radius: 46,
                         x: 0,
@@ -1130,7 +1130,7 @@ extension DemoIconRow where Accessory == EmptyView {
 /// 不复制 CSS / keyframes）。
 ///
 /// 真源（demo CSS 实际值）：
-/// - `02-main-library.css` `.fd-reader-loading-panel i`：30×30 圆，3px border
+/// - `02a-reader-control.css` `.fd-reader-loading-panel i`：30×30 圆，3px border
 ///   `rgba(54,97,121,0.2)`，border-top-color `#274f66`（`--fd-primary-dark`），
 ///   `animation: fd-reader-loading-spin 800ms linear infinite`
 /// - `01-shell-layout.css` `.fd-discover-bottom-loading i` /
@@ -1288,7 +1288,7 @@ struct DemoRestoreProgressMeter: View {
 
 /// demo `.fd-reader-progress` 的 SwiftUI 镜像（clean-room）。
 ///
-/// 真源（demo CSS 实际值，`02-main-library.css`）：
+/// 真源（demo CSS 实际值，`02a-reader-control.css`）：
 /// - `.fd-reader-progress`：30px 高容器
 /// - `.fd-reader-progress i`：5px 高 bar，inset 13px top
 /// - `.fd-reader-progress b`：fill 宽 = `--progress`，背景 `#366179`
@@ -1389,7 +1389,7 @@ struct DemoSettingsSwitch: View {
 
 /// demo `.fd-reader-switch` 的 SwiftUI 镜像（clean-room，小型 25×15 pill）。
 ///
-/// 真源（demo CSS 实际值，`03-reader.css` line 733-759）：
+/// 真源（demo CSS 实际值，`03a-reader-appearance.css` line 733-759）：
 /// - `.fd-reader-switch`：25×15px pill，背景 `#aaa39a`
 /// - `.fd-reader-switch::after`：11×11 圆，背景 `#fff`，
 ///   阴影 `0 1px 3px rgba(55, 44, 32, 0.22)`，top 2px left 2px
@@ -1427,7 +1427,7 @@ struct DemoReaderSwitch: View {
 
 /// demo `.fd-reader-toc-switch-row` 的 SwiftUI 镜像（clean-room，2 列 button）。
 ///
-/// 真源（demo CSS 实际值，`02-main-library.css` line 883-920）：
+/// 真源（demo CSS 实际值，`02a-reader-control.css` line 883-920）：
 /// - `.fd-reader-toc-switch-row`：`grid-template-columns: repeat(2, minmax(0, 1fr))`，
 ///   gap 5px，padding 3px 0
 /// - `.fd-reader-toc-switch-row button`：height 24px，`--fd-radius-md` 圆角，
@@ -1480,10 +1480,10 @@ struct DemoTocSwitchRow: View {
 // MARK: - Demo Slider Control (stepper-style +/-)
 
 /// demo 中无原生 range slider 真值（字号/亮度/语速都用 +/- 按钮组调节，
-/// 见 `03-reader.css` `.fd-reader-fontsize-row` / `.fd-reader-brightness-row`）。
+/// 见 `03a-reader-appearance.css` `.fd-reader-fontsize-row` / `.fd-reader-brightness-row`）。
 /// 本原语按 demo `.fd-reader-fontsize-row` 的 +/- 几何绘制。
 ///
-/// 真源（demo CSS 实际值，`03-reader.css`）：
+/// 真源（demo CSS 实际值，`03a-reader-appearance.css`）：
 /// - `.fd-reader-fontsize-row button`：30×30 圆角方块，`--fd-radius-md`，
 ///   背景 `rgba(255, 250, 244, 0.92)`，边框 `rgba(154, 139, 124, 0.35)`
 /// - 中间 value 显示：13px serif

@@ -3,7 +3,7 @@ import SwiftUI
 /// SwiftUI translation of the canonical frontend demo shell constructors.
 ///
 /// Source of truth:
-/// `Reader UI/frontend-demo/shared-shell-kit/kit.js`
+/// `Reader UI/frontend-demo-optimized/shared-shell-kit/kit.js`
 /// - `renderMainTabShell`: appFrame / appTopBar / contentRegion / stateHost / mainNav
 /// - `renderLibraryShell`: stackFrame / backTopBar / contentRegion / bottomActionHost / sheetHost / dialogHost / stateHost
 /// - `renderReaderShell`: readerFrame / readingSurface / readerOverlayHost / bottomSheetHost / readerModuleNav / readerStateHost

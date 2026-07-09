@@ -3,7 +3,7 @@ import Foundation
 /// Machine-readable platform mapping for selected demo routes.
 ///
 /// Source of truth:
-/// - Demo routes: `Reader UI/frontend-demo/route-contract.js`
+/// - Demo routes: `Reader UI/frontend-demo-optimized/route-contract.js`
 /// - Human matrix: `docs/ui-handoff/ios/IOS_DEMO_BASELINE_ROUTE_MAPPING.md`
 ///
 /// This table starts with Slice 1 and the shortest Slice 2 reader-entry path.

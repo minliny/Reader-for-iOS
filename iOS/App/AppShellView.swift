@@ -8,7 +8,7 @@ import ReaderShellValidation
 
 /// Hero transition namespace environment key.
 ///
-/// 真源：`frontend-demo/MOTION_EFFECTS.md` line 611-635 `reader.entry.coverToImmersive`
+/// 真源：`frontend-demo-optimized/MOTION_EFFECTS.md` line 611-635 `reader.entry.coverToImmersive`
 /// 与 line 985-1001 `reader.session.controlSpace.enter/exit`。
 ///
 /// 用途：在 AppShellView 顶层创建 `@Namespace`，通过 environment 注入到所有子视图，
@@ -68,7 +68,7 @@ private struct HeroMatchedGeometryModifier: ViewModifier {
 /// 真源：
 /// - `docs/cross-platform-ui/CROSS_PLATFORM_UI_BASELINE.md` App Shell
 /// - `docs/ui-handoff/FRONTEND_DEVELOPMENT_SLICE_MATRIX.md` Slice 1
-/// - `Reader UI/frontend-demo/styles/01-shell-layout.css` `.fd-main-nav`
+/// - `Reader UI/frontend-demo-optimized/styles/01-shell-layout.css` `.fd-main-nav`
 ///
 /// 契约对齐：
 /// - 四主 Tab 顺序固定：书架 / 发现 / RSS / 设置。
@@ -291,8 +291,27 @@ struct AppShellView: View {
             destinationView(for: route, onExit: {
                 navigationState.goBack()
             })
-            .transition(.opacity)
-            .zIndex(10)
+            // D6: push/pop 接线 ReaderMotionAdapter.resolve(request:)。
+            // push（navigationPath 增长）走 .app_route_push_forward（ease_out 160ms），
+            // pop（navigationPath 缩短）走 .app_route_pop_backward（ease_in 160ms）。
+            // resolver 返回 nil 时无动画（reduced-motion 或无策略命中），安全降级。
+            .transition(
+                .asymmetric(
+                    insertion: .opacity.animation(
+                        ReaderMotionAdapter.animation(
+                            for: MotionRequest(operation: .push, containerRole: .appShell),
+                            motion: navigationState.motion
+                        )
+                    ),
+                    removal: .opacity.animation(
+                        ReaderMotionAdapter.animation(
+                            for: MotionRequest(operation: .pop, containerRole: .appShell),
+                            motion: navigationState.motion
+                        )
+                    )
+                )
+            )
+            .zIndex(ReaderZIndex.overlay.rawValue)
         }
     }
 

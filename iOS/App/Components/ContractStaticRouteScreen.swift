@@ -23,7 +23,7 @@ struct ContractStaticRouteScreen: View {
         rows: [(label: String, value: String)] = [
             ("RouteId", ""),
             ("Shell", ""),
-            ("Source", "frontend-demo/route-contract.js"),
+            ("Source", "frontend-demo-optimized/route-contract.js"),
             ("Boundary", "静态 demo/handoff，不替代平台设备证据")
         ],
         actions: [(label: String, route: String?)] = []

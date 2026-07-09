@@ -123,6 +123,7 @@ targets:
       - path: iOS/Features
       - path: iOS/Navigation
       - path: iOS/Modules
+      - path: iOS/Rendering
       - path: iOS/Surface
       - path: iOS/AppSupport
         excludes:

@@ -196,6 +196,7 @@ let baseTargets: [Target] = [
             "Features",
             "Modules",
             "Navigation",
+            "Rendering",
             "Surface"
         ]
     ),

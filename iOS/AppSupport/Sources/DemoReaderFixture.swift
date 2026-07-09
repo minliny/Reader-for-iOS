@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reader fixture translated from `Reader UI/frontend-demo/fixture.js`.
+/// Reader fixture translated from `Reader UI/frontend-demo-optimized/fixture.js`.
 ///
 /// The native demo surfaces consume these values directly so visible reader
 /// content stays anchored to the canonical HTML demo instead of local filler.

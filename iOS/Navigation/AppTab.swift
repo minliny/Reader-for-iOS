@@ -43,7 +43,7 @@ public enum AppTab: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
-    /// Demo 图标素材库 token，对齐 `frontend-demo/asset-library/icons.js`。
+    /// Demo 图标素材库 token，对齐 `frontend-demo-optimized/asset-library/icons.js`。
     public var assetIcon: ReaderAssetIcon {
         switch self {
         case .bookshelf: return .bookshelf

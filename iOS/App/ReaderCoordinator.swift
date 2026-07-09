@@ -25,9 +25,19 @@ public final class ReaderCoordinator {
     // MARK: - Slice 1 占位（后续 slice 落地）
 
     /// Slice 2：bookshelf → open book → reader surface
+    ///
+    /// P0-05 验收：
+    /// - 打开书进入 immersive-reading（不是 book-detail，直接进沉浸阅读）
+    /// - back 返回来源页（由 ContractNavigationStack.defaultPredecessor 处理深链）
+    /// - 重复 open 是 latest-intent-wins（enterImmersiveReading 覆盖 readerContext）
     public func openBook(_ bookId: String) {
-        // Slice 2 落地：route.push(book-detail) + activeSession=reading
-        breakPoint("Slice 2 未落地：openBook(\(bookId))")
+        let context = ReaderContext(
+            bookID: bookId,
+            chapterURL: "slice2://chapter",
+            chapterTitle: "Chapter",
+            source: .actionToImmersive
+        )
+        navigationState.enterImmersiveReading(context)
     }
 
     /// Slice 3：reader overlay / control dock / reader mode

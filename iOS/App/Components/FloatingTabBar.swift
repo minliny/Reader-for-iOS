@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 原生 SwiftUI 浮动主 Tab 栏 —— 对齐 demo `.fd-main-nav` 规格的「浮动 pill」样式。
 ///
-/// 真源：`Reader UI/frontend-demo/styles/01-shell-layout.css` `.fd-main-nav` / `.fd-main-nav-item`
+/// 真源：`Reader UI/frontend-demo-optimized/styles/01-shell-layout.css` `.fd-main-nav` / `.fd-main-nav-item`
 ///
 /// 规格对齐（数值取自 `ReaderDesignTokens`，clean-room，不复制 CSS）：
 /// - 栏高 68pt / 圆角 24 / padding 7×8 / 边框 1px `--fd-border` #c1c7cd /

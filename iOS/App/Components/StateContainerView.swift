@@ -5,7 +5,7 @@ import Foundation
 
 /// 状态错误分类。
 ///
-/// 对照 demo `frontend-demo/styles/00-foundation.css` 中 `.fd-state-card` /
+/// 对照 demo `frontend-demo-optimized/styles/00-foundation.css` 中 `.fd-state-card` /
 /// `.fd-empty` / `.fd-loading` 系列状态卡语义，将错误归并为 6 类，便于
 /// `StateContainerView` 在 error 态统一映射图标、标题与配色。
 ///

@@ -1,7 +1,7 @@
 import Foundation
 import ReaderCoreModels
 
-/// Bookshelf fixture translated from `Reader UI/frontend-demo/fixture.js`.
+/// Bookshelf fixture translated from `Reader UI/frontend-demo-optimized/fixture.js`.
 ///
 /// This is development/demo data, not production sync state. It exists so the
 /// native prototype can render the same default content state as the canonical
