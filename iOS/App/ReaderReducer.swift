@@ -110,9 +110,15 @@ public final class ReaderReducer: ObservableObject {
         case .reader_nightState_toggle:
             // Slice 3 stub: 夜间模式切换，后续 slice 落地 theme 管理
             break
-        case .reader_page_next, .reader_page_prev, .reader_chapter_jump:
-            // Slice 3 stub: 翻页/章节跳转，不影响 navigation state
-            break
+        case .reader_page_next:
+            // B2: 翻页——更新 readerPageIndex，对齐 reader.page.turn.next-prev motion
+            navigationState.readerPageIndex += 1
+        case .reader_page_prev:
+            // B2: 翻页——更新 readerPageIndex，对齐 reader.page.turn.next-prev motion
+            navigationState.readerPageIndex = max(0, navigationState.readerPageIndex - 1)
+        case .reader_chapter_jump:
+            // B2: 章节跳转——重置页码到 0，后续 slice 接 CoreBridge 真实处理
+            navigationState.readerPageIndex = 0
         case .reader_bookCache_open:
             navigationState.push(.content(chapterTitle: "Slice3"))
         case .reader_debugInfo_open:
@@ -194,14 +200,21 @@ public final class ReaderReducer: ObservableObject {
             // Slice 5d stub: 发现事件，不影响 navigation state
             break
         // MARK: - Slice 6: 设置/about 事件 stub
+        // B2: settings.overlay.open/close 落地——对齐 settings-overlay-guard-tab-switch 规则：
+        // settings overlay 展开时（overlayState == .dialog）禁止 tab 切换。
+        case .settings_overlay_open:
+            // B2: 展开 settings overlay，标记为 dialog 态（expandedOption 语义）
+            navigationState.setOverlay(.dialog)
+        case .settings_overlay_close:
+            // B2: 关闭 settings overlay
+            navigationState.setOverlay(.none)
         case .settings_scope_open, .settings_scope_close,
-             .settings_overlay_open, .settings_overlay_close,
              .settings_entry_open, .settings_localImport_invoke,
              .settings_cache_clear, .settings_sync_open,
              .settings_webdav_save,
              .settings_restore_scopeToggle, .settings_restore_preview, .settings_restore_run,
              .settings_about_open:
-            // Slice 6 stub: 设置/about 事件，不影响 navigation state
+            // Slice 6 stub: 其他设置/about 事件，不影响 navigation state
             break
         default:
             // 后续 slice 逐步接入业务事件。
@@ -285,6 +298,12 @@ public final class ReaderReducer: ObservableObject {
     private func handleMainTabSelect(_ event: UiEvent) {
         guard let tabRaw = event.payload["tab"]?.value as? String,
               let tab = MainTab(rawValue: tabRaw) else {
+            return
+        }
+        // B2: 对齐 settings-overlay-guard-tab-switch 规则：
+        // settings overlay 展开时（overlayState == .dialog）禁止 tab 切换。
+        if navigationState.activeTab == .settings
+            && navigationState.overlayState == .dialog {
             return
         }
         let appTab = AppTab(contract: tab)

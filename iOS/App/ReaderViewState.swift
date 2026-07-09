@@ -67,12 +67,41 @@ extension ReaderViewState {
         self.init(
             mainTab: tab,
             routeId: route,
+            pageState: ReaderViewState.derivedPageState(from: navigationState),
             overlay: ReaderUIContract.Overlay(overlayState: navigationState.overlayState),
             activeSession: ReaderUIContract.ActiveSession(readerSession: navigationState.activeSession),
             focusTarget: navigationState.focusTarget,
             reducedMotion: navigationState.motion.isReducedMotionEnabled,
             components: ViewStateComponentFactory.components(for: route)
         )
+    }
+
+    /// 从 `AppNavigationState` 派生 contract `PageState`。
+    ///
+    /// 对齐 state-rule.fixtures.json：
+    /// - `book-detail-error-requires-error-pagestate`：error 态必须反映到 pageState
+    /// - `error-requires-error-pagestate`：全局 error 非空时 pageState 必须为 error
+    ///
+    /// 当前 AppNavigationState 没有 per-route loading/error 字段，pageState 由 route 派生：
+    /// - `.stateError` → `.error`
+    /// - `.stateOffline` → `.offline`
+    /// - `.statePermission` → `.permission`
+    /// - 其他 → `.default`
+    @MainActor
+    private static func derivedPageState(from navigationState: AppNavigationState) -> PageState {
+        guard let route = navigationState.navigationPath.last else {
+            return .defaultValue
+        }
+        switch route {
+        case .stateError:
+            return .error
+        case .stateOffline:
+            return .offline
+        case .statePermission:
+            return .permission
+        default:
+            return .defaultValue
+        }
     }
 }
 

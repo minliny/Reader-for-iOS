@@ -108,6 +108,9 @@ public final class AppNavigationState: ObservableObject {
     /// 当前可恢复焦点目标。对齐 generated `UiState.focusTarget`。
     @Published public var focusTarget: String?
 
+    /// 当前阅读页码（reader.page.next/prev 更新）。对齐 `reader.page.turn.next-prev`。
+    @Published public var readerPageIndex: Int = 0
+
     private var focusTargetByScope: [String: String] = [:]
 
     public init() {}
