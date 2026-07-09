@@ -288,10 +288,11 @@ public struct NightToastView: View {
         if props.visible != false {
             Text(props.message ?? "夜间模式")
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white)
+                // B1-iOS P0：清理 raw Color.black/.white，改用 ReaderTokenAdapter。
+                .foregroundColor(ReaderTokenAdapter.color(named: "--fd-ds-color-surface") ?? ReaderDesignTokens.Color.surface)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color.black.opacity(0.7))
+                .background((ReaderTokenAdapter.color(named: "--fd-ds-color-ink") ?? ReaderDesignTokens.Color.ink).opacity(0.7))
                 .clipShape(Capsule())
                 .accessibilityIdentifier("night-toast")
         } else {
