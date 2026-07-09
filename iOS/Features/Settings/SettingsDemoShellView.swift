@@ -2232,7 +2232,7 @@ private struct SettingsDemoSourceImportSheet: View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
                 .shadow(
-                    // demo `--fd-shadow` (--reader-ds-shadow-elevated): 0 18px 46px rgba(89,70,50,0.16)
+                    // demo `--fd-shadow` (--fd-ds-shadow-elevated): 0 18px 46px rgba(89,70,50,0.16)
                     color: ReaderDesignTokens.Color.Shadow.elevated,
                     radius: 18, x: 0, y: -8
                 )
@@ -2316,7 +2316,7 @@ private struct SettingsDemoCodeBlock: View {
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                     Text("\(String(format: "%02d", index + 1))  \(line)")
                         .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .regular, design: .monospaced))
-                        .foregroundColor(Color(red: 247/255, green: 234/255, blue: 217/255))
+                        .foregroundColor(ReaderDesignTokens.Color.sourceCodeText)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -2327,11 +2327,11 @@ private struct SettingsDemoCodeBlock: View {
         .frame(minHeight: 430)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
-                .fill(Color(red: 43/255, green: 39/255, blue: 35/255, opacity: 0.94))
+                .fill(ReaderDesignTokens.Color.sourceCodeBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
-                .stroke(Color(red: 180/255, green: 166/255, blue: 151/255, opacity: 0.42), lineWidth: 1)
+                .stroke(ReaderDesignTokens.Color.searchResultBorder, lineWidth: 1)
         )
     }
 }
@@ -2346,7 +2346,7 @@ private struct SettingsDemoDeleteDialog: View {
         // `.fd-demo-dialog` 在 top:50% + translateY(-50%) 居中。这里用 ZStack 把遮罩 + 居中 dialog
         // 一起渲染，让背景列表仍可见但被压暗。
         ZStack {
-            Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.24)
+            ReaderDesignTokens.Color.focusBackdrop
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 14) {
@@ -2394,7 +2394,7 @@ private struct SettingsDemoDeleteDialog: View {
                             .frame(maxWidth: .infinity, minHeight: 38)
                             .background(
                                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                                    .fill(Color(red: 238/255, green: 232/255, blue: 223/255, opacity: 0.9))
+                                    .fill(ReaderDesignTokens.Color.chipBackground)
                             )
                     }
                     .buttonStyle(DemoPressButtonStyle())
@@ -2417,11 +2417,11 @@ private struct SettingsDemoDeleteDialog: View {
             .frame(maxWidth: 306)
             .background(
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                    .fill(Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.98))
+                    .fill(ReaderDesignTokens.Color.bookFocusMenuBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                    .stroke(Color(red: 164/255, green: 149/255, blue: 132/255, opacity: 0.42), lineWidth: 1)
+                    .stroke(ReaderDesignTokens.Color.dialogBorder, lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.16), radius: 22, x: 0, y: 22)
         }

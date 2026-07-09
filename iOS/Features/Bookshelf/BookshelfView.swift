@@ -1589,7 +1589,7 @@ private struct BookshelfEmptyHintButton: View {
 
 /// 继续阅读卡 —— 对齐 demo `.fd-continue-card` 规格。
 ///
-/// 真源：`Reader UI/frontend-demo/styles/00-foundation.css` `.fd-continue-card`
+/// 真源：`Reader UI/frontend-demo-optimized/styles/00-foundation.css` `.fd-continue-card`
 /// 规格（取自 `ReaderDesignTokens`，clean-room，不复制 CSS）：
 /// - grid 62pt / 1fr / 82pt（cover / text / action button）
 /// - min-h 100pt / padding 10×16 / border 1 / radius 8 / surface bg / soft shadow
@@ -1659,7 +1659,7 @@ struct ContinueReadingCard: View {
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
-                // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                // demo `--fd-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
                 .shadow(color: ReaderDesignTokens.Color.Shadow.soft,
                         radius: 26, x: 0, y: 8)
         )

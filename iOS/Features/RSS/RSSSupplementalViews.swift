@@ -1484,7 +1484,7 @@ private extension View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.72), lineWidth: 1)
                 )
                 .shadow(
-                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    // demo `--fd-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
                     color: ReaderDesignTokens.Color.Shadow.soft,
                     radius: 26,
                     x: 0,

@@ -3,8 +3,8 @@ import SwiftUI
 /// 发现 Tab Shell —— 对齐 demo `.fd-discover-*` 主 Tab feature states。
 ///
 /// 真源：
-/// - `Reader UI/frontend-demo/render-runtime.js` `discoverMainContent`
-/// - `Reader UI/frontend-demo/styles/01-shell-layout.css` `.fd-discover-*`
+/// - `Reader UI/frontend-demo-optimized/render-runtime.js` `discoverMainContent`
+/// - `Reader UI/frontend-demo-optimized/styles/01-shell-layout.css` `.fd-discover-*`
 ///
 /// 发现页的 30 条 demo routes 属于主 Tab 内 feature state，不扩展为二级 `Route`。
 /// `demoRoute` 只用于把 demo contract 转成本地 SwiftUI 状态，生产入口仍由 Discover tab root 承载。
@@ -986,7 +986,7 @@ private struct DiscoverCacheConfirmOverlay: View {
     var body: some View {
         ZStack {
             // 对齐 web `.fd-discover-dialog-backdrop`：rgba(35,28,22,0.26) 半透明遮罩
-            Color(red: 35/255, green: 28/255, blue: 22/255, opacity: 0.26)
+            ReaderDesignTokens.Color.dialogBackdrop
                 .ignoresSafeArea()
 
             // 对齐 web `.fd-discover-confirm-dialog`：top 44% + translateY(-50%) 居中
@@ -1003,7 +1003,7 @@ private struct DiscoverCacheConfirmOverlay: View {
                         .font(.system(size: 13, weight: .heavy))
                         .foregroundColor(ReaderDesignTokens.Color.ink)
                         .frame(maxWidth: .infinity, minHeight: 38)
-                        .background(Capsule().fill(Color(red: 238/255, green: 232/255, blue: 223/255, opacity: 0.92)))
+                        .background(Capsule().fill(ReaderDesignTokens.Color.chipBackground))
                     Text("确认清除")
                         .font(.system(size: 13, weight: .heavy))
                         .foregroundColor(.white)
@@ -1015,7 +1015,7 @@ private struct DiscoverCacheConfirmOverlay: View {
             .frame(maxWidth: 318)
             .background(
                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.lg)
-                    .fill(Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.98))
+                    .fill(ReaderDesignTokens.Color.bookFocusMenuBackground)
             )
             .shadow(color: Color.black.opacity(0.16), radius: 22, x: 0, y: 22)
             .offset(y: -10)
@@ -1033,7 +1033,7 @@ private extension View {
                         .stroke(ReaderDesignTokens.Color.mainNavBorder.opacity(0.72), lineWidth: 1)
                 )
                 .shadow(
-                    // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                    // demo `--fd-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
                     color: ReaderDesignTokens.Color.Shadow.soft,
                     radius: 26,
                     x: 0,

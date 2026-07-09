@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 沉浸阅读运行胶囊视图。
 ///
-/// 实现 demo 契约 `frontend-demo/motion-controller.js` 中两个 Motion ID 的 SwiftUI 运行时
+/// 实现 demo 契约 `frontend-demo-optimized/motion-controller.js` 中两个 Motion ID 的 SwiftUI 运行时
 /// （clean-room：不复制 Web JS/CSS/DOM，只用 demo 数值化 token 驱动 SwiftUI 原生
 /// `animation` / `transition` / `scaleEffect` / `opacity`）。
 ///

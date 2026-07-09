@@ -68,7 +68,7 @@ public enum ReaderStageModule: String, CaseIterable, Hashable {
 
 /// 阅读底栏模块导航 —— 对齐 demo `.fd-reader-module-nav` / `.fd-reader-module` 规格。
 ///
-/// 真源：`Reader UI/frontend-demo/styles/03-reader.css` `.fd-reader-module-nav` / `.fd-reader-module`
+/// 真源：`Reader UI/frontend-demo-optimized/styles/03a-reader-appearance.css` `.fd-reader-module-nav` / `.fd-reader-module`
 /// 规格（取自 `ReaderDesignTokens`，clean-room，不复制 CSS）：
 /// - nav: grid 4 列 / gap 4 / min-h 78 / padding 8 / radius 12
 ///        背景 rgba(255,252,248,0.96) / 边框 1px rgba(180,166,151,0.34)

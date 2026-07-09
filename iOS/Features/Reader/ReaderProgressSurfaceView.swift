@@ -9,7 +9,7 @@ public enum ReaderProgressSurfaceStyle {
 
 /// 阅读顶栏进度面 —— 对齐 demo `.fd-reader-top` 规格。
 ///
-/// 真源：`Reader UI/frontend-demo/styles/01-shell-layout.css` `.fd-reader-top`
+/// 真源：`Reader UI/frontend-demo-optimized/styles/01-shell-layout.css` `.fd-reader-top`
 /// 规格（取自 `ReaderDesignTokens`，clean-room，不复制 CSS）：
 /// - top 18pt / 左右 14pt / min-h 54pt / radius 24
 /// - 背景 rgba(255,250,244,0.92) / 边框 1px rgba(154,139,124,0.35)

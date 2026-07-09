@@ -93,7 +93,7 @@ public struct ReaderStatusCardView: View {
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                         .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                 )
-                // demo `--reader-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
+                // demo `--fd-ds-shadow-soft`: 0 8px 26px rgba(89,70,50,0.1)
                 .shadow(
                     color: ReaderDesignTokens.Color.Shadow.soft,
                     radius: 26,
