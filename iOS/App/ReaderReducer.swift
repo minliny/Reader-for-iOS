@@ -153,6 +153,12 @@ public final class ReaderReducer: ObservableObject {
              .rss_search_submit, .rss_search_clear:
             // Slice 5a stub: RSS 业务事件，不影响 navigation state
             break
+        // MARK: - B1-iOS P0: source.switch.open / tab.switch
+        case .source_switch_open:
+            handleSourceSwitchOpen(event)
+        case .tab_switch:
+            // tab.switch 与 mainTab.select 语义一致，委托同一 handler
+            handleMainTabSelect(event)
         // MARK: - Slice 5b: 书源业务事件 stub
         // 书源路由切换通过 route_push + routeId payload 触发（由 handleRoutePush/nativeRoute 处理）；
         // 业务事件（source.management.open / source.detail.open / source.switch.select 等）
@@ -164,7 +170,7 @@ public final class ReaderReducer: ObservableObject {
              .source_logs_open, .source_code_view,
              .source_import_open, .source_import_preview, .source_import_apply,
              .source_search_submit, .source_search_clear,
-             .source_switch_open, .source_switch_select,
+             .source_switch_select,
              .source_switch_confirm, .source_switch_cancel:
             // Slice 5b stub: 书源业务事件，不影响 navigation state
             break
@@ -266,6 +272,12 @@ public final class ReaderReducer: ObservableObject {
         let bookURL = stringPayload(event, keys: ["bookURL", "bookUrl", "url", "bookId", "bookID"]) ?? "slice2://book"
         let title = stringPayload(event, keys: ["title"]) ?? "Directory"
         navigationState.push(.bookDetailToc(bookURL: bookURL, title: title))
+    }
+
+    // MARK: - B1-iOS P0: source.switch.open
+    private func handleSourceSwitchOpen(_ event: UiEvent) {
+        let bookURL = stringPayload(event, keys: ["bookURL", "bookUrl", "url", "bookId", "bookID"]) ?? "slice1://book"
+        navigationState.push(.sourceSwitch(bookURL: bookURL))
     }
 
     // MARK: - mainTab.select
