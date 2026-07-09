@@ -315,6 +315,79 @@ extension ReaderUIContract.ActiveSession {
     }
 }
 
+// MARK: - ViewStateFactory
+
+/// 构造 contract `ReaderUIContract.ViewState`。
+///
+/// `ViewState` 是 generated 类型（`ReaderUIContract.ViewState`），其 memberwise init
+/// 是 internal，跨模块无法直接构造。本 helper 用 `JSONEncoder`/`JSONDecoder` 走
+/// Codable 路径构造，避免手改 generated 代码。
+///
+/// P1 修复：`ContractHostView` 走 `ShellContainer` 需要 `ViewState` 实例；
+/// route 参数通过 `context` 字段注入，供带参工厂方法读取。
+enum ViewStateFactory {
+    /// 构造带 route context 的 ViewState。
+    static func make(
+        routeId: RouteId,
+        pageState: PageState = .defaultValue,
+        context: [String: AnyCodable]? = nil,
+        components: [ViewStateComponent]? = nil
+    ) -> ReaderUIContract.ViewState {
+        let resolvedComponents = components ?? ViewStateComponentFactory.components(
+            for: routeId, context: context
+        )
+        return makeViewState(
+            routeId: routeId.rawValue,
+            pageState: pageState,
+            context: context,
+            components: resolvedComponents
+        )
+    }
+
+    /// 用 JSONDecoder 构造 ViewState（绕过 internal memberwise init 限制）。
+    private static func makeViewState(
+        routeId: String,
+        pageState: PageState,
+        context: [String: AnyCodable]?,
+        components: [ViewStateComponent]
+    ) -> ReaderUIContract.ViewState {
+        var dict: [String: Any] = [
+            "routeId": routeId,
+            "pageState": pageState.rawValue,
+        ]
+        // components → JSON → Any
+        if let componentsData = try? JSONEncoder().encode(components),
+           let componentsJSON = try? JSONSerialization.jsonObject(with: componentsData) {
+            dict["components"] = componentsJSON
+        } else {
+            dict["components"] = [] as [Any]
+        }
+        // context → JSON → Any
+        if let context = context,
+           let contextData = try? JSONEncoder().encode(context),
+           let contextJSON = try? JSONSerialization.jsonObject(with: contextData) as? [String: Any] {
+            dict["context"] = contextJSON
+        }
+        // dict → JSON → ViewState
+        guard let data = try? JSONSerialization.data(withJSONObject: dict),
+              let viewState = try? JSONDecoder().decode(ReaderUIContract.ViewState.self, from: data) else {
+            // fallback：空 ViewState（不应发生，components/context 都是 Codable）
+            return makeFallbackViewState(routeId: routeId, pageState: pageState)
+        }
+        return viewState
+    }
+
+    private static func makeFallbackViewState(routeId: String, pageState: PageState) -> ReaderUIContract.ViewState {
+        let dict: [String: Any] = [
+            "routeId": routeId,
+            "pageState": pageState.rawValue,
+            "components": [] as [Any],
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: dict)
+        return try! JSONDecoder().decode(ReaderUIContract.ViewState.self, from: data)
+    }
+}
+
 // MARK: - ViewStateComponentFactory
 
 /// Slice 2 组件组合工厂——按 RouteId 返回标准组件列表。
@@ -323,6 +396,7 @@ extension ReaderUIContract.ActiveSession {
 /// 使用 JSONDecoder 解码，因为 `ViewStateComponent` 的 memberwise init 是 internal，
 /// 跨模块无法直接构造。后续 slice 可重构为从 Bundle 加载 fixture JSON。
 enum ViewStateComponentFactory {
+    /// 无 route context 的工厂方法（用于无参数路由或 fallback）。
     static func components(for routeId: RouteId) -> [ViewStateComponent] {
         switch routeId {
         case .bookshelf:
@@ -402,7 +476,7 @@ enum ViewStateComponentFactory {
         case .sourceDetail:
             return sourceDetailComponents()
         case .sourceSwitch, .sourceSwitchResults:
-            return sourceSwitchFlowComponents()
+            return sourceSwitchFlowComponents(context: nil)
         case .sourceManagement, .sourceSettingsEntry:
             return sourceManagementComponents()
         case .sourceAdd, .sourceImportOptions:
@@ -456,7 +530,7 @@ enum ViewStateComponentFactory {
             return searchStateComponents(variant: "error", topbarTitle: "搜索", title: "搜索失败", message: "网络源暂时不可用。", action: "重试")
         // B1-iOS P0：book-detail 走 contract renderer，返回标准组件树。
         case .bookDetail:
-            return bookDetailComponents()
+            return bookDetailComponents(context: nil)
         case .bookDetailTocPreview:
             return bookTocPreviewComponents()
         case .bookDirectory:
@@ -520,6 +594,24 @@ enum ViewStateComponentFactory {
         }
     }
 
+    /// 带 route context 的工厂方法（用于注入真实 route 参数，如 bookURL/title/author）。
+    ///
+    /// P1 修复：book-detail / source-switch 等路由需要接收实际 route 参数，
+    /// 不再硬编码 fixture（"长夜余火/爱潜水的乌贼"）。context 从 ViewState.context
+    /// 传入，工厂方法读取 context 中的字段注入组件 props。
+    static func components(
+        for routeId: RouteId, context: [String: AnyCodable]?
+    ) -> [ViewStateComponent] {
+        switch routeId {
+        case .bookDetail:
+            return bookDetailComponents(context: context)
+        case .sourceSwitch, .sourceSwitchResults:
+            return sourceSwitchFlowComponents(context: context)
+        default:
+            return components(for: routeId)
+        }
+    }
+
     private static func bookshelfComponents() -> [ViewStateComponent] {
         let json = """
         [
@@ -542,26 +634,61 @@ enum ViewStateComponentFactory {
         return (try? JSONDecoder().decode([ViewStateComponent].self, from: json)) ?? []
     }
 
-    // B1-iOS P0：book-detail 标准组件树。
+    // B1-iOS P0 + P1：book-detail 标准组件树，注入真实 route 参数。
     // 真源：contracts/fixtures/view-state.fixtures.json 的 book-detail fixture +
     // frontend-demo-optimized book-detail 页面结构。
     // 组件由 registerBookDetailComponents() 注册的 renderer 渲染。
-    private static func bookDetailComponents() -> [ViewStateComponent] {
-        let json = """
-        [
-            {"type":"BackTopBar","id":"book-detail-backbar","props":{"title":"书籍详情"}},
-            {"type":"BookHero","id":"book-detail-hero","props":{"title":"长夜余火","author":"爱潜水的乌贼","coverKey":"longNight"},"children":[
-                {"type":"BookCover","id":"book-detail-cover","props":{"coverKey":"longNight"}},
-                {"type":"BookTitleAuthor","id":"book-detail-title-author","props":{"title":"长夜余火","author":"爱潜水的乌贼"}},
-                {"type":"SourceStatus","id":"book-detail-source-status","props":{"sourceName":"默认书源"}}
-            ]},
-            {"type":"BookIntro","id":"book-detail-intro","props":{"intro":"这是书籍简介示例文本。"}},
-            {"type":"DirectoryPreview","id":"book-detail-directory","props":{"chapterCount":120}},
-            {"type":"ReadButton","id":"book-detail-read","props":{}},
-            {"type":"AddToShelfButton","id":"book-detail-add","props":{}}
+    //
+    // P1 修复：之前硬编码"长夜余火/爱潜水的乌贼"，现在从 context 读取真实
+    // title/author/bookURL。context 为 nil 时 fallback 到占位值（不崩溃）。
+    // 用 [String: Any] dict + JSONSerialization 构造，避免用户输入的 JSON 注入风险。
+    private static func bookDetailComponents(context: [String: AnyCodable]?) -> [ViewStateComponent] {
+        let title = (context?["title"]?.value as? String) ?? "未知书名"
+        let author = (context?["author"]?.value as? String) ?? "未知作者"
+        let bookURL = (context?["bookURL"]?.value as? String) ?? ""
+
+        let tree: [[String: Any]] = [
+            [
+                "type": "BackTopBar",
+                "id": "book-detail-backbar",
+                "props": ["title": "书籍详情"],
+            ],
+            [
+                "type": "BookHero",
+                "id": "book-detail-hero",
+                "props": ["title": title, "author": author, "coverKey": "placeholder"],
+                "children": [
+                    ["type": "BookCover", "id": "book-detail-cover", "props": ["coverKey": "placeholder"] as [String: Any]],
+                    ["type": "BookTitleAuthor", "id": "book-detail-title-author", "props": ["title": title, "author": author] as [String: Any]],
+                    ["type": "SourceStatus", "id": "book-detail-source-status", "props": ["sourceName": "默认书源"] as [String: Any]],
+                ] as [Any],
+            ],
+            [
+                "type": "BookIntro",
+                "id": "book-detail-intro",
+                "props": ["intro": "简介加载中…"] as [String: Any],
+            ],
+            [
+                "type": "DirectoryPreview",
+                "id": "book-detail-directory",
+                "props": ["chapterCount": 0] as [String: Any],
+            ],
+            [
+                "type": "ReadButton",
+                "id": "book-detail-read",
+                "props": ["bookURL": bookURL] as [String: Any],
+            ],
+            [
+                "type": "AddToShelfButton",
+                "id": "book-detail-add",
+                "props": ["bookURL": bookURL] as [String: Any],
+            ],
         ]
-        """.data(using: .utf8)!
-        return (try? JSONDecoder().decode([ViewStateComponent].self, from: json)) ?? []
+        guard let data = try? JSONSerialization.data(withJSONObject: tree),
+              let components = try? JSONDecoder().decode([ViewStateComponent].self, from: data) else {
+            return []
+        }
+        return components
     }
 
     private static func immersiveReadingComponents() -> [ViewStateComponent] {
@@ -738,13 +865,28 @@ enum ViewStateComponentFactory {
         return (try? JSONDecoder().decode([ViewStateComponent].self, from: json)) ?? []
     }
 
-    private static func sourceSwitchFlowComponents() -> [ViewStateComponent] {
-        let json = """
-        [
-            {"type":"SourceSwitchFlowPage","id":"source-switch-flow","props":{}}
+    // P1 修复：source-switch 注入真实 bookURL + 加 BackTopBar（FlowShell filter 需要）。
+    // 之前只有 SourceSwitchFlowPage（无 BackTopBar），FlowShellContainer 的 barTypes
+    // filter 得到空，返回栏区域不渲染。现在加 BackTopBar 让 FlowShell 布局完整。
+    private static func sourceSwitchFlowComponents(context: [String: AnyCodable]?) -> [ViewStateComponent] {
+        let bookURL = (context?["bookURL"]?.value as? String) ?? ""
+        let tree: [[String: Any]] = [
+            [
+                "type": "BackTopBar",
+                "id": "source-switch-backbar",
+                "props": ["title": "换源"] as [String: Any],
+            ],
+            [
+                "type": "SourceSwitchFlowPage",
+                "id": "source-switch-flow",
+                "props": ["bookURL": bookURL] as [String: Any],
+            ],
         ]
-        """.data(using: .utf8)!
-        return (try? JSONDecoder().decode([ViewStateComponent].self, from: json)) ?? []
+        guard let data = try? JSONSerialization.data(withJSONObject: tree),
+              let components = try? JSONDecoder().decode([ViewStateComponent].self, from: data) else {
+            return []
+        }
+        return components
     }
 
     private static func sourceManagementComponents() -> [ViewStateComponent] {

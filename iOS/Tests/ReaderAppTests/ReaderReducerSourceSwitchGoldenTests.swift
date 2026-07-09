@@ -42,11 +42,14 @@ final class ReaderReducerSourceSwitchGoldenTests: XCTestCase {
 
     // MARK: - Golden: source-switch components → SourceSwitchFlowPage
 
+    // P1 对齐：source-switch 组件树为 BackTopBar + SourceSwitchFlowPage
+    // （FlowShellContainer 需 BackTopBar 才能渲染返回栏区域）。
     func testGolden_sourceSwitch_components_sourceSwitchFlowPage() {
         let components = ViewStateComponentFactory.components(for: .sourceSwitch)
 
-        XCTAssertFalse(components.isEmpty)
-        XCTAssertEqual(components.first?.type, .sourceSwitchFlowPage)
+        XCTAssertEqual(components.count, 2)
+        XCTAssertEqual(components[0].type, .backTopBar)
+        XCTAssertEqual(components[1].type, .sourceSwitchFlowPage)
     }
 
     // MARK: - Golden: source-switch motion 解析（push → source_switch_route_push）

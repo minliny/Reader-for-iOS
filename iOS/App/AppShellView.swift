@@ -518,8 +518,9 @@ struct AppShellView: View {
 
         case .bookDetail(let bookURL, let title, let author):
             if useContractHost {
-                // B1-iOS P0：book-detail 走 contract renderer（LibraryShell）
-                ContractHostView(routeId: .bookDetail)
+                // B1-iOS P0 + P1：book-detail 走 contract renderer（LibraryShell），
+                // 注入真实 bookURL/title/author，不再渲染硬编码 fixture。
+                ContractHostView(bookDetail: bookURL, title: title, author: author)
             } else {
                 BookDetailView(result: SearchResultItem(
                     title: title,
@@ -533,8 +534,9 @@ struct AppShellView: View {
 
         case .sourceSwitch(let bookURL):
             if useContractHost {
-                // B1-iOS P0：source-switch 走 contract renderer（FlowShell）
-                ContractHostView(routeId: .sourceSwitch)
+                // B1-iOS P0 + P1：source-switch 走 contract renderer（FlowShell），
+                // 注入真实 bookURL。
+                ContractHostView(sourceSwitch: bookURL)
             } else {
                 ReaderSourceSwitchFlowView(bookURL: bookURL, onExit: onExit)
             }

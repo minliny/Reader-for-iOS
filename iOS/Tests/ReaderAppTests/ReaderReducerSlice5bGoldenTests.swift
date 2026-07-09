@@ -23,16 +23,20 @@ final class ReaderReducerSlice5bGoldenTests: XCTestCase {
         XCTAssertEqual(components[1].type, .sourceDetailPage)
     }
 
-    func testGolden_viewState_components_sourceSwitch_singleComponent() {
+    // P1 对齐：source-switch 与其他书源路由一致，由 BackTopBar + SourceSwitchFlowPage 组成
+    // （FlowShellContainer 需 BackTopBar 才能渲染返回栏区域）。
+    func testGolden_viewState_components_sourceSwitch() {
         let components = ViewStateComponentFactory.components(for: .sourceSwitch)
-        XCTAssertEqual(components.count, 1)
-        XCTAssertEqual(components[0].type, .sourceSwitchFlowPage)
+        XCTAssertEqual(components.count, 2)
+        XCTAssertEqual(components[0].type, .backTopBar)
+        XCTAssertEqual(components[1].type, .sourceSwitchFlowPage)
     }
 
-    func testGolden_viewState_components_sourceSwitchResults_singleComponent() {
+    func testGolden_viewState_components_sourceSwitchResults() {
         let components = ViewStateComponentFactory.components(for: .sourceSwitchResults)
-        XCTAssertEqual(components.count, 1)
-        XCTAssertEqual(components[0].type, .sourceSwitchFlowPage)
+        XCTAssertEqual(components.count, 2)
+        XCTAssertEqual(components[0].type, .backTopBar)
+        XCTAssertEqual(components[1].type, .sourceSwitchFlowPage)
     }
 
     func testGolden_viewState_components_sourceManagement() {

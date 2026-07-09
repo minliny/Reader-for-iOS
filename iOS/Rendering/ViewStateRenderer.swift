@@ -95,24 +95,60 @@ extension ViewStateRenderer {
 
 // MARK: - ContractHostView（contract-host 渲染入口）
 
-/// 按 RouteId 渲染 contract component tree。
+/// 按 RouteId 渲染 contract component tree，走 ShellContainer 的 shell 语义布局。
 ///
 /// B1-iOS P0 核心接线：AppShellView 对 book-detail / source-switch 等路由
-/// 走 contract renderer（ViewStateComponentFactory → ComponentRegistry），
+/// 走 contract renderer（ViewStateComponentFactory → ShellContainer → ComponentRegistry），
 /// 不再直接实例化 legacy feature view。flag 控制（见 AppShellView.useContractHost）。
+///
+/// P1 修复（shell 语义 + route 参数）：
+/// - 之前直接 VStack 渲染 components，绕过了 ShellContainer，导致
+///   LibraryShell/FlowShell 的 BackTopBar 区、slot 过滤等 shell 规则未生效。
+/// - 之前只接 routeId，丢实际 route 参数（bookURL/title/author），导致
+///   bookDetailComponents 渲染硬编码 fixture（"长夜余火/爱潜水的乌贼"）。
+/// - 现在构造 contract ViewState 并走 ShellContainer，shell 按 routeId 选择
+///   对应容器（LibraryShell/FlowShell/SettingsShell/...），BackTopBar + 内容区
+///   布局由 shell 容器负责。
+/// - route 参数通过 ViewState.context + 带参工厂方法注入组件树。
 public struct ContractHostView: View {
-    public let routeId: RouteId
+    public let viewState: ReaderUIContract.ViewState
 
+    public init(viewState: ReaderUIContract.ViewState) {
+        self.viewState = viewState
+    }
+
+    /// 无 route 参数的便捷 init：只传 routeId（用于无参数路由或 fallback）。
     public init(routeId: RouteId) {
-        self.routeId = routeId
+        self.viewState = ViewStateFactory.make(routeId: routeId)
+    }
+
+    /// book-detail 便捷 init：注入真实书籍参数（bookURL/title/author）。
+    /// `author` 为 `String?`，对齐 `Route.bookDetail` 的可选 author。
+    public init(bookDetail bookURL: String, title: String, author: String?) {
+        var context: [String: AnyCodable] = [
+            "bookURL": AnyCodable(bookURL),
+            "title": AnyCodable(title),
+        ]
+        if let author = author {
+            context["author"] = AnyCodable(author)
+        }
+        self.viewState = ViewStateFactory.make(
+            routeId: .bookDetail,
+            context: context
+        )
+    }
+
+    /// source-switch 便捷 init：注入真实 bookURL。
+    public init(sourceSwitch bookURL: String) {
+        self.viewState = ViewStateFactory.make(
+            routeId: .sourceSwitch,
+            context: [
+                "bookURL": AnyCodable(bookURL),
+            ]
+        )
     }
 
     public var body: some View {
-        let components = ViewStateComponentFactory.components(for: routeId)
-        VStack(spacing: 0) {
-            ForEach(Array(components.enumerated()), id: \.offset) { _, component in
-                ComponentRegistry.render(component)
-            }
-        }
+        ShellContainer(viewState: viewState)
     }
 }
