@@ -425,6 +425,9 @@ enum ViewStateComponentFactory {
             return searchStateComponents(variant: "loading", topbarTitle: "搜索", title: "正在搜索", message: "正在从启用书源获取结果。", action: nil)
         case .searchError:
             return searchStateComponents(variant: "error", topbarTitle: "搜索", title: "搜索失败", message: "网络源暂时不可用。", action: "重试")
+        // B1-iOS P0：book-detail 走 contract renderer，返回标准组件树。
+        case .bookDetail:
+            return bookDetailComponents()
         case .bookDetailTocPreview:
             return bookTocPreviewComponents()
         case .bookDirectory:
@@ -505,6 +508,28 @@ enum ViewStateComponentFactory {
                 ]}
             ]},
             {"type":"BottomNav","id":"bottom-nav","props":{"selected":"bookshelf"}}
+        ]
+        """.data(using: .utf8)!
+        return (try? JSONDecoder().decode([ViewStateComponent].self, from: json)) ?? []
+    }
+
+    // B1-iOS P0：book-detail 标准组件树。
+    // 真源：contracts/fixtures/view-state.fixtures.json 的 book-detail fixture +
+    // frontend-demo-optimized book-detail 页面结构。
+    // 组件由 registerBookDetailComponents() 注册的 renderer 渲染。
+    private static func bookDetailComponents() -> [ViewStateComponent] {
+        let json = """
+        [
+            {"type":"BackTopBar","id":"book-detail-backbar","props":{"title":"书籍详情"}},
+            {"type":"BookHero","id":"book-detail-hero","props":{"title":"长夜余火","author":"爱潜水的乌贼","coverKey":"longNight"},"children":[
+                {"type":"BookCover","id":"book-detail-cover","props":{"coverKey":"longNight"}},
+                {"type":"BookTitleAuthor","id":"book-detail-title-author","props":{"title":"长夜余火","author":"爱潜水的乌贼"}},
+                {"type":"SourceStatus","id":"book-detail-source-status","props":{"sourceName":"默认书源"}}
+            ]},
+            {"type":"BookIntro","id":"book-detail-intro","props":{"intro":"这是书籍简介示例文本。"}},
+            {"type":"DirectoryPreview","id":"book-detail-directory","props":{"chapterCount":120}},
+            {"type":"ReadButton","id":"book-detail-read","props":{}},
+            {"type":"AddToShelfButton","id":"book-detail-add","props":{}}
         ]
         """.data(using: .utf8)!
         return (try? JSONDecoder().decode([ViewStateComponent].self, from: json)) ?? []
