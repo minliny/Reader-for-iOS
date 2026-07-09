@@ -57,6 +57,9 @@ public struct ReaderApp: App {
         let coordinator = ShellAssembly.makeDefaultReadingFlowCoordinator()
         _coordinator = StateObject(wrappedValue: coordinator)
         _navigationState = StateObject(wrappedValue: AppNavigationState())
+        // B1-iOS P0 核心接线：启动引导 ComponentRegistry，注册所有 slice 的 component factory。
+        // 幂等：多次调用不重复注册。真源：总计划 §4.E + B1-iOS P0 核心接线。
+        ComponentRegistry.bootstrapAllSlices()
 
         var env = ReaderShellEnvironment()
         #if canImport(WebKit) && canImport(UIKit)
