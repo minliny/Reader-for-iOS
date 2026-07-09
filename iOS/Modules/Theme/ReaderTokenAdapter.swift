@@ -21,37 +21,37 @@ public enum ReaderTokenAdapter {
         guard token(named: name)?.category == .color else { return nil }
         let night = colorScheme == .dark
         switch name {
-        case "--reader-ds-color-paper":
+        case "--fd-ds-color-paper":
             return night ? ReaderDesignTokens.Color.Night.paperSolid : ReaderDesignTokens.Color.paperSolid
-        case "--reader-ds-color-paper-bright":
+        case "--fd-ds-color-paper-bright":
             return night ? ReaderDesignTokens.Color.Night.paperSolidAlt : ReaderDesignTokens.Color.paperSolidAlt
-        case "--reader-ds-color-ink":
+        case "--fd-ds-color-ink":
             return night ? ReaderDesignTokens.Color.Night.ink : ReaderDesignTokens.Color.ink
-        case "--reader-ds-color-control-ink":
+        case "--fd-ds-color-control-ink":
             return night ? ReaderDesignTokens.Color.Night.ink : ReaderDesignTokens.Color.controlInk
-        case "--reader-ds-color-surface":
+        case "--fd-ds-color-surface":
             return night ? ReaderDesignTokens.Color.Night.surface : ReaderDesignTokens.Color.surface
-        case "--reader-ds-color-surface-soft":
+        case "--fd-ds-color-surface-soft":
             return night ? ReaderDesignTokens.Color.Night.panelSoft : ReaderDesignTokens.Color.controlBackground
-        case "--reader-ds-color-border":
+        case "--fd-ds-color-border":
             return night ? ReaderDesignTokens.Color.Night.line : ReaderDesignTokens.Color.mainNavBorder
-        case "--reader-ds-color-primary":
+        case "--fd-ds-color-primary":
             return night ? ReaderDesignTokens.Color.Night.primary : ReaderDesignTokens.Color.primary
-        case "--reader-ds-color-primary-dark":
+        case "--fd-ds-color-primary-dark":
             return night ? ReaderDesignTokens.Color.Night.primaryDark : ReaderDesignTokens.Color.primaryDark
-        case "--reader-ds-color-accent":
+        case "--fd-ds-color-accent":
             return night ? ReaderDesignTokens.Color.Night.accent : ReaderDesignTokens.Color.accent
-        case "--reader-ds-color-bottom-bar-bg":
+        case "--fd-ds-color-bottom-bar-bg":
             return night ? ReaderDesignTokens.Color.Night.surface : ReaderDesignTokens.Color.bottomBarBg
-        case "--reader-ds-color-floating-control-bg":
+        case "--fd-ds-color-floating-control-bg":
             return night ? ReaderDesignTokens.Color.Night.surface : ReaderDesignTokens.Color.floatingControlBg
-        case "--reader-ds-color-floating-control-bg-alt":
+        case "--fd-ds-color-floating-control-bg-alt":
             return night ? ReaderDesignTokens.Color.Night.panelSoft : ReaderDesignTokens.Color.floatingControlBgAlt
-        case "--reader-ds-color-meta-bg":
+        case "--fd-ds-color-meta-bg":
             return night ? ReaderDesignTokens.Color.Night.panel : ReaderDesignTokens.Color.metaBg
-        case "--reader-ds-color-muted":
+        case "--fd-ds-color-muted":
             return night ? ReaderDesignTokens.Color.Night.muted : ReaderDesignTokens.Color.muted
-        case "--reader-ds-color-rss-unread":
+        case "--fd-ds-color-rss-unread":
             return night ? ReaderDesignTokens.Color.Night.action : ReaderDesignTokens.Color.primary
         default:
             return nil
@@ -73,33 +73,33 @@ public enum ReaderTokenAdapter {
             return nil
         }
         switch name {
-        case "--reader-ds-space-screen-padding":
+        case "--fd-ds-space-screen-padding":
             return ReaderDesignTokens.demoContentHorizontalPadding
-        case "--reader-ds-space-card-padding":
+        case "--fd-ds-space-card-padding":
             return ReaderDesignTokens.cardPadding
-        case "--reader-ds-space-safe-area-top":
+        case "--fd-ds-space-safe-area-top":
             return ReaderDesignTokens.statusBarHeight / 2
-        case "--reader-ds-space-safe-area-bottom":
+        case "--fd-ds-space-safe-area-bottom":
             return 14
-        case "--reader-ds-space-safe-area-horizontal":
+        case "--fd-ds-space-safe-area-horizontal":
             return ReaderDesignTokens.demoContentHorizontalPadding
-        case "--reader-ds-space-keyboard-gap":
+        case "--fd-ds-space-keyboard-gap":
             return 12
-        case "--reader-ds-space-md":
+        case "--fd-ds-space-md":
             return 16
-        case "--reader-ds-size-bottom-bar-height", "--reader-ds-size-main-nav-height":
+        case "--fd-ds-size-bottom-bar-height", "--fd-ds-size-main-nav-height":
             return ReaderDesignTokens.mainNavHeight
-        case "--reader-ds-size-reader-bottom-sheet-min-height":
+        case "--fd-ds-size-reader-bottom-sheet-min-height":
             return ReaderDesignTokens.readerControlSheetHeight
-        case "--reader-ds-size-reader-module-nav-height":
+        case "--fd-ds-size-reader-module-nav-height":
             return ReaderDesignTokens.readerModuleNavMinHeight
-        case "--reader-ds-radius-card":
+        case "--fd-ds-radius-card":
             return ReaderDesignTokens.bookCoverFrameCornerRadius
-        case "--reader-ds-radius-control":
+        case "--fd-ds-radius-control":
             return ReaderDesignTokens.mainNavCornerRadius
-        case "--reader-ds-radius-bottom-sheet":
+        case "--fd-ds-radius-bottom-sheet":
             return ReaderDesignTokens.readerModuleNavCornerRadius
-        case "--reader-ds-text-reader-line-length":
+        case "--fd-ds-text-reader-line-length":
             return 31
         default:
             return nil
@@ -118,6 +118,20 @@ public enum ReaderTokenAdapter {
             return nil
         }
         return motion.duration(seconds)
+    }
+
+    public static func zIndex(for token: ReaderUIContract.Token) -> ReaderZIndex? {
+        guard token.category == .zIndex else { return nil }
+        return ReaderZIndex.from(tokenName: token.name)
+    }
+
+    public static func zIndex(named name: String) -> ReaderZIndex? {
+        guard token(named: name)?.category == .zIndex else { return nil }
+        return ReaderZIndex.from(tokenName: name)
+    }
+
+    public static func zIndexValue(for token: ReaderUIContract.Token) -> Double? {
+        zIndex(for: token).map { $0.rawValue }
     }
 
     private static func seconds(fromDurationValue value: String) -> TimeInterval? {

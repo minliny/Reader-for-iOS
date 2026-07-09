@@ -2,7 +2,7 @@ import Foundation
 
 /// 动效运行时 Controller。
 ///
-/// 真源：`frontend-demo/motion-controller.js` `create()`（demo line 1164-1334）
+/// 真源：`frontend-demo-optimized/motion-controller.js` `create()`（demo line 1164-1334）
 /// 返回的 controller 对象，对外暴露 `start` / `update` / `interrupt` / `settle` /
 /// `setReducedMotion` / `getSnapshot` / `destroy` 七个方法。
 ///

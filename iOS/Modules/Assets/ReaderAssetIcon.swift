@@ -16,7 +16,7 @@ public struct ReaderAssetIcon: RawRepresentable, Hashable, Codable, Identifiable
     public var id: String { rawValue }
     public var assetName: String { "reader-icon-\(rawValue)" }
 
-    public static let demoSource = "Reader UI/frontend-demo/asset-library/icons.js"
+    public static let demoSource = "Reader UI/frontend-demo-optimized/asset-library/icons.js"
     public static let demoBaselineCount = 92
 
     public static let allNames: [String] = [

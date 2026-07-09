@@ -6,7 +6,7 @@ import SwiftUI
 
 /// 单个关键帧样本。
 ///
-/// 真源：`frontend-demo/motion-tokens.css` 第 613-841 行 14 个 `@keyframes` 中
+/// 真源：`frontend-demo-optimized/motion-tokens.css` 第 613-841 行 14 个 `@keyframes` 中
 /// 的某个时间点（`from` / `to` / `0%` / `50%` / `100%`）。
 /// 本类型只承载关键时间点的数值化属性，不复制 CSS selector / `var(--*)` 解析逻辑；
 /// 由 `MotionKeyframeSequence` 组合成完整动画，由调用方（结合 `MotionEnvironment`）
@@ -40,7 +40,7 @@ public struct MotionKeyframeSample: Sendable, Equatable {
 
 /// 关键帧序列。
 ///
-/// 真源：`frontend-demo/motion-tokens.css` 第 613-841 行 14 个 `@keyframes <name> { ... }`
+/// 真源：`frontend-demo-optimized/motion-tokens.css` 第 613-841 行 14 个 `@keyframes <name> { ... }`
 /// 的完整定义。本类型只承载序列语义，不复制 CSS `var(--fd-motion-effective-*)` 解析逻辑；
 /// `duration` 由调用方按 token 传入（参考 `AppMotion.Duration` / `ReaderMotion.Duration`），
 /// reduced-motion 归一化由 `MotionEnvironment` 完成。
@@ -66,7 +66,7 @@ public struct MotionKeyframeSequence: Sendable, Equatable {
 
 /// demo 14 个 `@keyframes` 的 Swift 适配层。
 ///
-/// 真源：`frontend-demo/motion-tokens.css` 第 613-841 行。
+/// 真源：`frontend-demo-optimized/motion-tokens.css` 第 613-841 行。
 /// 设计原则（clean-room）：
 /// - 只承载关键时间点的数值化属性，不复制 CSS 文本 / `var(--*)` / `calc()` 解析逻辑
 /// - 时长通过 `AppMotion.Duration` / `ReaderMotion.Duration` token 间接引用，不重复定义
@@ -333,7 +333,7 @@ extension AnyTransition {
     /// `motion.interrupt.cancel`：旧视图立即移除（无 removal 动画），
     /// 新视图带 entering 动画进入。
     ///
-    /// 真源：`frontend-demo/motion-controller.js` INTERRUPT_MODES `cancel`
+    /// 真源：`frontend-demo-optimized/motion-controller.js` INTERRUPT_MODES `cancel`
     /// （demo line 580-586）—— 立即取消旧动画，跳到 finalState。
     ///
     /// SwiftUI 等价：`.asymmetric(insertion: .opacity, removal: .identity)`。
@@ -346,7 +346,7 @@ extension AnyTransition {
     /// `motion.interrupt.redirect`：旧动画立即终止（snap 到 finalState），
     /// 新动画从当前位置接管。
     ///
-    /// 真源：`frontend-demo/motion-controller.js` INTERRUPT_MODES `redirect`
+    /// 真源：`frontend-demo-optimized/motion-controller.js` INTERRUPT_MODES `redirect`
     /// （demo line 587-593）。
     ///
     /// SwiftUI 等价：`.asymmetric(insertion: .opacity, removal: .opacity.animation(.linear(duration: 0.08)))`。
@@ -363,7 +363,7 @@ extension AnyTransition {
 
     /// `motion.interrupt.completeThenReplace`：等旧动画完成再启动新动画。
     ///
-    /// 真源：`frontend-demo/motion-controller.js` INTERRUPT_MODES `completeThenReplace`
+    /// 真源：`frontend-demo-optimized/motion-controller.js` INTERRUPT_MODES `completeThenReplace`
     /// （demo line 594-600）。
     ///
     /// SwiftUI 等价：insertion 和 removal 都带动画，SwiftUI 会并行播放

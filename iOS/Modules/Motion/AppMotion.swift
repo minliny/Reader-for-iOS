@@ -3,7 +3,7 @@ import CoreGraphics
 
 /// App 级动效 token adapter。
 ///
-/// 真源：Reader UI `frontend-demo/MOTION_CONTRACT.md` §3 Motion Tokens
+/// 真源：Reader UI `frontend-demo-optimized/MOTION_CONTRACT.md` §3 Motion Tokens
 /// 平台映射：`docs/ui-handoff/MOTION_PLATFORM_MAPPING.md` §1 共享 Token 命名（iOS SwiftUI 列）
 ///
 /// 这里只承载契约 token 的数值语义，不复制 Web CSS / DOM / `data-*` selector。

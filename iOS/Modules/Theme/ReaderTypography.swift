@@ -1,8 +1,8 @@
 import SwiftUI
 import ReaderAppSupport
 
-/// Reader 字体 token（demo `frontend-demo/tokens.css` `--reader-ds-font-*` /
-/// `--reader-ds-type-*-size` 真源）。
+/// Reader 字体 token（demo `frontend-demo-optimized/tokens.css` `--fd-ds-font-*` /
+/// `--fd-ds-type-*-size` 真源）。
 ///
 /// 注意：demo `tokens.css` 仅定义 7 个字号 token（app-title 20 / page-title 20 /
 /// section-title 15 / book-title 14 / book-meta 12 / reader-body 18 /
@@ -11,8 +11,8 @@ import ReaderAppSupport
 /// 用于 reader 控制面板标题，demo `.fd-reader-panel-title` 实际为 13px/900，
 /// 此处保留 18px 作为 reader 覆盖层标题层级，已标注偏差。
 public enum ReaderTypography {
-    /// 真源：Reader UI `frontend-demo/tokens.css` `--reader-ds-font-serif`。
-    public static let demoSerifSource = "Reader UI/frontend-demo/tokens.css --reader-ds-font-serif"
+    /// 真源：Reader UI `frontend-demo-optimized/tokens.css` `--fd-ds-font-serif`。
+    public static let demoSerifSource = "Reader UI/frontend-demo-optimized/tokens.css --fd-ds-font-serif"
     public static let demoSerifPrimaryFamily = ReaderDisplaySettings.demoSerifFontFamily
     public static let demoSerifRegularPostScriptName = "STSongti-SC-Regular"
     public static let demoSerifBoldPostScriptName = "STSongti-SC-Bold"
@@ -34,16 +34,16 @@ public enum ReaderTypography {
 
     /// 阅读器内书章节大标题 28px serif bold（demo 无 28px token，用于书内文本非 UI chrome）。
     public static let readerTitle = demoSerif(size: 28, weight: .bold)
-    /// 正文 18px serif（对应 demo `--reader-ds-type-reader-body-size: 18px`）。
+    /// 正文 18px serif（对应 demo `--fd-ds-type-reader-body-size: 18px`）。
     public static let readerBody = demoSerif(size: 18)
     /// 控制面板标题 18px bold（demo `.fd-reader-panel-title` 实际 13px/900，
     /// 此处 18px 作为 reader 覆盖层标题层级，存在偏差）。
     public static let controlTitle = Font.system(size: 18, weight: .bold)
-    /// 控制面板标签 12px medium（对应 demo `--reader-ds-type-reader-control-label-size: 12px`）。
+    /// 控制面板标签 12px medium（对应 demo `--fd-ds-type-reader-control-label-size: 12px`）。
     public static let controlLabel = Font.system(size: 12, weight: .medium)
-    /// 列表标题 14px semibold（对应 demo `--reader-ds-type-book-title-size: 14px`）。
+    /// 列表标题 14px semibold（对应 demo `--fd-ds-type-book-title-size: 14px`）。
     public static let listTitle = Font.system(size: 14, weight: .semibold)
-    /// 页面标题 20px bold（对应 demo `--reader-ds-type-page-title-size: 20px`）。
+    /// 页面标题 20px bold（对应 demo `--fd-ds-type-page-title-size: 20px`）。
     public static let pageTitle = Font.system(size: 20, weight: .bold)
     /// 章节标题 28px serif bold（同 readerTitle，demo 无对应 token）。
     public static let chapterTitle = demoSerif(size: 28, weight: .bold)

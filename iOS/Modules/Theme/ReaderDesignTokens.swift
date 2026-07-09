@@ -2,15 +2,15 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 
-/// Demo 骨架设计 token —— 从 `Reader UI/frontend-demo/styles/*.css` 提取的
+/// Demo 骨架设计 token —— 从 `Reader UI/frontend-demo-optimized/styles/*.css` 提取的
 /// 数值化设计规格（clean-room：只承载尺寸/字体/颜色数值，不复制 CSS / DOM / selector）。
 ///
 /// 真源（demo CSS 实际值，非猜测）：
 /// - `00-foundation.css` —— `:root` token / `.fd-phone` / `.fd-status-bar` / `.fd-top-bar`
 /// - `01-shell-layout.css` —— `.fd-main-nav` / `.fd-main-nav-item` / `.fd-ir-reading-layer` /
 ///   `.fd-immersive-hotzone` / `.fd-reader-top`
-/// - `02-main-library.css` —— `.fd-continue-card` / `.fd-book-grid` / `.fd-book-card`
-/// - `03-reader.css` —— 阅读设置/外观面板
+/// - `02a-reader-control.css` —— `.fd-continue-card` / `.fd-book-grid` / `.fd-book-card`
+/// - `03a-reader-appearance.css` —— 阅读设置/外观面板
 ///
 /// 用途：SwiftUI 视图按这些 token 对齐 demo 骨架的「大小 / 内容 / 组成 / 样式 /
 /// 相对位置 / 文字大小 / 位置 / 显示范围」，不依赖 Web CSS。
@@ -27,7 +27,7 @@ public enum ReaderDesignTokens {
 
     /// `.fd-status-bar` 高度（demo: 48px）。
     public static let statusBarHeight: CGFloat = 48
-    /// `.fd-top-bar` 最小高度（demo: `--reader-ds-size-top-bar-height` 取 58px）。
+    /// `.fd-top-bar` 最小高度（demo: `--fd-ds-size-top-bar-height` 取 58px）。
     public static let topBarMinHeight: CGFloat = 58
     /// `.fd-top-bar` top padding（demo: 6px）。
     public static let topBarTopPadding: CGFloat = 6
@@ -202,7 +202,7 @@ public enum ReaderDesignTokens {
 
     // MARK: - Reader section / overlay title sizes
 
-    /// 章节列表行标题 / 搜索结果章节标题等 14px 场景（demo `--reader-ds-type-book-title-size: 14px`）。
+    /// 章节列表行标题 / 搜索结果章节标题等 14px 场景（demo `--fd-ds-type-book-title-size: 14px`）。
     public static let readerSectionTitleFontSize: CGFloat = 14
     /// 书详情大标题 / 空态错误态标题 22px（demo `.fd-book-detail-title` / `.fd-empty-title` 真源）。
     public static let readerOverlayLargeTitleFontSize: CGFloat = 22
@@ -237,7 +237,7 @@ public enum ReaderDesignTokens {
 
     // MARK: - Main Tab 栏（.fd-main-nav）
 
-    /// `.fd-main-nav` 最小高度（demo: `--reader-ds-size-main-nav-height` 68px）。
+    /// `.fd-main-nav` 最小高度（demo: `--fd-ds-size-main-nav-height` 68px）。
     public static let mainNavHeight: CGFloat = 68
     /// `.fd-main-nav` 圆角（demo: `--fd-radius-xl` 24px）。
     public static let mainNavCornerRadius: CGFloat = 24
@@ -328,7 +328,7 @@ public enum ReaderDesignTokens {
     public static let bookCardMetaFontSize: CGFloat = 12
     /// `.fd-book-card strong` 行高（demo: 1.22）。
     public static let bookCardTitleLineHeight: CGFloat = 1.22
-    /// `.fd-book-card strong` 最大行数（demo: `--reader-ds-text-book-title-lines` 取 2）。
+    /// `.fd-book-card strong` 最大行数（demo: `--fd-ds-text-book-title-lines` 取 2）。
     public static let bookCardTitleLineLimit: Int = 2
     /// `.fd-book-card span` 行高（demo: 1.25）。
     public static let bookCardMetaLineHeight: CGFloat = 1.25
@@ -728,30 +728,30 @@ public enum ReaderDesignTokens {
     // MARK: - 颜色（来自 CSS 实际 rgba/hex 值）
 
     public enum Color {
-        /// `--reader-ds-color-paper` #fff8f4（demo `tokens.css` line 4 真源，
-        /// `--fd-paper` 经 `--reader-ds-color-paper` 间接引用此值）
+        /// `--fd-ds-color-paper` #fff8f4（demo `tokens.css` line 4 真源，
+        /// `--fd-paper` 经 `--fd-ds-color-paper` 间接引用此值）
         public static let paperSolid = SwiftUI.Color(red: 1, green: 0xf8/255, blue: 0xf4/255)
         /// `--fd-paper-solid` #f8f4ec（demo `00-foundation.css` line 4 真源，
         /// 用于 `.fd-phone` 外壳 / `body` / flow 容器等基础背景；比 `paperSolid` 更暗的米色）
         public static let paperSolidAlt = SwiftUI.Color(red: 0xf8/255, green: 0xf4/255, blue: 0xec/255)
-        /// `--reader-ds-color-surface` rgba(255,255,255,0.88)（demo `tokens.css` line 6 真源，
-        /// `--fd-surface` 经 `--reader-ds-color-surface` 间接引用此值）
+        /// `--fd-ds-color-surface` rgba(255,255,255,0.88)（demo `tokens.css` line 6 真源，
+        /// `--fd-surface` 经 `--fd-ds-color-surface` 间接引用此值）
         public static let surface = SwiftUI.Color(red: 1, green: 1, blue: 1, opacity: 0.88)
-        /// `--reader-ds-color-ink` #1f1b17（demo `tokens.css` line 8 真源，文字主色，
+        /// `--fd-ds-color-ink` #1f1b17（demo `tokens.css` line 8 真源，文字主色，
         /// 用于 `.fd-*` 中所有 `color: var(--fd-ink)` 的文本，替代系统 `.primary`）
         public static let ink = SwiftUI.Color(red: 0x1f/255, green: 0x1b/255, blue: 0x17/255)
-        /// `--reader-ds-color-control-ink` #41484c（demo `tokens.css` line 9 真源，控制文字色，
+        /// `--fd-ds-color-control-ink` #41484c（demo `tokens.css` line 9 真源，控制文字色，
         /// 用于 reader 控件标签等）
         public static let controlInk = SwiftUI.Color(red: 0x41/255, green: 0x48/255, blue: 0x4c/255)
-        /// `--reader-ds-color-accent` #f48b13（demo `tokens.css` line 14 真源，品牌强调橙）
+        /// `--fd-ds-color-accent` #f48b13（demo `tokens.css` line 14 真源，品牌强调橙）
         public static let accent = SwiftUI.Color(red: 0xf4/255, green: 0x8b/255, blue: 0x13/255)
-        /// `--reader-ds-color-bottom-bar-bg` #fbf2eb（demo `tokens.css` line 15 真源，底栏背景）
+        /// `--fd-ds-color-bottom-bar-bg` #fbf2eb（demo `tokens.css` line 15 真源，底栏背景）
         public static let bottomBarBg = SwiftUI.Color(red: 0xfb/255, green: 0xf2/255, blue: 0xeb/255)
-        /// `--reader-ds-color-floating-control-bg` #fbf2eb（demo `tokens.css` line 16 真源，浮动控件背景）
+        /// `--fd-ds-color-floating-control-bg` #fbf2eb（demo `tokens.css` line 16 真源，浮动控件背景）
         public static let floatingControlBg = SwiftUI.Color(red: 0xfb/255, green: 0xf2/255, blue: 0xeb/255)
-        /// `--reader-ds-color-floating-control-bg-alt` #eae1da（demo `tokens.css` line 17 真源，浮动控件 alt 背景）
+        /// `--fd-ds-color-floating-control-bg-alt` #eae1da（demo `tokens.css` line 17 真源，浮动控件 alt 背景）
         public static let floatingControlBgAlt = SwiftUI.Color(red: 0xea/255, green: 0xe1/255, blue: 0xda/255)
-        /// `--reader-ds-color-meta-bg` #f5ece6（demo `tokens.css` line 18 真源，meta 区背景）
+        /// `--fd-ds-color-meta-bg` #f5ece6（demo `tokens.css` line 18 真源，meta 区背景）
         public static let metaBg = SwiftUI.Color(red: 0xf5/255, green: 0xec/255, blue: 0xe6/255)
         /// `.fd-main-nav` 背景 `var(--fd-surface)` rgba(255,255,255,0.88)
         public static let mainNavBackground = SwiftUI.Color(red: 1, green: 1, blue: 1, opacity: 0.88)
@@ -759,17 +759,17 @@ public enum ReaderDesignTokens {
         public static let tabItemInactive = SwiftUI.Color(red: 117/255, green: 111/255, blue: 105/255)
         /// `--fd-muted` #756f69 = rgba(117,111,105)（demo 次要文字色，用于 meta/author 等 muted 文本）
         public static let muted = SwiftUI.Color(red: 117/255, green: 111/255, blue: 105/255)
-        /// `--fd-primary` #366179 = rgba(54,97,121)（demo tokens.css 真值）
-        public static let primary = SwiftUI.Color(red: 54/255, green: 97/255, blue: 121/255)
-        /// `--fd-primary-dark` #274f66 = rgba(39,79,102)（demo tokens.css 真值）
-        public static let primaryDark = SwiftUI.Color(red: 39/255, green: 79/255, blue: 102/255)
+        /// `--fd-primary` #2d4a3e = rgba(45,74,62)（demo tokens.css 真值，墨绿）
+        public static let primary = SwiftUI.Color(red: 45/255, green: 74/255, blue: 62/255)
+        /// `--fd-primary-dark` #1f3528 = rgba(31,53,40)（demo tokens.css 真值，墨绿暗）
+        public static let primaryDark = SwiftUI.Color(red: 31/255, green: 53/255, blue: 40/255)
         /// `.fd-bottom-fixed-action-primary` 渐变起点 #436f88
-        /// （demo `01-shell-layout.css` line 1168/1352 真值，与 `--fd-primary` #366179 不同的亮色变体）
+        /// （demo `01-shell-layout.css` line 1168/1352 真值，与 `--fd-primary` #2d4a3e 不同的亮色变体） // TODO: gradient 值需在 Workstream E 对照 optimized demo CSS 重新确认
         public static let primaryGradientStart = SwiftUI.Color(red: 0x43/255, green: 0x6f/255, blue: 0x88/255)
         /// `.fd-bottom-fixed-action-primary` 渐变终点 #315f78
-        /// （demo `01-shell-layout.css` line 1168/1352 真值，与 `--fd-primary-dark` #274f66 不同的暗色变体）
+        /// （demo `01-shell-layout.css` line 1168/1352 真值，与 `--fd-primary-dark` #1f3528 不同的暗色变体）
         public static let primaryGradientEnd = SwiftUI.Color(red: 0x31/255, green: 0x5f/255, blue: 0x78/255)
-        /// `--reader-control-surface-solid` #fffaf4（demo `02-main-library.css` line 410 真值，
+        /// `--reader-control-surface-solid` #fffaf4（demo `02a-reader-control.css` line 410 真值，
         /// 用于 progress thumb fill 等控件实色表面）
         public static let controlSurfaceSolid = SwiftUI.Color(red: 1, green: 250/255, blue: 244/255)
         /// `--fd-danger` #d62222 = rgba(214,34,34)（demo `00-foundation.css` line 14 真值，
@@ -802,12 +802,12 @@ public enum ReaderDesignTokens {
         /// Settings row/input background.
         public static let controlBackground = SwiftUI.Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.72)
 
-        /// 阴影色子集（demo `tokens.css` line 61-62 定义 `--reader-ds-shadow-*`；
+        /// 阴影色子集（demo `tokens.css` line 61-62 定义 `--fd-ds-shadow-*`；
         /// `01-shell-layout.css:433` 等处另有 `rgba(48,35,22,*)` 系列，用于搜索框等 inset shadow）。
         public enum Shadow {
-            /// `--reader-ds-shadow-soft` rgba(89,70,50,0.1)（demo `tokens.css` line 62 真源）
+            /// `--fd-ds-shadow-soft` rgba(89,70,50,0.1)（demo `tokens.css` line 62 真源）
             public static let soft = SwiftUI.Color(red: 89/255, green: 70/255, blue: 50/255, opacity: 0.1)
-            /// `--reader-ds-shadow-elevated` rgba(89,70,50,0.16)（demo `tokens.css` line 61 真源）
+            /// `--fd-ds-shadow-elevated` rgba(89,70,50,0.16)（demo `tokens.css` line 61 真源）
             public static let elevated = SwiftUI.Color(red: 89/255, green: 70/255, blue: 50/255, opacity: 0.16)
             /// `.fd-search-entry` / `.fd-top-bar` 等 inset shadow rgba(48,35,22,0.16)
             /// （demo `01-shell-layout.css` line 433 真源，与 `shadowSoft` 不同的棕黑色）
@@ -831,14 +831,14 @@ public enum ReaderDesignTokens {
             /// （demo `05-flow-adaptive.css` line 666 真源）
             public static let insetDark = SwiftUI.Color(red: 31/255, green: 27/255, blue: 23/255, opacity: 0.16)
             /// reader inset shadow rgba(55,44,32,0.22)
-            /// （demo `03-reader.css` line 750 真源）
+            /// （demo `03a-reader-appearance.css` line 750 真源）
             public static let readerInset = SwiftUI.Color(red: 55/255, green: 44/255, blue: 32/255, opacity: 0.22)
         }
 
-        /// `--reader-control-ink` #2b251f（demo `02-main-library.css` line 255 真源，
+        /// `--reader-control-ink` #2b251f（demo `02a-reader-control.css` line 255 真源，
         /// 用于 reader 控件文字色；与 `Color.controlInk` #41484c 不同，后者来自 tokens.css）
         public static let controlInkAlt = SwiftUI.Color(red: 0x2b/255, green: 0x25/255, blue: 0x1f/255)
-        /// `--reader-control-icon` #3f372f（demo `02-main-library.css` line 346 真源，
+        /// `--reader-control-icon` #3f372f（demo `02a-reader-control.css` line 346 真源，
         /// 用于 reader 控件图标色）
         public static let controlIcon = SwiftUI.Color(red: 0x3f/255, green: 0x37/255, blue: 0x2f/255)
         /// `#4e443a`（demo `01-shell-layout.css` line 220/402 真源，
@@ -854,10 +854,10 @@ public enum ReaderDesignTokens {
         /// （demo `05-flow-adaptive.css` line 657 真源，用于 reader 控件边框）
         public static let neutralBorder26 = SwiftUI.Color(red: 140/255, green: 130/255, blue: 118/255, opacity: 0.26)
         /// reader track fill #aaa39a
-        /// （demo `03-reader.css` line 738 真源，用于 reader 进度轨道填充）
+        /// （demo `03a-reader-appearance.css` line 738 真源，用于 reader 进度轨道填充）
         public static let readerTrackFill = SwiftUI.Color(red: 170/255, green: 163/255, blue: 154/255)
         /// `--reader-control-panel-soft` rgba(238,230,219,0.56)
-        /// （demo `02-main-library.css` line 898 真源，用于 reader 控件面板半透明背景）
+        /// （demo `02a-reader-control.css` line 898 真源，用于 reader 控件面板半透明背景）
         public static let controlPanelSoft56 = SwiftUI.Color(red: 238/255, green: 230/255, blue: 219/255, opacity: 0.56)
         /// reader paper 渐变起点 rgba(255,249,242,0.94)
         /// （demo `01-shell-layout.css` line 2497 真源，`.fd-ir-reading-layer` paper 渐变）
@@ -868,6 +868,15 @@ public enum ReaderDesignTokens {
         /// `.fd-book-focus-menu` 背景 rgba(255,252,248,0.97)
         /// （demo `00-foundation.css` line 1366 真源，书架 focus menu / more menu 共用背景）
         public static let bookFocusMenuBackground = SwiftUI.Color(red: 255/255, green: 252/255, blue: 248/255, opacity: 0.97)
+        /// `.fd-source-code pre` 文字色 #f7ead9 = rgba(247,234,217)
+        /// （demo `04-settings-source.css` 真源，源代码视图浅米色文字）
+        public static let sourceCodeText = SwiftUI.Color(red: 247/255, green: 234/255, blue: 217/255)
+        /// `.fd-source-code pre` 背景 rgba(43,39,35,0.94)
+        /// （demo `04-settings-source.css` 真源，源代码视图深棕黑背景）
+        public static let sourceCodeBackground = SwiftUI.Color(red: 43/255, green: 39/255, blue: 35/255, opacity: 0.94)
+        /// `.fd-demo-dialog` 边框 rgba(164,149,132,0.42)
+        /// （demo dialog 通用边框，比 `searchResultBorder` rgba(180,166,151,0.42) 更深的暖棕）
+        public static let dialogBorder = SwiftUI.Color(red: 164/255, green: 149/255, blue: 132/255, opacity: 0.42)
 
         /// 语义色子集（demo `tokens.css` 无 success/warning token，仅 `00-foundation.css`
         /// 有 `--fd-danger: #d62222`。success/warning 取自既有视图统一值，danger 复用
@@ -931,8 +940,8 @@ public enum ReaderDesignTokens {
             public static let muted = SwiftUI.Color(red: 0xba/255, green: 0xad/255, blue: 0x9c/255)
             /// `control.icon` night #d4c5b2
             public static let icon = SwiftUI.Color(red: 0xd4/255, green: 0xc5/255, blue: 0xb2/255)
-            /// `control.primary` night #7a684f（暖棕，day 是 #2f6373 蓝绿，色相完全不同）
-            public static let primary = SwiftUI.Color(red: 0x7a/255, green: 0x68/255, blue: 0x4f/255)
+            /// `control.primary` night #8fb6ca（浅蓝绿，day 是 #2f6373 蓝绿）
+            public static let primary = SwiftUI.Color(red: 0x8f/255, green: 0xb6/255, blue: 0xca/255)
             /// `control.primaryText` night #fffaf4（与 day 一致）
             public static let primaryText = SwiftUI.Color(red: 1, green: 0xfa/255, blue: 0xf4/255)
             /// `control.action` night #d2bd96（金色，day 是 #2f6373）
@@ -972,8 +981,8 @@ public enum ReaderDesignTokens {
             public static let paperSolidAlt = SwiftUI.Color(red: 0x1c/255, green: 0x1a/255, blue: 0x18/255)
             /// `--fd-accent` night #d69b5f（demo `00-foundation.css` line 108；runtime control 无 accent 字段）
             public static let accent = SwiftUI.Color(red: 0xd6/255, green: 0x9b/255, blue: 0x5f/255)
-            /// `--fd-primary-dark` night #7a684f（与 control.primary 一致）
-            public static let primaryDark = SwiftUI.Color(red: 0x7a/255, green: 0x68/255, blue: 0x4f/255)
+            /// `--fd-primary-dark` night #8fb6ca（与 control.primary 一致）
+            public static let primaryDark = SwiftUI.Color(red: 0x8f/255, green: 0xb6/255, blue: 0xca/255)
         }
     }
 
@@ -1031,7 +1040,7 @@ public enum ReaderDesignTokens {
 
     public enum Shadow {
         /// `.fd-continue-card` box-shadow 0 4px 12px rgba(89,70,50,0.1)
-        /// （demo `02-main-library.css` line 50 真源，soft token 对应规格）
+        /// （demo `02a-reader-control.css` line 50 真源，soft token 对应规格）
         public static let soft: ShadowMetric = .init(x: 0, y: 4, blur: 12, color: Color.Shadow.soft)
         /// `.fd-book-focus-menu` box-shadow 0 8px 24px rgba(89,70,50,0.16)
         /// （demo `00-foundation.css` line 1366 真源，elevated token 对应规格）

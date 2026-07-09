@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// 跨平台 Reader 间距 token
 /// 真源：Reader-Core docs/cross-platform-ui/CROSS_PLATFORM_UI_BASELINE.md §4.3
-/// + demo `frontend-demo/styles/00-foundation.css` `--fd-gap-*` / `--fd-space-*`
+/// + demo `frontend-demo-optimized/styles/00-foundation.css` `--fd-gap-*` / `--fd-space-*`
 public enum ReaderSpacing {
     /// `--fd-gap-xs` 4px（demo `00-foundation.css` 真源）
     public static let xxs: CGFloat = 4
@@ -14,7 +14,7 @@ public enum ReaderSpacing {
     public static let md: CGFloat = 16
     /// `--fd-gap-lg` 24px
     public static let lg: CGFloat = 24
-    /// `--fd-gap-xl` 32px（demo `--reader-ds-size-top-bar-height` 等 padding 真源）
+    /// `--fd-gap-xl` 32px（demo `--fd-ds-size-top-bar-height` 等 padding 真源）
     public static let xl: CGFloat = 32
     /// `--fd-gap-2xl` 48px（demo status bar / safe area gap）
     public static let xxl: CGFloat = 48

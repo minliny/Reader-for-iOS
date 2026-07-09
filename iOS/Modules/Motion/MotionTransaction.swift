@@ -2,7 +2,7 @@ import Foundation
 
 /// 动效事务。
 ///
-/// 真源：`frontend-demo/motion-controller.js` `create()` 返回的 controller 内部事务对象
+/// 真源：`frontend-demo-optimized/motion-controller.js` `create()` 返回的 controller 内部事务对象
 /// （demo line 1263-1275 `transaction` 字面量，含 `id` / `from` / `to` / `phase` /
 /// `duration` / `sequence` / `timer` 等字段）。
 ///
@@ -94,7 +94,12 @@ public struct MotionTransaction: Identifiable, Sendable {
     /// 已 `settled` 或已 `interrupted` 的事务不可再被打断。
     public mutating func interrupt(mode: MotionInterruptMode) {
         guard phase != .settled, phase != .interrupted else { return }
-        // mode 由上层 MotionController 决定接管策略；事务层统一推进到 interrupted。
+        // updateInSameHost：同宿主就地更新，不打断旧事务，新状态在原宿主内合并提交。
+        // 对照 contract `MotionInterruptPolicy.updateInSameHost`（generated Motion.swift L161）：
+        // 不触发路由级 push/pop，旧动画继续，新内容在当前 RouteShell 内合并。
+        if mode == .updateInSameHost { return }
+        // cancel / redirect / completeThenReplace：事务层统一推进到 interrupted，
+        // 由上层 MotionController 按 mode 决定接管策略。
         phase = .interrupted
     }
 

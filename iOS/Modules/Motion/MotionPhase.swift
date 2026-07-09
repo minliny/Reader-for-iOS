@@ -1,8 +1,9 @@
 import Foundation
+import ReaderUIContract
 
 /// 动效生命周期阶段。
 ///
-/// 真源：`frontend-demo/motion-controller.js` 状态机 phase 语义（demo line 1215-1254）。
+/// 真源：`frontend-demo-optimized/motion-controller.js` 状态机 phase 语义（demo line 1215-1254）。
 /// demo 中 phase 取值为 `running` / `settled` / `interrupted`；
 /// 本枚举将 `running` 拆分为 `entering`（from → to）与 `leaving`（to → from），
 /// 以更精确地表达阅读器主链路的双向过渡语义（如 reader.control.handle.release 的
@@ -20,14 +21,19 @@ public enum MotionPhase: String, Sendable, Equatable {
 
 /// 打断模式。
 ///
-/// 真源：`frontend-demo/motion-controller.js` INTERRUPT 三态
+/// 真源：`frontend-demo-optimized/motion-controller.js` INTERRUPT 三态
 /// （demo line 39-41 `DEFAULT_DURATIONS` + demo line 580-600 `MOTION_ID_STATE_MACHINES`
-/// 中 `motion.interrupt.cancel` / `redirect` / `completeThenReplace` 三个 Motion ID）。
+/// 中 `motion.interrupt.cancel` / `redirect` / `completeThenReplace` 三个 Motion ID），
+/// 叠加 contract `MotionInterruptPolicy` 的第 4 种 `updateInSameHost`（generated
+/// `Motion.swift` L157-162）。
 ///
 /// 语义对照：
 /// - `cancel`：立即取消旧动画，跳到 finalState。
 /// - `redirect`：旧动画立即终止，新动画从当前位置接管。
 /// - `completeThenReplace`：等旧动画完成再启动新动画。
+/// - `updateInSameHost`：同一宿主容器内就地更新内容（不触发路由级 push/pop），
+///   旧动画不取消，新状态在原宿主内合并提交。适用于 reader 控制层内面板切换、
+///   tab 内同栈刷新等不离开当前 RouteShell 的场景。
 public enum MotionInterruptMode: String, Sendable, Equatable {
     /// 立即取消旧动画，跳到 finalState。
     /// 对应 `motion.interrupt.cancel`（demo line 580）。
@@ -38,11 +44,30 @@ public enum MotionInterruptMode: String, Sendable, Equatable {
     /// 等旧动画完成再启动新动画。
     /// 对应 `motion.interrupt.completeThenReplace`（demo line 594）。
     case completeThenReplace
+    /// 同一宿主容器内就地更新，不触发路由级 push/pop。
+    /// 对应 contract `MotionInterruptPolicy.updateInSameHost`（generated Motion.swift L161）。
+    case updateInSameHost
+
+    /// 从 contract `MotionInterruptPolicy` 转换为 native `MotionInterruptMode`。
+    /// 两者 case 一一对应；保留 native 枚举是为了让 MotionController / MotionTransaction
+    /// 不直接依赖 contract 类型，保持运行时层单一职责。
+    public static func from(_ policy: ReaderUIContract.MotionInterruptPolicy) -> MotionInterruptMode {
+        switch policy {
+        case .cancel:
+            return .cancel
+        case .redirect:
+            return .redirect
+        case .completeThenReplace:
+            return .completeThenReplace
+        case .updateInSameHost:
+            return .updateInSameHost
+        }
+    }
 }
 
 /// 动效状态快照。
 ///
-/// 真源：`frontend-demo/motion-controller.js` `getSnapshot()`（demo line 1315-1320）
+/// 真源：`frontend-demo-optimized/motion-controller.js` `getSnapshot()`（demo line 1315-1320）
 /// 返回的 active 事务快照（剥离 `target` / `timer` 等 Web 运行时字段）。
 /// 本结构只承载状态语义，不复制 Web DOM / `data-*` selector；
 /// 用于 iOS 端的调试面板、测试断言、跨层状态广播。

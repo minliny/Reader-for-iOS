@@ -2,7 +2,7 @@ import Foundation
 
 /// 异步结果守卫状态机。
 ///
-/// 真源：Reader UI `frontend-demo/MOTION_CONTRACT.md` §4 `motion.async.resultGuard`（第 240 行）
+/// 真源：Reader UI `frontend-demo-optimized/MOTION_CONTRACT.md` §4 `motion.async.resultGuard`（第 240 行）
 /// demo 语义：每个异步结果必须带 requestId、from/to、stack/context；只有仍匹配当前
 /// route/context 的结果才能替换内容，过期结果写入 discarded/cancelled 状态且不得覆盖新页面。
 /// demo `motion-controller.js` 第 53 行 `DEFAULT_STATE_MACHINE.interrupt` 中的

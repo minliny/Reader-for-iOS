@@ -87,10 +87,53 @@ public enum ReaderMotionAdapter {
         guard let spec = spec(for: contractId) else {
             return motion.duration(baseDuration(for: contractId))
         }
-        if motion.isReducedMotionEnabled, spec.reducedMotion?.forceZeroDuration == true {
-            return ReaderMotion.Duration.instant
+        let rawSeconds = TimeInterval(spec.durationMs) / 1000
+        // reduced motion 下按 per-motion `reducedMotionPolicy` 归一化（contract
+        // `MotionReducedMotionPolicy`，generated Motion.swift L164-168）：
+        // - zeroDuration：instant（0）。对应大多数 motion（75/84 条）。
+        // - keepDirectManipulation：手势驱动链路（drag + snap，9 条），reduced motion
+        //   下仍跟手。forceZeroDuration=true 的子节点（drag 本身）返回 instant，
+        //   forceZeroDuration=false 的子节点（snap）保留原时长，不经 MotionEnvironment
+        //   全局 cap 到 80ms —— 否则 snap 会被截断，破坏跟手感。
+        // - noMotion：完全无动画，返回 instant。
+        if motion.isReducedMotionEnabled {
+            switch spec.reducedMotionPolicy {
+            case .zeroDuration:
+                return ReaderMotion.Duration.instant
+            case .keepDirectManipulation:
+                if spec.reducedMotion?.forceZeroDuration == true {
+                    return ReaderMotion.Duration.instant
+                }
+                return rawSeconds
+            case .noMotion:
+                return ReaderMotion.Duration.instant
+            }
         }
-        return motion.duration(TimeInterval(spec.durationMs) / 1000)
+        return motion.duration(rawSeconds)
+    }
+
+    /// 按 per-motion `reducedMotionPolicy` 归一化位移。
+    ///
+    /// `keepDirectManipulation` motion（slider drag / control handle drag / control dock
+    /// long-press drag）在 reduced motion 下位移不归零，仍跟手；其余策略位移归零。
+    /// 调用方应优先用此方法而非 `MotionEnvironment.distance(_:)`，以确保 drag 链路行为正确。
+    public static func distance(
+        for contractId: ReaderUIContract.MotionId,
+        rawDistance: CGFloat,
+        motion: MotionEnvironment = .shared
+    ) -> CGFloat {
+        guard let spec = spec(for: contractId) else {
+            return motion.distance(rawDistance)
+        }
+        if motion.isReducedMotionEnabled {
+            switch spec.reducedMotionPolicy {
+            case .keepDirectManipulation:
+                return rawDistance
+            case .zeroDuration, .noMotion:
+                return motion.distance(rawDistance)
+            }
+        }
+        return rawDistance
     }
 
     public static func animation(for contractId: ReaderUIContract.MotionId, motion: MotionEnvironment = .shared) -> Animation? {
@@ -155,7 +198,7 @@ public enum ReaderMotionAdapter {
     // 业务 View 不直接碰 `ReaderMotionResolver`（generated 算法），只碰 `MotionRequest`
     // （generated 数据 struct）。这样 codegen 改 resolver 算法时，iOS 调用点不需要改。
     //
-    // 真源：Reader UI `frontend-demo/MOTION_CONTRACT.md` §5 MotionPolicy / §6 ReaderMotionResolver
+    // 真源：Reader UI `frontend-demo-optimized/MOTION_CONTRACT.md` §5 MotionPolicy / §6 ReaderMotionResolver
 
     /// 根据运动请求解析契约 MotionId。
     ///

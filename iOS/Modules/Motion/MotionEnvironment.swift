@@ -6,7 +6,7 @@ import UIKit
 
 /// Reduced-motion 平台适配器。
 ///
-/// 真源：Reader UI `frontend-demo/MOTION_CONTRACT.md` §7 Reduced Motion 契约
+/// 真源：Reader UI `frontend-demo-optimized/MOTION_CONTRACT.md` §7 Reduced Motion 契约
 /// 平台映射：`docs/ui-handoff/MOTION_PLATFORM_MAPPING.md` iOS SwiftUI Guardrails
 ///
 /// 规则：

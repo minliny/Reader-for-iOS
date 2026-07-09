@@ -2,7 +2,7 @@ import Foundation
 
 /// 动效 ID 枚举。
 ///
-/// 真源：`frontend-demo/motion-controller.js` 第 292-622 行 `MOTION_ID_STATE_MACHINES`，共 47 个 Motion ID。
+/// 真源：`frontend-demo-optimized/motion-controller.js` 第 292-622 行 `MOTION_ID_STATE_MACHINES`，共 47 个 Motion ID。
 /// 本枚举只承载契约 ID 的字符串语义，不复制 Web DOM / `data-*` selector；
 /// 每个 case 的 rawValue 与 demo 中的字符串 ID 完全一致，便于跨端对照与样本回溯。
 public enum MotionId: String, CaseIterable, Sendable {
