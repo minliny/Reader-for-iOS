@@ -319,14 +319,25 @@ struct AppShellView: View {
         }
     }
 
-    // B1-iOS P0: 按 route shell 返回 MotionContainerRole。
-    // book-detail → LibraryShell；source-switch → FlowShell；其他 → appShell。
+    // B1-iOS P0 + B2: 按 route shell 返回 MotionContainerRole。
+    // book-detail → LibraryShell；source-switch → FlowShell；
+    // settings 系列二级页 → SettingsShell；其他 → appShell。
+    // 真源：generated/swift/MotionPolicy.swift RouteShellLookup。
     private func containerRole(for route: Route?) -> MotionContainerRole {
         guard let route else { return .appShell }
         switch route {
-        case .bookDetail: return .libraryShell
-        case .sourceSwitch: return .flowShell
-        default: return .appShell
+        case .bookDetail, .bookDetailToc:
+            return .libraryShell
+        case .sourceSwitch:
+            return .flowShell
+        // B2: settings 系列二级页走 SettingsShell（app.route.push.forward/backward, priority 150）
+        case .settingsReading, .settingsAbout, .backupSettings, .syncProgress,
+             .webdavSettings, .webdavBooks,
+             .bookSources, .bookSourceImport,
+             .sourceDetail, .sourceAdd, .sourceEdit, .sourceTestResult:
+            return .settingsShell
+        default:
+            return .appShell
         }
     }
 
