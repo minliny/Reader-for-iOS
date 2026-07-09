@@ -257,7 +257,15 @@ public struct BookshelfView: View {
         case .some(.batchManagement):
             BookshelfBatchManagementView(
                 onExit: closeActiveDestination,
-                onGroups: { activeDestination = .groupManagement }
+                onGroups: { activeDestination = .groupManagement },
+                onDelete: { ids in
+                    // 批量删除：遍历所选 id 逐个移除，viewModel 删除后会自动刷新书架。
+                    Task {
+                        for id in ids {
+                            await viewModel.removeItem(id: id)
+                        }
+                    }
+                }
             )
             .transition(.move(edge: .trailing).combined(with: .opacity))
 
@@ -1113,10 +1121,17 @@ struct BookshelfBatchManagementView: View {
     @State private var selectedIDs = Set(BookBatchItem.demoBooks.prefix(3).map(\.id))
     private let onExit: (() -> Void)?
     private let onGroups: (() -> Void)?
+    // 批量删除回调：传入所选书籍 id 集合，由父视图驱动 store 删除并刷新书架。
+    private let onDelete: ((Set<String>) -> Void)?
 
-    init(onExit: (() -> Void)? = nil, onGroups: (() -> Void)? = nil) {
+    init(
+        onExit: (() -> Void)? = nil,
+        onGroups: (() -> Void)? = nil,
+        onDelete: ((Set<String>) -> Void)? = nil
+    ) {
         self.onExit = onExit
         self.onGroups = onGroups
+        self.onDelete = onDelete
     }
 
     var body: some View {
@@ -1132,7 +1147,12 @@ struct BookshelfBatchManagementView: View {
                 }
                 .buttonStyle(.plain)
             } trailing: {
-                BookBatchBottomButton(title: "删除所选", isPrimary: false, isDanger: true) {}
+                // 删除所选：批量删除已选书籍，完成后退出批量管理。
+                BookBatchBottomButton(title: "删除所选", isPrimary: false, isDanger: true) {
+                    let ids = selectedIDs
+                    onDelete?(ids)
+                    onExit?()
+                }
             }
         }
     }

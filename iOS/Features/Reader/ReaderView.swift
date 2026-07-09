@@ -64,6 +64,11 @@ public struct ReaderView: View {
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
+        // 隐藏状态栏：根据用户设置切换沉浸阅读模式下的状态栏显隐。
+        // `.statusBarHidden(_:)` 自 iOS 13 起在 SwiftUI 中可用，绑定到
+        // displaySettings.hideStatusBar 后，切换会自动触发系统重绘状态栏，
+        // 无需手动调用 setNeedsStatusBarAppearanceUpdate()。
+        .statusBarHidden(viewModel.displaySettings.hideStatusBar)
 #endif
         .mainTabBarVisible(false)
         .onAppear {

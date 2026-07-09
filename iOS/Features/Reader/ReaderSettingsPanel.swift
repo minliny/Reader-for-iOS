@@ -49,6 +49,71 @@ public struct ReaderSettingsPanel: View {
                         subtitle: "横屏时使用双页阅读",
                         isOn: $displaySettings.dualPageEnabled
                     )
+                    // 自动翻页：对齐前端 demo `autoPage`
+                    DemoToggleRow(
+                        icon: .refresh,
+                        title: "Auto Page",
+                        subtitle: "自动翻页",
+                        isOn: $displaySettings.autoPageEnabled
+                    )
+                }
+            }
+
+            ReaderCard {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                    Text("显示")
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    // 隐藏状态栏：沉浸阅读时隐藏顶部系统状态栏
+                    DemoToggleRow(
+                        icon: .eyeOff,
+                        title: "Hide Status Bar",
+                        subtitle: "隐藏状态栏",
+                        isOn: $displaySettings.hideStatusBar
+                    )
+                    // 屏幕常亮：对齐前端 demo `keepScreenOn`
+                    DemoToggleRow(
+                        icon: .sun,
+                        title: "Keep Screen On",
+                        subtitle: "屏幕常亮",
+                        isOn: $displaySettings.keepScreenOnEnabled
+                    )
+                    // 页脚进度信息：对齐前端 demo `statusInfo`
+                    DemoToggleRow(
+                        icon: .progress,
+                        title: "Footer Progress Info",
+                        subtitle: "页脚进度信息",
+                        isOn: $displaySettings.statusInfoEnabled
+                    )
+                    // 触摸反馈：对齐前端 demo `hapticFeedback`
+                    DemoToggleRow(
+                        icon: .gesture,
+                        title: "Haptic Feedback",
+                        subtitle: "触摸反馈",
+                        isOn: $displaySettings.hapticFeedbackEnabled
+                    )
+                }
+            }
+
+            ReaderCard {
+                VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
+                    Text("其他")
+                        .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
+                        .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+                    // 横屏锁定：对齐前端 demo `landscapeLock`
+                    DemoToggleRow(
+                        icon: .permission,
+                        title: "Landscape Lock",
+                        subtitle: "横屏锁定",
+                        isOn: $displaySettings.landscapeLockEnabled
+                    )
+                    // 自动缓存后续章节：对齐前端 demo `cacheNext`
+                    DemoToggleRow(
+                        icon: .download,
+                        title: "Cache Next Chapters",
+                        subtitle: "自动缓存后续章节",
+                        isOn: $displaySettings.cacheNextEnabled
+                    )
                 }
             }
 
