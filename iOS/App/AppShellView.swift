@@ -89,6 +89,8 @@ struct AppShellView: View {
     let environment: ReaderShellEnvironment
     @State private var mainNavVisibleByContent = true
     @State private var mainTabTopBarRequest: MainTabTopBarRequest?
+    // B1-iOS P0：contract-host 渲染开关。true = book-detail/source-switch 走 contract renderer。
+    @State private var useContractHost = true
 
     // P3-B: 会话级状态存储，作为 @StateObject 注入子视图
     @StateObject private var sessionStore: ReaderSessionStore = ReaderSessionStore()
@@ -291,27 +293,40 @@ struct AppShellView: View {
             destinationView(for: route, onExit: {
                 navigationState.goBack()
             })
-            // D6: push/pop 接线 ReaderMotionAdapter.resolve(request:)。
-            // push（navigationPath 增长）走 .app_route_push_forward（ease_out 160ms），
-            // pop（navigationPath 缩短）走 .app_route_pop_backward（ease_in 160ms）。
+            // B1-iOS P0 + D6: push/pop 接线 ReaderMotionAdapter。
+            // containerRole 按 route shell 区分：
+            // - bookDetail → libraryShell（.app_route_push_forward/backward，priority 150）
+            // - sourceSwitch → flowShell（.source_switch_route_push/pop，priority 200）
+            // - 其他 → appShell（默认 route push/pop，priority 100）
             // resolver 返回 nil 时无动画（reduced-motion 或无策略命中），安全降级。
             .transition(
                 .asymmetric(
                     insertion: .opacity.animation(
                         ReaderMotionAdapter.animation(
-                            for: MotionRequest(operation: .push, containerRole: .appShell),
+                            for: MotionRequest(operation: .push, containerRole: containerRole(for: route)),
                             motion: navigationState.motion
                         )
                     ),
                     removal: .opacity.animation(
                         ReaderMotionAdapter.animation(
-                            for: MotionRequest(operation: .pop, containerRole: .appShell),
+                            for: MotionRequest(operation: .pop, containerRole: containerRole(for: route)),
                             motion: navigationState.motion
                         )
                     )
                 )
             )
             .zIndex(ReaderZIndex.overlay.rawValue)
+        }
+    }
+
+    // B1-iOS P0: 按 route shell 返回 MotionContainerRole。
+    // book-detail → LibraryShell；source-switch → FlowShell；其他 → appShell。
+    private func containerRole(for route: Route?) -> MotionContainerRole {
+        guard let route else { return .appShell }
+        switch route {
+        case .bookDetail: return .libraryShell
+        case .sourceSwitch: return .flowShell
+        default: return .appShell
         }
     }
 
@@ -491,17 +506,27 @@ struct AppShellView: View {
             )
 
         case .bookDetail(let bookURL, let title, let author):
-            BookDetailView(result: SearchResultItem(
-                title: title,
-                detailURL: bookURL,
-                author: author
-            ), onExit: onExit)
+            if useContractHost {
+                // B1-iOS P0：book-detail 走 contract renderer（LibraryShell）
+                ContractHostView(routeId: .bookDetail)
+            } else {
+                BookDetailView(result: SearchResultItem(
+                    title: title,
+                    detailURL: bookURL,
+                    author: author
+                ), onExit: onExit)
+            }
 
         case .bookDetailToc(let bookURL, let title):
             BookDirectoryPreviewView(bookURL: bookURL, title: title, onExit: onExit)
 
         case .sourceSwitch(let bookURL):
-            ReaderSourceSwitchFlowView(bookURL: bookURL, onExit: onExit)
+            if useContractHost {
+                // B1-iOS P0：source-switch 走 contract renderer（FlowShell）
+                ContractHostView(routeId: .sourceSwitch)
+            } else {
+                ReaderSourceSwitchFlowView(bookURL: bookURL, onExit: onExit)
+            }
 
         case .toc:
             if let book = coordinator.selectedBook {

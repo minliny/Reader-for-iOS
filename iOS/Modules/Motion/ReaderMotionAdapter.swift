@@ -6,6 +6,10 @@ import ReaderUIContract
 /// `animation(for:)` / `start(request:)`，不直接碰 generated `ReaderMotionResolver`。
 public typealias MotionRequest = ReaderUIContract.MotionRequest
 
+/// Re-export `MotionContainerRole` so business Views (e.g. AppShellView) can reference
+/// the container role type without `import ReaderUIContract`.
+public typealias MotionContainerRole = ReaderUIContract.MotionContainerRole
+
 /// Adapter from generated Reader UI motion contracts to native SwiftUI motion.
 public enum ReaderMotionAdapter {
     public static func spec(for contractId: ReaderUIContract.MotionId) -> ReaderUIContract.Motion? {

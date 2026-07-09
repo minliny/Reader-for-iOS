@@ -91,3 +91,28 @@ extension ViewStateRenderer {
         }
     }
 }
+
+
+// MARK: - ContractHostView（contract-host 渲染入口）
+
+/// 按 RouteId 渲染 contract component tree。
+///
+/// B1-iOS P0 核心接线：AppShellView 对 book-detail / source-switch 等路由
+/// 走 contract renderer（ViewStateComponentFactory → ComponentRegistry），
+/// 不再直接实例化 legacy feature view。flag 控制（见 AppShellView.useContractHost）。
+public struct ContractHostView: View {
+    public let routeId: RouteId
+
+    public init(routeId: RouteId) {
+        self.routeId = routeId
+    }
+
+    public var body: some View {
+        let components = ViewStateComponentFactory.components(for: routeId)
+        VStack(spacing: 0) {
+            ForEach(Array(components.enumerated()), id: \.offset) { _, component in
+                ComponentRegistry.render(component)
+            }
+        }
+    }
+}
