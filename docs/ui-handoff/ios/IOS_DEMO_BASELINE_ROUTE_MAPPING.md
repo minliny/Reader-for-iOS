@@ -15,7 +15,7 @@ iOS target: `/Users/minliny/Documents/Reader for iOS`
 | Reader UI branch | `codex/motion-demo-optimizations` |
 | Reader UI commit | `a596e2bbd75b564e1b21b14929c5c455e260044d` |
 | Baseline cleanliness | Dirty baseline. Freeze includes current disk state plus the dirty-file list below. |
-| Route source | `frontend-demo/route-contract.js` |
+| Route source | `frontend-demo-optimized/route-contract.js` |
 | Route count | 200 (was 131 before 2026-07-05 P0 closure) |
 | Shell distribution | `MainTabShell=48`, `LibraryShell=66`, `SettingsShell=54`, `ReaderShell=30`, `FlowShell=2` |
 | Deep closure groups | `discover=34`, `rss=45`, `settings=7` |
@@ -23,7 +23,7 @@ iOS target: `/Users/minliny/Documents/Reader for iOS`
 | Motion coverage from handoff gate | `29/29`; routes `131`; unresolved `0` |
 | Motion evidence from handoff gate | entries `9`; missing `0`; fileProblems `0` |
 | Syntax checks | `render-runtime.js`, `motion-controller.js`, `route-contract.js`, `render.js` passed `node --check` |
-| Icon asset baseline | `92` tokens imported from `frontend-demo/asset-library/icons.js` into `ReaderIcons.xcassets` |
+| Icon asset baseline | `92` tokens imported from `frontend-demo-optimized/asset-library/icons.js` into `ReaderIcons.xcassets` |
 | Route contract gate (2026-07-05) | `node scripts/verify_demo_slice_mapping.mjs` PASS with `200` Swift-owned routes |
 | Boundary gate (2026-07-05) | `bash scripts/check_ios_boundary.sh` PASS with `182` checked files, `0` violations |
 
@@ -32,27 +32,27 @@ Dirty Reader UI files at freeze:
 ```text
  M README.md
  M docs/ui-handoff/README.md
- M frontend-demo/MOTION_IMPLEMENTATION_GAP_AUDIT.md
- M frontend-demo/README.md
- M frontend-demo/verify/motion/motion-coverage-report.json
+ M frontend-demo-optimized/MOTION_IMPLEMENTATION_GAP_AUDIT.md
+ M frontend-demo-optimized/README.md
+ M frontend-demo-optimized/verify/motion/motion-coverage-report.json
 ?? artifacts/
 ?? docs/ui-handoff/FRONTEND_DEVELOPMENT_READINESS.md
 ?? docs/ui-handoff/FRONTEND_DEVELOPMENT_SLICE_MATRIX.md
 ?? docs/ui-handoff/UI_PLATFORM_EVIDENCE_REQUESTS.md
-?? frontend-demo/.stitch/
-?? frontend-demo/verify/handoff/
-?? frontend-demo/verify/motion/evidence/reader-session-capsule-crop.jpg
+?? frontend-demo-optimized/.stitch/
+?? frontend-demo-optimized/verify/handoff/
+?? frontend-demo-optimized/verify/motion/evidence/reader-session-capsule-crop.jpg
 ```
 
 Verification commands:
 
 ```bash
 cd "/Users/minliny/Documents/Reader UI"
-node frontend-demo/verify/handoff/verify-ui-handoff-readiness.mjs
-node --check frontend-demo/render-runtime.js
-node --check frontend-demo/motion-controller.js
-node --check frontend-demo/route-contract.js
-node --check frontend-demo/render.js
+node frontend-demo-optimized/verify/handoff/verify-ui-handoff-readiness.mjs
+node --check frontend-demo-optimized/render-runtime.js
+node --check frontend-demo-optimized/motion-controller.js
+node --check frontend-demo-optimized/route-contract.js
+node --check frontend-demo-optimized/render.js
 ```
 
 ## Mapping Rules
@@ -218,7 +218,7 @@ Latest focused result: selected tests passed, including `DemoRouteMappingTests`,
 
 ## Route Contract Closure - 2026-07-05 (P0/M0)
 
-`frontend-demo/route-contract.js` exposes `200` routes; before 2026-07-05 the Swift side only owned `131`. The `69` missing routes were distributed across the five shells in `iOS/Navigation/DemoRouteMapping.swift`:
+`frontend-demo-optimized/route-contract.js` exposes `200` routes; before 2026-07-05 the Swift side only owned `131`. The `69` missing routes were distributed across the five shells in `iOS/Navigation/DemoRouteMapping.swift`:
 
 | Shell | Before | Added | After | Planned after M2 |
 |---|---:|---:|---:|---:|

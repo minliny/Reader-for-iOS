@@ -2,9 +2,9 @@
 
 状态：Draft v0.1
 
-主契约：`frontend-demo/MOTION_CONTRACT.md`
+主契约：`frontend-demo-optimized/MOTION_CONTRACT.md`
 
-效果说明：`frontend-demo/MOTION_EFFECTS.md`
+效果说明：`frontend-demo-optimized/MOTION_EFFECTS.md`
 
 本文档把 demo 动效契约映射到各平台的原生实现概念。它是实现指导，不是要求把 Web demo 嵌入平台应用，也不是要求复制 CSS。
 
@@ -13,7 +13,7 @@
 | 层 | 交付物 | 责任边界 | 不承担 |
 |---|---|---|---|
 | Contract | Motion ID、token、state fields、`from/to`、interrupt、`finalState`、reduced-motion | 所有平台共享同一语义；变更时同步 `MOTION_CONTRACT.md`、`MOTION_EFFECTS.md` 和 contract registry | 不定义平台具体 API 调用和 DOM/CSS 结构 |
-| Demo proof | `frontend-demo/` route、`data-motion-*` 状态、coverage、代表截图/录屏 | 证明关键状态流、打断规则、层级、reduced-motion 和高风险链路可复现 | 不证明平台真机性能、折叠屏、键盘、安全区、导航栈或无障碍已完成 |
+| Demo proof | `frontend-demo-optimized/` route、`data-motion-*` 状态、coverage、代表截图/录屏 | 证明关键状态流、打断规则、层级、reduced-motion 和高风险链路可复现 | 不证明平台真机性能、折叠屏、键盘、安全区、导航栈或无障碍已完成 |
 | Platform implementation | Compose / SwiftUI / ArkUI 原生实现、平台测试、真机/模拟器证据 | 按原生组件、导航、手势、安全区、keyboard inset、fold posture、accessibility focus 实现最终体验 | 不复制 Web CSS、DOM、`data-* selector`、fixture route stack 或浏览器 viewport 行为 |
 
 平台团队接收的是任务边界和验收清单，不是 Web CSS 复用指令。`data-motion-*` 和 selector matrix 只用于把 demo 证据追溯到 Motion ID。
@@ -162,7 +162,7 @@
 
 Android Compose：
 
-- 使用 Kotlin/Compose 原生组件；不要用 WebView 渲染 `frontend-demo/` HTML。
+- 使用 Kotlin/Compose 原生组件；不要用 WebView 渲染 `frontend-demo-optimized/` HTML。
 - 首次打开应用动效只绑定冷启动标记，不绑定 route state。
 - TAB 栏 press、select、switch 分开处理；TabRow/NavigationBar 尺寸稳定，active indicator 独立绘制。
 - 通用 button、toggle、chip/filter、segment、slider、stepper、input、toast/state、row/card 必须优先落到 Material/Compose 原生控件或本地封装；Discover/RSS/Source/Restore 业务页不能绕过这些 Motion ID 另写特例。
@@ -270,9 +270,9 @@ Web demo proof：
 
 本映射进入平台实装前需要满足：
 
-- `frontend-demo/MOTION_CONTRACT.md` 已根据 canonical demo 复核。
-- `frontend-demo/MOTION_EFFECTS.md` 已补齐每个高风险 Motion ID 的视觉效果描述。
-- `frontend-demo/motion-controller.js` 暴露可执行 `ReaderMotionController.CONTRACT`，并能把当前 renderer 使用的 Motion ID 解析到 token、state fields、state machine、平台组件和证据规则；关键 Motion ID 必须命中精确 `from/to/interrupt/finalState/reducedMotion`，不能只用 family fallback。
+- `frontend-demo-optimized/MOTION_CONTRACT.md` 已根据 canonical demo 复核。
+- `frontend-demo-optimized/MOTION_EFFECTS.md` 已补齐每个高风险 Motion ID 的视觉效果描述。
+- `frontend-demo-optimized/motion-controller.js` 暴露可执行 `ReaderMotionController.CONTRACT`，并能把当前 renderer 使用的 Motion ID 解析到 token、state fields、state machine、平台组件和证据规则；关键 Motion ID 必须命中精确 `from/to/interrupt/finalState/reducedMotion`，不能只用 family fallback。
 - Demo CSS 已使用共享 motion token。
 - Demo 已实现 reduced-motion 行为。
 - Demo 已实现主 TAB、阅读模块 TAB 和 segmented control 的 `data-motion-tab-*` / `data-motion-segment-*` 状态 adapter、`tab.item.press/select/switch` / `segment.item.switch` press-id 和 `reader.module.switch` / `segment.item.switch` 事务；录屏证据仍需补齐。
@@ -285,7 +285,7 @@ Web demo proof：
 - Demo 已接入运行胶囊 state adapter，覆盖 `reader.session.autoPage.start`、`reader.session.tts.start`、`reader.session.capsule.enter/update/switch/exit`、`reader.session.capsule.control.press/toggle`、`reader.session.capsule.countdownTick` 和 `reader.session.capsule.voiceIcon.active`；平台应映射这些 Motion ID、state 字段和 reducer 事件到原生组件，不能照搬 Web CSS；录屏、停止/退出打断和真实设备证据仍需补齐。
 - Demo 已接入 `motion.interrupt.cancel/redirect/completeThenReplace` 第一版 state adapter，覆盖 route push/replace/back、Tab 切换、viewport 变化、loading 完成、宽屏 dock 拖动开始、pointer cancel、连续下拉 A->B 和 reader loading async result guard，输出 `data-motion-interrupt-*` / `data-motion-dropdown-switch-*` / `data-motion-async-*` 并清理 pressed/dragging/dropdown 临时态；overlay/focus 第一版状态字段已接入，连续 overlay 打断和录屏证据仍需补齐。
 - Demo 已有整屏旋转第一版 state adapter，覆盖 root / screen host `data-motion-orientation-*`、route/session/overlay/focus/dock 元数据、anchor settle CSS、dropdown 重定位和宽屏 dock clamp；真实旋转录屏、正文字符锚点重分页、overlay/focus 自动化和平台设备证据仍需补齐。
-- Demo 已补 `frontend-demo/verify/motion/evidence/manifest.json` 第一批代表性浏览器截图，覆盖首启、Tab、下拉、封面进入、自动翻页胶囊、控制层上方胶囊锚点、orientation 和 interrupt；这些截图只能证明 canonical demo 的代表状态，不等于平台真实设备录屏。
+- Demo 已补 `frontend-demo-optimized/verify/motion/evidence/manifest.json` 第一批代表性浏览器截图，覆盖首启、Tab、下拉、封面进入、自动翻页胶囊、控制层上方胶囊锚点、orientation 和 interrupt；这些截图只能证明 canonical demo 的代表状态，不等于平台真实设备录屏。
 - Demo 仍没有折叠屏/大屏 reshape 的真实设备 capture；展开、折叠、半开态、hinge/pane 和阅读分页映射需要用模拟器或真机补证据。
 - 每个高风险阅读 transition 至少有一份截图或录屏证据。
 - 平台团队确认 route push 是走原生 stack motion，还是在密集操作页面保持即时切换。

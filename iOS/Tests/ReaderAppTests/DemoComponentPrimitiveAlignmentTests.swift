@@ -775,7 +775,7 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
     func testReaderReadingLayerAndTopTokensMatchDemoMatrix() {
         XCTAssertEqual(ReaderDisplaySettings.demoSerifFontFamily, "Songti SC")
         XCTAssertEqual(ReaderDisplaySettings.default.fontFamily, ReaderDisplaySettings.demoSerifFontFamily)
-        XCTAssertEqual(ReaderTypography.demoSerifSource, "Reader UI/frontend-demo/tokens.css --reader-ds-font-serif")
+        XCTAssertEqual(ReaderTypography.demoSerifSource, "Reader UI/frontend-demo-optimized/tokens.css --fd-ds-font-serif")
         XCTAssertEqual(ReaderTypography.demoSerifPrimaryFamily, "Songti SC")
         XCTAssertEqual(ReaderTypography.demoSerifRegularPostScriptName, "STSongti-SC-Regular")
         XCTAssertEqual(ReaderTypography.demoSerifBoldPostScriptName, "STSongti-SC-Bold")

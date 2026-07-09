@@ -60,7 +60,7 @@ Reader-Core
 - 新增 / 修改 `contracts/` 下的 schema、fixtures、contract tests。
 - 新增 / 修改 `tools/codegen/` 下的生成器。
 - 新增 / 修改 `generated/` 下的生成产物。
-- 维护 `frontend-demo/` 作为 route / motion / state / token 的语义参考与运行演示。
+- 维护 `frontend-demo-optimized/` 作为 route / motion / state / token 的语义参考与运行演示。
 - 维护 `docs/ui-design/` 页面包、规范、审计。
 
 禁止：
@@ -69,7 +69,7 @@ Reader-Core
 - 在本仓库实现 Reader-Core-Native 的业务协议。
 - 在本仓库实现跨端共享 reducer runtime。
 - 让 `generated/` 目录出现未经 codegen 产出的人工编辑文件。
-- 让 schema 与 `frontend-demo/` 实际出现的 route / motion / state 漂移。
+- 让 schema 与 `frontend-demo-optimized/` 实际出现的 route / motion / state 漂移。
 
 ## 5. Contract 变更传导
 
@@ -81,7 +81,7 @@ Reader-Core
 
 ## 6. demo 与 contract 的关系
 
-- `frontend-demo/` 是 route / motion / state / token 语义的参考来源，不是契约本身。
+- `frontend-demo-optimized/` 是 route / motion / state / token 语义的参考来源，不是契约本身。
 - demo 中出现的 route / motion / state 必须能在 `contracts/*.schema.json` 中找到。
 - contract 不允许出现 demo 中从未使用的虚构 id。
 - demo 大文件（`render.js` / `styles.css`）的拆分不阻塞 contract 推进，但拆分结果必须保持 route / motion / state 集合不变。

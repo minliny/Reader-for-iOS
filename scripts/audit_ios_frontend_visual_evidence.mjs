@@ -10,7 +10,7 @@ const repoRoot = path.resolve(__dirname, "..");
 
 const args = parseArgs(process.argv.slice(2));
 const demoRouteContractPath = path.resolve(
-  args["demo-route-contract"] || path.join(repoRoot, "../Reader UI/frontend-demo/route-contract.js")
+  args["demo-route-contract"] || path.join(repoRoot, "../Reader UI/frontend-demo-optimized/route-contract.js")
 );
 const swiftMappingPath = path.resolve(args["swift-mapping"] || path.join(repoRoot, "iOS/Navigation/DemoRouteMapping.swift"));
 const iosManifestPath = args["ios-manifest"] ? path.resolve(args["ios-manifest"]) : "";

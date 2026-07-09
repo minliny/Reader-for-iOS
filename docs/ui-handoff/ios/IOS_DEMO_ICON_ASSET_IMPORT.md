@@ -2,7 +2,7 @@
 
 ## Source
 
-- Demo source: `/Users/minliny/Documents/Reader UI/frontend-demo/asset-library`
+- Demo source: `/Users/minliny/Documents/Reader UI/frontend-demo-optimized/asset-library`
 - Registry: `icons.js`
 - Imported icon tokens: `92`
 - iOS generated catalog: `iOS/Modules/Assets/ReaderIcons.xcassets`

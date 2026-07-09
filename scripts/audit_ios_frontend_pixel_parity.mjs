@@ -13,10 +13,10 @@ const require = createRequire(import.meta.url);
 
 const args = parseArgs(process.argv.slice(2));
 const demoRouteContractPath = path.resolve(
-  args["demo-route-contract"] || path.join(repoRoot, "../Reader UI/frontend-demo/route-contract.js")
+  args["demo-route-contract"] || path.join(repoRoot, "../Reader UI/frontend-demo-optimized/route-contract.js")
 );
 const demoIndexPath = path.resolve(
-  args["demo-index"] || path.join(repoRoot, "../Reader UI/frontend-demo/index.html")
+  args["demo-index"] || path.join(repoRoot, "../Reader UI/frontend-demo-optimized/index.html")
 );
 const swiftMappingPath = path.resolve(args["swift-mapping"] || path.join(repoRoot, "iOS/Navigation/DemoRouteMapping.swift"));
 const iosManifestPath = path.resolve(args["ios-manifest"] || "/tmp/reader-ios-frontend-audit-20260705-complete/manifest.json");

@@ -3,7 +3,7 @@
 状态：Phase 1 P0 可执行参考规格
 日期：2026-07-04
 权威源：[route.schema.json](./route.schema.json)、[view-state.schema.json](./view-state.schema.json)、[ui-state.schema.json](./ui-state.schema.json)、[STATE_OWNERSHIP.md](./STATE_OWNERSHIP.md)
-来源：[docs/ui-design/](../docs/ui-design/) 各页 01-页面结构稿 / 02-组件规格稿 / 03-交互规则稿 / 04-状态规则稿、[frontend-demo/route-contract.js](../frontend-demo/route-contract.js)
+来源：[docs/ui-design/](../docs/ui-design/) 各页 01-页面结构稿 / 02-组件规格稿 / 03-交互规则稿 / 04-状态规则稿、[frontend-demo-optimized/route-contract.js](../frontend-demo-optimized/route-contract.js)
 
 本文是 P0 阶段"页面级实现参考"。覆盖 Slice 1-6 优先链路的关键 route，给三端 reducer / Native UI 实现提供单一参考。全量 route × component 矩阵见 [ROUTE_COMPONENT_MATRIX.md](./ROUTE_COMPONENT_MATRIX.md)。
 

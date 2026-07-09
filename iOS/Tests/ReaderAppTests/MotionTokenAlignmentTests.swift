@@ -2,10 +2,10 @@ import XCTest
 @testable import ReaderApp
 
 /// Motion token 对齐验证 —— 确保 `AppMotion` / `ReaderMotion` / `MotionEnvironment`
-/// 的数值与 `Reader UI/frontend-demo/MOTION_CONTRACT.md` §3 Motion Tokens 一致。
+/// 的数值与 `Reader UI/frontend-demo-optimized/MOTION_CONTRACT.md` §3 Motion Tokens 一致。
 ///
 /// 真源：
-/// - `frontend-demo/MOTION_CONTRACT.md` §3 Motion Tokens
+/// - `frontend-demo-optimized/MOTION_CONTRACT.md` §3 Motion Tokens
 /// - `docs/ui-handoff/MOTION_PLATFORM_MAPPING.md` §1 共享 Token 命名
 ///
 /// 任何 token 数值漂移都会导致 iOS 动效与契约不一致，因此用单测锁定。

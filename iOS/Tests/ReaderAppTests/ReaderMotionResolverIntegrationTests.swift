@@ -12,7 +12,7 @@ import ReaderUIContract
 /// 的基础设施测试。
 ///
 /// 真源：
-/// - Reader UI `frontend-demo/MOTION_CONTRACT.md` §5 MotionPolicy / §6 ReaderMotionResolver
+/// - Reader UI `frontend-demo-optimized/MOTION_CONTRACT.md` §5 MotionPolicy / §6 ReaderMotionResolver
 /// - `generated/swift/MotionPolicy.swift` `MotionPolicyRegistry.all` + `ReaderMotionResolver.resolve`
 @MainActor
 final class ReaderMotionResolverIntegrationTests: XCTestCase {

@@ -3,7 +3,7 @@ import XCTest
 
 /// Demo 图标素材库对齐验证。
 ///
-/// 真源：`Reader UI/frontend-demo/asset-library/icons.js`
+/// 真源：`Reader UI/frontend-demo-optimized/asset-library/icons.js`
 /// 导入入口：`scripts/import_demo_icon_assets.mjs`
 final class ReaderIconAssetAlignmentTests: XCTestCase {
 

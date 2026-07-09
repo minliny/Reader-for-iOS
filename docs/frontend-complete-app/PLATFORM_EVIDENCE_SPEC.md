@@ -220,7 +220,7 @@ node --test contracts/tests/*.test.mjs
 #### 3.3.5 demo baseline 漂移检查（已有）
 
 - **目的**：demo 与 schema 一致性
-- **方式**：`node frontend-demo/verify/contract/verify-demo-contract-consistency.mjs`
+- **方式**：`node frontend-demo-optimized/verify/contract/verify-demo-contract-consistency.mjs`
 - **失败条件**：route/token unknown 非 0；motion unknown 未列入 `demo-contract-exceptions.json`；found 数量异常减少
 
 ### 3.4 AST 检查（P1，Phase 5 必须实现）

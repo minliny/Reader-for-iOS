@@ -13,7 +13,7 @@
 #   - audit/warn（默认）：发现非白名单裸调用时打印 WARN，exit 0
 #   - strict（参数 --strict）：发现非白名单裸调用时 exit 1
 #
-# 真源：Reader UI `frontend-demo/MOTION_CONTRACT.md` §5 MotionPolicy /
+# 真源：Reader UI `frontend-demo-optimized/MOTION_CONTRACT.md` §5 MotionPolicy /
 #       §6 ReaderMotionResolver —— 业务 View 应通过 MotionRequest 走 resolver，
 #       不直接硬编码 duration/easing。
 

@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-07-02T03:08:00.034Z",
-  "source": "../Reader UI/frontend-demo/asset-library/icons.js",
+  "source": "../Reader UI/frontend-demo-optimized/asset-library/icons.js",
   "demoRoot": "/Users/minliny/Documents/Reader UI/frontend-demo",
   "output": {
     "xcassets": "iOS/Modules/Assets/ReaderIcons.xcassets",

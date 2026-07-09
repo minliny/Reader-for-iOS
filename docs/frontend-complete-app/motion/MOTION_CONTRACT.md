@@ -2,7 +2,7 @@
 
 状态：Draft v0.1
 
-来源：当前 `frontend-demo/` 的路由/状态模型、Shell 结构和已有 CSS 表现。
+来源：当前 `frontend-demo-optimized/` 的路由/状态模型、Shell 结构和已有 CSS 表现。
 
 目标：把当前 demo 从“视觉/交互原型”提升为跨端共享的动效契约，让 iOS、Android、HarmonyOS 和 Web 都能用各自原生技术实现同一套动效，而不是复制 Web CSS 或 DOM 行为。
 
@@ -11,7 +11,7 @@
 交付分层：
 
 - Contract 层：跨平台共享 `Motion ID`、token 名称、state fields、`from/to`、interrupt、`finalState` 和 reduced-motion 规则。这一层是平台必须实现和测试的语义。
-- Demo proof 层：`frontend-demo/` 只作为可执行契约样板，用浏览器路径、`data-motion-*` 状态字段、coverage 和代表截图证明状态语义、打断规则和高风险链路成立。Demo proof 不是 Android / iOS / HarmonyOS 的最终 UI 代码。
+- Demo proof 层：`frontend-demo-optimized/` 只作为可执行契约样板，用浏览器路径、`data-motion-*` 状态字段、coverage 和代表截图证明状态语义、打断规则和高风险链路成立。Demo proof 不是 Android / iOS / HarmonyOS 的最终 UI 代码。
 - Platform implementation 层：Android Compose、iOS SwiftUI、HarmonyOS ArkUI 必须用原生导航、原生组件、原生手势、safe area / keyboard inset、fold posture、accessibility focus 和性能工具实现最终动效。
 
 非目标：
@@ -337,7 +337,7 @@
 
 本契约进入实装前，需要满足：
 
-- 每个 Motion ID 都有 `frontend-demo/` 内的 capture route 或可复现点击路径。
+- 每个 Motion ID 都有 `frontend-demo-optimized/` 内的 capture route 或可复现点击路径。
 - 每个 Motion ID 都出现在平台映射文档里。
 - 每个 Motion ID 都在 `MOTION_EFFECTS.md` 中有视觉效果说明。
 - 当前 renderer/runtime 使用的 Motion ID 都必须能通过 `ReaderMotionController.contractFor()` 解析到 state machine；P0 关键 Motion ID 必须有精确 `from/to/interrupt/finalState/reducedMotion`，不能只依赖 family fallback。
@@ -364,7 +364,7 @@
 ## 10. 未决项
 
 - 当前路由推进多数是即时替换 HTML；需要决定原生应用是否使用平台 stack motion，还是在密集操作页面保持即时切换。
-- 通用交互组件族已完成 contract/effects/platform mapping、`MOTION_SELECTOR_MATRIX.md`、基础 token、reduced-motion 测试开关、`data-motion-id` / pressed state 接入、contract 层状态机和第一版 `data-motion-component-*` normalized adapter；首批 P0 代表截图已进入 `frontend-demo/verify/motion/evidence/manifest.json`，但还缺全族录屏、async pending、focus restore 和平台测试文件映射。
+- 通用交互组件族已完成 contract/effects/platform mapping、`MOTION_SELECTOR_MATRIX.md`、基础 token、reduced-motion 测试开关、`data-motion-id` / pressed state 接入、contract 层状态机和第一版 `data-motion-component-*` normalized adapter；首批 P0 代表截图已进入 `frontend-demo-optimized/verify/motion/evidence/manifest.json`，但还缺全族录屏、async pending、focus restore 和平台测试文件映射。
 - TAB / segmented 已补 `tab.item.press/select/switch` 和 `segment.item.switch` contract 状态机；主 TAB、阅读模块 TAB 和 segmented control 已接入实现层 `data-motion-tab-*` / `data-motion-segment-*` 状态、press-id 和 token 化状态 CSS。indicator 媒体证据和录屏仍缺。
 - 下拉栏已补 `dropdown.*` contract 状态机；当前 demo 已接入实现层 `data-motion-dropdown-*` 状态、trigger/menu/option adapter、`dropdown.option.press` press-id、打开 A 后切 B 的 `data-motion-dropdown-switch-*` / `motion.interrupt.redirect` adapter 和 token 化展开/选项点击/接管 CSS，并补 bookshelf more menu 展开代表截图。关闭保留动画、resize/orientation reposition 和完整录屏证据仍缺。
 - 宽屏控制层长按拖动已接入第一版 demo adapter：宽屏 `.fd-reader-grabber` 长按后进入 `reader.control.dock.longPress`，拖动时更新 dock group transform，释放提交 viewport class offset，resize 后 clamp/rebound，窄屏清理 transform；真实设备、折叠屏 hinge/pane 和录屏证据仍缺。
@@ -386,4 +386,4 @@
 1. 按 `MOTION_SELECTOR_MATRIX.md` 回填 evidence，优先录制通用组件族、键盘、底表、弹窗、翻页和 loading。
 2. 按 `MOTION_IMPLEMENTATION_GAP_AUDIT.md` 继续补 P0 缺口；通用组件族和 overlay/focus 已有第一版 adapter，reader loading 已有 request-scoped async result guard，下一步补全族录屏、平台测试文件映射，并把 interrupt adapter 继续覆盖到连续 overlay。
 3. 继续补整屏旋转和折叠屏证据；首次打开、运行胶囊、控制层上方胶囊锚点、控制胶囊内部微动效、宽屏 dock 和 orientation lifecycle 已有第一版 adapter，下一步补录屏、停止/退出打断、后台恢复、正文重分页和折叠屏验证。
-4. 从 canonical `frontend-demo/` 路径录制或截图核心动效状态。
+4. 从 canonical `frontend-demo-optimized/` 路径录制或截图核心动效状态。

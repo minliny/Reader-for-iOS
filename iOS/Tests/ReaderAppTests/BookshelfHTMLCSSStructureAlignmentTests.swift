@@ -6,8 +6,8 @@ import ReaderCoreModels
 
 /// Bookshelf structure alignment tests.
 ///
-/// Source of truth is `Reader UI/frontend-demo/render-runtime.js` and
-/// `Reader UI/frontend-demo/styles/00-foundation.css`, not screenshots.
+/// Source of truth is `Reader UI/frontend-demo-optimized/render-runtime.js` and
+/// `Reader UI/frontend-demo-optimized/styles/00-foundation.css`, not screenshots.
 final class BookshelfHTMLCSSStructureAlignmentTests: XCTestCase {
 
     func testSectionHeaderTokensMatchDemoCSS() {

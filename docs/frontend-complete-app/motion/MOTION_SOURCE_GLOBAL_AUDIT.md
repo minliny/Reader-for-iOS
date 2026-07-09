@@ -4,25 +4,25 @@
 
 审计日期：2026-06-26
 
-审计口径：只基于当前 `frontend-demo/` 源码和本地运行结果，不把 `MOTION_*.md`、handoff 文档或既有规划表作为事实来源。
+审计口径：只基于当前 `frontend-demo-optimized/` 源码和本地运行结果，不把 `MOTION_*.md`、handoff 文档或既有规划表作为事实来源。
 
 ## 1. 输入范围
 
 源码输入：
 
-- `frontend-demo/index.html`
-- `frontend-demo/render.js`
-- `frontend-demo/render-runtime.js`
-- `frontend-demo/route-contract.js`
-- `frontend-demo/shared-shell-kit/kit.js`
-- `frontend-demo/styles.css`
-- `frontend-demo/styles/*.css`
-- `frontend-demo/tokens.css`
-- `frontend-demo/motion-tokens.css`
+- `frontend-demo-optimized/index.html`
+- `frontend-demo-optimized/render.js`
+- `frontend-demo-optimized/render-runtime.js`
+- `frontend-demo-optimized/route-contract.js`
+- `frontend-demo-optimized/shared-shell-kit/kit.js`
+- `frontend-demo-optimized/styles.css`
+- `frontend-demo-optimized/styles/*.css`
+- `frontend-demo-optimized/tokens.css`
+- `frontend-demo-optimized/motion-tokens.css`
 
 显式排除：
 
-- `frontend-demo/MOTION_*.md`
+- `frontend-demo-optimized/MOTION_*.md`
 - `docs/ui-handoff/MOTION_PLATFORM_MAPPING.md`
 - 既有截图、录屏和验收文档
 
@@ -38,13 +38,13 @@
 | 运行时代码 Motion ID | `applyMotionSelectorBindings()` 中 58 个 bind 调用，50 个唯一 Motion ID |
 | 直接绑定覆盖 | 147 个 `data-*` 中 125 个被 bind selector 直接覆盖 |
 | 未被 bind selector 直接覆盖 | 22 个，多数是 route/debug/metadata/slot 属性 |
-| CSS 动效文件 | `01-shell-layout.css`、`02-main-library.css`、`04-settings-source.css`、`05-flow-adaptive.css`、`motion-tokens.css` |
+| CSS 动效文件 | `01-shell-layout.css`、`02a-reader-control.css`、`04-settings-source.css`、`05-flow-adaptive.css`、`motion-tokens.css` |
 | Reduced motion | `matchMedia("(prefers-reduced-motion: reduce)")`、URL 开关和 CSS 降级都已存在 |
 | Motion controller | `motion-controller.js` 已接入 `index.html`，`render-runtime.js` 会创建 root-scoped controller |
 
 证据文件：
 
-- `frontend-demo/verify/motion/source-global-audit.json`
+- `frontend-demo-optimized/verify/motion/source-global-audit.json`
 
 源码锚点：
 
@@ -65,7 +65,7 @@
 
 浏览器 smoke：
 
-- 本地加载 `http://127.0.0.1:5177/frontend-demo/?motionReduced=1&captureRoute=<route>`。
+- 本地加载 `http://127.0.0.1:5177/frontend-demo-optimized/?motionReduced=1&captureRoute=<route>`。
 - 131/131 route 的 `data-current-route` 与 `captureRoute` 匹配。
 - 131/131 route 非空渲染。
 - 131/131 route 的 `data-motion-reduced="true"` 生效。
@@ -84,7 +84,7 @@
 - `@media (prefers-reduced-motion: reduce)` 也会把 transition/animation duration 降到 `0ms`，并禁用翻页和 loading 动画。
 - `render-runtime.js` 支持 `?motionReduced=1/0` 和 `?reducedMotion=...`。
 
-判定：基础 token 和 reduced-motion 代码已落地，可以作为后续平台实现的输入；首批 P0 代表截图已进入 `frontend-demo/verify/motion/evidence/manifest.json` 和 coverage gate，但仍缺完整录屏、真实设备证据和平台测试映射。
+判定：基础 token 和 reduced-motion 代码已落地，可以作为后续平台实现的输入；首批 P0 代表截图已进入 `frontend-demo-optimized/verify/motion/evidence/manifest.json` 和 coverage gate，但仍缺完整录屏、真实设备证据和平台测试映射。
 
 ### 3.2 Motion ID adapter
 
@@ -389,15 +389,15 @@ P2：
 已执行：
 
 ```bash
-node --check frontend-demo/render-runtime.js
+node --check frontend-demo-optimized/render-runtime.js
 ```
 
 ```bash
-node --check frontend-demo/motion-controller.js
+node --check frontend-demo-optimized/motion-controller.js
 ```
 
 ```bash
-node frontend-demo/verify/motion/verify-motion-coverage.mjs
+node frontend-demo-optimized/verify/motion/verify-motion-coverage.mjs
 ```
 
 ```bash

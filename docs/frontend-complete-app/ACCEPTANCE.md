@@ -7,7 +7,7 @@ Reader UI 仓库是 UI Contract 源，不是生产运行时。验收范围仅限
 - `contracts/` 下的 schema、fixtures、tests
 - `tools/codegen/` 的 codegen 脚本
 - `generated/` 下的三端生成类型
-- `frontend-demo/verify/contract/` 的 demo 一致性校验
+- `frontend-demo-optimized/verify/contract/` 的 demo 一致性校验
 
 ## §10 合并门槛 7 问
 
@@ -145,7 +145,7 @@ node contracts/tests/validate.mjs
 node tools/codegen/generate.mjs
 
 # demo 一致性校验
-node frontend-demo/verify/contract/verify-demo-contract-consistency.mjs
+node frontend-demo-optimized/verify/contract/verify-demo-contract-consistency.mjs
 ```
 
 ## 版本

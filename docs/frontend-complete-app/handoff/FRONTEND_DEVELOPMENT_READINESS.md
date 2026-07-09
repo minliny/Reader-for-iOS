@@ -11,26 +11,26 @@ Canonical demo: `/Users/minliny/Documents/Reader UI/frontend-demo`
 当前 `Reader UI` 仓库已经完成真实前端开发启动前，UI 侧必须交付的第一版输入：
 
 - Design / Contract ready: 已具备 App Shell、主 Tab、route/state/component 基线、Motion ID、token、state machine、reduced-motion、interrupt 和 orientation/fold 契约。
-- Demo proof ready: canonical `frontend-demo/` 已有 131 条 route render 覆盖、motion coverage gate、第一批代表截图证据和可执行 `ReaderMotionController.CONTRACT`。
+- Demo proof ready: canonical `frontend-demo-optimized/` 已有 131 条 route render 覆盖、motion coverage gate、第一批代表截图证据和可执行 `ReaderMotionController.CONTRACT`。
 - Platform implementation missing: Android Compose、iOS SwiftUI、HarmonyOS ArkUI 的真实工程、原生导航、手势、安全区、键盘、fold posture、无障碍和性能证据不属于本仓库，必须在平台仓库完成。
 
-因此可以启动有边界的原生平台开发；不可以把 `frontend-demo/` 当作生产前端直接开发，也不可以把 demo coverage 通过等同于平台完成。
+因此可以启动有边界的原生平台开发；不可以把 `frontend-demo-optimized/` 当作生产前端直接开发，也不可以把 demo coverage 通过等同于平台完成。
 
 ## 2. UI-Side Completed Inputs
 
 | 输入 | UI 侧交付物 | 当前状态 | 平台消费方式 |
 |---|---|---|---|
-| Canonical source | `frontend-demo/README.md` | Complete | 只以 `frontend-demo/` 为设计和交互基准，不使用 draft 目录 |
+| Canonical source | `frontend-demo-optimized/README.md` | Complete | 只以 `frontend-demo-optimized/` 为设计和交互基准，不使用 draft 目录 |
 | App shell baseline | `docs/cross-platform-ui/CROSS_PLATFORM_UI_BASELINE.md` | Complete | 固定书架 / 发现 / RSS / 设置四主 Tab；阅读页不是主 Tab |
-| Route baseline | `frontend-demo/route-contract.js`、`docs/cross-platform-ui/CROSS_PLATFORM_ROUTE_MATRIX.md`、`docs/ui-handoff/ROUTE_MAP.md` | Complete | 平台转成原生 route/back stack；不要复制 fixture route stack |
+| Route baseline | `frontend-demo-optimized/route-contract.js`、`docs/cross-platform-ui/CROSS_PLATFORM_ROUTE_MATRIX.md`、`docs/ui-handoff/ROUTE_MAP.md` | Complete | 平台转成原生 route/back stack；不要复制 fixture route stack |
 | State baseline | `docs/cross-platform-ui/CROSS_PLATFORM_STATE_MATRIX.md`、`docs/ui-handoff/STATE_MATRIX.md` | Complete | 平台用真实 reducer/data lifecycle 落地 loading/empty/error/session 等状态 |
 | Screen inventory | `docs/ui-handoff/SCREEN_MATRIX.md` | Complete | 平台按业务优先级挑选 screen，不一次性全量搬运 |
-| Motion contract | `frontend-demo/MOTION_CONTRACT.md` | Complete | 平台继承 Motion ID、state fields、state machine、token 语义 |
-| Motion effects | `frontend-demo/MOTION_EFFECTS.md` | Complete | 平台按效果语义重建原生动画，不逐帧复制 Web CSS |
+| Motion contract | `frontend-demo-optimized/MOTION_CONTRACT.md` | Complete | 平台继承 Motion ID、state fields、state machine、token 语义 |
+| Motion effects | `frontend-demo-optimized/MOTION_EFFECTS.md` | Complete | 平台按效果语义重建原生动画，不逐帧复制 Web CSS |
 | Motion platform mapping | `docs/ui-handoff/MOTION_PLATFORM_MAPPING.md` | Complete | 平台拆 native work item 和证据项 |
-| Gap audit | `frontend-demo/MOTION_IMPLEMENTATION_GAP_AUDIT.md` | Complete | 用于区分 demo proof 缺口和平台实现缺口 |
-| Demo coverage | `frontend-demo/verify/motion/motion-coverage-report.json` | Complete | 证明 canonical demo contract 未断裂 |
-| Demo evidence | `frontend-demo/verify/motion/evidence/manifest.json` | Complete for first representative P0 proof | 只证明 demo 代表状态；不替代平台录屏 |
+| Gap audit | `frontend-demo-optimized/MOTION_IMPLEMENTATION_GAP_AUDIT.md` | Complete | 用于区分 demo proof 缺口和平台实现缺口 |
+| Demo coverage | `frontend-demo-optimized/verify/motion/motion-coverage-report.json` | Complete | 证明 canonical demo contract 未断裂 |
+| Demo evidence | `frontend-demo-optimized/verify/motion/evidence/manifest.json` | Complete for first representative P0 proof | 只证明 demo 代表状态；不替代平台录屏 |
 | Startup slices | `docs/ui-handoff/FRONTEND_DEVELOPMENT_SLICE_MATRIX.md` | Complete | 平台按 bounded vertical slice 开工 |
 | Platform evidence request | `docs/ui-handoff/UI_PLATFORM_EVIDENCE_REQUESTS.md` | Complete | 平台仓库按清单补真机/模拟器/测试证据 |
 
@@ -62,7 +62,7 @@ Canonical demo: `/Users/minliny/Documents/Reader UI/frontend-demo`
 
 - 平台可以继承：Motion ID、state fields、token 语义、互斥规则、打断规则、reduced-motion 规则、最终状态约束、验收路径。
 - 平台不能继承：Web CSS、DOM、`data-*` selector、query 参数、截图文件名、fixture route stack、浏览器 viewport 行为。
-- 任何新增 UI route、state、Motion ID 或高风险交互，都必须同步更新 `frontend-demo/route-contract.js`、motion contract/effects/mapping、slice matrix 或 evidence request。
+- 任何新增 UI route、state、Motion ID 或高风险交互，都必须同步更新 `frontend-demo-optimized/route-contract.js`、motion contract/effects/mapping、slice matrix 或 evidence request。
 - 任何平台声称完成，必须回填平台仓库证据；`Reader UI` 只接受证据链接或报告，不替平台测试。
 
 ## 6. Current Start Recommendation

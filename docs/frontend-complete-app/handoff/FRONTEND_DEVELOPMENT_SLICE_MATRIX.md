@@ -13,7 +13,7 @@ Scope: 只定义 `Reader UI` 交付给平台开发的启动顺序和验收输入
 | 目标 | 确认真实开发发生在目标平台 App 仓库或新建平台工程中 |
 | UI 输入 | `README.md`、`FRONTEND_DEVELOPMENT_READINESS.md` |
 | 平台输出 | 构建入口、测试命令、路由宿主、状态管理选型、token adapter 文件落点 |
-| 不做 | 不从 `frontend-demo/` 复制 HTML/CSS/DOM |
+| 不做 | 不从 `frontend-demo-optimized/` 复制 HTML/CSS/DOM |
 | 验收 | 平台仓库能构建最小 App shell，并声明如何消费 UI handoff |
 
 ## Slice 1: AppShell + Main Tabs
@@ -32,7 +32,7 @@ Scope: 只定义 `Reader UI` 交付给平台开发的启动顺序和验收输入
 | 项 | 内容 |
 |---|---|
 | 目标 | 书架封面或继续阅读入口进入 `immersive-reading`，返回来源页 |
-| UI 输入 | `frontend-demo/README.md` 的 Reading Flow、`route-contract.js` 的 `bookshelf` / `immersive-reading` / `reader` |
+| UI 输入 | `frontend-demo-optimized/README.md` 的 Reading Flow、`route-contract.js` 的 `bookshelf` / `immersive-reading` / `reader` |
 | Motion 输入 | `reader.entry.coverToImmersive`、`reader.entry.actionToImmersive`、`app.route.push`、`app.route.pop` |
 | 平台实现 | 原生 route/back stack、ReaderContext、阅读正文 surface、封面 source fallback |
 | 不做 | 不自动显示阅读控制层；不把封面强行 morph 成正文；不跨 hinge 做封面飞行 |

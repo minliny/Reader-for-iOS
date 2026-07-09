@@ -6,7 +6,7 @@ Date: 2026-07-04
 
 Canonical source: `/Users/minliny/Documents/Reader UI/frontend-demo`
 
-This document answers a narrower question than the architecture plan: what is still missing before the Reader frontend can be called a complete usable app. In the current architecture, "complete usable frontend app" means native iOS / Android / HarmonyOS apps that consume Reader UI contracts and render native UI. It does not mean shipping `frontend-demo/` as a WebView or shared Web runtime.
+This document answers a narrower question than the architecture plan: what is still missing before the Reader frontend can be called a complete usable app. In the current architecture, "complete usable frontend app" means native iOS / Android / HarmonyOS apps that consume Reader UI contracts and render native UI. It does not mean shipping `frontend-demo-optimized/` as a WebView or shared Web runtime.
 
 ## 1. Scope
 
@@ -33,7 +33,7 @@ Use this file as the parent checklist. Use the follow-up matrices as platform/Co
 | Area | Current evidence | Meaning |
 | --- | --- | --- |
 | Demo route render | Browser smoke previously verified `131/131` `captureRoute` pages open with non-empty active stage. | Demo is useful as canonical visual and interaction sample. |
-| Motion coverage | `node frontend-demo/verify/motion/verify-motion-coverage.mjs` passes `29/29`; route render coverage `131`, unresolved `0`, selector data coverage `151/183`. | Demo motion registry is strong, but not a full native implementation. |
+| Motion coverage | `node frontend-demo-optimized/verify/motion/verify-motion-coverage.mjs` passes `29/29`; route render coverage `131`, unresolved `0`, selector data coverage `151/183`. | Demo motion registry is strong, but not a full native implementation. |
 | Contract tests | `node --test contracts/tests/*.test.mjs` passes `162/162`. | Schema, fixtures, generated type consistency, slice fixtures, P0 matrix, motion guard, token group, Core/Host boundary checks, and demo strict/exception consistency are healthy. |
 | Codegen drift | `node tools/codegen/check-drift.mjs` passes; `generated/` matches schema + fixtures. | Generated Swift / Kotlin / ArkTS files are reproducible. |
 | Handoff readiness | `verify-ui-handoff-readiness.mjs` has `1/8` failure: `Package.swift` is treated as an unexpected production entry. | Handoff policy needs to allow contract-only Swift Package or remove it. |
@@ -92,7 +92,7 @@ Current overall assessment:
 
 | ID | Gap | Owner | Current evidence | Impact | Acceptance |
 | --- | --- | --- | --- | --- | --- |
-| P2-01 | Demo renderer maintainability | Reader UI | `frontend-demo/render-runtime.js` is over 10k lines and owns 131 route cases. | Changes are risky and hard to review. | Split renderer by shell or feature without changing route/motion/state output. |
+| P2-01 | Demo renderer maintainability | Reader UI | `frontend-demo-optimized/render-runtime.js` is over 10k lines and owns 131 route cases. | Changes are risky and hard to review. | Split renderer by shell or feature without changing route/motion/state output. |
 | P2-02 | Full 131-route native migration strategy | Platforms | Slice matrix warns against all-at-once route migration. | Teams may attempt broad shallow parity and miss behavior. | Maintain route priority tiers: P0 slices first, P1 business flows next, P2 long tail last. |
 | P2-03 | Large screen and fold matrix | Platforms | Motion docs define orientation/fold expectations, platform proof missing. | Tablet/fold layouts can break reader context and overlay focus. | Add device matrix and acceptance recordings for orientation, fold, hinge, pane, and resize. |
 | P2-04 | Localization and content scale | Platforms + Reader UI | Demo text is Chinese fixture-heavy, with some long-title samples. | Dynamic text, language, and accessibility size can overflow. | Snapshot tests for long text, dynamic font size, and platform-specific text scaling. |

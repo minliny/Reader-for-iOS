@@ -86,7 +86,7 @@ contracts/VERSION.json
 
 ## 7. 与 demo 的关系
 
-- `frontend-demo/` 不需要随 contract 版本升级。
+- `frontend-demo-optimized/` 不需要随 contract 版本升级。
 - demo 是 contract 的语义参考，不是版本载体。
 - demo 中出现的 route / motion / state 必须在 contract 中找到，否则视为 contract 缺漏，需补 schema。
 

@@ -12,7 +12,7 @@ Parent matrix: `docs/frontend-complete-app/FRONTEND_COMPLETE_APP_GAP_MATRIX.md`
 
 This file turns the parent gap matrix into iOS-specific work. Current pass selected the canonical Xcode project/scheme, wired the generated Reader UI Swift contract into the XcodeGen graph, connected TokenAdapter/MotionAdapter to generated registries, and expanded Slice 0/1 reducer + adapter golden coverage. Focused build-for-testing passes, focused XCTest execution now passes through the existing `.xctestrun` artifact with `xcodebuild test-without-building`, and a Slice 1 native bookshelf AppShell screenshot is captured in-repo. Direct project `xcodebuild test` still blocks during package/test startup.
 
-iOS must implement native SwiftUI UI. It must not ship `frontend-demo/` through WebView as the production app.
+iOS must implement native SwiftUI UI. It must not ship `frontend-demo-optimized/` through WebView as the production app.
 
 ## 2. iOS Preflight
 

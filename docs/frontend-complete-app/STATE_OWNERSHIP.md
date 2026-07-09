@@ -49,7 +49,7 @@ Owner：Platform Interaction Reducer。本仓库通过 `ui-state.schema.json` �
 | `error` | object \| null | 错误信息：`{ code, message, retryable }` |
 | `reducedMotion` | boolean | 是否启用减少动态效果 |
 
-页面级派生 UiState（来自 Reader UI frontend-demo/render-runtime.js 的 `appState.*`）：
+页面级派生 UiState（来自 Reader UI frontend-demo-optimized/render-runtime.js 的 `appState.*`）：
 
 - `discoverFilter` / `discoverSort` / `discoverSortOpen`
 - `readerTurnDirection`：`next / prev`
@@ -107,7 +107,7 @@ EphemeralState 可以保留在平台 UI 内，但不能参与业务判断
 
 ## 6. StateRule / 互斥 / async guard
 
-来源：各页交互规则稿与 Reader UI frontend-demo/MOTION_CONTRACT.md。
+来源：各页交互规则稿与 Reader UI frontend-demo-optimized/MOTION_CONTRACT.md。
 
 互斥规则：
 

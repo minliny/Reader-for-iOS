@@ -3,7 +3,7 @@
 状态：Phase 1 P0 可执行参考规格
 日期：2026-07-04
 权威源：[token.schema.json](./token.schema.json)、[token.fixtures.json](./fixtures/token.fixtures.json)
-来源：[frontend-demo/tokens.css](../frontend-demo/tokens.css)、[frontend-demo/motion-tokens.css](../frontend-demo/motion-tokens.css)、[docs/ui-design/01-全局规范/](../docs/ui-design/01-全局规范/)、各页 `08-*视觉规格.md`
+来源：[frontend-demo-optimized/tokens.css](../frontend-demo-optimized/tokens.css)、[frontend-demo-optimized/motion-tokens.css](../frontend-demo-optimized/motion-tokens.css)、[docs/ui-design/01-全局规范/](../docs/ui-design/01-全局规范/)、各页 `08-*视觉规格.md`
 
 本文是 P0 阶段"Token 和视觉规范"。定义语义 token 分组、三端 TokenAdapter 映射规则、raw 值检查口径。Token 数值以 [token.fixtures.json](./fixtures/token.fixtures.json) 为唯一源；本文不重复数值，只定义分组、映射、检查规则。
 
@@ -25,19 +25,19 @@
 来源：[token.schema.json](./token.schema.json) `name` 字段 pattern。
 
 ```
---reader-ds-<category>-<semantic>
+--fd-ds-<category>-<semantic>
 ```
 
-- 前缀固定 `--reader-ds-`
+- 前缀固定 `--fd-ds-`
 - `<category>` ∈ `color / font / type / spacing / size / radius / shadow / elevation / z-index / text-constraint / motion-duration / motion-easing`
-- `<semantic>` 描述用途，不允许使用 raw 数值（如 `--reader-ds-color-fff8f4` 禁止）
+- `<semantic>` 描述用途，不允许使用 raw 数值（如 `--fd-ds-color-fff8f4` 禁止）
 - 一经发布不得改名，只能 `deprecated: true` + `replacedBy`
 
 禁止命名：
-- `--reader-ds-color-#fff8f4`（带 hex 值）
-- `--reader-ds-spacing-16`（带 px 数值）
-- `--reader-ds-radius-4`（带 px 数值）
-- `--reader-ds-motion-duration-220`（带 ms 数值）
+- `--fd-ds-color-#fff8f4`（带 hex 值）
+- `--fd-ds-spacing-16`（带 px 数值）
+- `--fd-ds-radius-4`（带 px 数值）
+- `--fd-ds-motion-duration-220`（带 ms 数值）
 
 ## 2. 语义 token 分组
 
@@ -49,19 +49,19 @@
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-color-paper` | color | 默认纸张色 |
-| `--reader-ds-color-paper-bright` | color | 亮纸张色 |
-| `--reader-ds-color-ink` | color | 正文墨色 |
-| `--reader-ds-color-control-ink` | color | 控制层文字色 |
-| `--reader-ds-font-serif` | font | 阅读正文衬线字体 |
-| `--reader-ds-type-reader-body-size` | type | 阅读正文字号 |
-| `--reader-ds-text-reader-line-length` | text-constraint | 阅读正文行宽（ch 单位）|
+| `--fd-ds-color-paper` | color | 默认纸张色 |
+| `--fd-ds-color-paper-bright` | color | 亮纸张色 |
+| `--fd-ds-color-ink` | color | 正文墨色 |
+| `--fd-ds-color-control-ink` | color | 控制层文字色 |
+| `--fd-ds-font-serif` | font | 阅读正文衬线字体 |
+| `--fd-ds-type-reader-body-size` | type | 阅读正文字号 |
+| `--fd-ds-text-reader-line-length` | text-constraint | 阅读正文行宽（ch 单位）|
 
 夜间模式 token：当前 fixtures 暂未拆分 night 子组，由 `reader.nightState.toggle` 触发平台 TokenAdapter 切换为系统 dark color set。后续如需明确夜间主题 token，按以下命名补入 fixtures：
 ```
---reader-ds-color-paper-night
---reader-ds-color-ink-night
---reader-ds-color-control-ink-night
+--fd-ds-color-paper-night
+--fd-ds-color-ink-night
+--fd-ds-color-control-ink-night
 ```
 
 ### 2.2 字号 / 行距 / 页边距组（reading-typography）
@@ -70,89 +70,89 @@
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-type-app-title-size` | type | App 标题（20px）|
-| `--reader-ds-type-page-title-size` | type | 页面标题（20px）|
-| `--reader-ds-type-section-title-size` | type | 区段标题（15px）|
-| `--reader-ds-type-book-title-size` | type | 书籍标题（14px）|
-| `--reader-ds-type-book-meta-size` | type | 书籍元信息（12px）|
-| `--reader-ds-type-reader-body-size` | type | 阅读正文（18px）|
-| `--reader-ds-type-reader-control-label-size` | type | 阅读控制层标签（12px）|
+| `--fd-ds-type-app-title-size` | type | App 标题（20px）|
+| `--fd-ds-type-page-title-size` | type | 页面标题（20px）|
+| `--fd-ds-type-section-title-size` | type | 区段标题（15px）|
+| `--fd-ds-type-book-title-size` | type | 书籍标题（14px）|
+| `--fd-ds-type-book-meta-size` | type | 书籍元信息（12px）|
+| `--fd-ds-type-reader-body-size` | type | 阅读正文（18px）|
+| `--fd-ds-type-reader-control-label-size` | type | 阅读控制层标签（12px）|
 
-行距：当前由 `ReadingTextFlow` 平台排版层用 platform line-height 默认值实现；如需统一行距 token，按 `--reader-ds-type-reader-line-height` 命名补入 fixtures。
+行距：当前由 `ReadingTextFlow` 平台排版层用 platform line-height 默认值实现；如需统一行距 token，按 `--fd-ds-type-reader-line-height` 命名补入 fixtures。
 
 页边距：
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-space-screen-padding` | spacing | 屏幕边距（16px）|
-| `--reader-ds-space-card-padding` | spacing | 卡片内边距（14px）|
-| `--reader-ds-space-safe-area-top` | spacing | 顶部安全区（24px）|
-| `--reader-ds-space-safe-area-bottom` | spacing | 底部安全区（14px）|
-| `--reader-ds-space-safe-area-horizontal` | spacing | 水平安全区（16px）|
-| `--reader-ds-space-keyboard-gap` | spacing | 键盘与内容间距（12px）|
+| `--fd-ds-space-screen-padding` | spacing | 屏幕边距（16px）|
+| `--fd-ds-space-card-padding` | spacing | 卡片内边距（14px）|
+| `--fd-ds-space-safe-area-top` | spacing | 顶部安全区（24px）|
+| `--fd-ds-space-safe-area-bottom` | spacing | 底部安全区（14px）|
+| `--fd-ds-space-safe-area-horizontal` | spacing | 水平安全区（16px）|
+| `--fd-ds-space-keyboard-gap` | spacing | 键盘与内容间距（12px）|
 
-阅读器正文页边距：当前由 `ReadingTextFlow` 平台排版层在 `--reader-ds-space-screen-padding` 基础上派生；如需明确阅读页边距 token，按 `--reader-ds-space-reader-margin` 命名补入 fixtures。
+阅读器正文页边距：当前由 `ReadingTextFlow` 平台排版层在 `--fd-ds-space-screen-padding` 基础上派生；如需明确阅读页边距 token，按 `--fd-ds-space-reader-margin` 命名补入 fixtures。
 
 ### 2.3 卡片组（card）
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-color-surface` | color | 卡片底色 |
-| `--reader-ds-color-surface-soft` | color | 软卡片底色 |
-| `--reader-ds-space-card-padding` | spacing | 卡片内边距 |
-| `--reader-ds-radius-card` | radius | 卡片圆角 |
-| `--reader-ds-elevation-card` | elevation | 卡片高度 |
-| `--reader-ds-shadow-soft` | shadow | 卡片软阴影 |
+| `--fd-ds-color-surface` | color | 卡片底色 |
+| `--fd-ds-color-surface-soft` | color | 软卡片底色 |
+| `--fd-ds-space-card-padding` | spacing | 卡片内边距 |
+| `--fd-ds-radius-card` | radius | 卡片圆角 |
+| `--fd-ds-elevation-card` | elevation | 卡片高度 |
+| `--fd-ds-shadow-soft` | shadow | 卡片软阴影 |
 
 ### 2.4 列表组（list）
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-color-surface` | color | 列表项底色（与卡片共用）|
-| `--reader-ds-color-border` | color | 列表分隔线 |
-| `--reader-ds-space-md` | spacing | 列表行垂直间距 |
-| `--reader-ds-space-screen-padding` | spacing | 列表水平边距 |
+| `--fd-ds-color-surface` | color | 列表项底色（与卡片共用）|
+| `--fd-ds-color-border` | color | 列表分隔线 |
+| `--fd-ds-space-md` | spacing | 列表行垂直间距 |
+| `--fd-ds-space-screen-padding` | spacing | 列表水平边距 |
 
 ### 2.5 按钮组（button）
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-color-primary` | color | 主按钮底色 |
-| `--reader-ds-color-primary-dark` | color | 主按钮按下态 |
-| `--reader-ds-color-accent` | color | 强调按钮 |
-| `--reader-ds-radius-control` | radius | 按钮圆角（pill）|
-| `--reader-ds-motion-duration-buttonPress` | motion-duration | 按钮按下反馈 |
-| `--reader-ds-motion-duration-buttonActivate` | motion-duration | 按钮释放确认 |
-| `--reader-ds-motion-duration-toggleSwitch` | motion-duration | toggle/switch/checkbox |
+| `--fd-ds-color-primary` | color | 主按钮底色 |
+| `--fd-ds-color-primary-dark` | color | 主按钮按下态 |
+| `--fd-ds-color-accent` | color | 强调按钮 |
+| `--fd-ds-radius-control` | radius | 按钮圆角（pill）|
+| `--fd-ds-motion-duration-buttonPress` | motion-duration | 按钮按下反馈 |
+| `--fd-ds-motion-duration-buttonActivate` | motion-duration | 按钮释放确认 |
+| `--fd-ds-motion-duration-toggleSwitch` | motion-duration | toggle/switch/checkbox |
 
 ### 2.6 Tab 组（tab）
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-color-bottom-bar-bg` | color | 底部导航背景 |
-| `--reader-ds-size-bottom-bar-height` | size | 底部导航高度 |
-| `--reader-ds-size-main-nav-height` | size | 主导航高度 |
-| `--reader-ds-z-main-nav` | z-index | 主导航层级 |
-| `--reader-ds-motion-duration-tabPress` | motion-duration | tab 按下反馈 |
-| `--reader-ds-motion-duration-tabSelect` | motion-duration | tab 选中切换 |
-| `--reader-ds-motion-duration-tabSwitch` | motion-duration | tab 之间切换 |
+| `--fd-ds-color-bottom-bar-bg` | color | 底部导航背景 |
+| `--fd-ds-size-bottom-bar-height` | size | 底部导航高度 |
+| `--fd-ds-size-main-nav-height` | size | 主导航高度 |
+| `--fd-ds-z-main-nav` | z-index | 主导航层级 |
+| `--fd-ds-motion-duration-tabPress` | motion-duration | tab 按下反馈 |
+| `--fd-ds-motion-duration-tabSelect` | motion-duration | tab 选中切换 |
+| `--fd-ds-motion-duration-tabSwitch` | motion-duration | tab 之间切换 |
 
 ### 2.7 Overlay 组（overlay）
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-color-floating-control-bg` | color | overlay 背景 |
-| `--reader-ds-color-floating-control-bg-alt` | color | overlay 备用背景 |
-| `--reader-ds-color-meta-bg` | color | meta 区背景 |
-| `--reader-ds-size-reader-bottom-sheet-min-height` | size | reader 底表最小高度 |
-| `--reader-ds-size-reader-module-nav-height` | size | reader 模块导航高度 |
-| `--reader-ds-radius-bottom-sheet` | radius | 底表圆角 |
-| `--reader-ds-z-overlay` | z-index | overlay 层级 |
-| `--reader-ds-z-bottom-sheet` | z-index | 底表层级 |
-| `--reader-ds-z-reader-module-nav` | z-index | reader 模块导航层级 |
-| `--reader-ds-z-dialog` | z-index | dialog 层级 |
-| `--reader-ds-shadow-elevated` | shadow | overlay 阴影 |
-| `--reader-ds-motion-duration-overlay` | motion-duration | overlay 进入退出 |
+| `--fd-ds-color-floating-control-bg` | color | overlay 背景 |
+| `--fd-ds-color-floating-control-bg-alt` | color | overlay 备用背景 |
+| `--fd-ds-color-meta-bg` | color | meta 区背景 |
+| `--fd-ds-size-reader-bottom-sheet-min-height` | size | reader 底表最小高度 |
+| `--fd-ds-size-reader-module-nav-height` | size | reader 模块导航高度 |
+| `--fd-ds-radius-bottom-sheet` | radius | 底表圆角 |
+| `--fd-ds-z-overlay` | z-index | overlay 层级 |
+| `--fd-ds-z-bottom-sheet` | z-index | 底表层级 |
+| `--fd-ds-z-reader-module-nav` | z-index | reader 模块导航层级 |
+| `--fd-ds-z-dialog` | z-index | dialog 层级 |
+| `--fd-ds-shadow-elevated` | shadow | overlay 阴影 |
+| `--fd-ds-motion-duration-overlay` | motion-duration | overlay 进入退出 |
 
 ### 2.8 夜间模式组（night-mode）
 
@@ -161,15 +161,15 @@
 策略：
 - 不在本仓定义 `*-night` token（避免与系统 dark set 重复）。
 - 平台 TokenAdapter 必须实现"light/dark 双值"，依据 `ui-state.readerMode` 或系统 appearance 切换。
-- 如需明确夜间主题 token（如阅读器专用夜间配色），按 `--reader-ds-color-*-night` 命名补入 fixtures。
+- 如需明确夜间主题 token（如阅读器专用夜间配色），按 `--fd-ds-color-*-night` 命名补入 fixtures。
 
 ### 2.9 RSS / 状态色组（rss-status）
 
 | Token | Category | 用途 |
 | --- | --- | --- |
-| `--reader-ds-color-rss-unread` | color | RSS 未读标识色 |
-| `--reader-ds-color-muted` | color | 次要文字色 |
-| `--reader-ds-color-border` | color | 边框色 |
+| `--fd-ds-color-rss-unread` | color | RSS 未读标识色 |
+| `--fd-ds-color-muted` | color | 次要文字色 |
+| `--fd-ds-color-border` | color | 边框色 |
 
 ### 2.10 Motion 组（motion）
 
@@ -274,13 +274,13 @@ P0 阶段建议先实现 grep 检查；AST 检查作为 Phase 5 验收门槛（�
 
 ### 4.3 demo 例外
 
-`frontend-demo/` 是浏览器 demo，使用 CSS variable 直接引用 token：
+`frontend-demo-optimized/` 是浏览器 demo，使用 CSS variable 直接引用 token：
 ```css
-background: var(--reader-ds-color-paper);
-padding: var(--reader-ds-space-md);
+background: var(--fd-ds-color-paper);
+padding: var(--fd-ds-space-md);
 ```
 
-CSS variable 使用不算 raw 值。但 `frontend-demo/styles/*.css` 中如出现 `background: #fff8f4` 而不是 `var(--reader-ds-color-paper)`，视为漂移，应修正或补入 fixtures。
+CSS variable 使用不算 raw 值。但 `frontend-demo-optimized/styles/*.css` 中如出现 `background: #fff8f4` 而不是 `var(--fd-ds-color-paper)`，视为漂移，应修正或补入 fixtures。
 
 ## 5. token.fixtures.json `platforms` 字段补全策略
 

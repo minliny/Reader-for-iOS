@@ -4,8 +4,8 @@
 
 本报告承接前端五层审计中的第 1 层视觉还原审计，只比较 `Reader UI/frontend-demo` 与 iOS 原生 XCTest 截图在同 route、同 viewport 下的像素差异。
 
-- 合同来源：`/Users/minliny/Documents/Reader UI/frontend-demo/route-contract.js`
-- Web baseline：`/Users/minliny/Documents/Reader UI/frontend-demo/index.html?motionReduced=1&captureRoute=<route>`
+- 合同来源：`/Users/minliny/Documents/Reader UI/frontend-demo-optimized/route-contract.js`
+- Web baseline：`/Users/minliny/Documents/Reader UI/frontend-demo-optimized/index.html?motionReduced=1&captureRoute=<route>`
 - iOS 原生证据：`/tmp/reader-ios-frontend-audit-20260705-complete/manifest.json`
 - Pixel audit 输出：`/tmp/reader-ios-frontend-pixel-parity-20260705-full`
 

@@ -90,7 +90,7 @@ Core 任务完成前，三端可以做 Slice 0/1 骨架，但不能声称真实�
 
 ## 6. 禁止事项
 
-- 不允许把 `frontend-demo/` 放进 WebView 当生产 UI。
+- 不允许把 `frontend-demo-optimized/` 放进 WebView 当生产 UI。
 - 不允许三端直接写 bookshelf / RSS / search history / progress / sync conflict 持久化。
 - 不允许绕过 generated types 手写 RouteId / MotionId / Token enum。
 - 不允许用截图相似度替代 reducer / Core / Host evidence。

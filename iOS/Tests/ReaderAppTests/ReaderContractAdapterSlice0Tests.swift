@@ -14,10 +14,10 @@ final class ReaderContractAdapterSlice0Tests: XCTestCase {
     func testTokenAdapterMapsSliceOneSemanticTokens() throws {
         let decoder = JSONDecoder()
         let paper = try decoder.decode(ReaderUIContract.Token.self, from: Data("""
-        {"name":"--reader-ds-color-paper","category":"color","value":"#fff8f4"}
+        {"name":"--fd-ds-color-paper","category":"color","value":"#fff8f4"}
         """.utf8))
         let navHeight = try decoder.decode(ReaderUIContract.Token.self, from: Data("""
-        {"name":"--reader-ds-size-main-nav-height","category":"size","value":"68px"}
+        {"name":"--fd-ds-size-main-nav-height","category":"size","value":"68px"}
         """.utf8))
 
         XCTAssertNotNil(ReaderTokenAdapter.color(for: paper, colorScheme: .light))
@@ -26,12 +26,12 @@ final class ReaderContractAdapterSlice0Tests: XCTestCase {
     }
 
     func testTokenAdapterReadsGeneratedTokenRegistry() throws {
-        let paper = try XCTUnwrap(ReaderTokenAdapter.token(named: "--reader-ds-color-paper"))
-        XCTAssertEqual(paper, ReaderUIContract.TokenRegistry.token(named: "--reader-ds-color-paper"))
+        let paper = try XCTUnwrap(ReaderTokenAdapter.token(named: "--fd-ds-color-paper"))
+        XCTAssertEqual(paper, ReaderUIContract.TokenRegistry.token(named: "--fd-ds-color-paper"))
         XCTAssertEqual(paper.category, .color)
         XCTAssertNotNil(ReaderTokenAdapter.color(for: paper, colorScheme: .light))
 
-        let tabSwitch = try XCTUnwrap(ReaderTokenAdapter.token(named: "--reader-ds-motion-duration-tabSwitch"))
+        let tabSwitch = try XCTUnwrap(ReaderTokenAdapter.token(named: "--fd-ds-motion-duration-tabSwitch"))
         XCTAssertEqual(tabSwitch.category, .motionDuration)
         let tabSwitchDuration = try XCTUnwrap(
             ReaderTokenAdapter.duration(for: tabSwitch, motion: MotionEnvironment(override: false))

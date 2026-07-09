@@ -4,7 +4,7 @@
 
 本报告承接前端五层审计中的第 1 层和第 5 层，只审计 iOS 原生截图证据覆盖，不把截图 smoke 误判为完整视觉还原。
 
-- 合同来源：`/Users/minliny/Documents/Reader UI/frontend-demo/route-contract.js`
+- 合同来源：`/Users/minliny/Documents/Reader UI/frontend-demo-optimized/route-contract.js`
 - iOS 路由来源：`iOS/Navigation/DemoRouteMapping.swift`
 - iOS 原生证据：`DemoRouteFamilySimulatorSmokeTests` 的 xcresult 附件导出
 - 本轮导出目录：`/tmp/reader-ios-frontend-audit-20260705-complete`

@@ -3,7 +3,7 @@
 状态：Phase 3 三端开发切片
 日期：2026-07-04
 权威源：[CONTRACT_FIRST_NATIVE_UI_PLAN.md](./CONTRACT_FIRST_NATIVE_UI_PLAN.md) §9、[PAGE_REFERENCE.md](./PAGE_REFERENCE.md)、[MOTION_SPEC.md](./MOTION_SPEC.md)、[CORE_HOST_BOUNDARY.md](./CORE_HOST_BOUNDARY.md)、[PLATFORM_EVIDENCE_SPEC.md](./PLATFORM_EVIDENCE_SPEC.md)
-来源：[frontend-demo/MOTION_IMPLEMENTATION_GAP_AUDIT.md](../frontend-demo/MOTION_IMPLEMENTATION_GAP_AUDIT.md) UI/Platform Ownership Split
+来源：[frontend-demo-optimized/MOTION_IMPLEMENTATION_GAP_AUDIT.md](../frontend-demo-optimized/MOTION_IMPLEMENTATION_GAP_AUDIT.md) UI/Platform Ownership Split
 
 本文是阶段 3"三端开发切片"。定义 Slice 0..N 启动顺序、每个 slice 的输入文档、每端必须产出的源码/测试/截图/录屏/设备证据、并行/串行约束。
 

@@ -2,13 +2,13 @@
 
 状态：Draft v0.1
 
-范围：基于当前 `frontend-demo/` 和三份动效规划文档，审计从“完整规划初稿”到“可交给各平台排期实现”的剩余缺口。
+范围：基于当前 `frontend-demo-optimized/` 和三份动效规划文档，审计从“完整规划初稿”到“可交给各平台排期实现”的剩余缺口。
 
 结论：当前已有方向、Motion ID、效果描述、平台映射、第一版可执行 registry 和关键 Motion ID 的 contract 层状态机，但仍缺组件级实现状态机、录屏证据、平台测试映射和设备验证。以下缺口全部需要补齐。
 
 收束原则：
 
-- `frontend-demo/` 的下一步只补 Contract proof 和高风险链路证据，不继续扩展成三端最终实现。
+- `frontend-demo-optimized/` 的下一步只补 Contract proof 和高风险链路证据，不继续扩展成三端最终实现。
 - Web CSS、DOM、`data-*` selector、query 参数和 fixture route stack 只服务 demo 取证；平台只能继承 Motion ID、state fields、token 语义、打断规则、reduced-motion 和验收结果。
 - 平台最终实现必须在 Android Compose / iOS SwiftUI / HarmonyOS ArkUI 内用原生组件、导航、手势、safe area、keyboard inset、fold posture、accessibility focus 和性能工具自证。
 
@@ -27,7 +27,7 @@
 
 | 缺口 | 当前状态 | 需要补充 | 验收标准 |
 |---|---|---|---|
-| Motion token 落地 | 已新增 `frontend-demo/motion-tokens.css`，并把 `frontend-demo/styles/` 中裸写的 `160ms`、`220ms`、`0.8s` 替换为 token；通用控件也已接入基础 motion token | 继续做视觉回归，确认 token 替换没有改变既有布局和关键节奏 | `rg "160ms|220ms|0.8s" frontend-demo/styles` 不命中；关键路径截图/录屏无非预期变化 |
+| Motion token 落地 | 已新增 `frontend-demo-optimized/motion-tokens.css`，并把 `frontend-demo-optimized/styles/` 中裸写的 `160ms`、`220ms`、`0.8s` 替换为 token；通用控件也已接入基础 motion token | 继续做视觉回归，确认 token 替换没有改变既有布局和关键节奏 | `rg "160ms|220ms|0.8s" frontend-demo-optimized/styles` 不命中；关键路径截图/录屏无非预期变化 |
 | Reduced motion 实装 | 已新增 `@media (prefers-reduced-motion: reduce)`、`data-motion-reduced` 和 `?motionReduced=1/0` 测试开关；翻页、loading、通用控件 transition 已降级 | 补 reduced-motion capture，覆盖键盘、底表、弹窗、封面进入、控制层、翻页、loading、折叠重排 | 系统 reduced motion 或 `?motionReduced=1` 下移除位移/循环动画，状态反馈仍可辨认 |
 | 可执行 Motion Contract Registry | `motion-controller.js` 已暴露 `ReaderMotionController.CONTRACT`，可把当前 renderer 的 Motion ID 解析到 family、token、state fields、state machine、平台组件和证据规则；`verify-motion-coverage.mjs` 已校验 registry 解析、状态机字段和 47 个关键 Motion ID 的精确状态机 | 继续把 exact state machine 扩展到全部 P0/P1 Motion ID，并绑定实际组件状态机 | 当前绑定和 runtime 必需 Motion ID 全部能解析并具备状态机；平台不能照抄 CSS，只能按 registry 的 Motion ID、state fields、state machine、token 和证据要求映射原生实现 |
 | TAB / segmented 状态动效 | 已补 `tab.item.press/select/switch` 和 `segment.item.switch` contract 状态机；主 TAB、阅读模块 TAB 和 segmented control 已接入 `data-motion-tab-*` / `data-motion-segment-*` 状态、`data-motion-press-id`、token 化 pressed/select/switch CSS 和 `reader.module.switch` / `segment.item.switch` 事务 | 补主 TAB / 阅读模块 TAB / segmented control 的录屏证据，并继续确认 indicator/active 层不推动布局 | 按下、单按钮选中、A -> B 切换、重复点击 active 行为可区分；栏尺寸稳定 |
@@ -42,7 +42,7 @@
 | 控制胶囊内部微动效 | 已补 `.fd-ir-status-controls button` / `data-reader-capsule-control` 局部按压、play/pause 状态、`data-reader-capsule-countdown` 数字 tick、`data-reader-capsule-voice` 播放态 pulse 和 reduced-motion 静态降级 | 补录屏证据、真实触摸按压和停止/切换时的退出验证 | 按钮切换不打开控制层；数字变化不重放整颗胶囊；朗读图标播放时轻提示、暂停静态 |
 | 整屏旋转适配与动效 | 已补 `viewport.orientation.prepare/reshape/settle` 第一版实现层 adapter；resize / `visualViewport.resize` 发生方向或 viewport class 变化时，root / screen host 会写入 `data-motion-orientation-*`，记录 route、session、overlay、focus、dock sync、from/to viewport 和 reanchor 状态，并用 token 化 anchor settle 动效；宽屏 dock 会复用 resize clamp/rebound | 补真实旋转录屏、折叠屏 hinge/pane 验证、正文字符锚点重分页证据、overlay/focus 恢复自动化和平台测试映射 | portrait <-> landscape、compact-landscape、tablet-expanded resize 下，route/返回栈/active session 不丢；正文不跳章；控制层/胶囊/overlay/dock 都落到合法位置 |
 | 打断动画状态机 | 已补 `motion.interrupt.cancel/redirect/completeThenReplace` 第一版实现层 adapter；route push/replace/back、Tab 切换、viewport 变化、loading 完成、宽屏 dock 拖动开始、pointer cancel、连续下拉 A->B 和 reader loading 异步结果会写入 root / screen host 或 dropdown switch / async result 状态，清理 pressed、tab/segment/dropdown pressed、handle dragging 和 dock dragging 临时状态，并接入 token 化 `interruptSettle` / dropdown switch / async completion CSS | 补 overlay 关闭、焦点恢复自动化、真实交互录屏和平台测试映射 | 连续点击、返回、关闭、loading 完成、拖动开始后最终状态唯一；旧异步结果不能覆盖新 route |
-| Motion capture 证据 | 已建立 `frontend-demo/verify/motion/` 和 `selector-matrix/` 证据目录说明，并补第一批代表性浏览器截图：首启、Tab、下拉、封面进入、自动翻页胶囊、控制层上方胶囊锚点、orientation 和 interrupt 已写入 `evidence/manifest.json` 且进入 coverage gate | 只为高风险 Motion ID 继续补代表录屏/GIF/关键帧截图，并回填到 `MOTION_SELECTOR_MATRIX.md` 的 Evidence 列；低风险通用控件以 selector matrix + coverage + 少量代表证据为准 | P0 高风险 Motion ID 至少一份 demo proof；证据命名可追溯；明确该证据不等于平台真机录屏 |
+| Motion capture 证据 | 已建立 `frontend-demo-optimized/verify/motion/` 和 `selector-matrix/` 证据目录说明，并补第一批代表性浏览器截图：首启、Tab、下拉、封面进入、自动翻页胶囊、控制层上方胶囊锚点、orientation 和 interrupt 已写入 `evidence/manifest.json` 且进入 coverage gate | 只为高风险 Motion ID 继续补代表录屏/GIF/关键帧截图，并回填到 `MOTION_SELECTOR_MATRIX.md` 的 Evidence 列；低风险通用控件以 selector matrix + coverage + 少量代表证据为准 | P0 高风险 Motion ID 至少一份 demo proof；证据命名可追溯；明确该证据不等于平台真机录屏 |
 | 折叠屏/大屏验证 | 当前只有 viewport class 规划和部分 adaptive PNG | 增加 fold/open/collapse/compact-landscape 的手动或模拟器验证矩阵 | ReaderContext、overlay、返回栈、正文分页映射均有证据 |
 | 平台实现映射到组件 | 平台映射已补通用组件族和 Reader 主链路的组件级方向，并新增 Contract / Demo proof / Platform implementation 分层 | 继续为高风险 Motion ID 标明平台组件、state 字段、测试文件/验收方式和真机证据类型 | Compose/SwiftUI/ArkUI 可按 native work item 拆任务；不引用 Web CSS/DOM 作为实现依据 |
 
@@ -83,7 +83,7 @@
 12. 已完成第一版：`reader.session.capsule.control.*`、`reader.session.capsule.countdownTick` 和 `reader.session.capsule.voiceIcon.active` 已接入局部按钮、倒计时数字和朗读图标状态；下一步补真实设备/录屏证据。
 13. 已完成第一版：`motion.interrupt.*` 已接入统一 interrupt adapter、root/screen host `data-motion-interrupt-*`、临时 pressed/dragging/dropdown 清理、route/Tab/viewport/loading/dock drag/连续下拉 A->B 入口和 token 化短收尾；reader loading 结果已补 `data-motion-async-*` request-scoped 状态、取消/过期防覆盖和 completion CSS；下一步补 overlay 关闭、焦点恢复自动化和录屏证据。
 14. 已完成第一版：`overlay.keyboard/sheet/dialog.*` 已接入 `data-motion-overlay-*` role/state/action/focus-return 字段，settings sheet/dialog 主体进入同一 `data-demo-sheet/dialog` 入口，键盘/底表/弹窗基础焦点恢复已通过浏览器验证；下一步补连续 overlay 打断、遮罩互斥、录屏和平台焦点测试。
-15. 已建立 `frontend-demo/verify/motion/evidence/manifest.json` 并补第一批代表性浏览器截图；下一步录制 TAB press/select/switch、下拉栏展开/收起/点击、通用控件族、首启、封面进入、控制层显隐、小横条、宽屏 dock 拖动、整屏旋转、运行胶囊、控制层上方胶囊锚点、翻页、打断、折叠/resize 的完整视频或关键帧序列。
+15. 已建立 `frontend-demo-optimized/verify/motion/evidence/manifest.json` 并补第一批代表性浏览器截图；下一步录制 TAB press/select/switch、下拉栏展开/收起/点击、通用控件族、首启、封面进入、控制层显隐、小横条、宽屏 dock 拖动、整屏旋转、运行胶囊、控制层上方胶囊锚点、翻页、打断、折叠/resize 的完整视频或关键帧序列。
 16. 把平台映射继续细化到 state 字段、测试文件和平台任务拆分。
 
 收束后的优先级：先保留并补证据的 demo 高风险链路是 TAB/dropdown、封面进阅读、阅读控制层、自动翻页/朗读胶囊、控制层上方胶囊锚点、orientation/resize、interrupt、reduced-motion；平台侧优先拆 native work item，包括 token adapter、motion reducer、原生导航、原生 overlay、Reader 控制层手势、运行 session、orientation/fold、accessibility/performance。
@@ -103,5 +103,5 @@
 - 不能声称整屏旋转已有真实设备、折叠屏、正文字符锚点重分页和完整录屏证据；当前已有第一版 `prepare/reshape/settle` adapter、root/screen host 状态、route/session/overlay/focus/dock 元数据、token CSS、coverage gate 和 compact-landscape 代表截图。
 - 不能声称打断动画已有完整自动化和录屏证据；当前已有第一版 `motion.interrupt.*` adapter、临时状态清理、coverage gate 和 Tab switch redirect 代表截图，overlay/focus 状态也有第一版 adapter，连续下拉 A->B 和 reader loading async result 防覆盖已有第一版状态字段，但连续 overlay 打断和完整录屏还需深化。
 - 不能声称 reduced-motion 已完成录屏验证。
-- 不能把 `frontend-demo/` 的 CSS、DOM、`data-*` 字段、截图或 route stack 作为 Android / iOS / HarmonyOS 的最终前端实现依据；它们只证明契约样板。
+- 不能把 `frontend-demo-optimized/` 的 CSS、DOM、`data-*` 字段、截图或 route stack 作为 Android / iOS / HarmonyOS 的最终前端实现依据；它们只证明契约样板。
 - 不能把 demo coverage 通过等同于平台实现完成；平台必须另行提供 native test、真机/模拟器录屏、无障碍和性能证据。

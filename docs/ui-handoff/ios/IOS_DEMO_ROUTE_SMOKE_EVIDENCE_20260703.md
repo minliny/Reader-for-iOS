@@ -1,6 +1,6 @@
 # iOS Demo Route Smoke Evidence - 2026-07-03
 
-Demo baseline: `/Users/minliny/Documents/Reader UI/frontend-demo/render-runtime.js`.
+Demo baseline: `/Users/minliny/Documents/Reader UI/frontend-demo-optimized/render-runtime.js`.
 
 Simulator target: iPhone 17, iOS 26.5, UDID `4647E187-8F40-44D2-AEF4-71B5B4B6F7BB`.
 

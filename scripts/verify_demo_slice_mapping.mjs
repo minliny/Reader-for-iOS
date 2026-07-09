@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
 const mappingPath = path.join(repoRoot, "docs/ui-handoff/ios/IOS_DEMO_BASELINE_ROUTE_MAPPING.md");
 const swiftMappingPath = path.join(repoRoot, "iOS/Navigation/DemoRouteMapping.swift");
-const defaultDemoRouteContractPath = path.resolve(repoRoot, "../Reader UI/frontend-demo/route-contract.js");
+const defaultDemoRouteContractPath = path.resolve(repoRoot, "../Reader UI/frontend-demo-optimized/route-contract.js");
 const demoRouteContractPath = process.env.READER_UI_ROUTE_CONTRACT
   ? path.resolve(process.env.READER_UI_ROUTE_CONTRACT)
   : defaultDemoRouteContractPath;

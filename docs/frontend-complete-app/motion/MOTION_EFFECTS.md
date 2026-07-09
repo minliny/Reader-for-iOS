@@ -12,7 +12,7 @@
 边界说明：
 
 - 本文件描述的是可感知效果和验收语义，不要求平台逐帧复制 Web CSS、DOM 层级或 easing 函数名。
-- `frontend-demo/` 中的位移、透明度、scale、截图和 `data-motion-*` 字段只用于证明 Motion ID 的状态流、打断结果和 reduced-motion 降级。
+- `frontend-demo-optimized/` 中的位移、透明度、scale、截图和 `data-motion-*` 字段只用于证明 Motion ID 的状态流、打断结果和 reduced-motion 降级。
 - 平台最终实现必须按 Compose / SwiftUI / ArkUI 的原生组件、导航、手势、安全区、键盘、fold posture 和无障碍焦点重新落地。
 - Demo proof 可以证明“设计契约已具备”和“关键样板可复现”，不能证明真实设备性能、折叠屏、后台恢复、系统键盘或平台导航栈已经完成。
 
@@ -1151,7 +1151,7 @@ Reduced motion：
 证据分层：
 
 - Contract 证据：Motion ID 有 token、state fields、`from/to`、interrupt、`finalState` 和 reduced-motion 规则。
-- Demo proof 证据：canonical `frontend-demo/` 能用浏览器 route / 点击路径复现状态，coverage 通过，并有代表截图或录屏。
+- Demo proof 证据：canonical `frontend-demo-optimized/` 能用浏览器 route / 点击路径复现状态，coverage 通过，并有代表截图或录屏。
 - Platform 证据：平台仓库用原生 UI 组件完成实现，并提供真机/模拟器录屏、golden、单元测试、无障碍测试或性能数据。
 
 下表的 Demo 验收路径只证明 demo 样板，不替代 Platform 证据。
