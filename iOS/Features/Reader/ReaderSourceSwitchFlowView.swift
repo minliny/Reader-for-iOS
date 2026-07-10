@@ -4,6 +4,10 @@ import ReaderAppSupport
 struct ReaderSourceSwitchFlowView: View {
     private let bookURL: String
     private let onExit: (() -> Void)?
+    /// P0 修复 7：确认换源回调。dispatch `source.switch.confirm` 业务事件后 pop 路由。
+    private let onConfirm: ((String?) -> Void)?
+    /// P0 修复 7：取消换源回调。dispatch `source.switch.cancel` 业务事件后 pop 路由。
+    private let onCancel: (() -> Void)?
     private let candidates: [SourceSwitchCandidate]
     @State private var selectedSource: String
     @State private var resultState: SourceSwitchResultState = .browsing
@@ -12,10 +16,14 @@ struct ReaderSourceSwitchFlowView: View {
     init(
         bookURL: String,
         onExit: (() -> Void)? = nil,
+        onConfirm: ((String?) -> Void)? = nil,
+        onCancel: (() -> Void)? = nil,
         initialResultState: SourceSwitchResultState = .browsing
     ) {
         self.bookURL = bookURL
         self.onExit = onExit
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
         let candidates = SourceSwitchCandidate.demoCandidates.sortedByLatency()
         let initialCandidate = initialResultState == .confirmed
             ? candidates.first(where: { $0.canSwitch }) ?? candidates.first ?? SourceSwitchCandidate.fallback
@@ -30,9 +38,26 @@ struct ReaderSourceSwitchFlowView: View {
         candidates.first { $0.source == selectedSource } ?? candidates.first ?? SourceSwitchCandidate.fallback
     }
 
+    /// P0 修复 7：确认换源 —— dispatch `source.switch.confirm` 业务事件后 pop 路由。
+    /// reducer 层 source_switch_confirm 是业务 stub（不改导航状态，对齐测试契约），
+    /// UI 层在此调用 onExit 完成 pop。
+    private func handleConfirm() {
+        confirmedCandidate = selectedCandidate
+        resultState = .confirmed
+        let sourceId = selectedCandidate.source
+        onConfirm?(sourceId)
+        onExit?()
+    }
+
+    /// P0 修复 7：取消换源 —— dispatch `source.switch.cancel` 业务事件后 pop 路由。
+    private func handleCancel() {
+        onCancel?()
+        onExit?()
+    }
+
     var body: some View {
         DemoFlowShell(title: "换源") {
-            ReaderContinuitySlot(bookURL: bookURL, onExit: onExit)
+            ReaderContinuitySlot(bookURL: bookURL, onExit: handleCancel)
         } comparisonRegion: {
             SourceSwitchWindow(
                 candidates: candidates,
@@ -44,8 +69,7 @@ struct ReaderSourceSwitchFlowView: View {
                 resultState: resultState,
                 confirmedCandidate: confirmedCandidate,
                 onConfirm: {
-                    confirmedCandidate = selectedCandidate
-                    resultState = .confirmed
+                    handleConfirm()
                 },
                 onReset: {
                     confirmedCandidate = nil

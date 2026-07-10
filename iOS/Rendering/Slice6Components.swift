@@ -34,8 +34,8 @@ struct OfflineView: View {
     let props: OfflineProps
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "wifi.slash")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.offline.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             Text("离线模式")
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
@@ -49,8 +49,8 @@ struct OfflineStatePageView: View {
     let props: OfflineStatePageProps
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "wifi.slash")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.offline.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             Text("当前处于离线状态")
                 .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .semibold))
@@ -160,8 +160,8 @@ struct SyncErrorPageView: View {
     let props: SyncErrorPageProps
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.warning.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             if let title = props.title {
                 Text(title)

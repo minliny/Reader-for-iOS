@@ -15,7 +15,7 @@ struct SearchInputBoxView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
+            Image(ReaderAssetIcon.search.assetName)
                 .foregroundColor(ReaderDesignTokens.Color.muted)
             Text(props.query?.isEmpty == false ? props.query! : "搜索书名/作者")
                 .foregroundColor(props.query?.isEmpty == false ? ReaderDesignTokens.Color.ink : ReaderDesignTokens.Color.muted)
@@ -65,8 +65,8 @@ struct GroupSelectorView: View {
             Text("全部分组")
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
                 .foregroundColor(ReaderDesignTokens.Color.muted)
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10))
+            Image(ReaderAssetIcon.chevron.assetName)
+                .font(.system(size: 10)) // 图标尺寸，非文字字号
                 .foregroundColor(ReaderDesignTokens.Color.muted)
             Spacer()
         }
@@ -102,7 +102,7 @@ struct SearchHomePageView: View {
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
+                Image(ReaderAssetIcon.search.assetName)
                     .foregroundColor(ReaderDesignTokens.Color.muted)
                 Text(props.placeholder ?? "搜索书名/作者")
                     .foregroundColor(ReaderDesignTokens.Color.muted)
@@ -148,8 +148,8 @@ struct SearchStatePageView: View {
 
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: iconName)
-                .font(.system(size: 36))
+            Image(iconName.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             if let title = props.title {
                 Text(title)
@@ -179,11 +179,11 @@ struct SearchStatePageView: View {
         .padding(.vertical, 32)
     }
 
-    private var iconName: String {
+    private var iconName: ReaderAssetIcon {
         switch props.variant {
-        case "loading": return "arrow.clockwise"
-        case "error": return "exclamationmark.triangle"
-        default: return "magnifyingglass"
+        case "loading": return .refresh
+        case "error": return .warning
+        default: return .search
         }
     }
 }

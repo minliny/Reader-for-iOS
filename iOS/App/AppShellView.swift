@@ -87,6 +87,13 @@ struct AppShellView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
     @ObservedObject var navigationState: AppNavigationState
     let environment: ReaderShellEnvironment
+
+    /// P0 修复 5/7：ReaderCoordinator 包装 navigationState + ReaderReducer，
+    /// 用于 dispatch `reader.module.switch` / `source.switch.confirm/cancel` 等事件。
+    /// 生产环境无独立 reducer 持有者，通过此计算属性按需创建（共享同一 navigationState）。
+    private var readerCoordinator: ReaderCoordinator {
+        ReaderCoordinator(navigationState: navigationState)
+    }
     @State private var mainNavVisibleByContent = true
     @State private var mainTabTopBarRequest: MainTabTopBarRequest?
     // B1-iOS P0：contract-host 渲染开关。true = book-detail/source-switch 走 contract renderer。
@@ -371,7 +378,12 @@ struct AppShellView: View {
                 chapterURL: chapterURL,
                 chapterTitle: chapterTitle,
                 bookID: bookID,
-                onExit: onExit
+                onExit: onExit,
+                onModuleSwitch: { module in
+                    // P0 修复 5：模块切换 dispatch `reader.module.switch`（replace 语义）。
+                    // 对齐 demo 的 payload `{ module }`，由 ReaderCoordinator 派发。
+                    readerCoordinator.readerModuleSwitch(module: module.demoKey)
+                }
             )
 
         case .search:
@@ -402,7 +414,7 @@ struct AppShellView: View {
             RSSOriginalPreviewView(urlString: url, title: title, sourceTitle: sourceTitle)
 
         case .rssOriginalBrowser(let url, let title, let sourceTitle):
-            RSSOriginalBrowserConfirmView(urlString: url, title: title, sourceTitle: sourceTitle)
+            RSSOriginalBrowserConfirmView(urlString: url, title: title, sourceTitle: sourceTitle, onExit: onExit)
 
         case .rssSubscriptions:
             RSSSubscriptionManagementView()
@@ -420,7 +432,7 @@ struct AppShellView: View {
             RSSSourceVarsView(sourceID: sourceID, title: title)
 
         case .rssSourceLogin(let sourceID, let title):
-            RSSSourceLoginView(sourceID: sourceID, title: title)
+            RSSSourceLoginView(sourceID: sourceID, title: title, onExit: onExit)
 
         case .rssSourceLoginWeb(let sourceID, let title):
             RSSSourceLoginWebView(sourceID: sourceID, title: title)
@@ -504,7 +516,7 @@ struct AppShellView: View {
             RSSStateView(kind: .error)
 
         case .bookSources:
-            BookSourceListView(coordinator: coordinator)
+            BookSourceListView(coordinator: coordinator, onExit: onExit)
 
         case .bookSourceImport:
             BookSourceImportView(onExit: onExit)
@@ -520,7 +532,8 @@ struct AppShellView: View {
             if useContractHost {
                 // B1-iOS P0 + P1：book-detail 走 contract renderer（LibraryShell），
                 // 注入真实 bookURL/title/author，不再渲染硬编码 fixture。
-                ContractHostView(bookDetail: bookURL, title: title, author: author)
+                // P0 修复：传入 onExit 闭包，让 BackTopBarView 返回箭头能 pop 路由。
+                ContractHostView(bookDetail: bookURL, title: title, author: author, onExit: onExit)
             } else {
                 BookDetailView(result: SearchResultItem(
                     title: title,
@@ -536,9 +549,20 @@ struct AppShellView: View {
             if useContractHost {
                 // B1-iOS P0 + P1：source-switch 走 contract renderer（FlowShell），
                 // 注入真实 bookURL。
-                ContractHostView(sourceSwitch: bookURL)
+                // P0 修复：传入 onExit 闭包，让 BackTopBarView 返回箭头能 pop 路由。
+                ContractHostView(sourceSwitch: bookURL, onExit: onExit)
             } else {
-                ReaderSourceSwitchFlowView(bookURL: bookURL, onExit: onExit)
+                // P0 修复 7：confirm/cancel dispatch 业务事件后由 onExit pop 路由。
+                ReaderSourceSwitchFlowView(
+                    bookURL: bookURL,
+                    onExit: onExit,
+                    onConfirm: { sourceId in
+                        readerCoordinator.sourceSwitchConfirm(sourceId: sourceId)
+                    },
+                    onCancel: {
+                        readerCoordinator.sourceSwitchCancel()
+                    }
+                )
             }
 
         case .toc:

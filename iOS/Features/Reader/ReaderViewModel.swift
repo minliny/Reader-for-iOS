@@ -3,6 +3,9 @@ import ReaderCoreModels
 import ReaderAppSupport
 import ReaderAppPersistence
 import ReaderShellValidation
+#if canImport(ReaderCoreNativeAdapter)
+import ReaderCoreNativeAdapter
+#endif
 
 public enum ReaderState: Equatable {
     case idle
@@ -289,7 +292,14 @@ public final class ReaderViewModel: ObservableObject {
             chapterTitle: chapterTitle,
             progressRatio: readingProgress
         )
-        try? progressStore.saveProgress(progress)
+
+        // C1: Try Core `reading.progress.update` first; fall back to the local
+        // file-backed ReadingProgressStore when the Core bridge is unavailable
+        // (e.g. shell CI where RustCore runtime is not booted).
+        let coreSent = await pushProgressViaCore(progress)
+        if !coreSent {
+            try? progressStore.saveProgress(progress)
+        }
 
         try? bookshelfStore.updateProgress(
             bookID: bookID,
@@ -297,6 +307,46 @@ public final class ReaderViewModel: ObservableObject {
             chapterTitle: chapterTitle,
             chapterURL: chapterURL
         )
+    }
+
+    // MARK: - Core Bridge (C1)
+
+    /// Attempt to push reading progress to Core via `reading.progress.update`.
+    /// Returns `true` on success, `false` when the Core bridge is unavailable
+    /// or the call fails (caller should fall back to local store).
+    private func pushProgressViaCore(
+        _ progress: ReaderAppSupport.ReadingProgress
+    ) async -> Bool {
+        #if canImport(ReaderCoreNativeAdapter)
+        guard let runtime = RustCoreRuntimeHolder.shared.current else { return false }
+
+        let params: [String: Any] = [
+            "bookId": progress.bookID,
+            "bookName": progress.bookURL,
+            "chapterUrl": progress.chapterURL,
+            "chapterTitle": progress.chapterTitle,
+            "progress": progress.progressRatio,
+        ]
+
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                let requestId = UInt64.random(in: 1...UInt64.max)
+                do {
+                    let event = try runtime.request(
+                        method: "reading.progress.update",
+                        requestId: requestId,
+                        params: params,
+                        timeout: 10
+                    )
+                    continuation.resume(returning: event.type == "result")
+                } catch {
+                    continuation.resume(returning: false)
+                }
+            }
+        }
+        #else
+        return false
+        #endif
     }
 
     // MARK: - Chapter Cache (M3: SnapshotStore + ChapterCacheStore)

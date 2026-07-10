@@ -4,10 +4,32 @@ import ReaderAppSupport
 public struct ReaderSettingsPanel: View {
     @Binding var displaySettings: ReaderDisplaySettings
     let onDismiss: () -> Void
+    /// P2.3: 设置变更回调——每个控件 onChange 经此回调 dispatch UiEvent，
+    /// 调用方（Coordinator/ViewController）接收后转发给 Reducer。
+    /// key 对应 ReaderDisplaySettings 字段名（"fontSize"/"lineSpacing"/"tapZoneEnabled" 等）。
+    let onSettingsChange: ((String, Any) -> Void)?
 
-    public init(displaySettings: Binding<ReaderDisplaySettings>, onDismiss: @escaping () -> Void) {
+    public init(
+        displaySettings: Binding<ReaderDisplaySettings>,
+        onSettingsChange: ((String, Any) -> Void)? = nil,
+        onDismiss: @escaping () -> Void
+    ) {
         self._displaySettings = displaySettings
+        self.onSettingsChange = onSettingsChange
         self.onDismiss = onDismiss
+    }
+
+    /// P2.3: 包装 Binding，在 set 时触发 onSettingsChange 回调，
+    /// 使所有子控件（CompactIntStepper / DemoToggleRow / FontMenu 等）
+    /// 的写入经回调上抛，而非静默直写 binding。
+    private func notifiedBinding<T>(_ binding: Binding<T>, key: String) -> Binding<T> {
+        Binding(
+            get: { binding.wrappedValue },
+            set: { newValue in
+                binding.wrappedValue = newValue
+                onSettingsChange?(key, newValue)
+            }
+        )
     }
 
     public var body: some View {
@@ -17,11 +39,11 @@ public struct ReaderSettingsPanel: View {
                     Text("外观")
                         .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                    CompactIntStepper(title: "字号", value: $displaySettings.fontSize, range: 12...32, step: 2)
-                    CompactDoubleStepper(title: "行距", value: $displaySettings.lineSpacing, range: 2...24, step: 2)
-                    CompactDoubleStepper(title: "段距", value: $displaySettings.paragraphSpacing, range: 2...48, step: 2)
-                    FontMenu(selection: $displaySettings.fontFamily)
-                    PaletteRow(selection: $displaySettings.backgroundMode)
+                    CompactIntStepper(title: "字号", value: notifiedBinding($displaySettings.fontSize, key: "fontSize"), range: 12...32, step: 2)
+                    CompactDoubleStepper(title: "行距", value: notifiedBinding($displaySettings.lineSpacing, key: "lineSpacing"), range: 2...24, step: 2)
+                    CompactDoubleStepper(title: "段距", value: notifiedBinding($displaySettings.paragraphSpacing, key: "paragraphSpacing"), range: 2...48, step: 2)
+                    FontMenu(selection: notifiedBinding($displaySettings.fontFamily, key: "fontFamily"))
+                    PaletteRow()
                 }
             }
 
@@ -30,31 +52,31 @@ public struct ReaderSettingsPanel: View {
                     Text("翻页")
                         .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                    PageTurnModeSegment(selection: $displaySettings.pageTurnMode)
+                    PageTurnModeSegment(selection: notifiedBinding($displaySettings.pageTurnMode, key: "pageTurnMode"))
                     DemoToggleRow(
                         icon: .gesture,
                         title: "Tap Zones",
                         subtitle: "点击屏幕左右热区翻页",
-                        isOn: $displaySettings.tapZoneEnabled
+                        isOn: notifiedBinding($displaySettings.tapZoneEnabled, key: "tapZoneEnabled")
                     )
                     DemoToggleRow(
                         icon: .volume,
                         title: "Volume Key Page Turn",
                         subtitle: "音量键控制上一页/下一页",
-                        isOn: $displaySettings.volumeKeyPageTurnEnabled
+                        isOn: notifiedBinding($displaySettings.volumeKeyPageTurnEnabled, key: "volumeKeyPageTurnEnabled")
                     )
                     DemoToggleRow(
                         icon: .columns,
                         title: "Dual Page (Landscape)",
                         subtitle: "横屏时使用双页阅读",
-                        isOn: $displaySettings.dualPageEnabled
+                        isOn: notifiedBinding($displaySettings.dualPageEnabled, key: "dualPageEnabled")
                     )
                     // 自动翻页：对齐前端 demo `autoPage`
                     DemoToggleRow(
                         icon: .refresh,
                         title: "Auto Page",
                         subtitle: "自动翻页",
-                        isOn: $displaySettings.autoPageEnabled
+                        isOn: notifiedBinding($displaySettings.autoPageEnabled, key: "autoPageEnabled")
                     )
                 }
             }
@@ -69,28 +91,28 @@ public struct ReaderSettingsPanel: View {
                         icon: .eyeOff,
                         title: "Hide Status Bar",
                         subtitle: "隐藏状态栏",
-                        isOn: $displaySettings.hideStatusBar
+                        isOn: notifiedBinding($displaySettings.hideStatusBar, key: "hideStatusBar")
                     )
                     // 屏幕常亮：对齐前端 demo `keepScreenOn`
                     DemoToggleRow(
                         icon: .sun,
                         title: "Keep Screen On",
                         subtitle: "屏幕常亮",
-                        isOn: $displaySettings.keepScreenOnEnabled
+                        isOn: notifiedBinding($displaySettings.keepScreenOnEnabled, key: "keepScreenOnEnabled")
                     )
                     // 页脚进度信息：对齐前端 demo `statusInfo`
                     DemoToggleRow(
                         icon: .progress,
                         title: "Footer Progress Info",
                         subtitle: "页脚进度信息",
-                        isOn: $displaySettings.statusInfoEnabled
+                        isOn: notifiedBinding($displaySettings.statusInfoEnabled, key: "statusInfoEnabled")
                     )
                     // 触摸反馈：对齐前端 demo `hapticFeedback`
                     DemoToggleRow(
                         icon: .gesture,
                         title: "Haptic Feedback",
                         subtitle: "触摸反馈",
-                        isOn: $displaySettings.hapticFeedbackEnabled
+                        isOn: notifiedBinding($displaySettings.hapticFeedbackEnabled, key: "hapticFeedbackEnabled")
                     )
                 }
             }
@@ -105,14 +127,14 @@ public struct ReaderSettingsPanel: View {
                         icon: .permission,
                         title: "Landscape Lock",
                         subtitle: "横屏锁定",
-                        isOn: $displaySettings.landscapeLockEnabled
+                        isOn: notifiedBinding($displaySettings.landscapeLockEnabled, key: "landscapeLockEnabled")
                     )
                     // 自动缓存后续章节：对齐前端 demo `cacheNext`
                     DemoToggleRow(
                         icon: .download,
                         title: "Cache Next Chapters",
                         subtitle: "自动缓存后续章节",
-                        isOn: $displaySettings.cacheNextEnabled
+                        isOn: notifiedBinding($displaySettings.cacheNextEnabled, key: "cacheNextEnabled")
                     )
                 }
             }
@@ -123,7 +145,7 @@ public struct ReaderSettingsPanel: View {
                         icon: .sun,
                         title: "Brightness Override",
                         subtitle: "阅读页内独立亮度控制",
-                        isOn: $displaySettings.brightnessOverrideEnabled
+                        isOn: notifiedBinding($displaySettings.brightnessOverrideEnabled, key: "brightnessOverrideEnabled")
                     )
 
                     if displaySettings.brightnessOverrideEnabled {
@@ -131,7 +153,7 @@ public struct ReaderSettingsPanel: View {
                             ReaderIcon(.sun, size: 18)
                                 .foregroundStyle(ReaderDesignTokens.Color.muted)
                             DemoRangeRail(
-                                value: $displaySettings.brightnessLevel,
+                                value: notifiedBinding($displaySettings.brightnessLevel, key: "brightnessLevel"),
                                 range: 0.1...1.0,
                                 step: 0.05,
                                 label: "阅读亮度",
@@ -171,7 +193,8 @@ private struct PageTurnModeSegment: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             ForEach(PageTurnMode.allCases, id: \.self) { mode in
                 PillChip(title(for: mode), isSelected: selection == mode) {
-                    MotionEnvironment().withMotionAnimation(AppMotion.Duration.chipSelect) {
+                    // Issue 7：翻页模式分段切换使用 segmentItemSwitch 动效（对照 MotionId.segmentItemSwitch）。
+                    MotionEnvironment().withMotionAnimation(AppMotion.Duration.segmentItemSwitch) {
                         selection = mode
                     }
                 }
@@ -267,29 +290,36 @@ private struct FontMenu: View {
 }
 
 private struct PaletteRow: View {
-    @Binding var selection: ReaderBackgroundMode
+    // Issue 6/7：背景色板由 themeManager 驱动（8 主题 paper/warm/green/blue × day/night），
+    // 色板点击使用 segmentItemSwitch 动效（对照 MotionId.segmentItemSwitch）。
+    @EnvironmentObject private var themeManager: ReaderThemeManager
+    @Environment(\.readerThemePalette) private var palette
+    private let motion = MotionEnvironment()
 
     var body: some View {
         HStack(spacing: 10) {
             Text("背景")
                 .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                 .frame(maxWidth: .infinity, alignment: .leading)
-            ForEach(ReaderBackgroundMode.allCases, id: \.self) { mode in
+            ForEach(ReaderThemeResolver.allOptions, id: \.self) { themeId in
                 Button {
-                    selection = mode
+                    motion.withMotionAnimation(AppMotion.Duration.segmentItemSwitch) {
+                        themeManager.setReaderTheme(themeId)
+                    }
                 } label: {
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
-                        .fill(Color(hex: mode.backgroundColor))
+                        .fill(ReaderThemeResolver.swatchColor(themeId: themeId, isNight: palette.isNight))
                         .frame(
-                            width: selection == mode ? ReaderDesignTokens.readerSettingsLargeSwatchWidth : ReaderDesignTokens.readerSettingsSwatchSize,
+                            width: themeManager.readerTheme == themeId ? ReaderDesignTokens.readerSettingsLargeSwatchWidth : ReaderDesignTokens.readerSettingsSwatchSize,
                             height: ReaderDesignTokens.readerSettingsSwatchSize
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
-                                .stroke(selection == mode ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                                .stroke(themeManager.readerTheme == themeId ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("背景主题\(ReaderThemeResolver.displayName(themeId))")
             }
         }
         .frame(height: ReaderDesignTokens.readerSettingsPanelRowHeight)

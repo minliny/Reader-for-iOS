@@ -94,6 +94,51 @@ public final class ReaderCoordinator {
         reducer.dispatch(UiEvent(type: .reader_control_toggle))
     }
 
+    // MARK: - P0 修复：ReaderCoordinator 模块切换/覆盖层入口
+
+    /// 打开阅读器目录覆盖层。dispatch `.reader_directory_open` → reducer 设置 overlay 为 .sheet。
+    /// 对齐契约 `reader.directory.open`（demo: `reader.directory.open` payload `{}`）。
+    public func openBookDirectory(bookId: String? = nil) {
+        var payload: [String: AnyCodable] = [:]
+        if let bookId { payload["bookId"] = AnyCodable(bookId) }
+        reducer.dispatch(UiEvent(type: .reader_directory_open, payload: payload))
+    }
+
+    /// 打开阅读器外观覆盖层。dispatch `.reader_appearance_open` → reducer 设置 overlay 为 .sheet。
+    /// 对齐契约 `reader.appearance.open`（demo: `reader.appearance.open` payload `{}`）。
+    public func openReaderAppearance() {
+        reducer.dispatch(UiEvent(type: .reader_appearance_open))
+    }
+
+    /// 打开阅读器设置覆盖层。dispatch `.reader_settings_open` → reducer 设置 overlay 为 .sheet。
+    /// 对齐契约 `reader.settings.open`（demo: `reader.settings.open` payload `{}`）。
+    public func openReaderSettings() {
+        reducer.dispatch(UiEvent(type: .reader_settings_open))
+    }
+
+    /// 分派阅读器模块切换事件。dispatch `.reader_module_switch` → reducer 按 module 分派 sheet overlay。
+    /// 对齐契约 `reader.module.switch`（demo: `reader.module.switch` payload `{ module }`）。
+    /// 模块切换是 replace 语义（同层切换），不是 push 堆叠。
+    public func readerModuleSwitch(module: String) {
+        reducer.dispatch(UiEvent(type: .reader_module_switch, payload: [
+            "module": AnyCodable(module)
+        ]))
+    }
+
+    /// 确认换源。dispatch `.source_switch_confirm` → reducer pop 路由回到来源页。
+    /// 对齐契约 `source.switch.confirm`（demo: `source.switch.confirm` payload `{ sourceId }`）。
+    public func sourceSwitchConfirm(sourceId: String? = nil) {
+        var payload: [String: AnyCodable] = [:]
+        if let sourceId { payload["sourceId"] = AnyCodable(sourceId) }
+        reducer.dispatch(UiEvent(type: .source_switch_confirm, payload: payload))
+    }
+
+    /// 取消换源。dispatch `.source_switch_cancel` → reducer pop 路由。
+    /// 对齐契约 `source.switch.cancel`（demo: `source.switch.cancel` payload `{}`）。
+    public func sourceSwitchCancel() {
+        reducer.dispatch(UiEvent(type: .source_switch_cancel))
+    }
+
     // MARK: - 既有 navigation 包装（不重写）
 
     public func navigate(to route: Route) {

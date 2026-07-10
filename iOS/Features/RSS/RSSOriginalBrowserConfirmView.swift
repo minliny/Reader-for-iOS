@@ -5,27 +5,31 @@ struct RSSOriginalBrowserConfirmView: View {
     let title: String
     let sourceTitle: String
     let onReturnToReader: (() -> Void)?
+    /// P0 修复：返回按钮回调（pop 路由）。传给 DemoBackScreen 的 onBack。
+    let onExit: (() -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
     @SwiftUI.Environment(\.openURL) private var openURL: OpenURLAction
 
-    init(url: URL?, title: String, sourceTitle: String, onReturnToReader: (() -> Void)? = nil) {
+    init(url: URL?, title: String, sourceTitle: String, onReturnToReader: (() -> Void)? = nil, onExit: (() -> Void)? = nil) {
         self.url = url
         self.title = title
         self.sourceTitle = sourceTitle
         self.onReturnToReader = onReturnToReader
+        self.onExit = onExit
     }
 
-    init(urlString: String, title: String, sourceTitle: String, onReturnToReader: (() -> Void)? = nil) {
+    init(urlString: String, title: String, sourceTitle: String, onReturnToReader: (() -> Void)? = nil, onExit: (() -> Void)? = nil) {
         self.init(
             url: URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
             title: title,
             sourceTitle: sourceTitle,
-            onReturnToReader: onReturnToReader
+            onReturnToReader: onReturnToReader,
+            onExit: onExit
         )
     }
 
     var body: some View {
-        DemoBackScreen(title: "系统浏览器") {
+        DemoBackScreen(title: "系统浏览器", onBack: onExit) {
             RSSBrowserConfirmCard(
                 heading: "已准备打开原文链接",
                 copy: copyText,
@@ -34,7 +38,7 @@ struct RSSOriginalBrowserConfirmView: View {
         } bottomActionHost: {
             BottomFixedActionRow {
                 RSSBrowserConfirmButton(title: "返回原文页", isPrimary: false) {
-                    dismiss()
+                    handleBack()
                 }
             } trailing: {
                 RSSBrowserConfirmButton(title: "回到正文", isPrimary: true) {
@@ -42,6 +46,15 @@ struct RSSOriginalBrowserConfirmView: View {
                 }
                 .disabled(url == nil)
             }
+        }
+    }
+
+    /// P0 修复：统一返回逻辑——优先 onExit（pop 路由），否则 dismiss。
+    private func handleBack() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 
@@ -61,6 +74,8 @@ struct RSSOriginalBrowserConfirmView: View {
         openURL(url)
         if let onReturnToReader {
             onReturnToReader()
+        } else if let onExit {
+            onExit()
         } else {
             dismiss()
         }

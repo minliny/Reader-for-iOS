@@ -26,8 +26,12 @@ public enum ReaderControlMetrics {
 /// alpha 独立核算（day/night 各自的 alpha 值，不共享）。
 public struct ReaderThemePalette {
     public let isNight: Bool
+    /// 主题 ID（paper / warm / green / blue）。控制层色按 day/night 解析，
+    /// 阅读纸张背景 / 正文墨色按 themeId + isNight 解析（对照 ReaderThemeResolver）。
+    public let themeId: String
 
-    public init(isNight: Bool) {
+    public init(themeId: String = "paper", isNight: Bool) {
+        self.themeId = themeId
         self.isNight = isNight
     }
 
@@ -107,6 +111,20 @@ public struct ReaderThemePalette {
     public var accent: SwiftUI.Color {
         isNight ? ReaderDesignTokens.Color.Night.accent : ReaderDesignTokens.Color.accent
     }
+
+    // MARK: - Reading surface（阅读正文层，按 readerTheme 主题化）
+
+    /// 阅读纸张背景色（按 themeId + isNight 解析；对照 ReaderThemeResolver.paperColor）。
+    /// Issue 6：阅读背景必须来自 palette，不再硬编码 ReaderDesignTokens / backgroundMode。
+    public var readingPaper: SwiftUI.Color {
+        ReaderThemeResolver.paperColor(themeId: themeId, isNight: isNight)
+    }
+
+    /// 阅读正文墨色（按 themeId + isNight 解析；对照 ReaderThemeResolver.inkColor）。
+    /// Issue 6：正文墨色必须来自 palette，不再读 displaySettings.backgroundMode.textColor。
+    public var readingInk: SwiftUI.Color {
+        ReaderThemeResolver.inkColor(themeId: themeId, isNight: isNight)
+    }
 }
 
 /// 跨平台 Reader 主题管理器
@@ -114,40 +132,63 @@ public struct ReaderThemePalette {
 /// （对照 demo `render-runtime.js` `readerThemeStyle()` 的 theme 解析逻辑）
 @MainActor
 public final class ReaderThemeManager: ObservableObject {
-    /// 手动夜间模式标志（用户显式切换）。`nil` 表示跟随系统。
-    @Published public var isNightModeOverride: Bool? = nil
+    /// 当前阅读主题 ID（paper / warm / green / blue）。对照 HarmonyOS `reader.readerTheme`。
+    @Published public var readerTheme: String = "paper"
+    /// App 主题模式（system / light / dark）。对照 HarmonyOS `reader.appThemeMode`。
+    /// system → 跟随系统 ColorScheme；light → 强制日间；dark → 强制夜间。
+    @Published public var appThemeMode: String = "system"
     /// 系统颜色方案（由 View 通过 `@Environment(\.colorScheme)` 注入）
     @Published public var systemColorScheme: ColorScheme? = nil
 
     public init() {}
 
+    /// 手动夜间 override（旧 API 兼容）：appThemeMode 为 system 时 nil，否则反映 light/dark。
+    public var isNightModeOverride: Bool? {
+        switch appThemeMode {
+        case "light": return false
+        case "dark":  return true
+        default:      return nil
+        }
+    }
+
     /// 旧 API 兼容：显式夜间模式标志
     public var isNightMode: Bool {
         get { effectiveIsNight }
-        set { isNightModeOverride = newValue }
+        set { appThemeMode = newValue ? "dark" : "light" }
     }
 
-    /// 解析后的有效夜间模式：手动 override 优先，否则跟随系统
+    /// 解析后的有效夜间模式：appThemeMode 优先，system 时跟随系统 ColorScheme
     public var effectiveIsNight: Bool {
-        if let override = isNightModeOverride {
-            return override
+        switch appThemeMode {
+        case "light": return false
+        case "dark":  return true
+        default:      return systemColorScheme == .dark
         }
-        return systemColorScheme == .dark
     }
 
-    /// 当前解析后的调色板
+    /// 当前解析后的调色板（按 readerTheme + effectiveIsNight 主题化）
     public var palette: ReaderThemePalette {
-        ReaderThemePalette(isNight: effectiveIsNight)
+        ReaderThemeResolver.palette(themeId: readerTheme, isNight: effectiveIsNight)
     }
 
-    /// 切换手动夜间/日间模式（非弹窗，旧 API 兼容）
+    /// 设置阅读主题（对照 contract `set-reader-theme`）
+    public func setReaderTheme(_ themeId: String) {
+        readerTheme = themeId
+    }
+
+    /// 设置 App 主题模式（对照 contract `set-app-theme-mode`）
+    public func setAppThemeMode(_ mode: String) {
+        appThemeMode = mode
+    }
+
+    /// 切换夜间/日间模式（旧 API 兼容 + `reader_nightState_toggle`）
     public func toggleNightMode() {
-        isNightModeOverride = !effectiveIsNight
+        appThemeMode = effectiveIsNight ? "light" : "dark"
     }
 
     /// 清除手动 override，回到跟随系统
     public func clearOverride() {
-        isNightModeOverride = nil
+        appThemeMode = "system"
     }
 
     /// View 层调用：注入系统 ColorScheme（通常在根视图 `.onAppear` 或 `.environment` 中调用）
@@ -159,7 +200,7 @@ public final class ReaderThemeManager: ObservableObject {
 // MARK: - Environment Key（供 View 通过 @Environment(\.readerThemePalette) 读取）
 
 private struct ReaderThemePaletteEnvironmentKey: EnvironmentKey {
-    static let defaultValue: ReaderThemePalette = ReaderThemePalette(isNight: false)
+    static let defaultValue: ReaderThemePalette = ReaderThemePalette(themeId: "paper", isNight: false)
 }
 
 public extension EnvironmentValues {

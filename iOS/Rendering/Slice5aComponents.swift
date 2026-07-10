@@ -22,7 +22,7 @@ struct RssSearchEntryView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
+            Image(ReaderAssetIcon.search.assetName)
                 .foregroundColor(ReaderDesignTokens.Color.muted)
             Text("搜索订阅源")
                 .foregroundColor(ReaderDesignTokens.Color.muted)
@@ -153,8 +153,8 @@ struct RssOriginalPageView: View {
 
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.file.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             Text("原文 webview（Slice 5a 占位）")
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
@@ -192,8 +192,8 @@ struct RssOriginalBrowserPageView: View {
 
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "safari")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.globe.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             Text("外部浏览器（Slice 5a 占位）")
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
@@ -297,7 +297,7 @@ struct RssEmptyStateView: View {
 
     var body: some View {
         RssStatePageView(
-            systemImage: "tray",
+            systemImage: .folder,
             title: props.title,
             message: props.message,
             actionTitle: props.action
@@ -312,7 +312,7 @@ struct RssErrorStateView: View {
 
     var body: some View {
         RssStatePageView(
-            systemImage: "exclamationmark.triangle",
+            systemImage: .warning,
             title: props.title,
             message: props.message,
             actionTitle: props.action
@@ -323,15 +323,15 @@ struct RssErrorStateView: View {
 // MARK: - 私有辅助 view: RssStatePageView
 
 private struct RssStatePageView: View {
-    let systemImage: String
+    let systemImage: ReaderAssetIcon
     let title: String?
     let message: String?
     let actionTitle: String?
 
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: systemImage)
-                .font(.system(size: 36))
+            Image(systemImage.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             if let title = title {
                 Text(title)

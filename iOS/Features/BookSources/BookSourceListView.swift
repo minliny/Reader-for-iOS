@@ -42,14 +42,17 @@ enum BookSourceSheet: Identifiable {
 
 public struct BookSourceListView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
+    /// P0 修复：返回按钮回调（pop 路由）。传给 DemoBackScreen 的 onBack。
+    private let onExit: (() -> Void)?
     @State private var sources: [BookSource] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var shareText: String = ""
     @State private var activeSheet: BookSourceSheet?
 
-    public init(coordinator: ReadingFlowCoordinator) {
+    public init(coordinator: ReadingFlowCoordinator, onExit: (() -> Void)? = nil) {
         self.coordinator = coordinator
+        self.onExit = onExit
     }
 
     /// 书源列表 — fixture + 真实候选源
@@ -63,7 +66,7 @@ public struct BookSourceListView: View {
     ]
 
     public var body: some View {
-        DemoBackScreen(title: "书源管理") {
+        DemoBackScreen(title: "书源管理", onBack: onExit) {
             if let errorMessage {
                 ReaderStateBanner(
                     icon: .warning,

@@ -38,13 +38,13 @@ public enum ReaderTypography {
     public static let readerBody = demoSerif(size: 18)
     /// 控制面板标题 18px bold（demo `.fd-reader-panel-title` 实际 13px/900，
     /// 此处 18px 作为 reader 覆盖层标题层级，存在偏差）。
-    public static let controlTitle = Font.system(size: 18, weight: .bold)
+    public static let controlTitle = Font.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .bold)
     /// 控制面板标签 12px medium（对应 demo `--fd-ds-type-reader-control-label-size: 12px`）。
-    public static let controlLabel = Font.system(size: 12, weight: .medium)
+    public static let controlLabel = Font.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-control-label-size") ?? 12, weight: .medium)
     /// 列表标题 14px semibold（对应 demo `--fd-ds-type-book-title-size: 14px`）。
-    public static let listTitle = Font.system(size: 14, weight: .semibold)
+    public static let listTitle = Font.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-book-title-size") ?? 14, weight: .semibold)
     /// 页面标题 20px bold（对应 demo `--fd-ds-type-page-title-size: 20px`）。
-    public static let pageTitle = Font.system(size: 20, weight: .bold)
+    public static let pageTitle = Font.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-page-title-size") ?? 20, weight: .bold)
     /// 章节标题 28px serif bold（同 readerTitle，demo 无对应 token）。
     public static let chapterTitle = demoSerif(size: 28, weight: .bold)
 

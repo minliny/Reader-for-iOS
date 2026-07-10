@@ -53,14 +53,49 @@ public enum ReaderTokenAdapter {
             return night ? ReaderDesignTokens.Color.Night.muted : ReaderDesignTokens.Color.muted
         case "--fd-ds-color-rss-unread":
             return night ? ReaderDesignTokens.Color.Night.action : ReaderDesignTokens.Color.primary
+        // P2.4: 补全缺失 color token（16/23 → 23/23）
+        case "--fd-ds-color-status-good":
+            // #338144 状态良好绿（light/dark 一致）
+            return SwiftUI.Color(red: 0x33/255, green: 0x81/255, blue: 0x44/255)
+        case "--fd-ds-color-status-warn":
+            // #d7473e 状态警告红（light/dark 一致）
+            return SwiftUI.Color(red: 0xd7/255, green: 0x47/255, blue: 0x3e/255)
+        case "--fd-ds-color-paper-night":
+            // #181f22 夜间纸面背景（固定值，不随 colorScheme 切换）
+            return SwiftUI.Color(red: 0x18/255, green: 0x1f/255, blue: 0x22/255)
+        case "--fd-ds-color-ink-night":
+            // #d8ccc4 夜间文字色
+            return SwiftUI.Color(red: 0xd8/255, green: 0xcc/255, blue: 0xc4/255)
+        case "--fd-ds-color-control-ink-night":
+            // #d7e1e5 夜间控制文字色
+            return SwiftUI.Color(red: 0xd7/255, green: 0xe1/255, blue: 0xe5/255)
+        case "--fd-ds-color-primary-night":
+            // #8fb6ca 夜间主色（与 Night.primaryDark 一致）
+            return ReaderDesignTokens.Color.Night.primaryDark
+        case "--fd-ds-color-floating-control-bg-alt-night":
+            // #2b3b43 夜间浮动控件 alt 背景
+            return SwiftUI.Color(red: 0x2b/255, green: 0x3b/255, blue: 0x43/255)
         default:
             return nil
         }
     }
 
+    // MARK: - Icon
+
+    /// P2.4: 从 icon category token 解析对应的 `ReaderAssetIcon`。
+    ///
+    /// token.name 形如 `--fd-ds-icon-chevron`，去掉 `--fd-ds-icon-` 前缀后
+    /// 得到 icon shortName（`chevron`），与 `ReaderAssetIcon.rawValue` 对齐。
+    /// 非 icon category token 返回 nil。
+    public static func icon(for token: ReaderUIContract.Token) -> ReaderAssetIcon? {
+        guard token.category == .icon else { return nil }
+        let name = token.name.replacingOccurrences(of: "--fd-ds-icon-", with: "")
+        return ReaderAssetIcon(rawValue: name)
+    }
+
     public static func length(for token: ReaderUIContract.Token) -> CGFloat? {
         switch token.category {
-        case .spacing, .size, .radius, .textConstraint:
+        case .spacing, .size, .radius, .textConstraint, .type:
             return length(named: token.name)
         default:
             return nil
@@ -69,7 +104,7 @@ public enum ReaderTokenAdapter {
 
     public static func length(named name: String) -> CGFloat? {
         guard let token = token(named: name),
-              [.spacing, .size, .radius, .textConstraint].contains(token.category) else {
+              [.spacing, .size, .radius, .textConstraint, .type].contains(token.category) else {
             return nil
         }
         switch name {
@@ -102,6 +137,9 @@ public enum ReaderTokenAdapter {
         case "--fd-ds-text-reader-line-length":
             return 31
         default:
+            if token.category == .type {
+                return points(fromPxValue: token.value)
+            }
             return nil
         }
     }
@@ -132,6 +170,52 @@ public enum ReaderTokenAdapter {
 
     public static func zIndexValue(for token: ReaderUIContract.Token) -> Double? {
         zIndex(for: token).map { $0.rawValue }
+    }
+
+    public static func font(for token: ReaderUIContract.Token, size: CGFloat) -> Font? {
+        guard token.category == .font else { return nil }
+        switch token.name {
+        case "--fd-ds-font-sans":
+            return Font.system(size: size, design: .default)
+        case "--fd-ds-font-serif":
+            return Font.custom("STSongti-SC-Regular", size: size)
+        case "--fd-ds-font-kai":
+            return Font.custom("STKaiti-SC-Regular", size: size)
+        case "--fd-ds-font-fangsong":
+            return Font.custom("STFangsong", size: size)
+        case "--fd-ds-font-mono":
+            return Font.system(size: size, design: .monospaced)
+        default:
+            return nil
+        }
+    }
+
+    public static func font(named name: String, size: CGFloat) -> Font? {
+        guard let token = token(named: name) else { return nil }
+        return font(for: token, size: size)
+    }
+
+    public static func textConstraint(for token: ReaderUIContract.Token) -> Int? {
+        guard token.category == .textConstraint else { return nil }
+        return integer(fromValue: token.value)
+    }
+
+    public static func textConstraint(named name: String) -> Int? {
+        guard let token = token(named: name),
+              token.category == .textConstraint else {
+            return nil
+        }
+        return integer(fromValue: token.value)
+    }
+
+    private static func points(fromPxValue value: String) -> CGFloat? {
+        guard value.hasSuffix("px") else { return nil }
+        return Double(value.dropLast(2)).map { CGFloat($0) }
+    }
+
+    private static func integer(fromValue value: String) -> Int? {
+        let digits = value.prefix { $0.isNumber }
+        return Int(digits)
     }
 
     private static func seconds(fromDurationValue value: String) -> TimeInterval? {

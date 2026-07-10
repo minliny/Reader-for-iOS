@@ -168,6 +168,7 @@ let baseTargets: [Target] = [
         name: "ReaderAppPersistence",
         dependencies: [
             "ReaderAppSupport",
+            "ReaderCoreNativeAdapter",
             .product(name: "ReaderCoreModels", package: "Reader-Core")
         ],
         path: "App/Persistence"

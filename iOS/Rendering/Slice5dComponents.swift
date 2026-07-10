@@ -11,14 +11,14 @@ struct DiscoverSourceBarView: View {
     let props: DiscoverSourceBarProps
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "rectangle.grid.2x2")
+            Image(ReaderAssetIcon.grid.assetName)
                 .foregroundColor(ReaderDesignTokens.Color.muted)
             Text("发现源")
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.ink)
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10))
+            Image(ReaderAssetIcon.chevron.assetName)
+                .font(.system(size: 10)) // 图标尺寸，非文字字号
                 .foregroundColor(ReaderDesignTokens.Color.muted)
         }
         .padding(.horizontal, 16)
@@ -65,8 +65,8 @@ struct DiscoverFilterTriggerView: View {
         HStack(spacing: 4) {
             Text(title)
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))
-            Image(systemName: "chevron.down")
-                .font(.system(size: 8))
+            Image(ReaderAssetIcon.chevron.assetName)
+                .font(.system(size: 8)) // 图标尺寸，非文字字号
         }
         .foregroundColor(ReaderDesignTokens.Color.muted)
         .padding(.horizontal, 10)
@@ -105,8 +105,8 @@ struct DiscoverStatePageView: View {
     let props: DiscoverStatePageProps
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: iconName)
-                .font(.system(size: 36))
+            Image(iconName.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             if let title = props.title {
                 Text(title)
@@ -133,12 +133,12 @@ struct DiscoverStatePageView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 32)
     }
-    private var iconName: String {
+    private var iconName: ReaderAssetIcon {
         switch props.variant {
-        case "loading": return "arrow.clockwise"
-        case "error": return "exclamationmark.triangle"
-        case "no-results": return "magnifyingglass"
-        default: return "tray"
+        case "loading": return .refresh
+        case "error": return .warning
+        case "no-results": return .search
+        default: return .folder
         }
     }
 }

@@ -112,19 +112,23 @@ extension ViewStateRenderer {
 /// - route 参数通过 ViewState.context + 带参工厂方法注入组件树。
 public struct ContractHostView: View {
     public let viewState: ReaderUIContract.ViewState
+    /// P0 修复：contract host 的返回动作（pop 路由）。注入 environment 供 BackTopBarView 读取。
+    private let onExit: (() -> Void)?
 
-    public init(viewState: ReaderUIContract.ViewState) {
+    public init(viewState: ReaderUIContract.ViewState, onExit: (() -> Void)? = nil) {
         self.viewState = viewState
+        self.onExit = onExit
     }
 
     /// 无 route 参数的便捷 init：只传 routeId（用于无参数路由或 fallback）。
-    public init(routeId: RouteId) {
+    public init(routeId: RouteId, onExit: (() -> Void)? = nil) {
         self.viewState = ViewStateFactory.make(routeId: routeId)
+        self.onExit = onExit
     }
 
     /// book-detail 便捷 init：注入真实书籍参数（bookURL/title/author）。
     /// `author` 为 `String?`，对齐 `Route.bookDetail` 的可选 author。
-    public init(bookDetail bookURL: String, title: String, author: String?) {
+    public init(bookDetail bookURL: String, title: String, author: String?, onExit: (() -> Void)? = nil) {
         var context: [String: AnyCodable] = [
             "bookURL": AnyCodable(bookURL),
             "title": AnyCodable(title),
@@ -136,19 +140,22 @@ public struct ContractHostView: View {
             routeId: .bookDetail,
             context: context
         )
+        self.onExit = onExit
     }
 
     /// source-switch 便捷 init：注入真实 bookURL。
-    public init(sourceSwitch bookURL: String) {
+    public init(sourceSwitch bookURL: String, onExit: (() -> Void)? = nil) {
         self.viewState = ViewStateFactory.make(
             routeId: .sourceSwitch,
             context: [
                 "bookURL": AnyCodable(bookURL),
             ]
         )
+        self.onExit = onExit
     }
 
     public var body: some View {
         ShellContainer(viewState: viewState)
+            .environment(\.backTopBarAction, onExit)
     }
 }

@@ -29,6 +29,8 @@ public struct ReaderViewState: Equatable {
     /// 当前 RouteId 的组件列表（contract `ViewState.components`）
     /// Slice 2 初期硬编码 bookshelf / immersiveReading 的标准组件组合。
     public let components: [ViewStateComponent]
+    /// P2.2: 设置子页专用 view state（overlay/expandedOption/restore scopes）
+    public var settings: SettingsViewState
 
     public init(
         mainTab: MainTab,
@@ -38,7 +40,8 @@ public struct ReaderViewState: Equatable {
         activeSession: ActiveSession? = nil,
         focusTarget: String? = nil,
         reducedMotion: Bool = false,
-        components: [ViewStateComponent] = []
+        components: [ViewStateComponent] = [],
+        settings: SettingsViewState = .init()
     ) {
         self.mainTab = mainTab
         self.routeId = routeId
@@ -48,6 +51,41 @@ public struct ReaderViewState: Equatable {
         self.focusTarget = focusTarget
         self.reducedMotion = reducedMotion
         self.components = components
+        self.settings = settings
+    }
+}
+
+// MARK: - SettingsViewState
+
+/// P2.2: 设置子页专用 view state。
+///
+/// 对齐契约 `ui-state.fixtures.json` 的 settings 子树：
+/// - `overlay`：当前 overlay 形态（.none / .sheet / .dialog）
+/// - `expandedOption`：当前展开的 select 选项 key（nil 表示无展开）
+/// - `restoreAvailableScopes`：可恢复数据范围列表
+/// - `restoreSelectedScopes`：已勾选的恢复范围
+public struct SettingsViewState: Equatable {
+    public enum OverlayKind: String, Equatable, Sendable {
+        case none
+        case sheet
+        case dialog
+    }
+
+    public var overlay: OverlayKind
+    public var expandedOption: String?
+    public var restoreAvailableScopes: [String]
+    public var restoreSelectedScopes: [String]
+
+    public init(
+        overlay: OverlayKind = .none,
+        expandedOption: String? = nil,
+        restoreAvailableScopes: [String] = [],
+        restoreSelectedScopes: [String] = []
+    ) {
+        self.overlay = overlay
+        self.expandedOption = expandedOption
+        self.restoreAvailableScopes = restoreAvailableScopes
+        self.restoreSelectedScopes = restoreSelectedScopes
     }
 }
 
@@ -694,7 +732,7 @@ enum ViewStateComponentFactory {
     private static func immersiveReadingComponents() -> [ViewStateComponent] {
         let json = """
         [
-            {"type":"ReaderBase","id":"reader-base","props":{"theme":"paper"}}
+            {"type":"ReaderBase","id":"reader-base","props":{}}
         ]
         """.data(using: .utf8)!
         return (try? JSONDecoder().decode([ViewStateComponent].self, from: json)) ?? []
@@ -703,7 +741,7 @@ enum ViewStateComponentFactory {
     private static func controlLayerBaseComponents() -> [ViewStateComponent] {
         let json = """
         [
-            {"type":"ReaderBase","id":"reader-base","props":{"theme":"paper"}},
+            {"type":"ReaderBase","id":"reader-base","props":{}},
             {"type":"ReaderTopArea","id":"reader-top-area","props":{}},
             {"type":"ReaderControlSheet","id":"reader-control-sheet","props":{}},
             {"type":"ReaderBottomBar","id":"reader-bottom-bar","props":{}}
@@ -715,7 +753,7 @@ enum ViewStateComponentFactory {
     private static func readerOverlayComponents(panelType: String) -> [ViewStateComponent] {
         let json = """
         [
-            {"type":"ReaderBase","id":"reader-base","props":{"theme":"paper"}},
+            {"type":"ReaderBase","id":"reader-base","props":{}},
             {"type":"ReaderTopArea","id":"reader-top-area","props":{}},
             {"type":"\(panelType)","id":"reader-panel","props":{}},
             {"type":"ReaderBottomBar","id":"reader-bottom-bar","props":{}}
@@ -727,7 +765,7 @@ enum ViewStateComponentFactory {
     private static func readerNightStateComponents() -> [ViewStateComponent] {
         let json = """
         [
-            {"type":"ReaderBase","id":"reader-base","props":{"theme":"night"}},
+            {"type":"ReaderBase","id":"reader-base","props":{}},
             {"type":"ReaderTopArea","id":"reader-top-area","props":{}},
             {"type":"ReaderBottomBar","id":"reader-bottom-bar","props":{}},
             {"type":"NightToast","id":"night-toast","props":{}}
@@ -743,7 +781,7 @@ enum ViewStateComponentFactory {
     private static func readerFullPageComponents(pageType: String) -> [ViewStateComponent] {
         let json = """
         [
-            {"type":"ReaderBase","id":"reader-base","props":{"theme":"paper"}},
+            {"type":"ReaderBase","id":"reader-base","props":{}},
             {"type":"ReaderTopArea","id":"reader-top-area","props":{}},
             {"type":"\(pageType)","id":"full-page","props":{}}
         ]

@@ -39,8 +39,8 @@ struct SourceSwitchFlowPageView: View {
 
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.sourceSwitch.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             Text("换源")
                 .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
@@ -234,8 +234,8 @@ struct SourceDeleteConfirmPageView: View {
 
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "trash")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.trash.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             Text("删除书源")
                 .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .semibold))
@@ -323,8 +323,8 @@ struct SourceDisabledStateView: View {
 
     var body: some View {
         VStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "nosign")
-                .font(.system(size: 36))
+            Image(ReaderAssetIcon.close.assetName)
+                .font(.system(size: 36)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
             Text("书源已禁用")
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize))

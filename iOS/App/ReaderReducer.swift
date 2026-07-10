@@ -24,6 +24,11 @@ public final class ReaderReducer: ObservableObject {
     /// 既有状态机作为唯一真源。reducer 不复制状态，只转发事件。
     @ObservedObject public var navigationState: AppNavigationState
 
+    /// 主题管理器（可选）。由 ReaderApp 注入，供 `reader_nightState_toggle` /
+    /// `setReaderTheme` / `setAppThemeMode` 委托调用。单元测试不注入时保持 no-op，
+    /// 不破坏既有 ReaderReducer(navigationState:) 测试构造。
+    public var themeManager: ReaderThemeManager?
+
     public init(navigationState: AppNavigationState) {
         self.navigationState = navigationState
     }
@@ -108,8 +113,9 @@ public final class ReaderReducer: ObservableObject {
         case .reader_exit:
             navigationState.exitImmersiveReading()
         case .reader_nightState_toggle:
-            // Slice 3 stub: 夜间模式切换，后续 slice 落地 theme 管理
-            break
+            // 夜间模式切换：委托给 ReaderThemeManager（若已注入）。
+            // manager 为 nil 时（如单元测试）保持 no-op，不破坏既有测试。
+            themeManager?.toggleNightMode()
         case .reader_page_next:
             // B2: 翻页——更新 readerPageIndex，对齐 reader.page.turn.next-prev motion
             navigationState.readerPageIndex += 1
@@ -169,16 +175,23 @@ public final class ReaderReducer: ObservableObject {
         // 书源路由切换通过 route_push + routeId payload 触发（由 handleRoutePush/nativeRoute 处理）；
         // 业务事件（source.management.open / source.detail.open / source.switch.select 等）
         // 不影响 navigation state，留给后续 slice 接 CoreBridge 真实处理
+        case .source_import_open:
+            // W3: 书源导入——push .bookSourceImport 路由（对齐 BookSourceImportView）
+            navigationState.push(.bookSourceImport)
+        case .source_import_preview, .source_import_apply:
+            // W1/W3: 书源导入预览/应用——业务事件，触发 Core command（import.book.preview/apply），
+            // 不影响 navigation state，留给后续 slice 接 CoreBridge 真实处理
+            break
         case .source_management_open, .source_detail_open,
              .source_add_open, .source_edit_open,
              .source_delete_confirm, .source_detect_run,
              .source_rule_edit, .source_debug_open, .source_debug_run,
              .source_logs_open, .source_code_view,
-             .source_import_open, .source_import_preview, .source_import_apply,
              .source_search_submit, .source_search_clear,
              .source_switch_select,
              .source_switch_confirm, .source_switch_cancel:
-            // Slice 5b stub: 书源业务事件，不影响 navigation state
+            // Slice 5b stub: 书源业务事件，不影响 navigation state。
+            // source_switch_select/confirm/cancel 在 UI 层处理（参考 ReaderSourceSwitchFlowView 模式）。
             break
         // MARK: - Slice 5c: 搜索/书架事件 stub
         case .search_submit, .search_clear, .search_filter_toggle, .search_sort_change,
@@ -208,18 +221,64 @@ public final class ReaderReducer: ObservableObject {
         case .settings_overlay_close:
             // B2: 关闭 settings overlay
             navigationState.setOverlay(.none)
-        case .settings_scope_open, .settings_scope_close,
-             .settings_entry_open, .settings_localImport_invoke,
-             .settings_cache_clear, .settings_sync_open,
-             .settings_webdav_save,
-             .settings_restore_scopeToggle, .settings_restore_preview, .settings_restore_run,
-             .settings_about_open:
-            // Slice 6 stub: 其他设置/about 事件，不影响 navigation state
+        // P2.2: 落地关键 settings 事件——路由跳转直接生效，Core/VM 副作用用注释占位
+        case .settings_scope_open:
+            // 打开设置 scope overlay（如书源分组选择 sheet）
+            navigationState.setOverlay(.sheet)
+        case .settings_scope_close:
+            // 关闭设置 scope overlay
+            navigationState.setOverlay(.none)
+        case .settings_entry_open:
+            // 进入通用设置子页
+            navigationState.push(.settings)
+        case .settings_sync_open:
+            // 进入同步备份页
+            navigationState.push(.backupSettings)
+        case .settings_about_open:
+            // 进入关于与反馈页
+            navigationState.push(.settingsAbout)
+        case .settings_localImport_invoke:
+            // Effect: 触发文件选择器（.documentPicker），选中后调 Core command import.book
             break
+        case .settings_cache_clear:
+            // Effect: 调 Core command cache.clear，完成后 toast 提示
+            break
+        case .settings_webdav_save:
+            // Effect: 触发 WebDAVSettingsViewModel.saveCredentials()
+            break
+        case .settings_restore_scopeToggle:
+            // 更新 restoreSelectedScopes（payload: scope key）
+            break
+        case .settings_restore_preview:
+            // Effect: 调 WebDAVSettingsViewModel.loadRemoteBackups() 预览可恢复备份
+            break
+        case .settings_restore_run:
+            // Effect: 触发 WebDAVSettingsViewModel.restoreSelectedBackup()
+            break
+        // MARK: - P2.3: reader_display_* 事件占位
+        // 契约 UiEventType 尚未定义 reader_display_fontSize_change / lineSpacing_change /
+        // pageTurnMode_change / toggle_change(key, enabled) 等事件。
+        // ReaderSettingsPanel 已通过 onSettingsChange 回调上抛字段变更，
+        // 待契约补齐事件后在此新增 case，更新 ReaderViewState.readerDisplaySettings。
+        // case .reader_display_font_size_change: // payload: Int
+        // case .reader_display_line_spacing_change: // payload: Double
+        // case .reader_display_toggle_change: // payload: key + enabled
         default:
             // 后续 slice 逐步接入业务事件。
             break
         }
+    }
+
+    // MARK: - Theme（reader_nightState_toggle / set-reader-theme / set-app-theme-mode）
+
+    /// 设置阅读主题（对照 contract `set-reader-theme`）。manager 未注入时 no-op。
+    public func setReaderTheme(_ themeId: String) {
+        themeManager?.setReaderTheme(themeId)
+    }
+
+    /// 设置 App 主题模式（对照 contract `set-app-theme-mode`）。manager 未注入时 no-op。
+    public func setAppThemeMode(_ mode: String) {
+        themeManager?.setAppThemeMode(mode)
     }
 
     // MARK: - Slice 3: reader control layer

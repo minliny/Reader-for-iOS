@@ -39,6 +39,9 @@ public struct ReaderApp: App {
     @StateObject private var navigationState: AppNavigationState
     // P3-B: 全局会话存储，注入到根视图供所有子视图通过 @EnvironmentObject 访问
     @StateObject private var sessionStore: ReaderSessionStore = ReaderSessionStore()
+    // 主题管理器：8 主题（paper/warm/green/blue × day/night）+ App 主题模式（system/light/dark）。
+    // 由 ReaderApp 注入到环境，子视图通过 @EnvironmentObject / @Environment(\.readerThemePalette) 访问。
+    @StateObject private var themeManager = ReaderThemeManager()
     private let environment: ReaderShellEnvironment
 
     #if DEBUG && canImport(WebKit) && canImport(UIKit)
@@ -178,5 +181,28 @@ public struct ReaderApp: App {
         #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
         .environmentObject(SharedTTSPlayer.shared)
         #endif
+        // 主题系统注入：themeManager（供子视图 @EnvironmentObject）+ palette（供 @Environment(\.readerThemePalette)）。
+        .environmentObject(themeManager)
+        .readerThemePalette(themeManager.palette)
+        // preferredColorScheme：appThemeMode 为 light/dark 时强制，system 时返回 nil（跟随系统）。
+        .preferredColorScheme(themeManager.appThemeMode == "light" ? .light : themeManager.appThemeMode == "dark" ? .dark : nil)
+        // 同步系统 ColorScheme 到 themeManager（system 模式下据此解析 effectiveIsNight）。
+        .background(ReaderSystemColorSchemeSync())
+    }
+}
+
+/// 系统颜色方案同步器：读取 @SwiftUI.Environment(\.colorScheme) 并同步到 ReaderThemeManager，
+/// 供 appThemeMode == "system" 时解析 effectiveIsNight（对照 HarmonyOS systemColorScheme 注入）。
+private struct ReaderSystemColorSchemeSync: View {
+    @EnvironmentObject private var themeManager: ReaderThemeManager
+    @SwiftUI.Environment(\.colorScheme) private var systemColorScheme
+
+    var body: some View {
+        Color.clear
+            .frame(maxWidth: 0, maxHeight: 0)
+            .onAppear { themeManager.updateSystemColorScheme(systemColorScheme) }
+            .onChange(of: systemColorScheme) { newValue in
+                themeManager.updateSystemColorScheme(newValue)
+            }
     }
 }

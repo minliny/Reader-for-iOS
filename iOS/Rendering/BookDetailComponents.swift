@@ -17,19 +17,44 @@ import ReaderUIContract
 //   BackTopBar + BookHero(BookCover + BookTitleAuthor + SourceStatus) + BookIntro +
 //   DirectoryPreview + ReadButton + AddToShelfButton。
 
+// MARK: - BackTopBar action environment key
+
+/// P0 修复：BackTopBarView 的返回动作通过 environment 注入。
+/// contract component factory 只接收 `ViewStateComponent`，无法直接传闭包；
+/// 用 environment key 把 `onBack` 闭包从 `ContractHostView` 传到 `BackTopBarView`。
+private struct BackTopBarActionKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    /// BackTopBar 返回动作。`nil` 表示当前层级未提供返回处理（禁用点击）。
+    var backTopBarAction: (() -> Void)? {
+        get { self[BackTopBarActionKey.self] }
+        set { self[BackTopBarActionKey.self] = newValue }
+    }
+}
+
 // MARK: - BackTopBar
 
 /// 二级页返回栏。显示返回箭头 + 标题。
 /// 真源：`frontend-demo-optimized/styles/01-shell-layout.css` `.fd-back-bar`
+///
+/// P0 修复：返回箭头接线 `.onTapGesture`，从 environment 读取 `backTopBarAction`。
+/// 对齐 demo 的 `data-route-back` 语义（pop，不是 replace）。
 public struct BackTopBarView: View {
     private let props: BackTopBarProps
+    @Environment(\.backTopBarAction) private var backAction
     public init(props: BackTopBarProps) { self.props = props }
 
     public var body: some View {
         HStack(spacing: ReaderDesignTokens.demoContentGap) {
-            Image(systemName: "chevron.left")
+            Image(ReaderAssetIcon.chevronLeft.assetName)
                 .font(.system(size: ReaderDesignTokens.bookCardMetaFontSize, weight: .semibold))
                 .foregroundColor(ReaderTokenAdapter.color(named: "--fd-ds-color-primary") ?? ReaderDesignTokens.Color.primary)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    backAction?()
+                }
             Text(props.title)
                 .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
                 .foregroundColor(ReaderTokenAdapter.color(named: "--fd-ds-color-ink") ?? ReaderDesignTokens.Color.ink)

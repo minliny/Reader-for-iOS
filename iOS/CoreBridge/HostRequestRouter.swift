@@ -46,6 +46,7 @@
 // is required per the `HostCapabilityTier` manifest.
 
 import Foundation
+import Security
 import ReaderCoreProtocols
 import ReaderCoreNativeAdapter
 #if canImport(UIKit)
@@ -81,14 +82,16 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
 
 /// Host-side provider for Legado-compatible `source.getLoginHeaderMap`.
 ///
-/// The current iOS app does not have a production per-source login-header
-/// store. Keeping this behind a provider lets a future credential/login store
-/// plug in without changing the Core event routing, while the default provider
-/// returns an empty map instead of surfacing the call as unsupported.
+/// The default implementation is `LoginHeaderStore` (UserDefaults-backed
+/// JSON map). Keeping this behind a provider lets tests inject stubs and
+/// lets a future Keychain-backed store plug in without changing the Core
+/// event routing.
 public protocol SourceLoginHeaderMapProvider: Sendable {
     func loginHeaderMap(sourceId: String?, url: String?, host: String?) async throws -> [String: String]?
 }
 
+/// Empty provider retained for tests / explicit opt-out. Returns an empty
+/// map for every source. The production default is `LoginHeaderStore.shared`.
 public struct EmptySourceLoginHeaderMapProvider: SourceLoginHeaderMapProvider {
     public init() {}
 
@@ -128,8 +131,15 @@ internal struct AntiBotChallengeRequiredError: Error {
 ///   `{resourceId, tempPath?, statusCode, contentType?, contentLength?, etag?,
 ///   byteLength, sha256?, fromCache, finalUrl?}`. Throws
 ///   `mediaDownloadExecutorNotConfigured` if no executor is wired.
-/// - `source.getLoginHeaderMap`: delegates to `SourceLoginHeaderMapProvider`,
-///   returns `{headers, headerMap}` and defaults to an empty map.
+/// - `source.getLoginHeaderMap`: delegates to `SourceLoginHeaderMapProvider`
+///   (default `LoginHeaderStore`), returns `{headers, headerMap}`.
+/// - `credential.get`: reads a Keychain item by `{service, account}`,
+///   returns `{value, found}`.
+/// - `credential.set`: writes a Keychain item, returns `{stored: true}`.
+/// - `credential.delete`: deletes a Keychain item, returns
+///   `{deleted: true, existed: Bool}`.
+/// - `credential.resolve`: resolves a credential by logical `key` (deriving
+///   `service` from `sourceUrl` / `sourceId`), returns `{value, found}`.
 ///
 /// The router is a stateless helper: each call handles exactly one
 /// `host.request` event for one `requestId`. Callers (RustCore*Service)
@@ -151,7 +161,7 @@ public struct HostRequestRouter: Sendable {
         webViewExecutor: WebViewExecutor? = nil,
         antiBotExecutor: AntiBotExecutor? = nil,
         mediaDownloadExecutor: MediaDownloadExecutor? = nil,
-        sourceLoginHeaderMapProvider: any SourceLoginHeaderMapProvider = EmptySourceLoginHeaderMapProvider()
+        sourceLoginHeaderMapProvider: any SourceLoginHeaderMapProvider = LoginHeaderStore.shared
     ) {
         self.httpClient = httpClient
         self.runtime = runtime
@@ -227,6 +237,14 @@ public struct HostRequestRouter: Sendable {
                 result = try await executeMediaDownload(params: params)
             case "source.getLoginHeaderMap":
                 result = try await executeSourceGetLoginHeaderMap(params: params)
+            case "credential.get":
+                result = try HostCredentialStore.shared.get(params: params)
+            case "credential.set":
+                result = try HostCredentialStore.shared.set(params: params)
+            case "credential.delete":
+                result = try HostCredentialStore.shared.delete(params: params)
+            case "credential.resolve":
+                result = try HostCredentialStore.shared.resolve(params: params)
             case "anti_bot.challenge":
                 result = try await executeAntiBotChallenge(params: params)
             default:
@@ -278,10 +296,17 @@ public struct HostRequestRouter: Sendable {
         "persistence.get",
         "persistence.put",
         "media.download",
-        // Legado AnalyzeUrl compatibility shim. Current iOS has no production
-        // login-header store, so this returns an empty map by default instead
-        // of rejecting the source call as unsupported.
+        // Legado AnalyzeUrl compatibility shim. Backed by `LoginHeaderStore`
+        // (UserDefaults JSON map) so Core can read per-source login headers
+        // through the same boundary contract as Android.
         "source.getLoginHeaderMap",
+        // Credential lane (Keychain-backed). `credential.resolve` is a
+        // Core-side convenience that resolves a credential by logical key
+        // (deriving service from `sourceUrl` / `sourceId` when provided).
+        "credential.get",
+        "credential.set",
+        "credential.delete",
+        "credential.resolve",
         // iOS-side lane aggregation (not a Core HostCapability variant)
         "anti_bot.challenge",
     ]
@@ -942,5 +967,246 @@ private enum SwiftCompilerVersion {
         #else
         return "Swift 5.x"
         #endif
+    }
+}
+
+// MARK: - HostCredentialStore
+
+/// Keychain-backed credential store for Core-initiated `credential.get` /
+/// `credential.set` / `credential.delete` / `credential.resolve` host
+/// requests.
+///
+/// This is the Core-side credential lane: Core produces `host.request`
+/// events with capability `credential.*`, and this store executes the real
+/// Keychain `SecItem` operations. It mirrors `HostCredentialCapability`
+/// (which serves the UI/reducer `HostRequest` path) but works with
+/// `[String: Any]` params so it can be routed by `HostRequestRouter`
+/// without depending on `ReaderUIContract` (which is excluded in shell CI
+/// mode).
+///
+/// Payload contract (mirrors `HostCredentialCapability`):
+/// - `credential.get`:    `{ service: String, account: String }`
+///                        → `{ value: String?, found: Bool }`
+/// - `credential.set`:    `{ service: String, account: String, value: String,
+///                           accessible?: String }`
+///                        → `{ stored: true }`
+/// - `credential.delete`: `{ service: String, account: String }`
+///                        → `{ deleted: true, existed: Bool }`
+/// - `credential.resolve`:`{ key: String, sourceUrl?: String, sourceId?: String,
+///                           service?: String }`
+///                        → `{ value: String?, found: Bool }`
+///
+/// `credential.resolve` derives the Keychain `service` from `service` →
+/// `sourceUrl` host → `sourceId` → a default namespace, and uses `key` as
+/// the account. This lets Core resolve a credential by logical key without
+/// knowing the Keychain service/account convention.
+final class HostCredentialStore: @unchecked Sendable {
+    static let shared = HostCredentialStore()
+
+    private static let defaultResolveService = "com.reader.ios.credentials"
+
+    func get(params: [String: Any]) throws -> [String: Any] {
+        guard let service = params["service"] as? String, !service.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.get requires non-empty `service`")
+        }
+        guard let account = params["account"] as? String, !account.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.get requires non-empty `account`")
+        }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true,
+        ]
+        var item: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        switch status {
+        case errSecSuccess:
+            guard let data = item as? Data,
+                  let value = String(data: data, encoding: .utf8) else {
+                throw HostRequestRouterError.hostHTTPFailed("credential.get: stored value is not valid UTF-8")
+            }
+            return ["value": value, "found": true]
+        case errSecItemNotFound:
+            return ["value": NSNull(), "found": false]
+        default:
+            throw HostRequestRouterError.hostHTTPFailed("credential.get SecItemCopyMatching status \(status)")
+        }
+    }
+
+    func set(params: [String: Any]) throws -> [String: Any] {
+        guard let service = params["service"] as? String, !service.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.set requires non-empty `service`")
+        }
+        guard let account = params["account"] as? String, !account.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.set requires non-empty `account`")
+        }
+        guard let value = params["value"] as? String else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.set requires `value` string")
+        }
+        let accessibleString = (params["accessible"] as? String) ?? "whenUnlocked"
+        guard let accessible = Self.accessibleAttr(for: accessibleString) else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.set `accessible` not recognized: \(accessibleString)")
+        }
+        let data = Data(value.utf8)
+
+        // Delete any existing item first (SecItemAdd fails on duplicate).
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessible as String: accessible,
+            kSecValueData as String: data,
+        ]
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.set SecItemAdd status \(status)")
+        }
+        return ["stored": true]
+    }
+
+    func delete(params: [String: Any]) throws -> [String: Any] {
+        guard let service = params["service"] as? String, !service.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.delete requires non-empty `service`")
+        }
+        guard let account = params["account"] as? String, !account.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.delete requires non-empty `account`")
+        }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        switch status {
+        case errSecSuccess:
+            return ["deleted": true, "existed": true]
+        case errSecItemNotFound:
+            return ["deleted": true, "existed": false]
+        default:
+            throw HostRequestRouterError.hostHTTPFailed("credential.delete SecItemDelete status \(status)")
+        }
+    }
+
+    /// Resolve a credential by logical key. Derives the Keychain `service`
+    /// from `service` → `sourceUrl` host → `sourceId` → a default namespace,
+    /// and uses `key` as the account. Returns `{ value, found }` like
+    /// `credential.get`.
+    func resolve(params: [String: Any]) throws -> [String: Any] {
+        guard let key = params["key"] as? String, !key.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("credential.resolve requires non-empty `key`")
+        }
+        let service = Self.resolveService(
+            params: params,
+            default: Self.defaultResolveService
+        )
+        return try get(params: [
+            "service": service,
+            "account": key,
+        ])
+    }
+
+    // MARK: - Helpers
+
+    private static func accessibleAttr(for value: String) -> CFString? {
+        switch value {
+        case "whenUnlocked": return kSecAttrAccessibleWhenUnlocked
+        case "whenUnlockedThisDeviceOnly": return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        case "afterFirstUnlock": return kSecAttrAccessibleAfterFirstUnlock
+        case "afterFirstUnlockThisDeviceOnly": return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        case "whenPasscodeSetThisDeviceOnly": return kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly
+        default: return nil
+        }
+    }
+
+    /// Derive the Keychain service for `credential.resolve` from the params:
+    /// explicit `service` → `sourceUrl` host → `sourceId` → default.
+    private static func resolveService(params: [String: Any], default fallback: String) -> String {
+        if let service = params["service"] as? String, !service.isEmpty {
+            return service
+        }
+        if let sourceUrl = params["sourceUrl"] as? String,
+           let host = URL(string: sourceUrl)?.host, !host.isEmpty {
+            return "com.reader.ios.source.\(host)"
+        }
+        if let sourceId = params["sourceId"] as? String, !sourceId.isEmpty {
+            return "com.reader.ios.source.\(sourceId)"
+        }
+        return fallback
+    }
+}
+
+// MARK: - LoginHeaderStore
+
+/// UserDefaults-backed per-source login header store.
+///
+/// Implements `SourceLoginHeaderMapProvider` so the router's
+/// `source.getLoginHeaderMap` lane returns real stored headers instead of
+/// an empty map. Headers are stored as JSON-encoded `[String: String]`
+/// under a UserDefaults key derived from `sourceId` → `url` → `host`.
+///
+/// Storage format:
+/// - key: `host.loginHeaderMap.<sourceKey>` (sourceKey = sourceId ?? url ?? host)
+/// - value: JSON-encoded `[String: String]`
+///
+/// Thread-safe via `NSLock`. Write/clear methods are exposed so the app
+/// (or a future `credential.set` / login flow) can populate the store; the
+/// `SourceLoginHeaderMapProvider` conformance only exposes the read path.
+public final class LoginHeaderStore: SourceLoginHeaderMapProvider, @unchecked Sendable {
+    public static let shared = LoginHeaderStore()
+
+    private let defaults = UserDefaults.standard
+    private let lock = NSLock()
+    private let keyPrefix = "host.loginHeaderMap."
+
+    public init() {}
+
+    public func loginHeaderMap(sourceId: String?, url: String?, host: String?) async throws -> [String: String]? {
+        let storageKey = resolveStorageKey(sourceId: sourceId, url: url, host: host)
+        guard !storageKey.isEmpty else { return [:] }
+        guard let data = defaults.data(forKey: keyPrefix + storageKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: String].self, from: data)
+        } catch {
+            return [:]
+        }
+    }
+
+    /// Store a login header map for the given source key.
+    public func set(_ headers: [String: String], sourceId: String?, url: String?, host: String?) throws {
+        let storageKey = resolveStorageKey(sourceId: sourceId, url: url, host: host)
+        guard !storageKey.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("login header store requires sourceId or url or host")
+        }
+        let data = try JSONEncoder().encode(headers)
+        lock.lock()
+        defer { lock.unlock() }
+        defaults.set(data, forKey: keyPrefix + storageKey)
+    }
+
+    /// Clear the login header map for the given source key.
+    public func clear(sourceId: String?, url: String?, host: String?) throws {
+        let storageKey = resolveStorageKey(sourceId: sourceId, url: url, host: host)
+        guard !storageKey.isEmpty else {
+            throw HostRequestRouterError.hostHTTPFailed("login header clear requires sourceId or url or host")
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        defaults.removeObject(forKey: keyPrefix + storageKey)
+    }
+
+    private func resolveStorageKey(sourceId: String?, url: String?, host: String?) -> String {
+        if let sourceId = sourceId, !sourceId.isEmpty { return sourceId }
+        if let url = url, !url.isEmpty { return url }
+        if let host = host, !host.isEmpty { return host }
+        return ""
     }
 }

@@ -7,17 +7,17 @@ public enum ReaderBackgroundMode: String, Codable, CaseIterable {
 
     public var backgroundColor: String {
         switch self {
-        case .light: return "#FFFFFF"
-        case .sepia: return "#F4ECD8"
-        case .dark: return "#1C1C1E"
+        case .light: return "#fff8f4" // --fd-ds-color-paper
+        case .sepia: return "#f8f4ec" // --fd-ds-color-paper-alt（对齐 demo fixture #f8f4ec）
+        case .dark: return "#24211e" // --fd-ds-color-paper-night（对齐 demo fixture #24211e）
         }
     }
 
     public var textColor: String {
         switch self {
-        case .light: return "#000000"
-        case .sepia: return "#5C4B37"
-        case .dark: return "#FFFFFF"
+        case .light: return "#1f1b17" // --fd-ds-color-ink
+        case .sepia: return "#5C4B37" // 合约外 sepia 主题色，合约无 sepia 专用 token
+        case .dark: return "#d8ccc4" // --fd-ds-color-ink-night
         }
     }
 }

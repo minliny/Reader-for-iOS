@@ -28,6 +28,8 @@ public enum AppMotion {
         public static let toggleSwitch: TimeInterval = 0.14
         /// `app.motion.duration.chipSelect` = 120ms。
         public static let chipSelect: TimeInterval = 0.12
+        /// `app.motion.duration.segmentItemSwitch` = 120ms（对照 MotionId.segmentItemSwitch，主题/分段切换）。
+        public static let segmentItemSwitch: TimeInterval = 0.12
         /// `app.motion.duration.filterCommit` = 160ms。
         public static let filterCommit: TimeInterval = 0.16
         /// `app.motion.duration.numericCommit` = 120ms。

@@ -12,6 +12,8 @@ public struct ReaderView: View {
     @EnvironmentObject private var ttsPlayer: ReaderTTSPlayer
     // P3-B: 会话存储（由 AppShellView 注入），并行记录会话状态，不取代既有 ReaderViewModel
     @EnvironmentObject private var sessionStore: ReaderSessionStore
+    // Issue 6：阅读纸张背景 / 正文墨色由 palette（readerTheme + isNight）驱动，不再硬编码 ReaderDesignTokens。
+    @SwiftUI.Environment(\.readerThemePalette) private var palette
     @State private var showTTS = false
     @State private var readerControlPresentation: ReaderControlPresentation = .control
     @State private var scrollOffset: CGFloat = 0
@@ -19,11 +21,17 @@ public struct ReaderView: View {
     @State private var visibleHeight: CGFloat = 0
     @State private var chromeVisible: Bool
     @State private var readerDestination: ReaderInlineDestination?
+    /// P0 修复 6：阅读器"更多"下拉菜单显隐。对齐 demo 的 `readerMoreOpen` 状态 +
+    /// `.fd-reader-more-menu`（dropdown.trigger.press，不是跳转路由）。
+    @State private var showMoreMenu: Bool = false
     @StateObject private var pageTurnTrigger = PageTurnTrigger()
     private let brightnessController = ScreenBrightnessController()
     private let volumeKeyPageTurner = VolumeKeyPageTurner()
     private let motion = MotionEnvironment()
     private let onExit: (() -> Void)?
+    /// P0 修复 5：模块切换回调。设值后，模块切换按钮会 dispatch `reader.module.switch` 事件
+    /// （replace 语义，同层切换），对齐 demo 的 `reader.module.switch` payload `{ module }`。
+    private let onModuleSwitch: ((ReaderStageModule) -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     /// `immersiveStart = true` 时进入「沉浸阅读」终态：阅读控制层（进度面/动作条/
@@ -39,7 +47,8 @@ public struct ReaderView: View {
         sourceID: String? = nil,
         source: BookSource? = nil,
         immersiveStart: Bool = false,
-        onExit: (() -> Void)? = nil
+        onExit: (() -> Void)? = nil,
+        onModuleSwitch: ((ReaderStageModule) -> Void)? = nil
     ) {
         self._viewModel = StateObject(wrappedValue: ReaderViewModel(
             chapterURL: chapterURL,
@@ -52,6 +61,7 @@ public struct ReaderView: View {
         ))
         self._chromeVisible = State(initialValue: !immersiveStart)
         self.onExit = onExit
+        self.onModuleSwitch = onModuleSwitch
     }
 
     public var body: some View {
@@ -224,20 +234,9 @@ public struct ReaderView: View {
 
     @ViewBuilder
     private var contentBackground: some View {
-        switch viewModel.displaySettings.backgroundMode {
-        case .light:
-            // 对齐 demo `.fd-reader-paper`：暖色纸张渐变，非纯白
-            LinearGradient(
-                colors: [
-                    ReaderDesignTokens.Color.readerPaperGradientStart,
-                    ReaderDesignTokens.Color.readerPaperGradientEnd
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        case .sepia, .dark:
-            Color(hex: viewModel.displaySettings.backgroundMode.backgroundColor)
-        }
+        // Issue 6：阅读纸张背景由 palette（readerTheme + isNight）驱动，不再硬编码 ReaderDesignTokens / backgroundMode。
+        // 对照 ReaderThemeResolver.paperColor + ReaderThemePalette.readingPaper。
+        palette.readingPaper
     }
 
     @ViewBuilder
@@ -251,13 +250,76 @@ public struct ReaderView: View {
                 subtitle: readerTopSubtitle,
                 onBack: exitReader,
                 onSourceSwitch: { readerDestination = .sourceSwitch(viewModel.chapterURL) },
-                onMore: openReaderSettings,
+                onMore: { showMoreMenu.toggle() },
                 style: topBarStyle(for: layout)
             )
             // `.fd-reader-top` inset：top 18 / 左右 14
             .padding(.horizontal, topBarHorizontalInset(for: layout))
             .padding(.top, topBarTopInset(for: layout))
+            .overlay(alignment: .topTrailing) {
+                if showMoreMenu {
+                    readerMoreMenu
+                        .padding(.top, ReaderDesignTokens.readerTopMinHeight + 8)
+                        .padding(.trailing, 4)
+                }
+            }
         }
+    }
+
+    /// P0 修复 6：阅读器"更多"下拉菜单。对齐 demo 的 `.fd-reader-more-menu`
+    /// （`dropdown.trigger.press` 打开下拉菜单，不是跳转路由）。
+    /// 菜单项参考 demo render-runtime.js `readerMoreMenuHtml`：
+    /// 缓存管理 / 调试信息 / 书籍详情 / 更多设置。
+    @ViewBuilder
+    private var readerMoreMenu: some View {
+        VStack(spacing: 0) {
+            moreMenuItem(title: "缓存管理", desc: "管理当前书籍缓存") {
+                showMoreMenu = false
+                readerDestination = .demoRoute("reader-book-cache")
+            }
+            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            moreMenuItem(title: "调试信息", desc: "打开阅读调试信息") {
+                showMoreMenu = false
+                readerDestination = .demoRoute("reader-debug-info")
+            }
+            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            moreMenuItem(title: "书籍详情", desc: "查看当前书籍信息") {
+                showMoreMenu = false
+                readerDestination = .demoRoute("reader-full-directory")
+            }
+            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
+            moreMenuItem(title: "更多设置", desc: "打开阅读器设置") {
+                showMoreMenu = false
+                openReaderSettings()
+            }
+        }
+        .frame(width: 220)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.surface)
+                .shadow(color: ReaderDesignTokens.Color.Shadow.soft, radius: 12, x: 0, y: 4)
+        )
+        .accessibilityIdentifier("fd-reader-more-menu")
+    }
+
+    private func moreMenuItem(title: String, desc: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .semibold))
+                    .foregroundColor(ReaderDesignTokens.Color.ink)
+                    .lineLimit(1)
+                Text(desc)
+                    .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func exitReader() {
@@ -642,6 +704,9 @@ public struct ReaderView: View {
 
     private func openReaderModule(_ module: ReaderStageModule) {
         readerControlPresentation = .module(module)
+        // P0 修复 5：dispatch `reader.module.switch` 事件（replace 语义，同层切换）。
+        // 对齐 demo 的 `reader.module.switch` payload `{ module }`。
+        onModuleSwitch?(module)
     }
 
     private func expandReaderModule(_ module: ReaderStageModule) {
@@ -803,6 +868,8 @@ private struct ReaderReadingLayer: View {
     let text: String
     let displaySettings: ReaderDisplaySettings
     let insets: ReaderContentInsets
+    // Issue 6：正文墨色由 palette（readerTheme + isNight）驱动，不再读 backgroundMode.textColor。
+    @SwiftUI.Environment(\.readerThemePalette) private var palette
 
     var body: some View {
         VStack(alignment: .leading, spacing: paragraphGap) {
@@ -857,7 +924,8 @@ private struct ReaderReadingLayer: View {
     }
 
     private var textColor: SwiftUI.Color {
-        Color(hex: displaySettings.backgroundMode.textColor)
+        // Issue 6：正文墨色由 palette（readerTheme + isNight）驱动（对照 ReaderThemeResolver.inkColor）。
+        palette.readingInk
     }
 
     private func indentedParagraph(_ paragraph: String) -> String {
@@ -1279,6 +1347,11 @@ private struct ReaderTTSQuickPanel: View {
 
 private struct ReaderAppearanceQuickPanel: View {
     @Binding var displaySettings: ReaderDisplaySettings
+    // Issue 6/7：主题色板由 themeManager 驱动（8 主题 paper/warm/green/blue × day/night），
+    // 色板点击使用 segmentItemSwitch 动效（对照 MotionId.segmentItemSwitch）。
+    @EnvironmentObject private var themeManager: ReaderThemeManager
+    @SwiftUI.Environment(\.readerThemePalette) private var palette
+    private let motion = MotionEnvironment()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1286,23 +1359,26 @@ private struct ReaderAppearanceQuickPanel: View {
                 Text("阅读主题")
                     .font(.system(size: ReaderDesignTokens.readerControlLabelFontSize, weight: .black))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                ForEach(ReaderBackgroundMode.allCases, id: \.self) { mode in
+                ForEach(ReaderThemeResolver.allOptions, id: \.self) { themeId in
                     Button {
-                        perform(.theme(mode))
+                        // Issue 7：主题色板切换使用 segmentItemSwitch 动效。
+                        motion.withMotionAnimation(AppMotion.Duration.segmentItemSwitch) {
+                            themeManager.setReaderTheme(themeId)
+                        }
                     } label: {
                         RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
-                            .fill(Color(hex: mode.backgroundColor))
+                            .fill(ReaderThemeResolver.swatchColor(themeId: themeId, isNight: palette.isNight))
                             .frame(
-                                width: displaySettings.backgroundMode == mode ? ReaderDesignTokens.readerSettingsLargeSwatchWidth : ReaderDesignTokens.readerSettingsSwatchSize,
+                                width: themeManager.readerTheme == themeId ? ReaderDesignTokens.readerSettingsLargeSwatchWidth : ReaderDesignTokens.readerSettingsSwatchSize,
                                 height: ReaderDesignTokens.readerSettingsSwatchSize
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.xs)
-                                    .stroke(displaySettings.backgroundMode == mode ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                                    .stroke(themeManager.readerTheme == themeId ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("阅读主题\(mode.rawValue)")
+                    .accessibilityLabel("阅读主题\(ReaderThemeResolver.displayName(themeId))")
                 }
             }
             ReaderAppearanceQuickStepper(
@@ -1668,6 +1744,7 @@ extension ReaderView {
         ))
         self._chromeVisible = State(initialValue: true)
         self.onExit = nil
+        self.onModuleSwitch = nil
     }
 }
 #endif

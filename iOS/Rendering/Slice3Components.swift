@@ -27,13 +27,13 @@ public struct ReaderTopAreaView: View {
         HStack {
             if let title = props.title {
                 Text(title)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-top-bar-title-size") ?? 16, weight: .medium))
                     .foregroundColor(ReaderDesignTokens.Color.primary)
             }
             Spacer()
             if let chapter = props.chapterLabel {
                 Text(chapter)
-                    .font(.system(size: 12))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-control-label-size") ?? 12))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
         }
@@ -57,7 +57,7 @@ public struct ReaderControlSheetView: View {
                 .padding(.top, 6)
             HStack {
                 Text("阅读控制")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-book-title-size") ?? 14, weight: .medium))
                     .foregroundColor(ReaderDesignTokens.Color.primary)
                 Spacer()
             }
@@ -79,10 +79,10 @@ public struct ReaderBottomBarView: View {
     public init(props: ReaderBottomBarProps) { self.props = props }
     public var body: some View {
         HStack(spacing: 0) {
-            bottomItem("目录", icon: "list.bullet", module: "directory")
-            bottomItem("朗读", icon: "speaker.wave.2", module: "tts")
-            bottomItem("外观", icon: "textformat.size", module: "appearance")
-            bottomItem("设置", icon: "gearshape", module: "settings")
+            bottomItem("目录", icon: .readerModuleDirectory, module: "directory")
+            bottomItem("朗读", icon: .readerModuleTts, module: "tts")
+            bottomItem("外观", icon: .readerModuleAppearance, module: "appearance")
+            bottomItem("设置", icon: .readerModuleSettings, module: "settings")
         }
         .padding(.horizontal, ReaderDesignTokens.mainNavHorizontalPadding)
         .padding(.vertical, ReaderDesignTokens.mainNavVerticalPadding)
@@ -91,9 +91,9 @@ public struct ReaderBottomBarView: View {
         .clipShape(RoundedRectangle(cornerRadius: ReaderDesignTokens.mainNavCornerRadius))
         .accessibilityIdentifier("reader-bottom-bar")
     }
-    private func bottomItem(_ label: String, icon: String, module: String) -> some View {
+    private func bottomItem(_ label: String, icon: ReaderAssetIcon, module: String) -> some View {
         VStack(spacing: ReaderDesignTokens.tabItemGap) {
-            Image(systemName: icon)
+            Image(icon.assetName)
                 .font(.system(size: ReaderDesignTokens.tabItemIconSize, weight: .light))
                 .foregroundColor(props.module == module
                     ? ReaderDesignTokens.Color.primary
@@ -116,10 +116,10 @@ public struct ReaderDirectoryPanelView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
             Text("目录")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.primary)
             Text("共 \(props.chapters?.count ?? 0) 章")
-                .font(.system(size: 12))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-control-label-size") ?? 12))
                 .foregroundColor(ReaderDesignTokens.Color.muted)
             Spacer(minLength: 0)
         }
@@ -138,16 +138,16 @@ public struct ReaderAppearancePanelView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
             Text("外观")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.primary)
             if let theme = props.theme {
                 Text("主题：\(theme)")
-                    .font(.system(size: 13))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
             if let size = props.fontSize {
                 Text("字号：\(size, specifier: "%.0f")")
-                    .font(.system(size: 13))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
             Spacer(minLength: 0)
@@ -167,11 +167,11 @@ public struct ReaderTtsPanelView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
             Text("朗读")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.primary)
             if let state = props.playbackState {
                 Text("状态：\(state)")
-                    .font(.system(size: 13))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
             Spacer(minLength: 0)
@@ -191,11 +191,11 @@ public struct ReaderSettingsPanelView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
             Text("设置")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.primary)
             if let zone = props.tapZone {
                 Text("点击翻页：\(zone)")
-                    .font(.system(size: 13))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
             Spacer(minLength: 0)
@@ -215,11 +215,11 @@ public struct ReaderSearchPanelView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
             Text("搜索")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.primary)
             if let query = props.query, !query.isEmpty {
                 Text("查询：\(query)")
-                    .font(.system(size: 13))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
             Spacer(minLength: 0)
@@ -239,11 +239,11 @@ public struct ReaderReplacePanelView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
             Text("内容替换")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.primary)
             if let pattern = props.pattern {
                 Text("替换规则：\(pattern)")
-                    .font(.system(size: 13))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
             Spacer(minLength: 0)
@@ -263,11 +263,11 @@ public struct ReaderAutoScrollPanelView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
             Text("自动滚动")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-reader-body-size") ?? 18, weight: .semibold))
                 .foregroundColor(ReaderDesignTokens.Color.primary)
             if let interval = props.interval {
                 Text("间隔：\(interval, specifier: "%.1f")s")
-                    .font(.system(size: 13))
+                    .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13))
                     .foregroundColor(ReaderDesignTokens.Color.muted)
             }
             Spacer(minLength: 0)
@@ -287,7 +287,7 @@ public struct NightToastView: View {
     public var body: some View {
         if props.visible != false {
             Text(props.message ?? "夜间模式")
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: ReaderTokenAdapter.length(named: "--fd-ds-type-chapter-title-size") ?? 13, weight: .medium))
                 // B1-iOS P0：清理 raw Color.black/.white，改用 ReaderTokenAdapter。
                 .foregroundColor(ReaderTokenAdapter.color(named: "--fd-ds-color-surface") ?? ReaderDesignTokens.Color.surface)
                 .padding(.horizontal, 16)

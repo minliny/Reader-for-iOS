@@ -4,6 +4,8 @@ struct SettingsDemoShellView: View {
     private let initialRoute: String
     private let onExit: (() -> Void)?
     private let motion = MotionEnvironment()
+    // Issue 4：App 主题模式由 themeManager 驱动（system/light/dark），segment 读写经 valuesBinding 桥接。
+    @EnvironmentObject private var themeManager: ReaderThemeManager
     @Environment(\.dismiss) private var dismiss
     @State private var routeStack: [String] = []
     @State private var expandedOptionKey: String?
@@ -22,6 +24,16 @@ struct SettingsDemoShellView: View {
     }
 
     var body: some View {
+        // Issue P2.1：webdav-config 路由改由 WebDAVSettingsView 接入真实 VM，
+        // 不再走 demo 占位壳（避免与 DemoSettingsShell 外壳双重包裹）。
+        if state.route == "webdav-config" {
+            WebDAVSettingsView(onExit: handleBack)
+        } else {
+            demoShellBody
+        }
+    }
+
+    private var demoShellBody: some View {
         DemoSettingsShell(title: state.title, onBack: handleBack) {
             DemoPaperScreen {
                 mainContent
@@ -171,10 +183,44 @@ struct SettingsDemoShellView: View {
         }
     }
 
+    /// App 主题模式 segment 的 optionKey（settings-general:App主题）。
+    private var appThemeOptionKey: String {
+        SettingsDemoRouteState.optionKey(route: "settings-general", title: "App主题")
+    }
+
+    /// App 主题模式 ↔ segment 标签映射。
+    private func appThemeLabel(_ mode: String) -> String {
+        switch mode {
+        case "light": return "浅色"
+        case "dark":  return "深色"
+        default:      return "跟随系统"
+        }
+    }
+
+    private func appThemeMode(for label: String) -> String {
+        switch label {
+        case "浅色": return "light"
+        case "深色": return "dark"
+        default:    return "system"
+        }
+    }
+
     private var valuesBinding: Binding<[String: String]> {
-        Binding(
-            get: { state.defaultValues.merging(settingsValues) { _, new in new } },
-            set: { settingsValues = $0 }
+        // Issue 4：App 主题 segment 的选中值由 themeManager.appThemeMode 驱动（读），
+        // segment 切换时 dispatch setAppThemeMode（写），不再写入 settingsValues 死值。
+        let themeKey = appThemeOptionKey
+        return Binding(
+            get: {
+                var merged = state.defaultValues.merging(settingsValues) { _, new in new }
+                merged[themeKey] = appThemeLabel(themeManager.appThemeMode)
+                return merged
+            },
+            set: { newValue in
+                if let label = newValue[themeKey], label != appThemeLabel(themeManager.appThemeMode) {
+                    themeManager.setAppThemeMode(appThemeMode(for: label))
+                }
+                settingsValues = newValue
+            }
         )
     }
 
@@ -1914,7 +1960,8 @@ private struct SettingsDemoSegment: View {
         HStack(spacing: 4) {
             ForEach(options, id: \.self) { option in
                 Button {
-                    motion.withMotionAnimation(AppMotion.Duration.chipSelect) {
+                    // Issue 7：分段切换使用 segmentItemSwitch 动效（对照 MotionId.segmentItemSwitch）。
+                    motion.withMotionAnimation(AppMotion.Duration.segmentItemSwitch) {
                         onSelect(option)
                     }
                 } label: {
@@ -2148,7 +2195,7 @@ private struct SettingsDemoSourceBatchHeader: View {
         }
         .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
         .frame(minHeight: 42)
         .background(
             RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
@@ -2198,7 +2245,7 @@ private struct SettingsDemoSourceImportSheet: View {
                         ReaderIcon(.chevron, size: 14)
                             .foregroundStyle(ReaderDesignTokens.Color.muted)
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, ReaderDesignTokens.settingsRowHorizontalPadding)
                     .frame(minHeight: 44)
                     .background(
                         RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
@@ -2370,7 +2417,7 @@ private struct SettingsDemoDeleteDialog: View {
                                 Group {
                                     if clearLogs {
                                         Image(systemName: "checkmark")
-                                            .font(.system(size: 11, weight: .black))
+                                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
                                             .foregroundColor(ReaderDesignTokens.Color.Semantic.danger)
                                     }
                                 }
@@ -2389,7 +2436,7 @@ private struct SettingsDemoDeleteDialog: View {
                         onRoute("source-batch")
                     } label: {
                         Text("取消")
-                            .font(.system(size: 13, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
                             .foregroundColor(ReaderDesignTokens.Color.ink)
                             .frame(maxWidth: .infinity, minHeight: 38)
                             .background(
@@ -2402,7 +2449,7 @@ private struct SettingsDemoDeleteDialog: View {
                         onRoute("source-management")
                     } label: {
                         Text("删除")
-                            .font(.system(size: 13, weight: .heavy))
+                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .heavy))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity, minHeight: 38)
                             .background(
@@ -2577,7 +2624,7 @@ private struct SettingsDemoToast: View {
             .font(.system(size: ReaderDesignTokens.chipFontSize, weight: .black))
             .foregroundColor(.white)
             .lineLimit(2)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, ReaderDesignTokens.cardPadding)
             .frame(minHeight: 36)
             .background(Capsule().fill(ReaderDesignTokens.Color.primaryDark.opacity(0.92)))
             .padding(.horizontal, ReaderDesignTokens.cardPadding)

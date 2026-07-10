@@ -1,5 +1,6 @@
 import Foundation
 import ReaderCoreModels
+import ReaderCoreNativeAdapter
 
 public final class RSSSubscriptionStore: @unchecked Sendable {
     public static let shared = RSSSubscriptionStore()
@@ -10,6 +11,9 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
     private let decoder = JSONDecoder()
     private let lock = NSLock()
     private var cache: [RSSSource]?
+
+    /// Timeout for Core bridge calls (rss.subscription.* may involve storage I/O).
+    private static let coreTimeout: TimeInterval = 30
 
     private init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -29,6 +33,12 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
     public func load() async throws -> [RSSSource] {
         if let cached = withLock({ cache }) {
             return cached
+        }
+
+        // Core bridge: try rss.subscription.list first; fall back to local file.
+        if let sources = try? await tryCoreSubscriptionList() {
+            withLock { cache = sources }
+            return sources
         }
 
         guard fileManager.fileExists(atPath: fileURL.path) else {
@@ -53,6 +63,13 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
 
     public func addOrUpdate(_ source: RSSSource) async throws {
         let normalized = normalizedSource(source)
+
+        // Core bridge: try rss.subscription.add first; fall back to local file.
+        if try await tryCoreSubscriptionAdd(normalized) {
+            clearCache()
+            return
+        }
+
         var sources = try await load()
         if let index = sources.firstIndex(where: { normalizedURL($0.url) == normalizedURL(normalized.url) }) {
             sources[index] = normalized
@@ -63,6 +80,12 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
     }
 
     public func delete(url: String) async throws {
+        // Core bridge: try rss.subscription.delete first; fall back to local file.
+        if try await tryCoreSubscriptionDelete(url) {
+            clearCache()
+            return
+        }
+
         var sources = try await load()
         sources.removeAll { normalizedURL($0.url) == normalizedURL(url) }
         try await save(sources)
@@ -71,6 +94,89 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
     public func clearCache() {
         withLock { cache = nil }
     }
+
+    // MARK: - Core Bridge
+
+    /// Get the shared ReaderCoreNativeRuntime if booted. Returns nil when the
+    /// Core bridge is unavailable (e.g. unit tests, shell CI without native .so).
+    private func coreRuntime() async -> ReaderCoreNativeRuntime? {
+        await MainActor.run { RustCoreRuntimeHolder.shared.current }
+    }
+
+    /// Try Core `rss.subscription.list`. Returns `[RSSSource]` on success,
+    /// throws on failure (caller catches and falls back to local file).
+    private func tryCoreSubscriptionList() async throws -> [RSSSource] {
+        guard let runtime = await coreRuntime() else {
+            throw CoreBridgeError.runtimeNotBooted
+        }
+        let requestId = Self.nextRequestId()
+        let event = try runtime.request(
+            method: "rss.subscription.list",
+            requestId: requestId,
+            params: [:],
+            timeout: Self.coreTimeout
+        )
+        guard let subscriptions = event.data?["subscriptions"] as? [[String: Any]] else {
+            throw CoreBridgeError.unexpectedResponse
+        }
+        return subscriptions.compactMap { sub -> RSSSource? in
+            guard let feedUrl = sub["feedUrl"] as? String, !feedUrl.isEmpty else { return nil }
+            var source = RSSSource(url: feedUrl)
+            if let title = sub["title"] as? String, !title.isEmpty {
+                source.name = title
+            }
+            return source
+        }.sorted(by: sortSources)
+    }
+
+    /// Try Core `rss.subscription.add`. Returns true on success, throws on
+    /// failure (caller catches and falls back to local file).
+    private func tryCoreSubscriptionAdd(_ source: RSSSource) async throws -> Bool {
+        guard let runtime = await coreRuntime() else {
+            throw CoreBridgeError.runtimeNotBooted
+        }
+        let params: [String: Any] = [
+            "feedUrl": source.url,
+            "title": source.name ?? "",
+        ]
+        let requestId = Self.nextRequestId()
+        _ = try runtime.request(
+            method: "rss.subscription.add",
+            requestId: requestId,
+            params: params,
+            timeout: Self.coreTimeout
+        )
+        return true
+    }
+
+    /// Try Core `rss.subscription.delete`. Returns true on success, throws on
+    /// failure (caller catches and falls back to local file).
+    private func tryCoreSubscriptionDelete(_ url: String) async throws -> Bool {
+        guard let runtime = await coreRuntime() else {
+            throw CoreBridgeError.runtimeNotBooted
+        }
+        let params: [String: Any] = ["feedUrl": url]
+        let requestId = Self.nextRequestId()
+        _ = try runtime.request(
+            method: "rss.subscription.delete",
+            requestId: requestId,
+            params: params,
+            timeout: Self.coreTimeout
+        )
+        return true
+    }
+
+    private static var requestCounter: UInt64 = 200_000
+    private static let counterLock = NSLock()
+
+    private static func nextRequestId() -> UInt64 {
+        counterLock.lock()
+        defer { counterLock.unlock() }
+        requestCounter += 1
+        return requestCounter
+    }
+
+    // MARK: - Private helpers
 
     private func configureCoders() {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -112,6 +218,11 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
             return normalizedURL(lhs.url) < normalizedURL(rhs.url)
         }
     }
+}
+
+private enum CoreBridgeError: Error {
+    case runtimeNotBooted
+    case unexpectedResponse
 }
 
 private extension String {

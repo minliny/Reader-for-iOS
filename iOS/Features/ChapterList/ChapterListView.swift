@@ -18,6 +18,8 @@ public struct ChapterListView: View {
     @State private var activeChapter: ChapterNavigation?
     let sourceName: String
     let source: BookSource?
+    /// P0 修复：返回按钮回调（pop 路由）。传给 DemoBackScreen 的 onBack。
+    private let onExit: (() -> Void)?
     private var resolvedBookID: String { viewModel.bookURL }
     private var resolvedSourceID: String {
         if let id = source?.id, !id.isEmpty {
@@ -26,9 +28,10 @@ public struct ChapterListView: View {
         return viewModel.bookURL
     }
 
-    public init(bookURL: String, bookTitle: String, sourceName: String = "", source: BookSource? = nil) {
+    public init(bookURL: String, bookTitle: String, sourceName: String = "", source: BookSource? = nil, onExit: (() -> Void)? = nil) {
         self.sourceName = sourceName
         self.source = source
+        self.onExit = onExit
         self._viewModel = StateObject(wrappedValue: ChapterListViewModel(bookURL: bookURL, bookTitle: bookTitle, source: source))
     }
 
@@ -46,7 +49,7 @@ public struct ChapterListView: View {
                     onExit: { self.activeChapter = nil }
                 )
             } else {
-            DemoBackScreen(title: "目录") {
+            DemoBackScreen(title: "目录", onBack: onExit) {
                 directoryCard
             }
             .onAppear {

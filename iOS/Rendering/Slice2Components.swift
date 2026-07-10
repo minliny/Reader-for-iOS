@@ -47,8 +47,8 @@ struct ContinueReadingCardView: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .bold))
+            Image(ReaderAssetIcon.chevron.assetName)
+                .font(.system(size: 14, weight: .bold)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
         .padding(ReaderDesignTokens.cardPadding)
@@ -80,8 +80,8 @@ struct ShelfSectionHeaderView: View {
                 .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
                 .foregroundColor(ReaderDesignTokens.Color.ink)
             Spacer()
-            Image(systemName: props.viewMode == "cover" ? "square.grid.2x2" : "list.bullet")
-                .font(.system(size: 14))
+            Image(props.viewMode == "cover" ? ReaderAssetIcon.grid.assetName : ReaderAssetIcon.list.assetName)
+                .font(.system(size: 14)) // 图标尺寸，非文字字号
                 .foregroundStyle(ReaderDesignTokens.Color.muted)
         }
     }

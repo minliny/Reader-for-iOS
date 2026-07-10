@@ -490,18 +490,22 @@ struct RSSSourceVarsView: View {
 
 struct RSSSourceLoginView: View {
     let source: RSSManagementSource
+    /// P0 修复：返回按钮回调（pop 路由）。传给 DemoBackScreen 的 onBack。
+    private let onExit: (() -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss: DismissAction
 
-    init(source: RSSManagementSource = RSSManagementSource.demoSources[2]) {
+    init(source: RSSManagementSource = RSSManagementSource.demoSources[2], onExit: (() -> Void)? = nil) {
         self.source = source
+        self.onExit = onExit
     }
 
-    init(sourceID: String, title: String? = nil) {
+    init(sourceID: String, title: String? = nil, onExit: (() -> Void)? = nil) {
         self.source = RSSManagementSource.fallback(sourceID: sourceID, title: title)
+        self.onExit = onExit
     }
 
     var body: some View {
-        DemoBackScreen(title: "源登录") {
+        DemoBackScreen(title: "源登录", onBack: onExit) {
             RSSSourceInfoPanel(
                 icon: .shield,
                 title: source.name,
@@ -512,13 +516,22 @@ struct RSSSourceLoginView: View {
         } bottomActionHost: {
             BottomFixedActionRow {
                 RSSSourceActionBottomButton(title: "返回操作", isPrimary: false) {
-                    dismiss()
+                    handleBack()
                 }
             } trailing: {
                 RSSSourceActionBottomButton(title: "完成", isPrimary: true) {
-                    dismiss()
+                    handleBack()
                 }
             }
+        }
+    }
+
+    /// P0 修复：统一返回逻辑——优先 onExit（pop 路由），否则 dismiss。
+    private func handleBack() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
         }
     }
 
