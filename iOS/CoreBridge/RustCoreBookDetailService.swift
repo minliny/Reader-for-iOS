@@ -35,86 +35,197 @@ public final class RustCoreBookDetailService: @unchecked Sendable {
     ///   - book: The SearchResultItem from search (must have detailURL == bookUrl).
     /// - Returns: Enriched SearchResultItem with intro/coverUrl/author/etc.
     public func fetchDetail(source: BookSource, book: SearchResultItem) async throws -> SearchResultItem {
-        let sourceId = source.id?.isEmpty == false ? source.id! : UUID().uuidString
-        let inlineSource = RustCoreServiceSupport.serializeSource(source)
+        try await fetchDetailStage(source: source, book: book).book
+    }
 
-        let params: [String: Any] = [
-            "sourceId": sourceId,
-            "book": [
-                "bookUrl": book.detailURL,
-                "title": book.title,
-                "author": book.author ?? "",
-                "coverUrl": book.coverURL ?? "",
-                "intro": book.intro ?? "",
-            ],
-            "source": inlineSource,
-        ]
-        let requestId: UInt64 = UInt64(Date().timeIntervalSince1970 * 1000) % 1_000_000 + 200_000
-        let command: [String: Any] = [
-            "protocolVersion": 1,
-            "requestId": NSNumber(value: requestId),
-            "method": "book.detail",
-            "params": params,
-        ]
-
+    /// Fetch the complete typed detail-stage result used by `book.open`.
+    ///
+    /// The legacy `fetchDetail` API remains renderer-compatible, while this
+    /// envelope also retains root `tocUrl` and Legado variables for the next
+    /// Core stage.
+    public func fetchDetailStage(
+        source: BookSource,
+        book: SearchResultItem
+    ) async throws -> CoreBookDetailStageResult {
         do {
-            let json = try JSONSerialization.data(withJSONObject: command)
-            try runtime.send(json: json)
-
-            // Expect host.request (http.execute) from Core for ruleBookInfo URL.
-            let hostRequest = try RustCoreServiceSupport.pollEvent(
-                runtime: runtime, requestId: requestId, timeout: requestTimeout
-            )
-            if hostRequest.type == "error" {
-                throw ReaderCoreNativeError.coreError(
-                    code: hostRequest.coreErrorCode ?? "INTERNAL",
-                    message: hostRequest.coreErrorMessage ?? "book.detail failed"
-                )
-            }
-            guard hostRequest.type == "host.request" else {
-                throw ReaderCoreNativeError.coreError(
-                    code: "INTERNAL",
-                    message: "expected host.request, got \(hostRequest.type)"
-                )
-            }
-            try await router.handleHostRequest(hostRequest)
-
-            // Expect result (with enriched book) or error.
-            let result = try RustCoreServiceSupport.pollEvent(
-                runtime: runtime, requestId: requestId, timeout: requestTimeout
-            )
-            if result.type == "error" {
-                throw ReaderCoreNativeError.coreError(
-                    code: result.coreErrorCode ?? "INTERNAL",
-                    message: result.coreErrorMessage ?? "book.detail result failed"
-                )
-            }
-            guard result.type == "result" else {
-                throw ReaderCoreNativeError.coreError(
-                    code: "INTERNAL",
-                    message: "expected result, got \(result.type)"
-                )
-            }
-            return Self.parseBookDetail(result.data, fallback: book)
-        } catch let error as ReaderCoreNativeError {
-            throw RustCoreServiceSupport.mapCoreError(error)
+            return try await startDetailStage(source: source, book: book).value()
         } catch {
             throw RustCoreServiceSupport.mapCoreError(error)
         }
     }
 
-    /// Parse Core `result.data.book` -> enriched `SearchResultItem`.
-    /// Falls back to the original `book` for fields Core didn't return.
-    private static func parseBookDetail(_ data: [String: Any]?, fallback: SearchResultItem) -> SearchResultItem {
-        guard let book = data?["book"] as? [String: Any] else {
-            return fallback
-        }
-        return SearchResultItem(
-            title: (book["title"] as? String) ?? fallback.title,
-            detailURL: (book["bookUrl"] as? String) ?? fallback.detailURL,
-            author: (book["author"] as? String) ?? fallback.author,
-            coverURL: (book["coverUrl"] as? String) ?? fallback.coverURL,
-            intro: (book["intro"] as? String) ?? fallback.intro
+    /// Starts `book.detail` and returns a request-scoped Core/Host handle.
+    /// The caller owns the numeric Core id, awaits `value()`, or cancels it on
+    /// a book-open correlation replacement. The legacy fetch API above simply
+    /// awaits this same handle.
+    public func startDetailStage(
+        source: BookSource,
+        book: SearchResultItem,
+        correlationID: String? = nil
+    ) throws -> RustCoreRequestScopedCommand<CoreBookDetailStageResult> {
+        let sourceId = source.id?.isEmpty == false ? source.id! : UUID().uuidString
+        let inlineSource = RustCoreServiceSupport.serializeSource(source, sourceID: sourceId)
+        let params = Self.makeDetailParams(
+            sourceID: sourceId,
+            bookID: book.detailURL,
+            bookURL: book.detailURL,
+            title: book.title,
+            author: book.author,
+            coverURL: book.coverURL,
+            intro: book.intro,
+            inlineSource: inlineSource
         )
+        let handle = try RustCoreRequestScopedCommand<CoreBookDetailStageResult>(
+            runtime: runtime,
+            router: router,
+            requestID: RustCoreServiceSupport.allocateRequestID(),
+            correlationID: correlationID,
+            method: "book.detail",
+            params: params,
+            timeout: requestTimeout,
+            resultTransform: { data in
+                Self.parseBookDetailStage(data, fallback: book)
+            }
+        )
+        try handle.start()
+        return handle
+    }
+
+    /// Starts `book.detail` using only a persisted Core source id plus a base
+    /// book identity. Core resolves the source from its own storage when the
+    /// optional inline `source` object is absent. This is the appropriate path
+    /// for a bookshelf entry: the UI must not manufacture a `BookSource` just
+    /// to satisfy an older bridge overload.
+    public func startDetailStage(
+        sourceID: String,
+        bookID: String,
+        bookURL: String,
+        title: String,
+        author: String? = nil,
+        coverURL: String? = nil,
+        correlationID: String? = nil
+    ) throws -> RustCoreRequestScopedCommand<CoreBookDetailStageResult> {
+        let normalizedSourceID = try Self.requireIdentity(sourceID, field: "sourceId")
+        let normalizedBookID = try Self.requireIdentity(bookID, field: "bookId")
+        let normalizedBookURL = try Self.requireIdentity(bookURL, field: "bookUrl")
+        let fallback = SearchResultItem(
+            title: title,
+            detailURL: normalizedBookURL,
+            author: author,
+            coverURL: coverURL
+        )
+        let params = Self.makeDetailParams(
+            sourceID: normalizedSourceID,
+            bookID: normalizedBookID,
+            bookURL: normalizedBookURL,
+            title: title,
+            author: author,
+            coverURL: coverURL,
+            inlineSource: nil
+        )
+        let handle = try RustCoreRequestScopedCommand<CoreBookDetailStageResult>(
+            runtime: runtime,
+            router: router,
+            requestID: RustCoreServiceSupport.allocateRequestID(),
+            correlationID: correlationID,
+            method: "book.detail",
+            params: params,
+            timeout: requestTimeout,
+            resultTransform: { data in
+                Self.parseBookDetailStage(data, fallback: fallback)
+            }
+        )
+        try handle.start()
+        return handle
+    }
+
+    /// Parse Core `result.data` without collapsing root transaction context.
+    /// Internal visibility keeps this deterministic parser directly testable.
+    static func parseBookDetailStage(
+        _ data: [String: Any]?,
+        fallback: SearchResultItem
+    ) -> CoreBookDetailStageResult {
+        let rawBook = data?["book"] as? [String: Any] ?? [:]
+        let sourceID = data?["sourceId"] as? String
+        // Core's stable identity is `book.bookId`. Keep it separately from
+        // `SearchResultItem.detailURL`, which remains the renderer/navigation
+        // URL captured before detail parsing.
+        let bookID = (rawBook["bookId"] as? String)
+            ?? (rawBook["id"] as? String)
+            ?? fallback.detailURL
+        let tocURL = (data?["tocUrl"] as? String) ?? (data?["tocURL"] as? String)
+        let variables = CoreReadingStageValue.stringMap(data?["variables"])
+
+        var unknownFields = fallback.unknownFields
+        if !bookID.isEmpty {
+            unknownFields["bookId"] = .string(bookID)
+        }
+        if let sourceID, !sourceID.isEmpty {
+            unknownFields["sourceId"] = .string(sourceID)
+        }
+        if let tocURL, !tocURL.isEmpty {
+            unknownFields["tocUrl"] = .string(tocURL)
+        }
+        if !variables.isEmpty {
+            unknownFields["variables"] = CoreReadingStageValue.jsonObject(variables)
+        }
+
+        let enriched = SearchResultItem(
+            title: (rawBook["title"] as? String) ?? fallback.title,
+            detailURL: (rawBook["bookUrl"] as? String) ?? fallback.detailURL,
+            author: (rawBook["author"] as? String) ?? fallback.author,
+            coverURL: (rawBook["coverUrl"] as? String) ?? fallback.coverURL,
+            intro: (rawBook["intro"] as? String) ?? fallback.intro,
+            nextPageUrl: fallback.nextPageUrl,
+            unknownFields: unknownFields
+        )
+        return CoreBookDetailStageResult(
+            sourceID: sourceID,
+            bookID: bookID,
+            book: enriched,
+            tocURL: tocURL,
+            variables: variables
+        )
+    }
+
+    /// Build the wire shape shared by inline-source and persisted-source
+    /// detail reads. `bookUrl` belongs at the parameter root because Core uses
+    /// it to create the Host HTTP request; the nested domain `Book` accepts
+    /// `bookId`, not `bookUrl`.
+    static func makeDetailParams(
+        sourceID: String,
+        bookID: String,
+        bookURL: String,
+        title: String,
+        author: String? = nil,
+        coverURL: String? = nil,
+        intro: String? = nil,
+        inlineSource: [String: Any]? = nil
+    ) -> [String: Any] {
+        var book: [String: Any] = [
+            "bookId": bookID,
+            "title": title,
+            "author": author ?? "",
+            "coverUrl": coverURL ?? "",
+        ]
+        if let intro { book["intro"] = intro }
+        var params: [String: Any] = [
+            "sourceId": sourceID,
+            "book": book,
+            "bookUrl": bookURL,
+        ]
+        if let inlineSource { params["source"] = inlineSource }
+        return params
+    }
+
+    private static func requireIdentity(_ value: String, field: String) throws -> String {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            throw ReaderCoreNativeError.coreError(
+                code: "INVALID_PARAMS",
+                message: "book.detail requires non-empty \(field)"
+            )
+        }
+        return normalized
     }
 }

@@ -153,23 +153,103 @@ final class ReaderReducerSlice3GoldenTests: XCTestCase {
         XCTAssertEqual(components[3].type, .nightToast)
     }
 
-    // MARK: - Golden: reader.page.next / prev (stub, should not crash)
+    // MARK: - Golden: reader.page.next / prev + night-state
 
-    func testGolden_readerPageNext_doesNotCrash() {
+    func testGolden_readerPageNextAndPrev_updatePageIndexWithLowerBound() {
         let nav = AppNavigationState()
+        nav.readerPageIndex = 2
         let reducer = ReaderReducer(navigationState: nav)
 
         reducer.dispatch(UiEvent(type: .reader_page_next))
-        // 无 crash 即通过——翻页不影响 navigation state
-        XCTAssertTrue(true)
+        XCTAssertEqual(nav.readerPageIndex, 3)
+
+        reducer.dispatch(UiEvent(type: .reader_page_prev))
+        XCTAssertEqual(nav.readerPageIndex, 2)
+
+        nav.readerPageIndex = 0
+        reducer.dispatch(UiEvent(type: .reader_page_prev))
+        XCTAssertEqual(nav.readerPageIndex, 0, "previous page must clamp at zero")
     }
 
-    func testGolden_readerNightStateToggle_doesNotCrash() {
+    func testGolden_readerNightStateToggle_updatesReducerStateWithoutThemeInjection() {
         let nav = AppNavigationState()
         let reducer = ReaderReducer(navigationState: nav)
 
+        XCTAssertFalse(nav.isReaderNightModeEnabled)
         reducer.dispatch(UiEvent(type: .reader_nightState_toggle))
-        // 无 crash 即通过——夜间模式切换为 stub
-        XCTAssertTrue(true)
+        XCTAssertTrue(nav.isReaderNightModeEnabled)
+
+        reducer.dispatch(UiEvent(type: .reader_nightState_toggle))
+        XCTAssertFalse(nav.isReaderNightModeEnabled)
+    }
+
+    // MARK: - Golden: overlay transition guards
+
+    /// overlay 单槽互斥：打开第二个 overlay 经 null 中间态替换为新的 overlay，
+    /// 最终态唯一（不存在两个 overlay 同时活跃）。
+    func testGolden_overlayMutualExclusion_replacesViaNullIntermediate() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        // 打开第一个 overlay（reader directory → sheet）
+        reducer.dispatch(UiEvent(type: .reader_directory_open))
+        XCTAssertEqual(nav.overlayState, .sheet)
+
+        // 打开第二个 overlay（dialog）——单槽互斥：经 null 中间态替换为新的 overlay
+        reducer.dispatch(UiEvent(type: .overlay_dialog_open))
+        XCTAssertEqual(nav.overlayState, .dialog)
+
+        // 第三个 overlay（keyboard）再次替换——最终态唯一为 keyboard
+        reducer.dispatch(UiEvent(type: .overlay_keyboard_open))
+        XCTAssertEqual(nav.overlayState, .keyboard)
+    }
+
+    /// 关闭 overlay 后焦点恢复到先前 scope：overlay 开关不破坏 scope 焦点恢复链。
+    func testGolden_closingOverlayRestoresFocus() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        // bookshelf scope 焦点
+        reducer.dispatch(UiEvent(
+            type: .input_focus,
+            payload: ["target": AnyCodable("bookshelf.search.button")]
+        ))
+        XCTAssertEqual(nav.focusTarget, "bookshelf.search.button")
+
+        // 进入 search scope（焦点切换到新 scope，bookshelf 焦点入栈保留）
+        reducer.dispatch(UiEvent(
+            type: .route_push,
+            payload: ["route": AnyCodable("search-home")]
+        ))
+        XCTAssertNil(nav.focusTarget)
+
+        // 在 search scope 打开并关闭 reader overlay——焦点不被 overlay 打断
+        reducer.dispatch(UiEvent(type: .reader_directory_open))
+        XCTAssertEqual(nav.overlayState, .sheet)
+        reducer.dispatch(UiEvent(type: .reader_directory_close))
+        XCTAssertEqual(nav.overlayState, .none)
+
+        // 退出 search scope——焦点恢复到 bookshelf scope（先前 scope）
+        reducer.dispatch(UiEvent(type: .route_pop))
+        XCTAssertEqual(nav.focusTarget, "bookshelf.search.button")
+    }
+
+    /// tab 切换 transition guard：settings overlay（dialog）展开时禁止 tab 切换。
+    /// 对齐 settings-overlay-guard-tab-switch 规则。
+    func testGolden_tabSwitchInterruptsOverlay() {
+        let nav = AppNavigationState()
+        nav.activeTab = .settings
+        nav.setOverlay(.dialog)
+        let reducer = ReaderReducer(navigationState: nav)
+
+        // settings overlay（dialog）展开时，tab 切换被 transition guard 拦截
+        reducer.dispatch(UiEvent(
+            type: .mainTab_select,
+            payload: ["tab": AnyCodable("bookshelf")]
+        ))
+
+        // tab 未切换，overlay 未被清除——guard 持有
+        XCTAssertEqual(nav.activeTab, .settings)
+        XCTAssertEqual(nav.overlayState, .dialog)
     }
 }

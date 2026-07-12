@@ -1,14 +1,17 @@
 import SwiftUI
+import os
 import ReaderShellValidation
 import ReaderCoreModels
 
-#if DEBUG && canImport(ReaderCoreNativeAdapter)
+#if canImport(ReaderCoreNativeAdapter)
 import ReaderCoreNativeAdapter
 #endif
 
 #if DEBUG && canImport(WebKit) && canImport(UIKit)
 import WebKit
 #endif
+
+private let logger = Logger(subsystem: "com.reader.app", category: "boot")
 
 #if !SWIFT_PACKAGE
 @main
@@ -37,6 +40,7 @@ public struct ReaderApp: App {
     #endif
     @StateObject private var coordinator: ReadingFlowCoordinator
     @StateObject private var navigationState: AppNavigationState
+    @StateObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
     // P3-B: 全局会话存储，注入到根视图供所有子视图通过 @EnvironmentObject 访问
     @StateObject private var sessionStore: ReaderSessionStore = ReaderSessionStore()
     // 主题管理器：8 主题（paper/warm/green/blue × day/night）+ App 主题模式（system/light/dark）。
@@ -75,9 +79,9 @@ public struct ReaderApp: App {
         do {
             try RustCoreRuntimeHolder.shared.boot()
             ReaderCoreServiceProvider.shared.configureRustCoreMode()
-            print("[RustCore] runtime booted + provider configured for rustCore mode")
+            logger.info("RustCore runtime booted + provider configured for rustCore mode")
         } catch {
-            print("[RustCore] boot failed at app init: \(error) — falling back to mock")
+            logger.error("RustCore boot failed at app init: \(String(describing: error), privacy: .public) — falling back to mock")
         }
         #endif
 
@@ -98,13 +102,39 @@ public struct ReaderApp: App {
         //   there is no concurrent access.
         #if canImport(ReaderShellValidation) && canImport(AVFoundation) && canImport(UIKit)
         HostAdapterHolder.adapter.setTTSSynthProvider {
-            return SharedTTSPlayer.shared
+            return await MainActor.run { SharedTTSPlayer.shared }
         }
         HostAdapterHolder.adapter.setSharePresenterProvider {
-            return ReaderSharePresenter()
+            return await MainActor.run { ReaderSharePresenter() }
         }
-        print("[HostAdapter] TTS + Share providers injected into HostAdapterHolder (shared TTS player)")
+        HostAdapterHolder.adapter.setFileSelectionPresenterProvider {
+            return await MainActor.run { ReaderFileSelectionPresenter() }
+        }
+        HostAdapterHolder.adapter.setWebDAVExecutorProvider {
+            return ReaderWebDAVHostExecutor.shared
+        }
+        logger.info("HostAdapter TTS + Share + FileSelection + WebDAV providers injected")
         #endif
+
+        // Assemble the real R8 Host executor even though all three playback
+        // pairs remain default Shadow. This keeps rollout authority separate
+        // from capability readiness: a later coordinated Pilot flip does not
+        // need a second native wiring change, while a missing runtime still
+        // fails closed with a Shadow coordinator.
+        var playbackCoordinator = ReaderPlaybackPilotCoordinator()
+        #if canImport(ReaderCoreNativeAdapter) && canImport(AVFoundation) && canImport(UIKit)
+        if let runtime = RustCoreRuntimeHolder.shared.current {
+            let executor = ReaderPlaybackDomainExecutor(
+                runtime: runtime,
+                speech: ReaderTTSPlaybackDriver(player: SharedTTSPlayer.shared)
+            )
+            playbackCoordinator = ReaderPlaybackPilotCoordinator(
+                configuration: .live,
+                executor: executor
+            )
+        }
+        #endif
+        _playbackPilotCoordinator = StateObject(wrappedValue: playbackCoordinator)
 
         #if DEBUG && canImport(WebKit) && canImport(UIKit)
         // 解析 autorun 配置
@@ -166,14 +196,16 @@ public struct ReaderApp: App {
                 AppShellView(
                     coordinator: coordinator,
                     navigationState: navigationState,
-                    environment: environment
+                    environment: environment,
+                    playbackPilotCoordinator: playbackPilotCoordinator
                 )
             }
             #else
             AppShellView(
                 coordinator: coordinator,
                 navigationState: navigationState,
-                environment: environment
+                environment: environment,
+                playbackPilotCoordinator: playbackPilotCoordinator
             )
             #endif
         }
@@ -187,14 +219,14 @@ public struct ReaderApp: App {
         // preferredColorScheme：appThemeMode 为 light/dark 时强制，system 时返回 nil（跟随系统）。
         .preferredColorScheme(themeManager.appThemeMode == "light" ? .light : themeManager.appThemeMode == "dark" ? .dark : nil)
         // 同步系统 ColorScheme 到 themeManager（system 模式下据此解析 effectiveIsNight）。
-        .background(ReaderSystemColorSchemeSync())
+        .background(ReaderSystemColorSchemeSync(themeManager: themeManager))
     }
 }
 
 /// 系统颜色方案同步器：读取 @SwiftUI.Environment(\.colorScheme) 并同步到 ReaderThemeManager，
 /// 供 appThemeMode == "system" 时解析 effectiveIsNight（对照 HarmonyOS systemColorScheme 注入）。
 private struct ReaderSystemColorSchemeSync: View {
-    @EnvironmentObject private var themeManager: ReaderThemeManager
+    @ObservedObject var themeManager: ReaderThemeManager
     @SwiftUI.Environment(\.colorScheme) private var systemColorScheme
 
     var body: some View {

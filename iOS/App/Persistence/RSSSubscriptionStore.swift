@@ -2,6 +2,17 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreNativeAdapter
 
+/// RSS subscription persistence store.
+///
+/// H4-G note: The 7 RSS events (`rss.refresh`, `rss.subscription.add`,
+/// `rss.subscription.delete`, `rss.subscription.edit`, `rss.entry.open`,
+/// `rss.favorite.add`, `rss.favorite.remove`) are now canonical via
+/// `ReaderRssPilotCoordinator` at the UI event layer (ReaderApp target).
+/// This store remains the persistence backend: the pilot coordinator's
+/// `ReaderRssCoreCommandExecuting` executor calls Core methods that this
+/// store also uses directly for its `load`/`addOrUpdate`/`delete` paths.
+/// The store cannot import `ReaderRssPilotCoordinator` directly because
+/// `ReaderAppPersistence` does not depend on `ReaderApp`/`ReaderUIRuntime`.
 public final class RSSSubscriptionStore: @unchecked Sendable {
     public static let shared = RSSSubscriptionStore()
 
@@ -65,7 +76,7 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
         let normalized = normalizedSource(source)
 
         // Core bridge: try rss.subscription.add first; fall back to local file.
-        if try await tryCoreSubscriptionAdd(normalized) {
+        if (try? await tryCoreSubscriptionAdd(normalized)) == true {
             clearCache()
             return
         }
@@ -81,7 +92,7 @@ public final class RSSSubscriptionStore: @unchecked Sendable {
 
     public func delete(url: String) async throws {
         // Core bridge: try rss.subscription.delete first; fall back to local file.
-        if try await tryCoreSubscriptionDelete(url) {
+        if (try? await tryCoreSubscriptionDelete(url)) == true {
             clearCache()
             return
         }

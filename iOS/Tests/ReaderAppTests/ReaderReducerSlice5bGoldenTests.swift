@@ -263,4 +263,18 @@ final class ReaderReducerSlice5bGoldenTests: XCTestCase {
         reducer.dispatch(UiEvent(type: .source_delete_confirm))
         XCTAssertEqual(nav.activeSession, .none)
     }
+
+    // MARK: - Golden: source.import.open 打开本地导入路由
+
+    /// source.import.open 事件 push .bookSourceImport 路由（对齐 BookSourceImportView）。
+    func testGolden_sourceImportOpen_opensLocalImportRoute() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(type: .source_import_open))
+
+        XCTAssertEqual(nav.currentRoute, .bookSourceImport)
+        XCTAssertEqual(nav.navigationPath, [.bookSourceImport])
+        XCTAssertEqual(ReaderViewState(from: nav).routeId, .sourceImportOptions)
+    }
 }

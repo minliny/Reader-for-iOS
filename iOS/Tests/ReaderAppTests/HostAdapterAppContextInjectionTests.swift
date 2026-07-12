@@ -123,7 +123,7 @@ final class HostAdapterAppContextInjectionTests: XCTestCase {
         }
 
         let request = HostRequest(type: .share_invoke, payload: [
-            "items": AnyCodable(["share app-context proof"] as [String]),
+            "text": AnyCodable("share app-context proof"),
         ])
         let outcome = await HostAdapterHolder.adapter.dispatch(request)
 

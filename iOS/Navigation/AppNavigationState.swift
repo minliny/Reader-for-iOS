@@ -14,6 +14,9 @@ public struct ReaderContext: Equatable, Hashable, Identifiable {
     public let bookID: String?
     public let chapterURL: String
     public let chapterTitle: String
+    /// Core-derived zero-based chapter identity. It travels with a continue
+    /// reading intent even before the renderer has a fresh TOC to inspect.
+    public let chapterIndex: Int
     public let sourceID: String?
     public let source: EntrySource
 
@@ -29,6 +32,7 @@ public struct ReaderContext: Equatable, Hashable, Identifiable {
         bookID: String?,
         chapterURL: String,
         chapterTitle: String,
+        chapterIndex: Int = 0,
         sourceID: String? = nil,
         source: EntrySource
     ) {
@@ -36,6 +40,7 @@ public struct ReaderContext: Equatable, Hashable, Identifiable {
         self.bookID = bookID
         self.chapterURL = chapterURL
         self.chapterTitle = chapterTitle
+        self.chapterIndex = max(0, chapterIndex)
         self.sourceID = sourceID
         self.source = source
     }
@@ -110,6 +115,26 @@ public final class AppNavigationState: ObservableObject {
 
     /// 当前阅读页码（reader.page.next/prev 更新）。对齐 `reader.page.turn.next-prev`。
     @Published public var readerPageIndex: Int = 0
+
+    /// Reader night-state contract value. This remains in the reducer state
+    /// even when no concrete `ReaderThemeManager` is injected (for example in
+    /// golden tests), so `reader.nightState.toggle` is never a no-op.
+    @Published public var isReaderNightModeEnabled: Bool = false
+
+    /// Slice 5 search workflow state owned by the UI reducer.
+    @Published public var searchQuery: String = ""
+    @Published public var searchIsLoading: Bool = false
+    @Published public var searchPage: Int = 1
+    @Published public var searchResultCount: Int = 0
+    @Published public var selectedSearchFilters: Set<String> = []
+    @Published public var searchSort: String = "relevance"
+
+    /// Slice 5 discover filter/sort/refresh state. Core owns result data; the
+    /// reducer owns these interaction selections and refresh intent revision.
+    @Published public var selectedDiscoverFilters: Set<String> = []
+    @Published public var discoverSortAscending: Bool = true
+    @Published public var discoverRefreshRevision: Int = 0
+    @Published public var selectedDiscoverEntryID: String?
 
     private var focusTargetByScope: [String: String] = [:]
 

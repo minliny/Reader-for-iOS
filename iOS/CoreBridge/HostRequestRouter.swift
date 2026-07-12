@@ -177,7 +177,15 @@ public struct HostRequestRouter: Sendable {
     /// `media.download`:
     /// 1. Dispatch on `capability` to the right host executor.
     /// 2. Send `host.complete` (with the executor's result) or `host.error`.
-    public func handleHostRequest(_ event: ReaderCoreNativeEvent) async throws {
+    public func handleHostRequest(
+        _ event: ReaderCoreNativeEvent,
+        transportRequestID: String? = nil,
+        shouldDiscard: @escaping @Sendable () -> Bool = { false }
+    ) async throws {
+        // A request-scoped Core cancellation may race a host callback. Do not
+        // begin a new host operation or send a late host.complete/error once
+        // the owning transaction has been invalidated.
+        guard !shouldDiscard() else { return }
         guard event.type == "host.request" else {
             throw HostRequestRouterError.unexpectedHostRequestType(event.type)
         }
@@ -208,7 +216,10 @@ public struct HostRequestRouter: Sendable {
             case "host.smoke.echo":
                 result = try executeHostSmokeEcho(params: params)
             case "http.execute":
-                result = try await executeHTTP(params: params)
+                result = try await executeHTTP(
+                    params: params,
+                    transportRequestID: transportRequestID
+                )
             case "cookie.get":
                 result = try await executeCookieGet(params: params)
             case "cookie.set":
@@ -250,6 +261,7 @@ public struct HostRequestRouter: Sendable {
             default:
                 throw HostRequestRouterError.unexpectedCapability(capability)
             }
+            guard !shouldDiscard() else { return }
             try sendHostComplete(operationId: operationId, result: result)
         } catch let challengeError as AntiBotChallengeRequiredError {
             // anti_bot challenge detection: send host.error with the
@@ -259,6 +271,7 @@ public struct HostRequestRouter: Sendable {
             let code = diagnostics["code"] as? String ?? "CHALLENGE_REQUIRED"
             let message = diagnostics["message"] as? String ?? "anti-bot challenge required"
             let details = diagnostics["details"] as? [String: Any] ?? [:]
+            guard !shouldDiscard() else { return }
             try sendHostError(
                 operationId: operationId,
                 code: code,
@@ -266,6 +279,7 @@ public struct HostRequestRouter: Sendable {
                 details: details
             )
         } catch {
+            guard !shouldDiscard() else { return }
             try sendHostError(
                 operationId: operationId,
                 code: "INTERNAL",
@@ -316,7 +330,10 @@ public struct HostRequestRouter: Sendable {
     /// Execute an `http.execute` request via `HTTPClient.send` and build the
     /// `host.complete` result dict. Exposed as internal so proof tests can
     /// verify the `finalUrl` / `cookies` payload contract without a live runtime.
-    internal func executeHTTP(params: [String: Any]) async throws -> [String: Any] {
+    internal func executeHTTP(
+        params: [String: Any],
+        transportRequestID: String? = nil
+    ) async throws -> [String: Any] {
         let url = (params["url"] as? String) ?? ""
         let method = (params["method"] as? String) ?? "GET"
         let headersDict = (params["headers"] as? [String: Any]) ?? [:]
@@ -337,8 +354,30 @@ public struct HostRequestRouter: Sendable {
             body: body
         )
 
-        let response = try await httpClient.send(request)
+        let response: HTTPResponse
+        if let transportRequestID,
+           !transportRequestID.isEmpty,
+           let requestScopedClient = httpClient as? any RequestScopedHTTPClient {
+            response = try await requestScopedClient.send(
+                request,
+                requestId: transportRequestID
+            )
+        } else {
+            response = try await httpClient.send(request)
+        }
         return Self.buildHTTPExecuteResult(response: response)
+    }
+
+    /// Cancel the concrete URLSession task currently associated with a Core
+    /// command. Returning false is normal when the request completed before a
+    /// cancellation race or when a non-request-scoped test client is injected.
+    @discardableResult
+    public func cancelHTTPTransport(requestID: String) -> Bool {
+        guard !requestID.isEmpty,
+              let requestScopedClient = httpClient as? any RequestScopedHTTPClient else {
+            return false
+        }
+        return requestScopedClient.cancel(requestId: requestID)
     }
 
     /// Build the `result` dict for an `http.execute` `host.complete` payload.
@@ -855,6 +894,8 @@ final class HostPersistenceStore: @unchecked Sendable {
         }
         let sKey = storageKey(namespace: ns, key: key)
         let rKey = revisionKey(namespace: ns, key: key)
+        lock.lock()
+        defer { lock.unlock() }
         if let value = defaults.string(forKey: sKey) {
             let revision = defaults.string(forKey: rKey) ?? "0"
             return ["found": true, "value": value, "revision": revision]
@@ -889,7 +930,15 @@ final class HostPersistenceStore: @unchecked Sendable {
                 )
             }
         }
-        let newRevision = String((Int(currentRevision ?? "0") ?? 0) + 1)
+        guard let revision = UInt64(currentRevision ?? "0"), revision < UInt64.max else {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "persistence.put stored revision is corrupt or exhausted"
+            )
+        }
+        let newRevision = String(revision + 1)
+        // Store the value and its revision while holding the same lock used by
+        // get(). This makes the process-local CAS linearizable: a reader can
+        // never observe a new value paired with the previous revision.
         defaults.set(value ?? valueBase64, forKey: sKey)
         defaults.set(newRevision, forKey: rKey)
         return ["stored": true, "revision": newRevision]

@@ -2,7 +2,7 @@ import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
 #if !READER_IOS_SHELL_CI
-import ReaderCoreServices
+import ReaderCoreServices  // Designated seam (check_ios_boundary.sh whitelist): CoreBridge is the sole permitted import site.
 #endif
 #if canImport(ReaderCoreNativeAdapter)
 import ReaderCoreNativeAdapter
@@ -36,6 +36,7 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
     private var realSearchService: (any SearchService)?
     private var realTOCService: (any TOCService)?
     private var realContentService: (any ContentService)?
+    private var bridgeRequestId: UInt64 = 800_000
     #if canImport(ReaderCoreNativeAdapter)
     private var rustCoreSearchService: (any SearchService)?
     private var rustCoreTOCService: (any TOCService)?
@@ -126,6 +127,63 @@ public final class ReaderCoreServiceProvider: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return mode
+    }
+
+    // MARK: - Contract bridge direct Core commands
+
+    /// Execute a Core command that completes without a Host callback (for
+    /// example `reader.location.resolve`, `reading.progress.update`, and
+    /// `bookshelf.list`). Network-backed commands continue to use the typed
+    /// Search/TOC/Content services above so their `host.request` round trip is
+    /// handled by `HostRequestRouter`.
+    public func executeCoreCommand(
+        method: String,
+        params: [String: Any],
+        requestId requestedId: String? = nil
+    ) async -> Result<[String: Any], AppReaderError> {
+        #if canImport(ReaderCoreNativeAdapter)
+        guard mode == .rustCore else {
+            return .failure(AppReaderError(
+                code: .unsupported,
+                message: "Core command \(method) requires rustCore mode; current mode is \(mode)",
+                stage: "CORE_BRIDGE"
+            ))
+        }
+        guard let runtime = RustCoreRuntimeHolder.shared.current else {
+            return .failure(AppReaderError(
+                code: .unsupported,
+                message: "Core command \(method) requires a booted Rust Core runtime",
+                stage: "CORE_BRIDGE"
+            ))
+        }
+
+        bridgeRequestId += 1
+        let requestId = requestedId.flatMap(UInt64.init) ?? bridgeRequestId
+        do {
+            let event = try runtime.request(
+                method: method,
+                requestId: requestId,
+                params: params,
+                timeout: 10
+            )
+            guard event.type == "result" else {
+                return .failure(AppReaderError(
+                    code: .unsupported,
+                    message: "Core command \(method) emitted \(event.type); direct commands must complete without Host callbacks",
+                    stage: "CORE_BRIDGE"
+                ))
+            }
+            return .success(event.data ?? [:])
+        } catch {
+            return .failure(RustCoreServiceSupport.mapCoreError(error))
+        }
+        #else
+        return .failure(AppReaderError(
+            code: .unsupported,
+            message: "Core command \(method) is unavailable because ReaderCoreNativeAdapter is not linked",
+            stage: "CORE_BRIDGE"
+        ))
+        #endif
     }
 
     public func setMode(_ newMode: ServiceMode) {

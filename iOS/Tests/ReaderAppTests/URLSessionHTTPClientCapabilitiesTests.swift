@@ -1,5 +1,6 @@
 import XCTest
 import ReaderCoreProtocols
+import ReaderUIContract
 @testable import ReaderShellValidation
 
 /// S4 host proof — verifies the three host-side HTTP capabilities implemented in
@@ -294,6 +295,63 @@ final class URLSessionHTTPClientCapabilitiesTests: XCTestCase {
 
         XCTAssertEqual(capturedAuth, "Basic cmVhZGVyOnNlY3JldA==")
     }
+
+    // MARK: - Request-scoped cancellation
+
+    func testHostHttpCancelStopsMatchingURLSessionTask() async throws {
+        CancellableURLProtocolStub.reset()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CancellableURLProtocolStub.self]
+
+        let client = URLSessionHTTPClient(configuration: configuration)
+        let capability = HostHttpCapability(httpClient: client)
+        let requestId = "cancel-proof-\(UUID().uuidString)"
+        let executeTask = Task {
+            try await capability.handle(HostRequest(
+                type: .http_execute,
+                payload: [
+                    "url": AnyCodable("https://cancel.example.test/blocked"),
+                    "timeout": AnyCodable(30.0),
+                ],
+                requestId: requestId
+            ))
+        }
+
+        try await waitUntil("URLSession task did not start") {
+            CancellableURLProtocolStub.didStart
+        }
+
+        let cancelOutcome = try await capability.handle(HostRequest(
+            type: .http_cancel,
+            payload: ["requestId": AnyCodable(requestId)]
+        ))
+        XCTAssertTrue(cancelOutcome.succeeded)
+        XCTAssertEqual(cancelOutcome.result?["cancelled"]?.value as? Bool, true)
+        XCTAssertEqual(cancelOutcome.result?["requestId"]?.value as? String, requestId)
+
+        let executeOutcome = try await executeTask.value
+        XCTAssertFalse(executeOutcome.succeeded, "cancelled execute must finish with a structured failure")
+        try await waitUntil("URLProtocol.stopLoading was not called after cancel") {
+            CancellableURLProtocolStub.didStop
+        }
+
+        XCTAssertFalse(client.cancel(requestId: requestId), "completed cancellation must remove the registry entry")
+    }
+
+    private func waitUntil(
+        _ failureMessage: String,
+        timeout: TimeInterval = 3,
+        condition: @escaping @Sendable () -> Bool
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            guard Date() < deadline else {
+                XCTFail(failureMessage)
+                throw URLError(.timedOut)
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
 }
 
 // MARK: - URLProtocol stub (aligned with WebDAVURLProtocolStub)
@@ -344,6 +402,51 @@ private final class CapabilitiesURLProtocolStub: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+/// A transport that remains pending until URLSession cancels it. This proves
+/// that `http.cancel` reaches the concrete URLSessionTask rather than merely
+/// clearing UI state.
+private final class CancellableURLProtocolStub: URLProtocol {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var started = false
+    nonisolated(unsafe) private static var stopped = false
+
+    static var didStart: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return started
+    }
+
+    static var didStop: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopped
+    }
+
+    static func reset() {
+        lock.lock()
+        started = false
+        stopped = false
+        lock.unlock()
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.lock.lock()
+        Self.started = true
+        Self.lock.unlock()
+        // Intentionally do not finish; cancellation must invoke stopLoading.
+    }
+
+    override func stopLoading() {
+        Self.lock.lock()
+        Self.stopped = true
+        Self.lock.unlock()
+    }
 }
 
 private enum StubError: Error {

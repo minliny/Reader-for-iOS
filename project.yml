@@ -13,8 +13,9 @@ packages:
     path: ../Reader-Core
     from: "0.1.0"
   ReaderUI:
-    # Contract-only package. Exposes generated/swift as ReaderUIContract.
-    path: "../Reader UI"
+    # Contract + executable UI runtime package.
+    # Must match the canonical checkout path used by ios-shell-ci.yml.
+    path: "../Reader-UI"
 
 targets:
   ReaderAppPersistence:
@@ -135,6 +136,8 @@ targets:
       - target: ReaderCoreNativeAdapter
       - package: ReaderUI
         product: ReaderUIContract
+      - package: ReaderUI
+        product: ReaderUIRuntime
       - package: ReaderCore
         product: ReaderCoreModels
       - package: ReaderCore
@@ -232,6 +235,8 @@ targets:
       - target: ReaderCoreNativeAdapter
       - package: ReaderUI
         product: ReaderUIContract
+      - package: ReaderUI
+        product: ReaderUIRuntime
       - package: ReaderCore
         product: ReaderCoreFoundation
       - package: ReaderCore

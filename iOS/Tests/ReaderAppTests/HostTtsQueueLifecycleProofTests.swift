@@ -34,16 +34,10 @@ import ReaderCoreNativeAdapter
 /// TtsQueuePlayParams, TtsQueueReportStatusParams, TtsQueueNextParams,
 /// TtsQueueSnapshot, TtsQueueState).
 ///
-/// 已知预期失败（自愈标记）：Proof 3 (`testTtsQueueLifecycleAdvancesToCompleted`)
-/// 调用 `tts.queue.report-status`。Core 源码已实现该方法
-/// （`crates/reader-contract/src/lib.rs` 的 `TTS_QUEUE_REPORT_STATUS` 常量 +
-/// `crates/reader-runtime/src/tts.rs` 的 `dispatch_tts` 分发），但 iOS 侧预编译的
-/// `ReaderCore.xcframework` 二进制落后于 Core 源码，尚未包含
-/// `tts.queue.report-status`。Core 因此回 `UNKNOWN_METHOD`。下方
-/// `sendAndPollResult` 把该错误转为 `XCTSkip`（预期失败 / 自愈）：重建二进制后
-/// 方法恢复可用，测试自动恢复执行。
-/// 待办：运行 `bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework`
-/// 从最新 Core 源码重建二进制。
+/// Binary freshness gate: an `UNKNOWN_METHOD` response is a hard failure.
+/// These proofs must execute against the checked-in workspace's rebuilt
+/// `ReaderCore.xcframework`; they must never turn a stale binary into a green
+/// build by skipping the missing method.
 final class HostTtsQueueLifecycleProofTests: XCTestCase {
 
     // MARK: - Helpers
@@ -57,12 +51,8 @@ final class HostTtsQueueLifecycleProofTests: XCTestCase {
     /// Send a Core command and poll for the result event. Returns the result
     /// `data` dict. Throws on error or timeout.
     ///
-    /// 预期失败兜底（自愈）：当预编译的 `ReaderCore.xcframework` 二进制落后于
-    /// Core 源码（缺少某方法）时，Core 会回 `UNKNOWN_METHOD`。此时把该错误
-    /// 转为 `XCTSkip` 跳过测试，而不是计为失败。重建二进制后方法恢复可用，
-    /// 测试自动恢复执行——无需改回代码。
-    /// 待办：运行 `bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework`
-    /// 从最新 Core 源码重建二进制，即可恢复 `tts.queue.report-status` 等方法。
+    /// `UNKNOWN_METHOD` deliberately follows the normal error path. A stale
+    /// xcframework is a release-gate failure, not an accepted skip.
     private func sendAndPollResult(
         runtime: ReaderCoreNativeRuntime,
         method: String,
@@ -86,14 +76,6 @@ final class HostTtsQueueLifecycleProofTests: XCTestCase {
                 if event.type == "error" {
                     let code = event.coreErrorCode ?? "INTERNAL"
                     let message = event.coreErrorMessage ?? "\(method) failed"
-                    // 预编译二进制缺少该方法：跳过而非失败（自愈标记）。
-                    if code == "UNKNOWN_METHOD" {
-                        throw XCTSkip(
-                            "预编译 Core 二进制缺少方法，跳过该项 proof：\(message)。" +
-                            "待办：运行 bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework 重建 ReaderCore.xcframework。",
-                            file: file, line: line
-                        )
-                    }
                     throw ReaderCoreNativeError.coreError(
                         code: code,
                         message: message
@@ -321,6 +303,49 @@ final class HostTtsQueueLifecycleProofTests: XCTestCase {
         }
         XCTAssertEqual(snapshot["state"] as? String, "stopped",
                        "state must be Stopped after stop")
+    }
+
+    /// Repeating stop on an already stopped queue is an idempotent no-op in
+    /// the current Core contract. This catches an xcframework built before
+    /// the Completed/Stopped convergence fix even when method names exist.
+    func testTtsQueueStopIsIdempotent() throws {
+        let runtime = try makeRuntime()
+        defer { runtime.destroy() }
+
+        let chapter = chapterRef()
+        let sliceData = try sendAndPollResult(
+            runtime: runtime,
+            method: "tts.slice",
+            params: [
+                "chapter": chapter,
+                "content": "First slice.\n\nSecond slice.",
+                "strategy": "paragraph",
+            ]
+        )
+        guard let plan = sliceData["plan"] as? [String: Any] else {
+            XCTFail("tts.slice must return plan"); return
+        }
+
+        _ = try sendAndPollResult(
+            runtime: runtime,
+            method: "tts.queue.play",
+            params: ["plan": plan]
+        )
+        _ = try sendAndPollResult(
+            runtime: runtime,
+            method: "tts.queue.stop",
+            params: ["chapter": chapter]
+        )
+        let secondStop = try sendAndPollResult(
+            runtime: runtime,
+            method: "tts.queue.stop",
+            params: ["chapter": chapter]
+        )
+
+        XCTAssertEqual(
+            (secondStop["snapshot"] as? [String: Any])?["state"] as? String,
+            "stopped"
+        )
     }
 
     // MARK: - Proof 5: AVSpeechSynthesizer actually speaks (system TTS vocalization)

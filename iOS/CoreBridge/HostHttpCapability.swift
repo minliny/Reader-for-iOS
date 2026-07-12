@@ -21,11 +21,7 @@
 //   → `{ status: Int, headers: {String:String}, body: String, finalUrl?: String,
 //        cookies?: [{name, value}] }`
 // - `.http_cancel`:
-//   `{ requestId: String }` → `{ cancelled: true }`
-//   (Note: `URLSessionHTTPClient` does not expose per-request cancellation yet;
-//   this handler acknowledges the cancel but the actual URLSession task
-//   cancellation is a follow-up. The handler is wired so the registry no
-//   longer reports `.notConfigured` for `.http_cancel`.)
+//   `{ requestId: String }` → `{ cancelled: Bool, requestId: String }`
 
 import Foundation
 import ReaderCoreProtocols
@@ -36,17 +32,19 @@ public struct HostHttpCapability: HostCapabilityHandler {
     public let tier: HostCapabilityTier = .simulatorProof
 
     private let httpClient: HTTPClient
+    private let requestScopedClient: (any RequestScopedHTTPClient)?
 
     public init(httpClient: HTTPClient) {
         self.httpClient = httpClient
+        self.requestScopedClient = httpClient as? any RequestScopedHTTPClient
     }
 
     public func handle(_ request: HostRequest) async throws -> HostCapabilityOutcome {
         switch request.type {
         case .http_execute:
-            return try await handleExecute(request.payload)
+            return try await handleExecute(request)
         case .http_cancel:
-            return handleCancel(request.payload)
+            return handleCancel(request)
         default:
             return .failure(.notImplemented(request.type, "HostHttpCapability does not handle \(request.type.rawValue)"))
         }
@@ -54,15 +52,13 @@ public struct HostHttpCapability: HostCapabilityHandler {
 
     // MARK: - http.execute
 
-    private func handleExecute(_ payload: [String: AnyCodable]) async throws -> HostCapabilityOutcome {
+    private func handleExecute(_ request: HostRequest) async throws -> HostCapabilityOutcome {
+        let payload = request.payload
         guard let urlString = payload["url"]?.value as? String, !urlString.isEmpty else {
             return .failure(.invalidParams("http.execute requires non-empty `url`"))
         }
         let method = (payload["method"]?.value as? String) ?? "GET"
-        let headersDict = (payload["headers"]?.value as? [String: Any]) ?? [:]
-        let headers = headersDict.reduce(into: [String: String]()) { acc, kv in
-            if let s = kv.value as? String { acc[kv.key] = s }
-        }
+        let headers = Self.stringDictionary(payload["headers"]?.value) ?? [:]
         let bodyString = payload["body"]?.value as? String
         let body = bodyString?.data(using: .utf8)
         let timeout = (payload["timeout"]?.value as? Double) ?? 15.0
@@ -84,8 +80,19 @@ public struct HostHttpCapability: HostCapabilityHandler {
         }
 
         do {
-            let response = try await httpClient.send(httpRequest)
-            return .success(buildResult(from: response))
+            let response: HTTPResponse
+            if let requestId = request.requestId?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !requestId.isEmpty,
+               let requestScopedClient {
+                response = try await requestScopedClient.send(httpRequest, requestId: requestId)
+            } else {
+                response = try await httpClient.send(httpRequest)
+            }
+            var result = buildResult(from: response)
+            if let requestId = request.requestId, !requestId.isEmpty {
+                result["requestId"] = AnyCodable(requestId)
+            }
+            return .success(result)
         } catch {
             return .failure(.underlying("http.execute failed: \(error.localizedDescription)"))
         }
@@ -93,16 +100,21 @@ public struct HostHttpCapability: HostCapabilityHandler {
 
     // MARK: - http.cancel
 
-    private func handleCancel(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        // Acknowledge the cancel — `URLSessionHTTPClient` does not expose a
-        // per-request task registry yet. The contract outcome is success so
-        // the UI can clear its loading state; the actual URLSession task
-        // cancellation lands when the HTTP client grows a cancel API.
-        let requestId = payload["requestId"]?.value as? String ?? ""
+    private func handleCancel(_ request: HostRequest) -> HostCapabilityOutcome {
+        guard let requestId = request.payload["requestId"]?.value as? String,
+              !requestId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.invalidParams("http.cancel requires non-empty `requestId`"))
+        }
+        guard let requestScopedClient else {
+            return .failure(.notImplemented(
+                .http_cancel,
+                "configured HTTPClient does not support request-scoped cancellation"
+            ))
+        }
+        let cancelled = requestScopedClient.cancel(requestId: requestId)
         return .success([
-            "cancelled": AnyCodable(true),
+            "cancelled": AnyCodable(cancelled),
             "requestId": AnyCodable(requestId),
-            "note": AnyCodable("URLSessionHTTPClient per-request cancellation not yet wired; UI state cleared"),
         ])
     }
 
@@ -130,12 +142,33 @@ public struct HostHttpCapability: HostCapabilityHandler {
     }
 
     private func extractScopeKey(_ payload: [String: AnyCodable]) -> CookieJarScopeKey? {
-        guard let scopeDict = payload["scopeKey"]?.value as? [String: Any],
-              let sourceId = scopeDict["sourceId"] as? String,
-              let host = scopeDict["host"] as? String else {
+        guard let scopeDict = Self.stringDictionary(payload["scopeKey"]?.value),
+              let sourceId = scopeDict["sourceId"],
+              let host = scopeDict["host"] else {
             return nil
         }
         return CookieJarScopeKey(sourceId: sourceId, host: host)
+    }
+
+    private static func stringDictionary(_ raw: (any Sendable)?) -> [String: String]? {
+        if let values = raw as? [String: String] { return values }
+        if let values = raw as? [String: AnyCodable] {
+            var result: [String: String] = [:]
+            for (key, value) in values {
+                guard let string = value.value as? String else { return nil }
+                result[key] = string
+            }
+            return result
+        }
+        if let values = raw as? [String: Any] {
+            var result: [String: String] = [:]
+            for (key, value) in values {
+                guard let string = value as? String else { return nil }
+                result[key] = string
+            }
+            return result
+        }
+        return nil
     }
 
     /// Best-effort `Set-Cookie` parse — mirrors `HostRequestRouter.extractCookies`

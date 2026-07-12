@@ -1,12 +1,15 @@
 import Foundation
+import os
 import ReaderCoreModels
 import ReaderCoreProtocols
 #if !READER_IOS_SHELL_CI
-import ReaderCoreServices
+import ReaderCoreServices  // Designated seam (check_ios_boundary.sh whitelist): Shell assembly is a permitted import site.
 #endif
 #if canImport(ReaderCoreNativeAdapter)
 import ReaderCoreNativeAdapter
 #endif
+
+private let logger = Logger(subsystem: "com.reader.app", category: "boot")
 
 @MainActor
 public enum ShellAssembly {
@@ -46,7 +49,7 @@ public enum ShellAssembly {
 
     // MARK: - Real
 
-    @available(*, deprecated, message: "S6.2: use makeRustCoreReadingFlowCoordinator — old Swift Core ReaderCoreServiceFactory path will be removed in S7")
+    @available(*, unavailable, message: "Use makeRustCoreReadingFlowCoordinator")
     public static func makeRealReadingFlowCoordinator() -> ReadingFlowCoordinator {
         #if READER_IOS_SHELL_CI
         guard ReaderCoreServiceProvider.shared.configureRealMode() else {
@@ -97,7 +100,7 @@ public enum ShellAssembly {
             do {
                 try RustCoreRuntimeHolder.shared.boot()
             } catch {
-                print("[RustCore] boot failed in ShellAssembly: \(error)")
+                logger.error("RustCore boot failed in ShellAssembly: \(String(describing: error), privacy: .public)")
                 return nil
             }
         }
@@ -116,15 +119,11 @@ public enum ShellAssembly {
     #endif
 
     /// S6.2: Rust Core is the explicit default business path.
-    /// The legacy `useReal` flag is retained only for test injection (tests
-    /// that need the old Swift Core factory path call `makeRealReadingFlowCoordinator()`
-    /// directly). Production callers should not pass `useReal`.
+    /// The legacy `useReal` flag is retained for source compatibility but is
+    /// now ignored — the old Swift Core factory (`makeRealReadingFlowCoordinator`)
+    /// is unavailable. Tests that need the mock path should call
+    /// `makeMockReadingFlowCoordinator()` directly.
     public static func makeDefaultReadingFlowCoordinator(useReal: Bool = false) -> ReadingFlowCoordinator {
-        if useReal {
-            // Legacy escape hatch — only tests preserving the old Swift Core
-            // factory path should use this. Production never sets useReal=true.
-            return makeRealReadingFlowCoordinator()
-        }
         // S6.2: Rust Core is the default. If boot fails, fall back to mock so
         // the app never silently runs without a business path. This fallback
         // is logged and surfaces a visible failure mode (provider getBookDetail
@@ -133,7 +132,7 @@ public enum ShellAssembly {
         if let coordinator = makeRustCoreReadingFlowCoordinator() {
             return coordinator
         }
-        print("[ShellAssembly] Rust Core boot failed — falling back to mock coordinator")
+        logger.info("ShellAssembly Rust Core boot failed — falling back to mock coordinator")
         #endif
         return makeMockReadingFlowCoordinator()
     }

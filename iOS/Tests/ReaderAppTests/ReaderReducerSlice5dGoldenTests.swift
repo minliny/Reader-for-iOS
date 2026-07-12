@@ -98,26 +98,68 @@ final class ReaderReducerSlice5dGoldenTests: XCTestCase {
         XCTAssertEqual(after - before, 9)
     }
 
-    // MARK: - Golden: ReaderReducer 发现事件 stub
+    // MARK: - Golden: ReaderReducer discover interaction state
 
-    func testGolden_reducer_discoverFilterApply_doesNotChangeNavigationState() {
+    func testGolden_reducer_discoverFilterApply_recordsFilter() {
         let nav = AppNavigationState()
         let reducer = ReaderReducer(navigationState: nav)
-        reducer.dispatch(UiEvent(type: .discover_filter_apply))
-        XCTAssertEqual(nav.activeSession, .none)
+        reducer.dispatch(UiEvent(
+            type: .discover_filter_apply,
+            payload: ["filter": AnyCodable("female")]
+        ))
+        XCTAssertEqual(nav.selectedDiscoverFilters, ["female"])
     }
 
-    func testGolden_reducer_discoverRefresh_doesNotChangeNavigationState() {
+    func testGolden_reducer_discoverRefresh_incrementsIntentRevision() {
         let nav = AppNavigationState()
         let reducer = ReaderReducer(navigationState: nav)
         reducer.dispatch(UiEvent(type: .discover_refresh))
-        XCTAssertEqual(nav.activeSession, .none)
+        XCTAssertEqual(nav.discoverRefreshRevision, 1)
     }
 
-    func testGolden_reducer_discoverEntrySelect_doesNotChangeNavigationState() {
+    func testGolden_reducer_discoverEntrySelect_recordsSelectedEntry() {
         let nav = AppNavigationState()
         let reducer = ReaderReducer(navigationState: nav)
-        reducer.dispatch(UiEvent(type: .discover_entry_select))
-        XCTAssertEqual(nav.activeSession, .none)
+        reducer.dispatch(UiEvent(
+            type: .discover_entry_select,
+            payload: ["entryId": AnyCodable("entry-42")]
+        ))
+        XCTAssertEqual(nav.selectedDiscoverEntryID, "entry-42")
+    }
+
+    // MARK: - Golden: Discover tab switch + filter toggle
+
+    /// Discover 路由切换通过 route_push + routeId="discover" 触发，切到 discover 主 Tab 且不压栈。
+    func testGolden_discoverTabSwitch_setsRouteToDiscover() {
+        let nav = AppNavigationState()
+        nav.activeTab = .bookshelf
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .route_push,
+            payload: ["route": AnyCodable("discover")]
+        ))
+
+        XCTAssertEqual(nav.activeTab, .discover)
+        XCTAssertTrue(nav.navigationPath.isEmpty)
+
+        let vs = ReaderViewState(from: nav)
+        XCTAssertEqual(vs.mainTab, .discover)
+        XCTAssertEqual(vs.routeId, .discover)
+    }
+
+    /// Discover 筛选 apply/reset updates reducer-owned interaction state.
+    func testGolden_discoverFilterToggle_updatesAndResetsSelection() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .discover_filter_apply,
+            payload: ["filter": AnyCodable("male")]
+        ))
+        XCTAssertEqual(nav.selectedDiscoverFilters, ["male"])
+
+        reducer.dispatch(UiEvent(type: .discover_filter_reset))
+        XCTAssertTrue(nav.selectedDiscoverFilters.isEmpty)
     }
 }

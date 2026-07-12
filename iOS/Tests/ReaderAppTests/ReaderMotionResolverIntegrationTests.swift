@@ -187,7 +187,7 @@ final class ReaderMotionResolverIntegrationTests: XCTestCase {
         XCTAssertNotNil(txId, "start(request:) must return a transaction UUID when resolver matches")
         XCTAssertEqual(controller.activeTransactions.count, 1,
                        "injected controller must hold the started transaction")
-        XCTAssertEqual(controller.lastSnapshot[.appRoutePushForward]?.id, .appRoutePushForward)
+        XCTAssertEqual(controller.lastSnapshot[.app_route_push_forward]?.id, .app_route_push_forward)
     }
 
     func testStartWithResolveCreatesTransactionOnInjectedController() {
@@ -206,7 +206,7 @@ final class ReaderMotionResolverIntegrationTests: XCTestCase {
         XCTAssertNotNil(txId)
         XCTAssertEqual(controller.activeTransactions.count, 1,
                        "injected controller must hold the started transaction")
-        XCTAssertEqual(controller.lastSnapshot[.tabItemSwitch]?.id, .tabItemSwitch)
+        XCTAssertEqual(controller.lastSnapshot[.tab_switch]?.id, .tab_switch)
     }
 
     func testStartWithResolveCreatesTransactionForFallbackPolicy() {

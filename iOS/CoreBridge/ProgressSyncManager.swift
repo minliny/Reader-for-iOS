@@ -191,6 +191,7 @@ public final class ProgressSyncManager: ObservableObject, Sendable {
             "bookURL": progress.bookURL,
             "chapterURL": progress.chapterURL,
             "chapterTitle": progress.chapterTitle,
+            "chapterIndex": progress.chapterIndex,
             "progressRatio": progress.progressRatio,
             "updatedAt": formatter.string(from: progress.updatedAt),
         ]
@@ -213,6 +214,7 @@ public final class ProgressSyncManager: ObservableObject, Sendable {
             bookURL: bookURL,
             chapterURL: chapterURL,
             chapterTitle: chapterTitle,
+            chapterIndex: max(0, dict["chapterIndex"] as? Int ?? 0),
             progressRatio: progressRatio,
             updatedAt: updatedAt
         )

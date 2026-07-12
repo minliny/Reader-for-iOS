@@ -51,8 +51,12 @@ public struct HostPermissionCapability: HostCapabilityHandler {
     }
 
     private func handleRequest(_ payload: [String: AnyCodable]) async throws -> HostCapabilityOutcome {
-        guard let type = payload["type"]?.value as? String else {
-            return .failure(.invalidParams("permission.request requires `type` string"))
+        guard let type = payload["scope"]?.value as? String else {
+            return .failure(.invalidParams("permission.request requires `scope` string"))
+        }
+        if type == "storage" {
+            // iOS app-container file access has no runtime permission prompt.
+            return .success(["granted": AnyCodable(true)])
         }
         #if canImport(UIKit)
         switch type {
@@ -63,15 +67,10 @@ public struct HostPermissionCapability: HostCapabilityHandler {
         case "microphone":
             return try await requestAVMediaType(.audio, label: type)
         case "location":
-            // Location authorization requires a CLLocationManager instance
-            // retained on the main thread; the handler cannot synchronously
-            // resolve the post-prompt status. We report "notDetermined" and
-            // the UI is expected to re-check after the system prompts.
-            return .success([
-                "granted": AnyCodable(false),
-                "status": AnyCodable("notDetermined"),
-                "note": AnyCodable("location authorization is async — UI must re-check after system prompt"),
-            ])
+            return .failure(.notImplemented(
+                .permission_request,
+                "location permission requires an app-owned retained CLLocationManager"
+            ))
         default:
             return .failure(.invalidParams("permission.request unknown type: \(type)"))
         }
@@ -81,19 +80,23 @@ public struct HostPermissionCapability: HostCapabilityHandler {
     }
 
     private func handleCheck(_ payload: [String: AnyCodable]) async throws -> HostCapabilityOutcome {
-        guard let type = payload["type"]?.value as? String else {
-            return .failure(.invalidParams("permission.check requires `type` string"))
+        guard let type = payload["scope"]?.value as? String else {
+            return .failure(.invalidParams("permission.check requires `scope` string"))
+        }
+        if type == "storage" {
+            return .success(["granted": AnyCodable(true)])
         }
         #if canImport(UIKit)
         switch type {
         case "notification":
             return try await checkNotification()
         case "camera":
-            return .success(["status": AnyCodable(Self.avStatusString(AVCaptureDevice.authorizationStatus(for: .video)))])
+            return .success(["granted": AnyCodable(AVCaptureDevice.authorizationStatus(for: .video) == .authorized)])
         case "microphone":
-            return .success(["status": AnyCodable(Self.avStatusString(AVCaptureDevice.authorizationStatus(for: .audio)))])
+            return .success(["granted": AnyCodable(AVCaptureDevice.authorizationStatus(for: .audio) == .authorized)])
         case "location":
-            return .success(["status": AnyCodable(Self.locationStatusString(CLLocationManager.authorizationStatus()))])
+            let status = CLLocationManager.authorizationStatus()
+            return .success(["granted": AnyCodable(status == .authorizedAlways || status == .authorizedWhenInUse)])
         default:
             return .failure(.invalidParams("permission.check unknown type: \(type)"))
         }
@@ -129,7 +132,12 @@ public struct HostPermissionCapability: HostCapabilityHandler {
 
     private func checkNotification() async throws -> HostCapabilityOutcome {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
-        return .success(["status": AnyCodable(Self.unStatusString(settings.authorizationStatus))])
+        let granted: Bool
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: granted = true
+        default: granted = false
+        }
+        return .success(["granted": AnyCodable(granted)])
     }
 
     private static func unStatusString(_ status: UNAuthorizationStatus) -> String {

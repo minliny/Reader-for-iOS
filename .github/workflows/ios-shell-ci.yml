@@ -8,6 +8,8 @@ name: iOS Shell CI
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [reader-ui-updated]
   pull_request:
     paths:
       - ".github/workflows/ios-shell-ci.yml"
@@ -15,6 +17,7 @@ on:
       - "scripts/check_ios_boundary.sh"
       - "scripts/check_ios_raw_animation.sh"
       - "scripts/ios_raw_animation_whitelist.txt"
+      - "READER_UI_CONSUMER.json"
       - "docs/ios_shell_ci_gate.yml"
   push:
     branches:
@@ -25,9 +28,14 @@ on:
       - "scripts/check_ios_boundary.sh"
       - "scripts/check_ios_raw_animation.sh"
       - "scripts/ios_raw_animation_whitelist.txt"
+      - "READER_UI_CONSUMER.json"
+
+permissions:
+  contents: read
 
 jobs:
   ios-shell-ci:
+    if: github.event_name != 'repository_dispatch'
     name: Boundary + Shell compile smoke
     runs-on: macos-14
     timeout-minutes: 20
@@ -36,7 +44,14 @@ jobs:
 
     steps:
       - name: Checkout Reader-iOS repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
 
       - name: Checkout Reader-Core (sibling to iOS/, for local path dependency)
         shell: bash
@@ -52,6 +67,23 @@ jobs:
         shell: bash
         run: |
           git clone --depth 1 https://github.com/minliny/Reader-Core-Native.git Reader-Core-Native
+
+      - name: Checkout locked Reader UI source for read-only validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          locked_sha="$(node -p "JSON.parse(require('fs').readFileSync('READER_UI_CONSUMER.json', 'utf8')).releaseIdentity.sourceSha")"
+          git init ../Reader-UI
+          git -C ../Reader-UI remote add origin https://github.com/minliny/Reader-UI.git
+          git -C ../Reader-UI fetch --depth 1 origin "$locked_sha"
+          git -C ../Reader-UI checkout --detach FETCH_HEAD
+          test "$(git -C ../Reader-UI rev-parse HEAD)" = "$locked_sha"
+
+      - name: Verify Reader-UI runtime consumer lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          node ../Reader-UI/tools/runtime/check-host-consumers.mjs --host ios
 
       - name: Materialize Reader-Core-Native C ABI xcframework
         shell: bash
@@ -115,7 +147,7 @@ jobs:
 
       - name: Upload iOS Shell logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ios-shell-ci-logs
           if-no-files-found: error
@@ -124,3 +156,266 @@ jobs:
             ios-readerapp-build.log
             ios-shell-smoke.log
             ios-shell-smoke-all.log
+
+  reader-ui-release-bump:
+    if: github.event_name == 'repository_dispatch'
+    name: Verify Reader UI release and draft bump PR
+    runs-on: macos-14
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    env:
+      READER_IOS_SHELL_CI: "1"
+
+    steps:
+      - name: Check out Reader-iOS host
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          path: Reader-for-iOS
+          persist-credentials: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      # Host-owned trust anchor: reject arbitrary repositories and malformed evidence
+      # before any source-delivered Reader UI code is checked out or executed.
+      - name: Host-owned bootstrap preflight for dispatch payload
+        env:
+          READER_UI_DISPATCH_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const payload = JSON.parse(process.env.READER_UI_DISPATCH_PAYLOAD);
+          const exactKeys = (value, expected, label) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be an object`);
+            const actual = Object.keys(value).sort();
+            expected = [...expected].sort();
+            if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+              throw new Error(`${label} keys are not canonical`);
+            }
+          };
+          const sha256 = (value, label) => {
+            if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) throw new Error(`${label} must be SHA-256`);
+          };
+          exactKeys(payload, ['artifact', 'manifestSha256', 'releaseId', 'runtimeActionsSha256', 'source', 'tag', 'targetConfigSha256', 'version'], 'client_payload');
+          if (!/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(payload.version)) throw new Error('version is not canonical semver');
+          if ((payload.version.split('-', 2)[1] || '').split('.').some((part) => /^0\d+$/.test(part))) throw new Error('numeric prerelease identifiers cannot contain leading zeroes');
+          if (payload.tag !== `v${payload.version}`) throw new Error('tag does not match version');
+          sha256(payload.runtimeActionsSha256, 'runtimeActionsSha256');
+          sha256(payload.manifestSha256, 'manifestSha256');
+          sha256(payload.targetConfigSha256, 'targetConfigSha256');
+          exactKeys(payload.source, ['ref', 'repository', 'sha'], 'source');
+          if (payload.source.repository !== 'minliny/Reader-UI') throw new Error('source.repository is not the canonical Reader UI authority');
+          if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(payload.source.sha)) throw new Error('source.sha is not canonical');
+          if (payload.source.ref !== `refs/tags/${payload.tag}`) throw new Error('source.ref does not match tag');
+          if (payload.releaseId !== `${payload.source.sha}:${payload.manifestSha256}`) throw new Error('releaseId is not bound to source SHA and manifest');
+          exactKeys(payload.artifact, ['digest', 'id', 'inventoryPath', 'inventorySha256', 'manifestPath', 'name', 'sourcePrefix', 'workflowRunId'], 'artifact');
+          if (typeof payload.artifact.id !== 'string' || typeof payload.artifact.workflowRunId !== 'string' || !/^[1-9]\d*$/.test(payload.artifact.id) || !/^[1-9]\d*$/.test(payload.artifact.workflowRunId)) throw new Error('artifact id/run id must be positive decimal strings');
+          if (payload.artifact.name !== `reader-ui-${payload.tag}`) throw new Error('artifact name does not match tag');
+          sha256(payload.artifact.digest, 'artifact.digest');
+          sha256(payload.artifact.inventorySha256, 'artifact.inventorySha256');
+          if (payload.artifact.manifestPath !== 'UI_RELEASE_MANIFEST.json' || payload.artifact.inventoryPath !== 'UI_RELEASE_ARTIFACT_INVENTORY.json' || payload.artifact.sourcePrefix !== 'source') {
+            throw new Error('artifact paths are not canonical');
+          }
+          NODE
+          {
+            echo '### Reader UI bootstrap trust boundary'
+            echo 'Host-owned preflight validates the canonical repository and immutable evidence before executing the source-delivered full verifier.'
+            echo 'The full artifact/tree verifier is still shipped by Reader UI; vendoring that verifier is a later hardening boundary.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require cross-repository Reader UI token
+        env:
+          READER_UI_REPO_TOKEN: ${{ secrets.READER_UI_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$READER_UI_REPO_TOKEN" || { echo 'READER_UI_REPO_TOKEN is required' >&2; exit 1; }
+
+      - name: Check out exact Reader UI release source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: minliny/Reader-UI
+          ref: ${{ github.event.client_payload.source.sha }}
+          token: ${{ secrets.READER_UI_REPO_TOKEN }}
+          path: Reader-UI
+          persist-credentials: false
+
+      - name: Download dispatch-bound Reader UI artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          # v4 selects this single cross-repository artifact by immutable ID.
+          # The source-delivered verifier then binds its name, run, digest, and source SHA through the API.
+          artifact-ids: ${{ github.event.client_payload.artifact.id }}
+          repository: minliny/Reader-UI
+          run-id: ${{ github.event.client_payload.artifact.workflowRunId }}
+          github-token: ${{ secrets.READER_UI_REPO_TOKEN }}
+          merge-multiple: true
+          path: Reader-UI-release
+
+      - name: Verify immutable source, artifact, and dispatch evidence
+        id: verify-release
+        env:
+          READER_UI_DISPATCH_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          READER_UI_REPO_TOKEN: ${{ secrets.READER_UI_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          node Reader-UI/tools/release/verify-host-release.mjs \
+            --host ios \
+            --host-repository "$GITHUB_REPOSITORY" \
+            --source-root Reader-UI \
+            --artifact-root Reader-UI-release \
+            --payload-env READER_UI_DISPATCH_PAYLOAD \
+            --github-token-env READER_UI_REPO_TOKEN \
+            --output "$RUNNER_TEMP/reader-ui-verified.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Update only the iOS consumer lock identity
+        id: update-lock
+        run: |
+          set -euo pipefail
+          node Reader-UI/tools/release/update-host-consumer-lock.mjs \
+            --lock Reader-for-iOS/READER_UI_CONSUMER.json \
+            --verified-release "$RUNNER_TEMP/reader-ui-verified.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Host-owned postcondition protects rollout and repository scope
+        env:
+          READER_UI_DISPATCH_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import crypto from 'node:crypto';
+          import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const repository = 'Reader-for-iOS';
+          const payload = JSON.parse(process.env.READER_UI_DISPATCH_PAYLOAD);
+          const before = JSON.parse(execFileSync('git', ['-C', repository, 'show', 'HEAD:READER_UI_CONSUMER.json'], { encoding: 'utf8' }));
+          const after = JSON.parse(fs.readFileSync(`${repository}/READER_UI_CONSUMER.json`, 'utf8'));
+          const exactKeys = (value, expected, label) => {
+            const actual = Object.keys(value).sort(); expected = [...expected].sort();
+            if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) throw new Error(`${label} keys changed outside the lock v2 contract`);
+          };
+          exactKeys(after, ['blockedProof', 'host', 'hostRequestSchemaVersion', 'knownDifferences', 'readerUiVersion', 'releaseIdentity', 'rollout', 'runtimeActionsSchemaVersion', 'runtimeActionsSha256', 'schemaVersion'], 'consumer lock');
+          exactKeys(after.releaseIdentity, ['manifestSha256', 'releaseId', 'sourceSha', 'targetConfigSha256'], 'releaseIdentity');
+          for (const field of ['host', 'rollout', 'knownDifferences', 'blockedProof']) {
+            if (JSON.stringify(before[field]) !== JSON.stringify(after[field])) throw new Error(`protected lock field changed: ${field}`);
+          }
+          if (after.schemaVersion !== 2 || after.readerUiVersion !== payload.version || after.runtimeActionsSha256 !== payload.runtimeActionsSha256) throw new Error('lock version/runtime identity does not match dispatch');
+          if (after.releaseIdentity.releaseId !== payload.releaseId || after.releaseIdentity.sourceSha !== payload.source.sha || after.releaseIdentity.manifestSha256 !== payload.manifestSha256 || after.releaseIdentity.targetConfigSha256 !== payload.targetConfigSha256) throw new Error('lock releaseIdentity does not match dispatch');
+          const version = JSON.parse(fs.readFileSync('Reader-UI-release/source/contracts/VERSION.json', 'utf8'));
+          const runtimeBytes = fs.readFileSync('Reader-UI-release/source/ui-spec/runtime-actions.json');
+          const runtime = JSON.parse(runtimeBytes);
+          if (version.version !== payload.version) throw new Error('artifact VERSION.json does not match dispatch version');
+          if (version.schema?.['host-request'] !== after.hostRequestSchemaVersion || runtime.schemaVersion !== after.runtimeActionsSchemaVersion) throw new Error('lock schema versions do not match the release artifact');
+          if (crypto.createHash('sha256').update(runtimeBytes).digest('hex') !== payload.runtimeActionsSha256) throw new Error('artifact runtime actions do not match dispatch hash');
+          const status = execFileSync('git', ['-C', repository, 'status', '--porcelain=v1', '--untracked-files=all'], { encoding: 'utf8' }).trimEnd();
+          const paths = status ? status.split(/\r?\n/).map((line) => line.slice(3)) : [];
+          if (paths.length > 1 || (paths.length === 1 && paths[0] !== 'READER_UI_CONSUMER.json')) throw new Error(`host changes escaped the consumer lock: ${paths.join(',')}`);
+          execFileSync('git', ['-C', repository, 'diff', '--check', '--', 'READER_UI_CONSUMER.json']);
+          NODE
+
+      - name: Verify Reader UI consumer lock and release identity
+        run: node Reader-UI/tools/runtime/check-host-consumers.mjs --host ios
+
+      - name: Check out Reader-Core for shell validation
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: git clone --depth 1 https://github.com/minliny/Reader-Core.git Reader-Core
+
+      - name: Check out Reader-Core-Native for C ABI binary target
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: git clone --depth 1 https://github.com/minliny/Reader-Core-Native.git Reader-Core-Native
+
+      - name: Materialize Reader-Core-Native C ABI xcframework
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-apple-ios-sim
+          READER_CORE_NATIVE="$PWD/Reader-Core-Native" bash iOS/ReaderCoreNativeAdapter/fetch-cabi.sh --xcframework
+
+      - name: Protect iOS Shell boundary
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: |
+          chmod +x scripts/check_ios_boundary.sh
+          ./scripts/check_ios_boundary.sh
+
+      - name: Raw animation lint (strict)
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: |
+          chmod +x scripts/check_ios_raw_animation.sh
+          ./scripts/check_ios_raw_animation.sh --strict
+
+      - name: Show Swift toolchain
+        working-directory: Reader-for-iOS
+        run: swift --version
+
+      - name: Compile iOS Shell composition root
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --package-path iOS --target ReaderShellValidation -Xswiftc -strict-concurrency=minimal 2>&1 | tee ios-shell-build.log
+
+      - name: Diagnose ReaderApp target compilation
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: |
+          set +e
+          swift build --package-path iOS --target ReaderApp -Xswiftc -strict-concurrency=minimal 2>&1 | tee ios-readerapp-build.log
+          cat ios-readerapp-build.log
+
+      - name: Run shell smoke validation
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal --filter ShellAssemblySmokeTests 2>&1 | tee ios-shell-smoke.log
+
+      - name: Run remaining ShellSmokeTests
+        working-directory: Reader-for-iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path iOS --test-product ReaderAppPackageTests -Xswiftc -strict-concurrency=minimal 2>&1 | tee ios-shell-smoke-all.log
+
+      - name: Remove temporary Core source checkouts before repository-scope guard
+        run: |
+          set -euo pipefail
+          test -d Reader-for-iOS/Reader-Core
+          test -d Reader-for-iOS/Reader-Core-Native
+          rm -rf -- Reader-for-iOS/Reader-Core Reader-for-iOS/Reader-Core-Native
+          test ! -e Reader-for-iOS/Reader-Core
+          test ! -e Reader-for-iOS/Reader-Core-Native
+
+      - name: Create or reuse deterministic draft bump PR
+        env:
+          HOST_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node Reader-UI/tools/release/publish-host-bump-pr.mjs \
+            --host-root Reader-for-iOS \
+            --lock Reader-for-iOS/READER_UI_CONSUMER.json \
+            --verified-release "$RUNNER_TEMP/reader-ui-verified.json" \
+            --host-repository "$GITHUB_REPOSITORY" \
+            --base '${{ github.event.repository.default_branch }}' \
+            --github-token-env HOST_GITHUB_TOKEN
+
+      - name: Upload iOS release-bump validation logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-reader-ui-release-bump-logs
+          if-no-files-found: error
+          path: |
+            Reader-for-iOS/ios-shell-build.log
+            Reader-for-iOS/ios-readerapp-build.log
+            Reader-for-iOS/ios-shell-smoke.log
+            Reader-for-iOS/ios-shell-smoke-all.log

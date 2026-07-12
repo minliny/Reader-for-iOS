@@ -204,4 +204,25 @@ final class ReaderReducerSlice5aGoldenTests: XCTestCase {
         reducer.dispatch(UiEvent(type: .rss_favorite_add))
         XCTAssertEqual(nav.activeSession, .none)
     }
+
+    // MARK: - Golden: RSS tab switch（route_push + routeId payload）
+
+    /// RSS 路由切换通过 route_push + routeId="rss" 触发，切到 rss 主 Tab 且不压栈。
+    func testGolden_rssTabSwitch_setsRouteToRss() {
+        let nav = AppNavigationState()
+        nav.activeTab = .bookshelf
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .route_push,
+            payload: ["route": AnyCodable("rss")]
+        ))
+
+        XCTAssertEqual(nav.activeTab, .rss)
+        XCTAssertTrue(nav.navigationPath.isEmpty)
+
+        let vs = ReaderViewState(from: nav)
+        XCTAssertEqual(vs.mainTab, .rss)
+        XCTAssertEqual(vs.routeId, .rss)
+    }
 }

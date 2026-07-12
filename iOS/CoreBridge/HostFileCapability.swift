@@ -73,21 +73,35 @@ public struct HostFileCapability: HostCapabilityHandler {
             return .failure(.invalidParams("file.read: file does not exist at \(url.path)"))
         }
         do {
-            let data = try Data(contentsOf: url)
-            let encoded: String
+            var data = try Data(contentsOf: url)
+            if let byteOffset = Self.integer(payload["byteOffset"]?.value) {
+                guard byteOffset <= data.count else {
+                    return .failure(.invalidParams("file.read `byteOffset` exceeds file length"))
+                }
+                data = Data(data.dropFirst(byteOffset))
+            }
+            if let maxBytes = Self.integer(payload["maxBytes"]?.value) {
+                guard maxBytes > 0 else {
+                    return .failure(.invalidParams("file.read `maxBytes` must be positive"))
+                }
+                data = Data(data.prefix(maxBytes))
+            }
+            var result: [String: AnyCodable] = [
+                "encoding": AnyCodable(encoding),
+                "byteLength": AnyCodable(data.count),
+            ]
             switch encoding {
             case "base64":
-                encoded = data.base64EncodedString()
+                result["contentBase64"] = AnyCodable(data.base64EncodedString())
             case "utf8":
-                encoded = String(data: data, encoding: .utf8) ?? ""
+                guard let content = String(data: data, encoding: .utf8) else {
+                    return .failure(.underlying("file.read content is not valid UTF-8"))
+                }
+                result["content"] = AnyCodable(content)
             default:
                 return .failure(.invalidParams("file.read encoding must be \"utf8\" or \"base64\", got \(encoding)"))
             }
-            return .success([
-                "data": AnyCodable(encoded),
-                "encoding": AnyCodable(encoding),
-                "size": AnyCodable(data.count),
-            ])
+            return .success(result)
         } catch {
             return .failure(.underlying("file.read failed: \(error.localizedDescription)"))
         }
@@ -99,34 +113,47 @@ public struct HostFileCapability: HostCapabilityHandler {
         guard let path = payload["path"]?.value as? String, !path.isEmpty else {
             return .failure(.invalidParams("file.write requires non-empty `path`"))
         }
-        guard let dataString = payload["data"]?.value as? String else {
-            return .failure(.invalidParams("file.write requires `data` string"))
-        }
         let encoding = (payload["encoding"]?.value as? String) ?? "utf8"
         guard let url = resolveURL(for: path) else {
             return .failure(.invalidParams("file.write path is not a valid app-sandbox path: \(path)"))
         }
         let data: Data
-        switch encoding {
-        case "base64":
-            guard let decoded = Data(base64Encoded: dataString) else {
-                return .failure(.invalidParams("file.write: `data` is not valid base64"))
+        if let content = payload["content"]?.value as? String,
+           payload["contentBase64"] == nil {
+            guard encoding == "utf8" else {
+                return .failure(.invalidParams("file.write text content requires utf8 encoding"))
+            }
+            data = Data(content.utf8)
+        } else if let contentBase64 = payload["contentBase64"]?.value as? String,
+                  payload["content"] == nil,
+                  let decoded = Data(base64Encoded: contentBase64) {
+            guard encoding == "base64" || payload["encoding"] == nil else {
+                return .failure(.invalidParams("file.write base64 content requires base64 encoding"))
             }
             data = decoded
-        case "utf8":
-            data = Data(dataString.utf8)
-        default:
-            return .failure(.invalidParams("file.write encoding must be \"utf8\" or \"base64\", got \(encoding)"))
+        } else {
+            return .failure(.invalidParams("file.write requires exactly one valid `content` or `contentBase64`"))
         }
         do {
-            try fileManager.createDirectory(
-                at: url.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try data.write(to: url, options: .atomic)
+            let createDirectories = (payload["createDirectories"]?.value as? Bool) ?? true
+            if createDirectories {
+                try fileManager.createDirectory(
+                    at: url.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+            }
+            if (payload["append"]?.value as? Bool) == true,
+               fileManager.fileExists(atPath: url.path) {
+                let handle = try FileHandle(forWritingTo: url)
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                try handle.write(contentsOf: data)
+            } else {
+                try data.write(to: url, options: .atomic)
+            }
             return .success([
                 "written": AnyCodable(true),
-                "size": AnyCodable(data.count),
+                "byteLength": AnyCodable(data.count),
             ])
         } catch {
             return .failure(.underlying("file.write failed: \(error.localizedDescription)"))
@@ -157,22 +184,19 @@ public struct HostFileCapability: HostCapabilityHandler {
     // MARK: - storage.path
 
     private func handleStoragePath(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        let kind = (payload["kind"]?.value as? String) ?? "documents"
+        guard let scope = payload["scope"]?.value as? String else {
+            return .failure(.invalidParams("storage.path requires `scope`"))
+        }
         let url: URL
-        switch kind {
-        case "documents":
+        switch scope {
+        case "files", "external":
             url = Self.documentsURL()
         case "cache":
             url = Self.cacheURL()
-        case "temp":
-            url = Self.tempURL()
         default:
-            return .failure(.invalidParams("storage.path kind must be \"documents\"/\"cache\"/\"temp\", got \(kind)"))
+            return .failure(.invalidParams("storage.path scope must be \"cache\"/\"files\"/\"external\", got \(scope)"))
         }
-        return .success([
-            "path": AnyCodable(url.path),
-            "kind": AnyCodable(kind),
-        ])
+        return .success(["path": AnyCodable(url.path)])
     }
 
     // MARK: - Path resolution
@@ -229,5 +253,11 @@ public struct HostFileCapability: HostCapabilityHandler {
 
     private static func tempURL() -> URL {
         FileManager.default.temporaryDirectory
+    }
+
+    private static func integer(_ raw: (any Sendable)?) -> Int? {
+        if let value = raw as? Int { return value }
+        if let value = raw as? NSNumber { return value.intValue }
+        return nil
     }
 }

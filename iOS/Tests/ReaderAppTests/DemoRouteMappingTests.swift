@@ -296,7 +296,7 @@ final class DemoRouteMappingTests: XCTestCase {
         let readerRoutes = DemoRouteMappings.expectedReaderShellRoutes.filter {
             $0 != "immersive-reading" && $0 != "reader"
         }
-        XCTAssertEqual(readerRoutes.count, 28)
+        XCTAssertEqual(readerRoutes.count, 49)
 
         for route in readerRoutes {
             let mapping = DemoRouteMappings.mapping(for: route)
@@ -532,7 +532,7 @@ final class DemoRouteMappingTests: XCTestCase {
     }
 
     func testAllDemoContractRoutesAreOwnedByIOSMapping() {
-        XCTAssertEqual(DemoRouteMappings.expectedRouteCount, 200)
+        XCTAssertEqual(DemoRouteMappings.expectedRouteCount, 235)
         XCTAssertEqual(DemoRouteMappings.all.count, DemoRouteMappings.expectedRouteCount)
 
         let mappedRoutes = Set(DemoRouteMappings.all.map(\.demoRoute))
@@ -548,10 +548,10 @@ final class DemoRouteMappingTests: XCTestCase {
             .mapValues(\.count)
 
         XCTAssertEqual(counts["MainTabShell"], 48)
-        XCTAssertEqual(counts["LibraryShell"], 66)
+        XCTAssertEqual(counts["LibraryShell"], 74)
         XCTAssertEqual(counts["SettingsShell"], 54)
-        XCTAssertEqual(counts["ReaderShell"], 30)
-        XCTAssertEqual(counts["FlowShell"], 2)
+        XCTAssertEqual(counts["ReaderShell"], 51)
+        XCTAssertEqual(counts["FlowShell"], 8)
     }
 
     func testNoUnimplementedRoutesRemainPlanned() {

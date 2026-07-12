@@ -40,6 +40,7 @@ public protocol HostTTSSynth: AnyObject {
 public struct HostTTSCapability: HostCapabilityHandler {
     public let supportedTypes: Set<HostRequestType> = [
         .tts_system_start, .tts_system_stop, .tts_system_pause, .tts_system_resume,
+        .tts_start, .tts_stop, .tts_pause,
     ]
     public let tier: HostCapabilityTier = .realDeviceProof
 
@@ -57,25 +58,35 @@ public struct HostTTSCapability: HostCapabilityHandler {
             return .failure(.notImplemented(request.type, "TTS synth not available on this platform"))
         }
         switch request.type {
-        case .tts_system_start:
-            return try await handleStart(request.payload, synth: synth)
+        case .tts_system_start, .tts_start:
+            return try await handleStart(request.payload, type: request.type, synth: synth)
         case .tts_system_stop:
+            await MainActor.run { synth.stop() }
+            return .success(["acknowledged": AnyCodable(true)])
+        case .tts_stop:
             await MainActor.run { synth.stop() }
             return .success(["stopped": AnyCodable(true)])
         case .tts_system_pause:
             await MainActor.run { synth.pause() }
+            return .success(["acknowledged": AnyCodable(true)])
+        case .tts_pause:
+            await MainActor.run { synth.pause() }
             return .success(["paused": AnyCodable(true)])
         case .tts_system_resume:
             await MainActor.run { synth.resume() }
-            return .success(["resumed": AnyCodable(true)])
+            return .success(["acknowledged": AnyCodable(true)])
         default:
             return .failure(.notImplemented(request.type, "HostTTSCapability does not handle \(request.type.rawValue)"))
         }
     }
 
-    private func handleStart(_ payload: [String: AnyCodable], synth: HostTTSSynth) async throws -> HostCapabilityOutcome {
+    private func handleStart(
+        _ payload: [String: AnyCodable],
+        type: HostRequestType,
+        synth: HostTTSSynth
+    ) async throws -> HostCapabilityOutcome {
         guard let text = payload["text"]?.value as? String, !text.isEmpty else {
-            return .failure(.invalidParams("tts.system.start requires non-empty `text`"))
+            return .failure(.invalidParams("\(type.rawValue) requires non-empty `text`"))
         }
         // rate/pitch/language are passed through to the synth via the
         // concrete conformer's configuration (the protocol only exposes
@@ -84,6 +95,7 @@ public struct HostTTSCapability: HostCapabilityHandler {
         // and acknowledges.
         await MainActor.run { synth.speak(text) }
         var result: [String: AnyCodable] = ["started": AnyCodable(true)]
+        if type == .tts_system_start { return .success(result) }
         if let rate = payload["rate"]?.value as? Double {
             result["rate"] = AnyCodable(rate)
         }

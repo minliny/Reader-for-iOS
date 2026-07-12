@@ -6,12 +6,12 @@ import ReaderUIContract
 /// HostAdapter capability dispatch proof.
 ///
 /// Verifies the `HostAdapter.dispatch(_:)` → `HostCapabilityRegistry` path is
-/// complete for all 31 `HostRequestType` cases — every type has a registered
+/// complete for all 55 `HostRequestType` cases — every type has a registered
 /// handler, so no UI/reducer `HostRequest` returns `.notConfigured`.
 ///
 /// Proof strategy:
 /// 1. **Registration completeness** — `HostAdapter().registeredTypes()`
-///    returns all 31 `HostRequestType.allCases`. No type is left unclaimed.
+///    returns all 55 `HostRequestType.allCases`. No type is left unclaimed.
 /// 2. **Tier classification** — every registered type has a non-nil tier.
 /// 3. **Cross-platform capability round-trip** — cookie/file/credential/
 ///    clipboard/storage.path round-trip on macOS `swift test` (these are
@@ -24,10 +24,10 @@ import ReaderUIContract
 @MainActor
 final class HostAdapterCapabilityDispatchProofTests: XCTestCase {
 
-    // MARK: - Proof 1: all 31 types registered
+    // MARK: - Proof 1: all 55 types registered
 
-    /// `HostAdapter()` (default init) registers all 11 capability handlers,
-    /// covering all 31 `HostRequestType` cases. No type returns
+    /// `HostAdapter()` (default init) registers all capability handlers,
+    /// covering all 55 `HostRequestType` cases. No type returns
     /// `.notConfigured` when dispatched.
     func testAllHostRequestTypesAreRegistered() async {
         let adapter = HostAdapter()
@@ -105,18 +105,18 @@ final class HostAdapterCapabilityDispatchProofTests: XCTestCase {
 
         let writeRequest = HostRequest(type: .file_write, payload: [
             "path": AnyCodable(path),
-            "data": AnyCodable(content),
+            "content": AnyCodable(content),
         ])
         let writeOutcome = await adapter.dispatch(writeRequest)
         XCTAssertTrue(writeOutcome.succeeded, "file.write must succeed; got: \(String(describing: writeOutcome.error))")
-        XCTAssertEqual(writeOutcome.result?["size"]?.value as? Int, content.utf8.count)
+        XCTAssertEqual(writeOutcome.result?["byteLength"]?.value as? Int, content.utf8.count)
 
         let readRequest = HostRequest(type: .file_read, payload: [
             "path": AnyCodable(path),
         ])
         let readOutcome = await adapter.dispatch(readRequest)
         XCTAssertTrue(readOutcome.succeeded, "file.read must succeed; got: \(String(describing: readOutcome.error))")
-        XCTAssertEqual(readOutcome.result?["data"]?.value as? String, content)
+        XCTAssertEqual(readOutcome.result?["content"]?.value as? String, content)
 
         let deleteRequest = HostRequest(type: .file_delete, payload: [
             "path": AnyCodable(path),
@@ -131,8 +131,8 @@ final class HostAdapterCapabilityDispatchProofTests: XCTestCase {
     /// `storage.path` for each kind returns a non-empty path string.
     func testStoragePathReturnsValidPath() async {
         let adapter = HostAdapter()
-        for kind in ["documents", "cache", "temp"] {
-            let request = HostRequest(type: .storage_path, payload: ["kind": AnyCodable(kind)])
+        for kind in ["files", "cache", "external"] {
+            let request = HostRequest(type: .storage_path, payload: ["scope": AnyCodable(kind)])
             let outcome = await adapter.dispatch(request)
             XCTAssertTrue(outcome.succeeded, "storage.path(\(kind)) must succeed; got: \(String(describing: outcome.error))")
             let path = outcome.result?["path"]?.value as? String
@@ -159,39 +159,35 @@ final class HostAdapterCapabilityDispatchProofTests: XCTestCase {
         throw XCTSkip("credential.* requires keychain-access-groups entitlement; iOS Simulator host-app built with CODE_SIGNING_ALLOWED=NO lacks it (errSecMissingEntitlement -34018). Verified on macOS swift test + real device instead.")
         #else
         let adapter = HostAdapter()
-        let service = "com.reader.ios.host-adapter-proof"
-        let account = "proof-account-\(UUID().uuidString)"
+        let key = "proof-account-\(UUID().uuidString)"
         let value = "secret-value-\(UUID().uuidString)"
 
         let setRequest = HostRequest(type: .credential_set, payload: [
-            "service": AnyCodable(service),
-            "account": AnyCodable(account),
+            "key": AnyCodable(key),
             "value": AnyCodable(value),
         ])
         let setOutcome = await adapter.dispatch(setRequest)
         XCTAssertTrue(setOutcome.succeeded, "credential.set must succeed; got: \(String(describing: setOutcome.error))")
 
         let getRequest = HostRequest(type: .credential_get, payload: [
-            "service": AnyCodable(service),
-            "account": AnyCodable(account),
+            "key": AnyCodable(key),
         ])
         let getOutcome = await adapter.dispatch(getRequest)
         XCTAssertTrue(getOutcome.succeeded, "credential.get must succeed; got: \(String(describing: getOutcome.error))")
         XCTAssertEqual(getOutcome.result?["value"]?.value as? String, value)
-        XCTAssertEqual(getOutcome.result?["found"]?.value as? Bool, true)
+        XCTAssertEqual(getOutcome.result?["exists"]?.value as? Bool, true)
 
         let deleteRequest = HostRequest(type: .credential_delete, payload: [
-            "service": AnyCodable(service),
-            "account": AnyCodable(account),
+            "key": AnyCodable(key),
         ])
         let deleteOutcome = await adapter.dispatch(deleteRequest)
         XCTAssertTrue(deleteOutcome.succeeded, "credential.delete must succeed; got: \(String(describing: deleteOutcome.error))")
-        XCTAssertEqual(deleteOutcome.result?["existed"]?.value as? Bool, true)
+        XCTAssertEqual(deleteOutcome.result?["deleted"]?.value as? Bool, true)
 
         // Verify the credential is gone.
         let getAfterDelete = await adapter.dispatch(getRequest)
         XCTAssertTrue(getAfterDelete.succeeded)
-        XCTAssertEqual(getAfterDelete.result?["found"]?.value as? Bool, false)
+        XCTAssertEqual(getAfterDelete.result?["exists"]?.value as? Bool, false)
         #endif
     }
 
@@ -214,18 +210,19 @@ final class HostAdapterCapabilityDispatchProofTests: XCTestCase {
                        "clipboard.paste must return the copied text")
     }
 
-    // MARK: - Proof 8: http.cancel returns success (no per-request cancel yet)
+    // MARK: - Proof 8: http.cancel is request-scoped
 
-    /// `http.cancel` acknowledges the cancel with `cancelled=true` even though
-    /// `URLSessionHTTPClient` does not yet expose per-request cancellation.
-    func testHttpCancelAcknowledges() async {
+    /// Cancelling an unknown/completed id is an idempotent structured success
+    /// with `cancelled=false`. The active-task `true` path is covered by
+    /// URLSessionHTTPClientCapabilitiesTests.
+    func testHttpCancelUnknownRequestReturnsFalse() async {
         let adapter = HostAdapter()
         let request = HostRequest(type: .http_cancel, payload: [
             "requestId": AnyCodable("req-proof-001"),
         ])
         let outcome = await adapter.dispatch(request)
-        XCTAssertTrue(outcome.succeeded, "http.cancel must acknowledge; got: \(String(describing: outcome.error))")
-        XCTAssertEqual(outcome.result?["cancelled"]?.value as? Bool, true)
+        XCTAssertTrue(outcome.succeeded, "http.cancel must return a structured outcome; got: \(String(describing: outcome.error))")
+        XCTAssertEqual(outcome.result?["cancelled"]?.value as? Bool, false)
     }
 
     // MARK: - Proof 9: TTS / share return notImplemented without provider
@@ -250,7 +247,7 @@ final class HostAdapterCapabilityDispatchProofTests: XCTestCase {
     func testShareInvokeReturnsNotImplementedWithoutPresenter() async {
         let adapter = HostAdapter()
         let request = HostRequest(type: .share_invoke, payload: [
-            "items": AnyCodable(["share proof"] as [String]),
+            "text": AnyCodable("share proof"),
         ])
         let outcome = await adapter.dispatch(request)
         XCTAssertFalse(outcome.succeeded, "share.invoke must fail without a presenter")

@@ -27,10 +27,20 @@ final class ReaderSharePresenter: HostSharePresenter {
     }
 
     func present(items: [String], excludedActivityTypes: [String]?) async -> String? {
+        await presentActivityItems(items, excludedActivityTypes: excludedActivityTypes)
+    }
+
+    func present(fileURL: URL, excludedActivityTypes: [String]?) async -> String? {
+        await presentActivityItems([fileURL], excludedActivityTypes: excludedActivityTypes)
+    }
+
+    private func presentActivityItems(
+        _ activityItems: [Any],
+        excludedActivityTypes: [String]?
+    ) async -> String? {
         guard let presenter = topViewController else {
             return nil
         }
-        let activityItems: [Any] = items
         let excluded: [UIActivity.ActivityType]? = excludedActivityTypes?.map { UIActivity.ActivityType(rawValue: $0) }
 
         return await withCheckedContinuation { continuation in

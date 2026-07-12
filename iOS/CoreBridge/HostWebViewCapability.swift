@@ -52,49 +52,41 @@ public struct HostWebViewCapability: HostCapabilityHandler {
     }
 
     private func handleOpen(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        // WKWebViewExecutor creates a fresh WKWebView per evaluate call, so
-        // there is no persistent session to register. We acknowledge the open
-        // with a sessionId so the UI can track intent; the actual lifecycle
-        // is per-evaluate.
-        let sessionId = UUID().uuidString
-        let profileId = payload["profileId"]?.value as? String
-        var result: [String: AnyCodable] = ["sessionId": AnyCodable(sessionId)]
-        if let profileId = profileId {
-            result["profileId"] = AnyCodable(profileId)
+        guard let url = payload["url"]?.value as? String,
+              URL(string: url)?.host != nil else {
+            return .failure(.invalidParams("webview.open requires an absolute `url`"))
         }
-        return .success(result)
+        // WKWebViewExecutor is intentionally request-scoped and does not own
+        // a durable browser session. Returning `opened=true` here would claim
+        // a physical lifecycle that never happened.
+        return .failure(.notImplemented(
+            .webview_open,
+            "persistent WKWebView sessions are not implemented by the request-scoped executor"
+        ))
     }
 
     private func handleClose(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        // No persistent session to destroy — WKWebViewExecutor tears down
-        // WKWebView after each evaluate. Acknowledge the close.
-        let sessionId = payload["sessionId"]?.value as? String
-        var result: [String: AnyCodable] = ["closed": AnyCodable(true)]
-        if let sessionId = sessionId {
-            result["sessionId"] = AnyCodable(sessionId)
-        }
-        return .success(result)
+        // Symmetric with open: no durable session means there is nothing that
+        // can truthfully be reported as physically closed.
+        return .failure(.notImplemented(
+            .webview_close,
+            "persistent WKWebView sessions are not implemented by the request-scoped executor"
+        ))
     }
 
     private func handleEvaluate(_ payload: [String: AnyCodable]) async throws -> HostCapabilityOutcome {
-        guard let documentDict = payload["document"]?.value as? [String: Any] else {
-            return .failure(.invalidParams("webview.evaluate requires `document`"))
+        guard let url = payload["url"]?.value as? String,
+              URL(string: url)?.host != nil else {
+            return .failure(.invalidParams("webview.evaluate requires an absolute `url`"))
         }
-        guard let javaScript = payload["javaScript"]?.value as? String, !javaScript.isEmpty else {
-            return .failure(.invalidParams("webview.evaluate requires non-empty `javaScript`"))
+        guard let javaScript = payload["script"]?.value as? String, !javaScript.isEmpty else {
+            return .failure(.invalidParams("webview.evaluate requires non-empty `script`"))
         }
-        guard let kindString = documentDict["kind"] as? String,
-              let kind = WebViewDocument.Kind(rawValue: kindString) else {
-            return .failure(.invalidParams("webview.evaluate `document.kind` must be \"html\" or \"url\""))
-        }
-        let body = documentDict["body"] as? String
-        let url = documentDict["url"] as? String
-        let baseUrl = documentDict["baseUrl"] as? String
-        let timeoutMillis = (payload["timeoutMillis"]?.value as? Int).map { UInt64($0) }
-            ?? (payload["timeoutMillis"]?.value as? Double).map { UInt64($0) }
+        let timeoutMillis = (payload["timeoutMs"]?.value as? Int).map { UInt64($0) }
+            ?? (payload["timeoutMs"]?.value as? Double).map { UInt64($0) }
         let profileId = payload["profileId"]?.value as? String
 
-        let document = WebViewDocument(kind: kind, body: body, url: url, baseUrl: baseUrl)
+        let document = WebViewDocument(kind: .url, body: nil, url: url, baseUrl: nil)
         let evaluationRequest = WebViewEvaluationRequest(
             document: document,
             javaScript: javaScript,
@@ -105,7 +97,7 @@ public struct HostWebViewCapability: HostCapabilityHandler {
         do {
             let result = try await executor.evaluate(request: evaluationRequest)
             var resultDict: [String: AnyCodable] = [
-                "value": Self.wrapAnyCodable(result.value),
+                "result": Self.wrapAnyCodable(result.value),
             ]
             if let finalUrl = result.finalUrl {
                 resultDict["finalUrl"] = AnyCodable(finalUrl)

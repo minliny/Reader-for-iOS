@@ -95,7 +95,7 @@ public final class ContractNavigationStack: ObservableObject {
     /// 按 RouteShell 补默认前驱（空栈时返回）。
     /// 真源：`generated/swift/MotionPolicy.swift` RouteShellLookup.shellByRouteId
     private func defaultPredecessor(for routeId: String) -> String? {
-        let shell = RouteShellLookup.shell(for: routeId) ?? .mainTabShell
+        let shell = ReaderNativeRouteShellLookup.shell(for: routeId) ?? .mainTabShell
         switch shell {
         case .readerShell:
             return "bookshelf"
@@ -114,13 +114,13 @@ public final class ContractNavigationStack: ObservableObject {
 
     /// 返回栈的 shell 分布（用于 motion resolver 构造 MotionRequest）。
     public var currentShell: RouteShell {
-        RouteShellLookup.shell(for: currentRouteId) ?? .mainTabShell
+        ReaderNativeRouteShellLookup.shell(for: currentRouteId) ?? .mainTabShell
     }
 
     /// 前驱路由的 shell（用于 motion resolver 判断 fromShell → toShell）。
     public var predecessorShell: RouteShell? {
         guard routeStack.count >= 2 else { return nil }
         let predecessor = routeStack[routeStack.count - 2]
-        return RouteShellLookup.shell(for: predecessor)
+        return ReaderNativeRouteShellLookup.shell(for: predecessor)
     }
 }

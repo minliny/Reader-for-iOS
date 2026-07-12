@@ -3,8 +3,40 @@ import ReaderCoreModels
 import ReaderAppSupport
 import ReaderShellValidation
 
+/// Narrow intent adapter for the directory Pilot. ReaderView uses this router
+/// for its real directory button, repeated-tap close, replacement, and reader
+/// back paths so those intents cannot bypass the canonical coordinator events.
+@MainActor
+struct ReaderDirectoryPilotIntentRouter {
+    let isPresented: Bool
+    let onOpen: (() -> Void)?
+    let onClose: (() -> Void)?
+
+    @discardableResult
+    func toggle() -> Bool {
+        let action = isPresented ? onClose : onOpen
+        guard let action else { return false }
+        action()
+        return true
+    }
+
+    @discardableResult
+    func closeIfPresented() -> Bool {
+        guard isPresented, let onClose else { return false }
+        onClose()
+        return true
+    }
+
+    func handleBack(orExit: () -> Void) {
+        if !closeIfPresented() {
+            orExit()
+        }
+    }
+}
+
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
+    @ObservedObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
     // Converged TTS ownership: the shared ReaderTTSPlayer instance is injected
     // from ReaderApp via @EnvironmentObject. This is the same instance that
     // HostAdapter uses for Core-driven tts.system.* calls, so UI playback
@@ -14,11 +46,13 @@ public struct ReaderView: View {
     @EnvironmentObject private var sessionStore: ReaderSessionStore
     // Issue 6：阅读纸张背景 / 正文墨色由 palette（readerTheme + isNight）驱动，不再硬编码 ReaderDesignTokens。
     @SwiftUI.Environment(\.readerThemePalette) private var palette
+    @SwiftUI.Environment(\.scenePhase) private var scenePhase
     @State private var showTTS = false
     @State private var readerControlPresentation: ReaderControlPresentation = .control
     @State private var scrollOffset: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
     @State private var visibleHeight: CGFloat = 0
+    @State private var lastDeliveredBookOpenLayoutID: ReaderBookOpenLayoutDeliveryID?
     @State private var chromeVisible: Bool
     @State private var readerDestination: ReaderInlineDestination?
     /// P0 修复 6：阅读器"更多"下拉菜单显隐。对齐 demo 的 `readerMoreOpen` 状态 +
@@ -28,10 +62,36 @@ public struct ReaderView: View {
     private let brightnessController = ScreenBrightnessController()
     private let volumeKeyPageTurner = VolumeKeyPageTurner()
     private let motion = MotionEnvironment()
+    /// R8 projection input. Runtime owns the semantic overlay; this value only
+    /// selects the existing native directory panel.
+    private let directoryPresented: Bool
     private let onExit: (() -> Void)?
+    private let onDirectoryOpen: (() -> Void)?
+    private let onDirectoryClose: (() -> Void)?
     /// P0 修复 5：模块切换回调。设值后，模块切换按钮会 dispatch `reader.module.switch` 事件
     /// （replace 语义，同层切换），对齐 demo 的 `reader.module.switch` payload `{ module }`。
     private let onModuleSwitch: ((ReaderStageModule) -> Void)?
+    /// H2 W2: 翻页 UiEvent 回调。Shadow 模式下由 ReaderCoordinator dispatch
+    /// `.reader_page_next` / `.reader_page_prev`，让 reducer 更新 readerPageIndex。
+    /// Pilot 模式由 playbackPilotCoordinator 拦截，此回调仅在 Shadow 路径生效。
+    private let onPageNext: (() -> Void)?
+    private let onPagePrev: (() -> Void)?
+    /// H2 W2: TTS UiEvent 回调。Shadow 模式下由 ReaderCoordinator dispatch
+    /// `.reader_tts_start` / `.reader_tts_stop`，让 reducer 更新 activeSession。
+    private let onStartTTS: (() -> Void)?
+    private let onStopTTS: (() -> Void)?
+    /// H2 W2: 自动翻页 UiEvent 回调。Shadow 模式下由 ReaderCoordinator dispatch
+    /// `.reader_autoPage_start` / `.reader_autoPage_stop`，让 reducer 更新 activeSession。
+    private let onStartAutoPage: ((Int) -> Void)?
+    private let onStopAutoPage: (() -> Void)?
+    /// When true, this ReaderView is owned by an admitted book.open Pilot.
+    /// It must never call the legacy `ReaderViewModel` content loader.
+    private let pilotManaged: Bool
+    private let pilotPresentation: ReaderBookOpenPilotPresentation?
+    /// Pilot-only handoff. `nil` in the production Shadow configuration means
+    /// ReaderView has no book.open Core side effect at all.
+    private let bookOpenLayoutContext: ReaderBookOpenDisplayedContent?
+    private let onBookOpenLayoutReady: ((ReaderBookOpenDisplayedContent, ReaderBookOpenMeasuredLayout) -> Void)?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
     /// `immersiveStart = true` 时进入「沉浸阅读」终态：阅读控制层（进度面/动作条/
@@ -47,8 +107,22 @@ public struct ReaderView: View {
         sourceID: String? = nil,
         source: BookSource? = nil,
         immersiveStart: Bool = false,
+        directoryPresented: Bool = false,
         onExit: (() -> Void)? = nil,
-        onModuleSwitch: ((ReaderStageModule) -> Void)? = nil
+        onDirectoryOpen: (() -> Void)? = nil,
+        onDirectoryClose: (() -> Void)? = nil,
+        onModuleSwitch: ((ReaderStageModule) -> Void)? = nil,
+        onPageNext: (() -> Void)? = nil,
+        onPagePrev: (() -> Void)? = nil,
+        onStartTTS: (() -> Void)? = nil,
+        onStopTTS: (() -> Void)? = nil,
+        onStartAutoPage: ((Int) -> Void)? = nil,
+        onStopAutoPage: (() -> Void)? = nil,
+        pilotPresentation: ReaderBookOpenPilotPresentation? = nil,
+        pilotManaged: Bool = false,
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil,
+        bookOpenLayoutContext: ReaderBookOpenDisplayedContent? = nil,
+        onBookOpenLayoutReady: ((ReaderBookOpenDisplayedContent, ReaderBookOpenMeasuredLayout) -> Void)? = nil
     ) {
         self._viewModel = StateObject(wrappedValue: ReaderViewModel(
             chapterURL: chapterURL,
@@ -60,13 +134,40 @@ public struct ReaderView: View {
             source: source
         ))
         self._chromeVisible = State(initialValue: !immersiveStart)
+        self.directoryPresented = directoryPresented
         self.onExit = onExit
+        self.onDirectoryOpen = onDirectoryOpen
+        self.onDirectoryClose = onDirectoryClose
         self.onModuleSwitch = onModuleSwitch
+        self.onPageNext = onPageNext
+        self.onPagePrev = onPagePrev
+        self.onStartTTS = onStartTTS
+        self.onStopTTS = onStopTTS
+        self.onStartAutoPage = onStartAutoPage
+        self.onStopAutoPage = onStopAutoPage
+        self.pilotPresentation = pilotPresentation
+        self.pilotManaged = pilotManaged
+        self._playbackPilotCoordinator = ObservedObject(
+            wrappedValue: playbackPilotCoordinator ?? ReaderPlaybackPilotCoordinator()
+        )
+        self.bookOpenLayoutContext = bookOpenLayoutContext
+        self.onBookOpenLayoutReady = onBookOpenLayoutReady
     }
 
     public var body: some View {
         GeometryReader { proxy in
             readerBody(layout: ReaderResponsiveLayout.make(size: proxy.size))
+                // `.task(id:)` runs after SwiftUI commits this GeometryReader.
+                // It is the only route from rendered native content to the
+                // book.open layout handoff; `body` itself never starts Core.
+                .task(id: bookOpenLayoutDeliveryID(viewport: proxy.size)) {
+                    deliverBookOpenLayoutIfReady(viewport: proxy.size)
+                }
+                .task(id: playbackChapterBindingID) {
+                    if let context = playbackChapterContext {
+                        playbackPilotCoordinator.bindChapter(context)
+                    }
+                }
         }
         .overlay {
             readerInlineDestinationLayer
@@ -82,6 +183,7 @@ public struct ReaderView: View {
 #endif
         .mainTabBarVisible(false)
         .onAppear {
+            projectDirectoryPresentation()
             loadContentOnAppear()
             brightnessController.apply(BrightnessPolicy(
                 enabled: viewModel.displaySettings.brightnessOverrideEnabled,
@@ -97,17 +199,43 @@ public struct ReaderView: View {
                 volumeKeyPageTurner.start()
             }
         }
+        // The package still supports macOS 13, so use the compatible overload;
+        // the iOS app target otherwise treats this as a normal value projection.
+        .onChange(of: directoryPresented) { isPresented in
+            projectDirectoryPresentation(isPresented)
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active {
+                playbackPilotCoordinator.appDidEnterBackground()
+            }
+        }
         .onDisappear {
+            _ = directoryPilotRouter.closeIfPresented()
             viewModel.saveSettings()
-            ttsPlayer.stop()
+            if isPlaybackPilot {
+                playbackPilotCoordinator.readerDidExit()
+            } else {
+                ttsPlayer.stop()
+            }
             brightnessController.restore()
             volumeKeyPageTurner.stop()
             // P3-B: 结束阅读会话
-            sessionStore.endSession()
+            if !pilotManaged && !isPlaybackPilot {
+                sessionStore.endSession()
+            }
         }
     }
 
     private func loadContentOnAppear() {
+        guard Self.shouldStartLegacyContentLoader(
+            pilotManaged: pilotManaged,
+            playbackPilotActive: isPlaybackPilot
+        ) else {
+            // Pilot session/loading is owned by ReaderUIRuntime + the
+            // correlation executor. Do not create a legacy ReaderSessionStore
+            // request that would have no ReaderViewModel completion path.
+            return
+        }
         let requestId = startReaderSessionIfNeeded()
         if viewModel.loadFrontendDemoContentIfNeeded() {
             completeReaderSession(for: requestId)
@@ -132,7 +260,7 @@ public struct ReaderView: View {
     }
 
     private func completeReaderSession(for requestId: UUID?) {
-        switch viewModel.readerState {
+        switch effectiveReaderState {
         case .loaded, .cached, .partial:
             if let requestId {
                 _ = sessionStore.completeLoading(requestId: requestId)
@@ -222,12 +350,134 @@ public struct ReaderView: View {
     }
 
     private var currentContentText: String {
-        switch viewModel.readerState {
+        switch effectiveReaderState {
         case .loaded(let content), .cached(let content), .partial(let content, _):
             return content.content
         default:
             return ""
         }
+    }
+
+    /// Kept internal for focused Pilot entry tests. A Pilot-owned reader never
+    /// falls through to the legacy provider/cache loader, even while Core is
+    /// still resolving its typed content DTO.
+    static func shouldStartLegacyContentLoader(
+        pilotManaged: Bool,
+        playbackPilotActive: Bool = false
+    ) -> Bool {
+        !pilotManaged && !playbackPilotActive
+    }
+
+    private var effectiveReaderState: ReaderState {
+        guard pilotManaged else { return viewModel.readerState }
+        if let content = pilotPresentation?.content {
+            return .loaded(content: content)
+        }
+        if let failure = pilotPresentation?.failure, !failure.isEmpty {
+            return .failed(message: failure)
+        }
+        return .loading
+    }
+
+    private var isPlaybackPilot: Bool {
+        playbackPilotCoordinator.isPagePilot
+            || playbackPilotCoordinator.isTTSPilot
+            || playbackPilotCoordinator.isAutoPagePilot
+    }
+
+    private var playbackChapterBindingID: String? {
+        playbackChapterContext.map {
+            "\($0.sourceID)|\($0.bookID)|\($0.chapterIndex)|\($0.chapterURL)|\($0.content.count)|\($0.content.hashValue)"
+        }
+    }
+
+    private var playbackChapterContext: ReaderPlaybackChapterContext? {
+        guard isPlaybackPilot,
+              let content = renderedContentForBookOpen,
+              let sourceID = viewModel.currentSourceID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !sourceID.isEmpty,
+              let bookID = viewModel.currentBookID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !bookID.isEmpty,
+              !content.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return ReaderPlaybackChapterContext(
+            sourceID: sourceID,
+            bookID: bookID,
+            chapterIndex: viewModel.currentChapterIndex,
+            chapterTitle: content.title,
+            chapterURL: content.chapterURL,
+            content: content.content,
+            initialPageIndex: playbackPilotCoordinator.committedPageIndex,
+            canonicalLocation: playbackPilotCoordinator.canonicalLocation
+        )
+    }
+
+    private struct ReaderBookOpenLayoutDeliveryID: Hashable {
+        let displayed: ReaderBookOpenDisplayedContent
+        let chapterURL: String
+        let chapterIndex: Int
+        let contentScalarCount: Int
+        let viewportWidth: Int
+        let viewportHeight: Int
+        let scrollProgressBasisPoints: Int
+        let fontSize: Int
+    }
+
+    private func bookOpenLayoutDeliveryID(viewport: CGSize) -> ReaderBookOpenLayoutDeliveryID? {
+        guard let displayed = bookOpenLayoutContext,
+              let content = renderedContentForBookOpen,
+              let currentBookID = viewModel.currentBookID,
+              displayed.bookID == currentBookID,
+              displayed.chapterIndex == viewModel.currentChapterIndex,
+              displayed.chapterURL == content.chapterURL,
+              viewport.width > 0,
+              viewport.height > 0 else {
+            return nil
+        }
+        return ReaderBookOpenLayoutDeliveryID(
+            displayed: displayed,
+            chapterURL: content.chapterURL,
+            chapterIndex: viewModel.currentChapterIndex,
+            contentScalarCount: content.content.unicodeScalars.count,
+            viewportWidth: Int(viewport.width.rounded(.down)),
+            viewportHeight: Int(viewport.height.rounded(.down)),
+            scrollProgressBasisPoints: Int((viewModel.readingProgress * 10_000).rounded()),
+            fontSize: viewModel.displaySettings.fontSize
+        )
+    }
+
+    private var renderedContentForBookOpen: ContentPage? {
+        switch effectiveReaderState {
+        case .loaded(let content), .cached(let content), .partial(let content, _):
+            return content
+        case .idle, .loading, .empty, .failed, .unsupported:
+            return nil
+        }
+    }
+
+    private func deliverBookOpenLayoutIfReady(viewport: CGSize) {
+        guard let deliveryID = bookOpenLayoutDeliveryID(viewport: viewport),
+              lastDeliveredBookOpenLayoutID != deliveryID,
+              let callback = onBookOpenLayoutReady else {
+            return
+        }
+        // The existing scroll renderer only exposes a visual progress ratio,
+        // not a glyph-to-Unicode-index mapper. Convert that measured ratio to
+        // the chapter's scalar span for a stable v1 anchor; Core still carries
+        // chapterProgress as the canonical fallback anchor.
+        let chapterOffset = Int((
+            Double(deliveryID.contentScalarCount) * viewModel.readingProgress
+        ).rounded())
+        let layout = ReaderBookOpenMeasuredLayout(
+            chapterOffset: chapterOffset,
+            chapterProgress: viewModel.readingProgress,
+            viewportWidth: deliveryID.viewportWidth,
+            viewportHeight: deliveryID.viewportHeight,
+            fontScale: Double(viewModel.displaySettings.fontSize) / 18.0
+        )
+        lastDeliveredBookOpenLayoutID = deliveryID
+        callback(deliveryID.displayed, layout)
     }
 
     // MARK: - Subviews
@@ -323,16 +573,18 @@ public struct ReaderView: View {
     }
 
     private func exitReader() {
-        if let onExit {
-            onExit()
-        } else {
-            dismiss()
+        directoryPilotRouter.handleBack {
+            if let onExit {
+                onExit()
+            } else {
+                dismiss()
+            }
         }
     }
 
     @ViewBuilder
     private func readerStateView(layout: ReaderResponsiveLayout) -> some View {
-        switch viewModel.readerState {
+        switch effectiveReaderState {
         case .idle:
             idleStateView
 
@@ -438,7 +690,7 @@ public struct ReaderView: View {
 
     @ViewBuilder
     private func actionBar(layout: ReaderResponsiveLayout) -> some View {
-        switch viewModel.readerState {
+        switch effectiveReaderState {
         case .loaded, .cached, .partial, .failed, .empty:
             actionBarContent(layout: layout)
         case .idle, .loading:
@@ -568,7 +820,32 @@ public struct ReaderView: View {
             onProgressUpdate: { ratio in
                 viewModel.updateProgress(ratio: ratio)
             },
-            pageTurnTrigger: pageTurnTrigger
+            pageTurnTrigger: pageTurnTrigger,
+            chapterIndex: viewModel.currentChapterIndex,
+            pilotCommittedPageIndex: playbackPilotCoordinator.isPagePilot
+                ? playbackPilotCoordinator.committedPageIndex
+                : nil,
+            pilotProposalRequest: playbackPilotCoordinator.isPagePilot
+                ? playbackPilotCoordinator.pendingPageProposal
+                : nil,
+            onPilotPageIntent: playbackPilotCoordinator.isPagePilot
+                ? { direction, proposal in
+                    playbackPilotCoordinator.requestPage(direction, proposal: proposal)
+                }
+                : nil,
+            onPilotPageProposal: playbackPilotCoordinator.isPagePilot
+                ? { request, proposal in
+                    playbackPilotCoordinator.providePageProposal(
+                        proposal,
+                        correlationID: request.correlationID
+                    )
+                }
+                : nil,
+            onPilotPageUnavailable: playbackPilotCoordinator.isPagePilot
+                ? { request, message in
+                    playbackPilotCoordinator.rejectPageProposal(request, message: message)
+                }
+                : nil
         )
     }
 
@@ -703,6 +980,21 @@ public struct ReaderView: View {
     }
 
     private func openReaderModule(_ module: ReaderStageModule) {
+        if module == .directory {
+            if directoryPilotRouter.toggle() {
+                return
+            }
+            // Compatibility fallback for isolated previews/tests that do not
+            // install the production AppShell coordinator.
+            readerControlPresentation = .module(.directory)
+            onModuleSwitch?(module)
+            return
+        }
+
+        // Replacing the Pilot directory surface first closes the canonical
+        // runtime overlay. The following non-Pilot module remains native and
+        // is processed exactly once by the existing callback/reducer path.
+        _ = directoryPilotRouter.closeIfPresented()
         readerControlPresentation = .module(module)
         // P0 修复 5：dispatch `reader.module.switch` 事件（replace 语义，同层切换）。
         // 对齐 demo 的 `reader.module.switch` payload `{ module }`。
@@ -710,6 +1002,9 @@ public struct ReaderView: View {
     }
 
     private func expandReaderModule(_ module: ReaderStageModule) {
+        if module == .directory {
+            _ = directoryPilotRouter.closeIfPresented()
+        }
         readerDestination = .demoRoute(module.fullDemoRoute)
     }
 
@@ -718,7 +1013,22 @@ public struct ReaderView: View {
         case .search:
             readerDestination = .demoRoute("content-search")
         case .autoPage:
-            readerDestination = .demoRoute("auto-page")
+            if playbackPilotCoordinator.isAutoPagePilot {
+                if playbackPilotCoordinator.activeSession == "auto-page" {
+                    _ = playbackPilotCoordinator.stopAutoPage()
+                } else {
+                    _ = playbackPilotCoordinator.startAutoPage(intervalMs: 5_000)
+                }
+            } else {
+                // H2 W2: Shadow 模式下 dispatch UiEvent 让 reducer 更新 activeSession，
+                // 再打开自动翻页配置 overlay。Pilot 路径已在上方分支处理。
+                if playbackPilotCoordinator.activeSession == "auto-page" {
+                    onStopAutoPage?()
+                } else {
+                    onStartAutoPage?(5_000)
+                }
+                readerDestination = .demoRoute("auto-page")
+            }
         case .replacement:
             readerDestination = .demoRoute("content-replacement")
         }
@@ -736,10 +1046,20 @@ public struct ReaderView: View {
         else {
             return
         }
+        // H2 W2: 在 Shadow 模式下，先 dispatch UiEvent 让 reducer 更新 readerPageIndex，
+        // 再驱动本地 pageTurnTrigger 动画。Pilot 模式由 PaginatedReaderView 内的
+        // onPilotPageIntent 回调拦截，不会走到这里。
+        if !isPlaybackPilot {
+            switch direction {
+            case .next: onPageNext?()
+            case .previous: onPagePrev?()
+            }
+        }
         pageTurnTrigger.trigger = direction
     }
 
     private func toggleReaderChrome() {
+        _ = directoryPilotRouter.closeIfPresented()
         // `reader.control.show/hide` —— latest-intent-wins，旧动画被打断。
         // 通过 ReaderMotionAdapter.resolve(request:) 解析契约 MotionId：
         // - show (enter): targetRole="sheet" + containerRole=.readerShell → .overlay_sheet_enter (priority 300)
@@ -748,13 +1068,32 @@ public struct ReaderView: View {
         let request: MotionRequest = willShow
             ? MotionRequest(operation: .enter, targetRole: "sheet", containerRole: .readerShell)
             : MotionRequest(operation: .exit, sourceRole: "controlLayer", containerRole: .readerSurface)
-        let animation = ReaderMotionAdapter.animation(for: request, motion: motion)
-        if let animation {
-            withAnimation(animation) {
-                chromeVisible.toggle()
-            }
-        } else {
+        // Keep the resolver call at the animation boundary. Besides preserving
+        // reduced-motion's nil animation, this lets the strict motion gate
+        // prove that the transition is contract-resolved rather than raw.
+        withAnimation(ReaderMotionAdapter.animation(for: request, motion: motion)) {
             chromeVisible.toggle()
+        }
+    }
+
+    private var directoryPilotRouter: ReaderDirectoryPilotIntentRouter {
+        ReaderDirectoryPilotIntentRouter(
+            isPresented: directoryPresented,
+            onOpen: onDirectoryOpen,
+            onClose: onDirectoryClose
+        )
+    }
+
+    /// R8's only renderer projection: semantic `overlay == directory` selects
+    /// the existing ReaderControl directory panel. Chapter data continues to
+    /// come from ReaderViewModel/Core through `chapterList` below.
+    private func projectDirectoryPresentation(_ isPresented: Bool? = nil) {
+        let isPresented = isPresented ?? directoryPresented
+        if isPresented {
+            chromeVisible = true
+            readerControlPresentation = .module(.directory)
+        } else if readerControlPresentation == .module(.directory) {
+            readerControlPresentation = .control
         }
     }
 
@@ -767,6 +1106,11 @@ public struct ReaderView: View {
     }
 
     private var readerControlSession: ReaderControlSession {
+        if playbackPilotCoordinator.isTTSPilot {
+            return playbackPilotCoordinator.activeSession == "tts"
+                ? .tts(playbackState: .playing)
+                : .ready
+        }
         if showTTS || ttsPlayer.playbackState == .playing || ttsPlayer.playbackState == .paused {
             return .tts(playbackState: ttsPlayer.playbackState)
         }
@@ -776,11 +1120,29 @@ public struct ReaderView: View {
     private func handleReaderSessionAction(_ action: ReaderControlSessionAction) {
         switch action {
         case .startTTS:
+            if playbackPilotCoordinator.isTTSPilot {
+                _ = playbackPilotCoordinator.startTTS()
+                return
+            }
+            // H2 W2: Shadow 模式下先 dispatch UiEvent 让 reducer 更新 activeSession，
+            // 再驱动本地 ttsPlayer。Pilot 路径已在上方 return。
+            onStartTTS?()
             showTTS = true
             ttsPlayer.togglePlayPause(text: currentContentText)
         case .pauseTTS:
+            if playbackPilotCoordinator.isTTSPilot {
+                _ = playbackPilotCoordinator.stopTTS()
+                return
+            }
             ttsPlayer.pause()
         case .stopTTS:
+            if playbackPilotCoordinator.isTTSPilot {
+                _ = playbackPilotCoordinator.stopTTS()
+                return
+            }
+            // H2 W2: Shadow 模式下先 dispatch UiEvent 让 reducer 清除 activeSession，
+            // 再停止本地 ttsPlayer。
+            onStopTTS?()
             ttsPlayer.stop()
             showTTS = false
         }
@@ -1743,8 +2105,22 @@ extension ReaderView {
             fixtureContent: fixtureContent
         ))
         self._chromeVisible = State(initialValue: true)
+        self.directoryPresented = false
         self.onExit = nil
+        self.onDirectoryOpen = nil
+        self.onDirectoryClose = nil
         self.onModuleSwitch = nil
+        self.onPageNext = nil
+        self.onPagePrev = nil
+        self.onStartTTS = nil
+        self.onStopTTS = nil
+        self.onStartAutoPage = nil
+        self.onStopAutoPage = nil
+        self.pilotPresentation = nil
+        self.pilotManaged = false
+        self._playbackPilotCoordinator = ObservedObject(wrappedValue: ReaderPlaybackPilotCoordinator())
+        self.bookOpenLayoutContext = nil
+        self.onBookOpenLayoutReady = nil
     }
 }
 #endif

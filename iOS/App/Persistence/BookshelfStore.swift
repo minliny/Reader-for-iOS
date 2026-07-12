@@ -55,7 +55,13 @@ public final class BookshelfStore: @unchecked Sendable {
         try saveItems(items)
     }
 
-    public func updateProgress(bookID: String, progress: Double, chapterTitle: String?, chapterURL: String?) throws {
+    public func updateProgress(
+        bookID: String,
+        progress: Double,
+        chapterTitle: String?,
+        chapterURL: String?,
+        chapterIndex: Int? = nil
+    ) throws {
         var items = (try? loadItems()) ?? []
         if let index = items.firstIndex(where: { $0.id == bookID }) {
             items[index].readingProgress = progress
@@ -65,6 +71,9 @@ public final class BookshelfStore: @unchecked Sendable {
             }
             if let url = chapterURL {
                 items[index].lastReadChapterURL = url
+            }
+            if let chapterIndex {
+                items[index].lastReadChapterIndex = max(0, chapterIndex)
             }
             try saveItems(items)
         }

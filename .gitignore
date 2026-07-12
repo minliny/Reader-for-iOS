@@ -27,6 +27,7 @@ Package.resolved
 .ci_tmp/
 .ci_tmp2/
 .ci_policy_run_*.log
+.ci_download/
 
 # GitHub CLI local data
 .gh-localappdata/
@@ -48,6 +49,12 @@ __pycache__/
 # Misc temp files
 *.log
 *.tmp
+iOS/ReaderCoreNativeAdapter/cabi/.sandbox_test
+
+# Local environment files (keep .env.example as template)
+.env
+.env.local
+.env.*.local
 
 # XcodeGen (generated from project.yml)
 # Do NOT commit *.xcodeproj or *.xcworkspace - generate with xcodegen

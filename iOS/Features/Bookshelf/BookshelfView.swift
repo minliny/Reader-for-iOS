@@ -6,9 +6,34 @@ import ReaderAppSupport
 import ReaderAppPersistence
 import ReaderCoreModels
 
+/// The production bookshelf → immersive-reading handoff for the optional
+/// book.open Pilot. It has no authority of its own: the injected coordinator
+/// returns false unless an explicit Pilot configuration and a Core-identity
+/// admission resolver are installed.
+@MainActor
+struct BookshelfBookOpenPilotEntryRouter {
+    let coordinator: ReaderBookOpenPilotCoordinator
+
+    @discardableResult
+    func begin(item: BookshelfItem, context: ReaderContext) -> Bool {
+        coordinator.begin(from: ReaderBookOpenEntry(
+            correlationID: context.id.uuidString,
+            sourceID: item.sourceID,
+            nativeBookID: item.id,
+            bookURL: item.bookURL,
+            title: item.title,
+            author: item.author,
+            coverURL: item.coverURL,
+            chapterURL: context.chapterURL,
+            chapterTitle: context.chapterTitle,
+            chapterIndex: context.chapterIndex
+        ))
+    }
+}
+
 public struct BookshelfView: View {
     private enum BookshelfDestination {
-        case reader(ReaderContext)
+        case reader(ReaderContext, pilotManaged: Bool)
         case batchManagement
         case groupManagement
         case localImport
@@ -27,6 +52,8 @@ public struct BookshelfView: View {
     @State private var focusedBookshelfItem: BookshelfItem?
     @State private var showBookshelfMore = false
     @ObservedObject private var navigationState: AppNavigationState
+    @ObservedObject private var bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator
+    @ObservedObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
     @Binding private var topBarRequest: MainTabTopBarRequest?
     private let showsTopBar: Bool
     private let autoloadOnAppear: Bool
@@ -37,13 +64,17 @@ public struct BookshelfView: View {
     public init(
         navigationState: AppNavigationState? = nil,
         showsTopBar: Bool = true,
-        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil),
+        bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator? = nil,
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil
     ) {
         self.init(
             navigationState: navigationState,
             showsTopBar: showsTopBar,
             topBarRequest: topBarRequest,
-            initialDemoRoute: nil
+            initialDemoRoute: nil,
+            bookOpenPilotCoordinator: bookOpenPilotCoordinator,
+            playbackPilotCoordinator: playbackPilotCoordinator
         )
     }
 
@@ -51,13 +82,17 @@ public struct BookshelfView: View {
         demoRoute: String,
         navigationState: AppNavigationState? = nil,
         showsTopBar: Bool = true,
-        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil)
+        topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil),
+        bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator? = nil,
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil
     ) {
         self.init(
             navigationState: navigationState,
             showsTopBar: showsTopBar,
             topBarRequest: topBarRequest,
-            initialDemoRoute: demoRoute
+            initialDemoRoute: demoRoute,
+            bookOpenPilotCoordinator: bookOpenPilotCoordinator,
+            playbackPilotCoordinator: playbackPilotCoordinator
         )
     }
 
@@ -65,7 +100,9 @@ public struct BookshelfView: View {
         navigationState: AppNavigationState?,
         showsTopBar: Bool,
         topBarRequest: Binding<MainTabTopBarRequest?>,
-        initialDemoRoute: String?
+        initialDemoRoute: String?,
+        bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator?,
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator?
     ) {
         let demoItems = initialDemoRoute == nil ? nil : DemoBookshelfFixture.items
         let initialState = demoItems.map { BookshelfState.loaded(items: $0) }
@@ -79,6 +116,12 @@ public struct BookshelfView: View {
         } else {
             self._navigationState = ObservedObject(wrappedValue: AppNavigationState())
         }
+        self._bookOpenPilotCoordinator = ObservedObject(
+            wrappedValue: bookOpenPilotCoordinator ?? ReaderBookOpenPilotCoordinator()
+        )
+        self._playbackPilotCoordinator = ObservedObject(
+            wrappedValue: playbackPilotCoordinator ?? ReaderPlaybackPilotCoordinator()
+        )
         self.showsTopBar = showsTopBar
         self._topBarRequest = topBarRequest
         self.autoloadOnAppear = initialDemoRoute == nil
@@ -227,9 +270,9 @@ public struct BookshelfView: View {
                 BookshelfItemDetailView(
                     item: selectedItem,
                     onClose: { self.selectedItem = nil },
-                    onEnterImmersive: { _ in
+                    onEnterImmersive: { context in
                         self.selectedItem = nil
-                        enterImmersive(from: selectedItem, source: .actionToImmersive)
+                        enterImmersive(context)
                     }
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -241,16 +284,30 @@ public struct BookshelfView: View {
     @ViewBuilder
     private var bookshelfDestinationLayer: some View {
         switch activeDestination {
-        case .some(.reader(let context)):
+        case .some(.reader(let context, let pilotManaged)):
+            let presentation = bookOpenPilotCoordinator.presentation
+                .flatMap { $0.correlationID == context.id.uuidString ? $0 : nil }
             ReaderView(
-                chapterURL: context.chapterURL,
-                chapterTitle: context.chapterTitle,
-                chapterList: chapterList(for: context),
-                currentChapterIndex: chapterIndex(for: context),
-                bookID: context.bookID,
-                sourceID: context.sourceID,
+                chapterURL: presentation?.chapterURL ?? context.chapterURL,
+                chapterTitle: presentation?.chapterTitle ?? context.chapterTitle,
+                chapterList: presentation?.toc ?? chapterList(for: context),
+                currentChapterIndex: presentation?.chapterIndex ?? chapterIndex(for: context),
+                bookID: presentation?.bookID ?? context.bookID,
+                sourceID: presentation?.sourceID ?? context.sourceID,
                 immersiveStart: true,
-                onExit: closeActiveDestination
+                onExit: closeActiveDestination,
+                pilotPresentation: presentation,
+                pilotManaged: pilotManaged,
+                playbackPilotCoordinator: playbackPilotCoordinator,
+                bookOpenLayoutContext: presentation?.displayed,
+                onBookOpenLayoutReady: { displayed, layout in
+                    Task { @MainActor in
+                        await bookOpenPilotCoordinator.provideMeasuredLayout(
+                            layout,
+                            displayed: displayed
+                        )
+                    }
+                }
             )
             .transition(.opacity)
 
@@ -536,9 +593,24 @@ public struct BookshelfView: View {
             bookID: item.id,
             chapterURL: chapterURL,
             chapterTitle: chapterTitle,
+            chapterIndex: item.resolvedLastReadChapterIndex,
             sourceID: item.sourceID,
             source: source
         )
+        enterImmersive(context, item: item)
+    }
+
+    /// Continue-reading may arrive with a persisted Core chapter index that
+    /// cannot yet be re-derived from a fresh TOC. Preserve that exact intent
+    /// while the normal motion/navigation path remains unchanged.
+    private func enterImmersive(_ context: ReaderContext) {
+        enterImmersive(
+            context,
+            item: viewModel.items.first(where: { $0.id == context.bookID })
+        )
+    }
+
+    private func enterImmersive(_ context: ReaderContext, item: BookshelfItem?) {
         // P2-A HERO-P0-1: 用 withAnimation 触发 matchedGeometryEffect 过渡。
         // 真源：motion-controller.js line 412-417 reader.entry.coverToImmersive (240ms)
         // 与 line 418-423 reader.entry.actionToImmersive (200ms)。
@@ -551,16 +623,20 @@ public struct BookshelfView: View {
             fromShell: .mainTabShell,
             toShell: .readerShell,
             operation: .push,
-            sourceRole: source == .coverToImmersive ? "bookCover" : "actionButton"
+            sourceRole: context.source == .coverToImmersive ? "bookCover" : "actionButton"
         )
+        let pilotManaged = item.map {
+            BookshelfBookOpenPilotEntryRouter(coordinator: bookOpenPilotCoordinator)
+                .begin(item: $0, context: context)
+        } ?? false
         withAnimation(ReaderMotionAdapter.animation(for: entryRequest, motion: motion)) {
             navigationState.enterImmersiveReading(context)
-            activeDestination = .reader(context)
+            activeDestination = .reader(context, pilotManaged: pilotManaged)
         }
     }
 
     private func closeActiveDestination() {
-        if case .reader = activeDestination {
+        if case .reader(let context, let pilotManaged) = activeDestination {
             // P2-A: 退出沉浸阅读同样包裹 withAnimation，让 matchedGeometryEffect 反向过渡。
             // operation: .pop from readerShell → mainTabShell 无特定 policy，
             // resolver 回退到 .motion_interrupt_redirect (80ms)，
@@ -572,6 +648,9 @@ public struct BookshelfView: View {
                 operation: .pop
             )
             withAnimation(ReaderMotionAdapter.animation(for: exitRequest, motion: motion)) {
+                if pilotManaged {
+                    bookOpenPilotCoordinator.cancel(correlationID: context.id.uuidString)
+                }
                 navigationState.exitImmersiveReading()
                 activeDestination = nil
             }
@@ -589,8 +668,12 @@ public struct BookshelfView: View {
 
     private func chapterIndex(for context: ReaderContext) -> Int {
         let list = chapterList(for: context)
-        guard !list.isEmpty else { return 0 }
-        return list.firstIndex { $0.chapterURL == context.chapterURL } ?? 0
+        guard !list.isEmpty else { return context.chapterIndex }
+        // `TOCItem.chapterIndex` is Core identity, not merely this renderer's
+        // array offset. A URL match is fresher than persisted state; when the
+        // list has not caught up, retain the persisted explicit fallback.
+        return list.first(where: { $0.chapterURL == context.chapterURL })?.chapterIndex
+            ?? context.chapterIndex
     }
 }
 
@@ -1500,6 +1583,7 @@ struct BookshelfItemDetailView: View {
             bookID: item.id,
             chapterURL: chapterURL,
             chapterTitle: item.lastReadChapterTitle ?? "继续阅读",
+            chapterIndex: item.resolvedLastReadChapterIndex,
             sourceID: item.sourceID,
             source: .actionToImmersive
         )
@@ -1538,8 +1622,11 @@ struct BookshelfItemDetailView: View {
     }
 
     private var currentChapterIndex: Int {
-        guard let chapterURL = item.lastReadChapterURL else { return 0 }
-        return localChapterList.firstIndex { $0.chapterURL == chapterURL } ?? 0
+        guard let chapterURL = item.lastReadChapterURL else {
+            return item.resolvedLastReadChapterIndex
+        }
+        return localChapterList.first(where: { $0.chapterURL == chapterURL })?.chapterIndex
+            ?? item.resolvedLastReadChapterIndex
     }
 }
 

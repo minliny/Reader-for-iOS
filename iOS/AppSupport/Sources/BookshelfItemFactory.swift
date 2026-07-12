@@ -36,6 +36,7 @@ public struct BookshelfItemFactory {
             updatedAt: Date(),
             lastReadChapterTitle: existing?.lastReadChapterTitle,
             lastReadChapterURL: existing?.lastReadChapterURL,
+            lastReadChapterIndex: existing?.lastReadChapterIndex,
             readingProgress: existing?.readingProgress ?? 0.0
         )
     }
@@ -47,7 +48,10 @@ public struct BookshelfItemFactory {
         localChapterList: [TOCItem] = [],
         existing: BookshelfItem? = nil
     ) -> BookshelfItem {
-        BookshelfItem(
+        let firstChapterIndex = firstChapterURL.flatMap { url in
+            localChapterList.first(where: { $0.chapterURL == url })?.chapterIndex
+        }
+        return BookshelfItem(
             id: existing?.id ?? UUID().uuidString,
             sourceID: "local-book",
             sourceName: "Local Book",
@@ -59,6 +63,7 @@ public struct BookshelfItemFactory {
             updatedAt: Date(),
             lastReadChapterTitle: existing?.lastReadChapterTitle ?? firstChapterTitle,
             lastReadChapterURL: existing?.lastReadChapterURL ?? firstChapterURL,
+            lastReadChapterIndex: existing?.lastReadChapterIndex ?? firstChapterIndex,
             readingProgress: existing?.readingProgress ?? 0.0,
             localChapterList: localChapterList.isEmpty ? existing?.localChapterList : localChapterList
         )

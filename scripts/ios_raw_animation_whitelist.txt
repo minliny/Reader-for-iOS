@@ -23,8 +23,3 @@ iOS/App/Components/DemoPrimitives.swift:1240: DemoRestoreProgressMeter repeatFor
 iOS/App/Components/DemoPrimitives.swift:1384: DemoReaderSwitch isOn 切换，使用 AppMotion.Duration.toggleSwitch
 iOS/App/Components/DemoPrimitives.swift:1422: DemoTocSwitchRow isOn 切换，使用 AppMotion.Duration.toggleSwitch
 iOS/App/Components/DemoPrimitives.swift:1460: DemoSliderControl +/- 按钮切换，使用 AppMotion.Duration.toggleSwitch
-
-# === ReaderView.swift —— toggleReaderChrome ===
-# withAnimation(animation) 里的 animation 是 ReaderMotionAdapter.animation(for:) 的返回值，
-# 属于 transitive adapter 调用，lint 脚本无法静态识别局部变量来源
-iOS/Features/Reader/ReaderView.swift:683: withAnimation(animation) — animation 来自 ReaderMotionAdapter.animation(for: request)，transitive adapter 调用

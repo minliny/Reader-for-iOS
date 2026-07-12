@@ -26,7 +26,10 @@ let parserBackedCoreDependencies: [Target.Dependency] = shellCIOnly ? [] : [
 // (HostAdapter, HostCapabilityRegistry, etc.) and UnifiedEvidenceRunner.
 // In shell CI mode, those files are excluded via shellValidationExcludes.
 let uiContractDependencies: [Target.Dependency] = shellCIOnly ? [] : [
-    .product(name: "ReaderUIContract", package: "Reader UI")
+    .product(name: "ReaderUIContract", package: "Reader-UI")
+]
+let uiRuntimeDependencies: [Target.Dependency] = shellCIOnly ? [] : [
+    .product(name: "ReaderUIRuntime", package: "Reader-UI")
 ]
 let shellValidationExcludes: [String] = shellCIOnly ? [
     "CoreIntegration/CoreLocalBookImportService.swift",
@@ -37,6 +40,7 @@ let shellValidationExcludes: [String] = shellCIOnly ? [
     "CoreBridge/HostAdapter.swift",
     "CoreBridge/HostAdapterHolder.swift",
     "CoreBridge/HostCapabilityRegistry.swift",
+    "CoreBridge/HostForegroundTimerCapability.swift",
     "CoreBridge/HostTTSCapability.swift",
     "CoreBridge/HostShareCapability.swift",
     "CoreBridge/HostWebViewCapability.swift",
@@ -48,6 +52,12 @@ let shellValidationExcludes: [String] = shellCIOnly ? [
     "CoreBridge/HostPermissionCapability.swift",
     "CoreBridge/HostNotificationCapability.swift",
     "CoreBridge/HostDeviceCapability.swift",
+    "CoreBridge/HostFileSelectionCapability.swift",
+    "CoreBridge/HostFontCapability.swift",
+    "CoreBridge/HostAppearancePersistenceCapability.swift",
+    "CoreBridge/HostDisplayCapability.swift",
+    "CoreBridge/HostNetworkCapability.swift",
+    "CoreBridge/HostWebDAVCapability.swift",
     "CoreBridge/ReaderCoreBridge.swift",
 ] : []
 let shellSmokeTestExcludes: [String] = shellCIOnly ? [
@@ -80,8 +90,10 @@ let packageDependencies: [Package.Dependency] = [
     // Reader UI Contract（Contract-first Native UI Architecture）
     // 提供 generated Swift 类型：RouteId / UiEvent / UiState / ViewState / Motion / Token /
     // CoreCommand / CoreEvent / HostRequest / ProgressLocation / Content / SyncConflict / StateRule
-    // 接入路径：Reader for iOS/iOS/Package.swift -> ../../Reader UI
-    .package(path: "../../Reader UI")
+    // 接入路径：Reader-for-iOS/iOS/Package.swift -> ../../Reader-UI。
+    // Keep this identical to the directory cloned by ios-shell-ci.yml; the
+    // historical `Reader UI` path only worked through a developer-local symlink.
+    .package(path: "../../Reader-UI")
 ])
 
 let baseTargets: [Target] = [
@@ -180,7 +192,7 @@ let baseTargets: [Target] = [
             "ReaderAppSupport",
             "ReaderAppPersistence",
             "ReaderCoreNativeAdapter"
-        ] + uiContractDependencies,
+        ] + uiContractDependencies + uiRuntimeDependencies,
         path: ".",
         exclude: [
             "App/Persistence",
@@ -242,7 +254,8 @@ let nonShellCITargets: [Target] = [
             "ReaderAppPersistence",
             "ReaderShellValidation",
             .product(name: "ReaderCoreModels", package: "Reader-Core"),
-            .product(name: "ReaderUIContract", package: "Reader UI")
+            .product(name: "ReaderUIContract", package: "Reader-UI"),
+            .product(name: "ReaderUIRuntime", package: "Reader-UI")
         ],
         path: "Tests/ReaderAppTests"
     )

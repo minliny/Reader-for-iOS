@@ -261,7 +261,7 @@ public final class ReaderSessionStore: ObservableObject {
         settlePendingMotion()
         let duration = ReaderMotion.Duration.readerEntry
         let transactionId = motionController.start(
-            id: .readerEntryCoverToImmersive,
+            id: .reader_entry_coverToImmersive,
             fromState: "idle",
             toState: "immersive",
             interruptMode: .cancel,

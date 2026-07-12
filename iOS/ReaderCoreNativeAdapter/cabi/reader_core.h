@@ -74,6 +74,7 @@ typedef enum rc_runtime_create_status {
     RC_CREATE_NULL_OUT_RUNTIME = 2,
     RC_CREATE_NULL_CALLBACK = 3,
     RC_CREATE_INVALID_CONFIG = 4,
+    RC_CREATE_THREAD_FAILED = 5,
 } rc_runtime_create_status_t;
 
 typedef enum rc_runtime_send_status {
@@ -107,6 +108,10 @@ typedef enum rc_runtime_cancel_status {
 ///   `RC_CREATE_NULL_CALLBACK` = `callback` is NULL
 ///   `RC_CREATE_INVALID_CONFIG` = `config_json` is invalid (malformed JSON,
 ///       unknown field, or invalid value).
+///   `RC_CREATE_THREAD_FAILED` = the config parsed and validated, but Core
+///       failed to spawn its background worker thread (resource exhaustion or
+///       OS denial). The config is valid, so a host may retry create. The
+///       structured last-error code is `RC_ERR_INTERNAL`.
 ///   `RC_CREATE_PANIC` = an internal Rust panic was caught by the ABI guard
 ///       (only possible in unwind-capable builds).
 /// Every non-panic failure records a structured error via `rc_last_error`.

@@ -49,7 +49,7 @@ final class ReaderContractAdapterSlice0Tests: XCTestCase {
 
         XCTAssertEqual(
             ReaderMotionAdapter.localMotionId(for: ReaderUIContract.MotionId.tab_switch)?.rawValue,
-            "tab.item.switch"
+            ReaderUIContract.MotionId.tab_switch.rawValue
         )
         XCTAssertEqual(
             ReaderMotionAdapter.duration(for: .tab_switch, motion: normalMotion),

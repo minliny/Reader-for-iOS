@@ -23,9 +23,10 @@
 // - `.credential_delete`: `{ service: String, account: String }`
 //                        → `{ deleted: true, existed: Bool }`
 //
-// `accessible` values: "whenUnlocked" (default), "whenUnlockedThisDeviceOnly",
+// `accessible` values: "whenUnlocked", "whenUnlockedThisDeviceOnly" (default),
 // "afterFirstUnlock", "afterFirstUnlockThisDeviceOnly". Maps to
-// `kSecAttrAccessible*`.
+// `kSecAttrAccessible*`. The default ThisDeviceOnly variant prevents iCloud
+// Keychain backup, which is safer for app-local credentials.
 
 import Foundation
 import Security
@@ -38,6 +39,8 @@ public struct HostCredentialCapability: HostCapabilityHandler {
     public let tier: HostCapabilityTier = .crossPlatform
 
     public init() {}
+
+    private static let canonicalService = "com.reader.ios.host-credential"
 
     public func handle(_ request: HostRequest) async throws -> HostCapabilityOutcome {
         switch request.type {
@@ -55,16 +58,13 @@ public struct HostCredentialCapability: HostCapabilityHandler {
     // MARK: - credential.get
 
     private func handleGet(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        guard let service = payload["service"]?.value as? String, !service.isEmpty else {
-            return .failure(.invalidParams("credential.get requires non-empty `service`"))
-        }
-        guard let account = payload["account"]?.value as? String, !account.isEmpty else {
-            return .failure(.invalidParams("credential.get requires non-empty `account`"))
+        guard let key = payload["key"]?.value as? String, !key.isEmpty else {
+            return .failure(.invalidParams("credential.get requires non-empty `key`"))
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: Self.canonicalService,
+            kSecAttrAccount as String: key,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
@@ -78,13 +78,10 @@ public struct HostCredentialCapability: HostCapabilityHandler {
             }
             return .success([
                 "value": AnyCodable(value),
-                "found": AnyCodable(true),
+                "exists": AnyCodable(true),
             ])
         case errSecItemNotFound:
-            return .success([
-                "value": AnyCodable(String?.none as String?),
-                "found": AnyCodable(false),
-            ])
+            return .success(["exists": AnyCodable(false)])
         default:
             return .failure(.underlying("credential.get SecItemCopyMatching status \(status)"))
         }
@@ -93,33 +90,27 @@ public struct HostCredentialCapability: HostCapabilityHandler {
     // MARK: - credential.set
 
     private func handleSet(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        guard let service = payload["service"]?.value as? String, !service.isEmpty else {
-            return .failure(.invalidParams("credential.set requires non-empty `service`"))
-        }
-        guard let account = payload["account"]?.value as? String, !account.isEmpty else {
-            return .failure(.invalidParams("credential.set requires non-empty `account`"))
+        guard let key = payload["key"]?.value as? String, !key.isEmpty else {
+            return .failure(.invalidParams("credential.set requires non-empty `key`"))
         }
         guard let value = payload["value"]?.value as? String else {
             return .failure(.invalidParams("credential.set requires `value` string"))
         }
-        let accessibleString = (payload["accessible"]?.value as? String) ?? "whenUnlocked"
-        guard let accessible = Self.accessibleAttr(for: accessibleString) else {
-            return .failure(.invalidParams("credential.set `accessible` not recognized: \(accessibleString)"))
-        }
+        let accessible = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let data = Data(value.utf8)
 
         // Delete any existing item first (SecItemAdd fails on duplicate).
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: Self.canonicalService,
+            kSecAttrAccount as String: key,
         ]
         SecItemDelete(deleteQuery as CFDictionary)
 
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: Self.canonicalService,
+            kSecAttrAccount as String: key,
             kSecAttrAccessible as String: accessible,
             kSecValueData as String: data,
         ]
@@ -133,23 +124,20 @@ public struct HostCredentialCapability: HostCapabilityHandler {
     // MARK: - credential.delete
 
     private func handleDelete(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        guard let service = payload["service"]?.value as? String, !service.isEmpty else {
-            return .failure(.invalidParams("credential.delete requires non-empty `service`"))
-        }
-        guard let account = payload["account"]?.value as? String, !account.isEmpty else {
-            return .failure(.invalidParams("credential.delete requires non-empty `account`"))
+        guard let key = payload["key"]?.value as? String, !key.isEmpty else {
+            return .failure(.invalidParams("credential.delete requires non-empty `key`"))
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: Self.canonicalService,
+            kSecAttrAccount as String: key,
         ]
         let status = SecItemDelete(query as CFDictionary)
         switch status {
         case errSecSuccess:
-            return .success(["deleted": AnyCodable(true), "existed": AnyCodable(true)])
+            return .success(["deleted": AnyCodable(true)])
         case errSecItemNotFound:
-            return .success(["deleted": AnyCodable(true), "existed": AnyCodable(false)])
+            return .success(["deleted": AnyCodable(true)])
         default:
             return .failure(.underlying("credential.delete SecItemDelete status \(status)"))
         }

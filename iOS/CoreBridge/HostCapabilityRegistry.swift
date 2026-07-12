@@ -195,8 +195,23 @@ public final class HostCapabilityRegistry: @unchecked Sendable {
         guard let handler = handler(for: request.type) else {
             return .failure(.notConfigured(request.type))
         }
+        if let error = HostCanonicalContract.validateRequest(request) {
+            return .failure(error)
+        }
         do {
-            return try await handler.handle(request)
+            let outcome = try await handler.handle(request)
+            guard outcome.succeeded else { return outcome }
+            guard let result = outcome.result else {
+                return .failure(.underlying(
+                    "\(request.type.rawValue) capability returned success without HostResult"
+                ))
+            }
+            switch HostCanonicalContract.projectResult(for: request.type, result: result) {
+            case .success(let projected):
+                return .success(projected)
+            case .failure(let error):
+                return .failure(error)
+            }
         } catch let error as HostCapabilityError {
             return .failure(error)
         } catch {

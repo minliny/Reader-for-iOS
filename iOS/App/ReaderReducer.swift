@@ -21,7 +21,8 @@ import ReaderUIContract
 /// - 持有平台 View 引用
 @MainActor
 public final class ReaderReducer: ObservableObject {
-    /// 既有状态机作为唯一真源。reducer 不复制状态，只转发事件。
+    /// 既有状态机是 native 事件真源；R8 directory pair 是唯一例外，
+    /// 其 semantic overlay 由长期 ReaderUIRuntime coordinator 持有。
     @ObservedObject public var navigationState: AppNavigationState
 
     /// 主题管理器（可选）。由 ReaderApp 注入，供 `reader_nightState_toggle` /
@@ -29,8 +30,29 @@ public final class ReaderReducer: ObservableObject {
     /// 不破坏既有 ReaderReducer(navigationState:) 测试构造。
     public var themeManager: ReaderThemeManager?
 
-    public init(navigationState: AppNavigationState) {
+    /// Optional mixed-rollout runtime coordinator. It observes shadow events
+    /// and owns the R8 directory Pilot semantic overlay. A nil coordinator (or
+    /// explicit `.shadow` rollback) retains the legacy native directory branch.
+    private let runtimeShadow: ReaderUIRuntimeShadowCoordinator?
+    private let playbackPilot: ReaderPlaybackPilotCoordinator?
+    private let importPilot: ReaderImportPilotCoordinator?
+    private let sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator?
+    private let replaceRulePilot: ReaderReplaceRulePilotCoordinator?
+
+    public init(
+        navigationState: AppNavigationState,
+        runtimeShadow: ReaderUIRuntimeShadowCoordinator? = nil,
+        playbackPilot: ReaderPlaybackPilotCoordinator? = nil,
+        importPilot: ReaderImportPilotCoordinator? = nil,
+        sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator? = nil,
+        replaceRulePilot: ReaderReplaceRulePilotCoordinator? = nil
+    ) {
         self.navigationState = navigationState
+        self.runtimeShadow = runtimeShadow
+        self.playbackPilot = playbackPilot
+        self.importPilot = importPilot
+        self.sourceSwitchPilot = sourceSwitchPilot
+        self.replaceRulePilot = replaceRulePilot
     }
 
     // MARK: - UiEvent 入口
@@ -39,6 +61,54 @@ public final class ReaderReducer: ObservableObject {
     ///
     /// Slice 1 处理 AppShell 级事件；深层业务事件留待后续 slice。
     public func dispatch(_ event: UiEvent) {
+        // Each playback pair is an independent default-Shadow cohort. When a
+        // future lock explicitly admits one as Pilot, the runtime coordinator
+        // consumes both halves fail-closed before the legacy immediate page,
+        // session, speech or timer branch can write.
+        if playbackPilot?.handle(event) == true {
+            return
+        }
+        // Import pilot is fail-closed: both success and failure stop here.
+        // The canonical import events (import.start/apply/cancel) are consumed
+        // by the coordinator before the legacy switch can write.
+        if importPilot?.handle(event) == true {
+            return
+        }
+        // Source switch pilot is fail-closed: both success and failure stop
+        // here. The canonical source.switch.* events are consumed by the
+        // coordinator before the legacy switch can write.
+        if sourceSwitchPilot?.handle(event) == true {
+            return
+        }
+        // Replace rules pilot is fail-closed: both success and failure stop
+        // here. The canonical reader.replace.* events are consumed by the
+        // coordinator before the legacy switch can write.
+        if replaceRulePilot?.handle(event) == true {
+            return
+        }
+        let runtimeMode = runtimeShadow?.configuration.mode(for: event.type.rawValue)
+        let nativeBefore = runtimeShadow?.captureNativeState(
+            for: event,
+            navigationState: navigationState
+        )
+        let runtimeResult = runtimeShadow?.observe(event)
+
+        // R8 Pilot is fail-closed: both success and failure stop here. The
+        // runtime overlay is the pair's only semantic source and the native
+        // reducer/effect path must not replay either event.
+        if runtimeMode == .pilot {
+            return
+        }
+
+        defer {
+            runtimeShadow?.compareNativeResult(
+                for: event,
+                runtimeResult: runtimeResult,
+                navigationState: navigationState,
+                nativeBefore: nativeBefore
+            )
+        }
+
         switch event.type {
         case .route_push:
             handleRoutePush(event)
@@ -113,8 +183,10 @@ public final class ReaderReducer: ObservableObject {
         case .reader_exit:
             navigationState.exitImmersiveReading()
         case .reader_nightState_toggle:
-            // 夜间模式切换：委托给 ReaderThemeManager（若已注入）。
-            // manager 为 nil 时（如单元测试）保持 no-op，不破坏既有测试。
+            // Reducer state is authoritative for interaction/golden behavior;
+            // the optional manager applies the same intent to the rendered
+            // theme when the production app has injected it.
+            navigationState.isReaderNightModeEnabled.toggle()
             themeManager?.toggleNightMode()
         case .reader_page_next:
             // B2: 翻页——更新 readerPageIndex，对齐 reader.page.turn.next-prev motion
@@ -167,6 +239,10 @@ public final class ReaderReducer: ObservableObject {
             break
         // MARK: - B1-iOS P0: source.switch.open / tab.switch
         case .source_switch_open:
+            // H4-D: source.switch.open → canonical source.switch.open via Pilot
+            // coordinator. When the source switch pilot is active, the coordinator
+            // dispatches source.switch.open (pushRoute, no Core effect). The legacy
+            // route push remains as the shadow fallback when no pilot is injected.
             handleSourceSwitchOpen(event)
         case .tab_switch:
             // tab.switch 与 mainTab.select 语义一致，委托同一 handler
@@ -176,11 +252,31 @@ public final class ReaderReducer: ObservableObject {
         // 业务事件（source.management.open / source.detail.open / source.switch.select 等）
         // 不影响 navigation state，留给后续 slice 接 CoreBridge 真实处理
         case .source_import_open:
-            // W3: 书源导入——push .bookSourceImport 路由（对齐 BookSourceImportView）
-            navigationState.push(.bookSourceImport)
-        case .source_import_preview, .source_import_apply:
-            // W1/W3: 书源导入预览/应用——业务事件，触发 Core command（import.book.preview/apply），
-            // 不影响 navigation state，留给后续 slice 接 CoreBridge 真实处理
+            // H4-C: source.import.open → canonical import.start via Pilot coordinator.
+            // When the import pilot is active, the coordinator dispatches import.start
+            // (emitting import.parse Core effect). The legacy route push remains as
+            // the shadow fallback when no pilot is injected.
+            if importPilot?.handle(UiEvent(
+                type: .import_start,
+                payload: event.payload,
+                correlationId: event.correlationId
+            )) != true {
+                navigationState.push(.bookSourceImport)
+            }
+        case .source_import_apply:
+            // H4-C: source.import.apply → canonical import.apply via Pilot coordinator.
+            // When the import pilot is active, the coordinator dispatches import.apply
+            // (emitting import.persist Core effect). The legacy stub is the shadow fallback.
+            if importPilot?.handle(UiEvent(
+                type: .import_apply,
+                payload: event.payload,
+                correlationId: event.correlationId
+            )) != true {
+                break
+            }
+        case .source_import_preview:
+            // W1/W3: 书源导入预览——业务事件，不影响 navigation state，
+            // 留给后续 slice 接 CoreBridge 真实处理
             break
         case .source_management_open, .source_detail_open,
              .source_add_open, .source_edit_open,
@@ -190,13 +286,44 @@ public final class ReaderReducer: ObservableObject {
              .source_search_submit, .source_search_clear,
              .source_switch_select,
              .source_switch_confirm, .source_switch_cancel:
-            // Slice 5b stub: 书源业务事件，不影响 navigation state。
-            // source_switch_select/confirm/cancel 在 UI 层处理（参考 ReaderSourceSwitchFlowView 模式）。
+            // H4-D: source.switch.confirm/cancel are canonical events handled by
+            // the source switch pilot coordinator at the top of dispatch.
+            // When the pilot is active, the coordinator dispatches source.switch.confirm
+            // (emitEffects → source.switch.commit) or source.switch.cancel (popRoute).
+            // This stub is the shadow fallback when no pilot is injected.
+            // source_switch_select remains a UI-layer business event stub.
             break
-        // MARK: - Slice 5c: 搜索/书架事件 stub
-        case .search_submit, .search_clear, .search_filter_toggle, .search_sort_change,
-             .search_loadMore, .search_result_open,
-             .bookshelf_view_switch, .bookshelf_group_select,
+        // MARK: - H4-E: reader.replace.* canonical dispatch mapping
+        // reader.replace.apply / reader.replace.create / reader.replace.validate
+        // are canonical events handled by the replace rules pilot coordinator at
+        // the top of dispatch. When the pilot is active, the coordinator
+        // dispatches the corresponding Core effect (replace.apply /
+        // replace.persist / replace.validate). iOS currently has no native
+        // replace-rule reducer; this stub is the shadow fallback when no pilot
+        // is injected and remains a no-op for navigation state.
+        case .reader_replace_apply, .reader_replace_create, .reader_replace_validate:
+            break
+        // MARK: - Slice 5c: search workflow
+        case .search_submit:
+            handleSearchSubmit(event)
+        case .search_clear:
+            navigationState.searchQuery = ""
+            navigationState.searchIsLoading = false
+            navigationState.searchPage = 1
+            navigationState.searchResultCount = 0
+        case .search_filter_toggle:
+            toggleSearchFilter(event)
+        case .search_sort_change:
+            if let sort = stringPayload(event, keys: ["sort", "sortKey"]) {
+                navigationState.searchSort = sort
+            }
+        case .search_loadMore:
+            navigationState.searchPage += 1
+            navigationState.searchIsLoading = true
+        case .search_result_open:
+            handleBookOpen(event)
+        // MARK: - Slice 5c: bookshelf management events
+        case .bookshelf_view_switch, .bookshelf_group_select,
              .bookshelf_sortFilter_open, .bookshelf_sortFilter_apply, .bookshelf_sortFilter_cancel,
              .bookshelf_groupManagement_open, .bookshelf_groupManagement_create,
              .bookshelf_groupManagement_rename, .bookshelf_groupManagement_delete,
@@ -205,12 +332,21 @@ public final class ReaderReducer: ObservableObject {
              .bookshelf_batchManagement_open:
             // Slice 5c stub: 搜索/书架管理事件，不影响 navigation state
             break
-        // MARK: - Slice 5d: 发现事件 stub
-        case .discover_sourceType_select, .discover_filter_apply, .discover_filter_reset,
-             .discover_sort_toggle, .discover_entry_select,
-             .discover_source_bulkEnable, .discover_source_bulkDisable, .discover_source_bulkRefresh,
-             .discover_refresh:
-            // Slice 5d stub: 发现事件，不影响 navigation state
+        // MARK: - Slice 5d: discover interaction state
+        case .discover_sourceType_select, .discover_filter_apply:
+            let filter = stringPayload(event, keys: ["filter", "tag", "category", "sourceType"]) ?? "all"
+            navigationState.selectedDiscoverFilters.insert(filter)
+        case .discover_filter_reset:
+            navigationState.selectedDiscoverFilters.removeAll()
+        case .discover_sort_toggle:
+            navigationState.discoverSortAscending.toggle()
+        case .discover_entry_select:
+            navigationState.selectedDiscoverEntryID = stringPayload(event, keys: ["entryId", "id", "bookId"])
+        case .discover_refresh:
+            navigationState.discoverRefreshRevision += 1
+        case .discover_source_bulkEnable, .discover_source_bulkDisable, .discover_source_bulkRefresh:
+            // Bulk mutations are Core effects; interaction state remains in
+            // the reducer and the result returns through CoreEvent.
             break
         // MARK: - Slice 6: 设置/about 事件 stub
         // B2: settings.overlay.open/close 落地——对齐 settings-overlay-guard-tab-switch 规则：
@@ -269,6 +405,26 @@ public final class ReaderReducer: ObservableObject {
         }
     }
 
+    /// Feed terminal Core events back into reducer-owned interaction state.
+    /// Search result data remains Core-owned; the reducer only tracks the
+    /// loading/result-count fields needed to derive the route's page state.
+    public func receive(_ event: CoreEvent) {
+        switch event.type {
+        case .source_search_completed:
+            navigationState.searchIsLoading = false
+            if let count = event.payload["count"]?.value as? Int {
+                navigationState.searchResultCount = count
+            } else if let results = event.payload["results"]?.value as? [AnyCodable] {
+                navigationState.searchResultCount = results.count
+            }
+        case .source_search_failed:
+            navigationState.searchIsLoading = false
+            navigationState.searchResultCount = 0
+        default:
+            break
+        }
+    }
+
     // MARK: - Theme（reader_nightState_toggle / set-reader-theme / set-app-theme-mode）
 
     /// 设置阅读主题（对照 contract `set-reader-theme`）。manager 未注入时 no-op。
@@ -302,6 +458,35 @@ public final class ReaderReducer: ObservableObject {
         navigationState.focus("reader-module-\(module)")
     }
 
+    // MARK: - Slice 5: search interaction state
+
+    private func handleSearchSubmit(_ event: UiEvent) {
+        guard let query = stringPayload(event, keys: ["query", "q"]), !query.isEmpty else {
+            return
+        }
+        navigationState.searchQuery = query
+        navigationState.searchIsLoading = true
+        navigationState.searchPage = 1
+        navigationState.searchResultCount = 0
+        let route = Route.searchResults(query: query)
+        if case .searchResults = navigationState.currentRoute {
+            navigationState.replaceTop(with: route)
+        } else {
+            navigationState.push(route)
+        }
+    }
+
+    private func toggleSearchFilter(_ event: UiEvent) {
+        guard let filter = stringPayload(event, keys: ["filter", "tag"]), !filter.isEmpty else {
+            return
+        }
+        if navigationState.selectedSearchFilters.contains(filter) {
+            navigationState.selectedSearchFilters.remove(filter)
+        } else {
+            navigationState.selectedSearchFilters.insert(filter)
+        }
+    }
+
     // MARK: - Slice 4: TTS toggle
 
     private func handleReaderTtsToggle(_ event: UiEvent) {
@@ -329,10 +514,12 @@ public final class ReaderReducer: ObservableObject {
         let bookID = stringPayload(event, keys: ["bookId", "bookID", "bookURL", "bookUrl"])
         let chapterURL = stringPayload(event, keys: ["chapterURL", "chapterUrl", "url"]) ?? "slice2://chapter"
         let chapterTitle = stringPayload(event, keys: ["chapterTitle", "title"]) ?? "Chapter"
+        let chapterIndex = integerPayload(event, keys: ["chapterIndex"]) ?? 0
         let context = ReaderContext(
             bookID: bookID,
             chapterURL: chapterURL,
             chapterTitle: chapterTitle,
+            chapterIndex: chapterIndex,
             source: source
         )
         navigationState.enterImmersiveReading(context)
@@ -359,10 +546,9 @@ public final class ReaderReducer: ObservableObject {
               let tab = MainTab(rawValue: tabRaw) else {
             return
         }
-        // B2: 对齐 settings-overlay-guard-tab-switch 规则：
-        // settings overlay 展开时（overlayState == .dialog）禁止 tab 切换。
-        if navigationState.activeTab == .settings
-            && navigationState.overlayState == .dialog {
+        // Executable Reader-UI runtime owns the general overlayEmpty guard:
+        // any active overlay blocks a main-tab switch until it is closed.
+        if navigationState.overlayState != .none {
             return
         }
         let appTab = AppTab(contract: tab)
@@ -490,6 +676,22 @@ public final class ReaderReducer: ObservableObject {
         for key in keys {
             if let value = event.payload[key]?.value as? String {
                 return value
+            }
+        }
+        return nil
+    }
+
+    private func integerPayload(_ event: UiEvent, keys: [String]) -> Int? {
+        for key in keys {
+            switch event.payload[key]?.value {
+            case let value as Int:
+                return value
+            case let value as NSNumber:
+                return value.intValue
+            case let value as String:
+                return Int(value)
+            default:
+                continue
             }
         }
         return nil

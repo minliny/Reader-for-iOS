@@ -116,13 +116,18 @@ final class ReaderReducerSlice5cGoldenTests: XCTestCase {
         XCTAssertEqual(after - before, 12)
     }
 
-    // MARK: - Golden: ReaderReducer 搜索/书架事件 stub
+    // MARK: - Golden: ReaderReducer search state + bookshelf effects
 
-    func testGolden_reducer_searchSubmit_doesNotChangeNavigationState() {
+    func testGolden_reducer_searchSubmit_updatesQueryLoadingAndRoute() {
         let nav = AppNavigationState()
         let reducer = ReaderReducer(navigationState: nav)
-        reducer.dispatch(UiEvent(type: .search_submit))
-        XCTAssertEqual(nav.activeSession, .none)
+        reducer.dispatch(UiEvent(
+            type: .search_submit,
+            payload: ["query": AnyCodable("三体")]
+        ))
+        XCTAssertEqual(nav.searchQuery, "三体")
+        XCTAssertTrue(nav.searchIsLoading)
+        XCTAssertEqual(nav.currentRoute, .searchResults(query: "三体"))
     }
 
     func testGolden_reducer_groupCreate_doesNotChangeNavigationState() {
@@ -137,5 +142,54 @@ final class ReaderReducerSlice5cGoldenTests: XCTestCase {
         let reducer = ReaderReducer(navigationState: nav)
         reducer.dispatch(UiEvent(type: .bookshelf_batchManagement_open))
         XCTAssertEqual(nav.activeSession, .none)
+    }
+
+    // MARK: - Golden: search.submit 设置 query / search.success 设置结果并清除 loading
+
+    /// search.submit owns query/loading and opens the results route.
+    func testGolden_searchSubmit_setsQuery() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .search_submit,
+            payload: ["query": AnyCodable("深空信号")]
+        ))
+
+        XCTAssertEqual(nav.searchQuery, "深空信号")
+        XCTAssertTrue(nav.searchIsLoading)
+        XCTAssertEqual(nav.currentRoute, .searchResults(query: "深空信号"))
+        XCTAssertEqual(ReaderViewState(from: nav).routeId, .searchResults)
+    }
+
+    /// Core search completion clears loading and records the terminal count.
+    func testGolden_searchSuccess_setsResultsAndClearsLoading() {
+        let nav = AppNavigationState()
+        let reducer = ReaderReducer(navigationState: nav)
+
+        reducer.dispatch(UiEvent(
+            type: .search_submit,
+            payload: ["query": AnyCodable("深空信号")]
+        ))
+        XCTAssertTrue(nav.searchIsLoading)
+
+        reducer.receive(CoreEvent(
+            type: .source_search_completed,
+            payload: [
+                "results": AnyCodable([
+                    AnyCodable(["title": AnyCodable("深空信号")]),
+                    AnyCodable(["title": AnyCodable("宇宙回声")]),
+                ]),
+                "count": AnyCodable(2),
+            ]
+        ))
+
+        XCTAssertEqual(nav.currentRoute, .searchResults(query: "深空信号"))
+        XCTAssertEqual(nav.navigationPath, [.searchResults(query: "深空信号")])
+        XCTAssertFalse(nav.searchIsLoading)
+        XCTAssertEqual(nav.searchResultCount, 2)
+        XCTAssertEqual(nav.overlayState, .none)
+        XCTAssertEqual(nav.activeSession, .none)
+        XCTAssertEqual(ReaderViewState(from: nav).pageState, .defaultValue)
     }
 }

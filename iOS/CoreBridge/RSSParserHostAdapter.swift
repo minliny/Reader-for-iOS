@@ -1,7 +1,7 @@
 import Foundation
 import ReaderCoreModels
 #if !READER_IOS_SHELL_CI
-import ReaderCoreParser
+import ReaderCoreParser  // Designated seam (check_ios_boundary.sh whitelist): CoreBridge is the sole permitted import site.
 #endif
 import ReaderCoreProtocols
 

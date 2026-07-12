@@ -20,7 +20,7 @@
 
 import Foundation
 import ReaderCoreProtocols
-import ReaderCoreNetwork
+import ReaderCoreNetwork  // Designated seam (check_ios_boundary.sh whitelist): CoreBridge is the sole permitted import site.
 import ReaderUIContract
 
 public struct HostCookieCapability: HostCapabilityHandler {
@@ -91,21 +91,22 @@ public struct HostCookieCapability: HostCapabilityHandler {
         guard let url = URL(string: urlString), let host = url.host else {
             return .failure(.invalidParams("cookie.set `url` must have a host: \(urlString)"))
         }
-        guard let cookieDict = payload["cookie"]?.value as? [String: Any],
-              let name = cookieDict["name"] as? String,
-              let value = cookieDict["value"] as? String else {
+        guard let cookieDict = Self.dictionary(payload["cookie"]?.value),
+              let name = cookieDict["name"]?.value as? String,
+              let value = cookieDict["value"]?.value as? String else {
             return .failure(.invalidParams("cookie.set requires `cookie.name` and `cookie.value`"))
         }
-        let path = (cookieDict["path"] as? String) ?? "/"
-        let secure = (cookieDict["secure"] as? Bool) ?? false
-        let httpOnly = (cookieDict["httpOnly"] as? Bool) ?? false
+        let path = (cookieDict["path"]?.value as? String) ?? "/"
+        let secure = (cookieDict["secure"]?.value as? Bool) ?? false
+        let httpOnly = (cookieDict["httpOnly"]?.value as? Bool) ?? false
+        let domain = (cookieDict["domain"]?.value as? String) ?? host
         let expiresAt: Date? = {
-            if let ts = cookieDict["expiresAt"] as? Double { return Date(timeIntervalSince1970: ts) }
+            if let ts = cookieDict["expiresAt"]?.value as? Double { return Date(timeIntervalSince1970: ts) }
             return nil
         }()
 
         let cookie = Cookie(
-            name: name, value: value, domain: host, path: path,
+            name: name, value: value, domain: domain, path: path,
             expiresAt: expiresAt, secure: secure, httpOnly: httpOnly
         )
         let scopeKey = extractScopeKey(payload)
@@ -131,11 +132,17 @@ public struct HostCookieCapability: HostCapabilityHandler {
     // MARK: - Helpers
 
     private func extractScopeKey(_ payload: [String: AnyCodable]) -> CookieJarScopeKey? {
-        guard let scopeDict = payload["scopeKey"]?.value as? [String: Any],
-              let sourceId = scopeDict["sourceId"] as? String,
-              let host = scopeDict["host"] as? String else {
+        guard let scopeDict = Self.dictionary(payload["scopeKey"]?.value),
+              let sourceId = scopeDict["sourceId"]?.value as? String,
+              let host = scopeDict["host"]?.value as? String else {
             return nil
         }
         return CookieJarScopeKey(sourceId: sourceId, host: host)
+    }
+
+    private static func dictionary(_ raw: (any Sendable)?) -> [String: AnyCodable]? {
+        if let value = raw as? [String: AnyCodable] { return value }
+        if let value = raw as? [String: Any] { return value.mapValues(AnyCodable.init) }
+        return nil
     }
 }

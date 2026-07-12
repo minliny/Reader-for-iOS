@@ -14,8 +14,15 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
     public var updatedAt: Date
     public var lastReadChapterTitle: String?
     public var lastReadChapterURL: String?
+    /// Persisted zero-based chapter index. `nil` identifies legacy records;
+    /// callers use `resolvedLastReadChapterIndex` for the explicit v1 fallback.
+    public var lastReadChapterIndex: Int?
     public var readingProgress: Double
     public var localChapterList: [TOCItem]?
+
+    public var resolvedLastReadChapterIndex: Int {
+        max(0, lastReadChapterIndex ?? 0)
+    }
 
     public init(
         id: String = UUID().uuidString,
@@ -30,6 +37,7 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
         updatedAt: Date = Date(),
         lastReadChapterTitle: String? = nil,
         lastReadChapterURL: String? = nil,
+        lastReadChapterIndex: Int? = nil,
         readingProgress: Double = 0.0,
         localChapterList: [TOCItem]? = nil
     ) {
@@ -45,6 +53,7 @@ public struct BookshelfItem: Codable, Identifiable, Equatable {
         self.updatedAt = updatedAt
         self.lastReadChapterTitle = lastReadChapterTitle
         self.lastReadChapterURL = lastReadChapterURL
+        self.lastReadChapterIndex = lastReadChapterIndex.map { max(0, $0) }
         self.readingProgress = readingProgress
         self.localChapterList = localChapterList
     }

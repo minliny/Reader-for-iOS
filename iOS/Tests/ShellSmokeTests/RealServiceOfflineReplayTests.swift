@@ -2,7 +2,7 @@ import XCTest
 import Foundation
 import ReaderCoreModels
 import ReaderCoreProtocols
-import ReaderCoreServices
+import ReaderCoreServices  // Designated seam (check_ios_boundary.sh whitelist): test exercises ReaderCoreServiceFactory directly.
 
 /// Offline replay E2E: uses local HTML fixtures with ReaderCoreServices
 /// to verify the full search→TOC→content pipeline via ReaderCoreServiceFactory.

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "host": "ios",
+  "readerUiVersion": "2.5.0",
+  "hostRequestSchemaVersion": "1.2.0",
+  "runtimeActionsSchemaVersion": 2,
+  "runtimeActionsSha256": "0ac249341d8de651314687d8352bc1c3f62d3778371ff500f1f0a025a64be82c",
+  "releaseIdentity": {
+    "releaseId": "52aef6f1293c220ae1dd625431bfb93abc5f0a97:16c892a6f89adc86d511ace3732ca97e545c8399dc195d20eeb330d632310801",
+    "sourceSha": "52aef6f1293c220ae1dd625431bfb93abc5f0a97",
+    "manifestSha256": "16c892a6f89adc86d511ace3732ca97e545c8399dc195d20eeb330d632310801",
+    "targetConfigSha256": "650d47ce1e2fb69e34afc29b0fb09d1aa73827b557580cc8d7daded8b40b695c"
+  },
+  "rollout": {
+    "mode": "shadow",
+    "coveredEvents": [
+      "book.open",
+      "reader.directory.open",
+      "reader.directory.close",
+      "reader.page.next",
+      "reader.page.prev",
+      "reader.tts.start",
+      "reader.tts.stop",
+      "reader.autoPage.start",
+      "reader.autoPage.stop",
+      "import.start",
+      "import.apply",
+      "import.cancel",
+      "source.switch.open",
+      "source.switch.cancel",
+      "source.switch.confirm",
+      "source.switch.rollback",
+      "reader.sourceSwitch.open",
+      "reader.sourceSwitch.close",
+      "reader.replace.apply",
+      "reader.replace.create",
+      "reader.replace.validate",
+      "rss.refresh",
+      "rss.subscription.add",
+      "rss.subscription.delete",
+      "rss.subscription.edit",
+      "rss.entry.open",
+      "rss.favorite.add",
+      "rss.favorite.remove",
+      "sync.run",
+      "webdav.config.test",
+      "sync.start",
+      "sync.progress",
+      "sync.complete",
+      "sync.conflict",
+      "sync.resolve"
+    ],
+    "cohorts": [
+      {
+        "id": "directory-pair-pilot",
+        "mode": "pilot",
+        "effectPolicy": "none",
+        "evidence": "ReaderUIRuntimeShadowParityTests covers production entry, continuous open/close, back, replacement, fail-closed failure, and exactly-once; the ReaderForIOSApp arm64 Simulator build is the promotion build gate.",
+        "rollback": "Set ReaderUIRuntimeRollout.directoryPairMode from .pilot to .shadow, change this cohort mode to shadow, and redeploy; the existing native reducer path resumes without data migration.",
+        "events": [
+          "reader.directory.open",
+          "reader.directory.close"
+        ]
+      },
+      {
+        "id": "book-open-pilot",
+        "mode": "pilot",
+        "effectPolicy": "exactly-once",
+        "evidence": "ReaderBookOpenPilotCoordinatorTests covers admission, four-stage execution, replacement rejection, zero geometry rejection, terminal failure cancel, identity drift, and correlation reuse; ReaderForIOSApp arm64 Simulator build is the promotion gate.",
+        "rollback": "Set ReaderBookOpenPilotConfiguration.live from .pilot to .shadow, change this cohort mode to shadow, and redeploy; the existing native reducer path resumes without data migration.",
+        "events": [
+          "book.open"
+        ]
+      },
+      {
+        "id": "playback-pilot",
+        "mode": "pilot",
+        "effectPolicy": "exactly-once",
+        "evidence": "ReaderPlaybackPilotCoordinatorTests covers TTS start/stop, auto-page start/stop, page pair, stale result guard, and rollback; ReaderForIOSApp arm64 Simulator build is the promotion gate.",
+        "rollback": "Set ReaderPlaybackPilotConfiguration.live ttsPairMode and autoPagePairMode from .pilot to .shadow, change this cohort mode to shadow, and redeploy.",
+        "events": ["reader.tts.start", "reader.tts.stop", "reader.autoPage.start", "reader.autoPage.stop"]
+      }
+    ]
+  },
+  "knownDifferences": [
+    {
+      "id": "mixed-rollout-authority",
+      "description": "Only directory open/close, book.open, TTS, and auto-page are runtime-authoritative in Pilot. Page, import, source switch, replace rules, RSS, and Sync remain Shadow with the native path as production owner.",
+      "owner": "ios",
+      "exitCriteria": "Promote any remaining Shadow event only after its typed Core/Host transaction, production app entry wiring, result projection, cancellation, and device gates are green."
+    }
+  ],
+  "blockedProof": [
+    {
+      "gate": "real-device-directory-pilot",
+      "reason": "Physical-device build and install passed, but app launch was denied while the paired iPhone was locked; no on-device Host58 case executed.",
+      "evidence": "2026-07-11 local acceptance completed 1282 tests with 4 skipped and 0 failures; the arm64 Simulator build passed. Physical-device build and install to the paired iPhone passed, but launch failed with CoreDeviceError 10002 RequestDenied/Locked, so Host58 executed 0 cases on device and physical-device runtime proof remains unsatisfied."
+    },
+    {
+      "gate": "remaining-shadow-authority",
+      "reason": "Twenty-eight covered events remain Shadow: page (2), import (3), source switch (6), replace rules (3), RSS (7), and Sync (7).",
+      "evidence": "The explicit Pilot coordinator seams remain testable, but the audited production app lacks complete typed Core/Host transactions and executable entry wiring for these event families; unit or Simulator proof does not grant production authority."
+    }
+  ]
+}

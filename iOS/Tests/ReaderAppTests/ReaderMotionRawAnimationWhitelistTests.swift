@@ -40,8 +40,8 @@ final class ReaderMotionRawAnimationWhitelistTests: XCTestCase {
             .map { String($0) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
 
-        XCTAssertGreaterThanOrEqual(entries.count, 13,
-                                    "白名单至少应有 13 条（DemoPrimitives 12 + ReaderView 1）")
+        XCTAssertGreaterThanOrEqual(entries.count, 12,
+                                    "白名单至少应保留 12 条 DemoPrimitives 连续/原语动画")
     }
 
     func testWhitelistEntriesHaveValidFormat() throws {
@@ -70,11 +70,11 @@ final class ReaderMotionRawAnimationWhitelistTests: XCTestCase {
 
     // MARK: - 关键白名单条目存在性
 
-    func testWhitelistContainsToggleReaderChromeEntry() throws {
+    func testWhitelistDoesNotContainReaderViewAfterDirectResolverMigration() throws {
         let url = Self.whitelistURL
         let content = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(content.contains("iOS/Features/Reader/ReaderView.swift:683:"),
-                      "白名单必须包含 ReaderView:683（transitive adapter 调用）")
+        XCTAssertFalse(content.contains("iOS/Features/Reader/ReaderView.swift:"),
+                       "ReaderView 已在 animation boundary 直接调用 ReaderMotionAdapter，不应再通过白名单逃逸")
     }
 
     func testWhitelistContainsDemoPrimitivesEntries() throws {

@@ -17,9 +17,23 @@ import ReaderUIContract
 @MainActor
 public final class ReaderCoordinator {
     private let navigationState: AppNavigationState
+    private let runtimeShadow: ReaderUIRuntimeShadowCoordinator?
+    private let playbackPilot: ReaderPlaybackPilotCoordinator?
+    private let sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator?
+    private let syncPilot: ReaderSyncPilotCoordinator?
 
-    public init(navigationState: AppNavigationState) {
+    public init(
+        navigationState: AppNavigationState,
+        runtimeShadow: ReaderUIRuntimeShadowCoordinator? = nil,
+        playbackPilot: ReaderPlaybackPilotCoordinator? = nil,
+        sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator? = nil,
+        syncPilot: ReaderSyncPilotCoordinator? = nil
+    ) {
         self.navigationState = navigationState
+        self.runtimeShadow = runtimeShadow
+        self.playbackPilot = playbackPilot
+        self.sourceSwitchPilot = sourceSwitchPilot
+        self.syncPilot = syncPilot
     }
 
     // MARK: - Slice 1 占位（后续 slice 落地）
@@ -42,32 +56,75 @@ public final class ReaderCoordinator {
 
     /// Slice 3：reader overlay / control dock / reader mode
     public func toggleReaderControl() {
-        // Slice 3 落地：reader.control.toggle
-        breakPoint("Slice 3 未落地：toggleReaderControl")
+        reducer.dispatch(UiEvent(type: .reader_control_toggle))
     }
 
-    /// Slice 4：progress / session / focus / TTS
+    // MARK: - H2 W2: 翻页 / TTS / 自动翻页 UiEvent 链路
+
+    /// 翻到下一页。dispatch `.reader_page_next` → reducer 更新 readerPageIndex。
+    /// Shadow 模式下 reducer 是状态真源；Pilot 由 ReaderPlaybackPilotCoordinator 拦截。
+    public func readerPageNext() {
+        reducer.dispatch(UiEvent(type: .reader_page_next))
+    }
+
+    /// 翻到上一页。dispatch `.reader_page_prev` → reducer 更新 readerPageIndex（下限 0）。
+    public func readerPagePrev() {
+        reducer.dispatch(UiEvent(type: .reader_page_prev))
+    }
+
+    /// 启动 TTS。dispatch `.reader_tts_start` → reducer 设置 activeSession=.tts(playing: true)。
     public func startTts() {
-        // Slice 4 落地：tts.queue.start + activeSession=tts
-        breakPoint("Slice 4 未落地：startTts")
+        reducer.dispatch(UiEvent(type: .reader_tts_start))
     }
 
-    /// Slice 5：RSS / source / search
-    public func openSearch() {
-        // Slice 5 落地：route.push(search-home)
-        breakPoint("Slice 5 未落地：openSearch")
+    /// 停止 TTS。dispatch `.reader_tts_stop` → reducer 清除 activeSession。
+    public func stopTts() {
+        reducer.dispatch(UiEvent(type: .reader_tts_stop))
+    }
+
+    /// 启动自动翻页。dispatch `.reader_autoPage_start` → reducer 设置 activeSession=.autoPage(playing: true)。
+    /// payload 携带 intervalMs，对齐契约 `reader.autoPage.start` payload `{ intervalMs }`。
+    public func startAutoPage(intervalMs: Int = 5_000) {
+        reducer.dispatch(UiEvent(type: .reader_autoPage_start, payload: [
+            "intervalMs": AnyCodable(intervalMs)
+        ]))
+    }
+
+    /// 停止自动翻页。dispatch `.reader_autoPage_stop` → reducer 清除 activeSession。
+    public func stopAutoPage() {
+        reducer.dispatch(UiEvent(type: .reader_autoPage_stop))
     }
 
     /// Slice 6：sync / conflict / offline state
+    /// Dispatch `sync.start` through the sync pilot coordinator. When the
+    /// pilot is not configured, falls back to the native placeholder.
     public func runSync() {
-        // Slice 6 落地：sync.run
-        breakPoint("Slice 6 未落地：runSync")
+        guard let syncPilot else {
+            breakPoint("Slice 6 sync pilot 未配置")
+            return
+        }
+        let outcome = syncPilot.startSync(payload: [:], correlationId: nil)
+        if outcome == .failedClosed {
+            breakPoint("Slice 6 sync.start fail-closed: \(syncPilot.lastFailure ?? "unknown")")
+        }
     }
 
     // MARK: - B1-iOS P0: 通过 reducer dispatch 的协调方法
 
     /// 内部 reducer facade。包装既有 navigationState，提供 UiEvent dispatch 入口。
-    private lazy var reducer: ReaderReducer = ReaderReducer(navigationState: navigationState)
+    private lazy var reducer: ReaderReducer = ReaderReducer(
+        navigationState: navigationState,
+        runtimeShadow: runtimeShadow,
+        playbackPilot: playbackPilot,
+        sourceSwitchPilot: sourceSwitchPilot
+    )
+
+    /// Generic ScreenGraph controls enter the same reducer/pilot boundary as hand-authored Native
+    /// controls. The caller must still provide this callback explicitly; shadow diagnostics disable
+    /// hit testing and therefore cannot mutate production state.
+    public func dispatch(_ event: UiEvent) {
+        reducer.dispatch(event)
+    }
 
     /// 打开书籍详情页。dispatch `.book_detail_open` → reducer 推入 bookDetail 路由。
     public func openBookDetail(bookId: String, title: String? = nil, author: String? = nil) {
@@ -96,12 +153,20 @@ public final class ReaderCoordinator {
 
     // MARK: - P0 修复：ReaderCoordinator 模块切换/覆盖层入口
 
-    /// 打开阅读器目录覆盖层。dispatch `.reader_directory_open` → reducer 设置 overlay 为 .sheet。
-    /// 对齐契约 `reader.directory.open`（demo: `reader.directory.open` payload `{}`）。
+    /// 打开阅读器目录覆盖层。dispatch `.reader_directory_open`；R8 Pilot 由
+    /// runtime 写 semantic directory，shadow rollback 才回到 native reducer。
     public func openBookDirectory(bookId: String? = nil) {
-        var payload: [String: AnyCodable] = [:]
-        if let bookId { payload["bookId"] = AnyCodable(bookId) }
-        reducer.dispatch(UiEvent(type: .reader_directory_open, payload: payload))
+        // `reader.directory.open` is intentionally an empty-object contract.
+        // The optional native book identity remains a caller convenience only;
+        // reader session state already owns the selected book.
+        _ = bookId
+        reducer.dispatch(UiEvent(type: .reader_directory_open))
+    }
+
+    /// 关闭阅读器目录覆盖层。与 open 共用同一 runtime-aware dispatch 入口；
+    /// schema 2 仅在 semantic overlay 仍为 directory 时清除。
+    public func closeBookDirectory() {
+        reducer.dispatch(UiEvent(type: .reader_directory_close))
     }
 
     /// 打开阅读器外观覆盖层。dispatch `.reader_appearance_open` → reducer 设置 overlay 为 .sheet。
@@ -125,16 +190,20 @@ public final class ReaderCoordinator {
         ]))
     }
 
-    /// 确认换源。dispatch `.source_switch_confirm` → reducer pop 路由回到来源页。
+    /// 确认换源。dispatch `.source_switch_confirm` → reducer 通过 pilot coordinator dispatch。
     /// 对齐契约 `source.switch.confirm`（demo: `source.switch.confirm` payload `{ sourceId }`）。
+    /// H4-D: When the source switch pilot is active, the coordinator dispatches
+    /// source.switch.confirm (emitEffects → source.switch.commit Core effect).
     public func sourceSwitchConfirm(sourceId: String? = nil) {
         var payload: [String: AnyCodable] = [:]
         if let sourceId { payload["sourceId"] = AnyCodable(sourceId) }
         reducer.dispatch(UiEvent(type: .source_switch_confirm, payload: payload))
     }
 
-    /// 取消换源。dispatch `.source_switch_cancel` → reducer pop 路由。
+    /// 取消换源。dispatch `.source_switch_cancel` → reducer 通过 pilot coordinator dispatch。
     /// 对齐契约 `source.switch.cancel`（demo: `source.switch.cancel` payload `{}`）。
+    /// H4-D: When the source switch pilot is active, the coordinator dispatches
+    /// source.switch.cancel (popRoute, no Core effect).
     public func sourceSwitchCancel() {
         reducer.dispatch(UiEvent(type: .source_switch_cancel))
     }

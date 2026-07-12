@@ -122,16 +122,16 @@ final class HostAdapterCapabilityMatrixTests: XCTestCase {
         let path = "\(tmpDir)matrix-file-\(UUID().uuidString).txt"
         let writeOutcome = await adapter.dispatch(HostRequest(type: .file_write, payload: [
             "path": AnyCodable(path),
-            "data": AnyCodable("matrix-file-content"),
+            "content": AnyCodable("matrix-file-content"),
         ]))
         XCTAssertTrue(writeOutcome.succeeded, "file.write must succeed; got: \(String(describing: writeOutcome.error))")
-        XCTAssertNotNil(writeOutcome.result?["size"])
+        XCTAssertNotNil(writeOutcome.result?["byteLength"])
 
         let readOutcome = await adapter.dispatch(HostRequest(type: .file_read, payload: [
             "path": AnyCodable(path),
         ]))
         XCTAssertTrue(readOutcome.succeeded, "file.read must succeed; got: \(String(describing: readOutcome.error))")
-        XCTAssertNotNil(readOutcome.result?["data"])
+        XCTAssertNotNil(readOutcome.result?["content"])
 
         // 清理
         _ = await adapter.dispatch(HostRequest(type: .file_delete, payload: ["path": AnyCodable(path)]))
@@ -142,7 +142,7 @@ final class HostAdapterCapabilityMatrixTests: XCTestCase {
         let tmpDir = NSTemporaryDirectory()
         let path = "\(tmpDir)matrix-del-\(UUID().uuidString).txt"
         _ = await adapter.dispatch(HostRequest(type: .file_write, payload: [
-            "path": AnyCodable(path), "data": AnyCodable("temp"),
+            "path": AnyCodable(path), "content": AnyCodable("temp"),
         ]))
         let outcome = await adapter.dispatch(HostRequest(type: .file_delete, payload: ["path": AnyCodable(path)]))
         XCTAssertTrue(outcome.succeeded, "file.delete must succeed; got: \(String(describing: outcome.error))")
@@ -165,6 +165,7 @@ final class HostAdapterCapabilityMatrixTests: XCTestCase {
         let outcome = await adapter.dispatch(HostRequest(type: .http_execute, payload: [
             "url": AnyCodable("https://httpbin.org/get"),
             "method": AnyCodable("GET"),
+            "headers": AnyCodable([String: AnyCodable]()),
         ]))
         // HTTP 可能成功也可能失败（取决于网络），但 result schema 应包含 status/body
         if outcome.succeeded {

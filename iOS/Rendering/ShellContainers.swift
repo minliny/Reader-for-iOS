@@ -24,7 +24,7 @@ public struct ShellContainer: View {
     }
 
     public var body: some View {
-        let shell = RouteShellLookup.shell(for: viewState.routeId) ?? .mainTabShell
+        let shell = ReaderNativeRouteShellLookup.shell(for: viewState.routeId) ?? .mainTabShell
         switch shell {
         case .mainTabShell:
             MainTabShellContainer(viewState: viewState)

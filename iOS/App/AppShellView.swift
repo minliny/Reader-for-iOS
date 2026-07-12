@@ -88,11 +88,30 @@ struct AppShellView: View {
     @ObservedObject var navigationState: AppNavigationState
     let environment: ReaderShellEnvironment
 
+    /// R8 mixed-rollout owner. `@StateObject` keeps the Reader-UI runtime alive
+    /// across SwiftUI body recomputations and short-lived ReaderCoordinator
+    /// facade instances.
+    @StateObject private var runtimeCoordinator = ReaderUIRuntimeCoordinator()
+
+    /// Isolated book.open Pilot foundation. Its production configuration is
+    /// hard Shadow and does not alter ReaderUIRuntimeCoordinator's
+    /// consumer-lock governed rollout policy.
+    @StateObject private var bookOpenPilotCoordinator = ReaderBookOpenPilotCoordinator()
+
+    /// Page/TTS/auto-page pairs remain default Shadow and are intentionally
+    /// separate from the directory/book.open rollout owners. A future Pilot
+    /// injects the sole Core/Host executor without changing this authority.
+    @ObservedObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
+
     /// P0 修复 5/7：ReaderCoordinator 包装 navigationState + ReaderReducer，
     /// 用于 dispatch `reader.module.switch` / `source.switch.confirm/cancel` 等事件。
     /// 生产环境无独立 reducer 持有者，通过此计算属性按需创建（共享同一 navigationState）。
     private var readerCoordinator: ReaderCoordinator {
-        ReaderCoordinator(navigationState: navigationState)
+        ReaderCoordinator(
+            navigationState: navigationState,
+            runtimeShadow: runtimeCoordinator,
+            playbackPilot: playbackPilotCoordinator
+        )
     }
     @State private var mainNavVisibleByContent = true
     @State private var mainTabTopBarRequest: MainTabTopBarRequest?
@@ -108,6 +127,20 @@ struct AppShellView: View {
     // 通过 .heroNamespace(heroNamespace) 注入 environment，让 BookshelfView / ReaderView
     // 等子视图可通过 @Environment(\.heroNamespace) 读取并应用 matchedGeometryEffect。
     @Namespace private var heroNamespace
+
+    init(
+        coordinator: ReadingFlowCoordinator,
+        navigationState: AppNavigationState,
+        environment: ReaderShellEnvironment,
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil
+    ) {
+        self.coordinator = coordinator
+        self.navigationState = navigationState
+        self.environment = environment
+        self._playbackPilotCoordinator = ObservedObject(
+            wrappedValue: playbackPilotCoordinator ?? ReaderPlaybackPilotCoordinator()
+        )
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -270,7 +303,9 @@ struct AppShellView: View {
             BookshelfView(
                 navigationState: navigationState,
                 showsTopBar: false,
-                topBarRequest: $mainTabTopBarRequest
+                topBarRequest: $mainTabTopBarRequest,
+                bookOpenPilotCoordinator: bookOpenPilotCoordinator,
+                playbackPilotCoordinator: playbackPilotCoordinator
             )
 
         case .discover:
@@ -355,7 +390,9 @@ struct AppShellView: View {
             BookshelfView(
                 navigationState: navigationState,
                 showsTopBar: false,
-                topBarRequest: $mainTabTopBarRequest
+                topBarRequest: $mainTabTopBarRequest,
+                bookOpenPilotCoordinator: bookOpenPilotCoordinator,
+                playbackPilotCoordinator: playbackPilotCoordinator
             )
 
         case .discover:
@@ -378,12 +415,44 @@ struct AppShellView: View {
                 chapterURL: chapterURL,
                 chapterTitle: chapterTitle,
                 bookID: bookID,
+                directoryPresented: runtimeCoordinator.isDirectoryPresented,
                 onExit: onExit,
+                onDirectoryOpen: {
+                    readerCoordinator.openBookDirectory(bookId: bookID)
+                },
+                onDirectoryClose: {
+                    readerCoordinator.closeBookDirectory()
+                },
                 onModuleSwitch: { module in
                     // P0 修复 5：模块切换 dispatch `reader.module.switch`（replace 语义）。
                     // 对齐 demo 的 payload `{ module }`，由 ReaderCoordinator 派发。
                     readerCoordinator.readerModuleSwitch(module: module.demoKey)
-                }
+                },
+                onPageNext: {
+                    // H2 W2: dispatch `.reader_page_next` → reducer 更新 readerPageIndex
+                    readerCoordinator.readerPageNext()
+                },
+                onPagePrev: {
+                    // H2 W2: dispatch `.reader_page_prev` → reducer 更新 readerPageIndex
+                    readerCoordinator.readerPagePrev()
+                },
+                onStartTTS: {
+                    // H2 W2: dispatch `.reader_tts_start` → reducer 设置 activeSession=.tts
+                    readerCoordinator.startTts()
+                },
+                onStopTTS: {
+                    // H2 W2: dispatch `.reader_tts_stop` → reducer 清除 activeSession
+                    readerCoordinator.stopTts()
+                },
+                onStartAutoPage: { intervalMs in
+                    // H2 W2: dispatch `.reader_autoPage_start` → reducer 设置 activeSession=.autoPage
+                    readerCoordinator.startAutoPage(intervalMs: intervalMs)
+                },
+                onStopAutoPage: {
+                    // H2 W2: dispatch `.reader_autoPage_stop` → reducer 清除 activeSession
+                    readerCoordinator.stopAutoPage()
+                },
+                playbackPilotCoordinator: playbackPilotCoordinator
             )
 
         case .search:
@@ -533,7 +602,13 @@ struct AppShellView: View {
                 // B1-iOS P0 + P1：book-detail 走 contract renderer（LibraryShell），
                 // 注入真实 bookURL/title/author，不再渲染硬编码 fixture。
                 // P0 修复：传入 onExit 闭包，让 BackTopBarView 返回箭头能 pop 路由。
-                ContractHostView(bookDetail: bookURL, title: title, author: author, onExit: onExit)
+                ContractHostView(
+                    bookDetail: bookURL,
+                    title: title,
+                    author: author,
+                    onExit: onExit,
+                    onScreenGraphAction: { event in readerCoordinator.dispatch(event) }
+                )
             } else {
                 BookDetailView(result: SearchResultItem(
                     title: title,
@@ -550,7 +625,11 @@ struct AppShellView: View {
                 // B1-iOS P0 + P1：source-switch 走 contract renderer（FlowShell），
                 // 注入真实 bookURL。
                 // P0 修复：传入 onExit 闭包，让 BackTopBarView 返回箭头能 pop 路由。
-                ContractHostView(sourceSwitch: bookURL, onExit: onExit)
+                ContractHostView(
+                    sourceSwitch: bookURL,
+                    onExit: onExit,
+                    onScreenGraphAction: { event in readerCoordinator.dispatch(event) }
+                )
             } else {
                 // P0 修复 7：confirm/cancel dispatch 业务事件后由 onExit pop 路由。
                 ReaderSourceSwitchFlowView(

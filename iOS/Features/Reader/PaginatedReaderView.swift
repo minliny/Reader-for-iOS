@@ -19,6 +19,42 @@ struct PaginatedReaderView: View {
     let onToggleUI: () -> Void
     let onProgressUpdate: (Double) -> Void
     @ObservedObject var pageTurnTrigger: PageTurnTrigger
+    let chapterIndex: Int
+    let pilotCommittedPageIndex: Int?
+    let pilotProposalRequest: ReaderPlaybackPageProposalRequest?
+    let onPilotPageIntent: ((ReaderPlaybackPageDirection, ReaderPlaybackPageProposal) -> Bool)?
+    let onPilotPageProposal: ((ReaderPlaybackPageProposalRequest, ReaderPlaybackPageProposal) -> Void)?
+    let onPilotPageUnavailable: ((ReaderPlaybackPageProposalRequest, String) -> Void)?
+
+    init(
+        title: String?,
+        text: String,
+        displaySettings: ReaderDisplaySettings,
+        contentInsets: ReaderContentInsets,
+        onToggleUI: @escaping () -> Void,
+        onProgressUpdate: @escaping (Double) -> Void,
+        pageTurnTrigger: PageTurnTrigger,
+        chapterIndex: Int = 0,
+        pilotCommittedPageIndex: Int? = nil,
+        pilotProposalRequest: ReaderPlaybackPageProposalRequest? = nil,
+        onPilotPageIntent: ((ReaderPlaybackPageDirection, ReaderPlaybackPageProposal) -> Bool)? = nil,
+        onPilotPageProposal: ((ReaderPlaybackPageProposalRequest, ReaderPlaybackPageProposal) -> Void)? = nil,
+        onPilotPageUnavailable: ((ReaderPlaybackPageProposalRequest, String) -> Void)? = nil
+    ) {
+        self.title = title
+        self.text = text
+        self.displaySettings = displaySettings
+        self.contentInsets = contentInsets
+        self.onToggleUI = onToggleUI
+        self.onProgressUpdate = onProgressUpdate
+        self._pageTurnTrigger = ObservedObject(wrappedValue: pageTurnTrigger)
+        self.chapterIndex = chapterIndex
+        self.pilotCommittedPageIndex = pilotCommittedPageIndex
+        self.pilotProposalRequest = pilotProposalRequest
+        self.onPilotPageIntent = onPilotPageIntent
+        self.onPilotPageProposal = onPilotPageProposal
+        self.onPilotPageUnavailable = onPilotPageUnavailable
+    }
 
     @State private var pages: [PageRange] = []
     @State private var currentPageIndex: Int = 0
@@ -69,6 +105,19 @@ struct PaginatedReaderView: View {
         .onChange(of: displaySettings.horizontalPadding) { _ in recomputePages() }
         .onChange(of: displaySettings.verticalPadding) { _ in recomputePages() }
         .onChange(of: displaySettings.dualPageEnabled) { _ in recomputePages() }
+        .onChange(of: pilotCommittedPageIndex) { pageIndex in
+            guard let pageIndex, pages.indices.contains(pageIndex) else { return }
+            currentPageIndex = pageIndex
+            reportProgress()
+        }
+        .onChange(of: pilotProposalRequest) { request in
+            guard let request else { return }
+            guard let proposal = pageProposal(for: request.direction) else {
+                onPilotPageUnavailable?(request, "PAGE_BOUNDARY_REACHED")
+                return
+            }
+            onPilotPageProposal?(request, proposal)
+        }
     }
 
     @ViewBuilder
@@ -236,25 +285,74 @@ struct PaginatedReaderView: View {
     // MARK: - Navigation
 
     private func goNext() {
-        guard currentPageIndex + pageStride < pages.count else {
-            // Last spread — go to the very last page if not already there
-            if currentPageIndex < pages.count - 1 {
-                slideEdge = .trailing
-                currentPageIndex = pages.count - 1
-                reportProgress()
-            }
-            return
-        }
+        guard let proposal = pageProposal(for: .next) else { return }
+        if onPilotPageIntent?(.next, proposal) == true { return }
         slideEdge = .trailing
-        currentPageIndex += pageStride
+        currentPageIndex = proposal.targetPageIndex
         reportProgress()
     }
 
     private func goPrevious() {
-        guard currentPageIndex > 0 else { return }
+        guard let proposal = pageProposal(for: .previous) else { return }
+        if onPilotPageIntent?(.previous, proposal) == true { return }
         slideEdge = .leading
-        currentPageIndex = max(0, currentPageIndex - pageStride)
+        currentPageIndex = proposal.targetPageIndex
         reportProgress()
+    }
+
+    /// Converts the actual PageRange start into a chapter-local scalar offset.
+    /// This is the only page anchor offered to ReaderUIRuntime/Core; the
+    /// visible index remains unchanged until the matching location result.
+    private func pageProposal(for direction: ReaderPlaybackPageDirection) -> ReaderPlaybackPageProposal? {
+        Self.pilotPageProposal(
+            text: text,
+            pages: pages,
+            currentPageIndex: currentPageIndex,
+            pageStride: pageStride,
+            direction: direction,
+            chapterIndex: chapterIndex,
+            viewport: availableSize,
+            fontScale: Double(displaySettings.fontSize) / 18.0,
+            lineHeight: Double(bodyFontSize * ReaderDesignTokens.immersiveBodyLineHeight)
+        )
+    }
+
+    static func pilotPageProposal(
+        text: String,
+        pages: [PageRange],
+        currentPageIndex: Int,
+        pageStride: Int,
+        direction: ReaderPlaybackPageDirection,
+        chapterIndex: Int,
+        viewport: CGSize,
+        fontScale: Double,
+        lineHeight: Double
+    ) -> ReaderPlaybackPageProposal? {
+        guard !pages.isEmpty, viewport.width > 0, viewport.height > 0 else { return nil }
+        let target: Int
+        switch direction {
+        case .next:
+            guard currentPageIndex < pages.count - 1 else { return nil }
+            target = min(pages.count - 1, currentPageIndex + pageStride)
+        case .previous:
+            guard currentPageIndex > 0 else { return nil }
+            target = max(0, currentPageIndex - pageStride)
+        }
+        let range = pages[target]
+        let offset = text[..<range.start].unicodeScalars.count
+        let scalarCount = max(1, text.unicodeScalars.count)
+        return ReaderPlaybackPageProposal(
+            direction: direction,
+            targetPageIndex: target,
+            pageCount: pages.count,
+            chapterIndex: chapterIndex,
+            chapterOffset: offset,
+            chapterProgress: min(1, max(0, Double(offset) / Double(scalarCount))),
+            viewportWidth: Int(viewport.width.rounded(.down)),
+            viewportHeight: Int(viewport.height.rounded(.down)),
+            fontScale: fontScale,
+            lineHeight: lineHeight
+        )
     }
 
     private func reportProgress() {
@@ -298,6 +396,9 @@ struct PaginatedReaderView: View {
         }
         if currentPageIndex >= pages.count {
             currentPageIndex = max(0, pages.count - 1)
+        }
+        if let pilotCommittedPageIndex, pages.indices.contains(pilotCommittedPageIndex) {
+            currentPageIndex = pilotCommittedPageIndex
         }
         reportProgress()
     }

@@ -16,6 +16,7 @@ public final class ReaderTTSPlayer: NSObject, ObservableObject, AVSpeechSynthesi
 
     private let synthesizer = AVSpeechSynthesizer()
     private var pendingUtterance: AVSpeechUtterance?
+    private var pendingCompletion: (() -> Void)?
 
     public override init() {
         super.init()
@@ -23,6 +24,18 @@ public final class ReaderTTSPlayer: NSObject, ObservableObject, AVSpeechSynthesi
     }
 
     public func speak(_ text: String) {
+        speak(text, onCompletion: nil)
+    }
+
+    /// Correlation/generation ownership stays in ReaderPlaybackPilotCoordinator;
+    /// the player reports only completion of this exact utterance. Calling
+    /// `stop()` invalidates the closure before AVSpeechSynthesizer can deliver
+    /// a late delegate callback.
+    public func speak(_ text: String, onCompletion: @escaping () -> Void) {
+        speak(text, onCompletion: Optional(onCompletion))
+    }
+
+    private func speak(_ text: String, onCompletion: (() -> Void)?) {
         stop()
 
         let utterance = AVSpeechUtterance(string: text)
@@ -31,6 +44,7 @@ public final class ReaderTTSPlayer: NSObject, ObservableObject, AVSpeechSynthesi
             ?? AVSpeechSynthesisVoice(language: "en-US")
 
         pendingUtterance = utterance
+        pendingCompletion = onCompletion
         playbackState = .playing
         synthesizer.speak(utterance)
     }
@@ -48,6 +62,8 @@ public final class ReaderTTSPlayer: NSObject, ObservableObject, AVSpeechSynthesi
     }
 
     public func stop() {
+        pendingCompletion = nil
+        pendingUtterance = nil
         synthesizer.stopSpeaking(at: .immediate)
         playbackState = .idle
     }
@@ -70,7 +86,24 @@ public final class ReaderTTSPlayer: NSObject, ObservableObject, AVSpeechSynthesi
         didFinish utterance: AVSpeechUtterance
     ) {
         Task { @MainActor in
+            guard self.pendingUtterance === utterance else { return }
+            let completion = self.pendingCompletion
+            self.pendingCompletion = nil
+            self.pendingUtterance = nil
             self.playbackState = .finished
+            completion?()
+        }
+    }
+
+    nonisolated public func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didCancel utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor in
+            guard self.pendingUtterance === utterance else { return }
+            self.pendingCompletion = nil
+            self.pendingUtterance = nil
+            self.playbackState = .idle
         }
     }
 

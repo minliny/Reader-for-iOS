@@ -947,7 +947,7 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         let routes = DemoRouteMappings.expectedReaderShellRoutes.filter {
             $0 != "immersive-reading" && $0 != "reader"
         }
-        XCTAssertEqual(routes.count, 28)
+        XCTAssertEqual(routes.count, 49)
         for route in routes {
             let view = ReaderDemoShellView(demoRoute: route)
             XCTAssertNotNil(view)

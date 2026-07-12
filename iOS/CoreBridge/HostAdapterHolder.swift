@@ -12,7 +12,7 @@ import Foundation
 /// The holder is `@MainActor` because `HostAdapter` is `@MainActor`-isolated.
 @MainActor
 public enum HostAdapterHolder {
-    /// The shared production adapter. Lazily initialized with all 11
-    /// capability handlers (TTS / Share providers return nil until injected).
+    /// The shared production adapter. Lazily initialized with all 17
+    /// capability handlers (UI / WebDAV providers return nil until injected).
     public static let adapter: HostAdapter = HostAdapter()
 }

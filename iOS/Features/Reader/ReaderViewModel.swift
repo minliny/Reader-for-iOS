@@ -47,13 +47,13 @@ public final class ReaderViewModel: ObservableObject {
     public private(set) var chapterList: [TOCItem]
 
     public var canGoPreviousChapter: Bool {
-        guard !chapterList.isEmpty else { return false }
-        return currentChapterIndex > 0
+        guard let currentOffset = currentChapterListOffset else { return false }
+        return currentOffset > 0
     }
 
     public var canGoNextChapter: Bool {
-        guard !chapterList.isEmpty else { return false }
-        return currentChapterIndex < chapterList.count - 1
+        guard let currentOffset = currentChapterListOffset else { return false }
+        return currentOffset < chapterList.count - 1
     }
 
     private let provider: ReaderCoreServiceProvider
@@ -92,7 +92,13 @@ public final class ReaderViewModel: ObservableObject {
         self.chapterURL = chapterURL
         self.chapterTitle = chapterTitle
         self.chapterList = chapterList
-        self.currentChapterIndex = currentChapterIndex
+        // The renderer receives a Core chapter identity, not a transient array
+        // offset. An explicit valid Core index is the entry intent; callers
+        // that only know a URL retain the old URL-derived fallback.
+        let requestedIndex = max(0, currentChapterIndex)
+        self.currentChapterIndex = chapterList.contains(where: { $0.chapterIndex == requestedIndex })
+            ? requestedIndex
+            : (chapterList.first(where: { $0.chapterURL == chapterURL })?.chapterIndex ?? requestedIndex)
         self.totalChapterCount = max(chapterList.count, 1)
         self.bookID = bookID
         self.sourceID = sourceID
@@ -205,15 +211,14 @@ public final class ReaderViewModel: ObservableObject {
     // MARK: - Chapter Navigation
 
     public func goPreviousChapter() {
-        guard canGoPreviousChapter else { return }
-        let newIndex = currentChapterIndex - 1
-        navigateToChapter(at: newIndex)
+        guard let currentOffset = currentChapterListOffset, currentOffset > 0 else { return }
+        navigateToChapter(at: currentOffset - 1)
     }
 
     public func goNextChapter() {
-        guard canGoNextChapter else { return }
-        let newIndex = currentChapterIndex + 1
-        navigateToChapter(at: newIndex)
+        guard let currentOffset = currentChapterListOffset,
+              currentOffset < chapterList.count - 1 else { return }
+        navigateToChapter(at: currentOffset + 1)
     }
 
     public func goToChapter(at index: Int) {
@@ -225,7 +230,7 @@ public final class ReaderViewModel: ObservableObject {
         let chapter = chapterList[index]
         chapterURL = chapter.chapterURL
         chapterTitle = chapter.chapterTitle
-        currentChapterIndex = index
+        currentChapterIndex = chapter.chapterIndex
         readingProgress = 0.0
         Task { await loadContent() }
     }
@@ -278,6 +283,18 @@ public final class ReaderViewModel: ObservableObject {
         guard let saved = try? progressStore.loadProgress(bookID: bookID) else { return }
         if saved.chapterURL == chapterURL {
             readingProgress = saved.progressRatio
+            if let currentTOCEntry = chapterList.first(where: { $0.chapterURL == saved.chapterURL }) {
+                currentChapterIndex = currentTOCEntry.chapterIndex
+            } else if chapterList.isEmpty {
+                currentChapterIndex = saved.chapterIndex
+            } else if chapterList.contains(where: { $0.chapterIndex == saved.chapterIndex }) {
+                currentChapterIndex = saved.chapterIndex
+            } else {
+                // Legacy/non-matching data has an explicit first-chapter
+                // fallback instead of silently treating a Core index as an
+                // array offset.
+                currentChapterIndex = chapterList.first?.chapterIndex ?? 0
+            }
         }
     }
 
@@ -290,6 +307,7 @@ public final class ReaderViewModel: ObservableObject {
             bookURL: extractBookURL(from: chapterURL),
             chapterURL: chapterURL,
             chapterTitle: chapterTitle,
+            chapterIndex: currentChapterIndex,
             progressRatio: readingProgress
         )
 
@@ -305,7 +323,8 @@ public final class ReaderViewModel: ObservableObject {
             bookID: bookID,
             progress: readingProgress,
             chapterTitle: chapterTitle,
-            chapterURL: chapterURL
+            chapterURL: chapterURL,
+            chapterIndex: currentChapterIndex
         )
     }
 
@@ -406,11 +425,18 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     private func nextChapterURLAfterCurrent() -> String? {
-        guard !chapterList.isEmpty else { return nil }
-        let index = chapterList.firstIndex { $0.chapterURL == chapterURL } ?? currentChapterIndex
+        guard let index = currentChapterListOffset else { return nil }
         let nextIndex = index + 1
         guard chapterList.indices.contains(nextIndex) else { return nil }
         return chapterList[nextIndex].chapterURL
+    }
+
+    /// `currentChapterIndex` is the Core zero-based identity persisted for
+    /// continue-reading. Navigation still needs a renderer list offset, so it
+    /// resolves that offset only at the UI boundary.
+    private var currentChapterListOffset: Int? {
+        chapterList.firstIndex(where: { $0.chapterIndex == currentChapterIndex })
+            ?? chapterList.firstIndex(where: { $0.chapterURL == chapterURL })
     }
 
     private func extractBookURL(from chapterURL: String) -> String {

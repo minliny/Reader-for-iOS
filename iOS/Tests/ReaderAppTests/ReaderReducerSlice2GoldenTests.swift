@@ -101,11 +101,15 @@ final class ReaderReducerSlice2GoldenTests: XCTestCase {
 
         reducer.dispatch(UiEvent(
             type: .reader_entry_actionToImmersive,
-            payload: ["bookId": AnyCodable("bk-005")]
+            payload: [
+                "bookId": AnyCodable("bk-005"),
+                "chapterIndex": AnyCodable(7),
+            ]
         ))
 
         XCTAssertNotNil(nav.readerContext)
         XCTAssertEqual(nav.readerContext?.bookID, "bk-005")
+        XCTAssertEqual(nav.readerContext?.chapterIndex, 7)
         XCTAssertEqual(nav.readerContext?.source, .actionToImmersive)
     }
 

@@ -1,6 +1,6 @@
 import Foundation
 import ReaderCoreProtocols
-import ReaderCoreNetwork
+import ReaderCoreNetwork  // Designated seam (check_ios_boundary.sh whitelist): CoreBridge is the sole permitted import site.
 import ReaderUIContract
 
 #if canImport(WebKit) && canImport(UIKit)
@@ -12,7 +12,8 @@ import UIKit
 ///
 /// 职责(CONTRACT_FIRST_NATIVE_UI_PLAN.md §7):
 /// - 收敛 HTTP / WebView / Cookie / file / credential / TTS / permission /
-///   background / notification / share / clipboard / device 能力
+///   background / notification / share / clipboard / device / display /
+///   network / font / WebDAV 能力
 /// - 消费 contract `HostRequest`,派发到 `HostCapabilityRegistry`,返回
 ///   结构化 `HostCapabilityOutcome`
 /// - 不直接改 Core 或 UI 状态
@@ -36,6 +37,12 @@ import UIKit
 /// - `HostClipboardCapability`(UIPasteboard / NSPasteboard)
 /// - `HostTTSCapability`(synth provider 返回 nil —— 由 ReaderApp 注入
 ///   `ReaderTTSPlayer` 以避免 CoreBridge 依赖 ReaderApp target)
+/// - `HostFileSelectionCapability`(document picker presenter 由 ReaderApp 注入)
+/// - `HostFontCapability`(CoreText process registration)
+/// - `HostDisplayCapability`(UIScreen brightness)
+/// - `HostNetworkCapability`(Network.framework path snapshot)
+/// - `HostWebDAVCapability`(existing WebDAV feature executor 由 ReaderApp 注入)
+/// - `HostForegroundTimerCapability`(foreground timer ownership)
 /// - `HostPermissionCapability`(UNUserNotificationCenter / AVFoundation / CoreLocation)
 /// - `HostNotificationCapability`(UNUserNotificationCenter)
 /// - `HostShareCapability`(presenter 返回 nil —— 由 ReaderApp 注入)
@@ -49,12 +56,11 @@ public final class HostAdapter {
     /// capability handler 取代)。新代码应使用 `registry`。
     private let httpRouterBox: AnyObject?
 
-    /// 默认初始化器:注册全部 11 个 capability handler 的生产实现。
+    /// 默认初始化器:注册全部 17 个 capability handler 的生产实现。
     ///
-    /// TTS / Share 的 provider 返回 nil —— 这两个能力需要 ReaderApp target
-    /// 中的具体类型(`ReaderTTSPlayer` / `UIActivityViewController` 包装器),
-    /// 由 `HostAdapter.setTTSSynthProvider(_:)` / `setSharePresenterProvider(_:)`
-    /// 在 app 启动时注入。在注入前,这两个 capability 返回 `.notImplemented`。
+    /// TTS / Share / FileSelection / WebDAV 的 provider 返回 nil —— 这些能力
+    /// 需要 ReaderApp target 中的具体类型,并在 app 启动时注入。在注入前,
+    /// handler 仍保持注册,但以结构化 `.notImplemented` fail closed。
     public init(httpRouter: AnyObject? = nil) {
         self.httpRouterBox = httpRouter
         let registry = HostCapabilityRegistry()
@@ -79,6 +85,13 @@ public final class HostAdapter {
         registry.register(HostCredentialCapability())
         registry.register(HostClipboardCapability())
         registry.register(HostTTSCapability(synthProvider: { nil }))
+        registry.register(HostFileSelectionCapability(presenterProvider: { nil }))
+        registry.register(HostFontCapability())
+        registry.register(HostAppearancePersistenceCapability())
+        registry.register(HostDisplayCapability())
+        registry.register(HostNetworkCapability())
+        registry.register(HostWebDAVCapability(executorProvider: { nil }))
+        registry.register(HostForegroundTimerCapability())
         registry.register(HostPermissionCapability())
         registry.register(HostNotificationCapability())
         registry.register(HostShareCapability(presenterProvider: { nil }))
@@ -102,7 +115,7 @@ public final class HostAdapter {
     /// `webview.evaluateJavaScript`,两者指代同一能力(Core/Host 边界的
     /// 历史命名差异)。本方法返回 contract 名义。
     public static func supportedCapabilities() -> [HostRequestType] {
-        // 返回所有 31 个已注册 type 的名义列表(实际是否可用取决于平台
+        // 返回 contract 当前全部已注册 type 的名义列表(实际是否可用取决于平台
         // 与 provider 注入)。供 capability 检查 / 诊断 / 文档使用。
         return HostRequestType.allCases
     }
@@ -155,5 +168,21 @@ public final class HostAdapter {
     /// `.notImplemented`。
     public func setSharePresenterProvider(_ provider: @escaping @Sendable () async -> HostSharePresenter?) {
         registry.register(HostShareCapability(presenterProvider: provider))
+    }
+
+    /// Inject the app-owned document picker presenter. Without an active app
+    /// presenter `file.select` remains registered but fails closed.
+    public func setFileSelectionPresenterProvider(
+        _ provider: @escaping @Sendable () async -> HostFileSelectionPresenter?
+    ) {
+        registry.register(HostFileSelectionCapability(presenterProvider: provider))
+    }
+
+    /// Inject the adapter over the existing WebDAV feature services. The
+    /// default CoreBridge registration never reports synthetic success.
+    public func setWebDAVExecutorProvider(
+        _ provider: @escaping @Sendable () async -> (any HostWebDAVExecuting)?
+    ) {
+        registry.register(HostWebDAVCapability(executorProvider: provider))
     }
 }

@@ -436,6 +436,9 @@ enum ViewStateFactory {
 enum ViewStateComponentFactory {
     /// 无 route context 的工厂方法（用于无参数路由或 fallback）。
     static func components(for routeId: RouteId) -> [ViewStateComponent] {
+        if let page = ReaderContract25RouteRegistry.page(for: routeId) {
+            return readerContract25Components(for: page)
+        }
         switch routeId {
         case .bookshelf:
             return bookshelfComponents()
@@ -765,7 +768,7 @@ enum ViewStateComponentFactory {
     private static func readerNightStateComponents() -> [ViewStateComponent] {
         let json = """
         [
-            {"type":"ReaderBase","id":"reader-base","props":{}},
+            {"type":"ReaderBase","id":"reader-base","props":{"theme":"night"}},
             {"type":"ReaderTopArea","id":"reader-top-area","props":{}},
             {"type":"ReaderBottomBar","id":"reader-bottom-bar","props":{}},
             {"type":"NightToast","id":"night-toast","props":{}}

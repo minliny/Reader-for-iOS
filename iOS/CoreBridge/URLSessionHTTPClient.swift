@@ -1,6 +1,14 @@
 import Foundation
 import ReaderCoreProtocols
 
+/// Optional extension implemented by HTTP clients that can bind a contract
+/// request id to the concrete transport task and cancel that task later.
+/// `HTTPClient.send(_:)` remains unchanged for Core and service call sites.
+public protocol RequestScopedHTTPClient: HTTPClient {
+    func send(_ request: HTTPRequest, requestId: String) async throws -> HTTPResponse
+    @discardableResult func cancel(requestId: String) -> Bool
+}
+
 /// Host HTTP client backed by `URLSession`.
 ///
 /// Implements the three host-side HTTP capabilities required by S4 host proof:
@@ -16,10 +24,11 @@ import ReaderCoreProtocols
 ///   `.performDefaultHandling` (no crash); when the request carries an
 ///   `Authorization: Basic` header, the decoded credentials are supplied as a
 ///   `URLCredential` so `URLSession` can answer a 401 challenge.
-public final class URLSessionHTTPClient: HTTPClient, Sendable {
+public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
     private let session: URLSession
     private let cookieJar: ScopedCookieJar?
     private let followRedirectsDefault: Bool
+    private let taskRegistry = URLSessionTaskRegistry()
 
     public init(
         configuration: URLSessionConfiguration? = nil,
@@ -47,6 +56,19 @@ public final class URLSessionHTTPClient: HTTPClient, Sendable {
     }
 
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
+        try await send(request, requestId: nil)
+    }
+
+    public func send(_ request: HTTPRequest, requestId: String) async throws -> HTTPResponse {
+        try await send(request, requestId: Optional(requestId))
+    }
+
+    @discardableResult
+    public func cancel(requestId: String) -> Bool {
+        taskRegistry.cancel(requestId: requestId)
+    }
+
+    private func send(_ request: HTTPRequest, requestId: String?) async throws -> HTTPResponse {
         guard let url = URL(string: request.url) else {
             throw HTTPClientError.invalidURL(request.url)
         }
@@ -77,8 +99,12 @@ public final class URLSessionHTTPClient: HTTPClient, Sendable {
         // Use the delegate-based dataTask so we can stamp the task with a
         // per-request redirect policy (taskDescription), which the delegate
         // reads in `willPerformHTTPRedirection`.
+        let registryToken = UUID()
         let payload: RawResponse = try await withCheckedThrowingContinuation { cont in
             let task = session.dataTask(with: urlRequest) { data, response, error in
+                if let requestId {
+                    self.taskRegistry.remove(requestId: requestId, token: registryToken)
+                }
                 if let error = error {
                     cont.resume(throwing: HTTPClientError.transport(error.localizedDescription))
                     return
@@ -97,6 +123,9 @@ public final class URLSessionHTTPClient: HTTPClient, Sendable {
             task.taskDescription = followRedirects
                 ? HTTPRedirectPolicy.follow.rawValue
                 : HTTPRedirectPolicy.cancel.rawValue
+            if let requestId {
+                self.taskRegistry.register(task, requestId: requestId, token: registryToken)
+            }
             task.resume()
         }
 
@@ -159,6 +188,47 @@ public final class URLSessionHTTPClient: HTTPClient, Sendable {
             }
         }
         return values
+    }
+}
+
+/// Lock-protected transport-task registry. Registration uses a unique token so
+/// completion of an older task cannot remove a newer task that reused the same
+/// contract request id.
+private final class URLSessionTaskRegistry: @unchecked Sendable {
+    private struct Entry {
+        let token: UUID
+        let task: URLSessionTask
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+
+    func register(_ task: URLSessionTask, requestId: String, token: UUID) {
+        let previous: URLSessionTask?
+        lock.lock()
+        previous = entries.updateValue(Entry(token: token, task: task), forKey: requestId)?.task
+        lock.unlock()
+        // Reusing an id means the newest request owns the cancellation slot.
+        // Stop the displaced task so it cannot continue without an addressable
+        // request id.
+        previous?.cancel()
+    }
+
+    func remove(requestId: String, token: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard entries[requestId]?.token == token else { return }
+        entries.removeValue(forKey: requestId)
+    }
+
+    @discardableResult
+    func cancel(requestId: String) -> Bool {
+        let task: URLSessionTask?
+        lock.lock()
+        task = entries.removeValue(forKey: requestId)?.task
+        lock.unlock()
+        task?.cancel()
+        return task != nil
     }
 }
 

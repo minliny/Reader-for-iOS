@@ -32,7 +32,7 @@ public final class RustCoreSearchService: SearchService, @unchecked Sendable {
 
     public func search(source: BookSource, query: SearchQuery) async throws -> [SearchResultItem] {
         let sourceId = source.id?.isEmpty == false ? source.id! : UUID().uuidString
-        let inlineSource = RustCoreServiceSupport.serializeSource(source)
+        let inlineSource = RustCoreServiceSupport.serializeSource(source, sourceID: sourceId)
 
         // Use auto-build: pass keyword + page; Core expands {{key}}/{{page}}
         // via AnalyzeUrl, builds the request, and emits host.request.

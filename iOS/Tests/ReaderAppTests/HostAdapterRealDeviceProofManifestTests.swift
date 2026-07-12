@@ -2,9 +2,13 @@ import XCTest
 import ReaderUIContract
 @testable import ReaderShellValidation
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 /// Real-device-proof manifest for `HostAdapter` capabilities.
 ///
-/// This test file documents the tier classification of all 31
+/// This test file documents the tier classification of all 58
 /// `HostRequestType` cases and asserts the fail-closed behavior of
 /// `realDeviceProof` capabilities when run on a platform that cannot fully
 /// exercise them (e.g. macOS `swift test`, or the iOS simulator for
@@ -29,11 +33,12 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
 
     // MARK: - Manifest 1: every type has a tier
 
-    /// All 31 `HostRequestType` cases must have a non-nil tier when dispatched
+    /// All 58 `HostRequestType` cases must have a non-nil tier when dispatched
     /// through `HostAdapter()`. This catches regressions where a new type is
     /// added to the contract but no handler registers it.
     func testAllTypesHaveTierClassification() {
         let adapter = HostAdapter()
+        XCTAssertEqual(HostRequestType.allCases.count, 58)
         for type in HostRequestType.allCases {
             let tier = adapter.tier(for: type)
             XCTAssertNotNil(tier,
@@ -47,26 +52,8 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
     /// snapshot test — update the expected counts when a handler's tier
     /// changes (which should be rare and intentional).
     ///
-    /// Current manifest (11 handlers, 31 types):
-    /// - crossPlatform (3 handlers, 7 types):
-    ///   HostCookieCapability (cookie.get/set/clear = 3),
-    ///   HostCredentialCapability (credential.get/set/delete = 3),
-    ///   HostClipboardCapability (clipboard.copy/paste = 2) → wait, 3+3+2=8
-    ///   Actually: cookie(3) + credential(3) + clipboard(2) = 8 crossPlatform types
-    /// - simulatorProof (5 handlers, 13 types):
-    ///   HostHttpCapability (http.execute/cancel = 2),
-    ///   HostFileCapability (file.read/write/delete + storage.path = 4),
-    ///   HostPermissionCapability (permission.request/check = 2),
-    ///   HostNotificationCapability (notification.show/cancel = 2),
-    ///   HostShareCapability (share.invoke = 1) → 2+4+2+2+1 = 11
-    ///   Actually: http(2) + file(4) + permission(2) + notification(2) + share(1) = 11
-    /// - realDeviceProof (3 handlers, 12 types):
-    ///   HostWebViewCapability (webview.open/close/evaluate = 3),
-    ///   HostTTSCapability (tts.system.start/stop/pause/resume = 4),
-    ///   HostDeviceCapability (device.vibrate/screen.keep-on/screen.release +
-    ///   background.schedule/cancel = 5) → 3+4+5 = 12
-    ///
-    /// Total: 8 + 11 + 12 = 31 ✓
+    /// Reader-UI 2.5 manifest: crossPlatform=14, simulatorProof=19,
+    /// realDeviceProof=25. Total: 14 + 19 + 25 = 58.
     func testTierDistributionMatchesManifest() {
         let adapter = HostAdapter()
         var crossPlatform: Set<HostRequestType> = []
@@ -85,48 +72,33 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
             }
         }
 
-        // crossPlatform: cookie + credential + clipboard = 3 + 3 + 2 = 8
-        XCTAssertEqual(crossPlatform.count, 8,
-                       "crossPlatform tier must have 8 types, got: \(crossPlatform)")
-        XCTAssertTrue(crossPlatform.contains(.cookie_get))
-        XCTAssertTrue(crossPlatform.contains(.cookie_set))
-        XCTAssertTrue(crossPlatform.contains(.cookie_clear))
-        XCTAssertTrue(crossPlatform.contains(.credential_get))
-        XCTAssertTrue(crossPlatform.contains(.credential_set))
-        XCTAssertTrue(crossPlatform.contains(.credential_delete))
-        XCTAssertTrue(crossPlatform.contains(.clipboard_copy))
-        XCTAssertTrue(crossPlatform.contains(.clipboard_paste))
-
-        // simulatorProof: http + file + permission + notification + share = 2+4+2+2+1 = 11
-        XCTAssertEqual(simulatorProof.count, 11,
-                       "simulatorProof tier must have 11 types, got: \(simulatorProof)")
-        XCTAssertTrue(simulatorProof.contains(.http_execute))
-        XCTAssertTrue(simulatorProof.contains(.http_cancel))
-        XCTAssertTrue(simulatorProof.contains(.file_read))
-        XCTAssertTrue(simulatorProof.contains(.file_write))
-        XCTAssertTrue(simulatorProof.contains(.file_delete))
-        XCTAssertTrue(simulatorProof.contains(.storage_path))
-        XCTAssertTrue(simulatorProof.contains(.permission_request))
-        XCTAssertTrue(simulatorProof.contains(.permission_check))
-        XCTAssertTrue(simulatorProof.contains(.notification_show))
-        XCTAssertTrue(simulatorProof.contains(.notification_cancel))
-        XCTAssertTrue(simulatorProof.contains(.share_invoke))
-
-        // realDeviceProof: webview + tts + device = 3+4+5 = 12
-        XCTAssertEqual(realDeviceProof.count, 12,
-                       "realDeviceProof tier must have 12 types, got: \(realDeviceProof)")
-        XCTAssertTrue(realDeviceProof.contains(.webview_open))
-        XCTAssertTrue(realDeviceProof.contains(.webview_close))
-        XCTAssertTrue(realDeviceProof.contains(.webview_evaluate))
-        XCTAssertTrue(realDeviceProof.contains(.tts_system_start))
-        XCTAssertTrue(realDeviceProof.contains(.tts_system_stop))
-        XCTAssertTrue(realDeviceProof.contains(.tts_system_pause))
-        XCTAssertTrue(realDeviceProof.contains(.tts_system_resume))
-        XCTAssertTrue(realDeviceProof.contains(.device_vibrate))
-        XCTAssertTrue(realDeviceProof.contains(.device_screen_keep_on))
-        XCTAssertTrue(realDeviceProof.contains(.device_screen_release))
-        XCTAssertTrue(realDeviceProof.contains(.background_schedule))
-        XCTAssertTrue(realDeviceProof.contains(.background_cancel))
+        XCTAssertEqual(crossPlatform, Set([
+            .cookie_get, .cookie_set, .cookie_clear,
+            .credential_get, .credential_set, .credential_delete,
+            .clipboard_copy, .clipboard_paste, .clipboard_read, .clipboard_write,
+            .timer_foreground_arm, .timer_foreground_cancel,
+            .persistence_get, .persistence_put,
+        ]))
+        XCTAssertEqual(simulatorProof, Set([
+            .http_execute, .http_cancel,
+            .file_read, .file_write, .file_delete, .storage_path,
+            .permission_request, .permission_check,
+            .notification_show, .notification_cancel,
+            .share_invoke, .share_text, .share_file,
+            .font_registerFile, .font_unregisterFile, .network_status,
+            .webdav_connect, .webdav_backup, .webdav_restore,
+        ]))
+        XCTAssertEqual(realDeviceProof, Set([
+            .webview_open, .webview_close, .webview_evaluate,
+            .tts_system_start, .tts_system_stop, .tts_system_pause, .tts_system_resume,
+            .tts_start, .tts_stop, .tts_pause,
+            .device_vibrate, .device_screen_keep_on, .device_screen_release,
+            .background_schedule, .background_cancel,
+            .file_select, .brightness_set, .brightness_get,
+            .screen_keepAwake, .screen_allowSleep,
+            .haptics_light, .haptics_medium, .haptics_heavy,
+            .background_task_start, .background_task_end,
+        ]))
     }
 
     // MARK: - Manifest 3: realDeviceProof types fail closed (not crash)
@@ -147,16 +119,45 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
     ///   `.notImplemented` (UIKit unavailable).
     func testRealDeviceProofTypesFailClosedOnMacOS() async {
         let adapter = HostAdapter()
+        #if canImport(UIKit)
+        let originalBrightness = UIScreen.main.brightness
+        let originalIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
+        defer {
+            UIScreen.main.brightness = originalBrightness
+            UIApplication.shared.isIdleTimerDisabled = originalIdleTimerDisabled
+        }
+        #endif
         let realDeviceTypes: [HostRequestType] = [
             .webview_open, .webview_close, .webview_evaluate,
             .tts_system_start, .tts_system_stop, .tts_system_pause, .tts_system_resume,
+            .tts_start, .tts_stop, .tts_pause,
             .device_vibrate, .device_screen_keep_on, .device_screen_release,
             .background_schedule, .background_cancel,
+            .file_select, .brightness_set, .brightness_get,
+            .screen_keepAwake, .screen_allowSleep,
+            .haptics_light, .haptics_medium, .haptics_heavy,
+            .background_task_start, .background_task_end,
         ]
 
         for type in realDeviceTypes {
             let request = HostRequest(type: type, payload: minimalPayload(for: type))
             let outcome = await adapter.dispatch(request)
+
+            // Automated device runs must leave no active background task
+            // behind. The interactive file picker remains a separate manual
+            // proof because this default adapter intentionally has no UI
+            // presenter injected.
+            if outcome.succeeded,
+               (type == .background_schedule || type == .background_task_start),
+               let taskId = outcome.result?["taskId"]?.value as? String {
+                let endType: HostRequestType = type == .background_schedule
+                    ? .background_cancel
+                    : .background_task_end
+                _ = await adapter.dispatch(HostRequest(
+                    type: endType,
+                    payload: ["taskId": AnyCodable(taskId)]
+                ))
+            }
 
             // The outcome must not crash. It may succeed (on a real device or
             // simulator with the capability available) or fail with a
@@ -177,7 +178,7 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
                     break
                 case .notConfigured(let t):
                     XCTFail("type \(t.rawValue) must be registered (not .notConfigured); " +
-                            "HostAdapter() should register all 11 handlers")
+                            "HostAdapter() should register all handlers")
                 }
             }
         }
@@ -226,13 +227,11 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
         // has no keychain-access-groups entitlement -> errSecMissingEntitlement.
         // Verified on macOS swift test + real device (entitlement injected).
         #if !targetEnvironment(simulator)
-        let service = "com.reader.manifest-proof"
-        let account = "manifest-\(UUID().uuidString)"
+        let key = "manifest-\(UUID().uuidString)"
         let credSet = await adapter.dispatch(HostRequest(
             type: .credential_set,
             payload: [
-                "service": AnyCodable(service),
-                "account": AnyCodable(account),
+                "key": AnyCodable(key),
                 "value": AnyCodable("secret"),
             ]
         ))
@@ -242,8 +241,7 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
         let credGet = await adapter.dispatch(HostRequest(
             type: .credential_get,
             payload: [
-                "service": AnyCodable(service),
-                "account": AnyCodable(account),
+                "key": AnyCodable(key),
             ]
         ))
         XCTAssertTrue(credGet.succeeded,
@@ -265,6 +263,14 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
         ))
         XCTAssertTrue(clipPaste.succeeded,
                       "clipboard.paste must succeed on macOS; got: \(String(describing: clipPaste.error))")
+
+        let aliasWrite = await adapter.dispatch(HostRequest(
+            type: .clipboard_write,
+            payload: ["text": AnyCodable(clipText)]
+        ))
+        let aliasRead = await adapter.dispatch(HostRequest(type: .clipboard_read, payload: [:]))
+        XCTAssertTrue(aliasWrite.succeeded)
+        XCTAssertTrue(aliasRead.succeeded)
     }
 
     // MARK: - Manifest 5: HostCapabilityTier enum is exhaustive
@@ -291,20 +297,36 @@ final class HostAdapterRealDeviceProofManifestTests: XCTestCase {
         switch type {
         case .webview_open:
             return ["url": AnyCodable("https://manifest-proof.example.test")]
-        case .webview_close, .webview_evaluate:
-            return ["sessionId": AnyCodable("manifest-proof-session")]
-        case .tts_system_start:
-            return ["text": AnyCodable("manifest proof")]
-        case .tts_system_stop, .tts_system_pause, .tts_system_resume:
+        case .webview_close:
             return [:]
+        case .webview_evaluate:
+            return [
+                "url": AnyCodable("https://manifest-proof.example.test"),
+                "script": AnyCodable("document.title"),
+            ]
+        case .tts_system_start, .tts_start:
+            return ["text": AnyCodable("manifest proof")]
+        case .tts_system_stop, .tts_system_pause, .tts_system_resume,
+             .tts_stop, .tts_pause, .file_select, .brightness_get,
+             .screen_keepAwake, .screen_allowSleep,
+             .haptics_light, .haptics_medium, .haptics_heavy:
+            return [:]
+        case .brightness_set:
+            return ["value": AnyCodable(0.5)]
         case .device_vibrate:
-            return ["style": AnyCodable("light")]
-        case .device_screen_keep_on, .device_screen_release:
+            return [:]
+        case .device_screen_keep_on:
+            return ["enabled": AnyCodable(true)]
+        case .device_screen_release:
             return [:]
         case .background_schedule:
-            return ["name": AnyCodable("manifest-proof-task")]
+            return ["taskId": AnyCodable("manifest-proof-task")]
         case .background_cancel:
+            return ["taskId": AnyCodable("manifest-proof-task")]
+        case .background_task_start:
             return ["name": AnyCodable("manifest-proof-task")]
+        case .background_task_end:
+            return ["taskId": AnyCodable("manifest-proof-task")]
         default:
             return [:]
         }

@@ -37,6 +37,9 @@ public struct HostDeviceCapability: HostCapabilityHandler {
     public let supportedTypes: Set<HostRequestType> = [
         .device_vibrate, .device_screen_keep_on, .device_screen_release,
         .background_schedule, .background_cancel,
+        .screen_keepAwake, .screen_allowSleep,
+        .haptics_light, .haptics_medium, .haptics_heavy,
+        .background_task_start, .background_task_end,
     ]
     public let tier: HostCapabilityTier = .realDeviceProof
 
@@ -52,15 +55,33 @@ public struct HostDeviceCapability: HostCapabilityHandler {
     public func handle(_ request: HostRequest) async throws -> HostCapabilityOutcome {
         switch request.type {
         case .device_vibrate:
-            return handleVibrate(request.payload)
+            return await handleVibrate(request.payload, type: request.type)
+        case .haptics_light:
+            return await handleVibrate(["style": AnyCodable("light")], type: request.type)
+        case .haptics_medium:
+            return await handleVibrate(["style": AnyCodable("medium")], type: request.type)
+        case .haptics_heavy:
+            return await handleVibrate(["style": AnyCodable("heavy")], type: request.type)
         case .device_screen_keep_on:
-            return handleScreenKeepOn(request.payload)
-        case .device_screen_release:
-            return handleScreenRelease()
+            return await handleScreenKeepOn(request.payload, type: request.type)
+        case .screen_keepAwake:
+            return await handleScreenKeepOn(["keepOn": AnyCodable(true)], type: request.type)
+        case .device_screen_release, .screen_allowSleep:
+            return await handleScreenRelease(type: request.type)
         case .background_schedule:
-            return handleBackgroundSchedule(request.payload)
+            return .failure(.notImplemented(
+                .background_schedule,
+                "BGTaskScheduler identifiers and launch handlers are not configured"
+            ))
+        case .background_task_start:
+            return await handleBackgroundSchedule(request.payload, type: request.type)
         case .background_cancel:
-            return handleBackgroundCancel(request.payload)
+            return .failure(.notImplemented(
+                .background_cancel,
+                "BGTaskScheduler cancellation is unavailable until scheduling is configured"
+            ))
+        case .background_task_end:
+            return await handleBackgroundCancel(request.payload, type: request.type)
         default:
             return .failure(.notImplemented(request.type, "HostDeviceCapability does not handle \(request.type.rawValue)"))
         }
@@ -68,7 +89,10 @@ public struct HostDeviceCapability: HostCapabilityHandler {
 
     // MARK: - device.vibrate
 
-    private func handleVibrate(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
+    private func handleVibrate(
+        _ payload: [String: AnyCodable],
+        type: HostRequestType
+    ) async -> HostCapabilityOutcome {
         let style = (payload["style"]?.value as? String) ?? "light"
         #if canImport(UIKit)
         let feedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle
@@ -81,77 +105,122 @@ public struct HostDeviceCapability: HostCapabilityHandler {
         default:
             return .failure(.invalidParams("device.vibrate style not recognized: \(style)"))
         }
-        let generator = UIImpactFeedbackGenerator(style: feedbackStyle)
-        generator.prepare()
-        generator.impactOccurred()
+        await MainActor.run {
+            let generator = UIImpactFeedbackGenerator(style: feedbackStyle)
+            generator.prepare()
+            generator.impactOccurred()
+        }
+        if type == .haptics_light || type == .haptics_medium || type == .haptics_heavy {
+            return .success(["performed": AnyCodable(true), "style": AnyCodable(style)])
+        }
         return .success(["vibrated": AnyCodable(true), "style": AnyCodable(style)])
         #else
-        return .failure(.notImplemented(.device_vibrate, "haptics require UIKit — not available on macOS swift build (style=\(style))"))
+        return .failure(.notImplemented(type, "haptics require UIKit — not available on macOS swift build (style=\(style))"))
         #endif
     }
 
     // MARK: - device.screen.keep-on / release
 
-    private func handleScreenKeepOn(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        let keepOn = (payload["keepOn"]?.value as? Bool) ?? true
+    private func handleScreenKeepOn(
+        _ payload: [String: AnyCodable],
+        type: HostRequestType
+    ) async -> HostCapabilityOutcome {
+        let keepOn: Bool
+        if type == .device_screen_keep_on {
+            guard let enabled = payload["enabled"]?.value as? Bool else {
+                return .failure(.invalidParams("device.screen.keep-on requires `enabled` Bool"))
+            }
+            keepOn = enabled
+        } else {
+            keepOn = true
+        }
         #if canImport(UIKit)
-        DispatchQueue.main.sync {
+        await MainActor.run {
             UIApplication.shared.isIdleTimerDisabled = keepOn
         }
-        return .success(["applied": AnyCodable(true), "keepOn": AnyCodable(keepOn)])
+        if type == .screen_keepAwake {
+            return .success(["applied": AnyCodable(true), "keepAwake": AnyCodable(keepOn)])
+        }
+        return .success(["enabled": AnyCodable(keepOn)])
         #else
-        return .failure(.notImplemented(.device_screen_keep_on, "idle timer requires UIKit — not available on macOS swift build"))
+        return .failure(.notImplemented(type, "idle timer requires UIKit — not available on macOS swift build"))
         #endif
     }
 
-    private func handleScreenRelease() -> HostCapabilityOutcome {
+    private func handleScreenRelease(type: HostRequestType) async -> HostCapabilityOutcome {
         #if canImport(UIKit)
-        DispatchQueue.main.sync {
+        await MainActor.run {
             UIApplication.shared.isIdleTimerDisabled = false
         }
-        return .success(["applied": AnyCodable(true), "keepOn": AnyCodable(false)])
+        if type == .screen_allowSleep {
+            return .success(["applied": AnyCodable(true), "keepAwake": AnyCodable(false)])
+        }
+        return .success(["released": AnyCodable(true)])
         #else
-        return .failure(.notImplemented(.device_screen_release, "idle timer requires UIKit — not available on macOS swift build"))
+        return .failure(.notImplemented(type, "idle timer requires UIKit — not available on macOS swift build"))
         #endif
     }
 
     // MARK: - background.schedule / cancel
 
-    private func handleBackgroundSchedule(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
-        guard let taskName = payload["task"]?.value as? String, !taskName.isEmpty else {
-            return .failure(.invalidParams("background.schedule requires non-empty `task`"))
+    private func handleBackgroundSchedule(
+        _ payload: [String: AnyCodable],
+        type: HostRequestType
+    ) async -> HostCapabilityOutcome {
+        let nameKey = "name"
+        guard let taskName = payload[nameKey]?.value as? String,
+              !taskName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.invalidParams("\(type.rawValue) requires non-empty `\(nameKey)`"))
         }
         #if canImport(UIKit)
-        let taskId = UIApplication.shared.beginBackgroundTask(withName: taskName) {
-            // Expiration handler — the system calls this when background time
-            // is about to expire. We end the task to avoid a crash.
-            // No-op here; the registry's `background.cancel` is the normal
-            // end path.
+        let taskRegistry = backgroundTasks
+        let taskId = await MainActor.run {
+            UIApplication.shared.beginBackgroundTask(withName: taskName) {
+                if let expiredTask = taskRegistry.end(byIdString: taskName) {
+                    UIApplication.shared.endBackgroundTask(expiredTask)
+                }
+            }
         }
-        let taskIdString = taskId == UIBackgroundTaskIdentifier.invalid ? "invalid" : "\(taskId)"
+        guard taskId != UIBackgroundTaskIdentifier.invalid else {
+            return .failure(.underlying("\(type.rawValue) was rejected by UIApplication"))
+        }
+        let taskIdString = "\(taskId)"
         backgroundTasks.register(name: taskName, taskId: taskId)
+        if type == .background_task_start {
+            return .success([
+                "started": AnyCodable(true),
+                "taskId": AnyCodable(taskIdString),
+                "name": AnyCodable(taskName),
+            ])
+        }
         return .success([
             "scheduled": AnyCodable(true),
             "taskId": AnyCodable(taskIdString),
             "task": AnyCodable(taskName),
         ])
         #else
-        return .failure(.notImplemented(.background_schedule, "background tasks require UIKit — not available on macOS swift build (task=\(taskName))"))
+        return .failure(.notImplemented(type, "background tasks require UIKit — not available on macOS swift build (task=\(taskName))"))
         #endif
     }
 
-    private func handleBackgroundCancel(_ payload: [String: AnyCodable]) -> HostCapabilityOutcome {
+    private func handleBackgroundCancel(
+        _ payload: [String: AnyCodable],
+        type: HostRequestType
+    ) async -> HostCapabilityOutcome {
         guard let taskIdString = payload["taskId"]?.value as? String, !taskIdString.isEmpty else {
-            return .failure(.invalidParams("background.cancel requires non-empty `taskId`"))
+            return .failure(.invalidParams("\(type.rawValue) requires non-empty `taskId`"))
         }
         #if canImport(UIKit)
         if let taskId = backgroundTasks.end(byIdString: taskIdString) {
-            UIApplication.shared.endBackgroundTask(taskId)
+            await MainActor.run { UIApplication.shared.endBackgroundTask(taskId) }
+            if type == .background_task_end {
+                return .success(["ended": AnyCodable(true), "taskId": AnyCodable(taskIdString)])
+            }
             return .success(["cancelled": AnyCodable(true), "taskId": AnyCodable(taskIdString)])
         }
-        return .failure(.invalidParams("background.cancel: no background task registered for taskId \(taskIdString)"))
+        return .failure(.invalidParams("\(type.rawValue): no background task registered for taskId \(taskIdString)"))
         #else
-        return .failure(.notImplemented(.background_cancel, "background tasks require UIKit — not available on macOS swift build (taskId=\(taskIdString))"))
+        return .failure(.notImplemented(type, "background tasks require UIKit — not available on macOS swift build (taskId=\(taskIdString))"))
         #endif
     }
 }
@@ -177,7 +246,9 @@ private final class BackgroundTaskRegistry: @unchecked Sendable {
 
     func end(byIdString idString: String) -> UIBackgroundTaskIdentifier? {
         lock.lock(); defer { lock.unlock() }
-        return tasks.removeValue(forKey: idString)
+        guard let taskId = tasks[idString] else { return nil }
+        tasks = tasks.filter { $0.value != taskId }
+        return taskId
     }
     #else
     func register(name: String, taskId: Int) {}

@@ -1,4 +1,5 @@
 import Foundation
+import ReaderUIContract
 
 /// Machine-readable platform mapping for selected demo routes.
 ///
@@ -133,7 +134,10 @@ public enum DemoRouteMappings {
         "rss-source-category-novel", "rss-source-category-tech", "rss-source-category-booklist",
         "rss-source-add", "rss-source-delete-confirm",
         "rss-rule-subscription-create",
-        "rss-favorite-add", "rss-favorite-remove"
+        "rss-favorite-add", "rss-favorite-remove",
+        // Reader UI 2.5 local-import flow states
+        "import-permission-denied", "import-format-unsupported", "import-empty-file", "import-parsing",
+        "import-duplicate", "import-conflict-resolve", "import-partial-success", "import-result-detail"
     ]
 
     public static let expectedSettingsShellRoutes: [String] = [
@@ -164,13 +168,25 @@ public enum DemoRouteMappings {
         "reader-appearance-overlay-v2", "reader-directory-overlay-v2", "reader-tts-overlay-v2", "reader-settings-overlay-v2",
         "reader-full-font", "reader-full-theme", "reader-full-theme-edit", "reader-full-layout", "reader-full-page-turn",
         "reader-auto-scroll-overlay-v2", "reader-search-overlay-v2", "reader-replace-overlay-v2",
-        "reader-night-state-v2", "control-layer-base-v2"
+        "reader-night-state-v2", "control-layer-base-v2",
+        // Reader UI 2.5 workspace/replacement/content states
+        "reader-font-import-confirm", "reader-font-delete-confirm", "reader-font-fallback",
+        "reader-theme-new", "reader-theme-delete-confirm", "reader-typography-reset-confirm",
+        "reader-replace-delete-confirm", "reader-replace-apply-result", "reader-replace-import-export",
+        "reader-replace-preview", "reader-replace-page",
+        "reader-toc-loading", "reader-toc-offline", "reader-toc-error",
+        "reader-content-loading", "reader-content-offline", "reader-content-error",
+        "reader-page-boundary-first", "reader-page-boundary-last", "reader-progress-restore",
+        "reader-background-restore"
     ]
 
     public static let expectedFlowShellRoutes: [String] = [
         "source-switch",
         // P0/M0 route-contract closure additions (200-route baseline)
-        "source-switch-results"
+        "source-switch-results",
+        // Reader UI 2.5 source-switch states
+        "source-switch-empty", "source-switch-error", "source-switch-timeout",
+        "source-switch-loading", "source-switch-rollback", "source-switch-preview"
     ]
 
     public static let expectedRoutesByShell: [(shell: String, routes: [String])] = [
@@ -235,7 +251,11 @@ public enum DemoRouteMappings {
     }
 
     private static let readerFeatureMappings: [DemoRouteMapping] = expectedReaderShellRoutes
-        .filter { $0 != "immersive-reading" && $0 != "reader" }
+        .filter { route in
+            guard route != "immersive-reading", route != "reader" else { return false }
+            guard let routeId = ReaderUIContract.RouteId(rawValue: route) else { return true }
+            return ReaderContract25RouteRegistry.page(for: routeId) == nil
+        }
         .map { route in
             DemoRouteMapping(
                 demoRoute: route,
@@ -1004,7 +1024,45 @@ public enum DemoRouteMappings {
         )
     ]
 
-    private static let concreteMappings: [DemoRouteMapping] = baseConcreteMappings + discoverFeatureMappings + libraryFeatureMappings + readerFeatureMappings + settingsFeatureMappings + closedPlannedRouteMappings
+    /// Reader UI 2.5 additions are all backed by `ReaderContract25RouteScreen`; none are planned
+    /// ownership or a static catch-all. The renderer family and actions live in the typed registry.
+    private static let contract25Mappings: [DemoRouteMapping] = ReaderContract25RouteRegistry.all.map { page in
+        let target: String
+        let stateModel: String
+        let navigationEntry: String
+        let motionIDs: [String]
+
+        switch page.renderer {
+        case .readerWorkspaceState, .readerReplacementState, .readerContentState:
+            target = "ReaderDemoShellView(demoRoute:) -> ReaderContract25RouteScreen(\(page.renderer.rawValue))"
+            stateModel = "ReaderDemoShellView + ReaderDemoRouteState + ReaderContract25RouteScreen + ReaderContract25RouteRegistry + ReaderResponsiveLayout + ReaderResponsiveVisualAudit + ReaderDisplaySettings + ReaderAppearanceQuickAction + ReaderSettingsQuickAction + hidden system navigation chrome"
+            navigationEntry = "reader-owned chrome routes the generated RouteId into an explicit ReaderShell state renderer without becoming a main tab; actions retain ReaderDisplaySettings and reading context"
+            motionIDs = ["reader.module.switch", "state.content.replace", "button.activate"]
+        case .sourceSwitchState:
+            target = "ReaderContract25RouteScreen(sourceSwitchState)"
+            stateModel = "ReaderContract25RouteScreen + DemoFlowShell + ReaderContract25RouteNavigation + source-switch continuity state"
+            navigationEntry = "source-switch flow state replaces the FlowShell content and keeps the current reader context until confirmation or rollback"
+            motionIDs = ["source.switch.route.replace", "state.content.replace", "button.activate"]
+        case .localImportState:
+            target = "ReaderContract25RouteScreen(localImportState)"
+            stateModel = "ReaderContract25RouteScreen + DemoLibraryShell + BookshelfLocalImportView flow semantics + ReaderContract25RouteNavigation"
+            navigationEntry = "local-import flow state stays inside LibraryShell and advances through parsing, duplicate, conflict and result actions"
+            motionIDs = ["app.route.replace", "state.content.replace", "button.activate"]
+        }
+
+        return DemoRouteMapping(
+            demoRoute: page.routeId.rawValue,
+            slice: page.renderer == .localImportState ? 2 : 3,
+            shell: page.shell.rawValue,
+            platformTarget: .featureState(target),
+            stateModel: stateModel,
+            navigationEntry: navigationEntry,
+            motionIDs: motionIDs,
+            acceptanceTests: ["ReaderContract25RouteRegistryTests", "DemoRouteMappingTests"]
+        )
+    }
+
+    private static let concreteMappings: [DemoRouteMapping] = baseConcreteMappings + discoverFeatureMappings + libraryFeatureMappings + readerFeatureMappings + settingsFeatureMappings + closedPlannedRouteMappings + contract25Mappings
 
     private static var concreteRouteNames: Set<String> {
         Set(concreteMappings.map(\.demoRoute))

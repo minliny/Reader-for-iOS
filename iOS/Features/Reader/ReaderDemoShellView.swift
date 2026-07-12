@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderAppSupport
+import ReaderUIContract
 
 struct ReaderDemoShellView: View {
     @State private var state: ReaderDemoRouteState
@@ -14,8 +15,19 @@ struct ReaderDemoShellView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            shellBody(layout: ReaderResponsiveLayout.make(size: proxy.size))
+        Group {
+            if let routeId = ReaderUIContract.RouteId(rawValue: state.route),
+               ReaderContract25RouteRegistry.page(for: routeId) != nil {
+                ReaderContract25RouteScreen(
+                    routeId: routeId,
+                    onNavigate: { target in switchRoute(target.rawValue) },
+                    onExit: onExit
+                )
+            } else {
+                GeometryReader { proxy in
+                    shellBody(layout: ReaderResponsiveLayout.make(size: proxy.size))
+                }
+            }
         }
 #if os(iOS)
         .toolbar(.hidden, for: .tabBar)

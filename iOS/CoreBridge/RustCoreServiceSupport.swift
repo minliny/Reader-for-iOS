@@ -16,6 +16,9 @@ import ReaderCoreNativeAdapter
 /// Shared support for Rust Core service adapters.
 public enum RustCoreServiceSupport {
 
+    private static let requestIDLock = NSLock()
+    private static var nextRequestID: UInt64 = 4_000_000_000
+
     /// Shared scoped cookie jar for all host HTTP clients. Partitioned by
     /// `CookieJarScopeKey` (sourceId + host) so cookies never leak across
     /// sources or hosts. Injected into every `URLSessionHTTPClient` so cookies
@@ -25,6 +28,29 @@ public enum RustCoreServiceSupport {
     /// `cookie.get` / `cookie.set` host requests through the same jar
     /// (login_cookie lane parity with Android).
     public static let sharedCookieJar: ScopedCookieJar = HostScopedCookieJarFactory.makeBasicCookieJar()
+
+    /// Allocates a process-local numeric Core request id. The previous
+    /// timestamp-modulo ids could collide when two book-open stages began in
+    /// the same millisecond, which makes correlation-scoped cancellation
+    /// unsafe. Core only requires a non-zero numeric id.
+    public static func allocateRequestID() -> UInt64 {
+        requestIDLock.lock()
+        defer { requestIDLock.unlock() }
+        let allocated = nextRequestID
+        nextRequestID = nextRequestID == UInt64.max ? 1 : nextRequestID + 1
+        return allocated
+    }
+
+    /// URLSession task ids are Host-local, so include the optional UI
+    /// correlation alongside the Core numeric id. This is the association used
+    /// by request-scoped cancellation and late callback discard.
+    public static func transportRequestID(
+        correlationID: String?,
+        requestID: UInt64
+    ) -> String {
+        let scope = correlationID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "core:\(scope?.isEmpty == false ? scope! : "unscoped"):\(requestID)"
+    }
 
     /// Returns the booted runtime, or throws if not booted.
     @MainActor
@@ -119,8 +145,15 @@ public enum RustCoreServiceSupport {
     /// - `baseUrl`: BookSource.bookSourceUrl
     /// - `bookSource`: the full Legado BookSource JSON (for DSL parsing)
     /// - `rules`: null (Core uses Legado DSL from bookSource)
-    public static func serializeSource(_ source: BookSource) -> [String: Any] {
-        let sourceId = source.id?.isEmpty == false ? source.id! : UUID().uuidString
+    public static func serializeSource(
+        _ source: BookSource,
+        sourceID: String? = nil
+    ) -> [String: Any] {
+        // A command and its inline source must use the same identity. In
+        // particular, an id-less source gets one generated id per command,
+        // rather than two unrelated UUIDs at the bridge boundary.
+        let sourceId = sourceID
+            ?? (source.id?.isEmpty == false ? source.id! : UUID().uuidString)
         var bookSourceJSON: [String: Any] = [:]
         if let data = try? JSONEncoder().encode(source),
            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {

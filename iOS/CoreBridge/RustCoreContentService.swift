@@ -9,6 +9,7 @@
 // S6.1: Replaces old DefaultContentService + ContentParser with Rust Core dispatch.
 
 import Foundation
+import ReaderCoreFoundation
 import ReaderCoreModels
 import ReaderCoreProtocols
 import ReaderCoreNativeAdapter
@@ -29,77 +30,159 @@ public final class RustCoreContentService: ContentService, @unchecked Sendable {
     }
 
     public func fetchContent(source: BookSource, chapterURL: String) async throws -> ContentPage {
-        let sourceId = source.id?.isEmpty == false ? source.id! : UUID().uuidString
-        let inlineSource = RustCoreServiceSupport.serializeSource(source)
-        let contentRequest = RustCoreServiceSupport.makeRequestParams(url: chapterURL)
+        try await fetchContentStage(
+            source: source,
+            context: CoreChapterContentRequestContext(
+                bookID: chapterURL,
+                chapterTitle: "",
+                chapterIndex: 0,
+                chapterURL: chapterURL
+            )
+        ).page
+    }
 
-        let params: [String: Any] = [
-            "sourceId": sourceId,
-            "bookId": chapterURL,
-            "chapterUrl": chapterURL,
-            "contentRequest": contentRequest,
-            "source": inlineSource,
-        ]
-        let requestId: UInt64 = UInt64(Date().timeIntervalSince1970 * 1000) % 1_000_000 + 300_000
-        let command: [String: Any] = [
-            "protocolVersion": 1,
-            "requestId": NSNumber(value: requestId),
-            "method": "chapter.content",
-            "params": params,
-        ]
-
+    /// Fetch content while retaining the selected TOC identity and variables.
+    public func fetchContentStage(
+        source: BookSource,
+        context: CoreChapterContentRequestContext
+    ) async throws -> CoreChapterContentStageResult {
         do {
-            let json = try JSONSerialization.data(withJSONObject: command)
-            try runtime.send(json: json)
-
-            let hostRequest = try RustCoreServiceSupport.pollEvent(
-                runtime: runtime, requestId: requestId, timeout: requestTimeout
-            )
-            if hostRequest.type == "error" {
-                throw ReaderCoreNativeError.coreError(
-                    code: hostRequest.coreErrorCode ?? "INTERNAL",
-                    message: hostRequest.coreErrorMessage ?? "chapter.content failed"
-                )
-            }
-            guard hostRequest.type == "host.request" else {
-                throw ReaderCoreNativeError.coreError(
-                    code: "INTERNAL",
-                    message: "expected host.request, got \(hostRequest.type)"
-                )
-            }
-            try await router.handleHostRequest(hostRequest)
-
-            let result = try RustCoreServiceSupport.pollEvent(
-                runtime: runtime, requestId: requestId, timeout: requestTimeout
-            )
-            if result.type == "error" {
-                throw ReaderCoreNativeError.coreError(
-                    code: result.coreErrorCode ?? "INTERNAL",
-                    message: result.coreErrorMessage ?? "chapter.content result failed"
-                )
-            }
-            guard result.type == "result" else {
-                throw ReaderCoreNativeError.coreError(
-                    code: "INTERNAL",
-                    message: "expected result, got \(result.type)"
-                )
-            }
-            return Self.parseContent(result.data, chapterURL: chapterURL)
+            return try await startContentStage(
+                source: source,
+                context: context
+            ).value()
         } catch {
             throw RustCoreServiceSupport.mapCoreError(error)
         }
     }
 
-    /// Parse Core `result.data.content` → `ContentPage`.
-    private static func parseContent(_ data: [String: Any]?, chapterURL: String) -> ContentPage {
-        let title = (data?["title"] as? String) ?? ""
-        let content = (data?["content"] as? String) ?? ""
+    /// Starts `chapter.content` with the exact selected TOC identity and a
+    /// cancellable Core/Host handle. `context` is deliberately captured by the
+    /// parser so a late result cannot invent a title/index/url after selection.
+    public func startContentStage(
+        source: BookSource,
+        context: CoreChapterContentRequestContext,
+        correlationID: String? = nil
+    ) throws -> RustCoreRequestScopedCommand<CoreChapterContentStageResult> {
+        let sourceId = source.id?.isEmpty == false ? source.id! : UUID().uuidString
+        let inlineSource = RustCoreServiceSupport.serializeSource(source, sourceID: sourceId)
+        let params = Self.makeContentParams(
+            sourceID: sourceId,
+            context: context,
+            inlineSource: inlineSource
+        )
+        let handle = try RustCoreRequestScopedCommand<CoreChapterContentStageResult>(
+            runtime: runtime,
+            router: router,
+            requestID: RustCoreServiceSupport.allocateRequestID(),
+            correlationID: correlationID,
+            method: "chapter.content",
+            params: params,
+            timeout: requestTimeout,
+            resultTransform: { data in
+                Self.parseContentStage(
+                    data,
+                    sourceID: sourceId,
+                    context: context
+                )
+            }
+        )
+        try handle.start()
+        return handle
+    }
+
+    /// Starts `chapter.content` through the persisted Core source. The
+    /// bookshelf Pilot carries only source/book identity and the typed TOC
+    /// selection, never a UI-fabricated `BookSource` payload.
+    public func startContentStage(
+        sourceID: String,
+        context: CoreChapterContentRequestContext,
+        correlationID: String? = nil
+    ) throws -> RustCoreRequestScopedCommand<CoreChapterContentStageResult> {
+        let params = Self.makeContentParams(
+            sourceID: sourceID,
+            context: context,
+            inlineSource: nil
+        )
+        let handle = try RustCoreRequestScopedCommand<CoreChapterContentStageResult>(
+            runtime: runtime,
+            router: router,
+            requestID: RustCoreServiceSupport.allocateRequestID(),
+            correlationID: correlationID,
+            method: "chapter.content",
+            params: params,
+            timeout: requestTimeout,
+            resultTransform: { data in
+                Self.parseContentStage(
+                    data,
+                    sourceID: sourceID,
+                    context: context
+                )
+            }
+        )
+        try handle.start()
+        return handle
+    }
+
+    static func makeContentParams(
+        sourceID: String,
+        context: CoreChapterContentRequestContext,
+        inlineSource: [String: Any]?
+    ) -> [String: Any] {
+        var params: [String: Any] = [
+            "sourceId": sourceID,
+            "bookId": context.bookID,
+            "chapterTitle": context.chapterTitle,
+            "chapterIndex": context.chapterIndex,
+            "chapterUrl": context.chapterURL,
+            "chapterRequest": RustCoreServiceSupport.makeRequestParams(url: context.chapterURL),
+            "variables": context.variables,
+        ]
+        if let inlineSource { params["source"] = inlineSource }
+        return params
+    }
+
+    /// Parse Core `result.data.content` while retaining request identity fields
+    /// that the remote result intentionally does not echo.
+    static func parseContentStage(
+        _ data: [String: Any]?,
+        sourceID: String?,
+        context: CoreChapterContentRequestContext
+    ) -> CoreChapterContentStageResult {
+        let returnedSourceID = (data?["sourceId"] as? String) ?? sourceID
+        let returnedBookID = (data?["bookId"] as? String) ?? context.bookID
+        let title = (data?["chapterTitle"] as? String)
+            ?? (data?["title"] as? String)
+            ?? context.chapterTitle
+        let rawContent = CoreReadingStageValue.jsonValue(data?["content"])
+        let content = CoreReadingStageValue.rendererText(data?["content"])
         let nextChapterURL = data?["nextContentUrl"] as? String ?? data?["nextChapterUrl"] as? String
-        return ContentPage(
+        var unknownFields: [String: JSONValue] = [
+            "bookId": .string(returnedBookID),
+            "chapterIndex": .number(Double(context.chapterIndex)),
+        ]
+        if let returnedSourceID, !returnedSourceID.isEmpty {
+            unknownFields["sourceId"] = .string(returnedSourceID)
+        }
+        if !context.variables.isEmpty {
+            unknownFields["variables"] = CoreReadingStageValue.jsonObject(context.variables)
+        }
+        let page = ContentPage(
             title: title,
             content: content,
-            chapterURL: chapterURL,
-            nextChapterURL: nextChapterURL
+            chapterURL: context.chapterURL,
+            nextChapterURL: nextChapterURL,
+            unknownFields: unknownFields
+        )
+        return CoreChapterContentStageResult(
+            page: page,
+            rawContent: rawContent,
+            sourceID: returnedSourceID,
+            bookID: returnedBookID,
+            chapterTitle: title,
+            chapterIndex: context.chapterIndex,
+            chapterURL: context.chapterURL,
+            variables: context.variables
         )
     }
 }

@@ -6,10 +6,14 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 readonly restricted_paths=(
   "iOS/App"
+  "iOS/CoreBridge"
   "iOS/CoreIntegration"
   "iOS/Features"
   "iOS/Modules"
+  "iOS/Navigation"
+  "iOS/Rendering"
   "iOS/Shell"
+  "iOS/Surface"
   "iOS/Tests"
 )
 
@@ -18,6 +22,22 @@ readonly forbidden_modules=(
   "ReaderCoreParser"
   "ReaderCoreCache"
   "ReaderCoreExecution"
+  "ReaderCoreServices"
+)
+
+# Designated seams: specific files that are the ONLY permitted import sites
+# for a given forbidden module. These files bridge Core internal modules to
+# the iOS layer and are the intentional boundary crossing points.
+# Any import of a forbidden module outside these files is a violation.
+# Format: "relative_path:module"
+readonly designated_seams=(
+  "iOS/CoreBridge/HostAdapter.swift:ReaderCoreNetwork"
+  "iOS/CoreBridge/HostCookieCapability.swift:ReaderCoreNetwork"
+  "iOS/CoreBridge/HostScopedCookieJarFactory.swift:ReaderCoreNetwork"
+  "iOS/CoreBridge/RSSParserHostAdapter.swift:ReaderCoreParser"
+  "iOS/CoreBridge/ReaderCoreServiceProvider.swift:ReaderCoreServices"
+  "iOS/Shell/ShellAssembly.swift:ReaderCoreServices"
+  "iOS/Tests/ShellSmokeTests/RealServiceOfflineReplayTests.swift:ReaderCoreServices"
 )
 
 readonly forbidden_root_paths=(
@@ -56,9 +76,23 @@ checked_files=0
 
 check_file() {
   local file="$1"
+  local relative_file="${file#${repo_root}/}"
   local line
   for module in "${forbidden_modules[@]}"; do
     while IFS= read -r line; do
+      # Skip designated seam files that are the intentional, whitelisted
+      # import sites for a specific forbidden module.
+      local seam_key="${relative_file}:${module}"
+      local is_seam=0
+      for seam in "${designated_seams[@]}"; do
+        if [[ "${seam}" == "${seam_key}" ]]; then
+          is_seam=1
+          break
+        fi
+      done
+      if (( is_seam )); then
+        continue
+      fi
       violations+=("${file}:${line}:${module}")
     done < <(grep -nE "^[[:space:]]*import[[:space:]]+${module}([[:space:]]|$)" "$file" || true)
   done
@@ -127,6 +161,7 @@ echo "iOS boundary gate"
 echo "checked_files=${checked_files}"
 echo "restricted_paths=${restricted_paths[*]}"
 echo "forbidden_modules=${forbidden_modules[*]}"
+echo "designated_seams=${designated_seams[*]}"
 echo "forbidden_root_paths=${forbidden_root_paths[*]}"
 echo "forbidden_docs=${forbidden_docs[*]}"
 echo "forbidden_workflows=${forbidden_workflows[*]}"

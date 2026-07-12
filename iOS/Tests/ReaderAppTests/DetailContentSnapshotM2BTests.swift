@@ -53,7 +53,7 @@ final class DetailContentSnapshotM2BTests: XCTestCase {
 
     // MARK: - Provider defaults
 
-    func testProviderDefaultsToMock() {
-        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .mock)
+    func testProviderDefaultsToRustCore() {
+        XCTAssertEqual(ReaderCoreServiceProvider.shared.currentMode, .rustCore)
     }
 }

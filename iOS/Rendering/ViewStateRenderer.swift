@@ -13,7 +13,7 @@ import ReaderUIContract
 // 设计（总计划 §4.E 阶段 1 基础设施）：
 // - 遍历 `components` 数组，按 `type: ComponentType` 分发到 `ComponentRegistry`。
 // - 递归处理 `children: [ViewStateComponent]?`（组件可嵌套，如 BookshelfShelfSection 含 BookGrid 含 BookCard[]）。
-// - 未注册的 ComponentType 返回 `EmptyView` + debug print（不崩溃）。
+// - 未注册的 ComponentType 返回可见 fail-closed 视图 + debug print（不崩溃）。
 // - 不直接处理 shell 布局（由 `ShellContainers` 负责），只负责 component 树渲染。
 
 /// 契约 ViewState → SwiftUI View tree 渲染器。
@@ -112,23 +112,46 @@ extension ViewStateRenderer {
 /// - route 参数通过 ViewState.context + 带参工厂方法注入组件树。
 public struct ContractHostView: View {
     public let viewState: ReaderUIContract.ViewState
+    /// R16 production consumption. This result is intentionally shadow-only and never replaces
+    /// the existing Native/Shell renderer without separate device proof and promotion authority.
+    let screenGraphShadowPlan: Result<ReaderScreenGraphRoutePlan, ReaderScreenGraphPlannerError>
     /// P0 修复：contract host 的返回动作（pop 路由）。注入 environment 供 BackTopBarView 读取。
     private let onExit: (() -> Void)?
+    private let onScreenGraphAction: ((UiEvent) -> Void)?
 
-    public init(viewState: ReaderUIContract.ViewState, onExit: (() -> Void)? = nil) {
+    public init(
+        viewState: ReaderUIContract.ViewState,
+        onExit: (() -> Void)? = nil,
+        onScreenGraphAction: ((UiEvent) -> Void)? = nil
+    ) {
         self.viewState = viewState
+        self.screenGraphShadowPlan = ReaderScreenGraphProductionPlanner.plan(viewState: viewState)
         self.onExit = onExit
+        self.onScreenGraphAction = onScreenGraphAction
     }
 
     /// 无 route 参数的便捷 init：只传 routeId（用于无参数路由或 fallback）。
-    public init(routeId: RouteId, onExit: (() -> Void)? = nil) {
-        self.viewState = ViewStateFactory.make(routeId: routeId)
+    public init(
+        routeId: RouteId,
+        onExit: (() -> Void)? = nil,
+        onScreenGraphAction: ((UiEvent) -> Void)? = nil
+    ) {
+        let viewState = ViewStateFactory.make(routeId: routeId)
+        self.viewState = viewState
+        self.screenGraphShadowPlan = ReaderScreenGraphProductionPlanner.plan(viewState: viewState)
         self.onExit = onExit
+        self.onScreenGraphAction = onScreenGraphAction
     }
 
     /// book-detail 便捷 init：注入真实书籍参数（bookURL/title/author）。
     /// `author` 为 `String?`，对齐 `Route.bookDetail` 的可选 author。
-    public init(bookDetail bookURL: String, title: String, author: String?, onExit: (() -> Void)? = nil) {
+    public init(
+        bookDetail bookURL: String,
+        title: String,
+        author: String?,
+        onExit: (() -> Void)? = nil,
+        onScreenGraphAction: ((UiEvent) -> Void)? = nil
+    ) {
         var context: [String: AnyCodable] = [
             "bookURL": AnyCodable(bookURL),
             "title": AnyCodable(title),
@@ -136,26 +159,48 @@ public struct ContractHostView: View {
         if let author = author {
             context["author"] = AnyCodable(author)
         }
-        self.viewState = ViewStateFactory.make(
+        let viewState = ViewStateFactory.make(
             routeId: .bookDetail,
             context: context
         )
+        self.viewState = viewState
+        self.screenGraphShadowPlan = ReaderScreenGraphProductionPlanner.plan(viewState: viewState)
         self.onExit = onExit
+        self.onScreenGraphAction = onScreenGraphAction
     }
 
     /// source-switch 便捷 init：注入真实 bookURL。
-    public init(sourceSwitch bookURL: String, onExit: (() -> Void)? = nil) {
-        self.viewState = ViewStateFactory.make(
+    public init(
+        sourceSwitch bookURL: String,
+        onExit: (() -> Void)? = nil,
+        onScreenGraphAction: ((UiEvent) -> Void)? = nil
+    ) {
+        let viewState = ViewStateFactory.make(
             routeId: .sourceSwitch,
             context: [
                 "bookURL": AnyCodable(bookURL),
             ]
         )
+        self.viewState = viewState
+        self.screenGraphShadowPlan = ReaderScreenGraphProductionPlanner.plan(viewState: viewState)
         self.onExit = onExit
+        self.onScreenGraphAction = onScreenGraphAction
     }
 
+    @ViewBuilder
     public var body: some View {
-        ShellContainer(viewState: viewState)
-            .environment(\.backTopBarAction, onExit)
+        Group {
+            if let routeId = ReaderUIContract.RouteId(rawValue: viewState.routeId),
+               ReaderContract25RouteRegistry.page(for: routeId) != nil {
+                ReaderContract25RouteScreen(routeId: routeId, onExit: onExit)
+            } else {
+                ShellContainer(viewState: viewState)
+                    .environment(\.backTopBarAction, onExit)
+            }
+        }
+        .environment(\.readerScreenGraphActionHandler, onScreenGraphAction)
+        .overlay(alignment: .topTrailing) {
+            ReaderScreenGraphShadowDiagnostic(result: screenGraphShadowPlan)
+        }
     }
 }
