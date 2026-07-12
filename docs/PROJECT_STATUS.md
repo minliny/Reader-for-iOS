@@ -1,8 +1,14 @@
 # 项目状态总览
 
-## P0 链路闭环交付（2026-07-10）
+## 当前 Reader UI 消费边界（2026-07-12）
 
-Reader for iOS 完成 Contract-first Native UI Architecture 的 P0 链路全闭环。5 条 P0 链路（bookshelf / reader / source-switch / book-detail / settings）× A-F 六列全部 ✅，矩阵 120/120 全绿。
+- 当前 lock 为 Reader UI 2.5.1；35 条 covered event 中 7 Pilot、28 Shadow、0 Authoritative。
+- 最新物理设备 build/install 已通过，但配对 iPhone 锁屏导致 launch denied，Host58 在设备上执行 0 项。
+- 因此 Simulator、unit/build 与 120/120 静态矩阵不能表述为“前端/五条 workflow 全闭环”。
+
+## P0 静态链路矩阵（2026-07-10，非完成口径）
+
+5 条 P0 链路（bookshelf / reader / source-switch / book-detail / settings）× A-F 六列的代码、fixture 与静态接线矩阵达到 120/120。该数字不证明 native 视觉一致、真实设备交互或 Authoritative rollout。
 
 ### 交付成果
 
@@ -26,16 +32,18 @@ Reader for iOS 完成 Contract-first Native UI Architecture 的 P0 链路全闭�
 - Core bridge 6 项依赖二进制重建的失败用例标记 `XCTSkip`（自愈式）
 - Core 二进制重建后自动恢复，无需人工介入
 
-### 验收
+### 当时静态验收
 
 - `swift build`：BUILD SUCCEEDED
 - `xcodebuild`：BUILD SUCCEEDED
 - 215 focused tests pass
 - P0 链路矩阵：120/120 全绿（退出码 0）
 
-### 遗留
+### 当前遗留
 
 - Core 二进制重建后，6 项 `XCTSkip` 用例自动恢复（无需人工干预）
+- 解锁并保持配对 iPhone 可启动后，重新执行 Host58 与 Reader runtime device proof。
+- page、import、source-switch、replace、RSS、Sync 共 28 条 covered event 仍为 Shadow。
 
 ## 当前多端架构定位（2026-07-04）
 

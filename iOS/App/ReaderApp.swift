@@ -116,11 +116,9 @@ public struct ReaderApp: App {
         logger.info("HostAdapter TTS + Share + FileSelection + WebDAV providers injected")
         #endif
 
-        // Assemble the real R8 Host executor even though all three playback
-        // pairs remain default Shadow. This keeps rollout authority separate
-        // from capability readiness: a later coordinated Pilot flip does not
-        // need a second native wiring change, while a missing runtime still
-        // fails closed with a Shadow coordinator.
+        // Assemble the real R8 Host executor for the lock-backed TTS and
+        // auto-page Pilot pairs. Page remains Shadow; a missing runtime or
+        // executor still fails closed without borrowing the native effect path.
         var playbackCoordinator = ReaderPlaybackPilotCoordinator()
         #if canImport(ReaderCoreNativeAdapter) && canImport(AVFoundation) && canImport(UIKit)
         if let runtime = RustCoreRuntimeHolder.shared.current {

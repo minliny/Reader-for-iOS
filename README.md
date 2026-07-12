@@ -2,6 +2,13 @@
 
 Reader for iOS is the SwiftUI native host app for the Reader multi-end architecture.
 
+## Current Reader UI consumer boundary (2026-07-12)
+
+- The repo consumes the immutable Reader UI 2.5.1 release identity recorded in `READER_UI_CONSUMER.json`.
+- Of 35 covered events, 7 are Pilot, 28 remain Shadow, and 0 are Authoritative.
+- The latest physical-device build and install succeeded, but launch was denied while the paired iPhone was locked; no on-device Host58 case executed.
+- The 120/120 P0 static matrix and Simulator/unit/build proof therefore do not mean the native frontend or its five workflows are complete.
+
 ## Current architecture role
 
 This repo owns the iOS native experience. It must consume shared contracts and Core protocol, but it must not become the source of cross-platform business logic.

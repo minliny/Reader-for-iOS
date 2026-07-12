@@ -27,9 +27,8 @@ public struct ReaderPlaybackPilotConfiguration: Equatable, Sendable {
     }
 
     /// Production TTS and auto-page pairs are Pilot. The page pair remains
-    /// Shadow until its own cohort promotion. This foundation is deliberately
-    /// independent from the 2.4 consumer lock until the paired cohorts have
-    /// three-platform proof and a coordinated Reader-UI release.
+    /// Shadow until its own cohort promotion. `live` must remain in lockstep
+    /// with the playback cohort in `READER_UI_CONSUMER.json`.
     public static let live = ReaderPlaybackPilotConfiguration(
         ttsPairMode: .pilot,
         autoPagePairMode: .pilot
@@ -664,9 +663,9 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
     }
 }
 
-/// Runtime-owned playback transaction coordinator. `live` is hard Shadow;
-/// tests or a future consumer-lock cohort must explicitly inject Pilot mode
-/// and a sole executor before any native path can be intercepted.
+/// Runtime-owned playback transaction coordinator. `live` admits TTS and
+/// auto-page as Pilot while page remains Shadow; one sole executor owns every
+/// emitted Pilot effect and the native duplicate path is bypassed.
 @MainActor
 public final class ReaderPlaybackPilotCoordinator: ObservableObject {
     public let configuration: ReaderPlaybackPilotConfiguration

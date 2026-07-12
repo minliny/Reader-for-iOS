@@ -13,7 +13,7 @@ final class ReaderUIRuntimeShadowParityTests: XCTestCase {
         let lock = try loadConsumerLock()
         let configuration = ReaderUIRuntimeShadowConfiguration.live
 
-        XCTAssertEqual(lock.readerUiVersion, "2.5.0")
+        XCTAssertEqual(lock.readerUiVersion, "2.5.1")
         XCTAssertEqual(lock.hostRequestSchemaVersion, "1.2.0")
         XCTAssertEqual(lock.runtimeActionsSha256, "0ac249341d8de651314687d8352bc1c3f62d3778371ff500f1f0a025a64be82c")
         XCTAssertEqual(lock.rollout.mode, configuration.defaultMode.rawValue)

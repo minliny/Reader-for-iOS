@@ -93,14 +93,13 @@ struct AppShellView: View {
     /// facade instances.
     @StateObject private var runtimeCoordinator = ReaderUIRuntimeCoordinator()
 
-    /// Isolated book.open Pilot foundation. Its production configuration is
-    /// hard Shadow and does not alter ReaderUIRuntimeCoordinator's
-    /// consumer-lock governed rollout policy.
+    /// Isolated book.open Pilot owner. Its production configuration follows
+    /// the consumer lock and keeps the sole typed effect executor separate
+    /// from the general runtime coordinator.
     @StateObject private var bookOpenPilotCoordinator = ReaderBookOpenPilotCoordinator()
 
-    /// Page/TTS/auto-page pairs remain default Shadow and are intentionally
-    /// separate from the directory/book.open rollout owners. A future Pilot
-    /// injects the sole Core/Host executor without changing this authority.
+    /// Playback rollout owner. Page remains Shadow; TTS and auto-page are the
+    /// exactly-once Pilot pairs declared by the consumer lock.
     @ObservedObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
 
     /// P0 修复 5/7：ReaderCoordinator 包装 navigationState + ReaderReducer，
