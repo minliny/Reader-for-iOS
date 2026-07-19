@@ -45,6 +45,8 @@
 // same as the host backend being release-ready; simulator / real-device proof
 // is required per the `HostCapabilityTier` manifest.
 
+import CoreFoundation
+import CryptoKit
 import Foundation
 import Security
 import ReaderCoreProtocols
@@ -82,16 +84,15 @@ public enum HostRequestRouterError: Error, Equatable, LocalizedError {
 
 /// Host-side provider for Legado-compatible `source.getLoginHeaderMap`.
 ///
-/// The default implementation is `LoginHeaderStore` (UserDefaults-backed
-/// JSON map). Keeping this behind a provider lets tests inject stubs and
-/// lets a future Keychain-backed store plug in without changing the Core
-/// event routing.
+/// The production implementation is Keychain-backed. Keeping this behind a
+/// provider lets tests inject deterministic stubs without persisting secrets.
 public protocol SourceLoginHeaderMapProvider: Sendable {
     func loginHeaderMap(sourceId: String?, url: String?, host: String?) async throws -> [String: String]?
 }
 
 /// Empty provider retained for tests / explicit opt-out. Returns an empty
-/// map for every source. The production default is `LoginHeaderStore.shared`.
+/// map for every source. The production default is
+/// `KeychainSourceLoginHeaderStore.shared`.
 public struct EmptySourceLoginHeaderMapProvider: SourceLoginHeaderMapProvider {
     public init() {}
 
@@ -132,7 +133,7 @@ internal struct AntiBotChallengeRequiredError: Error {
 ///   byteLength, sha256?, fromCache, finalUrl?}`. Throws
 ///   `mediaDownloadExecutorNotConfigured` if no executor is wired.
 /// - `source.getLoginHeaderMap`: delegates to `SourceLoginHeaderMapProvider`
-///   (default `LoginHeaderStore`), returns `{headers, headerMap}`.
+///   (default `KeychainSourceLoginHeaderStore`), returns `{headers, headerMap}`.
 /// - `credential.get`: reads a Keychain item by `{service, account}`,
 ///   returns `{value, found}`.
 /// - `credential.set`: writes a Keychain item, returns `{stored: true}`.
@@ -153,6 +154,7 @@ public struct HostRequestRouter: Sendable {
     private let antiBotExecutor: AntiBotExecutor?
     private let mediaDownloadExecutor: MediaDownloadExecutor?
     private let sourceLoginHeaderMapProvider: any SourceLoginHeaderMapProvider
+    private let allowedCapabilities: Set<String>
 
     public init(
         httpClient: HTTPClient,
@@ -161,7 +163,8 @@ public struct HostRequestRouter: Sendable {
         webViewExecutor: WebViewExecutor? = nil,
         antiBotExecutor: AntiBotExecutor? = nil,
         mediaDownloadExecutor: MediaDownloadExecutor? = nil,
-        sourceLoginHeaderMapProvider: any SourceLoginHeaderMapProvider = LoginHeaderStore.shared
+        sourceLoginHeaderMapProvider: any SourceLoginHeaderMapProvider = KeychainSourceLoginHeaderStore.shared,
+        allowedCapabilities: Set<String> = Set(ReaderSlice11HostManifest.capabilities)
     ) {
         self.httpClient = httpClient
         self.runtime = runtime
@@ -170,6 +173,7 @@ public struct HostRequestRouter: Sendable {
         self.antiBotExecutor = antiBotExecutor
         self.mediaDownloadExecutor = mediaDownloadExecutor
         self.sourceLoginHeaderMapProvider = sourceLoginHeaderMapProvider
+        self.allowedCapabilities = allowedCapabilities
     }
 
     /// Handle a single `host.request` event for `http.execute` / `cookie.get` /
@@ -190,7 +194,12 @@ public struct HostRequestRouter: Sendable {
             throw HostRequestRouterError.unexpectedHostRequestType(event.type)
         }
         let capability = event.capability ?? ""
-        guard Self.supportedCapabilities.contains(capability) else {
+        // A handler being implemented is not sufficient authority to expose
+        // it to Core. The instance allowlist defaults to the exact platform
+        // manifest advertised during runtime boot, preventing private helper
+        // lanes from remaining reachable through a forged host.request.
+        guard Self.supportedCapabilities.contains(capability),
+              allowedCapabilities.contains(capability) else {
             throw HostRequestRouterError.unexpectedCapability(capability)
         }
         guard let operationId = event.operationId else {
@@ -340,32 +349,78 @@ public struct HostRequestRouter: Sendable {
         let headers = headersDict.reduce(into: [String: String]()) { acc, kv in
             if let s = kv.value as? String { acc[kv.key] = s }
         }
-        let bodyString = params["body"] as? String
-        let body = bodyString?.data(using: .utf8)
-
-        guard !url.isEmpty else {
-            throw HostRequestRouterError.hostHTTPFailed("http.execute url is empty")
+        guard let parsedURL = URL(string: url),
+              let scheme = parsedURL.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              parsedURL.host?.isEmpty == false else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute url must be absolute HTTP(S)")
+        }
+        let charset = (params["charset"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = try Self.encodeHTTPBody(params["body"], charset: charset)
+        let followsRedirects = params["followRedirects"] as? Bool
+        // Frozen Core schema permits zero to mean "do not follow redirects".
+        let maxRedirects: Int? = try Self.nonNegativeInteger(params["maxRedirects"], field: "maxRedirects")
+        let retry = try Self.parseRetryPolicy(params["retry"])
+        let usesCookieJar = (params["usePlatformCookieJar"] as? Bool) ?? false
+        let sessionObject = params["session"] as? [String: Any]
+        let sessionID = (sessionObject?["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if params["session"] != nil, sessionID?.isEmpty != false {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute session.id must be non-blank")
+        }
+        if sessionID != nil, cookieJar == nil {
+            throw HostRequestRouterError.cookieJarNotConfigured
         }
 
         let request = HTTPRequest(
             url: url,
             method: method,
             headers: headers,
-            body: body
+            body: body,
+            useCookieJar: usesCookieJar || sessionID != nil,
+            requiresCookieJar: sessionID != nil,
+            cookieScopeKey: sessionID.map(HostCookieSessionScope.key),
+            retryCount: max(0, retry.maximumAttempts - 1),
+            followRedirects: followsRedirects
         )
 
-        let response: HTTPResponse
-        if let transportRequestID,
-           !transportRequestID.isEmpty,
-           let requestScopedClient = httpClient as? any RequestScopedHTTPClient {
-            response = try await requestScopedClient.send(
-                request,
-                requestId: transportRequestID
-            )
-        } else {
-            response = try await httpClient.send(request)
+        var lastError: Error?
+        var response: HTTPResponse?
+        for attempt in 1...retry.maximumAttempts {
+            do {
+                if let configuredClient = httpClient as? any HostConfiguredHTTPClient {
+                    response = try await configuredClient.send(
+                        request,
+                        requestId: transportRequestID?.isEmpty == false ? transportRequestID : nil,
+                        maxRedirects: maxRedirects
+                    )
+                } else if maxRedirects != nil {
+                    throw HostRequestRouterError.hostHTTPFailed(
+                        "http.execute maxRedirects requires a HostConfiguredHTTPClient"
+                    )
+                } else if let transportRequestID,
+                          !transportRequestID.isEmpty,
+                          let requestScopedClient = httpClient as? any RequestScopedHTTPClient {
+                    response = try await requestScopedClient.send(request, requestId: transportRequestID)
+                } else {
+                    response = try await httpClient.send(request)
+                }
+                break
+            } catch {
+                lastError = error
+                guard attempt < retry.maximumAttempts else { break }
+                if retry.backoffMilliseconds > 0 {
+                    try await Task.sleep(
+                        nanoseconds: UInt64(retry.backoffMilliseconds) * 1_000_000
+                    )
+                }
+            }
         }
-        return Self.buildHTTPExecuteResult(response: response)
+        guard let response else { throw lastError ?? HostRequestRouterError.hostHTTPFailed("http.execute failed") }
+        return Self.buildHTTPExecuteResult(
+            response: response,
+            sessionID: sessionID,
+            preferredCharset: charset
+        )
     }
 
     /// Cancel the concrete URLSession task currently associated with a Core
@@ -387,10 +442,16 @@ public struct HostRequestRouter: Sendable {
     /// - `finalUrl` present when the host captured the post-redirect URL.
     /// - `cookies` present when the response carried a `Set-Cookie` header;
     ///   parsed best-effort (name=value from each Set-Cookie fragment).
-    internal static func buildHTTPExecuteResult(response: HTTPResponse) -> [String: Any] {
-        let bodyString = response.data.isEmpty
-            ? ""
-            : (String(data: response.data, encoding: .utf8) ?? "")
+    internal static func buildHTTPExecuteResult(
+        response: HTTPResponse,
+        sessionID: String? = nil,
+        preferredCharset: String? = nil
+    ) -> [String: Any] {
+        let bodyString = decodeHTTPBody(
+            response.data,
+            headers: response.headers,
+            preferredCharset: preferredCharset
+        )
 
         var result: [String: Any] = [
             "status": response.statusCode,
@@ -406,7 +467,125 @@ public struct HostRequestRouter: Sendable {
         if !cookies.isEmpty {
             result["cookies"] = cookies
         }
+        if let sessionID {
+            result["session"] = ["id": sessionID]
+        }
         return result
+    }
+
+    private struct RetryPolicy {
+        let maximumAttempts: Int
+        let backoffMilliseconds: Int
+    }
+
+    private static func parseRetryPolicy(_ raw: Any?) throws -> RetryPolicy {
+        guard let raw else { return RetryPolicy(maximumAttempts: 1, backoffMilliseconds: 0) }
+        guard let object = raw as? [String: Any],
+              let maximumAttempts = try positiveInteger(object["maxAttempts"], field: "retry.maxAttempts") else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute retry must contain maxAttempts")
+        }
+        let backoff = try nonNegativeInteger(object["backoffMillis"], field: "retry.backoffMillis") ?? 0
+        guard maximumAttempts <= 5, backoff <= 60_000 else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute retry exceeds iOS safety bounds")
+        }
+        return RetryPolicy(maximumAttempts: maximumAttempts, backoffMilliseconds: backoff)
+    }
+
+    private static func positiveInteger(_ raw: Any?, field: String) throws -> Int? {
+        guard let raw else { return nil }
+        guard let number = raw as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              !CFNumberIsFloatType(number),
+              let value = Int(number.stringValue),
+              value > 0 else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute \(field) must be a positive integer")
+        }
+        return value
+    }
+
+    private static func nonNegativeInteger(_ raw: Any?, field: String) throws -> Int? {
+        guard let raw else { return nil }
+        guard let number = raw as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              !CFNumberIsFloatType(number),
+              let value = Int(number.stringValue),
+              value >= 0 else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute \(field) must be a non-negative integer")
+        }
+        return value
+    }
+
+    private static func encodeHTTPBody(_ raw: Any?, charset: String?) throws -> Data? {
+        guard let raw, !(raw is NSNull) else { return nil }
+        let encoding = try stringEncoding(charset)
+        if let string = raw as? String {
+            guard let data = string.data(using: encoding) else {
+                throw HostRequestRouterError.hostHTTPFailed("http.execute body cannot be encoded with \(charset ?? "utf-8")")
+            }
+            return data
+        }
+        guard let object = raw as? [String: Any] else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute body must be a string or structured form")
+        }
+        if object["files"] != nil {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "http.execute multipart file bodies require a frozen sandbox file-grant contract"
+            )
+        }
+        guard let fields = object["fields"] as? [[Any]] else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute form body requires fields pairs")
+        }
+        var components = URLComponents()
+        components.queryItems = try fields.map { pair in
+            guard pair.count == 2,
+                  let name = pair[0] as? String,
+                  let value = pair[1] as? String else {
+                throw HostRequestRouterError.hostHTTPFailed("http.execute form fields must be [name, value] pairs")
+            }
+            return URLQueryItem(name: name, value: value)
+        }
+        let form = (components.percentEncodedQuery ?? "").replacingOccurrences(of: "%20", with: "+")
+        guard let data = form.data(using: encoding) else {
+            throw HostRequestRouterError.hostHTTPFailed("http.execute form cannot be encoded")
+        }
+        return data
+    }
+
+    private static func stringEncoding(_ charset: String?) throws -> String.Encoding {
+        switch charset?.lowercased().replacingOccurrences(of: "_", with: "-") {
+        case nil, "", "utf-8", "utf8": return .utf8
+        case "utf-16", "utf16": return .utf16
+        case "iso-8859-1", "latin1": return .isoLatin1
+        case "us-ascii", "ascii": return .ascii
+        default:
+            throw HostRequestRouterError.hostHTTPFailed(
+                "http.execute charset \(charset ?? "") is unsupported by the iOS adapter"
+            )
+        }
+    }
+
+    private static func decodeHTTPBody(
+        _ data: Data,
+        headers: [String: String],
+        preferredCharset: String?
+    ) -> String {
+        guard !data.isEmpty else { return "" }
+        let contentType = headers.first { $0.key.lowercased() == "content-type" }?.value
+        let headerCharset = contentType?
+            .components(separatedBy: ";")
+            .dropFirst()
+            .first(where: { $0.lowercased().contains("charset=") })?
+            .components(separatedBy: "=")
+            .last?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidates = [headerCharset, preferredCharset, "utf-8"].compactMap { $0 }
+        for candidate in candidates {
+            if let encoding = try? stringEncoding(candidate),
+               let value = String(data: data, encoding: encoding) {
+                return value
+            }
+        }
+        return ""
     }
 
     /// Parse `Set-Cookie` header(s) from a response's header dict into a list
@@ -649,7 +828,7 @@ public struct HostRequestRouter: Sendable {
         guard let path = params["path"] as? String, !path.isEmpty else {
             throw HostRequestRouterError.hostHTTPFailed("file.read requires non-empty `path`")
         }
-        let url = Self.resolveSandboxURL(path: path)
+        let url = try Self.resolveSandboxURL(path: path, access: .read)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw HostRequestRouterError.hostHTTPFailed("file.read: file not found at \(url.path)")
         }
@@ -693,7 +872,7 @@ public struct HostRequestRouter: Sendable {
         guard let path = params["path"] as? String, !path.isEmpty else {
             throw HostRequestRouterError.hostHTTPFailed("file.write requires non-empty `path`")
         }
-        let url = Self.resolveSandboxURL(path: path)
+        let url = try Self.resolveSandboxURL(path: path, access: .write)
         let createDirs = (params["createDirectories"] as? Bool) ?? false
         if createDirs {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
@@ -771,29 +950,124 @@ public struct HostRequestRouter: Sendable {
 
     // MARK: - Sandbox path resolution
 
-    /// Resolve a path to a sandbox-safe URL. Supports `documents:` /
-    /// `cache:` / `temp:` prefixes; bare paths are resolved relative to
-    /// the documents directory. Absolute paths outside the app container
-    /// are rejected (fail-closed).
-    private static func resolveSandboxURL(path: String) -> URL {
-        let fm = FileManager.default
+    internal enum SandboxFileAccess: Equatable {
+        case read
+        case write
+    }
+
+    internal struct SandboxRoots {
+        let documents: URL
+        let caches: URL
+        let applicationSupport: URL
+        let temporary: URL
+
+        static var live: SandboxRoots {
+            let fm = FileManager.default
+            return SandboxRoots(
+                documents: fm.urls(for: .documentDirectory, in: .userDomainMask)[0],
+                caches: fm.urls(for: .cachesDirectory, in: .userDomainMask)[0],
+                applicationSupport: fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0],
+                temporary: fm.temporaryDirectory
+            )
+        }
+    }
+
+    /// Resolve a Core file path within one frozen sandbox root. The scheme
+    /// slash in paths such as `temp:/chapter.txt` is root-relative; a bare
+    /// leading slash, `..`, or a symlink that resolves outside its selected
+    /// root is rejected. The same resolver is used before both reads and
+    /// writes so neither operation can escape through an existing ancestor.
+    internal static func resolveSandboxURL(
+        path: String,
+        access: SandboxFileAccess,
+        roots: SandboxRoots = .live,
+        fileManager fm: FileManager = .default
+    ) throws -> URL {
+        let selected: (root: URL, relative: String)
         if path.hasPrefix("documents:") {
-            let relative = String(path.dropFirst("documents:".count))
-            return fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(relative)
+            selected = (roots.documents, String(path.dropFirst("documents:".count)))
+        } else if path.hasPrefix("caches:") {
+            selected = (roots.caches, String(path.dropFirst("caches:".count)))
+        } else if path.hasPrefix("cache:") {
+            // Retain the historical spelling as an alias while emitting the
+            // same canonical caches-root URL as the frozen `caches:` prefix.
+            selected = (roots.caches, String(path.dropFirst("cache:".count)))
+        } else if path.hasPrefix("applicationSupport:") {
+            selected = (
+                roots.applicationSupport,
+                String(path.dropFirst("applicationSupport:".count))
+            )
+        } else if path.hasPrefix("temp:") {
+            selected = (roots.temporary, String(path.dropFirst("temp:".count)))
+        } else {
+            guard !(path as NSString).isAbsolutePath else {
+                throw sandboxPathError(path: path, access: access, reason: "absolute paths are not allowed")
+            }
+            selected = (roots.documents, path)
         }
-        if path.hasPrefix("cache:") {
-            let relative = String(path.dropFirst("cache:".count))
-            return fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(relative)
+
+        var relative = selected.relative
+        if relative.hasPrefix("//") {
+            throw sandboxPathError(path: path, access: access, reason: "absolute root escape is not allowed")
         }
-        if path.hasPrefix("temp:") {
-            let relative = String(path.dropFirst("temp:".count))
-            return fm.temporaryDirectory.appendingPathComponent(relative)
+        if relative.hasPrefix("/") {
+            relative.removeFirst()
         }
-        // Bare path: resolve relative to documents directory.
-        return fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(path)
+        let components = relative
+            .components(separatedBy: "/")
+            .filter { !$0.isEmpty && $0 != "." }
+        guard !components.isEmpty else {
+            throw sandboxPathError(path: path, access: access, reason: "path must identify a file below its root")
+        }
+        guard !components.contains("..") else {
+            throw sandboxPathError(path: path, access: access, reason: "parent traversal is not allowed")
+        }
+
+        let root = selected.root.standardizedFileURL.resolvingSymlinksInPath().standardizedFileURL
+        var resolved = root
+        for component in components {
+            let candidate = resolved.appendingPathComponent(component).standardizedFileURL
+            try requireDescendant(candidate, of: root, path: path, access: access)
+
+            if let destination = try? fm.destinationOfSymbolicLink(atPath: candidate.path) {
+                let destinationURL: URL
+                if (destination as NSString).isAbsolutePath {
+                    destinationURL = URL(fileURLWithPath: destination)
+                } else {
+                    destinationURL = candidate.deletingLastPathComponent()
+                        .appendingPathComponent(destination)
+                }
+                resolved = destinationURL.standardizedFileURL
+                    .resolvingSymlinksInPath()
+                    .standardizedFileURL
+                try requireDescendant(resolved, of: root, path: path, access: access)
+            } else {
+                resolved = candidate
+            }
+        }
+        return resolved
+    }
+
+    private static func requireDescendant(
+        _ candidate: URL,
+        of root: URL,
+        path: String,
+        access: SandboxFileAccess
+    ) throws {
+        let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard candidate.path.hasPrefix(rootPath) else {
+            throw sandboxPathError(path: path, access: access, reason: "resolved path leaves its sandbox root")
+        }
+    }
+
+    private static func sandboxPathError(
+        path: String,
+        access: SandboxFileAccess,
+        reason: String
+    ) -> HostRequestRouterError {
+        HostRequestRouterError.hostHTTPFailed(
+            "file.\(access == .read ? "read" : "write") rejected sandbox path `\(path)`: \(reason)"
+        )
     }
 }
 
@@ -804,13 +1078,22 @@ public struct HostRequestRouter: Sendable {
 final class HostCacheStore: @unchecked Sendable {
     static let shared = HostCacheStore()
 
+    private struct CacheKey: Hashable {
+        let namespace: String
+        let key: String
+    }
+
+    private enum Payload {
+        case value(String)
+        case valueBase64(String)
+    }
+
     private struct Entry {
-        let value: String
-        let valueBase64: String?
+        let payload: Payload
         let expiresAt: Date?
     }
 
-    private var entries: [String: Entry] = [:]
+    private var entries: [CacheKey: Entry] = [:]
     private let lock = NSLock()
 
     func get(params: [String: Any]) throws -> [String: Any] {
@@ -818,7 +1101,7 @@ final class HostCacheStore: @unchecked Sendable {
               let key = params["key"] as? String, !key.isEmpty else {
             throw HostRequestRouterError.hostHTTPFailed("cache.get requires `namespace` and `key`")
         }
-        let compositeKey = "\(ns):\(key)"
+        let compositeKey = CacheKey(namespace: ns, key: key)
         lock.lock()
         defer { lock.unlock() }
         guard let entry = entries[compositeKey] else {
@@ -828,9 +1111,12 @@ final class HostCacheStore: @unchecked Sendable {
             entries.removeValue(forKey: compositeKey)
             return ["hit": false]
         }
-        var result: [String: Any] = ["hit": true, "value": entry.value]
-        if let b64 = entry.valueBase64 {
-            result["valueBase64"] = b64
+        var result: [String: Any] = ["hit": true]
+        switch entry.payload {
+        case .value(let value):
+            result["value"] = value
+        case .valueBase64(let valueBase64):
+            result["valueBase64"] = valueBase64
         }
         if let expiresAt = entry.expiresAt {
             let formatter = ISO8601DateFormatter()
@@ -846,17 +1132,26 @@ final class HostCacheStore: @unchecked Sendable {
         }
         let value = params["value"] as? String
         let valueBase64 = params["valueBase64"] as? String
-        guard value != nil || valueBase64 != nil else {
-            throw HostRequestRouterError.hostHTTPFailed("cache.put requires `value` or `valueBase64`")
+        guard (value != nil) != (valueBase64 != nil) else {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "cache.put requires exactly one of `value` or `valueBase64`"
+            )
+        }
+        let payload: Payload
+        if let value {
+            payload = .value(value)
+        } else if let valueBase64 {
+            payload = .valueBase64(valueBase64)
+        } else {
+            throw HostRequestRouterError.hostHTTPFailed("cache.put payload is missing")
         }
         let ttlMillis = params["ttlMillis"] as? UInt64
         let expiresAt: Date? = ttlMillis.map { Date().addingTimeInterval(Double($0) / 1000.0) }
-        let compositeKey = "\(ns):\(key)"
+        let compositeKey = CacheKey(namespace: ns, key: key)
         lock.lock()
         defer { lock.unlock() }
         entries[compositeKey] = Entry(
-            value: value ?? "",
-            valueBase64: valueBase64,
+            payload: payload,
             expiresAt: expiresAt
         )
         var result: [String: Any] = ["stored": true]
@@ -876,15 +1171,58 @@ final class HostCacheStore: @unchecked Sendable {
 final class HostPersistenceStore: @unchecked Sendable {
     static let shared = HostPersistenceStore()
 
-    private let defaults = UserDefaults.standard
+    private enum Payload {
+        case value(String)
+        case valueBase64(String)
+
+        var record: [String: String] {
+            switch self {
+            case .value(let value):
+                return ["kind": "value", "payload": value]
+            case .valueBase64(let valueBase64):
+                return ["kind": "valueBase64", "payload": valueBase64]
+            }
+        }
+
+        init(record: [String: Any]) throws {
+            guard let kind = record["kind"] as? String,
+                  let payload = record["payload"] as? String else {
+                throw HostRequestRouterError.hostHTTPFailed("persistence.get stored payload is corrupt")
+            }
+            switch kind {
+            case "value": self = .value(payload)
+            case "valueBase64": self = .valueBase64(payload)
+            default:
+                throw HostRequestRouterError.hostHTTPFailed("persistence.get stored payload kind is corrupt")
+            }
+        }
+    }
+
+    private let defaults: UserDefaults
     private let lock = NSLock()
 
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
     private func storageKey(namespace: String, key: String) -> String {
-        "host.persistence.\(namespace).\(key)"
+        "host.persistence.v2.value.\(Self.encodedTuple(namespace: namespace, key: key))"
     }
 
     private func revisionKey(namespace: String, key: String) -> String {
-        "host.persistence.\(namespace).\(key).revision"
+        "host.persistence.v2.revision.\(Self.encodedTuple(namespace: namespace, key: key))"
+    }
+
+    private static func encodedTuple(namespace: String, key: String) -> String {
+        // Length-prefix the UTF-8 tuple before base64url encoding. This keeps
+        // opaque namespaces/keys out of UserDefaults keys and makes pairs such
+        // as ("a.b", "c") and ("a", "b.c") provably distinct.
+        let tuple = "\(namespace.utf8.count):\(namespace)\(key.utf8.count):\(key)"
+        return Data(tuple.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 
     func get(params: [String: Any]) throws -> [String: Any] {
@@ -896,9 +1234,17 @@ final class HostPersistenceStore: @unchecked Sendable {
         let rKey = revisionKey(namespace: ns, key: key)
         lock.lock()
         defer { lock.unlock() }
-        if let value = defaults.string(forKey: sKey) {
+        if let record = defaults.dictionary(forKey: sKey) {
+            let payload = try Payload(record: record)
             let revision = defaults.string(forKey: rKey) ?? "0"
-            return ["found": true, "value": value, "revision": revision]
+            var result: [String: Any] = ["found": true, "revision": revision]
+            switch payload {
+            case .value(let value):
+                result["value"] = value
+            case .valueBase64(let valueBase64):
+                result["valueBase64"] = valueBase64
+            }
+            return result
         }
         return ["found": false]
     }
@@ -910,8 +1256,18 @@ final class HostPersistenceStore: @unchecked Sendable {
         }
         let value = params["value"] as? String
         let valueBase64 = params["valueBase64"] as? String
-        guard value != nil || valueBase64 != nil else {
-            throw HostRequestRouterError.hostHTTPFailed("persistence.put requires `value` or `valueBase64`")
+        guard (value != nil) != (valueBase64 != nil) else {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "persistence.put requires exactly one of `value` or `valueBase64`"
+            )
+        }
+        let payload: Payload
+        if let value {
+            payload = .value(value)
+        } else if let valueBase64 {
+            payload = .valueBase64(valueBase64)
+        } else {
+            throw HostRequestRouterError.hostHTTPFailed("persistence.put payload is missing")
         }
         let sKey = storageKey(namespace: ns, key: key)
         let rKey = revisionKey(namespace: ns, key: key)
@@ -939,7 +1295,7 @@ final class HostPersistenceStore: @unchecked Sendable {
         // Store the value and its revision while holding the same lock used by
         // get(). This makes the process-local CAS linearizable: a reader can
         // never observe a new value paired with the previous revision.
-        defaults.set(value ?? valueBase64, forKey: sKey)
+        defaults.set(payload.record, forKey: sKey)
         defaults.set(newRevision, forKey: rKey)
         return ["stored": true, "revision": newRevision]
     }
@@ -1019,6 +1375,113 @@ private enum SwiftCompilerVersion {
     }
 }
 
+// MARK: - Source login header Keychain store
+
+/// Keychain-backed source login-header store. Header maps may contain Cookie
+/// or Authorization values, so production never writes them to UserDefaults or
+/// Core source JSON. The source/url/host identity is SHA-256-addressed inside a
+/// fixed app service namespace to avoid granting arbitrary Keychain service
+/// access to Core-provided strings.
+public final class KeychainSourceLoginHeaderStore: SourceLoginHeaderMapProvider, @unchecked Sendable {
+    public static let shared = KeychainSourceLoginHeaderStore()
+
+    private static let service = "com.reader.ios.source-login-headers"
+
+    public init() {}
+
+    public func loginHeaderMap(
+        sourceId: String?,
+        url: String?,
+        host: String?
+    ) async throws -> [String: String]? {
+        guard let account = Self.account(sourceId: sourceId, url: url, host: host) else { return [:] }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: account,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true,
+        ]
+        var item: AnyObject?
+        switch SecItemCopyMatching(query as CFDictionary, &item) {
+        case errSecSuccess:
+            guard let data = item as? Data else {
+                throw HostRequestRouterError.hostHTTPFailed("source login headers are not Data")
+            }
+            return try JSONDecoder().decode([String: String].self, from: data)
+        case errSecItemNotFound:
+            return [:]
+        case let status:
+            throw HostRequestRouterError.hostHTTPFailed(
+                "source login header Keychain read failed with status \(status)"
+            )
+        }
+    }
+
+    public func set(
+        _ headers: [String: String],
+        sourceId: String?,
+        url: String?,
+        host: String?
+    ) throws {
+        guard let account = Self.account(sourceId: sourceId, url: url, host: host) else {
+            throw HostRequestRouterError.hostHTTPFailed("source login headers require sourceId, url, or host")
+        }
+        let data = try JSONEncoder().encode(headers)
+        let identity: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: account,
+        ]
+        let protectedValue: [String: Any] = [
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            kSecValueData as String: data,
+        ]
+        let updateStatus = SecItemUpdate(identity as CFDictionary, protectedValue as CFDictionary)
+        if updateStatus == errSecSuccess { return }
+        guard updateStatus == errSecItemNotFound else {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "source login header Keychain update failed with status \(updateStatus)"
+            )
+        }
+        var item = identity
+        protectedValue.forEach { item[$0.key] = $0.value }
+        let status = SecItemAdd(item as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "source login header Keychain write failed with status \(status)"
+            )
+        }
+    }
+
+    public func clear(sourceId: String?, url: String?, host: String?) throws {
+        guard let account = Self.account(sourceId: sourceId, url: url, host: host) else {
+            throw HostRequestRouterError.hostHTTPFailed("source login header clear requires sourceId, url, or host")
+        }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: account,
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "source login header Keychain delete failed with status \(status)"
+            )
+        }
+    }
+
+    private static func account(sourceId: String?, url: String?, host: String?) -> String? {
+        let identity = [sourceId, url, host]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+        guard let identity else { return nil }
+        return SHA256.hash(data: Data(identity.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+}
+
 // MARK: - HostCredentialStore
 
 /// Keychain-backed credential store for Core-initiated `credential.get` /
@@ -1053,6 +1516,7 @@ final class HostCredentialStore: @unchecked Sendable {
     static let shared = HostCredentialStore()
 
     private static let defaultResolveService = "com.reader.ios.credentials"
+    private static let canonicalService = "com.reader.ios.core-credentials"
 
     func get(params: [String: Any]) throws -> [String: Any] {
         guard let service = params["service"] as? String, !service.isEmpty else {
@@ -1063,8 +1527,8 @@ final class HostCredentialStore: @unchecked Sendable {
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: Self.canonicalService,
+            kSecAttrAccount as String: Self.scopedAccount(service: service, account: account),
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
@@ -1094,27 +1558,32 @@ final class HostCredentialStore: @unchecked Sendable {
         guard let value = params["value"] as? String else {
             throw HostRequestRouterError.hostHTTPFailed("credential.set requires `value` string")
         }
-        let accessibleString = (params["accessible"] as? String) ?? "whenUnlocked"
+        let accessibleString = (params["accessible"] as? String) ?? "whenUnlockedThisDeviceOnly"
         guard let accessible = Self.accessibleAttr(for: accessibleString) else {
-            throw HostRequestRouterError.hostHTTPFailed("credential.set `accessible` not recognized: \(accessibleString)")
+            throw HostRequestRouterError.hostHTTPFailed(
+                "credential.set `accessible` must be a ThisDeviceOnly protection class: \(accessibleString)"
+            )
         }
         let data = Data(value.utf8)
 
-        // Delete any existing item first (SecItemAdd fails on duplicate).
-        let deleteQuery: [String: Any] = [
+        let identity: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: Self.canonicalService,
+            kSecAttrAccount as String: Self.scopedAccount(service: service, account: account),
         ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+        let protectedValue: [String: Any] = [
             kSecAttrAccessible as String: accessible,
             kSecValueData as String: data,
         ]
+        let updateStatus = SecItemUpdate(identity as CFDictionary, protectedValue as CFDictionary)
+        if updateStatus == errSecSuccess { return ["stored": true] }
+        guard updateStatus == errSecItemNotFound else {
+            throw HostRequestRouterError.hostHTTPFailed(
+                "credential.set SecItemUpdate status \(updateStatus)"
+            )
+        }
+        var addQuery = identity
+        protectedValue.forEach { addQuery[$0.key] = $0.value }
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
             throw HostRequestRouterError.hostHTTPFailed("credential.set SecItemAdd status \(status)")
@@ -1131,8 +1600,8 @@ final class HostCredentialStore: @unchecked Sendable {
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: Self.canonicalService,
+            kSecAttrAccount as String: Self.scopedAccount(service: service, account: account),
         ]
         let status = SecItemDelete(query as CFDictionary)
         switch status {
@@ -1167,13 +1636,18 @@ final class HostCredentialStore: @unchecked Sendable {
 
     private static func accessibleAttr(for value: String) -> CFString? {
         switch value {
-        case "whenUnlocked": return kSecAttrAccessibleWhenUnlocked
         case "whenUnlockedThisDeviceOnly": return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        case "afterFirstUnlock": return kSecAttrAccessibleAfterFirstUnlock
         case "afterFirstUnlockThisDeviceOnly": return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         case "whenPasscodeSetThisDeviceOnly": return kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly
         default: return nil
         }
+    }
+
+    private static func scopedAccount(service: String, account: String) -> String {
+        let value = service + "\u{0}" + account
+        return SHA256.hash(data: Data(value.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     /// Derive the Keychain service for `credential.resolve` from the params:
@@ -1195,67 +1669,27 @@ final class HostCredentialStore: @unchecked Sendable {
 
 // MARK: - LoginHeaderStore
 
-/// UserDefaults-backed per-source login header store.
-///
-/// Implements `SourceLoginHeaderMapProvider` so the router's
-/// `source.getLoginHeaderMap` lane returns real stored headers instead of
-/// an empty map. Headers are stored as JSON-encoded `[String: String]`
-/// under a UserDefaults key derived from `sourceId` → `url` → `host`.
-///
-/// Storage format:
-/// - key: `host.loginHeaderMap.<sourceKey>` (sourceKey = sourceId ?? url ?? host)
-/// - value: JSON-encoded `[String: String]`
-///
-/// Thread-safe via `NSLock`. Write/clear methods are exposed so the app
-/// (or a future `credential.set` / login flow) can populate the store; the
-/// `SourceLoginHeaderMapProvider` conformance only exposes the read path.
+/// Source-compatible legacy name retained for callers compiled against the old
+/// API. Storage now delegates to Keychain; no new header map is written to
+/// UserDefaults.
 public final class LoginHeaderStore: SourceLoginHeaderMapProvider, @unchecked Sendable {
     public static let shared = LoginHeaderStore()
 
-    private let defaults = UserDefaults.standard
-    private let lock = NSLock()
-    private let keyPrefix = "host.loginHeaderMap."
+    private let keychain: KeychainSourceLoginHeaderStore
 
-    public init() {}
+    public init(keychain: KeychainSourceLoginHeaderStore = .shared) {
+        self.keychain = keychain
+    }
 
     public func loginHeaderMap(sourceId: String?, url: String?, host: String?) async throws -> [String: String]? {
-        let storageKey = resolveStorageKey(sourceId: sourceId, url: url, host: host)
-        guard !storageKey.isEmpty else { return [:] }
-        guard let data = defaults.data(forKey: keyPrefix + storageKey) else { return [:] }
-        do {
-            return try JSONDecoder().decode([String: String].self, from: data)
-        } catch {
-            return [:]
-        }
+        try await keychain.loginHeaderMap(sourceId: sourceId, url: url, host: host)
     }
 
-    /// Store a login header map for the given source key.
     public func set(_ headers: [String: String], sourceId: String?, url: String?, host: String?) throws {
-        let storageKey = resolveStorageKey(sourceId: sourceId, url: url, host: host)
-        guard !storageKey.isEmpty else {
-            throw HostRequestRouterError.hostHTTPFailed("login header store requires sourceId or url or host")
-        }
-        let data = try JSONEncoder().encode(headers)
-        lock.lock()
-        defer { lock.unlock() }
-        defaults.set(data, forKey: keyPrefix + storageKey)
+        try keychain.set(headers, sourceId: sourceId, url: url, host: host)
     }
 
-    /// Clear the login header map for the given source key.
     public func clear(sourceId: String?, url: String?, host: String?) throws {
-        let storageKey = resolveStorageKey(sourceId: sourceId, url: url, host: host)
-        guard !storageKey.isEmpty else {
-            throw HostRequestRouterError.hostHTTPFailed("login header clear requires sourceId or url or host")
-        }
-        lock.lock()
-        defer { lock.unlock() }
-        defaults.removeObject(forKey: keyPrefix + storageKey)
-    }
-
-    private func resolveStorageKey(sourceId: String?, url: String?, host: String?) -> String {
-        if let sourceId = sourceId, !sourceId.isEmpty { return sourceId }
-        if let url = url, !url.isEmpty { return url }
-        if let host = host, !host.isEmpty { return host }
-        return ""
+        try keychain.clear(sourceId: sourceId, url: url, host: host)
     }
 }

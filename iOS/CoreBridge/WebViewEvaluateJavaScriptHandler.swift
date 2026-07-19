@@ -25,6 +25,7 @@
 // structure so iOS reaches the same handler/router proof level as the other
 // two platforms.
 
+import CoreFoundation
 import Foundation
 
 /// Errors thrown by the WebView evaluate-JavaScript lane.
@@ -123,6 +124,191 @@ public struct WebViewEvaluationResult: @unchecked Sendable, Equatable {
 /// boundary, red line 4).
 public protocol WebViewExecutor: Sendable {
     func evaluate(request: WebViewEvaluationRequest) async throws -> WebViewEvaluationResult
+}
+
+/// Pure policy admission shared by the WK executor and macOS source tests.
+/// Navigation callbacks still re-run the host check for redirects.
+enum WebViewEvaluationPolicyAdmission {
+    static func validate(
+        request: WebViewEvaluationRequest,
+        policy: WebViewSecurityPolicy
+    ) throws {
+        guard policy.enableWebViewRuntime else {
+            throw WebViewExecutorError.invalidParams("webview runtime is disabled by security policy")
+        }
+        guard policy.allowJavaScriptExecution else {
+            throw WebViewExecutorError.invalidParams("JavaScript execution is disabled by security policy")
+        }
+        guard policy.timeoutSeconds > 0, policy.timeoutSeconds.isFinite else {
+            throw WebViewExecutorError.invalidParams("security policy timeout must be positive and finite")
+        }
+        if let timeoutMillis = request.timeoutMillis, timeoutMillis == 0 {
+            throw WebViewExecutorError.invalidParams("timeoutMillis must be positive")
+        }
+
+        switch request.document.kind {
+        case .url:
+            guard policy.allowNetworkNavigation, !policy.allowLocalSnapshotOnly else {
+                throw WebViewExecutorError.invalidParams("network navigation is disabled by security policy")
+            }
+            _ = try admittedRemoteURL(
+                request.document.url,
+                field: "webview url",
+                policy: policy
+            )
+        case .html:
+            if let baseURL = request.document.baseUrl {
+                guard policy.allowNetworkNavigation, !policy.allowLocalSnapshotOnly else {
+                    throw WebViewExecutorError.invalidParams(
+                        "remote HTML baseUrl is disabled by security policy"
+                    )
+                }
+                _ = try admittedRemoteURL(baseURL, field: "webview baseUrl", policy: policy)
+            }
+        }
+    }
+
+    static func effectiveTimeoutSeconds(
+        request: WebViewEvaluationRequest,
+        policy: WebViewSecurityPolicy
+    ) -> TimeInterval {
+        let requested = request.timeoutMillis.map { Double($0) / 1_000.0 }
+            ?? policy.timeoutSeconds
+        return min(requested, policy.timeoutSeconds)
+    }
+
+    static func admitsNavigation(_ url: URL, policy: WebViewSecurityPolicy) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        if ["about", "data", "blob"].contains(scheme) {
+            return true
+        }
+        guard scheme == "http" || scheme == "https",
+              policy.allowNetworkNavigation,
+              !policy.allowLocalSnapshotOnly,
+              let host = url.host,
+              url.user == nil,
+              url.password == nil else {
+            return false
+        }
+        return policy.allowsHost(host)
+    }
+
+    private static func admittedRemoteURL(
+        _ raw: String?,
+        field: String,
+        policy: WebViewSecurityPolicy
+    ) throws -> URL {
+        guard let raw,
+              let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              let host = url.host,
+              !host.isEmpty,
+              url.user == nil,
+              url.password == nil else {
+            throw WebViewExecutorError.invalidParams("\(field) must be absolute HTTP(S)")
+        }
+        guard policy.allowsHost(host) else {
+            throw WebViewExecutorError.invalidParams(
+                "webview url host '\(host)' not allowed by security policy"
+            )
+        }
+        return url
+    }
+
+    /// Builds a WebKit content-blocker rule list for the entire HTTP(S)
+    /// resource graph of a page. `WKNavigationDelegate` only observes
+    /// navigations; it does not reliably see fetch/XHR, images, scripts,
+    /// stylesheets, fonts, media, or every other subresource. The rule list is
+    /// therefore default-deny and uses URL-anchored
+    /// `ignore-previous-rules` entries only for the exact resource hosts
+    /// admitted by `WebViewSecurityPolicy`. `if-domain` is intentionally not
+    /// used: WebKit evaluates it against the document domain, not the current
+    /// subresource URL, so it cannot implement this boundary safely.
+    ///
+    /// `nil` means the policy explicitly has no host restriction and network
+    /// navigation is enabled. A network-disabled/local-snapshot policy still
+    /// returns a block-all list so inline JavaScript cannot escape the local
+    /// document by adding a resource after load.
+    static func encodedSubresourceRuleList(
+        policy: WebViewSecurityPolicy
+    ) throws -> String? {
+        guard policy.allowNetworkNavigation,
+              !policy.allowLocalSnapshotOnly else {
+            return try encodeContentRules(blockAllHTTP: true, allowedHosts: [])
+        }
+
+        let allowedHosts = policy.allowedHosts.sorted()
+        guard !allowedHosts.isEmpty else {
+            return nil
+        }
+        for host in allowedHosts {
+            guard isValidContentRuleHost(host) else {
+                throw WebViewExecutorError.invalidParams(
+                    "webview allowed host '\(host)' cannot be represented safely in WebKit content rules"
+                )
+            }
+        }
+        return try encodeContentRules(blockAllHTTP: true, allowedHosts: allowedHosts)
+    }
+
+    private static func encodeContentRules(
+        blockAllHTTP: Bool,
+        allowedHosts: [String]
+    ) throws -> String {
+        var rules: [[String: Any]] = []
+        if blockAllHTTP {
+            rules.append([
+                "trigger": ["url-filter": "^https?://"],
+                "action": ["type": "block"],
+            ])
+        }
+        if !allowedHosts.isEmpty {
+            for host in allowedHosts {
+                rules.append([
+                    "trigger": [
+                        "url-filter": allowedResourceURLFilter(host: host),
+                    ],
+                    "action": ["type": "ignore-previous-rules"],
+                ])
+            }
+        }
+
+        do {
+            let data = try JSONSerialization.data(withJSONObject: rules, options: [.sortedKeys])
+            guard let encoded = String(data: data, encoding: .utf8) else {
+                throw WebViewExecutorError.executionFailed(
+                    "failed to encode WebKit subresource security rules"
+                )
+            }
+            return encoded
+        } catch let error as WebViewExecutorError {
+            throw error
+        } catch {
+            throw WebViewExecutorError.executionFailed(
+                "failed to encode WebKit subresource security rules: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private static func isValidContentRuleHost(_ host: String) -> Bool {
+        guard !host.isEmpty,
+              host == host.trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.contains("/"),
+              !host.contains("@"),
+              !host.contains(":"),
+              !host.contains("*") else {
+            return false
+        }
+        return URL(string: "https://\(host)/")?.host == host
+    }
+
+    private static func allowedResourceURLFilter(host: String) -> String {
+        let escapedHost = NSRegularExpression.escapedPattern(for: host)
+        // Requiring an authority delimiter prevents user-info and
+        // prefix/suffix lookalike hosts from matching this exception.
+        return "^https?://\(escapedHost)[/:?#]"
+    }
 }
 
 /// `webview.evaluateJavaScript` capability handler: parses the Core request,
@@ -238,44 +424,27 @@ public struct WebViewEvaluateJavaScriptHandler: Sendable {
 
     private func parseTimeoutMillis(_ params: [String: Any]) throws -> UInt64? {
         guard let raw = params["timeoutMillis"] else { return nil }
-        if let n = raw as? NSNumber {
-            let value = n.uint64Value
-            guard value > 0 else {
-                throw WebViewExecutorError.invalidParams(
-                    "webview.evaluateJavaScript timeoutMillis must be greater than 0"
-                )
-            }
-            return value
+        guard let number = raw as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              !CFNumberIsFloatType(number),
+              let value = UInt64(number.stringValue),
+              value > 0 else {
+            throw WebViewExecutorError.invalidParams(
+                "webview.evaluateJavaScript timeoutMillis must be a positive integer"
+            )
         }
-        if let n = raw as? Int {
-            guard n > 0 else {
-                throw WebViewExecutorError.invalidParams(
-                    "webview.evaluateJavaScript timeoutMillis must be greater than 0"
-                )
-            }
-            return UInt64(n)
-        }
-        if let n = raw as? UInt64 {
-            guard n > 0 else {
-                throw WebViewExecutorError.invalidParams(
-                    "webview.evaluateJavaScript timeoutMillis must be greater than 0"
-                )
-            }
-            return n
-        }
-        throw WebViewExecutorError.invalidParams(
-            "webview.evaluateJavaScript timeoutMillis must be a positive integer"
-        )
+        return value
     }
 
     private func parseProfileId(_ params: [String: Any]) throws -> String? {
         guard let raw = params["profileId"] as? String else { return nil }
-        guard !raw.isEmpty else {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalized.utf8.count <= 128 else {
             throw WebViewExecutorError.invalidParams(
-                "webview.evaluateJavaScript profileId must be non-blank"
+                "webview.evaluateJavaScript profileId must be non-blank and at most 128 bytes"
             )
         }
-        return raw
+        return normalized
     }
 }
 

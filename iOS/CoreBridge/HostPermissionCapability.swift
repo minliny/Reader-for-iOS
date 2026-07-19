@@ -5,8 +5,8 @@
 // Bridges the contract `HostRequest` to iOS permission APIs:
 // - `notification`: `UNUserNotificationCenter.requestAuthorization`
 // - `camera`/`microphone`: `AVCaptureDevice.requestAccess`
-// - `location`: `CLLocationManager.requestWhenInUseAuthorization` (returns
-//   status only — the actual auth prompt is async)
+// - `location`: check is supported; request fails closed until the app owns a
+//   retained `CLLocationManager` and its delegate lifecycle.
 //
 // Tier: simulatorProof — the permission dialog appears on the sim but some
 // flows (e.g. camera) require hardware. The handler exercises the API; full
@@ -14,11 +14,11 @@
 //
 // Payload contract:
 // - `.permission_request`:
-//   `{ type: "notification"|"camera"|"microphone"|"location" }`
+//   `{ scope: "storage"|"notification"|"camera"|"microphone"|"location" }`
 //   → `{ granted: Bool, status: String }`
 // - `.permission_check`:
-//   `{ type: "notification"|"camera"|"microphone"|"location" }`
-//   → `{ status: String }`
+//   `{ scope: "storage"|"notification"|"camera"|"microphone"|"location" }`
+//   → `{ granted: Bool, status: String }`
 //
 // Status values: "notDetermined", "restricted", "denied", "authorized",
 // "provisional" (notification only), "ephemeral" (notification only).
@@ -56,7 +56,10 @@ public struct HostPermissionCapability: HostCapabilityHandler {
         }
         if type == "storage" {
             // iOS app-container file access has no runtime permission prompt.
-            return .success(["granted": AnyCodable(true)])
+            return .success([
+                "granted": AnyCodable(true),
+                "status": AnyCodable("authorized"),
+            ])
         }
         #if canImport(UIKit)
         switch type {
@@ -84,19 +87,33 @@ public struct HostPermissionCapability: HostCapabilityHandler {
             return .failure(.invalidParams("permission.check requires `scope` string"))
         }
         if type == "storage" {
-            return .success(["granted": AnyCodable(true)])
+            return .success([
+                "granted": AnyCodable(true),
+                "status": AnyCodable("authorized"),
+            ])
         }
         #if canImport(UIKit)
         switch type {
         case "notification":
             return try await checkNotification()
         case "camera":
-            return .success(["granted": AnyCodable(AVCaptureDevice.authorizationStatus(for: .video) == .authorized)])
+            let status = AVCaptureDevice.authorizationStatus(for: .video)
+            return .success([
+                "granted": AnyCodable(status == .authorized),
+                "status": AnyCodable(Self.avStatusString(status)),
+            ])
         case "microphone":
-            return .success(["granted": AnyCodable(AVCaptureDevice.authorizationStatus(for: .audio) == .authorized)])
+            let status = AVCaptureDevice.authorizationStatus(for: .audio)
+            return .success([
+                "granted": AnyCodable(status == .authorized),
+                "status": AnyCodable(Self.avStatusString(status)),
+            ])
         case "location":
             let status = CLLocationManager.authorizationStatus()
-            return .success(["granted": AnyCodable(status == .authorizedAlways || status == .authorizedWhenInUse)])
+            return .success([
+                "granted": AnyCodable(status == .authorizedAlways || status == .authorizedWhenInUse),
+                "status": AnyCodable(Self.locationStatusString(status)),
+            ])
         default:
             return .failure(.invalidParams("permission.check unknown type: \(type)"))
         }
@@ -137,7 +154,10 @@ public struct HostPermissionCapability: HostCapabilityHandler {
         case .authorized, .provisional, .ephemeral: granted = true
         default: granted = false
         }
-        return .success(["granted": AnyCodable(granted)])
+        return .success([
+            "granted": AnyCodable(granted),
+            "status": AnyCodable(Self.unStatusString(settings.authorizationStatus)),
+        ])
     }
 
     private static func unStatusString(_ status: UNAuthorizationStatus) -> String {

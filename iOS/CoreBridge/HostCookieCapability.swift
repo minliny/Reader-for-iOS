@@ -11,11 +11,11 @@
 // on the iOS simulator and real devices.
 //
 // Payload contract (mirrors Core `cookie.get/set` params):
-// - `.cookie_get`:  `{ url: String, scopeKey?: { sourceId: String, host: String } }`
+// - `.cookie_get`:  `{ url: String, sessionId?: String }`
 //                    → `{ cookies: [{ name, value, domain, path, secure, httpOnly, expiresAt? }] }`
-// - `.cookie_set`:  `{ url: String, cookie: { name, value, domain, path?, secure?, httpOnly?, expiresAt? }, scopeKey? }`
+// - `.cookie_set`:  `{ url: String, cookie: { name, value, domain, path?, secure?, httpOnly?, expiresAt? }, sessionId? }`
 //                    → `{ stored: true }`
-// - `.cookie_clear`:`{ scopeKey?: { sourceId, host } }` (clear one scope) or `{}` (clearAll)
+// - `.cookie_clear`:`{ sessionId?: String }` (clear one opaque scope) or `{}` (clearAll)
 //                    → `{ cleared: true }`
 
 import Foundation
@@ -55,8 +55,11 @@ public struct HostCookieCapability: HostCapabilityHandler {
         guard let url = URL(string: urlString), let host = url.host else {
             return .failure(.invalidParams("cookie.get `url` must have a host: \(urlString)"))
         }
+        guard sessionIDIsValid(payload) else {
+            return .failure(.invalidParams("cookie.get `sessionId` must be a non-blank string"))
+        }
         let path = url.path.isEmpty ? "/" : url.path
-        let scopeKey = extractScopeKey(payload)
+        let scopeKey = extractSessionScope(payload)
 
         let cookies: [Cookie]
         if let scopeKey = scopeKey {
@@ -75,7 +78,7 @@ public struct HostCookieCapability: HostCapabilityHandler {
                 "httpOnly": AnyCodable(c.httpOnly),
             ]
             if let expiresAt = c.expiresAt {
-                dict["expiresAt"] = AnyCodable(expiresAt.timeIntervalSince1970)
+                dict["expiresAt"] = AnyCodable(ISO8601DateFormatter().string(from: expiresAt))
             }
             return dict
         }
@@ -91,6 +94,9 @@ public struct HostCookieCapability: HostCapabilityHandler {
         guard let url = URL(string: urlString), let host = url.host else {
             return .failure(.invalidParams("cookie.set `url` must have a host: \(urlString)"))
         }
+        guard sessionIDIsValid(payload) else {
+            return .failure(.invalidParams("cookie.set `sessionId` must be a non-blank string"))
+        }
         guard let cookieDict = Self.dictionary(payload["cookie"]?.value),
               let name = cookieDict["name"]?.value as? String,
               let value = cookieDict["value"]?.value as? String else {
@@ -100,16 +106,26 @@ public struct HostCookieCapability: HostCapabilityHandler {
         let secure = (cookieDict["secure"]?.value as? Bool) ?? false
         let httpOnly = (cookieDict["httpOnly"]?.value as? Bool) ?? false
         let domain = (cookieDict["domain"]?.value as? String) ?? host
-        let expiresAt: Date? = {
-            if let ts = cookieDict["expiresAt"]?.value as? Double { return Date(timeIntervalSince1970: ts) }
-            return nil
-        }()
+        let expiresAt: Date?
+        if let raw = cookieDict["expiresAt"]?.value as? String {
+            guard let parsed = ISO8601DateFormatter().date(from: raw) else {
+                return .failure(.invalidParams("cookie.set expiresAt must be an RFC3339 string"))
+            }
+            expiresAt = parsed
+        } else {
+            expiresAt = nil
+        }
+
+        let normalizedDomain = domain.hasPrefix(".") ? String(domain.dropFirst()) : domain
+        guard host == normalizedDomain || host.hasSuffix("." + normalizedDomain) else {
+            return .failure(.invalidParams("cookie.set domain must match the request URL host"))
+        }
 
         let cookie = Cookie(
             name: name, value: value, domain: domain, path: path,
             expiresAt: expiresAt, secure: secure, httpOnly: httpOnly
         )
-        let scopeKey = extractScopeKey(payload)
+        let scopeKey = extractSessionScope(payload)
         if let scopeKey = scopeKey {
             await cookieJar.setCookie(cookie, scopeKey: scopeKey)
         } else {
@@ -121,7 +137,10 @@ public struct HostCookieCapability: HostCapabilityHandler {
     // MARK: - cookie.clear
 
     private func handleClear(_ payload: [String: AnyCodable]) async throws -> HostCapabilityOutcome {
-        if let scopeKey = extractScopeKey(payload) {
+        guard sessionIDIsValid(payload) else {
+            return .failure(.invalidParams("cookie.clear `sessionId` must be a non-blank string"))
+        }
+        if let scopeKey = extractSessionScope(payload) {
             await cookieJar.clear(scopeKey: scopeKey)
         } else {
             await cookieJar.clearAll()
@@ -131,13 +150,18 @@ public struct HostCookieCapability: HostCapabilityHandler {
 
     // MARK: - Helpers
 
-    private func extractScopeKey(_ payload: [String: AnyCodable]) -> CookieJarScopeKey? {
-        guard let scopeDict = Self.dictionary(payload["scopeKey"]?.value),
-              let sourceId = scopeDict["sourceId"]?.value as? String,
-              let host = scopeDict["host"]?.value as? String else {
+    private func sessionIDIsValid(_ payload: [String: AnyCodable]) -> Bool {
+        guard let raw = payload["sessionId"] else { return true }
+        guard let sessionID = raw.value as? String else { return false }
+        return !sessionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func extractSessionScope(_ payload: [String: AnyCodable]) -> CookieJarScopeKey? {
+        guard let sessionID = payload["sessionId"]?.value as? String,
+              !sessionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        return CookieJarScopeKey(sourceId: sourceId, host: host)
+        return HostCookieSessionScope.key(for: sessionID)
     }
 
     private static func dictionary(_ raw: (any Sendable)?) -> [String: AnyCodable]? {

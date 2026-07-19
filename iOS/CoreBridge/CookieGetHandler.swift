@@ -3,9 +3,9 @@
 // CookieGetHandler: host-side capability handler for `cookie.get`.
 //
 // Mirrors Android `CookieGetHandler.kt` JSON contract:
-// - Input params: `{url: String}`
-// - Reads cookies for the URL's host/path from `ScopedCookieJar` (unscoped
-//   `CookieJar.getCookies(for:path:)` — Core does not supply a scope key).
+// - Input params: `{url?, domain?, name?, sessionId?}`
+// - Reads cookies for the URL/domain from `ScopedCookieJar`. A non-empty
+//   `sessionId` is an opaque jar namespace; Host never parses its meaning.
 // - Returns `{cookies: [{name, value, domain, path, secure?, httpOnly?, expiresAt?}]}`.
 //
 // login_cookie lane: paired with `CookieSetHandler` for end-to-end cookie
@@ -42,19 +42,38 @@ public struct CookieGetHandler: Sendable {
     }
 
     /// Handle a `cookie.get` request.
-    /// - Parameter params: `{url: String}` — the URL whose cookies to read.
+    /// - Parameter params: `{url?, domain?, name?, sessionId?}`.
     /// - Returns: `{cookies: [{name, value, domain, path, ...}]}`.
     public func handle(params: [String: Any]) async throws -> [String: Any] {
-        guard let url = params["url"] as? String, !url.isEmpty else {
-            throw CookieHandlerError.invalidParams("cookie.get requires non-empty url")
+        let parsedURL: URL? = {
+            guard let raw = params["url"] as? String, !raw.isEmpty else { return nil }
+            return URL(string: raw)
+        }()
+        let explicitDomain = (params["domain"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let host = parsedURL?.host ?? explicitDomain, !host.isEmpty else {
+            throw CookieHandlerError.invalidParams("cookie.get requires url or domain on iOS")
         }
-        guard let parsed = URL(string: url), let host = parsed.host, !host.isEmpty else {
-            throw CookieHandlerError.invalidParams("cookie.get invalid url: \(url)")
+        let path = parsedURL?.path.isEmpty == false ? (parsedURL?.path ?? "/") : "/"
+        let sessionID = (params["sessionId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if params["sessionId"] != nil, sessionID?.isEmpty != false {
+            throw CookieHandlerError.invalidParams("cookie.get sessionId must be non-blank")
         }
-        let path = parsed.path.isEmpty ? "/" : parsed.path
-
-        let cookies = await cookieJar.getCookies(for: host, path: path)
-        let cookieArray: [[String: Any]] = cookies.map { cookie in
+        let cookies: [Cookie]
+        if let sessionID {
+            cookies = await cookieJar.getCookies(
+                for: host,
+                path: path,
+                scopeKey: HostCookieSessionScope.key(for: sessionID)
+            )
+        } else {
+            cookies = await cookieJar.getCookies(for: host, path: path)
+        }
+        let requestedName = (params["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if params["name"] != nil, requestedName?.isEmpty != false {
+            throw CookieHandlerError.invalidParams("cookie.get name must be non-blank")
+        }
+        let filtered = requestedName.map { name in cookies.filter { $0.name == name } } ?? cookies
+        let cookieArray: [[String: Any]] = filtered.map { cookie in
             var dict: [String: Any] = [
                 "name": cookie.name,
                 "value": cookie.value,
@@ -68,8 +87,8 @@ public struct CookieGetHandler: Sendable {
                 dict["httpOnly"] = true
             }
             if let expiresAt = cookie.expiresAt {
-                // Milliseconds since epoch, aligned with Android's Long expiresAt.
-                dict["expiresAt"] = NSNumber(value: Int64(expiresAt.timeIntervalSince1970 * 1000))
+                // Core's frozen HostCookieRecord uses an RFC3339 string.
+                dict["expiresAt"] = ISO8601DateFormatter().string(from: expiresAt)
             }
             return dict
         }

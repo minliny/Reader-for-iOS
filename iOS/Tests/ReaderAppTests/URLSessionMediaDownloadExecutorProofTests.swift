@@ -2,12 +2,13 @@ import XCTest
 import CryptoKit
 @testable import ReaderShellValidation
 
-/// Simulator-proof tests for the production `URLSessionMediaDownloadExecutor`.
+/// Host-side deterministic tests for the production
+/// `URLSessionMediaDownloadExecutor`.
 ///
 /// These tests verify the real executor (not the stub) against a `URLProtocol`
 /// interceptor that injects canned HTTP responses without hitting the network.
-/// This is the "simulator-proof" tier: `URLSession` + `CryptoKit` behave
-/// identically on macOS `swift test` and on the iOS simulator.
+/// A passing macOS run proves the source-test lane only; it must not be recorded
+/// as simulator, device, live-network, screenshot or release evidence.
 ///
 /// Coverage:
 /// 1. Full GET 200 download — sha256, tempPath, fromCache=false.
@@ -20,10 +21,14 @@ import CryptoKit
 /// 8. savePath override writes to the specified location.
 /// 9. Redirect — finalUrl captured from the redirected URL.
 /// 10. sha256 hex lowercase matches `CryptoKit.SHA256`.
+/// 11. savePath outside the admitted sandbox roots fails closed pre-network.
+/// 12. cacheKey traversal text is hashed and stays under cacheRoot.
+/// 13. nested admitted savePath creates its parent directory.
+/// 14. ambient URLSession cookies are disabled at the request boundary.
 ///
-/// Real-device-proof (tracked in `HostAdapterRealDeviceProofManifestTests`):
-/// large-file streaming, background `URLSession`, cellular policy, cookie jar
-/// session affinity.
+/// Still outside this proof: large-file streaming, background `URLSession`,
+/// cellular policy and restart recovery. Opaque-session cookie affinity is
+/// covered by `ReaderSlice11HostBoundaryTests`.
 final class URLSessionMediaDownloadExecutorProofTests: XCTestCase {
 
     // MARK: - Helpers
@@ -36,8 +41,16 @@ final class URLSessionMediaDownloadExecutorProofTests: XCTestCase {
         return URLSession(configuration: config)
     }
 
-    private func makeExecutor(session: URLSession, cacheRoot: URL? = nil) -> URLSessionMediaDownloadExecutor {
-        URLSessionMediaDownloadExecutor(session: session, cacheRoot: cacheRoot)
+    private func makeExecutor(
+        session: URLSession,
+        cacheRoot: URL? = nil,
+        allowedSaveRoots: [URL]? = nil
+    ) -> URLSessionMediaDownloadExecutor {
+        URLSessionMediaDownloadExecutor(
+            session: session,
+            cacheRoot: cacheRoot,
+            allowedSaveRoots: allowedSaveRoots
+        )
     }
 
     private func makeResponse(
@@ -201,9 +214,8 @@ final class URLSessionMediaDownloadExecutorProofTests: XCTestCase {
 
     // MARK: - Proof 5: maxBytes exceeded throws
 
-    /// When the downloaded body exceeds `maxBytes`, the executor throws
-    /// `.networkError` (after the full body is buffered — no streaming abort
-    /// in this tier).
+    /// When the streamed body exceeds `maxBytes`, the executor aborts without
+    /// publishing a target or leaving a partial staging file.
     func testMaxBytesExceededThrowsNetworkError() async {
         let body = Data(repeating: 0x42, count: 200)
         let cacheRoot = tempCacheRoot()
@@ -229,6 +241,11 @@ final class URLSessionMediaDownloadExecutorProofTests: XCTestCase {
         } catch {
             XCTFail("expected .networkError, got: \(error)")
         }
+        XCTAssertEqual(
+            (try? FileManager.default.contentsOfDirectory(atPath: cacheRoot.path)) ?? [],
+            [],
+            "an oversized stream must not leave a partial artifact"
+        )
     }
 
     // MARK: - Proof 6: invalid url throws invalidParams
@@ -382,6 +399,208 @@ final class URLSessionMediaDownloadExecutorProofTests: XCTestCase {
         XCTAssertEqual(result.sha256, expectedSha)
         XCTAssertTrue(result.sha256?.allSatisfy { $0.isLowercase || $0.isNumber } ?? false,
                       "sha256 must be hex lowercase")
+    }
+
+    // MARK: - Proof 11: savePath cannot escape admitted roots
+
+    func testSavePathOutsideAllowedRootsFailsClosedBeforeNetwork() async {
+        let cacheRoot = tempCacheRoot()
+        let allowedRoot = cacheRoot.appendingPathComponent("allowed", isDirectory: true)
+        let outsidePath = cacheRoot.appendingPathComponent("outside.bin").path
+        defer {
+            cleanup(cacheRoot)
+            MediaDownloadURLProtocolStub.handler = nil
+        }
+        var networkCalled = false
+        let session = makeSession { _ in
+            networkCalled = true
+            return (self.makeResponse(status: 200, data: Data("unsafe".utf8)), Data("unsafe".utf8))
+        }
+        let executor = makeExecutor(
+            session: session,
+            cacheRoot: allowedRoot,
+            allowedSaveRoots: [allowedRoot]
+        )
+
+        do {
+            _ = try await executor.download(request: HostMediaDownloadRequest(
+                url: "https://media-proof.example.test/unsafe.bin",
+                savePath: outsidePath
+            ))
+            XCTFail("expected invalidParams for savePath outside admitted roots")
+        } catch MediaDownloadExecutorError.invalidParams(let message) {
+            XCTAssertTrue(message.contains("outside the app sandbox roots"), "got: \(message)")
+            XCTAssertFalse(networkCalled, "unsafe destination must fail before network I/O")
+        } catch {
+            XCTFail("expected .invalidParams, got: \(error)")
+        }
+    }
+
+    // MARK: - Proof 12: cache keys are not filenames
+
+    func testCacheKeyTraversalTextIsHashedInsideCacheRoot() async throws {
+        let body = Data("safe-cache-key".utf8)
+        let cacheRoot = tempCacheRoot()
+        defer {
+            cleanup(cacheRoot)
+            MediaDownloadURLProtocolStub.handler = nil
+        }
+        let session = makeSession { _ in
+            (self.makeResponse(status: 200, data: body), body)
+        }
+        let executor = makeExecutor(
+            session: session,
+            cacheRoot: cacheRoot,
+            allowedSaveRoots: [cacheRoot]
+        )
+
+        let result = try await executor.download(request: HostMediaDownloadRequest(
+            url: "https://media-proof.example.test/cache-key.bin",
+            cacheKey: "../../escape/../payload"
+        ))
+        let path = try XCTUnwrap(result.tempPath)
+        XCTAssertTrue(path.hasPrefix(cacheRoot.path + "/"), "got: \(path)")
+        XCTAssertFalse(path.contains(".."), "cache key must not be copied into the filename")
+        XCTAssertEqual(FileManager.default.contents(atPath: path), body)
+    }
+
+    // MARK: - Proof 13: admitted nested savePath
+
+    func testNestedSavePathCreatesParentDirectory() async throws {
+        let body = Data("nested-save-path".utf8)
+        let cacheRoot = tempCacheRoot()
+        let customPath = cacheRoot.appendingPathComponent("one/two/content.bin").path
+        defer {
+            cleanup(cacheRoot)
+            MediaDownloadURLProtocolStub.handler = nil
+        }
+        let session = makeSession { _ in
+            (self.makeResponse(status: 200, data: body), body)
+        }
+        let executor = makeExecutor(
+            session: session,
+            cacheRoot: cacheRoot,
+            allowedSaveRoots: [cacheRoot]
+        )
+
+        let result = try await executor.download(request: HostMediaDownloadRequest(
+            url: "https://media-proof.example.test/nested.bin",
+            savePath: customPath
+        ))
+
+        XCTAssertEqual(result.tempPath, customPath)
+        XCTAssertEqual(FileManager.default.contents(atPath: customPath), body)
+    }
+
+    // MARK: - Proof 14: no ambient URLSession cookie owner
+
+    func testRequestDisablesAmbientURLSessionCookies() async throws {
+        let cacheRoot = tempCacheRoot()
+        defer {
+            cleanup(cacheRoot)
+            MediaDownloadURLProtocolStub.handler = nil
+        }
+        var shouldHandleCookies: Bool?
+        let session = makeSession { request in
+            shouldHandleCookies = request.httpShouldHandleCookies
+            return (self.makeResponse(status: 200, data: Data("cookie-boundary".utf8)), Data("cookie-boundary".utf8))
+        }
+        let executor = makeExecutor(session: session, cacheRoot: cacheRoot)
+
+        _ = try await executor.download(request: HostMediaDownloadRequest(
+            url: "https://media-proof.example.test/cookie-boundary.bin",
+            cacheKey: "proof-cookie-boundary-014"
+        ))
+
+        XCTAssertEqual(shouldHandleCookies, false)
+    }
+
+    func testCallerSavePathCannotOverwriteExistingFileBeforeNetwork() async throws {
+        let cacheRoot = tempCacheRoot()
+        let target = cacheRoot.appendingPathComponent("owned.bin")
+        try Data("caller-owned".utf8).write(to: target)
+        defer {
+            cleanup(cacheRoot)
+            MediaDownloadURLProtocolStub.handler = nil
+        }
+        var networkCalled = false
+        let session = makeSession { _ in
+            networkCalled = true
+            let body = Data("replacement".utf8)
+            return (self.makeResponse(status: 200, data: body), body)
+        }
+        let executor = makeExecutor(
+            session: session,
+            cacheRoot: cacheRoot,
+            allowedSaveRoots: [cacheRoot]
+        )
+
+        do {
+            _ = try await executor.download(request: HostMediaDownloadRequest(
+                url: "https://media-proof.example.test/overwrite.bin",
+                savePath: target.path
+            ))
+            XCTFail("caller-owned files must not be overwritten")
+        } catch MediaDownloadExecutorError.invalidParams(let message) {
+            XCTAssertTrue(message.contains("already exists"))
+        }
+        XCTAssertFalse(networkCalled)
+        XCTAssertEqual(try Data(contentsOf: target), Data("caller-owned".utf8))
+    }
+
+    func testCallerSavePathCannotBeClaimedDuringDownload() async throws {
+        let cacheRoot = tempCacheRoot()
+        let target = cacheRoot.appendingPathComponent("raced-owned.bin")
+        defer {
+            cleanup(cacheRoot)
+            MediaDownloadURLProtocolStub.handler = nil
+        }
+        let callerOwned = Data("created-during-download".utf8)
+        let body = Data("download-body".utf8)
+        let session = makeSession { _ in
+            try callerOwned.write(to: target)
+            return (self.makeResponse(status: 200, data: body), body)
+        }
+        let executor = makeExecutor(
+            session: session,
+            cacheRoot: cacheRoot,
+            allowedSaveRoots: [cacheRoot]
+        )
+
+        do {
+            _ = try await executor.download(request: HostMediaDownloadRequest(
+                url: "https://media-proof.example.test/raced-overwrite.bin",
+                savePath: target.path
+            ))
+            XCTFail("a path claimed after preflight must still fail closed")
+        } catch MediaDownloadExecutorError.invalidParams(let message) {
+            XCTAssertTrue(message.contains("appeared during download"))
+        }
+        XCTAssertEqual(try Data(contentsOf: target), callerOwned)
+    }
+
+    func testURLUserInfoCredentialsAreRejectedBeforeNetwork() async throws {
+        let cacheRoot = tempCacheRoot()
+        defer {
+            cleanup(cacheRoot)
+            MediaDownloadURLProtocolStub.handler = nil
+        }
+        var networkCalled = false
+        let session = makeSession { _ in
+            networkCalled = true
+            return (self.makeResponse(status: 200, data: Data()), Data())
+        }
+        let executor = makeExecutor(session: session, cacheRoot: cacheRoot)
+
+        do {
+            _ = try await executor.download(request: HostMediaDownloadRequest(
+                url: "https://user:secret@media-proof.example.test/private.bin"
+            ))
+            XCTFail("URL user-info credentials must fail closed")
+        } catch MediaDownloadExecutorError.invalidParams(let message) {
+            XCTAssertTrue(message.contains("embedded credentials"))
+        }
+        XCTAssertFalse(networkCalled)
     }
 }
 

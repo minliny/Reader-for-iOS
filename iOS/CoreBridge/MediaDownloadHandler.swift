@@ -17,19 +17,19 @@
 // dict. Proof tests use `StubMediaDownloadExecutor` — no real URLSession is
 // exercised.
 //
-// Device-headless/App tier (pending): real URLSession download (range requests
-// via `Range` header, ETag/304 handling via `If-None-Match` /
-// `If-Modified-Since`, sha256 hashing of the body, save-path management,
-// cookie jar session affinity, maxBytes/timeout enforcement) requires
-// device-tier proof (simulator / real device with live network). The
-// production `URLSessionMediaDownloadExecutor` is a `fatalError` stub until
-// that tier lands.
+// App tier: `URLSessionMediaDownloadExecutor` provides foreground URLSession
+// download, Range, ETag/304, sha256, bounded sandbox save paths, maxBytes and
+// timeout handling and opaque-session cookie affinity. Background
+// transfer/recovery, cellular policy and real-device large-file proof remain
+// separate blockers;
+// this handler must not be used as evidence for those capabilities.
 //
 // Mirrors `AntiBotChallengeHandler` (synchronous `throws`) and
 // `WebViewEvaluateJavaScriptHandler` (Sendable handler + Stub + production
 // stub) so iOS reaches the same handler/router proof level as the other host
 // lanes.
 
+import CoreFoundation
 import Foundation
 
 // MARK: - MediaDownloadExecutorError
@@ -184,7 +184,7 @@ public struct MediaDownloadHandler: Sendable {
     public func handle(params: [String: Any]) async throws -> [String: Any] {
         let url = try parseUrl(params)
         let method = try parseMethod(params)
-        let headers = parseHeaders(params)
+        let headers = try parseHeaders(params)
         let rangeStart = try parseRangeStart(params)
         let rangeEnd = try parseRangeEnd(params, rangeStart: rangeStart)
         let ifNoneMatch = try parseIfNoneMatch(params)
@@ -192,7 +192,7 @@ public struct MediaDownloadHandler: Sendable {
         let cacheKey = parseOptionalString(params, key: "cacheKey")
         let savePath = parseOptionalString(params, key: "savePath")
         let maxBytes = try parseMaxBytes(params)
-        let sessionId = parseOptionalString(params, key: "sessionId")
+        let sessionId = try parseOptionalNonBlankString(params, key: "sessionId")
         let timeoutMillis = try parseTimeoutMillis(params)
 
         let request = HostMediaDownloadRequest(
@@ -256,9 +256,10 @@ public struct MediaDownloadHandler: Sendable {
         }
         guard let parsed = URL(string: raw),
               let scheme = parsed.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else {
+              (scheme == "http" || scheme == "https"),
+              parsed.host?.isEmpty == false else {
             throw MediaDownloadExecutorError.invalidParams(
-                "media.download url must use http or https scheme"
+                "media.download url must use the http or https scheme and be absolute"
             )
         }
         return raw
@@ -275,15 +276,16 @@ public struct MediaDownloadHandler: Sendable {
         return upper
     }
 
-    private func parseHeaders(_ params: [String: Any]) -> [String: String] {
+    private func parseHeaders(_ params: [String: Any]) throws -> [String: String] {
         guard let raw = params["headers"] as? [String: Any] else { return [:] }
         var result: [String: String] = [:]
         for (k, v) in raw {
-            if let s = v as? String {
-                result[k] = s
-            } else {
-                result[k] = String(describing: v)
+            guard let value = v as? String else {
+                throw MediaDownloadExecutorError.invalidParams(
+                    "media.download headers.\(k) must be a string"
+                )
             }
+            result[k] = value
         }
         return result
     }
@@ -334,6 +336,17 @@ public struct MediaDownloadHandler: Sendable {
         return raw.isEmpty ? nil : raw
     }
 
+    private func parseOptionalNonBlankString(_ params: [String: Any], key: String) throws -> String? {
+        guard params[key] != nil else { return nil }
+        guard let raw = params[key] as? String,
+              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MediaDownloadExecutorError.invalidParams(
+                "media.download \(key) must be a non-blank string"
+            )
+        }
+        return raw
+    }
+
     private func parseMaxBytes(_ params: [String: Any]) throws -> UInt64? {
         guard let raw = params["maxBytes"] else { return nil }
         let value = try parseUInt64(raw, key: "maxBytes")
@@ -361,12 +374,14 @@ public struct MediaDownloadHandler: Sendable {
     /// `parseTimeoutMillis` numeric handling.
     private func parseUInt64(_ raw: Any, key: String) throws -> UInt64 {
         if let n = raw as? NSNumber {
-            if n.int64Value < 0 {
+            guard CFGetTypeID(n) != CFBooleanGetTypeID(),
+                  !CFNumberIsFloatType(n),
+                  let value = UInt64(n.stringValue) else {
                 throw MediaDownloadExecutorError.invalidParams(
                     "media.download \(key) must be a non-negative integer"
                 )
             }
-            return n.uint64Value
+            return value
         }
         if let n = raw as? Int {
             guard n >= 0 else {
@@ -404,9 +419,7 @@ public final class StubMediaDownloadExecutor: MediaDownloadExecutor, @unchecked 
     /// The last request handed to `download`, or nil if never called. Useful
     /// for proof tests that verify the handler forwarded parsed fields.
     public var lastRequest: HostMediaDownloadRequest? {
-        lock.lock()
-        defer { lock.unlock() }
-        return _lastRequest
+        lock.withLock { _lastRequest }
     }
 
     /// Initialize with a canned result to return on every `download` call.
@@ -422,9 +435,9 @@ public final class StubMediaDownloadExecutor: MediaDownloadExecutor, @unchecked 
     }
 
     public func download(request: HostMediaDownloadRequest) async throws -> HostMediaDownloadResult {
-        lock.lock()
-        _lastRequest = request
-        lock.unlock()
+        lock.withLock {
+            _lastRequest = request
+        }
 
         if let error = cannedError {
             throw error

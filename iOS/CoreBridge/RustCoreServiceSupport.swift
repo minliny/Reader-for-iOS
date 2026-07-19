@@ -97,7 +97,9 @@ public enum RustCoreServiceSupport {
             cookieJar: sharedCookieJar,
             webViewExecutor: webViewExecutor,
             antiBotExecutor: antiBotExecutor,
-            mediaDownloadExecutor: URLSessionMediaDownloadExecutor()
+            mediaDownloadExecutor: URLSessionMediaDownloadExecutor(
+                cookieJar: sharedCookieJar
+            )
         )
     }
 

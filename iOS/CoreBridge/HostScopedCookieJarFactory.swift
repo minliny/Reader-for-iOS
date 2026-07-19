@@ -4,8 +4,8 @@ import ReaderCoreNetwork
 #endif
 import ReaderCoreProtocols
 
-/// Host factory that produces a `ScopedCookieJar` backed by Core's
-/// `BasicCookieJar`, so that iOS layers under the boundary gate
+/// Host factory that produces a strictly partitioned `ScopedCookieJar`, so
+/// that iOS layers under the boundary gate
 /// (`CoreIntegration`, `Features`, `Shell`, `Tests`, etc.) can obtain a
 /// scoped cookie jar without directly importing `ReaderCoreNetwork`.
 ///
@@ -17,10 +17,121 @@ public enum HostScopedCookieJarFactory {
         #if READER_IOS_SHELL_CI
         ShellCIBasicCookieJar()
         #else
-        BasicCookieJar()
+        HostStrictScopedCookieJar()
         #endif
     }
 }
+
+/// Maps an opaque contract session id into a Host-private cookie namespace.
+/// The prefix makes every explicit session disjoint from Core's reserved
+/// `.default` sentinel even when the caller legitimately uses `__default__`.
+public enum HostCookieSessionScope {
+    public static func key(for sessionID: String) -> CookieJarScopeKey {
+        CookieJarScopeKey(
+            sourceId: "__reader_host_session__:\(sessionID)",
+            host: "*"
+        )
+    }
+}
+
+#if !READER_IOS_SHELL_CI
+/// Core's compatibility jar intentionally falls back from an empty named
+/// scope to `.default`. A Host `sessionId`, however, is an explicit isolation
+/// boundary and must never inherit ambient/default cookies. Give each scope a
+/// separate BasicCookieJar instance and use only its unscoped API internally;
+/// an absent named jar therefore reads as empty, with no fallback possible.
+private actor HostStrictCookieJarRegistry {
+    private let defaultJar = BasicCookieJar()
+    private var scopedJars: [CookieJarScopeKey: BasicCookieJar] = [:]
+
+    func jarForRead(scopeKey: CookieJarScopeKey) -> BasicCookieJar? {
+        scopeKey == .default ? defaultJar : scopedJars[scopeKey]
+    }
+
+    func jarForWrite(scopeKey: CookieJarScopeKey) -> BasicCookieJar {
+        if scopeKey == .default { return defaultJar }
+        if let existing = scopedJars[scopeKey] { return existing }
+        let created = BasicCookieJar()
+        scopedJars[scopeKey] = created
+        return created
+    }
+
+    func remove(scopeKey: CookieJarScopeKey) -> BasicCookieJar? {
+        scopeKey == .default ? defaultJar : scopedJars.removeValue(forKey: scopeKey)
+    }
+
+    func drain() -> [BasicCookieJar] {
+        let jars = [defaultJar] + Array(scopedJars.values)
+        scopedJars.removeAll()
+        return jars
+    }
+}
+
+private final class HostStrictScopedCookieJar: ScopedCookieJar, @unchecked Sendable {
+    private let registry = HostStrictCookieJarRegistry()
+
+    func getCookies(for domain: String, path: String, scopeKey: CookieJarScopeKey) async -> [Cookie] {
+        guard let jar = await registry.jarForRead(scopeKey: scopeKey) else { return [] }
+        return await jar.getCookies(for: domain, path: path)
+    }
+
+    func setCookie(_ cookie: Cookie, scopeKey: CookieJarScopeKey) async {
+        let jar = await registry.jarForWrite(scopeKey: scopeKey)
+        await jar.setCookie(cookie)
+    }
+
+    func setCookies(from headerValue: String, domain: String, scopeKey: CookieJarScopeKey) async {
+        let jar = await registry.jarForWrite(scopeKey: scopeKey)
+        await jar.setCookies(from: headerValue, domain: domain)
+    }
+
+    func setCookies(
+        from headerValue: String,
+        domain: String,
+        fallbackPath: String,
+        scopeKey: CookieJarScopeKey
+    ) async {
+        let jar = await registry.jarForWrite(scopeKey: scopeKey)
+        await jar.setCookies(from: headerValue, domain: domain, fallbackPath: fallbackPath)
+    }
+
+    func clear(scopeKey: CookieJarScopeKey) async {
+        guard let jar = await registry.remove(scopeKey: scopeKey) else { return }
+        await jar.clear()
+    }
+
+    func clearAll() async {
+        for jar in await registry.drain() {
+            await jar.clear()
+        }
+    }
+
+    func getCookies(for domain: String, path: String) async -> [Cookie] {
+        await getCookies(for: domain, path: path, scopeKey: .default)
+    }
+
+    func setCookie(_ cookie: Cookie) async {
+        await setCookie(cookie, scopeKey: .default)
+    }
+
+    func setCookies(from headerValue: String, domain: String) async {
+        await setCookies(from: headerValue, domain: domain, scopeKey: .default)
+    }
+
+    func setCookies(from headerValue: String, domain: String, fallbackPath: String) async {
+        await setCookies(
+            from: headerValue,
+            domain: domain,
+            fallbackPath: fallbackPath,
+            scopeKey: .default
+        )
+    }
+
+    func clear() async {
+        await clear(scopeKey: .default)
+    }
+}
+#endif
 
 #if READER_IOS_SHELL_CI
 private actor ShellCICookieStore {
@@ -66,9 +177,7 @@ private final class ShellCIBasicCookieJar: ScopedCookieJar, @unchecked Sendable 
     private let store = ShellCICookieStore()
 
     func getCookies(for domain: String, path: String, scopeKey: CookieJarScopeKey) async -> [Cookie] {
-        let cookies = await store.matchingCookies(domain: domain, path: path, scopeKey: scopeKey)
-        guard cookies.isEmpty, scopeKey != .default else { return cookies }
-        return await store.matchingCookies(domain: domain, path: path, scopeKey: .default)
+        await store.matchingCookies(domain: domain, path: path, scopeKey: scopeKey)
     }
 
     func setCookie(_ cookie: Cookie, scopeKey: CookieJarScopeKey) async {

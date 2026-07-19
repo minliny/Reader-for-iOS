@@ -25,14 +25,14 @@ import ReaderCoreProtocols
 /// Device-tier gaps (still pending, NOT covered by macOS `swift test` against
 /// `example.test` fixtures):
 /// - Live-CDN range / 304 / sha256 round-trip requires a real reachable host
-///   (verified by `URLSessionMediaDownloadExecutorProofTests` via `URLProtocol`
-///   interception on the simulator, NOT by macOS `swift test` against
-///   `cdn.example.test`).
+///   and device/simulator execution. `URLSessionMediaDownloadExecutorProofTests`
+///   use intercepted responses on macOS and are source-test evidence only.
 /// - Background URLSession for large downloads, cellular policy, and
 ///   resume-data persistence are NOT implemented — current executor uses a
 ///   foreground `URLSession.shared`-style task only.
-/// - Cookie jar session affinity is NOT wired (media downloads do not yet
-///   attach `ScopedCookieJar` cookies to the request).
+/// - Cookie jar session affinity is exercised separately by
+///   `ReaderSlice11HostBoundaryTests`; this handler suite uses a stub executor
+///   and cannot prove the production URLSession path.
 ///
 /// Mirrors Core contract in `crates/reader-contract/src/host.rs`
 /// (HostMediaDownloadRequest / HostMediaDownloadResponse, commit 3e4fcb7b).

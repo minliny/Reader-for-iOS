@@ -90,7 +90,11 @@ final class HostRouterRoundTripProofTests: XCTestCase {
     func testWebViewEvaluateJavaScriptDispatchPathComplete() async throws {
         let runtime = try ReaderCoreNativeRuntime()
         defer { runtime.destroy() }
-        let router = RustCoreServiceSupport.makeRouter(runtime: runtime)
+        let router = HostRequestRouter(
+            httpClient: URLSessionHTTPClient(),
+            runtime: runtime,
+            allowedCapabilities: ["webview.evaluateJavaScript"]
+        )
 
         let params: [String: Any] = [
             "document": [
@@ -140,7 +144,11 @@ final class HostRouterRoundTripProofTests: XCTestCase {
     func testAntiBotChallengeDispatchPathComplete() async throws {
         let runtime = try ReaderCoreNativeRuntime()
         defer { runtime.destroy() }
-        let router = RustCoreServiceSupport.makeRouter(runtime: runtime)
+        let router = HostRequestRouter(
+            httpClient: URLSessionHTTPClient(),
+            runtime: runtime,
+            allowedCapabilities: ["anti_bot.challenge"]
+        )
 
         let params: [String: Any] = [
             "url": "https://protected.test/chapter/1",

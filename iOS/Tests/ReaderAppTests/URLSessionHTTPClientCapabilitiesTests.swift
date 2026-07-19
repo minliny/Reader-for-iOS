@@ -122,6 +122,41 @@ final class URLSessionHTTPClientCapabilitiesTests: XCTestCase {
                       "scope B must not receive scope A's cookie; got: \(capturedCookieHeader ?? "nil")")
     }
 
+    func testSecureCookieIsNeverSentOverPlainHTTP() async throws {
+        let jar = HostScopedCookieJarFactory.makeBasicCookieJar()
+        let scopeKey = HostCookieSessionScope.key(for: "secure-cookie-session")
+        await jar.setCookie(
+            Cookie(
+                name: "secure-session",
+                value: "secret",
+                domain: "cookie.example.test",
+                secure: true
+            ),
+            scopeKey: scopeKey
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CapabilitiesURLProtocolStub.self]
+        defer { CapabilitiesURLProtocolStub.handler = nil }
+        var capturedCookieHeader: String?
+        CapabilitiesURLProtocolStub.handler = { request in
+            capturedCookieHeader = request.value(forHTTPHeaderField: "Cookie")
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data()
+            )
+        }
+
+        let client = URLSessionHTTPClient(configuration: configuration, cookieJar: jar)
+        _ = try await client.send(HTTPRequest(
+            url: "http://cookie.example.test/plaintext",
+            useCookieJar: true,
+            requiresCookieJar: true,
+            cookieScopeKey: scopeKey
+        ))
+
+        XCTAssertNil(capturedCookieHeader)
+    }
+
     // MARK: - Redirect
 
     func testRedirectFollowRecordsFinalUrl() async throws {

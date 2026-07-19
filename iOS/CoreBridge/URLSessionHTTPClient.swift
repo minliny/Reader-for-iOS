@@ -9,6 +9,17 @@ public protocol RequestScopedHTTPClient: HTTPClient {
     @discardableResult func cancel(requestId: String) -> Bool
 }
 
+/// Optional Host-contract extension. Core's `http.execute` carries a redirect
+/// cap that is not part of Reader-Core's generic `HTTPRequest`; the router uses
+/// this seam when the concrete transport supports it.
+public protocol HostConfiguredHTTPClient: RequestScopedHTTPClient {
+    func send(
+        _ request: HTTPRequest,
+        requestId: String?,
+        maxRedirects: Int?
+    ) async throws -> HTTPResponse
+}
+
 /// Host HTTP client backed by `URLSession`.
 ///
 /// Implements the three host-side HTTP capabilities required by S4 host proof:
@@ -24,8 +35,9 @@ public protocol RequestScopedHTTPClient: HTTPClient {
 ///   `.performDefaultHandling` (no crash); when the request carries an
 ///   `Authorization: Basic` header, the decoded credentials are supplied as a
 ///   `URLCredential` so `URLSession` can answer a 401 challenge.
-public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
+public final class URLSessionHTTPClient: HostConfiguredHTTPClient, Sendable {
     private let session: URLSession
+    private let sessionDelegate: HTTPSessionDelegate
     private let cookieJar: ScopedCookieJar?
     private let followRedirectsDefault: Bool
     private let taskRegistry = URLSessionTaskRegistry()
@@ -52,15 +64,16 @@ public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
         }
 
         let delegate = HTTPSessionDelegate()
+        self.sessionDelegate = delegate
         self.session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
     }
 
     public func send(_ request: HTTPRequest) async throws -> HTTPResponse {
-        try await send(request, requestId: nil)
+        try await send(request, requestId: nil, maxRedirects: nil)
     }
 
     public func send(_ request: HTTPRequest, requestId: String) async throws -> HTTPResponse {
-        try await send(request, requestId: Optional(requestId))
+        try await send(request, requestId: Optional(requestId), maxRedirects: nil)
     }
 
     @discardableResult
@@ -68,9 +81,19 @@ public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
         taskRegistry.cancel(requestId: requestId)
     }
 
-    private func send(_ request: HTTPRequest, requestId: String?) async throws -> HTTPResponse {
-        guard let url = URL(string: request.url) else {
+    public func send(
+        _ request: HTTPRequest,
+        requestId: String?,
+        maxRedirects: Int?
+    ) async throws -> HTTPResponse {
+        guard let url = URL(string: request.url),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host?.isEmpty == false else {
             throw HTTPClientError.invalidURL(request.url)
+        }
+        if request.requiresCookieJar && (!request.useCookieJar || cookieJar == nil) {
+            throw HTTPClientError.transport("request requires an unavailable scoped cookie jar")
         }
 
         var urlRequest = URLRequest(url: url, timeoutInterval: request.timeout)
@@ -86,6 +109,7 @@ public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
             let domain = url.host ?? ""
             let path = url.path.isEmpty ? "/" : url.path
             let cookies = await jar.getCookies(for: domain, path: path, scopeKey: scopeKey)
+                .filter { !($0.secure && scheme != "https") }
             if !cookies.isEmpty {
                 let cookieHeader = cookies
                     .map { "\($0.name)=\($0.value)" }
@@ -96,9 +120,8 @@ public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
 
         let followRedirects = request.followRedirects ?? followRedirectsDefault
 
-        // Use the delegate-based dataTask so we can stamp the task with a
-        // per-request redirect policy (taskDescription), which the delegate
-        // reads in `willPerformHTTPRedirection`.
+        // Use the delegate-based dataTask so redirect policy/count can be
+        // registered per task before it starts.
         let registryToken = UUID()
         let payload: RawResponse = try await withCheckedThrowingContinuation { cont in
             let task = session.dataTask(with: urlRequest) { data, response, error in
@@ -120,9 +143,11 @@ public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
                     setCookies: setCookies
                 ))
             }
-            task.taskDescription = followRedirects
-                ? HTTPRedirectPolicy.follow.rawValue
-                : HTTPRedirectPolicy.cancel.rawValue
+            self.sessionDelegate.register(
+                taskIdentifier: task.taskIdentifier,
+                followRedirects: followRedirects,
+                maxRedirects: maxRedirects
+            )
             if let requestId {
                 self.taskRegistry.register(task, requestId: requestId, token: registryToken)
             }
@@ -132,8 +157,9 @@ public final class URLSessionHTTPClient: RequestScopedHTTPClient, Sendable {
         // Cookie jar write: persist Set-Cookie values into the request scope.
         if request.useCookieJar, let jar = cookieJar, !payload.setCookies.isEmpty {
             let scopeKey = request.cookieScopeKey ?? .default
-            let domain = url.host ?? ""
-            let fallbackPath = url.path.isEmpty ? "/" : url.path
+            let responseURL = payload.response.url ?? url
+            let domain = responseURL.host ?? url.host ?? ""
+            let fallbackPath = responseURL.path.isEmpty ? "/" : responseURL.path
             for setCookie in payload.setCookies {
                 await jar.setCookies(
                     from: setCookie,
@@ -242,14 +268,34 @@ private struct RawResponse {
 
 // MARK: - Redirect policy (per-task, via taskDescription)
 
-private enum HTTPRedirectPolicy: String {
-    case follow = "follow"
-    case cancel = "no-follow"
-}
-
 // MARK: - Session delegate (redirect + auth challenge)
 
 private final class HTTPSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private struct RedirectState {
+        let follows: Bool
+        let maximum: Int?
+        var count: Int
+    }
+
+    private let redirectLock = NSLock()
+    private var redirectStates: [Int: RedirectState] = [:]
+
+    func register(taskIdentifier: Int, followRedirects: Bool, maxRedirects: Int?) {
+        redirectLock.lock()
+        redirectStates[taskIdentifier] = RedirectState(
+            follows: followRedirects,
+            maximum: maxRedirects,
+            count: 0
+        )
+        redirectLock.unlock()
+    }
+
+    func remove(taskIdentifier: Int) {
+        redirectLock.lock()
+        redirectStates.removeValue(forKey: taskIdentifier)
+        redirectLock.unlock()
+    }
+
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -257,12 +303,28 @@ private final class HTTPSessionDelegate: NSObject, URLSessionTaskDelegate, @unch
         newRequest: URLRequest,
         completionHandler: @escaping @Sendable (URLRequest?) -> Void
     ) {
-        if task.taskDescription == HTTPRedirectPolicy.cancel.rawValue {
-            // Per-request opt-out: do not follow the redirect.
-            completionHandler(nil)
-        } else {
-            completionHandler(newRequest)
-        }
+        let shouldFollow: Bool = {
+            redirectLock.lock()
+            defer { redirectLock.unlock() }
+            guard var state = redirectStates[task.taskIdentifier], state.follows else {
+                return false
+            }
+            if let maximum = state.maximum, state.count >= maximum {
+                return false
+            }
+            state.count += 1
+            redirectStates[task.taskIdentifier] = state
+            return true
+        }()
+        completionHandler(shouldFollow ? newRequest : nil)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        remove(taskIdentifier: task.taskIdentifier)
     }
 
     func urlSession(

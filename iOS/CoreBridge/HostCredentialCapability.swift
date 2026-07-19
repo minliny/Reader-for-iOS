@@ -23,10 +23,8 @@
 // - `.credential_delete`: `{ service: String, account: String }`
 //                        → `{ deleted: true, existed: Bool }`
 //
-// `accessible` values: "whenUnlocked", "whenUnlockedThisDeviceOnly" (default),
-// "afterFirstUnlock", "afterFirstUnlockThisDeviceOnly". Maps to
-// `kSecAttrAccessible*`. The default ThisDeviceOnly variant prevents iCloud
-// Keychain backup, which is safer for app-local credentials.
+// All values use `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`; credentials
+// cannot opt into a synchronizable/non-device-only protection class.
 
 import Foundation
 import Security
@@ -99,21 +97,24 @@ public struct HostCredentialCapability: HostCapabilityHandler {
         let accessible = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let data = Data(value.utf8)
 
-        // Delete any existing item first (SecItemAdd fails on duplicate).
-        let deleteQuery: [String: Any] = [
+        let identity: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.canonicalService,
             kSecAttrAccount as String: key,
         ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.canonicalService,
-            kSecAttrAccount as String: key,
+        let protectedValue: [String: Any] = [
             kSecAttrAccessible as String: accessible,
             kSecValueData as String: data,
         ]
+        let updateStatus = SecItemUpdate(identity as CFDictionary, protectedValue as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return .success(["stored": AnyCodable(true)])
+        }
+        guard updateStatus == errSecItemNotFound else {
+            return .failure(.underlying("credential.set SecItemUpdate status \(updateStatus)"))
+        }
+        var addQuery = identity
+        protectedValue.forEach { addQuery[$0.key] = $0.value }
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
             return .failure(.underlying("credential.set SecItemAdd status \(status)"))
@@ -143,16 +144,4 @@ public struct HostCredentialCapability: HostCapabilityHandler {
         }
     }
 
-    // MARK: - Helpers
-
-    private static func accessibleAttr(for value: String) -> CFString? {
-        switch value {
-        case "whenUnlocked": return kSecAttrAccessibleWhenUnlocked
-        case "whenUnlockedThisDeviceOnly": return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        case "afterFirstUnlock": return kSecAttrAccessibleAfterFirstUnlock
-        case "afterFirstUnlockThisDeviceOnly": return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        case "whenPasscodeSetThisDeviceOnly": return kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly
-        default: return nil
-        }
-    }
 }

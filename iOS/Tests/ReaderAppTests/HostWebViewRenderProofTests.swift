@@ -215,4 +215,156 @@ final class HostWebViewRenderProofTests: XCTestCase {
             XCTFail("expected WebViewExecutorError.invalidParams, got: \(error)")
         }
     }
+
+    func testWebViewRejectsFractionalBooleanAndNegativeTimeouts() async {
+        let handler = WebViewEvaluateJavaScriptHandler(executor: StubWebViewExecutor(
+            result: WebViewEvaluationResult(value: "unused")
+        ))
+        for invalid: Any in [true, 1.5, -1] {
+            do {
+                _ = try await handler.handle(params: [
+                    "document": ["kind": "html", "body": "<html></html>"],
+                    "javaScript": "1",
+                    "timeoutMillis": invalid,
+                ])
+                XCTFail("invalid timeout must be rejected: \(invalid)")
+            } catch WebViewExecutorError.invalidParams(let message) {
+                XCTAssertTrue(message.contains("positive integer"))
+            } catch {
+                XCTFail("unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testWebViewRejectsWhitespaceOnlyProfileID() async {
+        let handler = WebViewEvaluateJavaScriptHandler(executor: StubWebViewExecutor(
+            result: WebViewEvaluationResult(value: "unused")
+        ))
+        do {
+            _ = try await handler.handle(params: [
+                "document": ["kind": "html", "body": "<html></html>"],
+                "javaScript": "1",
+                "profileId": "  \n ",
+            ])
+            XCTFail("whitespace profile must be rejected")
+        } catch WebViewExecutorError.invalidParams(let message) {
+            XCTAssertTrue(message.contains("profileId"))
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
+    func testWKPolicyAdmissionRejectsDisabledJSNetworkAndBaseURLHostEscape() throws {
+        let urlRequest = WebViewEvaluationRequest(
+            document: .init(kind: .url, url: "https://allowed.example.test/start"),
+            javaScript: "1"
+        )
+        XCTAssertThrowsError(try WebViewEvaluationPolicyAdmission.validate(
+            request: urlRequest,
+            policy: .init(allowJavaScriptExecution: false)
+        ))
+        XCTAssertThrowsError(try WebViewEvaluationPolicyAdmission.validate(
+            request: urlRequest,
+            policy: .init(allowNetworkNavigation: false)
+        ))
+
+        let htmlRequest = WebViewEvaluationRequest(
+            document: .init(
+                kind: .html,
+                body: "<html></html>",
+                baseUrl: "https://escape.example.test/base"
+            ),
+            javaScript: "1"
+        )
+        XCTAssertThrowsError(try WebViewEvaluationPolicyAdmission.validate(
+            request: htmlRequest,
+            policy: .testPolicy(allowedHost: "allowed.example.test")
+        ))
+    }
+
+    func testWKPolicyTimeoutCapsCallerRequest() throws {
+        let request = WebViewEvaluationRequest(
+            document: .init(kind: .html, body: "<html></html>"),
+            javaScript: "1",
+            timeoutMillis: 30_000
+        )
+        let policy = WebViewSecurityPolicy(timeoutSeconds: 0.05)
+        try WebViewEvaluationPolicyAdmission.validate(request: request, policy: policy)
+        XCTAssertEqual(
+            WebViewEvaluationPolicyAdmission.effectiveTimeoutSeconds(request: request, policy: policy),
+            0.05,
+            accuracy: 0.0001
+        )
+        XCTAssertFalse(WebViewEvaluationPolicyAdmission.admitsNavigation(
+            URL(string: "https://redirect.example.test/")!,
+            policy: .testPolicy(allowedHost: "allowed.example.test")
+        ))
+        XCTAssertThrowsError(try WebViewEvaluationPolicyAdmission.validate(
+            request: .init(
+                document: .init(kind: .html, body: "<html></html>"),
+                javaScript: "1",
+                timeoutMillis: 0
+            ),
+            policy: policy
+        ))
+        XCTAssertThrowsError(try WebViewEvaluationPolicyAdmission.validate(
+            request: .init(
+                document: .init(kind: .url, url: "https://user:secret@allowed.example.test/"),
+                javaScript: "1"
+            ),
+            policy: .testPolicy(allowedHost: "allowed.example.test")
+        ))
+    }
+
+    func testWKSubresourcePolicyBlocksByDefaultAndOnlyExemptsAllowedHost() throws {
+        let policy = WebViewSecurityPolicy.testPolicy(allowedHost: "allowed.example.test")
+        let encoded = try XCTUnwrap(
+            WebViewEvaluationPolicyAdmission.encodedSubresourceRuleList(policy: policy)
+        )
+        let data = try XCTUnwrap(encoded.data(using: .utf8))
+        let rules = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        )
+
+        XCTAssertEqual(rules.count, 2)
+        XCTAssertEqual(
+            (rules[0]["action"] as? [String: String])?["type"],
+            "block",
+            "the first rule must deny every HTTP(S) resource"
+        )
+        let allowTrigger = try XCTUnwrap(rules[1]["trigger"] as? [String: Any])
+        XCTAssertEqual(
+            (rules[1]["action"] as? [String: String])?["type"],
+            "ignore-previous-rules"
+        )
+        XCTAssertNil(
+            allowTrigger["if-domain"],
+            "if-domain matches the document domain and must not be used as a resource-host exception"
+        )
+        XCTAssertEqual(
+            allowTrigger["url-filter"] as? String,
+            #"^https?://allowed\.example\.test[/:?#]"#
+        )
+        XCTAssertFalse(
+            (allowTrigger["url-filter"] as? String)?.contains("blocked") ?? true,
+            "a blocked host must never receive an exception rule"
+        )
+    }
+
+    func testWKSubresourcePolicyKeepsNetworkDisabledHTMLBlockAll() throws {
+        let policy = WebViewSecurityPolicy(
+            allowedHosts: ["allowed.example.test"],
+            allowNetworkNavigation: false,
+            allowLocalSnapshotOnly: true
+        )
+        let encoded = try XCTUnwrap(
+            WebViewEvaluationPolicyAdmission.encodedSubresourceRuleList(policy: policy)
+        )
+        let data = try XCTUnwrap(encoded.data(using: .utf8))
+        let rules = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        )
+        XCTAssertEqual(rules.count, 1)
+        XCTAssertEqual((rules[0]["action"] as? [String: String])?["type"], "block")
+    }
 }
