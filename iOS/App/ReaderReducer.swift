@@ -38,6 +38,7 @@ public final class ReaderReducer: ObservableObject {
     private let importPilot: ReaderImportPilotCoordinator?
     private let sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator?
     private let replaceRulePilot: ReaderReplaceRulePilotCoordinator?
+    private let cacheCoordinator: ReaderCacheCoordinator?
 
     public init(
         navigationState: AppNavigationState,
@@ -45,7 +46,8 @@ public final class ReaderReducer: ObservableObject {
         playbackPilot: ReaderPlaybackPilotCoordinator? = nil,
         importPilot: ReaderImportPilotCoordinator? = nil,
         sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator? = nil,
-        replaceRulePilot: ReaderReplaceRulePilotCoordinator? = nil
+        replaceRulePilot: ReaderReplaceRulePilotCoordinator? = nil,
+        cacheCoordinator: ReaderCacheCoordinator? = nil
     ) {
         self.navigationState = navigationState
         self.runtimeShadow = runtimeShadow
@@ -53,6 +55,7 @@ public final class ReaderReducer: ObservableObject {
         self.importPilot = importPilot
         self.sourceSwitchPilot = sourceSwitchPilot
         self.replaceRulePilot = replaceRulePilot
+        self.cacheCoordinator = cacheCoordinator
     }
 
     // MARK: - UiEvent 入口
@@ -84,6 +87,16 @@ public final class ReaderReducer: ObservableObject {
         // here. The canonical reader.replace.* events are consumed by the
         // coordinator before the legacy switch can write.
         if replaceRulePilot?.handle(event) == true {
+            return
+        }
+        // Unlocked Reader control candidates are admitted only from an
+        // explicit local/test Pilot configuration. Their untouched runtime
+        // baseline must exactly match native route/stack/tab/overlay before
+        // dispatch; any mismatch fails closed without either state owner writing.
+        if runtimeShadow?.validateReaderControlCandidateBaseline(
+            for: event,
+            navigationState: navigationState
+        ) == false {
             return
         }
         let runtimeMode = runtimeShadow?.configuration.mode(for: event.type.rawValue)
@@ -198,7 +211,13 @@ public final class ReaderReducer: ObservableObject {
             // B2: 章节跳转——重置页码到 0，后续 slice 接 CoreBridge 真实处理
             navigationState.readerPageIndex = 0
         case .reader_bookCache_open:
-            navigationState.push(.content(chapterTitle: "Slice3"))
+            let context = ReaderCacheContext(
+                sourceID: stringPayload(event, keys: ["sourceId", "sourceID"]),
+                bookID: stringPayload(event, keys: ["bookId", "bookID"]),
+                currentChapterIndex: integerPayload(event, keys: ["chapterIndex"])
+            )
+            cacheCoordinator?.bind(context)
+            cacheCoordinator?.refresh()
         case .reader_debugInfo_open:
             navigationState.push(.content(chapterTitle: "Slice3"))
         case .reader_textSelection_change, .reader_textSelection_clear:
@@ -301,7 +320,8 @@ public final class ReaderReducer: ObservableObject {
         // replace.persist / replace.validate). iOS currently has no native
         // replace-rule reducer; this stub is the shadow fallback when no pilot
         // is injected and remains a no-op for navigation state.
-        case .reader_replace_apply, .reader_replace_create, .reader_replace_validate:
+        case .reader_replace_apply, .reader_replace_create, .reader_replace_validate,
+             .reader_replace_undo:
             break
         // MARK: - Slice 5c: search workflow
         case .search_submit:
@@ -377,8 +397,7 @@ public final class ReaderReducer: ObservableObject {
             // Effect: 触发文件选择器（.documentPicker），选中后调 Core command import.book
             break
         case .settings_cache_clear:
-            // Effect: 调 Core command cache.clear，完成后 toast 提示
-            break
+            cacheCoordinator?.clearDerivedCache()
         case .settings_webdav_save:
             // Effect: 触发 WebDAVSettingsViewModel.saveCredentials()
             break

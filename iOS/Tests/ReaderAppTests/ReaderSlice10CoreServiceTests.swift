@@ -118,6 +118,262 @@ final class ReaderSlice10CoreServiceTests: XCTestCase {
         ])
     }
 
+    func testCacheAndReplaceUndoCommandsReturnStrictTypedResults() async throws {
+        let revision = String(repeating: "a", count: 64)
+        let beforeRule: [String: Any] = [
+            "id": 9,
+            "name": "weather",
+            "pattern": "rain",
+            "replacement": "cloud",
+            "scopeTitle": false,
+            "scopeContent": true,
+            "isEnabled": true,
+            "isRegex": false,
+            "timeoutMillisecond": 3_000,
+            "order": 0,
+        ]
+        var afterRule = beforeRule
+        afterRule["replacement"] = "sun"
+        let runtime = FakeSlice10CommandRuntime { method in
+            switch method {
+            case "cache.book.status":
+                return Self.cacheStatusObject()
+            case "cache.book.prefetch":
+                return [
+                    "sourceId": "source-1",
+                    "bookId": "book-1",
+                    "chapterRange": [2, 5],
+                    "chapterCount": 3,
+                    "prefetchedCount": 2,
+                    "queuedIndexes": [2, 4],
+                    "alreadyQueuedIndexes": [3],
+                    "skippedCachedIndexes": [],
+                ]
+            case "cache.clear":
+                return [
+                    "scope": "book",
+                    "cacheEntriesRemoved": 3,
+                    "chapterEntriesRemoved": 2,
+                    "queueEntriesRemoved": 1,
+                    "removedContentBytes": 4_096,
+                ]
+            case "replace.undo":
+                return [
+                    "transactionId": "replace-tx-1",
+                    "revision": revision,
+                    "operation": "update",
+                    "ruleId": 9,
+                    "changed": true,
+                    "undoneAt": 1_500,
+                    "restoredRule": beforeRule,
+                ]
+            default:
+                XCTFail("unexpected method \(method)")
+                return [:]
+            }
+        }
+        let service = ReaderSlice10CoreService(runtime: runtime, requestTimeout: 1)
+        let undoTokenObject: [String: Any] = [
+            "schemaVersion": 1,
+            "transactionId": "replace-tx-1",
+            "revision": revision,
+            "operation": "update",
+            "ruleId": 9,
+            "issuedAt": 1_000,
+            "expiresAt": 2_000,
+            "before": beforeRule,
+            "after": afterRule,
+        ]
+        let undoToken = try ReaderCoreReplaceUndoToken(coreObject: undoTokenObject)
+
+        let status = try await service.loadBookCacheStatus(
+            sourceID: "source-1",
+            bookID: "book-1",
+            correlationID: "status"
+        )
+        let prefetch = try await service.prefetchBookCache(
+            sourceID: "source-1",
+            bookID: "book-1",
+            chapterRange: [2, 5],
+            priority: 7,
+            requestedAt: 1_234,
+            correlationID: "prefetch"
+        )
+        let clear = try await service.clearCache(
+            scope: .book,
+            sourceID: "source-1",
+            bookID: "book-1",
+            correlationID: "clear"
+        )
+        let undo = try await service.undoReplace(
+            undoToken: undoToken,
+            correlationID: "undo"
+        )
+
+        XCTAssertEqual(runtime.methods, [
+            "cache.book.status", "cache.book.prefetch", "cache.clear", "replace.undo",
+        ])
+
+        let statusParams = try XCTUnwrap(runtime.command(method: "cache.book.status")?["params"] as? [String: Any])
+        XCTAssertEqual(statusParams["sourceId"] as? String, "source-1")
+        XCTAssertEqual(statusParams["bookId"] as? String, "book-1")
+        XCTAssertEqual(statusParams.count, 2)
+
+        let prefetchParams = try XCTUnwrap(runtime.command(method: "cache.book.prefetch")?["params"] as? [String: Any])
+        XCTAssertEqual((prefetchParams["chapterRange"] as? [NSNumber])?.map(\.intValue), [2, 5])
+        XCTAssertEqual((prefetchParams["priority"] as? NSNumber)?.intValue, 7)
+        XCTAssertEqual((prefetchParams["requestedAt"] as? NSNumber)?.int64Value, 1_234)
+        XCTAssertEqual(prefetchParams["sourceId"] as? String, "source-1")
+        XCTAssertEqual(prefetchParams["bookId"] as? String, "book-1")
+
+        let clearParams = try XCTUnwrap(runtime.command(method: "cache.clear")?["params"] as? [String: Any])
+        XCTAssertEqual(clearParams["scope"] as? String, "book")
+        XCTAssertEqual(clearParams["sourceId"] as? String, "source-1")
+        XCTAssertEqual(clearParams["bookId"] as? String, "book-1")
+
+        let undoParams = try XCTUnwrap(runtime.command(method: "replace.undo")?["params"] as? [String: Any])
+        let forwardedToken = try XCTUnwrap(undoParams["undoToken"] as? NSDictionary)
+        XCTAssertTrue(forwardedToken.isEqual(to: undoTokenObject))
+
+        XCTAssertEqual(status.sourceID, "source-1")
+        XCTAssertEqual(status.chapters.first?.state, .cached)
+        XCTAssertEqual(status.globalStats.queueEntryCount, 6)
+        XCTAssertEqual(status.globalStats.queuedCount, 4)
+        XCTAssertEqual(status.globalStats.inProgressCount, 1)
+        XCTAssertEqual(status.globalStats.completedCount, 0)
+        XCTAssertEqual(status.globalStats.failedCount, 1)
+        XCTAssertEqual(status.globalStats.cancelledCount, 0)
+        XCTAssertEqual(prefetch.queuedIndexes, [2, 4])
+        XCTAssertEqual(prefetch.alreadyQueuedIndexes, [3])
+        XCTAssertEqual(clear.cacheEntriesRemoved, 3)
+        XCTAssertEqual(clear.removedContentBytes, 4_096)
+        XCTAssertEqual(undo.restoredRule?.replacement, "cloud")
+    }
+
+    func testCacheAndReplaceUndoCoreErrorsAreNotConvertedToSuccess() async {
+        let runtime = FakeSlice10CoreErrorRuntime(
+            code: "INVALID_PARAMS",
+            message: "Core rejected the exact command payload"
+        )
+        let service = ReaderSlice10CoreService(runtime: runtime, requestTimeout: 1)
+        let revision = String(repeating: "a", count: 64)
+        let rule = Self.replaceRuleObject(id: 9, replacement: "before")
+        var after = rule
+        after["replacement"] = "after"
+        let token = try! ReaderCoreReplaceUndoToken(coreObject: [
+            "schemaVersion": 1,
+            "transactionId": "replace-error",
+            "revision": revision,
+            "operation": "update",
+            "ruleId": 9,
+            "issuedAt": 1_000,
+            "expiresAt": 2_000,
+            "before": rule,
+            "after": after,
+        ])
+        let operations: [() async throws -> Void] = [
+            { _ = try await service.loadBookCacheStatus(sourceID: "source-1", bookID: "book-1") },
+            { _ = try await service.prefetchBookCache(sourceID: "source-1", bookID: "book-1", chapterRange: [2, 5]) },
+            { _ = try await service.clearCache(scope: .book, sourceID: "source-1", bookID: "book-1") },
+            { _ = try await service.undoReplace(undoToken: token) },
+        ]
+
+        for operation in operations {
+            do {
+                _ = try await operation()
+                XCTFail("Core error must not be converted to a synthetic result")
+            } catch let error as ReaderCoreNativeError {
+                XCTAssertEqual(
+                    error,
+                    .coreError(
+                        code: "INVALID_PARAMS",
+                        message: "Core rejected the exact command payload"
+                    )
+                )
+            } catch {
+                XCTFail("unexpected error \(error)")
+            }
+        }
+
+        XCTAssertEqual(runtime.methods, [
+            "cache.book.status", "cache.book.prefetch", "cache.clear", "replace.undo",
+        ])
+    }
+
+    func testCacheStatusRejectsEveryMissingRequiredGlobalQueueCount() async {
+        let requiredCounts = [
+            "queueEntryCount", "queuedCount", "inProgressCount",
+            "completedCount", "failedCount", "cancelledCount",
+        ]
+
+        for missingField in requiredCounts {
+            var status = Self.cacheStatusObject()
+            var global = try! XCTUnwrap(status["globalStats"] as? [String: Any])
+            global.removeValue(forKey: missingField)
+            status["globalStats"] = global
+            let runtime = FakeSlice10CommandRuntime { _ in status }
+            do {
+                _ = try await ReaderSlice10CoreService(runtime: runtime, requestTimeout: 1)
+                    .loadBookCacheStatus(sourceID: "source-1", bookID: "book-1")
+                XCTFail("missing globalStats.\(missingField) must fail")
+            } catch let error as ReaderSlice10CoreServiceError {
+                guard case .invalidResult(let method, let message) = error else {
+                    return XCTFail("unexpected error \(error)")
+                }
+                XCTAssertEqual(method, "cache.book.status")
+                XCTAssertTrue(message.contains(missingField))
+            } catch {
+                XCTFail("unexpected error \(error)")
+            }
+        }
+    }
+
+    func testCacheAndUndoRejectIncompleteOrUnknownCoreResults() async throws {
+        var incompleteStatus = Self.cacheStatusObject()
+        incompleteStatus.removeValue(forKey: "missingCount")
+        let statusRuntime = FakeSlice10CommandRuntime { _ in incompleteStatus }
+        do {
+            _ = try await ReaderSlice10CoreService(runtime: statusRuntime, requestTimeout: 1)
+                .loadBookCacheStatus(sourceID: "source-1", bookID: "book-1")
+            XCTFail("missing status field must fail")
+        } catch let error as ReaderSlice10CoreServiceError {
+            XCTAssertEqual(error.code, "SLICE10_CORE_INVALID_RESULT")
+        }
+
+        let clearRuntime = FakeSlice10CommandRuntime { _ in [
+            "scope": "book",
+            "cacheEntriesRemoved": 1,
+            "chapterEntriesRemoved": 1,
+            "queueEntriesRemoved": 0,
+            "removedContentBytes": 10,
+            "invented": true,
+        ] }
+        do {
+            _ = try await ReaderSlice10CoreService(runtime: clearRuntime, requestTimeout: 1)
+                .clearCache(scope: .book, sourceID: "source-1", bookID: "book-1")
+            XCTFail("unknown clear field must fail")
+        } catch let error as ReaderSlice10CoreServiceError {
+            XCTAssertEqual(error.code, "SLICE10_CORE_INVALID_RESULT")
+        }
+    }
+
+    func testCacheAndReplaceUndoRejectMissingCoreResultData() async {
+        let runtime = FakeSlice10CommandRuntime { _ in nil }
+        let service = ReaderSlice10CoreService(runtime: runtime, requestTimeout: 1)
+
+        do {
+            _ = try await service.loadBookCacheStatus(sourceID: "source-1", bookID: "book-1")
+            XCTFail("missing Core result data must not become an empty success object")
+        } catch let error as ReaderSlice10CoreServiceError {
+            XCTAssertEqual(
+                error,
+                .invalidResult(method: "cache.book.status", message: "result data is missing")
+            )
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+    }
+
     func testInvalidRuleInputFailsBeforeDispatch() async {
         let runtime = FakeSlice10CommandRuntime { _ in [:] }
         let service = ReaderSlice10CoreService(runtime: runtime, requestTimeout: 1)
@@ -220,10 +476,62 @@ final class ReaderSlice10CoreServiceTests: XCTestCase {
             "chapterPos": 41, "chapterName": "Chapter 3", "bookText": "text", "content": "note",
         ]
     }
+
+    private static func cacheStatusObject() -> [String: Any] {
+        [
+            "sourceId": "source-1",
+            "bookId": "book-1",
+            "tocAvailable": true,
+            "chapterCount": 3,
+            "chapters": [[
+                "chapterIndex": 2,
+                "title": "Chapter 3",
+                "url": "https://books.example/chapter/3",
+                "state": "cached",
+                "cachedBytes": 1_024,
+                "attempts": 1,
+                "maxAttempts": 3,
+            ]],
+            "cachedCount": 1,
+            "queuedCount": 1,
+            "inProgressCount": 0,
+            "completedCount": 0,
+            "failedCount": 0,
+            "cancelledCount": 0,
+            "missingCount": 1,
+            "globalStats": [
+                "entryCount": 10,
+                "totalContentBytes": 40_960,
+                "oldestCachedAt": 1_000,
+                "newestCachedAt": 2_000,
+                "queueEntryCount": 6,
+                "queuedCount": 4,
+                "inProgressCount": 1,
+                "completedCount": 0,
+                "failedCount": 1,
+                "cancelledCount": 0,
+            ],
+        ]
+    }
+
+    private static func replaceRuleObject(id: Int, replacement: String) -> [String: Any] {
+        [
+            "id": id,
+            "name": "weather",
+            "pattern": "rain",
+            "replacement": replacement,
+            "scopeTitle": false,
+            "scopeContent": true,
+            "isEnabled": true,
+            "isRegex": false,
+            "timeoutMillisecond": 3_000,
+            "order": 0,
+        ]
+    }
 }
 
 private final class FakeSlice10CommandRuntime: RustCoreCommandRuntime {
-    typealias Response = (String) throws -> [String: Any]
+    typealias Response = (String) throws -> [String: Any]?
 
     private let response: Response
     private var events: [UInt64: ReaderCoreNativeEvent] = [:]
@@ -241,11 +549,14 @@ private final class FakeSlice10CommandRuntime: RustCoreCommandRuntime {
         commands.append(command)
         let requestID = try XCTUnwrap((command["requestId"] as? NSNumber)?.uint64Value)
         let method = try XCTUnwrap(command["method"] as? String)
-        let eventData = try JSONSerialization.data(withJSONObject: [
+        var event: [String: Any] = [
             "type": "result",
             "requestId": NSNumber(value: requestID),
-            "data": try response(method),
-        ])
+        ]
+        if let data = try response(method) {
+            event["data"] = data
+        }
+        let eventData = try JSONSerialization.data(withJSONObject: event)
         events[requestID] = try ReaderCoreNativeEvent(data: eventData)
         return 0
     }
@@ -261,4 +572,36 @@ private final class FakeSlice10CommandRuntime: RustCoreCommandRuntime {
     func command(method: String) -> [String: Any]? {
         commands.first { $0["method"] as? String == method }
     }
+}
+
+private final class FakeSlice10CoreErrorRuntime: RustCoreCommandRuntime {
+    private let code: String
+    private let message: String
+    private var events: [UInt64: ReaderCoreNativeEvent] = [:]
+    private(set) var methods: [String] = []
+
+    init(code: String, message: String) {
+        self.code = code
+        self.message = message
+    }
+
+    @discardableResult
+    func send(json: Data) throws -> Int32 {
+        let command = try XCTUnwrap(JSONSerialization.jsonObject(with: json) as? [String: Any])
+        let requestID = try XCTUnwrap((command["requestId"] as? NSNumber)?.uint64Value)
+        methods.append(try XCTUnwrap(command["method"] as? String))
+        let eventData = try JSONSerialization.data(withJSONObject: [
+            "type": "error",
+            "requestId": NSNumber(value: requestID),
+            "error": ["code": code, "message": message],
+        ])
+        events[requestID] = try ReaderCoreNativeEvent(data: eventData)
+        return 0
+    }
+
+    func pollEvent(requestId: UInt64) -> ReaderCoreNativeEvent? {
+        events.removeValue(forKey: requestId)
+    }
+
+    func cancel(requestId: UInt64) throws {}
 }

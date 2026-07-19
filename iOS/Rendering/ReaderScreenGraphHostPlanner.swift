@@ -240,7 +240,7 @@ public struct ReaderScreenGraphComponentCoverage: Sendable {
 }
 
 public struct ReaderScreenGraphHostPlanner: Sendable {
-    public static let expectedCanonicalSHA256 = "78052471b2ab3ac2c5729499d7234c0a94e6e1273862e8b48528cc512e6b089e"
+    public static let expectedCanonicalSHA256 = "bf17ea66c21c869b2f8207d252df58d5a727164a1f767ac1edd6eb18b55d851d"
 
     public let registry: ScreenGraphRegistry
     public let metrics: ReaderScreenGraphCanonicalMetrics
@@ -332,8 +332,8 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
             variantCount: 190,
             recursiveComponentCount: 615,
             bindingCount: 97,
-            executableBindingCount: 38,
-            plannedFailClosedBindingCount: 59,
+            executableBindingCount: 41,
+            plannedFailClosedBindingCount: 56,
             stateEventEvidenceCount: 19,
             eventReferenceCount: 116,
             referencedComponentTypeCount: 138,

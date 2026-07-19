@@ -64,7 +64,7 @@ final class ReaderContract30RouteRegistryTests: XCTestCase {
         }
     }
 
-    func testNewRoutesSeparate16ExecutableFrom35PlannedBindings() throws {
+    func testNewRoutesSeparate18ExecutableFrom33PlannedBindings() throws {
         let planner = try ReaderScreenGraphHostPlanner()
         var executable = 0
         var planned = 0
@@ -99,8 +99,8 @@ final class ReaderContract30RouteRegistryTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(executable, 16)
-        XCTAssertEqual(planned, 35)
+        XCTAssertEqual(executable, 18)
+        XCTAssertEqual(planned, 33)
         XCTAssertEqual(executable + planned, 51)
     }
 

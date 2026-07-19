@@ -25,6 +25,7 @@ struct PaginatedReaderView: View {
     let onPilotPageIntent: ((ReaderPlaybackPageDirection, ReaderPlaybackPageProposal) -> Bool)?
     let onPilotPageProposal: ((ReaderPlaybackPageProposalRequest, ReaderPlaybackPageProposal) -> Void)?
     let onPilotPageUnavailable: ((ReaderPlaybackPageProposalRequest, String) -> Void)?
+    @Environment(\.readerThemePalette) private var palette
 
     init(
         title: String?,
@@ -102,6 +103,9 @@ struct PaginatedReaderView: View {
         .onChange(of: contentInsets) { _ in recomputePages() }
         .onChange(of: displaySettings.fontSize) { _ in recomputePages() }
         .onChange(of: displaySettings.lineSpacing) { _ in recomputePages() }
+        .onChange(of: displaySettings.lineHeightRatio) { _ in recomputePages() }
+        .onChange(of: displaySettings.letterSpacing) { _ in recomputePages() }
+        .onChange(of: displaySettings.paragraphIndent) { _ in recomputePages() }
         .onChange(of: displaySettings.horizontalPadding) { _ in recomputePages() }
         .onChange(of: displaySettings.verticalPadding) { _ in recomputePages() }
         .onChange(of: displaySettings.dualPageEnabled) { _ in recomputePages() }
@@ -123,7 +127,7 @@ struct PaginatedReaderView: View {
     @ViewBuilder
     private var pageStack: some View {
         ZStack {
-            Color(hex: displaySettings.backgroundMode.backgroundColor)
+            palette.readingPaper
 
             Group {
                 if isDualPageMode {
@@ -138,7 +142,7 @@ struct PaginatedReaderView: View {
         }
         .gesture(swipeGesture)
         .animation(
-            ReaderMotionAdapter.animation(
+            displaySettings.pageAnimation == "none" ? nil : ReaderMotionAdapter.animation(
                 for: MotionRequest(operation: .update, sourceRole: "page", containerRole: .readerSurface),
                 motion: motion
             ),
@@ -213,6 +217,7 @@ struct PaginatedReaderView: View {
                 Text(indentedParagraph(paragraph))
                     .font(ReaderTypography.readerDisplayFont(family: displaySettings.fontFamily, size: bodyFontSize))
                     .lineSpacing(bodyLineSpacing)
+                    .kerning(displaySettings.letterSpacing)
                     .foregroundColor(textColor)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -424,7 +429,7 @@ struct PaginatedReaderView: View {
     }
 
     private var bodyLineSpacing: CGFloat {
-        bodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1)
+        bodyFontSize * (displaySettings.lineHeightRatio - 1)
     }
 
     private var paragraphGap: CGFloat {
@@ -432,7 +437,7 @@ struct PaginatedReaderView: View {
     }
 
     private var textColor: SwiftUI.Color {
-        Color(hex: displaySettings.backgroundMode.textColor)
+        palette.readingInk
     }
 
     private var paginationHorizontalPadding: Double {
@@ -453,7 +458,7 @@ struct PaginatedReaderView: View {
     }
 
     private func indentedParagraph(_ paragraph: String) -> String {
-        let indentCount = max(0, Int(ReaderDesignTokens.immersiveBodyParagraphIndent.rounded()))
+        let indentCount = max(0, Int(displaySettings.paragraphIndent.rounded()))
         return String(repeating: "\u{3000}", count: indentCount) + paragraph
     }
 }

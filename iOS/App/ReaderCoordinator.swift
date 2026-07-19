@@ -22,6 +22,7 @@ public final class ReaderCoordinator {
     private let sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator?
     private let replaceRulePilot: ReaderReplaceRulePilotCoordinator?
     private let syncPilot: ReaderSyncPilotCoordinator?
+    private let cacheCoordinator: ReaderCacheCoordinator?
 
     public init(
         navigationState: AppNavigationState,
@@ -29,7 +30,8 @@ public final class ReaderCoordinator {
         playbackPilot: ReaderPlaybackPilotCoordinator? = nil,
         sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator? = nil,
         replaceRulePilot: ReaderReplaceRulePilotCoordinator? = nil,
-        syncPilot: ReaderSyncPilotCoordinator? = nil
+        syncPilot: ReaderSyncPilotCoordinator? = nil,
+        cacheCoordinator: ReaderCacheCoordinator? = nil
     ) {
         self.navigationState = navigationState
         self.runtimeShadow = runtimeShadow
@@ -37,6 +39,7 @@ public final class ReaderCoordinator {
         self.sourceSwitchPilot = sourceSwitchPilot
         self.replaceRulePilot = replaceRulePilot
         self.syncPilot = syncPilot
+        self.cacheCoordinator = cacheCoordinator
     }
 
     // MARK: - Slice 1 占位（后续 slice 落地）
@@ -59,7 +62,10 @@ public final class ReaderCoordinator {
 
     /// Slice 3：reader overlay / control dock / reader mode
     public func toggleReaderControl() {
-        reducer.dispatch(UiEvent(type: .reader_control_toggle))
+        reducer.dispatch(UiEvent(
+            type: .reader_control_toggle,
+            payload: ["overlay": AnyCodable("reader-control")]
+        ))
     }
 
     // MARK: - H2 W2: 翻页 / TTS / 自动翻页 UiEvent 链路
@@ -120,7 +126,8 @@ public final class ReaderCoordinator {
         runtimeShadow: runtimeShadow,
         playbackPilot: playbackPilot,
         sourceSwitchPilot: sourceSwitchPilot,
-        replaceRulePilot: replaceRulePilot
+        replaceRulePilot: replaceRulePilot,
+        cacheCoordinator: cacheCoordinator
     )
 
     /// Generic ScreenGraph controls enter the same reducer/pilot boundary as hand-authored Native
@@ -152,7 +159,8 @@ public final class ReaderCoordinator {
 
     /// 切换阅读器控制层。dispatch `.reader_control_toggle` → reducer 切换 overlay sheet。
     public func readerControl(action: String? = nil) {
-        reducer.dispatch(UiEvent(type: .reader_control_toggle))
+        _ = action
+        toggleReaderControl()
     }
 
     // MARK: - P0 修复：ReaderCoordinator 模块切换/覆盖层入口
@@ -183,6 +191,21 @@ public final class ReaderCoordinator {
     /// 对齐契约 `reader.settings.open`（demo: `reader.settings.open` payload `{}`）。
     public func openReaderSettings() {
         reducer.dispatch(UiEvent(type: .reader_settings_open))
+    }
+
+    /// Resolve the cache surface against an explicit live reader identity.
+    /// Missing source/book values are never substituted by demo identifiers.
+    public func openBookCache(sourceID: String, bookID: String, chapterIndex: Int? = nil) {
+        var payload: [String: AnyCodable] = [
+            "sourceId": AnyCodable(sourceID),
+            "bookId": AnyCodable(bookID),
+        ]
+        if let chapterIndex { payload["chapterIndex"] = AnyCodable(chapterIndex) }
+        reducer.dispatch(UiEvent(type: .reader_bookCache_open, payload: payload))
+    }
+
+    public func clearDerivedCacheFromSettings() {
+        reducer.dispatch(UiEvent(type: .settings_cache_clear))
     }
 
     /// 分派阅读器模块切换事件。dispatch `.reader_module_switch` → reducer 按 module 分派 sheet overlay。

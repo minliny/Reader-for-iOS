@@ -75,16 +75,17 @@ final class ReaderMotionFirstBatchMigrationTests: XCTestCase {
 
     // MARK: - 2b. Reader → bookshelf exit (BookshelfView.closeActiveDestination)
 
-    func testReaderToBookshelfExitResolvesToFallbackInterrupt() {
-        // operation: .pop from readerShell → mainTabShell has no specific policy;
-        // resolver falls back to .motion_interrupt_redirect (fallback-no-motion policy)
+    func testReaderToBookshelfExitResolvesToAppRoutePop() {
+        // Reader UI 3.0 has no catch-all policy. The host declares that this
+        // cross-shell exit is an app-shell pop instead of impersonating an interrupt.
         let request = MotionRequest(
             fromShell: .readerShell,
             toShell: .mainTabShell,
-            operation: .pop
+            operation: .pop,
+            containerRole: .appShell
         )
-        XCTAssertEqual(ReaderMotionAdapter.resolve(request: request), .motion_interrupt_redirect,
-                       "pop from readerShell to mainTabShell has no specific policy; must fall back to .motion_interrupt_redirect")
+        XCTAssertEqual(ReaderMotionAdapter.resolve(request: request), .app_route_pop_backward,
+                       "reader exit must resolve through the explicit app-shell pop policy")
     }
 
     // MARK: - 3. State replace (StateContainerView 4-state switch)
@@ -103,20 +104,28 @@ final class ReaderMotionFirstBatchMigrationTests: XCTestCase {
                         "state content replace must yield a non-nil Animation when reduced motion is off")
     }
 
-    // MARK: - 4. Reader overlay sheet enter (ReaderView.toggleReaderChrome show)
+    // MARK: - 4. Reader control show (ReaderView.toggleReaderChrome show)
 
-    func testReaderOverlaySheetEnterResolvesToOverlaySheetEnterMotionId() {
-        // ReaderView.toggleReaderChrome: willShow=true → enter + sheet + readerShell
-        let request = MotionRequest(operation: .enter, targetRole: "sheet", containerRole: .readerShell)
-        XCTAssertEqual(ReaderMotionAdapter.resolve(request: request), .overlay_sheet_enter,
-                       "enter + sheet + readerShell must resolve to .overlay_sheet_enter")
+    func testReaderControlShowResolvesToReaderControlShowMotionId() {
+        let request = MotionRequest(
+            operation: .enter,
+            sourceRole: "controlLayer",
+            targetRole: "controlHome",
+            containerRole: .readerShell
+        )
+        XCTAssertEqual(ReaderMotionAdapter.resolve(request: request), .reader_control_show,
+                       "explicit Reader control roles must resolve to .reader_control_show")
     }
 
     // MARK: - 4b. Reader control hide (ReaderView.toggleReaderChrome hide)
 
     func testReaderControlHideResolvesToReaderControlHideMotionId() {
-        // ReaderView.toggleReaderChrome: willShow=false → exit + controlLayer + readerSurface
-        let request = MotionRequest(operation: .exit, sourceRole: "controlLayer", containerRole: .readerSurface)
+        let request = MotionRequest(
+            operation: .exit,
+            sourceRole: "controlLayer",
+            targetRole: "immersiveReading",
+            containerRole: .readerShell
+        )
         XCTAssertEqual(ReaderMotionAdapter.resolve(request: request), .reader_control_hide,
                        "exit + controlLayer + readerSurface must resolve to .reader_control_hide")
     }
@@ -148,19 +157,19 @@ final class ReaderMotionFirstBatchMigrationTests: XCTestCase {
             // bookshelf → reader entry (action)
             MotionRequest(fromShell: .mainTabShell, toShell: .readerShell, operation: .push, sourceRole: "actionButton"),
             // reader → bookshelf exit
-            MotionRequest(fromShell: .readerShell, toShell: .mainTabShell, operation: .pop),
+            MotionRequest(fromShell: .readerShell, toShell: .mainTabShell, operation: .pop, containerRole: .appShell),
             // state replace
             MotionRequest(operation: .replace, sourceRole: "content", containerRole: .inlineState),
-            // reader overlay sheet enter
-            MotionRequest(operation: .enter, targetRole: "sheet", containerRole: .readerShell),
+            // reader control show
+            MotionRequest(operation: .enter, sourceRole: "controlLayer", targetRole: "controlHome", containerRole: .readerShell),
             // reader control hide
-            MotionRequest(operation: .exit, sourceRole: "controlLayer", containerRole: .readerSurface),
+            MotionRequest(operation: .exit, sourceRole: "controlLayer", targetRole: "immersiveReading", containerRole: .readerShell),
             // settings shell dialog enter
             MotionRequest(operation: .enter, targetRole: "dialog", containerRole: .settingsShell),
         ]
         for request in requests {
             XCTAssertNotNil(ReaderMotionAdapter.resolve(request: request),
-                           "all first-batch migration requests must resolve (fallback-no-motion guarantees this)")
+                           "all first-batch production requests must have an explicit 3.0 policy")
         }
     }
 }

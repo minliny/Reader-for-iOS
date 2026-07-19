@@ -2,7 +2,6 @@
 
 import Foundation
 import ReaderCoreNativeAdapter
-import ReaderAppPersistence
 import ReaderShellValidation
 import ReaderUIContract
 import SwiftUI
@@ -87,14 +86,14 @@ public struct UnifiedEvidenceAutorunConfiguration: Sendable, Equatable {
 ///   `ReaderCoreNativeRuntime.request(method:...)` with minimal params. PASS if
 ///   Core round-trips (even with a structured CoreError), FAIL on
 ///   exception/timeout.
-/// - `bookmark.crud`: iOS-side only (Core has no runtime method). Exercised
-///   via `BookmarkStore` CRUD round-trip against a temp storage URL. PASS if
-///   create → read → delete → verify-empty succeeds.
-/// - `tts.queue`: iOS-side only (Core has no runtime method). Exercised via
-///   `HostAdapterHolder.adapter.dispatch(.tts_system_start)`. PASS if the
-///   outcome is NOT `.notImplemented` (provider injected = handler reached).
+/// - `bookmark.crud`: blocked here. A local BookmarkStore round-trip is not
+///   evidence for the Core-owned aggregate storage path; this runner does not
+///   mutate user Core state or fabricate device-tier persistence evidence.
+/// - `tts.queue`: blocked here. A Host synth dispatch does not prove the Core
+///   plan/queue/report/next/stop transaction or physical-device playback.
 /// - `manga.pages.extract`, `local_book.parse`, `http-tts`, `sync.webdav`:
-///   blocked — Core gap (requires Native repo C ABI).
+///   blocked when this runner lacks the exact end-to-end fixture and required
+///   native/device proof. Existing narrower contracts are not relabelled.
 public enum UnifiedEvidenceRunner {
     /// Run all 15 canonical capabilities and return the unified evidence artifact.
     ///
@@ -303,25 +302,18 @@ public enum UnifiedEvidenceRunner {
             timeout: 5
         ))
 
-        // ---- bookmark.crud: iOS local store (Core has no runtime method) ----
-        // BookmarkStore lives in App/Persistence. We exercise it directly
-        // (not via Core round-trip) to prove the iOS-side capability exists.
+        // ---- bookmark.crud: explicit evidence boundary ----
         capabilities.append(measureBookmarkCRUD())
 
-        // ---- tts.queue: iOS HostAdapter (Core has no runtime method) ----
-        // HostAdapterHolder.adapter has TTS provider injected by ReaderApp.
-        // We dispatch tts.system.start to prove the Host capability path
-        // is wired (not .notImplemented).
+        // ---- tts.queue: explicit evidence boundary ----
         capabilities.append(await measureTTSQueue())
 
-        // ---- Blocked capabilities: Core gap (requires Native repo C ABI) ----
-        // These 4 capabilities have no reader-ffi method and no iOS local
-        // implementation — they require Native repo changes.
+        // ---- Blocked capabilities: exact end-to-end proof is absent ----
         let coreGapCapabilities: [(name: String, reason: String)] = [
-            ("manga.pages.extract", "Core gap: reader-ffi does not expose manga.pages.extract method"),
-            ("local_book.parse", "Core gap: reader-ffi does not expose local_book.parse method"),
-            ("http-tts", "Core gap: reader-ffi does not expose http-tts method (HTTP TTS protocol engine)"),
-            ("sync.webdav", "Core gap: reader-ffi does not expose sync.webdav method (WebDAV sync engine)"),
+            ("manga.pages.extract", "Core extraction alone is not native manga session/locator/progress/device evidence"),
+            ("local_book.parse", "Production uses local_book.import/content; this legacy capability name has no authorized-file/relaunch device artifact"),
+            ("http-tts", "Config/request descriptors exist, but credential binding, audio playback/focus/media controls and device evidence are missing"),
+            ("sync.webdav", "No admitted end-to-end WebDAV transaction and physical-device evidence artifact exists in this runner"),
         ]
         for (name, reason) in coreGapCapabilities {
             capabilities.append(CapabilityResult(
@@ -356,9 +348,9 @@ public enum UnifiedEvidenceRunner {
             "Pass-on-round-trip capabilities: Core round-trip = PASS (structured CoreError still proves the bridge).",
             "host.request exercised via runtime.hostSmoke -> host.request -> host.complete -> result.",
             "rss.parse: Core round-trip via rss.parse method with RSS 2.0 sample XML.",
-            "bookmark.crud: iOS BookmarkStore CRUD round-trip (temp storage, no user data touched).",
-            "tts.queue: iOS HostAdapter.dispatch(tts.system.start) — PASS if not .notImplemented (provider injected).",
-            "Blocked: Core gap (manga/local_book/http-tts/sync.webdav need Native C ABI).",
+            "bookmark.crud: blocked; local JSON CRUD is not Core aggregate-persistence evidence.",
+            "tts.queue: blocked; Host synth dispatch is not Core queue transaction or device playback evidence.",
+            "Blocked capabilities retain exact contract/device-proof reasons; narrower source paths are not promoted.",
             "totalDurationMs=\(totalDurationMs)",
         ]
 
@@ -534,131 +526,26 @@ public enum UnifiedEvidenceRunner {
         }
     }
 
-    /// Measure bookmark.crud via the iOS local `BookmarkStore`.
-    ///
-    /// Core has no `bookmark.crud` runtime method — this capability is
-    /// iOS-side only. We exercise the full CRUD round-trip (create → read →
-    /// delete → verify-empty) against a temporary storage URL (not the shared
-    /// `Documents/bookmarks.json`) to avoid polluting user data.
+    /// This debug runner deliberately does not mutate the production Core
+    /// snapshot. Bookmark evidence requires the real startup restore,
+    /// write-through acknowledgement, relaunch restore, and a device artifact;
+    /// a temporary local JSON store proves none of those properties.
     private static func measureBookmarkCRUD() -> CapabilityResult {
-        let start = Date()
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("unified-evidence-bookmark-\(UUID().uuidString)", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            let storageURL = tempDir.appendingPathComponent("bookmarks.json")
-            let store = BookmarkStore(storageURL: storageURL)
-
-            // Create
-            let bookmark = Bookmark(
-                bookId: "unified-evidence-book",
-                sourceId: "unified-evidence-source",
-                sourceName: "Unified Evidence",
-                title: "Bookmark CRUD Proof",
-                chapterURL: "chapter://1",
-                chapterTitle: "Chapter 1",
-                progress: 0.42,
-                snippet: "proof snippet"
-            )
-            try store.addBookmark(bookmark)
-
-            // Read
-            let loaded = try store.loadBookmarksForBook(bookId: "unified-evidence-book")
-            guard loaded.count == 1 else {
-                throw UnifiedEvidenceRunnerFailure.unexpectedEvent(
-                    type: "count=\(loaded.count)",
-                    context: "bookmark.crud read"
-                )
-            }
-            guard loaded[0].id == bookmark.id else {
-                throw UnifiedEvidenceRunnerFailure.unexpectedEvent(
-                    type: "id-mismatch",
-                    context: "bookmark.crud read"
-                )
-            }
-
-            // Delete
-            try store.deleteBookmark(id: bookmark.id)
-            let afterDelete = try store.loadBookmarksForBook(bookId: "unified-evidence-book")
-            guard afterDelete.isEmpty else {
-                throw UnifiedEvidenceRunnerFailure.unexpectedEvent(
-                    type: "not-empty",
-                    context: "bookmark.crud delete"
-                )
-            }
-
-            try? FileManager.default.removeItem(at: tempDir)
-            let durationMs = Int(Date().timeIntervalSince(start) * 1000)
-            return CapabilityResult(
-                capability: "bookmark.crud",
-                status: .pass,
-                method: "BookmarkStore.add+load+delete",
-                durationMs: durationMs,
-                redactedEvidence: "crudRoundTrip=ok; store=file-backed"
-            )
-        } catch {
-            try? FileManager.default.removeItem(at: tempDir)
-            let durationMs = Int(Date().timeIntervalSince(start) * 1000)
-            return CapabilityResult(
-                capability: "bookmark.crud",
-                status: .fail,
-                method: "BookmarkStore.add+load+delete",
-                durationMs: durationMs,
-                error: String(describing: error)
-            )
-        }
+        CapabilityResult(
+            capability: "bookmark.crud",
+            status: .blocked,
+            error: "Core-owned bookmark persistence requires restore/write-through/relaunch device proof; local BookmarkStore evidence is rejected"
+        )
     }
 
-    /// Measure tts.queue via the iOS `HostAdapter` (production holder).
-    ///
-    /// Core has no `tts.queue` runtime method — TTS is an iOS-side Host
-    /// capability. We dispatch `tts.system.start` through
-    /// `HostAdapterHolder.adapter` (the production adapter with TTS provider
-    /// injected by ReaderApp at launch) and verify the outcome is NOT
-    /// `.notImplemented` (which would indicate the provider was not injected).
-    ///
-    /// A non-`.notImplemented` outcome (success OR invalidParams OR underlying)
-    /// proves the handler was reached — the Host capability path is wired.
+    /// This runner has no safe chapter fixture and no device playback capture.
+    /// A direct Host synth call would only prove provider reachability, not the
+    /// Core-owned queue transaction, so it is deliberately not executed.
     private static func measureTTSQueue() async -> CapabilityResult {
-        let start = Date()
-        let adapter = await MainActor.run { HostAdapterHolder.adapter }
-        let request = HostRequest(type: .tts_system_start, payload: [
-            "text": AnyCodable("unified evidence tts queue proof"),
-        ])
-        let outcome = await adapter.dispatch(request)
-        let durationMs = Int(Date().timeIntervalSince(start) * 1000)
-
-        // The key assertion: the outcome must NOT be .notImplemented.
-        // notImplemented means the TTS synth provider was not injected
-        // (ReaderApp didn't call setTTSSynthProvider at launch).
-        if case .notImplemented(.tts_system_start, let message) = outcome.error {
-            return CapabilityResult(
-                capability: "tts.queue",
-                status: .fail,
-                method: "HostAdapter.dispatch(tts.system.start)",
-                durationMs: durationMs,
-                error: "tts provider not injected: \(message)"
-            )
-        }
-
-        if outcome.succeeded {
-            return CapabilityResult(
-                capability: "tts.queue",
-                status: .pass,
-                method: "HostAdapter.dispatch(tts.system.start)",
-                durationMs: durationMs,
-                redactedEvidence: "started=true; providerInjected=true"
-            )
-        }
-
-        // Non-notImplemented failure (e.g. invalidParams, underlying) still
-        // proves the handler was reached — the Host path is wired.
-        return CapabilityResult(
+        CapabilityResult(
             capability: "tts.queue",
-            status: .pass,
-            method: "HostAdapter.dispatch(tts.system.start)",
-            durationMs: durationMs,
-            redactedEvidence: "handlerReached=true; error=\(String(describing: outcome.error))"
+            status: .blocked,
+            error: "Core plan/queue/report/next/stop plus Host playback and physical-device evidence are required; Host reachability alone is rejected"
         )
     }
 

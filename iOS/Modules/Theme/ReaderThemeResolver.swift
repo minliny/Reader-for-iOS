@@ -1,4 +1,5 @@
 import SwiftUI
+import ReaderUIContract
 
 /// Reader 主题解析器（对照 HarmonyOS `ReaderThemeResolver.ets`）。
 ///
@@ -13,36 +14,60 @@ import SwiftUI
 ///   墨色 / 控制层色），供 `ReaderThemeManager` 注入到 `@Environment(\.readerThemePalette)`。
 public enum ReaderThemeResolver {
 
+    public struct FullAppearanceOption: Identifiable, Equatable {
+        public let id: String
+        public let themeId: String
+        public let label: String
+        public let isNight: Bool
+
+        public init(themeId: String, label: String, isNight: Bool) {
+            self.id = "\(themeId)-\(isNight ? "night" : "day")"
+            self.themeId = themeId
+            self.label = label
+            self.isNight = isNight
+        }
+    }
+
     /// 4 个纸张主题 ID（与 demo 主题网格一致）。
-    public static let allOptions: [String] = ["paper", "warm", "green", "blue"]
+    public static let allOptions: [String] = ReaderAppearanceSpecRegistry.themes
+        .filter { $0.scheme == "day" }
+        .map(\.id)
+
+    /// Reader 2 / Full / AppearanceContent 的唯一展示顺序。
+    public static let fullAppearanceOptions: [FullAppearanceOption] =
+        ReaderAppearanceSpecRegistry.themes.map { theme in
+            .init(
+                themeId: theme.id.replacingOccurrences(of: "-night", with: ""),
+                label: theme.label,
+                isNight: theme.scheme == "night"
+            )
+        }
 
     /// 主题展示名（中文名，对照 demo 主题网格标签）。
     public static func displayName(_ themeId: String) -> String {
-        switch themeId {
-        case "warm":  return "护眼"
-        case "green": return "绿意"
-        case "blue":  return "静蓝"
-        default:      return "纸张"
-        }
+        ReaderAppearanceSpecRegistry.theme(id: themeId)?.label ?? themeId
     }
 
     // MARK: - Swatch（快捷 4 色板填充色）
 
-    /// 色板填充色（hex）。day: #F5EAD8 / #FBF0DF / #E7F0E2 / #E9F1F4，
-    /// night: #2D2924 / #27231F / #202B26 / #232934（对照 demo fixture 真值）。
+    /// 色板填充色（hex），与 Reader 2 / Full / AppearanceContent 对齐。
     public static func swatchHex(themeId: String, isNight: Bool) -> String {
+        let appearanceId = isNight ? "\(themeId)-night" : themeId
+        if let generated = ReaderAppearanceSpecRegistry.theme(id: appearanceId) {
+            return generated.swatchHex
+        }
         if isNight {
             switch themeId {
-            case "warm":  return "#27231F"
-            case "green": return "#202B26"
-            case "blue":  return "#232934"
-            default:      return "#2D2924"
+            case "warm":  return "#302922"
+            case "green": return "#263129"
+            case "blue":  return "#26231F"
+            default:      return "#34302B"
             }
         } else {
             switch themeId {
             case "warm":  return "#FBF0DF"
             case "green": return "#E7F0E2"
-            case "blue":  return "#E9F1F4"
+            case "blue":  return "#FFFFFF"
             default:      return "#F5EAD8"
             }
         }
@@ -60,16 +85,16 @@ public enum ReaderThemeResolver {
     public static func paperColor(themeId: String, isNight: Bool) -> Color {
         if isNight {
             switch themeId {
-            case "warm":  return Color(red: 0x27/255, green: 0x23/255, blue: 0x1F/255)
-            case "green": return Color(red: 0x20/255, green: 0x2B/255, blue: 0x26/255)
-            case "blue":  return Color(red: 0x23/255, green: 0x29/255, blue: 0x34/255)
-            default:      return Color(red: 0x2D/255, green: 0x29/255, blue: 0x24/255)
+            case "warm":  return Color(red: 0x30/255, green: 0x29/255, blue: 0x22/255)
+            case "green": return Color(red: 0x26/255, green: 0x31/255, blue: 0x29/255)
+            case "blue":  return Color(red: 0x26/255, green: 0x23/255, blue: 0x1F/255)
+            default:      return Color(red: 0x34/255, green: 0x30/255, blue: 0x2B/255)
             }
         } else {
             switch themeId {
             case "warm":  return Color(red: 0xFB/255, green: 0xF0/255, blue: 0xDF/255)
             case "green": return Color(red: 0xE7/255, green: 0xF0/255, blue: 0xE2/255)
-            case "blue":  return Color(red: 0xE9/255, green: 0xF1/255, blue: 0xF4/255)
+            case "blue":  return .white
             default:      return Color(red: 0xF5/255, green: 0xEA/255, blue: 0xD8/255)
             }
         }

@@ -13,7 +13,11 @@ final class ReaderUIRuntimeShadowParityTests: XCTestCase {
         let lock = try loadConsumerLock()
         let configuration = ReaderUIRuntimeShadowConfiguration.live
 
-        XCTAssertEqual(lock.readerUiVersion, "2.5.1")
+        XCTAssertEqual(
+            lock.readerUiVersion,
+            try expectedReaderUIVersion(for: lock),
+            "Reader UI version must come from the verified release artifact when supplied, otherwise from the checked-in consumer lock"
+        )
         XCTAssertEqual(lock.hostRequestSchemaVersion, "1.2.0")
         XCTAssertEqual(lock.runtimeActionsSha256, "0ac249341d8de651314687d8352bc1c3f62d3778371ff500f1f0a025a64be82c")
         XCTAssertEqual(lock.rollout.mode, configuration.defaultMode.rawValue)
@@ -31,7 +35,7 @@ final class ReaderUIRuntimeShadowParityTests: XCTestCase {
                 )
             }
         )
-        XCTAssertEqual(GeneratedRuntimeActions.schemaVersion, 2)
+        XCTAssertEqual(GeneratedRuntimeActions.schemaVersion, 3)
         XCTAssertEqual(configuration.coveredEvents.count, 35)
         XCTAssertEqual(configuration.coveredEvents.filter { configuration.mode(for: $0) == .pilot }.count, 7)
         XCTAssertEqual(configuration.coveredEvents.filter { configuration.mode(for: $0) == .shadow }.count, 28)
@@ -74,6 +78,22 @@ final class ReaderUIRuntimeShadowParityTests: XCTestCase {
         XCTAssertEqual(configuration.mode(for: "sync.complete"), .shadow)
         XCTAssertEqual(configuration.mode(for: "sync.conflict"), .shadow)
         XCTAssertEqual(configuration.mode(for: "sync.resolve"), .shadow)
+    }
+
+    func testConsumerVersionSourceAcceptsMatchingVerifiedReleaseWithoutPinnedVersion() throws {
+        let lock = try loadConsumerLock()
+        let verifiedRelease = VerifiedReaderUIRelease(
+            readerUiVersion: lock.readerUiVersion,
+            releaseId: lock.releaseIdentity.releaseId,
+            sourceSha: lock.releaseIdentity.sourceSha,
+            manifestSha256: lock.releaseIdentity.manifestSha256,
+            targetConfigSha256: lock.releaseIdentity.targetConfigSha256
+        )
+
+        XCTAssertEqual(
+            try expectedReaderUIVersion(for: lock, verifiedRelease: verifiedRelease),
+            lock.readerUiVersion
+        )
     }
 
     func testActualAppCoordinatorDispatchKeepsContinuousDirectoryPilotState() throws {
@@ -775,6 +795,7 @@ final class ReaderUIRuntimeShadowParityTests: XCTestCase {
         let readerUiVersion: String
         let hostRequestSchemaVersion: String
         let runtimeActionsSha256: String
+        let releaseIdentity: ReleaseIdentity
         let rollout: Rollout
 
         struct Rollout: Decodable {
@@ -790,6 +811,104 @@ final class ReaderUIRuntimeShadowParityTests: XCTestCase {
                 let rollback: CohortDetail?
                 let events: [String]
             }
+        }
+    }
+
+    private struct ReleaseIdentity: Decodable, Equatable {
+        let releaseId: String
+        let sourceSha: String
+        let manifestSha256: String
+        let targetConfigSha256: String
+    }
+
+    /// Subset of the temporary `reader-ui-verified.json` emitted by Reader-UI's release gate.
+    /// Unknown fields intentionally remain owned and validated by the upstream release tooling.
+    private struct VerifiedReaderUIRelease: Decodable {
+        let readerUiVersion: String
+        let releaseId: String
+        let sourceSha: String
+        let manifestSha256: String
+        let targetConfigSha256: String
+
+        var releaseIdentity: ReleaseIdentity {
+            ReleaseIdentity(
+                releaseId: releaseId,
+                sourceSha: sourceSha,
+                manifestSha256: manifestSha256,
+                targetConfigSha256: targetConfigSha256
+            )
+        }
+    }
+
+    private enum ConsumerVersionSourceError: Error {
+        case invalidVersion(String)
+        case invalidReleaseIdentity
+        case verifiedArtifactMismatch
+    }
+
+    private func expectedReaderUIVersion(for lock: ConsumerLock) throws -> String {
+        let verifiedRelease: VerifiedReaderUIRelease?
+        if let artifactPath = ProcessInfo.processInfo.environment[
+            "READER_UI_VERIFIED_RELEASE_PATH"
+        ], !artifactPath.isEmpty {
+            verifiedRelease = try JSONDecoder().decode(
+                VerifiedReaderUIRelease.self,
+                from: Data(contentsOf: URL(fileURLWithPath: artifactPath))
+            )
+        } else {
+            verifiedRelease = nil
+        }
+        return try expectedReaderUIVersion(for: lock, verifiedRelease: verifiedRelease)
+    }
+
+    private func expectedReaderUIVersion(
+        for lock: ConsumerLock,
+        verifiedRelease: VerifiedReaderUIRelease?
+    ) throws -> String {
+        try validateVersionAndIdentity(
+            version: lock.readerUiVersion,
+            identity: lock.releaseIdentity
+        )
+
+        guard let verifiedRelease else {
+            // Normal local and post-lock CI runs consume the checked-in, upstream-verified lock.
+            return lock.readerUiVersion
+        }
+
+        try validateVersionAndIdentity(
+            version: verifiedRelease.readerUiVersion,
+            identity: verifiedRelease.releaseIdentity
+        )
+        guard verifiedRelease.releaseIdentity == lock.releaseIdentity else {
+            throw ConsumerVersionSourceError.verifiedArtifactMismatch
+        }
+        return verifiedRelease.readerUiVersion
+    }
+
+    private func validateVersionAndIdentity(
+        version: String,
+        identity: ReleaseIdentity
+    ) throws {
+        guard version.range(
+            of: #"^[0-9]+\.[0-9]+\.[0-9]+$"#,
+            options: .regularExpression
+        ) != nil else {
+            throw ConsumerVersionSourceError.invalidVersion(version)
+        }
+        guard identity.releaseId == "\(identity.sourceSha):\(identity.manifestSha256)",
+              identity.sourceSha.range(
+                of: #"^[0-9a-f]{40}$"#,
+                options: .regularExpression
+              ) != nil,
+              identity.manifestSha256.range(
+                of: #"^[0-9a-f]{64}$"#,
+                options: .regularExpression
+              ) != nil,
+              identity.targetConfigSha256.range(
+                of: #"^[0-9a-f]{64}$"#,
+                options: .regularExpression
+              ) != nil else {
+            throw ConsumerVersionSourceError.invalidReleaseIdentity
         }
     }
 

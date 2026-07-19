@@ -239,6 +239,154 @@ public struct ReaderCoreHttpTTSRequestDescriptor: Equatable, Sendable {
     public let concurrentRate: String?
 }
 
+/// Exact wire values accepted by Core's `cache.clear` command.
+public enum ReaderCoreCacheClearScope: String, Equatable, Sendable {
+    case all
+    case cache
+    case book
+}
+
+public enum ReaderCoreCacheChapterState: String, Equatable, Sendable {
+    case missing
+    case queued
+    case inProgress
+    case cached
+    case completed
+    case failed
+    case cancelled
+}
+
+public struct ReaderCoreCacheChapterStatus: Equatable, Sendable, Identifiable {
+    public var id: Int { chapterIndex }
+    public let chapterIndex: Int
+    public let title: String
+    public let url: String
+    public let state: ReaderCoreCacheChapterState
+    public let cachedBytes: Int64
+    public let attempts: Int
+    public let maxAttempts: Int
+    public let lastError: String?
+}
+
+public struct ReaderCoreCacheGlobalStats: Equatable, Sendable {
+    public let entryCount: Int
+    public let totalContentBytes: Int64
+    public let oldestCachedAt: Int64?
+    public let newestCachedAt: Int64?
+    public let queueEntryCount: Int
+    public let queuedCount: Int
+    public let inProgressCount: Int
+    public let completedCount: Int
+    public let failedCount: Int
+    public let cancelledCount: Int
+}
+
+public struct ReaderCoreBookCacheStatus: Equatable, Sendable {
+    public let sourceID: String
+    public let bookID: String
+    public let tocAvailable: Bool
+    public let chapterCount: Int
+    public let chapters: [ReaderCoreCacheChapterStatus]
+    public let cachedCount: Int
+    public let queuedCount: Int
+    public let inProgressCount: Int
+    public let completedCount: Int
+    public let failedCount: Int
+    public let cancelledCount: Int
+    public let missingCount: Int
+    public let globalStats: ReaderCoreCacheGlobalStats
+}
+
+public struct ReaderCoreBookPrefetchResult: Equatable, Sendable {
+    public let sourceID: String
+    public let bookID: String
+    public let chapterRange: [Int]
+    public let chapterCount: Int
+    public let prefetchedCount: Int
+    public let queuedIndexes: [Int]
+    public let alreadyQueuedIndexes: [Int]
+    public let skippedCachedIndexes: [Int]
+}
+
+public struct ReaderCoreCacheClearResult: Equatable, Sendable {
+    public let scope: ReaderCoreCacheClearScope
+    public let cacheEntriesRemoved: Int
+    public let chapterEntriesRemoved: Int
+    public let queueEntriesRemoved: Int
+    public let removedContentBytes: Int64
+}
+
+public enum ReaderCoreReplaceUndoOperation: String, Equatable, Sendable {
+    case create
+    case update
+    case delete
+}
+
+/// Core-issued token retained losslessly as typed fields. Host code may store
+/// and replay it but must never manufacture or alter any field.
+public struct ReaderCoreReplaceUndoToken: Equatable, Sendable {
+    public let schemaVersion: Int
+    public let transactionID: String
+    public let revision: String
+    public let operation: ReaderCoreReplaceUndoOperation
+    public let ruleID: Int64
+    public let issuedAt: Int64
+    public let expiresAt: Int64
+    public let before: ReaderCoreReplaceRule?
+    public let after: ReaderCoreReplaceRule?
+
+    public init(coreObject: [String: Any]) throws {
+        self = try ReaderSlice10CoreService.parseReplaceUndoToken(coreObject)
+    }
+
+    fileprivate init(
+        schemaVersion: Int,
+        transactionID: String,
+        revision: String,
+        operation: ReaderCoreReplaceUndoOperation,
+        ruleID: Int64,
+        issuedAt: Int64,
+        expiresAt: Int64,
+        before: ReaderCoreReplaceRule?,
+        after: ReaderCoreReplaceRule?
+    ) {
+        self.schemaVersion = schemaVersion
+        self.transactionID = transactionID
+        self.revision = revision
+        self.operation = operation
+        self.ruleID = ruleID
+        self.issuedAt = issuedAt
+        self.expiresAt = expiresAt
+        self.before = before
+        self.after = after
+    }
+
+    fileprivate var coreObject: [String: Any] {
+        var value: [String: Any] = [
+            "schemaVersion": schemaVersion,
+            "transactionId": transactionID,
+            "revision": revision,
+            "operation": operation.rawValue,
+            "ruleId": ruleID,
+            "issuedAt": issuedAt,
+            "expiresAt": expiresAt,
+        ]
+        if let before { value["before"] = ReaderSlice10CoreService.replaceRuleObject(before) }
+        if let after { value["after"] = ReaderSlice10CoreService.replaceRuleObject(after) }
+        return value
+    }
+}
+
+public struct ReaderCoreReplaceUndoResult: Equatable, Sendable {
+    public let transactionID: String
+    public let revision: String
+    public let operation: ReaderCoreReplaceUndoOperation
+    public let ruleID: Int64
+    public let changed: Bool
+    public let undoneAt: Int64
+    public let restoredRule: ReaderCoreReplaceRule?
+}
+
 // MARK: - Narrow UI seams
 
 public protocol ReaderSlice10ReadingDataServicing: AnyObject {
@@ -275,6 +423,38 @@ public protocol ReaderSlice10SearchHistoryServicing: AnyObject {
     func clearSearchHistory(correlationID: String?) async throws -> Int
 }
 
+/// Narrow Host-to-Core seam for cache operations and replacement undo. Core
+/// remains the sole owner of validation, persistence, and mutation semantics;
+/// iOS only preserves the exact command parameters and result JSON.
+public protocol ReaderSlice10CacheAndReplaceUndoServicing: AnyObject {
+    func loadBookCacheStatus(
+        sourceID: String,
+        bookID: String,
+        correlationID: String?
+    ) async throws -> ReaderCoreBookCacheStatus
+
+    func prefetchBookCache(
+        sourceID: String,
+        bookID: String,
+        chapterRange: [Int],
+        priority: Int?,
+        requestedAt: Int64?,
+        correlationID: String?
+    ) async throws -> ReaderCoreBookPrefetchResult
+
+    func clearCache(
+        scope: ReaderCoreCacheClearScope,
+        sourceID: String?,
+        bookID: String?,
+        correlationID: String?
+    ) async throws -> ReaderCoreCacheClearResult
+
+    func undoReplace(
+        undoToken: ReaderCoreReplaceUndoToken,
+        correlationID: String?
+    ) async throws -> ReaderCoreReplaceUndoResult
+}
+
 public enum ReaderSlice10CoreServiceError: Error, Equatable, LocalizedError, Sendable {
     case failedClosed(code: String, message: String)
     case invalidResult(method: String, message: String)
@@ -302,7 +482,12 @@ private struct ReaderSlice10RawResult: @unchecked Sendable {
 /// Core contract. Core remains the sole owner of persisted business entities;
 /// this type only validates input, maps typed values, and routes Core-emitted
 /// Host work through `HostRequestRouter`.
-public final class ReaderSlice10CoreService: ReaderSlice10ReadingDataServicing, ReaderSlice10SearchHistoryServicing, @unchecked Sendable {
+public final class ReaderSlice10CoreService:
+    ReaderSlice10ReadingDataServicing,
+    ReaderSlice10SearchHistoryServicing,
+    ReaderSlice10CacheAndReplaceUndoServicing,
+    @unchecked Sendable
+{
     private let runtime: any RustCoreCommandRuntime
     private let router: (any RustCoreHostRequestRouting)?
     private let requestTimeout: TimeInterval
@@ -532,6 +717,140 @@ public final class ReaderSlice10CoreService: ReaderSlice10ReadingDataServicing, 
         }
         let data = try await execute("search.content", params: params, correlationID: correlationID)
         return try Self.parseArray(data["results"], method: "search.content", field: "results", parser: Self.parseContentSearchMatch)
+    }
+
+    // MARK: Offline cache + replacement undo
+
+    public func loadBookCacheStatus(
+        sourceID: String,
+        bookID: String,
+        correlationID: String? = nil
+    ) async throws -> ReaderCoreBookCacheStatus {
+        try Self.requireNonBlank(sourceID, code: "SLICE10_CACHE_SOURCE_MISSING", field: "sourceId")
+        try Self.requireNonBlank(bookID, code: "SLICE10_CACHE_BOOK_MISSING", field: "bookId")
+        let data = try await execute(
+            "cache.book.status",
+            params: ["sourceId": sourceID, "bookId": bookID],
+            correlationID: correlationID,
+            requireResultData: true
+        )
+        let result = try Self.parseBookCacheStatus(data)
+        guard result.sourceID == sourceID, result.bookID == bookID else {
+            throw Self.invalidResult("cache.book.status", "sourceId/bookId do not match the requested live book")
+        }
+        return result
+    }
+
+    public func prefetchBookCache(
+        sourceID: String,
+        bookID: String,
+        chapterRange: [Int],
+        priority: Int? = nil,
+        requestedAt: Int64? = nil,
+        correlationID: String? = nil
+    ) async throws -> ReaderCoreBookPrefetchResult {
+        try Self.requireNonBlank(sourceID, code: "SLICE10_CACHE_SOURCE_MISSING", field: "sourceId")
+        try Self.requireNonBlank(bookID, code: "SLICE10_CACHE_BOOK_MISSING", field: "bookId")
+        guard chapterRange.count == 2,
+              chapterRange[0] >= 0,
+              chapterRange[1] > chapterRange[0] else {
+            throw ReaderSlice10CoreServiceError.failedClosed(
+                code: "SLICE10_CACHE_RANGE_INVALID",
+                message: "chapterRange must be [startInclusive, endExclusive] with end > start"
+            )
+        }
+        if let priority, !(Int(Int32.min)...Int(Int32.max)).contains(priority) {
+            throw ReaderSlice10CoreServiceError.failedClosed(
+                code: "SLICE10_CACHE_PRIORITY_INVALID",
+                message: "priority must fit Core's signed 32-bit range"
+            )
+        }
+        if let requestedAt, requestedAt < 0 {
+            throw ReaderSlice10CoreServiceError.failedClosed(
+                code: "SLICE10_CACHE_REQUESTED_AT_INVALID",
+                message: "requestedAt must be non-negative"
+            )
+        }
+        var params: [String: Any] = [
+            "sourceId": sourceID,
+            "bookId": bookID,
+            "chapterRange": chapterRange,
+        ]
+        if let priority { params["priority"] = priority }
+        if let requestedAt { params["requestedAt"] = requestedAt }
+        let data = try await execute(
+            "cache.book.prefetch",
+            params: params,
+            correlationID: correlationID,
+            requireResultData: true
+        )
+        let result = try Self.parseBookPrefetchResult(data)
+        guard result.sourceID == sourceID,
+              result.bookID == bookID,
+              result.chapterRange == chapterRange else {
+            throw Self.invalidResult("cache.book.prefetch", "Core result does not echo the requested live book and chapterRange")
+        }
+        return result
+    }
+
+    public func clearCache(
+        scope: ReaderCoreCacheClearScope,
+        sourceID: String? = nil,
+        bookID: String? = nil,
+        correlationID: String? = nil
+    ) async throws -> ReaderCoreCacheClearResult {
+        switch scope {
+        case .all, .cache:
+            guard sourceID == nil, bookID == nil else {
+                throw ReaderSlice10CoreServiceError.failedClosed(
+                    code: "SLICE10_CACHE_CLEAR_SELECTOR_INVALID",
+                    message: "scope \(scope.rawValue) does not accept sourceId/bookId"
+                )
+            }
+        case .book:
+            guard let sourceID, let bookID else {
+                throw ReaderSlice10CoreServiceError.failedClosed(
+                    code: "SLICE10_CACHE_CLEAR_SELECTOR_MISSING",
+                    message: "scope book requires live sourceId and bookId"
+                )
+            }
+            try Self.requireNonBlank(sourceID, code: "SLICE10_CACHE_SOURCE_MISSING", field: "sourceId")
+            try Self.requireNonBlank(bookID, code: "SLICE10_CACHE_BOOK_MISSING", field: "bookId")
+        }
+        var params: [String: Any] = ["scope": scope.rawValue]
+        if let sourceID { params["sourceId"] = sourceID }
+        if let bookID { params["bookId"] = bookID }
+        let data = try await execute(
+            "cache.clear",
+            params: params,
+            correlationID: correlationID,
+            requireResultData: true
+        )
+        let result = try Self.parseCacheClearResult(data)
+        guard result.scope == scope else {
+            throw Self.invalidResult("cache.clear", "scope does not match the requested clear operation")
+        }
+        return result
+    }
+
+    public func undoReplace(
+        undoToken: ReaderCoreReplaceUndoToken,
+        correlationID: String? = nil
+    ) async throws -> ReaderCoreReplaceUndoResult {
+        let data = try await execute(
+            "replace.undo",
+            params: ["undoToken": undoToken.coreObject],
+            correlationID: correlationID,
+            requireResultData: true
+        )
+        let result = try Self.parseReplaceUndoResult(data)
+        guard result.transactionID == undoToken.transactionID,
+              result.revision == undoToken.revision,
+              result.operation == undoToken.operation,
+              result.ruleID == undoToken.ruleID else {
+            throw Self.invalidResult("replace.undo", "Core result identity does not match the issued undoToken")
+        }
+        return result
     }
 
     // MARK: Content edit
@@ -808,7 +1127,8 @@ public final class ReaderSlice10CoreService: ReaderSlice10ReadingDataServicing, 
     private func execute(
         _ method: String,
         params: [String: Any],
-        correlationID: String?
+        correlationID: String?,
+        requireResultData: Bool = false
     ) async throws -> [String: Any] {
         let command = try RustCoreRequestScopedCommand<ReaderSlice10RawResult>(
             runtime: runtime,
@@ -819,7 +1139,13 @@ public final class ReaderSlice10CoreService: ReaderSlice10ReadingDataServicing, 
             params: params,
             timeout: requestTimeout
         ) { data in
-            ReaderSlice10RawResult(data: data ?? [:])
+            if requireResultData {
+                guard let data else {
+                    throw Self.invalidResult(method, "result data is missing")
+                }
+                return ReaderSlice10RawResult(data: data)
+            }
+            return ReaderSlice10RawResult(data: data ?? [:])
         }
         try command.start()
         return try await command.value().data
@@ -901,6 +1227,266 @@ public final class ReaderSlice10CoreService: ReaderSlice10ReadingDataServicing, 
     }
 
     // MARK: Parsers
+
+    private static func parseBookCacheStatus(_ data: [String: Any]) throws -> ReaderCoreBookCacheStatus {
+        let method = "cache.book.status"
+        try requireExactKeys(
+            data,
+            required: [
+                "sourceId", "bookId", "tocAvailable", "chapterCount", "chapters",
+                "cachedCount", "queuedCount", "inProgressCount", "completedCount",
+                "failedCount", "cancelledCount", "missingCount", "globalStats",
+            ],
+            method: method,
+            path: "result"
+        )
+        guard let rawGlobalStats = dictionary(data["globalStats"]) else {
+            throw invalidResult(method, "globalStats must be an object")
+        }
+        return ReaderCoreBookCacheStatus(
+            sourceID: try requireNonBlankResultString(data["sourceId"], method: method, field: "sourceId"),
+            bookID: try requireNonBlankResultString(data["bookId"], method: method, field: "bookId"),
+            tocAvailable: try requireBool(data["tocAvailable"], method: method, field: "tocAvailable"),
+            chapterCount: try requireNonNegativeInteger(data["chapterCount"], method: method, field: "chapterCount"),
+            chapters: try parseArray(data["chapters"], method: method, field: "chapters", parser: parseCacheChapterStatus),
+            cachedCount: try requireNonNegativeInteger(data["cachedCount"], method: method, field: "cachedCount"),
+            queuedCount: try requireNonNegativeInteger(data["queuedCount"], method: method, field: "queuedCount"),
+            inProgressCount: try requireNonNegativeInteger(data["inProgressCount"], method: method, field: "inProgressCount"),
+            completedCount: try requireNonNegativeInteger(data["completedCount"], method: method, field: "completedCount"),
+            failedCount: try requireNonNegativeInteger(data["failedCount"], method: method, field: "failedCount"),
+            cancelledCount: try requireNonNegativeInteger(data["cancelledCount"], method: method, field: "cancelledCount"),
+            missingCount: try requireNonNegativeInteger(data["missingCount"], method: method, field: "missingCount"),
+            globalStats: try parseCacheGlobalStats(rawGlobalStats)
+        )
+    }
+
+    private static func parseCacheChapterStatus(_ value: [String: Any]) throws -> ReaderCoreCacheChapterStatus {
+        let method = "cache.book.status"
+        try requireExactKeys(
+            value,
+            required: ["chapterIndex", "title", "url", "state", "cachedBytes", "attempts", "maxAttempts"],
+            optional: ["lastError"],
+            method: method,
+            path: "chapters[]"
+        )
+        let stateValue = try requireString(value["state"], method: method, field: "chapters[].state")
+        guard let state = ReaderCoreCacheChapterState(rawValue: stateValue) else {
+            throw invalidResult(method, "chapters[].state is unsupported")
+        }
+        return ReaderCoreCacheChapterStatus(
+            chapterIndex: try requireNonNegativeInteger(value["chapterIndex"], method: method, field: "chapters[].chapterIndex"),
+            title: try requireString(value["title"], method: method, field: "chapters[].title", allowEmpty: true),
+            url: try requireString(value["url"], method: method, field: "chapters[].url", allowEmpty: true),
+            state: state,
+            cachedBytes: try requireNonNegativeInt64(value["cachedBytes"], method: method, field: "chapters[].cachedBytes"),
+            attempts: try requireNonNegativeInteger(value["attempts"], method: method, field: "chapters[].attempts"),
+            maxAttempts: try requireNonNegativeInteger(value["maxAttempts"], method: method, field: "chapters[].maxAttempts"),
+            lastError: try optionalStrictString(value, key: "lastError", method: method, path: "chapters[]")
+        )
+    }
+
+    private static func parseCacheGlobalStats(_ value: [String: Any]) throws -> ReaderCoreCacheGlobalStats {
+        let method = "cache.book.status"
+        try requireExactKeys(
+            value,
+            required: [
+                "entryCount", "totalContentBytes", "queueEntryCount", "queuedCount",
+                "inProgressCount", "completedCount", "failedCount", "cancelledCount",
+            ],
+            optional: ["oldestCachedAt", "newestCachedAt"],
+            method: method,
+            path: "globalStats"
+        )
+        return ReaderCoreCacheGlobalStats(
+            entryCount: try requireNonNegativeInteger(value["entryCount"], method: method, field: "globalStats.entryCount"),
+            totalContentBytes: try requireNonNegativeInt64(value["totalContentBytes"], method: method, field: "globalStats.totalContentBytes"),
+            oldestCachedAt: try optionalStrictInt64(value, key: "oldestCachedAt", method: method, path: "globalStats"),
+            newestCachedAt: try optionalStrictInt64(value, key: "newestCachedAt", method: method, path: "globalStats"),
+            queueEntryCount: try requireNonNegativeInteger(value["queueEntryCount"], method: method, field: "globalStats.queueEntryCount"),
+            queuedCount: try requireNonNegativeInteger(value["queuedCount"], method: method, field: "globalStats.queuedCount"),
+            inProgressCount: try requireNonNegativeInteger(value["inProgressCount"], method: method, field: "globalStats.inProgressCount"),
+            completedCount: try requireNonNegativeInteger(value["completedCount"], method: method, field: "globalStats.completedCount"),
+            failedCount: try requireNonNegativeInteger(value["failedCount"], method: method, field: "globalStats.failedCount"),
+            cancelledCount: try requireNonNegativeInteger(value["cancelledCount"], method: method, field: "globalStats.cancelledCount")
+        )
+    }
+
+    private static func parseBookPrefetchResult(_ data: [String: Any]) throws -> ReaderCoreBookPrefetchResult {
+        let method = "cache.book.prefetch"
+        try requireExactKeys(
+            data,
+            required: [
+                "sourceId", "bookId", "chapterRange", "chapterCount", "prefetchedCount",
+                "queuedIndexes", "alreadyQueuedIndexes", "skippedCachedIndexes",
+            ],
+            method: method,
+            path: "result"
+        )
+        let range = try requireNonNegativeIntegerArray(data["chapterRange"], method: method, field: "chapterRange")
+        guard range.count == 2, range[1] > range[0] else {
+            throw invalidResult(method, "chapterRange must contain exactly two increasing indexes")
+        }
+        return ReaderCoreBookPrefetchResult(
+            sourceID: try requireNonBlankResultString(data["sourceId"], method: method, field: "sourceId"),
+            bookID: try requireNonBlankResultString(data["bookId"], method: method, field: "bookId"),
+            chapterRange: range,
+            chapterCount: try requireNonNegativeInteger(data["chapterCount"], method: method, field: "chapterCount"),
+            prefetchedCount: try requireNonNegativeInteger(data["prefetchedCount"], method: method, field: "prefetchedCount"),
+            queuedIndexes: try requireNonNegativeIntegerArray(data["queuedIndexes"], method: method, field: "queuedIndexes"),
+            alreadyQueuedIndexes: try requireNonNegativeIntegerArray(data["alreadyQueuedIndexes"], method: method, field: "alreadyQueuedIndexes"),
+            skippedCachedIndexes: try requireNonNegativeIntegerArray(data["skippedCachedIndexes"], method: method, field: "skippedCachedIndexes")
+        )
+    }
+
+    private static func parseCacheClearResult(_ data: [String: Any]) throws -> ReaderCoreCacheClearResult {
+        let method = "cache.clear"
+        try requireExactKeys(
+            data,
+            required: [
+                "scope", "cacheEntriesRemoved", "chapterEntriesRemoved",
+                "queueEntriesRemoved", "removedContentBytes",
+            ],
+            method: method,
+            path: "result"
+        )
+        let rawScope = try requireString(data["scope"], method: method, field: "scope")
+        guard let scope = ReaderCoreCacheClearScope(rawValue: rawScope) else {
+            throw invalidResult(method, "scope is unsupported")
+        }
+        return ReaderCoreCacheClearResult(
+            scope: scope,
+            cacheEntriesRemoved: try requireNonNegativeInteger(data["cacheEntriesRemoved"], method: method, field: "cacheEntriesRemoved"),
+            chapterEntriesRemoved: try requireNonNegativeInteger(data["chapterEntriesRemoved"], method: method, field: "chapterEntriesRemoved"),
+            queueEntriesRemoved: try requireNonNegativeInteger(data["queueEntriesRemoved"], method: method, field: "queueEntriesRemoved"),
+            removedContentBytes: try requireNonNegativeInt64(data["removedContentBytes"], method: method, field: "removedContentBytes")
+        )
+    }
+
+    fileprivate static func parseReplaceUndoToken(_ data: [String: Any]) throws -> ReaderCoreReplaceUndoToken {
+        let method = "replace.undo"
+        try requireExactKeys(
+            data,
+            required: [
+                "schemaVersion", "transactionId", "revision", "operation",
+                "ruleId", "issuedAt", "expiresAt",
+            ],
+            optional: ["before", "after"],
+            method: method,
+            path: "undoToken"
+        )
+        let schemaVersion = try requireInteger(data["schemaVersion"], method: method, field: "undoToken.schemaVersion")
+        guard schemaVersion == 1 else { throw invalidResult(method, "undoToken.schemaVersion must be 1") }
+        let transactionID = try requireNonBlankResultString(data["transactionId"], method: method, field: "undoToken.transactionId")
+        let revision = try requireString(data["revision"], method: method, field: "undoToken.revision")
+        guard revision.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
+            throw invalidResult(method, "undoToken.revision must be a lowercase SHA-256 hex value")
+        }
+        let rawOperation = try requireString(data["operation"], method: method, field: "undoToken.operation")
+        guard let operation = ReaderCoreReplaceUndoOperation(rawValue: rawOperation) else {
+            throw invalidResult(method, "undoToken.operation is unsupported")
+        }
+        let ruleID = try requireInt64(data["ruleId"], method: method, field: "undoToken.ruleId")
+        let issuedAt = try requireInt64(data["issuedAt"], method: method, field: "undoToken.issuedAt")
+        let expiresAt = try requireInt64(data["expiresAt"], method: method, field: "undoToken.expiresAt")
+        guard expiresAt > issuedAt else { throw invalidResult(method, "undoToken.expiresAt must be later than issuedAt") }
+        let before = try optionalReplaceUndoRule(data, key: "before")
+        let after = try optionalReplaceUndoRule(data, key: "after")
+        switch operation {
+        case .create where before != nil || after == nil:
+            throw invalidResult(method, "create undoToken requires after and omits before")
+        case .update where before == nil || after == nil:
+            throw invalidResult(method, "update undoToken requires before and after")
+        case .delete where before == nil || after != nil:
+            throw invalidResult(method, "delete undoToken requires before and omits after")
+        default:
+            break
+        }
+        guard before?.id == ruleID || before == nil,
+              after?.id == ruleID || after == nil else {
+            throw invalidResult(method, "undoToken before/after rule id must match ruleId")
+        }
+        return ReaderCoreReplaceUndoToken(
+            schemaVersion: schemaVersion,
+            transactionID: transactionID,
+            revision: revision,
+            operation: operation,
+            ruleID: ruleID,
+            issuedAt: issuedAt,
+            expiresAt: expiresAt,
+            before: before,
+            after: after
+        )
+    }
+
+    private static func parseReplaceUndoResult(_ data: [String: Any]) throws -> ReaderCoreReplaceUndoResult {
+        let method = "replace.undo"
+        try requireExactKeys(
+            data,
+            required: ["transactionId", "revision", "operation", "ruleId", "changed", "undoneAt"],
+            optional: ["restoredRule"],
+            method: method,
+            path: "result"
+        )
+        let revision = try requireString(data["revision"], method: method, field: "revision")
+        guard revision.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
+            throw invalidResult(method, "revision must be a lowercase SHA-256 hex value")
+        }
+        let rawOperation = try requireString(data["operation"], method: method, field: "operation")
+        guard let operation = ReaderCoreReplaceUndoOperation(rawValue: rawOperation) else {
+            throw invalidResult(method, "operation is unsupported")
+        }
+        let restoredRule = try optionalReplaceUndoRule(data, key: "restoredRule", path: "result")
+        return ReaderCoreReplaceUndoResult(
+            transactionID: try requireNonBlankResultString(data["transactionId"], method: method, field: "transactionId"),
+            revision: revision,
+            operation: operation,
+            ruleID: try requireInt64(data["ruleId"], method: method, field: "ruleId"),
+            changed: try requireBool(data["changed"], method: method, field: "changed"),
+            undoneAt: try requireInt64(data["undoneAt"], method: method, field: "undoneAt"),
+            restoredRule: restoredRule
+        )
+    }
+
+    private static func optionalReplaceUndoRule(
+        _ data: [String: Any],
+        key: String,
+        path: String = "undoToken"
+    ) throws -> ReaderCoreReplaceRule? {
+        guard data.keys.contains(key) else { return nil }
+        guard let value = dictionary(data[key]) else {
+            throw invalidResult("replace.undo", "\(path).\(key) must be an object when present")
+        }
+        try requireExactKeys(
+            value,
+            required: [
+                "id", "name", "pattern", "replacement", "scopeTitle", "scopeContent",
+                "isEnabled", "isRegex", "timeoutMillisecond", "order",
+            ],
+            optional: ["group", "scope", "excludeScope"],
+            method: "replace.undo",
+            path: "\(path).\(key)"
+        )
+        return try parseReplaceRule(value)
+    }
+
+    fileprivate static func replaceRuleObject(_ rule: ReaderCoreReplaceRule) -> [String: Any] {
+        var value: [String: Any] = [
+            "id": rule.id,
+            "name": rule.name,
+            "pattern": rule.pattern,
+            "replacement": rule.replacement,
+            "scopeTitle": rule.scopeTitle,
+            "scopeContent": rule.scopeContent,
+            "isEnabled": rule.isEnabled,
+            "isRegex": rule.isRegex,
+            "timeoutMillisecond": rule.timeoutMilliseconds,
+            "order": rule.order,
+        ]
+        if let group = rule.group { value["group"] = group }
+        if let scope = rule.scope { value["scope"] = scope }
+        if let excludeScope = rule.excludeScope { value["excludeScope"] = excludeScope }
+        return value
+    }
 
     private static func parseBookmarkEnvelope(_ data: [String: Any], method: String) throws -> ReaderCoreBookmark {
         guard let value = dictionary(data["bookmark"]) else { throw invalidResult(method, "bookmark is missing") }
@@ -1082,6 +1668,108 @@ public final class ReaderSlice10CoreService: ReaderSlice10ReadingDataServicing, 
             }
         }
         return nil
+    }
+
+    private static func requireExactKeys(
+        _ value: [String: Any],
+        required: Set<String>,
+        optional: Set<String> = [],
+        method: String,
+        path: String
+    ) throws {
+        let actual = Set(value.keys)
+        let missing = required.subtracting(actual).sorted()
+        guard missing.isEmpty else {
+            throw invalidResult(method, "\(path) is missing required fields: \(missing.joined(separator: ", "))")
+        }
+        let unknown = actual.subtracting(required.union(optional)).sorted()
+        guard unknown.isEmpty else {
+            throw invalidResult(method, "\(path) contains unknown fields: \(unknown.joined(separator: ", "))")
+        }
+    }
+
+    private static func requireNonBlankResultString(
+        _ raw: Any?,
+        method: String,
+        field: String
+    ) throws -> String {
+        let value = try requireString(raw, method: method, field: field)
+        guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw invalidResult(method, "\(field) must be non-blank")
+        }
+        return value
+    }
+
+    private static func requireNonNegativeInteger(
+        _ raw: Any?,
+        method: String,
+        field: String
+    ) throws -> Int {
+        let value = try requireInteger(raw, method: method, field: field)
+        guard value >= 0 else { throw invalidResult(method, "\(field) must be non-negative") }
+        return value
+    }
+
+    private static func requireInt64(_ raw: Any?, method: String, field: String) throws -> Int64 {
+        guard let value = optionalInt64(raw) else { throw invalidResult(method, "\(field) must be an integer") }
+        return value
+    }
+
+    private static func requireNonNegativeInt64(_ raw: Any?, method: String, field: String) throws -> Int64 {
+        let value = try requireInt64(raw, method: method, field: field)
+        guard value >= 0 else { throw invalidResult(method, "\(field) must be non-negative") }
+        return value
+    }
+
+    private static func optionalInt64(_ raw: Any?) -> Int64? {
+        guard let raw, !(raw is NSNull) else { return nil }
+        if let value = raw as? NSNumber,
+           CFGetTypeID(value) == CFBooleanGetTypeID() {
+            return nil
+        }
+        if let value = raw as? Int64 { return value }
+        if let value = raw as? Int { return Int64(value) }
+        if let value = raw as? UInt64 { return Int64(exactly: value) }
+        if let value = raw as? NSNumber {
+            let number = value.doubleValue
+            guard number.isFinite,
+                  number.rounded(.towardZero) == number,
+                  number >= Double(Int64.min),
+                  number <= Double(Int64.max) else { return nil }
+            return Int64(number)
+        }
+        return nil
+    }
+
+    private static func requireNonNegativeIntegerArray(
+        _ raw: Any?,
+        method: String,
+        field: String
+    ) throws -> [Int] {
+        guard let values = raw as? [Any] else { throw invalidResult(method, "\(field) must be an array") }
+        return try values.enumerated().map { index, value in
+            try requireNonNegativeInteger(value, method: method, field: "\(field)[\(index)]")
+        }
+    }
+
+    private static func optionalStrictString(
+        _ value: [String: Any],
+        key: String,
+        method: String,
+        path: String
+    ) throws -> String? {
+        guard value.keys.contains(key) else { return nil }
+        return try requireString(value[key], method: method, field: "\(path).\(key)", allowEmpty: true)
+    }
+
+    private static func optionalStrictInt64(
+        _ value: [String: Any],
+        key: String,
+        method: String,
+        path: String
+    ) throws -> Int64? {
+        guard value.keys.contains(key) else { return nil }
+        return try requireInt64(value[key], method: method, field: "\(path).\(key)")
     }
 
     private static func requireString(

@@ -74,8 +74,8 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         XCTAssertEqual(planner.metrics.variantCount, 190)
         XCTAssertEqual(planner.metrics.recursiveComponentCount, 615)
         XCTAssertEqual(planner.metrics.bindingCount, 97)
-        XCTAssertEqual(planner.metrics.executableBindingCount, 38)
-        XCTAssertEqual(planner.metrics.plannedFailClosedBindingCount, 59)
+        XCTAssertEqual(planner.metrics.executableBindingCount, 41)
+        XCTAssertEqual(planner.metrics.plannedFailClosedBindingCount, 56)
         XCTAssertEqual(planner.metrics.stateEventEvidenceCount, 19)
         XCTAssertEqual(planner.metrics.eventReferenceCount, 116)
         XCTAssertEqual(planner.metrics.referencedComponentTypeCount, 138)
@@ -785,7 +785,7 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         XCTAssertEqual(catalog.routeIds, [.bookshelfBookMoreMenu])
     }
 
-    func test97BindingsSeparate38ExecutableFrom59PlannedAnd19StateEventsStayReadOnly() throws {
+    func test97BindingsSeparate41ExecutableFrom56PlannedAnd19StateEventsStayReadOnly() throws {
         let planner = try ReaderScreenGraphHostPlanner()
         var bindingCount = 0
         var selfBindingCount = 0
@@ -846,11 +846,11 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         XCTAssertEqual(bindingCount, 97)
         XCTAssertEqual(selfBindingCount, 36)
         XCTAssertEqual(semanticTargetBindingCount, 61)
-        XCTAssertEqual(executableBindingCount, 38)
-        XCTAssertEqual(plannedBindingCount, 59)
+        XCTAssertEqual(executableBindingCount, 41)
+        XCTAssertEqual(plannedBindingCount, 56)
         XCTAssertEqual(stateEvidenceCount, 19)
-        XCTAssertEqual(executableButtons, 19)
-        XCTAssertEqual(plannedButtons, 38)
+        XCTAssertEqual(executableButtons, 22)
+        XCTAssertEqual(plannedButtons, 35)
     }
 
     func testGenericFamiliesAndDedicatedButtonExposeSemanticPropsCallbackAndAccessibility() throws {

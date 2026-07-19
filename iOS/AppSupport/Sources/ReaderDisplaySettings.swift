@@ -31,7 +31,15 @@ public struct ReaderDisplaySettings: Codable, Equatable {
     public var fontSize: Int
     public var fontFamily: String
     public var lineSpacing: Double
+    public var lineHeightRatio: Double
     public var paragraphSpacing: Double
+    public var paragraphIndent: Double
+    public var letterSpacing: Double
+    public var textConversion: String
+    public var textAlignment: String
+    public var pageAnimation: String
+    public var readerThemeId: String
+    public var readerThemeMode: String
     public var horizontalPadding: Double
     public var verticalPadding: Double
     public var backgroundMode: ReaderBackgroundMode
@@ -63,7 +71,15 @@ public struct ReaderDisplaySettings: Codable, Equatable {
         fontSize: Int = 18,
         fontFamily: String = ReaderDisplaySettings.demoSerifFontFamily,
         lineSpacing: Double = 8.0,
+        lineHeightRatio: Double = 1.96,
         paragraphSpacing: Double = 16.0,
+        paragraphIndent: Double = 0,
+        letterSpacing: Double = 0,
+        textConversion: String = "simplified",
+        textAlignment: String = "justify",
+        pageAnimation: String = "slide",
+        readerThemeId: String = "paper",
+        readerThemeMode: String = "light",
         horizontalPadding: Double = 16.0,
         verticalPadding: Double = 16.0,
         backgroundMode: ReaderBackgroundMode = .light,
@@ -84,7 +100,15 @@ public struct ReaderDisplaySettings: Codable, Equatable {
         self.fontSize = fontSize
         self.fontFamily = fontFamily
         self.lineSpacing = lineSpacing
+        self.lineHeightRatio = min(2.4, max(1.2, lineHeightRatio))
         self.paragraphSpacing = paragraphSpacing
+        self.paragraphIndent = min(4, max(0, paragraphIndent))
+        self.letterSpacing = min(2, max(0, letterSpacing))
+        self.textConversion = textConversion
+        self.textAlignment = textAlignment
+        self.pageAnimation = pageAnimation
+        self.readerThemeId = readerThemeId
+        self.readerThemeMode = readerThemeMode
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.backgroundMode = backgroundMode
@@ -110,7 +134,15 @@ public struct ReaderDisplaySettings: Codable, Equatable {
         fontSize = try c.decodeIfPresent(Int.self, forKey: .fontSize) ?? 18
         fontFamily = try c.decodeIfPresent(String.self, forKey: .fontFamily) ?? Self.demoSerifFontFamily
         lineSpacing = try c.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 8.0
+        lineHeightRatio = try c.decodeIfPresent(Double.self, forKey: .lineHeightRatio) ?? 1.96
         paragraphSpacing = try c.decodeIfPresent(Double.self, forKey: .paragraphSpacing) ?? 16.0
+        paragraphIndent = try c.decodeIfPresent(Double.self, forKey: .paragraphIndent) ?? 0
+        letterSpacing = try c.decodeIfPresent(Double.self, forKey: .letterSpacing) ?? 0
+        textConversion = try c.decodeIfPresent(String.self, forKey: .textConversion) ?? "simplified"
+        textAlignment = try c.decodeIfPresent(String.self, forKey: .textAlignment) ?? "justify"
+        pageAnimation = try c.decodeIfPresent(String.self, forKey: .pageAnimation) ?? "slide"
+        readerThemeId = try c.decodeIfPresent(String.self, forKey: .readerThemeId) ?? "paper"
+        readerThemeMode = try c.decodeIfPresent(String.self, forKey: .readerThemeMode) ?? "light"
         horizontalPadding = try c.decodeIfPresent(Double.self, forKey: .horizontalPadding) ?? 16.0
         verticalPadding = try c.decodeIfPresent(Double.self, forKey: .verticalPadding) ?? 16.0
         backgroundMode = try c.decodeIfPresent(ReaderBackgroundMode.self, forKey: .backgroundMode) ?? .light

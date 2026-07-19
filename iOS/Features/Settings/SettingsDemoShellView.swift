@@ -7,10 +7,12 @@ struct SettingsDemoShellView: View {
     // Issue 4：App 主题模式由 themeManager 驱动（system/light/dark），segment 读写经 valuesBinding 桥接。
     @EnvironmentObject private var themeManager: ReaderThemeManager
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var cacheCoordinator: ReaderCacheCoordinator
     @State private var routeStack: [String] = []
     @State private var expandedOptionKey: String?
     @State private var activeConfirm: SettingsDemoConfirm?
     @State private var toastMessage: String?
+    @State private var cacheClearRequested = false
     @State private var settingsValues: [String: String] = [:]
     @State private var sourceMenuOpen = false
     @State private var sourceFilterOpen = false
@@ -18,19 +20,29 @@ struct SettingsDemoShellView: View {
     @State private var sourceGroupFilter = "全部分组"
     @State private var sourceEnabled: [String: Bool] = [:]
 
-    init(demoRoute: String, onExit: (() -> Void)? = nil) {
+    init(
+        demoRoute: String,
+        onExit: (() -> Void)? = nil,
+        cacheCoordinator: ReaderCacheCoordinator? = nil
+    ) {
         self.initialRoute = demoRoute
         self.onExit = onExit
+        self._cacheCoordinator = StateObject(
+            wrappedValue: cacheCoordinator ?? ReaderCacheCoordinator.production()
+        )
     }
 
     var body: some View {
         // Issue P2.1：webdav-config 路由改由 WebDAVSettingsView 接入真实 VM，
         // 不再走 demo 占位壳（避免与 DemoSettingsShell 外壳双重包裹）。
-        if state.route == "webdav-config" {
-            WebDAVSettingsView(onExit: handleBack)
-        } else {
-            demoShellBody
+        Group {
+            if state.route == "webdav-config" {
+                WebDAVSettingsView(onExit: handleBack)
+            } else {
+                demoShellBody
+            }
         }
+        .onChange(of: cacheCoordinator.viewState) { handleCacheViewState($0) }
     }
 
     private var demoShellBody: some View {
@@ -80,7 +92,13 @@ struct SettingsDemoShellView: View {
                 SettingsDemoConfirmDialog(confirm: activeConfirm) {
                     motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
                         self.activeConfirm = nil
-                        self.toastMessage = activeConfirm.resultToast
+                        if activeConfirm.action == .clearCache {
+                            self.cacheClearRequested = true
+                            self.cacheCoordinator.clearDerivedCache()
+                            self.handleCacheViewState(self.cacheCoordinator.viewState)
+                        } else {
+                            self.toastMessage = activeConfirm.resultToast
+                        }
                     }
                 } onCancel: {
                     motion.withMotionAnimation(ReaderMotion.Duration.overlay) {
@@ -115,6 +133,22 @@ struct SettingsDemoShellView: View {
             ),
             value: currentRoute
         )
+    }
+
+    private func handleCacheViewState(_ viewState: ReaderCacheViewState) {
+        guard cacheClearRequested else { return }
+        switch viewState {
+        case .loading(.clear):
+            toastMessage = "Reader Core 正在清理缓存…"
+        case .succeeded(.clear, let message), .failed(.clear, let message):
+            toastMessage = message
+            cacheClearRequested = false
+        case .unavailable(let message):
+            toastMessage = message
+            cacheClearRequested = false
+        case .idle, .loading, .succeeded, .failed:
+            break
+        }
     }
 
     private var currentRoute: String {
@@ -349,6 +383,10 @@ private enum SettingsDemoRowStyle: Equatable {
     case input
 }
 
+private enum SettingsDemoConfirmAction: Equatable {
+    case clearCache
+}
+
 private struct SettingsDemoConfirm: Equatable, Identifiable {
     let id: String
     let title: String
@@ -356,13 +394,15 @@ private struct SettingsDemoConfirm: Equatable, Identifiable {
     let cancelLabel: String
     let confirmLabel: String
     let resultToast: String?
+    let action: SettingsDemoConfirmAction?
 
     init(
         title: String,
         copy: String,
         cancelLabel: String = "取消",
         confirmLabel: String = "确认",
-        resultToast: String? = nil
+        resultToast: String? = nil,
+        action: SettingsDemoConfirmAction? = nil
     ) {
         self.id = "\(title)-\(confirmLabel)"
         self.title = title
@@ -370,6 +410,7 @@ private struct SettingsDemoConfirm: Equatable, Identifiable {
         self.cancelLabel = cancelLabel
         self.confirmLabel = confirmLabel
         self.resultToast = resultToast
+        self.action = action
     }
 }
 
@@ -554,7 +595,7 @@ private struct SettingsDemoRouteState {
                         title: "清理缓存？",
                         copy: "将清除封面、章节和临时文件缓存，不会删除书籍与阅读进度。",
                         confirmLabel: "确认清理",
-                        resultToast: "已清理 1.28 GB 缓存"
+                        action: .clearCache
                     ))
                 ]),
                 SettingsDemoSection(title: "系统权限", rows: [
@@ -1982,7 +2023,7 @@ private struct SettingsDemoSegment: View {
         .frame(maxWidth: 142, alignment: .trailing)
         .animation(
             ReaderMotionAdapter.animation(
-                for: MotionRequest(operation: .update, sourceRole: "chipItem", containerRole: .listItem),
+                for: .chip_item_select,
                 motion: motion
             ),
             value: selected
@@ -2043,7 +2084,7 @@ private struct SettingsDemoOptionDropdown: View {
                 .buttonStyle(DemoPressButtonStyle())
                 .animation(
                     ReaderMotionAdapter.animation(
-                        for: MotionRequest(operation: .update, sourceRole: "chipItem", containerRole: .listItem),
+                        for: .chip_item_select,
                         motion: motion
                     ),
                     value: selected

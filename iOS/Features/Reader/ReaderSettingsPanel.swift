@@ -1,4 +1,5 @@
 import SwiftUI
+import ReaderUIContract
 import ReaderAppSupport
 
 public struct ReaderSettingsPanel: View {
@@ -39,9 +40,33 @@ public struct ReaderSettingsPanel: View {
                     Text("外观")
                         .font(.system(size: ReaderDesignTokens.settingsSectionTitleFontSize, weight: .black))
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                    CompactIntStepper(title: "字号", value: notifiedBinding($displaySettings.fontSize, key: "fontSize"), range: 12...32, step: 2)
-                    CompactDoubleStepper(title: "行距", value: notifiedBinding($displaySettings.lineSpacing, key: "lineSpacing"), range: 2...24, step: 2)
-                    CompactDoubleStepper(title: "段距", value: notifiedBinding($displaySettings.paragraphSpacing, key: "paragraphSpacing"), range: 2...48, step: 2)
+                    CompactIntStepper(
+                        title: Self.fontSizeSpec.label,
+                        value: notifiedBinding($displaySettings.fontSize, key: "fontSize"),
+                        range: Int(Self.fontSizeSpec.minimum)...Int(Self.fontSizeSpec.maximum),
+                        step: Int(Self.fontSizeSpec.step)
+                    )
+                    CompactDoubleStepper(
+                        title: Self.lineHeightSpec.label,
+                        value: notifiedBinding($displaySettings.lineHeightRatio, key: "lineHeightRatio"),
+                        range: Self.lineHeightSpec.minimum...Self.lineHeightSpec.maximum,
+                        step: Self.lineHeightSpec.step,
+                        precision: Self.lineHeightSpec.precision
+                    )
+                    CompactDoubleStepper(
+                        title: Self.paragraphGapSpec.label,
+                        value: notifiedBinding($displaySettings.paragraphSpacing, key: "paragraphSpacing"),
+                        range: Self.paragraphGapSpec.minimum...Self.paragraphGapSpec.maximum,
+                        step: Self.paragraphGapSpec.step,
+                        precision: Self.paragraphGapSpec.precision
+                    )
+                    CompactDoubleStepper(
+                        title: Self.letterSpacingSpec.label,
+                        value: notifiedBinding($displaySettings.letterSpacing, key: "letterSpacing"),
+                        range: Self.letterSpacingSpec.minimum...Self.letterSpacingSpec.maximum,
+                        step: Self.letterSpacingSpec.step,
+                        precision: Self.letterSpacingSpec.precision
+                    )
                     FontMenu(selection: notifiedBinding($displaySettings.fontFamily, key: "fontFamily"))
                     PaletteRow()
                 }
@@ -170,17 +195,44 @@ public struct ReaderSettingsPanel: View {
         }
     }
 
-    public static let availableFonts: [String] = [
-        ReaderTypography.demoSerifPrimaryFamily,
-        "STSong",
-        "Noto Serif CJK SC",
-        "Source Han Serif SC",
-        "Palatino",
-        "Times New Roman",
-        "SF Pro Text",
-        "Avenir",
-        "Helvetica Neue"
-    ]
+    struct AppearanceFontChoice: Identifiable, Equatable {
+        let id: String
+        let label: String
+        let family: String
+    }
+
+    static let appearanceFontChoices: [AppearanceFontChoice] =
+        ReaderAppearanceSpecRegistry.fonts
+            .filter { !$0.importAction }
+            .map { option in
+                .init(id: option.id, label: option.label, family: nativeFontFamily(option))
+            }
+
+    static let availableFonts: [String] = appearanceFontChoices.map(\.family)
+
+    static func nativeFontFamily(_ option: ReaderAppearanceFont) -> String {
+        switch option.id {
+        case "system": return ReaderDisplaySettings.legacySansDefaultFontFamily
+        case ReaderAppearanceSpecRegistry.defaults.fontId: return ReaderDisplaySettings.demoSerifFontFamily
+        default: return option.swiftFamily
+        }
+    }
+
+    static func appearanceFontLabel(for family: String) -> String {
+        appearanceFontChoices.first(where: { $0.family == family })?.label ?? family
+    }
+
+    private static func appearanceStepper(_ id: String) -> ReaderAppearanceStepper {
+        guard let spec = ReaderAppearanceSpecRegistry.stepper(id: id) else {
+            preconditionFailure("Missing Reader Appearance stepper: \(id)")
+        }
+        return spec
+    }
+
+    private static let fontSizeSpec = appearanceStepper("fontSize")
+    private static let lineHeightSpec = appearanceStepper("lineHeight")
+    private static let paragraphGapSpec = appearanceStepper("paragraphGap")
+    private static let letterSpacingSpec = appearanceStepper("letterSpacing")
 }
 
 private struct PageTurnModeSegment: View {
@@ -233,9 +285,10 @@ private struct CompactDoubleStepper: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
+    let precision: Int
 
     var body: some View {
-        compactStepper(title: title, valueText: String(format: "%.0f", value), decrement: {
+        compactStepper(title: title, valueText: String(format: "%.*f", precision, value), decrement: {
             value = max(range.lowerBound, value - step)
         }, increment: {
             value = min(range.upperBound, value + step)
@@ -279,11 +332,16 @@ private struct FontMenu: View {
 
     var body: some View {
         Menu {
-            ForEach(ReaderSettingsPanel.availableFonts, id: \.self) { font in
-                Button(font) { selection = font }
+            ForEach(ReaderSettingsPanel.appearanceFontChoices) { option in
+                Button(option.label) { selection = option.family }
             }
         } label: {
-            DemoIconRow(icon: .typo, title: "字体", subtitle: selection, detail: "menu")
+            DemoIconRow(
+                icon: .typo,
+                title: "字体",
+                subtitle: ReaderSettingsPanel.appearanceFontLabel(for: selection),
+                detail: "menu"
+            )
         }
         .buttonStyle(.plain)
     }

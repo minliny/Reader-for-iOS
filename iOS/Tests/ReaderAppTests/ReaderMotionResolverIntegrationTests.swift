@@ -114,20 +114,15 @@ final class ReaderMotionResolverIntegrationTests: XCTestCase {
                        "exit operation with targetRole=dialog in readerShell must resolve to .overlay_dialog_exit")
     }
 
-    // MARK: - resolve(request:) returns fallback for unmatched scenarios
-    //
-    // MotionPolicyRegistry includes a `fallback-no-motion` policy (priority 0,
-    // all fields nil) that matches every request and returns `.motion_interrupt_redirect`.
-    // So the resolver NEVER returns nil — it always falls back to this catch-all.
+    // MARK: - resolve(request:) fails closed for unmatched scenarios
 
-    func testResolveReturnsFallbackForUnmatchedOperation() {
+    func testResolveReturnsNilForUnmatchedOperation() {
         let request = MotionRequest(
             operation: .reshape,
             containerRole: .appShell
         )
         let motionId = ReaderMotionAdapter.resolve(request: request)
-        XCTAssertEqual(motionId, .motion_interrupt_redirect,
-                       "reshape operation in appShell has no specific policy; resolver must fall back to .motion_interrupt_redirect (fallback-no-motion policy)")
+        XCTAssertNil(motionId, "an unmatched request must not impersonate an interrupt motion")
     }
 
     // MARK: - animation(for request:) returns SwiftUI Animation
@@ -143,15 +138,14 @@ final class ReaderMotionResolverIntegrationTests: XCTestCase {
                         "tabSwitch request must resolve to a non-nil Animation")
     }
 
-    func testAnimationForUnmatchedRequestReturnsFallbackAnimation() {
+    func testAnimationForUnmatchedRequestReturnsNil() {
         let request = MotionRequest(
             operation: .reshape,
             containerRole: .appShell
         )
         let motion = MotionEnvironment(override: false)
         let animation = ReaderMotionAdapter.animation(for: request, motion: motion)
-        XCTAssertNotNil(animation,
-                        "unmatched request falls back to .motion_interrupt_redirect which has a non-zero duration; animation must be non-nil")
+        XCTAssertNil(animation, "an unmatched request must fail closed without animation")
     }
 
     // MARK: - Reduced motion: animation returns nil when reduced motion is enabled and forceZeroDuration
@@ -209,11 +203,7 @@ final class ReaderMotionResolverIntegrationTests: XCTestCase {
         XCTAssertEqual(controller.lastSnapshot[.tab_switch]?.id, .tab_switch)
     }
 
-    func testStartWithResolveCreatesTransactionForFallbackPolicy() {
-        // reshape operation in appShell has no specific policy, but
-        // MotionPolicyRegistry includes a `fallback-no-motion` policy (priority 0,
-        // all fields nil) that matches EVERY request and returns `.motion_interrupt_redirect`.
-        // So the resolver NEVER returns nil — start(request:) always creates a transaction.
+    func testStartWithUnmatchedRequestDoesNotCreateTransaction() {
         let controller = MotionController()
         let request = MotionRequest(
             operation: .reshape,
@@ -226,10 +216,8 @@ final class ReaderMotionResolverIntegrationTests: XCTestCase {
             finalState: "b",
             controller: controller
         )
-        XCTAssertNotNil(txId,
-                       "fallback-no-motion policy matches every request; start(request:) must still create a transaction")
-        XCTAssertEqual(controller.activeTransactions.count, 1,
-                       "fallback transaction must be recorded on the injected controller")
+        XCTAssertNil(txId, "unmatched request must not start a fabricated transaction")
+        XCTAssertEqual(controller.activeTransactions.count, 0)
     }
 
     // MARK: - Resolver priority: higher priority wins over lower

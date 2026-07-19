@@ -6,7 +6,7 @@ import ReaderUIRuntime
 
 final class ReaderSlice10CompatibilityCoreExecutorTests: XCTestCase {
     @MainActor
-    func testReplaceApplyAndSourceRollbackPreserveExactMethodsAndJSONPayloads() async throws {
+    func testReplaceApplyUndoAndSourceRollbackPreserveExactMethodsAndJSONPayloads() async throws {
         let runtime = FakeSlice10CompatibilityRuntime()
         let executor = ReaderSlice10CompatibilityCoreExecutor(runtime: runtime, requestTimeout: 1)
 
@@ -18,17 +18,29 @@ final class ReaderSlice10CompatibilityCoreExecutorTests: XCTestCase {
             "rollbackToken": .string("rollback-1"),
             "reason": .string("user"),
         ]
+        let undoPayload: ReaderUIJSONPayload = [
+            "undoToken": .object([
+                "schemaVersion": .number(1),
+                "operation": .string("create"),
+                "revision": .string(String(repeating: "a", count: 64)),
+            ]),
+        ]
         let replaceResult = try await executor.executeApply(
             payload: replacePayload,
             correlationID: "replace-7"
+        )
+        let undoResult = try await executor.executeUndo(
+            payload: undoPayload,
+            correlationID: "replace-undo-7"
         )
         let rollbackResult = try await executor.executeRollback(
             payload: rollbackPayload,
             correlationID: "source-rollback"
         )
 
-        XCTAssertEqual(runtime.methods, ["replace.apply", "source.switch.rollback"])
+        XCTAssertEqual(runtime.methods, ["replace.apply", "replace.undo", "source.switch.rollback"])
         XCTAssertEqual(replaceResult["accepted"]?.boolValue, true)
+        XCTAssertEqual(undoResult["accepted"]?.boolValue, true)
         XCTAssertEqual(rollbackResult["accepted"]?.boolValue, true)
 
         let replaceParams = try XCTUnwrap(runtime.command(method: "replace.apply")?["params"] as? [String: Any])
@@ -36,6 +48,12 @@ final class ReaderSlice10CompatibilityCoreExecutorTests: XCTestCase {
         let settings = try XCTUnwrap(replaceParams["settings"] as? [String: Any])
         XCTAssertEqual(settings["regex"] as? Bool, true)
         XCTAssertEqual(settings["pattern"] as? String, "\\s+")
+
+        let undoParams = try XCTUnwrap(runtime.command(method: "replace.undo")?["params"] as? [String: Any])
+        let undoToken = try XCTUnwrap(undoParams["undoToken"] as? [String: Any])
+        XCTAssertEqual((undoToken["schemaVersion"] as? NSNumber)?.intValue, 1)
+        XCTAssertEqual(undoToken["operation"] as? String, "create")
+        XCTAssertEqual(undoToken["revision"] as? String, String(repeating: "a", count: 64))
 
         let rollbackParams = try XCTUnwrap(runtime.command(method: "source.switch.rollback")?["params"] as? [String: Any])
         XCTAssertEqual(rollbackParams["rollbackToken"] as? String, "rollback-1")

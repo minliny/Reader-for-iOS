@@ -54,6 +54,7 @@ public struct BookshelfView: View {
     @ObservedObject private var navigationState: AppNavigationState
     @ObservedObject private var bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator
     @ObservedObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
+    @ObservedObject private var cacheCoordinator: ReaderCacheCoordinator
     @Binding private var topBarRequest: MainTabTopBarRequest?
     private let showsTopBar: Bool
     private let autoloadOnAppear: Bool
@@ -66,7 +67,8 @@ public struct BookshelfView: View {
         showsTopBar: Bool = true,
         topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil),
         bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator? = nil,
-        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil,
+        cacheCoordinator: ReaderCacheCoordinator? = nil
     ) {
         self.init(
             navigationState: navigationState,
@@ -74,7 +76,8 @@ public struct BookshelfView: View {
             topBarRequest: topBarRequest,
             initialDemoRoute: nil,
             bookOpenPilotCoordinator: bookOpenPilotCoordinator,
-            playbackPilotCoordinator: playbackPilotCoordinator
+            playbackPilotCoordinator: playbackPilotCoordinator,
+            cacheCoordinator: cacheCoordinator
         )
     }
 
@@ -84,7 +87,8 @@ public struct BookshelfView: View {
         showsTopBar: Bool = true,
         topBarRequest: Binding<MainTabTopBarRequest?> = .constant(nil),
         bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator? = nil,
-        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil,
+        cacheCoordinator: ReaderCacheCoordinator? = nil
     ) {
         self.init(
             navigationState: navigationState,
@@ -92,7 +96,8 @@ public struct BookshelfView: View {
             topBarRequest: topBarRequest,
             initialDemoRoute: demoRoute,
             bookOpenPilotCoordinator: bookOpenPilotCoordinator,
-            playbackPilotCoordinator: playbackPilotCoordinator
+            playbackPilotCoordinator: playbackPilotCoordinator,
+            cacheCoordinator: cacheCoordinator
         )
     }
 
@@ -102,7 +107,8 @@ public struct BookshelfView: View {
         topBarRequest: Binding<MainTabTopBarRequest?>,
         initialDemoRoute: String?,
         bookOpenPilotCoordinator: ReaderBookOpenPilotCoordinator?,
-        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator?
+        playbackPilotCoordinator: ReaderPlaybackPilotCoordinator?,
+        cacheCoordinator: ReaderCacheCoordinator?
     ) {
         let demoItems = initialDemoRoute == nil ? nil : DemoBookshelfFixture.items
         let initialState = demoItems.map { BookshelfState.loaded(items: $0) }
@@ -121,6 +127,9 @@ public struct BookshelfView: View {
         )
         self._playbackPilotCoordinator = ObservedObject(
             wrappedValue: playbackPilotCoordinator ?? ReaderPlaybackPilotCoordinator()
+        )
+        self._cacheCoordinator = ObservedObject(
+            wrappedValue: cacheCoordinator ?? ReaderCacheCoordinator.production()
         )
         self.showsTopBar = showsTopBar
         self._topBarRequest = topBarRequest
@@ -299,6 +308,7 @@ public struct BookshelfView: View {
                 pilotPresentation: presentation,
                 pilotManaged: pilotManaged,
                 playbackPilotCoordinator: playbackPilotCoordinator,
+                cacheCoordinator: cacheCoordinator,
                 bookOpenLayoutContext: presentation?.displayed,
                 onBookOpenLayoutReady: { displayed, layout in
                     Task { @MainActor in
@@ -638,14 +648,14 @@ public struct BookshelfView: View {
     private func closeActiveDestination() {
         if case .reader(let context, let pilotManaged) = activeDestination {
             // P2-A: 退出沉浸阅读同样包裹 withAnimation，让 matchedGeometryEffect 反向过渡。
-            // operation: .pop from readerShell → mainTabShell 无特定 policy，
-            // resolver 回退到 .motion_interrupt_redirect (80ms)，
-            // 适合快速退出沉浸阅读。
+            // Reader UI 3.0 不再提供 catch-all motion policy；退出阅读明确落在
+            // appShell route-pop 语义上，解析为 app.route.pop.backward。
             let motion = MotionEnvironment()
             let exitRequest = MotionRequest(
                 fromShell: .readerShell,
                 toShell: .mainTabShell,
-                operation: .pop
+                operation: .pop,
+                containerRole: .appShell
             )
             withAnimation(ReaderMotionAdapter.animation(for: exitRequest, motion: motion)) {
                 if pilotManaged {

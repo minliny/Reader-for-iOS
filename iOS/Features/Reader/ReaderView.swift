@@ -37,6 +37,7 @@ struct ReaderDirectoryPilotIntentRouter {
 public struct ReaderView: View {
     @StateObject private var viewModel: ReaderViewModel
     @ObservedObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
+    @StateObject private var cacheCoordinator: ReaderCacheCoordinator
     // Converged TTS ownership: the shared ReaderTTSPlayer instance is injected
     // from ReaderApp via @EnvironmentObject. This is the same instance that
     // HostAdapter uses for Core-driven tts.system.* calls, so UI playback
@@ -71,6 +72,9 @@ public struct ReaderView: View {
     /// P0 修复 5：模块切换回调。设值后，模块切换按钮会 dispatch `reader.module.switch` 事件
     /// （replace 语义，同层切换），对齐 demo 的 `reader.module.switch` payload `{ module }`。
     private let onModuleSwitch: ((ReaderStageModule) -> Void)?
+    /// Canonical TapZones `control` target. Production AppShell routes this through the existing
+    /// ReaderCoordinator/reducer chain; local `chromeVisible` remains the animation projection.
+    private let onControlToggle: (() -> Void)?
     /// H2 W2: 翻页 UiEvent 回调。Shadow 模式下由 ReaderCoordinator dispatch
     /// `.reader_page_next` / `.reader_page_prev`，让 reducer 更新 readerPageIndex。
     /// Pilot 模式由 playbackPilotCoordinator 拦截，此回调仅在 Shadow 路径生效。
@@ -114,6 +118,7 @@ public struct ReaderView: View {
         onDirectoryOpen: (() -> Void)? = nil,
         onDirectoryClose: (() -> Void)? = nil,
         onModuleSwitch: ((ReaderStageModule) -> Void)? = nil,
+        onControlToggle: (() -> Void)? = nil,
         onPageNext: (() -> Void)? = nil,
         onPagePrev: (() -> Void)? = nil,
         onStartTTS: (() -> Void)? = nil,
@@ -123,6 +128,7 @@ public struct ReaderView: View {
         pilotPresentation: ReaderBookOpenPilotPresentation? = nil,
         pilotManaged: Bool = false,
         playbackPilotCoordinator: ReaderPlaybackPilotCoordinator? = nil,
+        cacheCoordinator: ReaderCacheCoordinator? = nil,
         bookOpenLayoutContext: ReaderBookOpenDisplayedContent? = nil,
         onBookOpenLayoutReady: ((ReaderBookOpenDisplayedContent, ReaderBookOpenMeasuredLayout) -> Void)? = nil
     ) {
@@ -143,6 +149,7 @@ public struct ReaderView: View {
         self.onDirectoryOpen = onDirectoryOpen
         self.onDirectoryClose = onDirectoryClose
         self.onModuleSwitch = onModuleSwitch
+        self.onControlToggle = onControlToggle
         self.onPageNext = onPageNext
         self.onPagePrev = onPagePrev
         self.onStartTTS = onStartTTS
@@ -153,6 +160,9 @@ public struct ReaderView: View {
         self.pilotManaged = pilotManaged
         self._playbackPilotCoordinator = ObservedObject(
             wrappedValue: playbackPilotCoordinator ?? ReaderPlaybackPilotCoordinator()
+        )
+        self._cacheCoordinator = StateObject(
+            wrappedValue: cacheCoordinator ?? ReaderCacheCoordinator.production()
         )
         self.bookOpenLayoutContext = bookOpenLayoutContext
         self.onBookOpenLayoutReady = onBookOpenLayoutReady
@@ -171,6 +181,9 @@ public struct ReaderView: View {
                     if let context = playbackChapterContext {
                         playbackPilotCoordinator.bindChapter(context)
                     }
+                }
+                .task(id: readerCacheContext) {
+                    cacheCoordinator.bind(readerCacheContext)
                 }
         }
         .overlay {
@@ -293,13 +306,24 @@ public struct ReaderView: View {
             })
             .transition(.move(edge: .trailing).combined(with: .opacity))
         case .some(.demoRoute(let route)):
-            ReaderDemoShellView(demoRoute: route, onExit: {
-                readerDestination = nil
-            })
+            ReaderDemoShellView(
+                demoRoute: route,
+                onExit: { readerDestination = nil },
+                cacheCoordinator: cacheCoordinator,
+                cacheContext: readerCacheContext
+            )
             .transition(.move(edge: .trailing).combined(with: .opacity))
         case .none:
             EmptyView()
         }
+    }
+
+    private var readerCacheContext: ReaderCacheContext? {
+        ReaderCacheContext(
+            sourceID: viewModel.currentSourceID,
+            bookID: viewModel.currentBookID,
+            currentChapterIndex: viewModel.currentChapterIndex
+        )
     }
 
     @ViewBuilder
@@ -1048,15 +1072,18 @@ public struct ReaderView: View {
     }
 
     private func handleHotZoneSegment(_ segment: ReaderHotZoneSegment) {
-        if segment == .controls {
+        let direction: PageTurnTrigger.Direction
+        switch segment.canonicalTarget {
+        case .control:
             toggleReaderChrome()
             return
+        case .previous:
+            direction = .previous
+        case .next:
+            direction = .next
         }
 
-        guard
-            viewModel.displaySettings.pageTurnMode == .paginated,
-            let direction = segment.pageTurnDirection
-        else {
+        guard viewModel.displaySettings.pageTurnMode == .paginated else {
             return
         }
         // H2 W2: 在 Shadow 模式下，先 dispatch UiEvent 让 reducer 更新 readerPageIndex，
@@ -1073,14 +1100,28 @@ public struct ReaderView: View {
 
     private func toggleReaderChrome() {
         _ = directoryPilotRouter.closeIfPresented()
+        // One semantic event chain: Host dispatches reader.control.toggle once, while this view
+        // keeps only its existing animated visual projection. Preview/embedded readers without a
+        // coordinator preserve their prior local-only behavior.
+        onControlToggle?()
         // `reader.control.show/hide` —— latest-intent-wins，旧动画被打断。
         // 通过 ReaderMotionAdapter.resolve(request:) 解析契约 MotionId：
-        // - show (enter): targetRole="sheet" + containerRole=.readerShell → .overlay_sheet_enter (priority 300)
-        // - hide (exit): sourceRole="controlLayer" + containerRole=.readerSurface → .reader_control_hide (priority 300)
+        // - show: controlLayer → controlHome → .reader_control_show
+        // - hide: controlLayer → immersiveReading → .reader_control_hide
         let willShow = !chromeVisible
         let request: MotionRequest = willShow
-            ? MotionRequest(operation: .enter, targetRole: "sheet", containerRole: .readerShell)
-            : MotionRequest(operation: .exit, sourceRole: "controlLayer", containerRole: .readerSurface)
+            ? MotionRequest(
+                operation: .enter,
+                sourceRole: "controlLayer",
+                targetRole: "controlHome",
+                containerRole: .readerShell
+            )
+            : MotionRequest(
+                operation: .exit,
+                sourceRole: "controlLayer",
+                targetRole: "immersiveReading",
+                containerRole: .readerShell
+            )
         // Keep the resolver call at the animation boundary. Besides preserving
         // reduced-motion's nil animation, this lets the strict motion gate
         // prove that the transition is contract-resolved rather than raw.
@@ -1193,6 +1234,14 @@ enum ReaderHotZoneSegment: CaseIterable, Identifiable, Equatable {
 
     var id: Self { self }
 
+    var canonicalTarget: ReaderTapZoneTarget {
+        switch self {
+        case .previousPage: return .previous
+        case .controls: return .control
+        case .nextPage: return .next
+        }
+    }
+
     var widthRatio: CGFloat {
         switch self {
         case .previousPage:
@@ -1261,7 +1310,8 @@ private struct ReaderReadingLayer: View {
             ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
                 Text(indentedParagraph(paragraph))
                     .font(ReaderTypography.readerDisplayFont(family: displaySettings.fontFamily, size: bodyFontSize))
-                    .lineSpacing(bodyFontSize * (ReaderDesignTokens.immersiveBodyLineHeight - 1))
+                    .lineSpacing(bodyFontSize * (displaySettings.lineHeightRatio - 1))
+                    .kerning(displaySettings.letterSpacing)
                     .foregroundColor(textColor)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1304,7 +1354,7 @@ private struct ReaderReadingLayer: View {
     }
 
     private func indentedParagraph(_ paragraph: String) -> String {
-        let indentCount = max(0, Int(ReaderDesignTokens.immersiveBodyParagraphIndent.rounded()))
+        let indentCount = max(0, Int(displaySettings.paragraphIndent.rounded()))
         return String(repeating: "\u{3000}", count: indentCount) + paragraph
     }
 }
@@ -2123,6 +2173,7 @@ extension ReaderView {
         self.onDirectoryOpen = nil
         self.onDirectoryClose = nil
         self.onModuleSwitch = nil
+        self.onControlToggle = nil
         self.onPageNext = nil
         self.onPagePrev = nil
         self.onStartTTS = nil
@@ -2132,6 +2183,7 @@ extension ReaderView {
         self.pilotPresentation = nil
         self.pilotManaged = false
         self._playbackPilotCoordinator = ObservedObject(wrappedValue: ReaderPlaybackPilotCoordinator())
+        self._cacheCoordinator = StateObject(wrappedValue: ReaderCacheCoordinator(service: nil))
         self.bookOpenLayoutContext = nil
         self.onBookOpenLayoutReady = nil
     }

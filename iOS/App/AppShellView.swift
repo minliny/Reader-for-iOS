@@ -111,6 +111,7 @@ struct AppShellView: View {
     /// executors instead of test-only fakes.
     @StateObject private var sourceSwitchPilotCoordinator: ReaderSourceSwitchPilotCoordinator
     @StateObject private var replaceRulePilotCoordinator: ReaderReplaceRulePilotCoordinator
+    @StateObject private var cacheCoordinator: ReaderCacheCoordinator
 
     /// P0 修复 5/7：ReaderCoordinator 包装 navigationState + ReaderReducer，
     /// 用于 dispatch `reader.module.switch` / `source.switch.confirm/cancel` 等事件。
@@ -121,7 +122,8 @@ struct AppShellView: View {
             runtimeShadow: runtimeCoordinator,
             playbackPilot: playbackPilotCoordinator,
             sourceSwitchPilot: sourceSwitchPilotCoordinator,
-            replaceRulePilot: replaceRulePilotCoordinator
+            replaceRulePilot: replaceRulePilotCoordinator,
+            cacheCoordinator: cacheCoordinator
         )
     }
     @State private var mainNavVisibleByContent = true
@@ -168,6 +170,7 @@ struct AppShellView: View {
         #endif
         self._sourceSwitchPilotCoordinator = StateObject(wrappedValue: sourceSwitchPilot)
         self._replaceRulePilotCoordinator = StateObject(wrappedValue: replaceRulePilot)
+        self._cacheCoordinator = StateObject(wrappedValue: ReaderCacheCoordinator.production())
     }
 
     var body: some View {
@@ -333,7 +336,8 @@ struct AppShellView: View {
                 showsTopBar: false,
                 topBarRequest: $mainTabTopBarRequest,
                 bookOpenPilotCoordinator: bookOpenPilotCoordinator,
-                playbackPilotCoordinator: playbackPilotCoordinator
+                playbackPilotCoordinator: playbackPilotCoordinator,
+                cacheCoordinator: cacheCoordinator
             )
 
         case .discover:
@@ -349,7 +353,11 @@ struct AppShellView: View {
             )
 
         case .settings:
-            SettingsTabView(coordinator: coordinator, showsTopBar: false)
+            SettingsTabView(
+                coordinator: coordinator,
+                showsTopBar: false,
+                cacheCoordinator: cacheCoordinator
+            )
         }
     }
 
@@ -420,7 +428,8 @@ struct AppShellView: View {
                 showsTopBar: false,
                 topBarRequest: $mainTabTopBarRequest,
                 bookOpenPilotCoordinator: bookOpenPilotCoordinator,
-                playbackPilotCoordinator: playbackPilotCoordinator
+                playbackPilotCoordinator: playbackPilotCoordinator,
+                cacheCoordinator: cacheCoordinator
             )
 
         case .discover:
@@ -436,7 +445,11 @@ struct AppShellView: View {
             )
 
         case .settings:
-            SettingsTabView(coordinator: coordinator, showsTopBar: false)
+            SettingsTabView(
+                coordinator: coordinator,
+                showsTopBar: false,
+                cacheCoordinator: cacheCoordinator
+            )
 
         case .reader(let bookID, let chapterURL, let chapterTitle):
             ReaderView(
@@ -455,6 +468,10 @@ struct AppShellView: View {
                     // P0 修复 5：模块切换 dispatch `reader.module.switch`（replace 语义）。
                     // 对齐 demo 的 payload `{ module }`，由 ReaderCoordinator 派发。
                     readerCoordinator.readerModuleSwitch(module: module.demoKey)
+                },
+                onControlToggle: {
+                    // ScreenGraph 1.2 TapZones target=control has one canonical event chain.
+                    readerCoordinator.toggleReaderControl()
                 },
                 onPageNext: {
                     // H2 W2: dispatch `.reader_page_next` → reducer 更新 readerPageIndex
@@ -480,7 +497,8 @@ struct AppShellView: View {
                     // H2 W2: dispatch `.reader_autoPage_stop` → reducer 清除 activeSession
                     readerCoordinator.stopAutoPage()
                 },
-                playbackPilotCoordinator: playbackPilotCoordinator
+                playbackPilotCoordinator: playbackPilotCoordinator,
+                cacheCoordinator: cacheCoordinator
             )
 
         case .search:
@@ -622,7 +640,8 @@ struct AppShellView: View {
              .sourceDetail, .sourceAdd, .sourceEdit, .sourceTestResult:
             SettingsDemoShellView(
                 demoRoute: Self.settingsDemoFallbackRoute(for: route) ?? "settings-general",
-                onExit: onExit
+                onExit: onExit,
+                cacheCoordinator: cacheCoordinator
             )
 
         case .bookDetail(let bookURL, let title, let author):
@@ -693,7 +712,11 @@ struct AppShellView: View {
             }
 
         case .webdavSettings:
-            SettingsDemoShellView(demoRoute: "webdav-config", onExit: onExit)
+            SettingsDemoShellView(
+                demoRoute: "webdav-config",
+                onExit: onExit,
+                cacheCoordinator: cacheCoordinator
+            )
 
         case .prototypeGallery:
             PrototypeGalleryView()

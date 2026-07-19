@@ -84,18 +84,13 @@ final class ReaderMotionSecondBatchMigrationTests: XCTestCase {
 
     // MARK: - 6. Chip select (SettingsDemoShellView)
 
-    func testChipSelectResolvesToChipItemSelectMotionId() {
-        // SettingsDemoShellView.swift: chip 选中切换
-        // 注意：当前 MotionPolicyRegistry 没有 chip 专属 policy，
-        // resolver 会回退到 .motion_interrupt_redirect (fallback-no-motion)。
-        // 当 codegen 添加 chip policy 后，此测试会自动验证到新 MotionId。
-        let request = MotionRequest(operation: .update, sourceRole: "chipItem", containerRole: .listItem)
-        let resolved = ReaderMotionAdapter.resolve(request: request)
-        XCTAssertNotNil(resolved,
-                       "chip select request must resolve (fallback-no-motion guarantees this)")
-        // 当前回退到 .motion_interrupt_redirect
-        XCTAssertEqual(resolved, .motion_interrupt_redirect,
-                       "chip select has no specific policy yet; falls back to .motion_interrupt_redirect")
+    func testChipSelectUsesItsDirectContractMotion() {
+        // Chip selection is a primitive motion, not a route policy. The view calls
+        // this exact generated MotionId directly instead of relying on a catch-all.
+        XCTAssertNotNil(ReaderMotionAdapter.spec(for: .chip_item_select))
+        XCTAssertNotNil(
+            ReaderMotionAdapter.animation(for: .chip_item_select, motion: MotionEnvironment(override: false))
+        )
     }
 
     // MARK: - 7. Toggle switch (SettingsDemoShellView)
@@ -155,8 +150,6 @@ final class ReaderMotionSecondBatchMigrationTests: XCTestCase {
             MotionRequest(operation: .exit, targetRole: "dropdown", containerRole: .overlayHost),
             // toast enter
             MotionRequest(operation: .enter, targetRole: "toast", containerRole: .overlayHost),
-            // chip select
-            MotionRequest(operation: .update, sourceRole: "chipItem", containerRole: .listItem),
             // toggle switch
             MotionRequest(operation: .update, sourceRole: "toggle", containerRole: .listItem),
             // tab item press
@@ -164,7 +157,7 @@ final class ReaderMotionSecondBatchMigrationTests: XCTestCase {
         ]
         for request in requests {
             XCTAssertNotNil(ReaderMotionAdapter.resolve(request: request),
-                           "all second-batch migration requests must resolve (fallback-no-motion guarantees this)")
+                           "all policy-backed second-batch requests must resolve explicitly")
         }
     }
 }

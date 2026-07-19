@@ -9,7 +9,7 @@ import ReaderUIContract
 /// - reader.module.switch → 设置 overlay
 /// - reader.exit → exitImmersiveReading
 /// - reader.directory.open/close → overlay 显隐
-/// - reader.bookCache.open → route.push(.content)
+/// - reader.bookCache.open → bind exact live cache context and refresh Core state
 ///
 /// 同时验证 ReaderViewState.components 能为 control-layer route 派生正确组件组合：
 /// - controlLayerBaseV2 → ReaderBase + ReaderTopArea + ReaderControlSheet + ReaderBottomBar
@@ -94,19 +94,21 @@ final class ReaderReducerSlice3GoldenTests: XCTestCase {
 
     // MARK: - Golden: reader.bookCache.open
 
-    func testGolden_readerBookCacheOpen_pushesContentRoute() {
+    func testGolden_readerBookCacheOpenBindsExactLiveContextWithoutFakeRoute() {
         let nav = AppNavigationState()
-        let reducer = ReaderReducer(navigationState: nav)
+        let cache = ReaderCacheCoordinator(service: nil)
+        let reducer = ReaderReducer(navigationState: nav, cacheCoordinator: cache)
 
-        reducer.dispatch(UiEvent(type: .reader_bookCache_open))
+        reducer.dispatch(UiEvent(type: .reader_bookCache_open, payload: [
+            "sourceId": AnyCodable("source-live"),
+            "bookId": AnyCodable("book-live"),
+            "chapterIndex": AnyCodable(31),
+        ]))
 
-        XCTAssertNotNil(nav.navigationPath.last)
-        if let route = nav.navigationPath.last,
-           case .content(let chapterTitle) = route {
-            XCTAssertEqual(chapterTitle, "Slice3")
-        } else {
-            XCTFail("Expected .content route")
-        }
+        XCTAssertTrue(nav.navigationPath.isEmpty)
+        XCTAssertEqual(cache.context?.sourceID, "source-live")
+        XCTAssertEqual(cache.context?.bookID, "book-live")
+        XCTAssertEqual(cache.context?.currentChapterIndex, 31)
     }
 
     // MARK: - Golden: viewState.components for control-layer routes

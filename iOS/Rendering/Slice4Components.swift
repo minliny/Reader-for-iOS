@@ -1,4 +1,5 @@
 import SwiftUI
+import ReaderAppSupport
 import ReaderUIContract
 
 // MARK: - Slice 4 Component Views
@@ -64,76 +65,22 @@ struct ReaderFullTtsPageView: View {
 
 struct ReaderFullAppearancePageView: View {
     let props: ReaderFullAppearancePageProps
-    // Issue 3/6/7：8 主题网格（paper/warm/green/blue × day/night），色板 + 选中态 + segmentItemSwitch 动效。
-    @EnvironmentObject private var themeManager: ReaderThemeManager
-    @Environment(\.readerThemePalette) private var palette
-    private let motion = MotionEnvironment()
+    @State private var displaySettings: ReaderDisplaySettings
+
+    init(props: ReaderFullAppearancePageProps) {
+        self.props = props
+        var initial = ReaderDisplaySettings.default
+        if let fontSize = props.fontSize { initial.fontSize = Int(fontSize.rounded()) }
+        if let lineSpacing = props.lineSpacing {
+            initial.lineHeightRatio = min(2.4, max(1.2, lineSpacing))
+        }
+        _displaySettings = State(initialValue: initial)
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: ReaderDesignTokens.demoContentGap) {
-                Text("外观主题")
-                    .font(.system(size: ReaderDesignTokens.bookCardTitleFontSize, weight: .heavy))
-                    .foregroundColor(ReaderDesignTokens.Color.ink)
-
-                // 日间主题行（4 列：paper/warm/green/blue）
-                themeGridRow(isNight: false)
-
-                // 夜间主题行（4 列）
-                themeGridRow(isNight: true)
-
-                if let fontSize = props.fontSize {
-                    LabeledRow(label: "字号", value: String(format: "%.0f", fontSize))
-                }
-                if let lineSpacing = props.lineSpacing {
-                    LabeledRow(label: "行距", value: String(format: "%.1f", lineSpacing))
-                }
-            }
+        ReaderFullAppearanceContent(displaySettings: $displaySettings)
             .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-        }
-    }
-
-    /// 主题网格行：4 个主题色板，按 isNight 渲染日间/夜间变体。
-    @ViewBuilder
-    private func themeGridRow(isNight: Bool) -> some View {
-        HStack(spacing: 12) {
-            ForEach(ReaderThemeResolver.allOptions, id: \.self) { themeId in
-                Button {
-                    // Issue 7：主题切换使用 segmentItemSwitch 动效。
-                    // 日间行点击 → setReaderTheme + setAppThemeMode("light")；
-                    // 夜间行点击 → setReaderTheme + setAppThemeMode("dark")。
-                    motion.withMotionAnimation(AppMotion.Duration.segmentItemSwitch) {
-                        themeManager.setReaderTheme(themeId)
-                        themeManager.setAppThemeMode(isNight ? "dark" : "light")
-                    }
-                } label: {
-                    VStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
-                            .fill(ReaderThemeResolver.swatchColor(themeId: themeId, isNight: isNight))
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.sm)
-                                    .stroke(
-                                        isActive(themeId: themeId, isNight: isNight) ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder,
-                                        lineWidth: isActive(themeId: themeId, isNight: isNight) ? 2 : 1
-                                    )
-                            )
-                        Text(ReaderThemeResolver.displayName(themeId))
-                            .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .black))
-                            .foregroundColor(isActive(themeId: themeId, isNight: isNight) ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.muted)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(isNight ? "夜间" : "日间")主题\(ReaderThemeResolver.displayName(themeId))")
-            }
-        }
-    }
-
-    /// 选中态：readerTheme 匹配且 effectiveIsNight 与行明暗一致。
-    private func isActive(themeId: String, isNight: Bool) -> Bool {
-        themeManager.readerTheme == themeId && themeManager.effectiveIsNight == isNight
+            .padding(.vertical, 12)
     }
 }
 

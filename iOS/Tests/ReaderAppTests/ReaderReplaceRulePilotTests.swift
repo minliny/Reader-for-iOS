@@ -48,7 +48,9 @@ final class ReaderReplaceRulePilotTests: XCTestCase {
     // MARK: - 2. CRUD: reader.replace.create dispatches replace.persist Core effect
 
     func testCreateRuleDispatchesPersistEffect() async throws {
-        let executor = FakeReplaceRuleExecutor(outcomes: [.completed(coreType: "replace.persist")])
+        let executor = FakeReplaceRuleExecutor(outcomes: [
+            .completed(coreType: "replace.persist", result: replacePersistResult())
+        ])
         let coordinator = makeCoordinator(executor: executor)
 
         XCTAssertTrue(coordinator.createRule(
@@ -64,6 +66,7 @@ final class ReaderReplaceRulePilotTests: XCTestCase {
         XCTAssertTrue(executor.cancelled.isEmpty)
         XCTAssertEqual(executor.finished, ["replace-create-1"])
         XCTAssertNil(coordinator.lastFailure)
+        XCTAssertEqual(coordinator.lastUndoToken, replaceUndoToken())
     }
 
     // MARK: - 3. Preview / apply: reader.replace.apply dispatches replace.apply Core effect
@@ -145,7 +148,102 @@ final class ReaderReplaceRulePilotTests: XCTestCase {
         XCTAssertNil(coordinator.lastFailure)
     }
 
-    // MARK: - 6. Undo: effect boundary failure clears transaction fail-closed
+    // MARK: - 6. Undo retains and replays only the Core-issued token
+
+    func testPersistRetainsCoreIssuedTokenAndUndoConsumesIt() async throws {
+        let executor = FakeReplaceRuleExecutor(outcomes: [
+            .completed(coreType: "replace.persist", result: replacePersistResult()),
+            .completed(coreType: "replace.undo", result: replaceUndoResult()),
+        ])
+        let coordinator = makeCoordinator(executor: executor)
+
+        XCTAssertTrue(coordinator.createRule(
+            jsonPayload: replaceCreatePayload(),
+            correlationId: "replace-create-for-undo"
+        ))
+        try await eventually { coordinator.lastUndoToken != nil }
+
+        XCTAssertEqual(coordinator.lastUndoToken, replaceUndoToken())
+        XCTAssertTrue(coordinator.undoLastPersistedRule(correlationId: "replace-undo-1"))
+        try await eventually { coordinator.activeCorrelationID == nil && coordinator.lastUndoToken == nil }
+
+        XCTAssertEqual(executor.executedTypes, ["replace.persist", "replace.undo"])
+        XCTAssertEqual(executor.finished, ["replace-create-for-undo", "replace-undo-1"])
+        XCTAssertEqual(
+            coordinator.operationState,
+            .succeeded(coreType: "replace.undo", message: "已撤销上一次规则变更")
+        )
+        XCTAssertNil(coordinator.lastFailure)
+    }
+
+    func testActualExecutorRejectsPersistTokenThatDoesNotIdentifyCreatedRule() async throws {
+        var invalidPersist = replacePersistResult()
+        var invalidToken = replaceUndoToken()
+        invalidToken["ruleId"] = .number(42)
+        invalidPersist["undoToken"] = .object(invalidToken)
+        let core = FakeReplaceRuleCoreCommands(
+            persistResult: invalidPersist,
+            undoResult: replaceUndoResult()
+        )
+        let coordinator = makeCoordinator(coreCommands: core)
+
+        XCTAssertTrue(coordinator.createRule(
+            jsonPayload: replaceCreatePayload(),
+            correlationId: "replace-create-identity-mismatch"
+        ))
+        try await eventually { coordinator.lastFailure != nil }
+
+        XCTAssertNil(coordinator.lastUndoToken)
+        XCTAssertTrue(coordinator.lastFailure?.contains("REPLACE_RESULT_IDENTITY_MISMATCH") == true)
+    }
+
+    func testActualExecutorRejectsUndoResultForAnotherTokenAndRetainsIssuedToken() async throws {
+        var mismatchedUndo = replaceUndoResult()
+        mismatchedUndo["transactionId"] = .string("another-transaction")
+        let core = FakeReplaceRuleCoreCommands(
+            persistResult: replacePersistResult(),
+            undoResult: mismatchedUndo
+        )
+        let coordinator = makeCoordinator(coreCommands: core)
+
+        XCTAssertTrue(coordinator.createRule(
+            jsonPayload: replaceCreatePayload(),
+            correlationId: "replace-create-before-result-mismatch"
+        ))
+        try await eventually { coordinator.lastUndoToken != nil }
+        XCTAssertTrue(coordinator.undoLastPersistedRule(correlationId: "replace-undo-result-mismatch"))
+        try await eventually { coordinator.lastFailure != nil }
+
+        XCTAssertEqual(core.undoPayloads, [["undoToken": .object(replaceUndoToken())]])
+        XCTAssertEqual(coordinator.lastUndoToken, replaceUndoToken())
+        XCTAssertTrue(coordinator.lastFailure?.contains("REPLACE_RESULT_IDENTITY_MISMATCH") == true)
+    }
+
+    func testContractUndoEventRejectsFixtureTokenThatDoesNotMatchRetainedCoreToken() async throws {
+        let executor = FakeReplaceRuleExecutor(outcomes: [
+            .completed(coreType: "replace.persist", result: replacePersistResult())
+        ])
+        let coordinator = makeCoordinator(executor: executor)
+        XCTAssertTrue(coordinator.createRule(
+            jsonPayload: replaceCreatePayload(),
+            correlationId: "replace-create-before-mismatch"
+        ))
+        try await eventually { coordinator.lastUndoToken != nil }
+
+        var mismatched = replaceUndoToken()
+        mismatched["transactionId"] = .string("fixture-token")
+        XCTAssertTrue(coordinator.handle(UiEvent(
+            type: .reader_replace_undo,
+            payload: ["undoToken": AnyCodable(ReaderUIJSONValue.object(mismatched))],
+            correlationId: "replace-fixture-undo"
+        )))
+
+        XCTAssertEqual(executor.executedTypes, ["replace.persist"])
+        XCTAssertEqual(coordinator.lastFailure, "REPLACE_UNDO_TOKEN_MISMATCH")
+        XCTAssertEqual(coordinator.lastUndoToken, replaceUndoToken())
+    }
+
+    // MARK: - 7. Effect failure clears transaction fail-closed
 
     func testReplaceRulePilotEffectBoundaryFailureClearsTransaction() async throws {
         let executor = FakeReplaceRuleExecutor(outcomes: [
@@ -171,7 +269,7 @@ final class ReaderReplaceRulePilotTests: XCTestCase {
         )
     }
 
-    // MARK: - 7. Shadow mode returns false (rollback seam)
+    // MARK: - 8. Shadow mode returns false (rollback seam)
 
     func testReplaceRulePilotShadowModeReturnsFalse() {
         let coordinator = ReaderReplaceRulePilotCoordinator(
@@ -196,7 +294,7 @@ final class ReaderReplaceRulePilotTests: XCTestCase {
         XCTAssertNil(coordinator.lastFailure, "Shadow mode must not produce a failure")
     }
 
-    // MARK: - 8. Fail-closed when executor is missing in pilot mode
+    // MARK: - 9. Fail-closed when executor is missing in pilot mode
 
     func testReplaceRulePilotFailsClosedWhenExecutorMissing() {
         let coordinator = ReaderReplaceRulePilotCoordinator(
@@ -220,6 +318,16 @@ final class ReaderReplaceRulePilotTests: XCTestCase {
             configuration: ReaderReplaceRulePilotConfiguration(mode: .pilot),
             runtime: ReaderUIRuntime(),
             executor: executor
+        )
+    }
+
+    private func makeCoordinator(
+        coreCommands: FakeReplaceRuleCoreCommands
+    ) -> ReaderReplaceRulePilotCoordinator {
+        ReaderReplaceRulePilotCoordinator(
+            configuration: ReaderReplaceRulePilotConfiguration(mode: .pilot),
+            runtime: ReaderUIRuntime(),
+            executor: ReaderReplaceRuleEffectExecutor(coreCommands: coreCommands)
         )
     }
 
@@ -266,6 +374,53 @@ final class ReaderReplaceRulePilotTests: XCTestCase {
             "scope": .array([.string("chapter"), .string("title")]),
         ]
     }
+
+    private func replaceRuleResult() -> ReaderUIJSONPayload {
+        [
+            "id": .number(41),
+            "name": .string("rename"),
+            "pattern": .string("rain"),
+            "replacement": .string("sun"),
+            "scopeTitle": .bool(false),
+            "scopeContent": .bool(true),
+            "isEnabled": .bool(true),
+            "isRegex": .bool(false),
+            "timeoutMillisecond": .number(3_000),
+            "order": .number(0),
+        ]
+    }
+
+    private func replaceUndoToken() -> ReaderUIJSONPayload {
+        [
+            "schemaVersion": .number(1),
+            "transactionId": .string("replace-create-transaction"),
+            "revision": .string(String(repeating: "a", count: 64)),
+            "operation": .string("create"),
+            "ruleId": .number(41),
+            "issuedAt": .number(1_900_000_000),
+            "expiresAt": .number(1_900_000_300),
+            "after": .object(replaceRuleResult()),
+        ]
+    }
+
+    private func replacePersistResult() -> ReaderUIJSONResult {
+        [
+            "operation": .string("create"),
+            "data": .object(["rule": .object(replaceRuleResult())]),
+            "undoToken": .object(replaceUndoToken()),
+        ]
+    }
+
+    private func replaceUndoResult() -> ReaderUIJSONResult {
+        [
+            "transactionId": .string("replace-create-transaction"),
+            "revision": .string(String(repeating: "a", count: 64)),
+            "operation": .string("create"),
+            "ruleId": .number(41),
+            "changed": .bool(true),
+            "undoneAt": .number(1_900_000_010),
+        ]
+    }
 }
 
 @MainActor
@@ -306,5 +461,46 @@ private final class FakeReplaceRuleExecutor: ReaderReplaceRuleEffectExecuting {
     func finish(correlationID: String) {
         finished.append(correlationID)
         activeCorrelations.remove(correlationID)
+    }
+}
+
+@MainActor
+private final class FakeReplaceRuleCoreCommands: ReaderReplaceRuleCoreCommandExecuting {
+    let persistResult: ReaderUIJSONResult
+    let undoResult: ReaderUIJSONResult
+    var undoPayloads: [ReaderUIJSONPayload] = []
+
+    init(persistResult: ReaderUIJSONResult, undoResult: ReaderUIJSONResult) {
+        self.persistResult = persistResult
+        self.undoResult = undoResult
+    }
+
+    func executeApply(
+        payload: ReaderUIJSONPayload,
+        correlationID: String
+    ) async throws -> ReaderUIJSONResult {
+        throw ReaderUIRuntimeFailure(code: "UNEXPECTED_TEST_CALL", message: "replace.apply")
+    }
+
+    func executePersist(
+        payload: ReaderUIJSONPayload,
+        correlationID: String
+    ) async throws -> ReaderUIJSONResult {
+        persistResult
+    }
+
+    func executeValidate(
+        payload: ReaderUIJSONPayload,
+        correlationID: String
+    ) async throws -> ReaderUIJSONResult {
+        throw ReaderUIRuntimeFailure(code: "UNEXPECTED_TEST_CALL", message: "replace.validate")
+    }
+
+    func executeUndo(
+        payload: ReaderUIJSONPayload,
+        correlationID: String
+    ) async throws -> ReaderUIJSONResult {
+        undoPayloads.append(payload)
+        return undoResult
     }
 }

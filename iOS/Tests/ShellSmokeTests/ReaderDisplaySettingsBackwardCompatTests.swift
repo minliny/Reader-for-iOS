@@ -10,6 +10,12 @@ final class ReaderDisplaySettingsBackwardCompatTests: XCTestCase {
         XCTAssertEqual(settings.brightnessLevel, 0.8, accuracy: 0.001)
         XCTAssertFalse(settings.volumeKeyPageTurnEnabled, "Volume key page turn should default to disabled")
         XCTAssertFalse(settings.dualPageEnabled, "Dual page should default to disabled")
+        XCTAssertEqual(settings.lineHeightRatio, 1.96, accuracy: 0.001)
+        XCTAssertEqual(settings.paragraphIndent, 0, accuracy: 0.001)
+        XCTAssertEqual(settings.letterSpacing, 0, accuracy: 0.001)
+        XCTAssertEqual(settings.textConversion, "simplified")
+        XCTAssertEqual(settings.textAlignment, "justify")
+        XCTAssertEqual(settings.pageAnimation, "slide")
     }
 
     func testDecodingOldSettingsJSONWithoutNewFieldsUsesDefaults() throws {
@@ -37,6 +43,11 @@ final class ReaderDisplaySettingsBackwardCompatTests: XCTestCase {
         XCTAssertEqual(decoded.brightnessLevel, 0.8, accuracy: 0.001)
         XCTAssertFalse(decoded.volumeKeyPageTurnEnabled)
         XCTAssertFalse(decoded.dualPageEnabled)
+        XCTAssertEqual(decoded.lineHeightRatio, 1.96, accuracy: 0.001)
+        XCTAssertEqual(decoded.paragraphIndent, 0, accuracy: 0.001)
+        XCTAssertEqual(decoded.letterSpacing, 0, accuracy: 0.001)
+        XCTAssertEqual(decoded.readerThemeId, "paper")
+        XCTAssertEqual(decoded.readerThemeMode, "light")
     }
 
     func testRoundTripEncodingPreservesNewFields() throws {

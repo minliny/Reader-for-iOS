@@ -281,6 +281,25 @@ public struct ReaderUIRuntimeShadowMetrics: Equatable, Sendable {
     public init() {}
 }
 
+/// Rendering intent derived from the canonical runtime transition. This is
+/// deliberately not semantic state: `ReaderUIState.overlay` remains the only
+/// Reader control/module truth, while motion follows its before/after delta.
+public enum ReaderControlMotionDelta: Equatable, Sendable {
+    case show
+    case hide
+    case switchModule
+    case noOp
+
+    public var motionID: MotionId? {
+        switch self {
+        case .show: return .reader_control_show
+        case .hide: return .reader_control_hide
+        case .switchModule: return .reader_module_switch
+        case .noOp: return nil
+        }
+    }
+}
+
 /// Long-lived Reader-UI runtime coordinator used by the real App
 /// `UiEvent -> ReaderReducer.dispatch` path.
 ///
@@ -301,6 +320,7 @@ public final class ReaderUIRuntimeCoordinator: ObservableObject {
 
     @Published public private(set) var metrics = ReaderUIRuntimeShadowMetrics()
     @Published public private(set) var lastTransition: ReaderUITransition?
+    @Published public private(set) var lastReaderControlMotionDelta: ReaderControlMotionDelta?
     @Published public private(set) var lastFailure: ReaderUIRuntimeFailure?
     public private(set) var lastMismatch: String?
 
@@ -326,6 +346,52 @@ public final class ReaderUIRuntimeCoordinator: ObservableObject {
 
     public var state: ReaderUIState { runtime.state }
     public var isDirectoryPresented: Bool { runtime.state.overlay == "directory" }
+    public var readerControlOverlay: String? { runtime.state.overlay }
+
+    /// Candidate dispatch preflight. A Pilot may become the sole writer only
+    /// when its untouched runtime `previous` exactly matches the native
+    /// reducer projection. This rejects stale long-lived runtimes before they
+    /// can apply a semantically valid action to the wrong route or overlay.
+    func validateReaderControlCandidateBaseline(
+        for event: UiEvent,
+        navigationState: AppNavigationState
+    ) -> Bool {
+        guard configuration.mode(for: event.type.rawValue) == .pilot,
+              event.type == .reader_control_toggle || event.type == .reader_module_switch else {
+            return true
+        }
+        lastReaderControlMotionDelta = nil
+        let runtimeBaseline = ReaderControlCandidateBaseline(state: runtime.state)
+        let nativeBaseline = ReaderControlCandidateBaseline(navigationState: navigationState)
+        guard runtimeBaseline == nativeBaseline else {
+            let failure = ReaderUIRuntimeFailure(
+                code: "READER_CONTROL_BASELINE_MISMATCH",
+                message: "Runtime candidate baseline \(runtimeBaseline) does not match native \(nativeBaseline)"
+            )
+            metrics.runtimeError += 1
+            lastFailure = failure
+            lastMismatch = failure.message
+            return false
+        }
+        return true
+    }
+
+    /// Maps only canonical Reader control transitions. The event payload is
+    /// intentionally ignored: show/hide/switch/no-op follows the committed
+    /// `ReaderUIState.overlay` delta, including repeated-module no-op.
+    public static func readerControlMotionDelta(
+        for transition: ReaderUITransition
+    ) -> ReaderControlMotionDelta? {
+        switch transition.event {
+        case "reader.control.toggle":
+            guard transition.previous.overlay != transition.state.overlay else { return .noOp }
+            return transition.state.overlay == nil ? .hide : .show
+        case "reader.module.switch":
+            return transition.previous.overlay == transition.state.overlay ? .noOp : .switchModule
+        default:
+            return nil
+        }
+    }
 
     /// Observe an event before the native reducer handles it. The returned
     /// effects remain data-only and are counted as suppressed.
@@ -333,6 +399,9 @@ public final class ReaderUIRuntimeCoordinator: ObservableObject {
     public func observe(
         _ event: UiEvent
     ) -> Result<ReaderUITransition, ReaderUIRuntimeFailure>? {
+        // Motion belongs to the latest dispatch outcome, never to the last
+        // successful transition. Fallbacks and every failure leave this nil.
+        lastReaderControlMotionDelta = nil
         let eventName = event.type.rawValue
         guard let mode = configuration.mode(for: eventName) else {
             metrics.fallback += 1
@@ -370,6 +439,7 @@ public final class ReaderUIRuntimeCoordinator: ObservableObject {
                 metrics.suppressedRuntimeEffects += transition.effects.count
             }
             lastTransition = transition
+            lastReaderControlMotionDelta = Self.readerControlMotionDelta(for: transition)
             lastFailure = nil
             return .success(transition)
         } catch let failure as ReaderUIRuntimeFailure {
@@ -441,8 +511,70 @@ public final class ReaderUIRuntimeCoordinator: ObservableObject {
 
     public func resetMetrics() {
         metrics = ReaderUIRuntimeShadowMetrics()
+        lastReaderControlMotionDelta = nil
         lastFailure = nil
         lastMismatch = nil
+    }
+
+    private struct ReaderControlCandidateBaseline: Equatable, CustomStringConvertible {
+        let route: String
+        let stack: [String]
+        let tab: String
+        let overlay: String?
+
+        init(state: ReaderUIState) {
+            route = state.routeId
+            stack = state.routeStack
+            tab = state.tab
+            overlay = state.overlay
+        }
+
+        @MainActor
+        init(navigationState: AppNavigationState) {
+            route = ReaderViewState(from: navigationState).routeId.rawValue
+            tab = MainTab(appTab: navigationState.activeTab).rawValue
+            overlay = Self.nativeOverlay(navigationState)
+
+            let root = RouteId(appTab: navigationState.activeTab).rawValue
+            let pushed = navigationState.navigationPath.map {
+                RouteId(
+                    appRoute: $0,
+                    fallbackTab: navigationState.activeTab,
+                    readerContext: nil
+                ).rawValue
+            }
+            if navigationState.readerContext != nil {
+                stack = [root] + pushed
+            } else if pushed.isEmpty {
+                stack = []
+            } else {
+                stack = [root] + Array(pushed.dropLast())
+            }
+        }
+
+        var description: String {
+            let overlayDescription = overlay ?? "nil"
+            return "{route=\(route), stack=\(stack), tab=\(tab), overlay=\(overlayDescription)}"
+        }
+
+        @MainActor
+        private static func nativeOverlay(_ navigationState: AppNavigationState) -> String? {
+            switch navigationState.overlayState {
+            case .none:
+                return nil
+            case .keyboard:
+                return "keyboard"
+            case .dialog:
+                return "dialog"
+            case .sheet:
+                let prefix = "reader-module-"
+                if let focus = navigationState.focusTarget,
+                   focus.hasPrefix(prefix) {
+                    return String(focus.dropFirst(prefix.count))
+                }
+                return "reader-control"
+            }
+        }
     }
 
     fileprivate enum SemanticProjection: Equatable, CustomStringConvertible {

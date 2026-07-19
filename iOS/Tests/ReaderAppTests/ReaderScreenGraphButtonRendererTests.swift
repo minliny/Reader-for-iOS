@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class ReaderScreenGraphButtonRendererTests: XCTestCase {
-    func testAll59CanonicalButtonsDecodeAndOnly19RuntimeBindingsRemainExecutable() throws {
+    func testAll59CanonicalButtonsDecodeAndOnly22RuntimeBindingsRemainExecutable() throws {
         ComponentRegistry.reset()
         ComponentRegistry.bootstrapAllSlices()
         let planner = try ReaderScreenGraphHostPlanner()
@@ -74,8 +74,8 @@ final class ReaderScreenGraphButtonRendererTests: XCTestCase {
         }
 
         XCTAssertEqual(buttonCount, 59)
-        XCTAssertEqual(executableCount, 19)
-        XCTAssertEqual(plannedFailClosedCount, 38)
+        XCTAssertEqual(executableCount, 22)
+        XCTAssertEqual(plannedFailClosedCount, 35)
         XCTAssertEqual(disabledBindingGapCount, 2)
         XCTAssertTrue(ComponentRegistry.isRegistered(.button))
         XCTAssertTrue(ComponentRegistry.faithfulRendererTypes.contains(.button))

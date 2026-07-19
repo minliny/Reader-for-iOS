@@ -1,17 +1,30 @@
 import SwiftUI
-import ReaderAppSupport
 import ReaderUIContract
+import ReaderAppSupport
+import ReaderShellValidation
 
 struct ReaderDemoShellView: View {
+    @Environment(\.readerThemePalette) private var palette
     @State private var state: ReaderDemoRouteState
     @State private var session: ReaderDemoSession = .none
     @State private var displaySettings = ReaderDisplaySettings.default
+    @StateObject private var cacheCoordinator: ReaderCacheCoordinator
     private let motion = MotionEnvironment()
     private let onExit: (() -> Void)?
+    private let cacheContext: ReaderCacheContext?
 
-    init(demoRoute: String, onExit: (() -> Void)? = nil) {
+    init(
+        demoRoute: String,
+        onExit: (() -> Void)? = nil,
+        cacheCoordinator: ReaderCacheCoordinator? = nil,
+        cacheContext: ReaderCacheContext? = nil
+    ) {
         self._state = State(initialValue: ReaderDemoRouteState(route: demoRoute))
+        self._cacheCoordinator = StateObject(
+            wrappedValue: cacheCoordinator ?? ReaderCacheCoordinator.production()
+        )
         self.onExit = onExit
+        self.cacheContext = cacheContext
     }
 
     var body: some View {
@@ -33,19 +46,19 @@ struct ReaderDemoShellView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar(.hidden, for: .navigationBar)
 #endif
+        .task(id: cacheTaskIdentity) {
+            guard state.module == .cache else { return }
+            cacheCoordinator.bind(cacheContext)
+            if cacheContext != nil {
+                cacheCoordinator.refresh()
+            }
+        }
     }
 
     @ViewBuilder
     private func shellBody(layout: ReaderResponsiveLayout) -> some View {
         DemoReaderShell(layout: layout) {
-            LinearGradient(
-                colors: [
-                    ReaderDesignTokens.Color.readerPaperGradientStart,
-                    ReaderDesignTokens.Color.readerPaperGradientEnd
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            palette.readingPaper
             .ignoresSafeArea()
 
             ReaderDemoReadingSurface()
@@ -126,8 +139,18 @@ struct ReaderDemoShellView: View {
                 onNavigate: switchRoute
             )
         case .utility:
-            ReaderDemoUtilityPanel(state: state, maxHeight: 590)
+            ReaderDemoUtilityPanel(
+                state: state,
+                maxHeight: 590,
+                cacheCoordinator: cacheCoordinator
+            )
         }
+    }
+
+    private var cacheTaskIdentity: String {
+        guard state.module == .cache else { return "non-cache:\(state.route)" }
+        guard let cacheContext else { return "cache:missing-context" }
+        return "cache:\(cacheContext.sourceID):\(cacheContext.bookID):\(cacheContext.currentChapterIndex.map(String.init) ?? "none")"
     }
 
     private func expandModule(_ module: ReaderDemoModule) {
@@ -711,14 +734,10 @@ private struct ReaderDemoFullPanel: View {
     @ViewBuilder
     private var content: some View {
         switch state.route {
-        case "reader-full-font":
-            ReaderDemoFullFontPage(displaySettings: $displaySettings)
-        case "reader-full-theme":
-            ReaderDemoFullThemePage()
+        case "reader-full-font", "reader-full-theme", "reader-full-layout":
+            ReaderFullAppearanceContent(displaySettings: $displaySettings, onNavigate: onNavigate)
         case "reader-full-theme-edit":
             ReaderDemoFullThemeEditPage()
-        case "reader-full-layout":
-            ReaderDemoFullLayoutPage(displaySettings: $displaySettings)
         case "reader-full-page-turn":
             ReaderDemoFullPageTurnPage(displaySettings: $displaySettings)
         default:
@@ -750,6 +769,7 @@ private struct ReaderDemoFullPanel: View {
 private struct ReaderDemoUtilityPanel: View {
     let state: ReaderDemoRouteState
     let maxHeight: CGFloat
+    @ObservedObject var cacheCoordinator: ReaderCacheCoordinator
 
     var body: some View {
         ReaderCard {
@@ -763,7 +783,7 @@ private struct ReaderDemoUtilityPanel: View {
                 }
                 Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
                 if state.module == .cache {
-                    ReaderDemoCachePanel()
+                    ReaderDemoCachePanel(coordinator: cacheCoordinator)
                 } else {
                     ReaderDemoDebugPanel()
                 }
@@ -907,7 +927,16 @@ private struct ReaderDemoAppearanceControls: View {
         ReaderDemoThemeOption(title: "夜间", mode: .dark)
     ]
 
+    @ViewBuilder
     var body: some View {
+        if isFull {
+            ReaderFullAppearanceContent(displaySettings: $displaySettings, onNavigate: onNavigate)
+        } else {
+            compactContent
+        }
+    }
+
+    private var compactContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 ForEach(themeOptions, id: \.title) { option in
@@ -936,40 +965,12 @@ private struct ReaderDemoAppearanceControls: View {
                 decrease: { perform(.fontSize(delta: -2)) },
                 increase: { perform(.fontSize(delta: 2)) }
             )
-            if isFull, let onNavigate = onNavigate {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("更多设置")
-                        .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
-                    HStack(spacing: 8) {
-                        ReaderDemoNavChip(title: "字体", icon: .typo) { onNavigate("reader-full-font") }
-                        ReaderDemoNavChip(title: "主题", icon: .sun) { onNavigate("reader-full-theme") }
-                        ReaderDemoNavChip(title: "版式", icon: .columns) { onNavigate("reader-full-layout") }
-                    }
-                }
-            }
             ReaderDemoStepperRow(
                 title: "行距",
                 value: String(format: "%.0f", displaySettings.lineSpacing),
                 decrease: { perform(.lineSpacing(delta: -2)) },
                 increase: { perform(.lineSpacing(delta: 2)) }
             )
-            if isFull {
-                HStack(spacing: 8) {
-                    Text("翻页")
-                        .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    ReaderDemoModeChip(
-                        title: "滚动",
-                        isSelected: displaySettings.pageTurnMode == .scroll,
-                        action: { perform(.pageTurnMode(.scroll)) }
-                    )
-                    ReaderDemoModeChip(
-                        title: "分页",
-                        isSelected: displaySettings.pageTurnMode == .paginated,
-                        action: { perform(.pageTurnMode(.paginated)) }
-                    )
-                }
-            }
         }
     }
 
@@ -977,6 +978,266 @@ private struct ReaderDemoAppearanceControls: View {
         var nextSettings = displaySettings
         action.apply(to: &nextSettings)
         displaySettings = nextSettings
+    }
+}
+
+/// Reader 2 / Full / AppearanceContent 的共享 SwiftUI 实现。
+/// ReaderDemoShell 使用真实 ReaderDisplaySettings binding；生成 ScreenGraph 的 fallback
+/// renderer 也复用相同组件，避免两套外观页面继续漂移。
+struct ReaderFullAppearanceContent: View {
+    @Binding var displaySettings: ReaderDisplaySettings
+    var onNavigate: ((String) -> Void)? = nil
+
+    @EnvironmentObject private var themeManager: ReaderThemeManager
+    private let motion = MotionEnvironment()
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
+    private let fonts = ReaderAppearanceSpecRegistry.fonts.filter { !$0.importAction }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                section(title: "主题库", meta: "日间：纸纹 · 夜间：夜纹") {
+                    LazyVGrid(columns: columns, spacing: 6) {
+                        ForEach(ReaderThemeResolver.fullAppearanceOptions) { option in
+                            themeCard(option)
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Spacer(minLength: 0)
+                        themeModeButton("设为日间主题", mode: "light")
+                        themeModeButton("设为夜间主题", mode: "dark")
+                    }
+                }
+
+                section(title: "字体库", meta: "可拖动调整位置") {
+                    LazyVGrid(columns: columns, spacing: 8) {
+                        ForEach(fonts) { option in
+                            fontCell(label: option.label, family: nativeFontFamily(option))
+                        }
+                        Button {
+                            onNavigate?("reader-font-import-confirm")
+                        } label: {
+                            Text(ReaderAppearanceSpecRegistry.fonts.first(where: { $0.importAction })?.label ?? "+ 导入")
+                                .font(.system(size: 9, weight: .bold))
+                                .frame(maxWidth: .infinity, minHeight: 30)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(ReaderDesignTokens.Color.muted, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("导入字体")
+                    }
+                }
+
+                section(title: "排版") {
+                    VStack(spacing: 4) {
+                        appearanceSelectRow(id: "paragraphIndentMode", currentValue: displaySettings.paragraphIndent == 0 ? "none" : "two-character") { value in
+                            displaySettings.paragraphIndent = value == "none" ? 0 : 2
+                        }
+                        appearanceSelectRow(id: "textConversion", currentValue: displaySettings.textConversion) { value in
+                            displaySettings.textConversion = value
+                        }
+                        appearanceSelectRow(id: "pageAnimation", currentValue: displaySettings.pageAnimation) { value in
+                            displaySettings.pageAnimation = value
+                        }
+                        appearanceSelectRow(id: "textAlignment", currentValue: displaySettings.textAlignment) { value in
+                            displaySettings.textAlignment = value
+                        }
+                        ReaderDemoStepperRow(
+                            title: fontSizeSpec.label,
+                            value: "\(displaySettings.fontSize)px",
+                            decrease: { displaySettings.fontSize = max(Int(fontSizeSpec.minimum), displaySettings.fontSize - Int(fontSizeSpec.step)) },
+                            increase: { displaySettings.fontSize = min(Int(fontSizeSpec.maximum), displaySettings.fontSize + Int(fontSizeSpec.step)) }
+                        )
+                        ReaderDemoStepperRow(
+                            title: lineHeightSpec.label,
+                            value: String(format: "%.2f", displaySettings.lineHeightRatio),
+                            decrease: { displaySettings.lineHeightRatio = max(lineHeightSpec.minimum, displaySettings.lineHeightRatio - lineHeightSpec.step) },
+                            increase: { displaySettings.lineHeightRatio = min(lineHeightSpec.maximum, displaySettings.lineHeightRatio + lineHeightSpec.step) }
+                        )
+                        ReaderDemoStepperRow(
+                            title: paragraphGapSpec.label,
+                            value: String(format: "%.0fpx", displaySettings.paragraphSpacing),
+                            decrease: { displaySettings.paragraphSpacing = max(paragraphGapSpec.minimum, displaySettings.paragraphSpacing - paragraphGapSpec.step) },
+                            increase: { displaySettings.paragraphSpacing = min(paragraphGapSpec.maximum, displaySettings.paragraphSpacing + paragraphGapSpec.step) }
+                        )
+                        ReaderDemoStepperRow(
+                            title: letterSpacingSpec.label,
+                            value: String(format: "%.1fpx", displaySettings.letterSpacing),
+                            decrease: { displaySettings.letterSpacing = max(letterSpacingSpec.minimum, displaySettings.letterSpacing - letterSpacingSpec.step) },
+                            increase: { displaySettings.letterSpacing = min(letterSpacingSpec.maximum, displaySettings.letterSpacing + letterSpacingSpec.step) }
+                        )
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var fontSizeSpec: ReaderAppearanceStepper { appearanceStepper("fontSize") }
+    private var lineHeightSpec: ReaderAppearanceStepper { appearanceStepper("lineHeight") }
+    private var paragraphGapSpec: ReaderAppearanceStepper { appearanceStepper("paragraphGap") }
+    private var letterSpacingSpec: ReaderAppearanceStepper { appearanceStepper("letterSpacing") }
+
+    private func appearanceStepper(_ id: String) -> ReaderAppearanceStepper {
+        guard let spec = ReaderAppearanceSpecRegistry.stepper(id: id) else {
+            preconditionFailure("Missing Reader Appearance stepper: \(id)")
+        }
+        return spec
+    }
+
+    private func nativeFontFamily(_ option: ReaderAppearanceFont) -> String {
+        ReaderSettingsPanel.nativeFontFamily(option)
+    }
+
+    @ViewBuilder
+    private func appearanceSelectRow(id: String, currentValue: String, onSelect: @escaping (String) -> Void) -> some View {
+        if let spec = ReaderAppearanceSpecRegistry.select(id: id) {
+            let currentLabel = spec.options.first(where: { $0.value == currentValue })?.label
+                ?? spec.options.first(where: { $0.value == spec.defaultValue })?.label
+                ?? currentValue
+            menuRow(title: spec.label, value: currentLabel) {
+                ForEach(spec.options, id: \.value) { option in
+                    Button(option.label) { onSelect(option.value) }
+                }
+            }
+        }
+    }
+
+    private func isActive(_ option: ReaderThemeResolver.FullAppearanceOption) -> Bool {
+        themeManager.readerTheme == option.themeId && themeManager.effectiveIsNight == option.isNight
+    }
+
+    private func selectTheme(_ option: ReaderThemeResolver.FullAppearanceOption) {
+        motion.withMotionAnimation(AppMotion.Duration.segmentItemSwitch) {
+            themeManager.setReaderTheme(option.themeId)
+            themeManager.setAppThemeMode(option.isNight ? "dark" : "light")
+            displaySettings.readerThemeId = option.themeId
+            displaySettings.readerThemeMode = option.isNight ? "dark" : "light"
+            displaySettings.backgroundMode = option.isNight ? .dark : (option.themeId == "paper" || option.themeId == "warm" ? .sepia : .light)
+        }
+    }
+
+    private func themeCard(_ option: ReaderThemeResolver.FullAppearanceOption) -> some View {
+        Button { selectTheme(option) } label: {
+            VStack(spacing: 3) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(ReaderThemeResolver.swatchColor(themeId: option.themeId, isNight: option.isNight))
+                    .frame(width: 46, height: 18)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isActive(option) ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder, lineWidth: isActive(option) ? 2 : 0.5)
+                    )
+                Text(option.label)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 59)
+            .background(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .fill(isActive(option) ? ReaderDesignTokens.Color.primary.opacity(0.08) : ReaderDesignTokens.Color.controlBackground.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                    .stroke(isActive(option) ? ReaderDesignTokens.Color.primaryDark : .clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("选择\(option.label)主题")
+        .accessibilityAddTraits(isActive(option) ? .isSelected : [])
+    }
+
+    private func themeModeButton(_ title: String, mode: String) -> some View {
+        Button(title) {
+            themeManager.setAppThemeMode(mode)
+            displaySettings.readerThemeMode = mode
+            displaySettings.backgroundMode = mode == "dark" ? .dark : .light
+        }
+        .font(.system(size: 9, weight: .bold))
+        .buttonStyle(.bordered)
+        .controlSize(.mini)
+    }
+
+    private func fontCell(label: String, family: String) -> some View {
+        Button {
+            displaySettings.fontFamily = family
+        } label: {
+            Text(label)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(displaySettings.fontFamily == family ? Color.white : ReaderDesignTokens.Color.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity, minHeight: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(displaySettings.fontFamily == family ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.controlBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(displaySettings.fontFamily == family ? ReaderDesignTokens.Color.primaryDark : ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("字体\(label)")
+        .accessibilityAddTraits(displaySettings.fontFamily == family ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private func section<Content: View>(title: String, meta: String = "", @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 13, weight: .heavy))
+                Spacer(minLength: 8)
+                if !meta.isEmpty {
+                    Text(meta)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(ReaderDesignTokens.Color.muted)
+                        .lineLimit(1)
+                }
+            }
+            content()
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .fill(ReaderDesignTokens.Color.controlBackground.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
+                .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+        )
+    }
+
+    private func menuRow<Content: View>(title: String, value: String, @ViewBuilder content: () -> Content) -> some View {
+        Menu(content: content) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 11, weight: .bold))
+                Spacer()
+                Text(value)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(ReaderDesignTokens.Color.muted)
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 34)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(ReaderDesignTokens.Color.controlBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(ReaderDesignTokens.Color.mainNavBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title)\(value)")
     }
 }
 
@@ -1241,14 +1502,103 @@ private struct ReaderDemoReplaceRuleRow: View {
 }
 
 private struct ReaderDemoCachePanel: View {
+    @ObservedObject var coordinator: ReaderCacheCoordinator
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            metricGrid([("12/48", "已缓存章节"), ("128 MB", "当前书籍缓存"), ("已开启", "自动缓存")])
-            settingRow(icon: .download, title: "缓存当前章节", detail: "第 32 章")
-            settingRow(icon: .refresh, title: "缓存后续章节", detail: "20 章")
-            settingRow(icon: .directory, title: "更新缓存目录", detail: "刷新")
-            settingRow(icon: .trash, title: "清理本书缓存", detail: "保留进度")
+            metricGrid(cacheMetrics)
+            cacheActionRow(
+                icon: .directory,
+                title: "刷新缓存状态",
+                detail: statusDetail,
+                action: coordinator.refresh
+            )
+            cacheActionRow(
+                icon: .download,
+                title: "缓存当前章节",
+                detail: currentChapterDetail,
+                action: coordinator.prefetchCurrentChapter
+            )
+            cacheActionRow(
+                icon: .refresh,
+                title: "缓存后续章节",
+                detail: "最多 20 章",
+                action: { coordinator.prefetchFollowingChapters(limit: 20) }
+            )
+            cacheActionRow(
+                icon: .trash,
+                title: "清理本书缓存",
+                detail: "保留阅读进度",
+                action: coordinator.clearCurrentBook
+            )
+            Text(stateMessage)
+                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))
+                .foregroundStyle(stateMessageColor)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var cacheMetrics: [(String, String)] {
+        guard let status = coordinator.status else {
+            return [("—", "已缓存章节"), ("—", "Core 总缓存"), ("—", "队列任务")]
+        }
+        return [
+            ("\(status.cachedCount)/\(status.chapterCount)", "已缓存章节"),
+            (ByteCountFormatter.string(fromByteCount: status.globalStats.totalContentBytes, countStyle: .file), "Core 总缓存"),
+            ("\(status.globalStats.queueEntryCount)", "队列任务"),
+        ]
+    }
+
+    private var statusDetail: String {
+        guard let status = coordinator.status else { return "读取 Core" }
+        return status.tocAvailable ? "目录 \(status.chapterCount) 章" : "目录未缓存"
+    }
+
+    private var currentChapterDetail: String {
+        guard let currentChapterIndex = coordinator.context?.currentChapterIndex else { return "缺少 chapterIndex" }
+        return "第 \(currentChapterIndex + 1) 章"
+    }
+
+    private var stateMessage: String {
+        switch coordinator.viewState {
+        case .unavailable(let message), .failed(_, let message), .succeeded(_, let message):
+            return message
+        case .loading(let operation):
+            switch operation {
+            case .status: return "正在读取 Core 缓存状态…"
+            case .prefetch: return "Core 正在预取章节…"
+            case .clear: return "Core 正在清理缓存…"
+            }
+        case .idle:
+            return "缓存数据以 Reader Core 返回结果为准"
+        }
+    }
+
+    private var stateMessageColor: Color {
+        if case .failed = coordinator.viewState { return .red }
+        if case .unavailable = coordinator.viewState { return .orange }
+        return ReaderDesignTokens.Color.muted
+    }
+
+    private var isLoading: Bool {
+        if case .loading = coordinator.viewState { return true }
+        return false
+    }
+
+    private func cacheActionRow(
+        icon: ReaderAssetIcon,
+        title: String,
+        detail: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            settingRow(icon: icon, title: title, detail: detail)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading || coordinator.context == nil)
+        .opacity(isLoading || coordinator.context == nil ? 0.55 : 1)
+        .accessibilityLabel("\(title)，\(detail)")
     }
 }
 
@@ -1391,91 +1741,6 @@ private struct PillButton: View {
 }
 
 
-// MARK: - W4: Full-screen theme pages
-
-private struct ReaderDemoFullFontPage: View {
-    @Binding var displaySettings: ReaderDisplaySettings
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
-            Text("字体设置")
-                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy))
-                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-            ForEach(ReaderSettingsPanel.availableFonts, id: \.self) { font in
-                Button {
-                    displaySettings.fontFamily = font
-                } label: {
-                    HStack(spacing: 10) {
-                        Text(font)
-                            .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
-                            .foregroundColor(.primary)
-                        Spacer()
-                        if displaySettings.fontFamily == font {
-                            Circle()
-                                .fill(ReaderDesignTokens.Color.primaryDark)
-                                .frame(width: 8, height: 8)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 40)
-                    .background(
-                        RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                            .fill(ReaderDesignTokens.Color.controlBackground.opacity(0.72))
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-}
-
-private struct ReaderDemoFullThemePage: View {
-    private let themes = [
-        ("暖白", "warm"),
-        ("纸色", "sepia"),
-        ("绿色", "green"),
-        ("蓝色", "blue"),
-        ("夜间", "dark")
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
-            Text("主题选择")
-                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy))
-                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-            ForEach(themes, id: \.1) { theme in
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(themeColor(theme.1))
-                        .frame(width: 28, height: 28)
-                    Text(theme.0)
-                        .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
-                    Spacer()
-                    ReaderIcon(.chevron, size: 14)
-                        .foregroundStyle(ReaderDesignTokens.Color.muted)
-                }
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
-                        .fill(ReaderDesignTokens.Color.controlBackground.opacity(0.72))
-                )
-            }
-        }
-    }
-
-    private func themeColor(_ id: String) -> Color {
-        switch id {
-        case "warm": return Color(red: 0.96, green: 0.93, blue: 0.88)
-        case "sepia": return Color(red: 0.94, green: 0.88, blue: 0.76)
-        case "green": return Color(red: 0.88, green: 0.93, blue: 0.85)
-        case "blue": return Color(red: 0.85, green: 0.90, blue: 0.95)
-        case "dark": return Color(red: 0.15, green: 0.15, blue: 0.18)
-        default: return Color.gray
-        }
-    }
-}
-
 private struct ReaderDemoFullThemeEditPage: View {
     @State private var themeName = "自定义主题"
     @State private var bgColor = Color(red: 0.96, green: 0.93, blue: 0.88)
@@ -1526,47 +1791,6 @@ private struct ReaderDemoFullThemeEditPage: View {
                     RoundedRectangle(cornerRadius: ReaderDesignTokens.Radius.md)
                         .fill(bgColor)
                 )
-        }
-    }
-}
-
-private struct ReaderDemoFullLayoutPage: View {
-    @Binding var displaySettings: ReaderDisplaySettings
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: ReaderDesignTokens.settingsSectionGap) {
-            Text("版式设置")
-                .font(.system(size: ReaderDesignTokens.readerSectionTitleFontSize, weight: .heavy))
-                .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-            ReaderDemoStepperRow(
-                title: "字号",
-                value: "\(displaySettings.fontSize)",
-                decrease: { if displaySettings.fontSize > 12 { displaySettings.fontSize -= 2 } },
-                increase: { if displaySettings.fontSize < 32 { displaySettings.fontSize += 2 } }
-            )
-            ReaderDemoStepperRow(
-                title: "行距",
-                value: String(format: "%.0f", displaySettings.lineSpacing),
-                decrease: { if displaySettings.lineSpacing > 2 { displaySettings.lineSpacing -= 2 } },
-                increase: { if displaySettings.lineSpacing < 24 { displaySettings.lineSpacing += 2 } }
-            )
-            ReaderDemoStepperRow(
-                title: "段距",
-                value: String(format: "%.0f", displaySettings.paragraphSpacing),
-                decrease: { if displaySettings.paragraphSpacing > 2 { displaySettings.paragraphSpacing -= 2 } },
-                increase: { if displaySettings.paragraphSpacing < 48 { displaySettings.paragraphSpacing += 2 } }
-            )
-            HStack(spacing: 8) {
-                Text("翻页模式")
-                    .font(.system(size: ReaderDesignTokens.readerModuleFontSize, weight: .black))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                ReaderDemoModeChip(title: "滚动", isSelected: displaySettings.pageTurnMode == .scroll) {
-                    displaySettings.pageTurnMode = .scroll
-                }
-                ReaderDemoModeChip(title: "分页", isSelected: displaySettings.pageTurnMode == .paginated) {
-                    displaySettings.pageTurnMode = .paginated
-                }
-            }
         }
     }
 }

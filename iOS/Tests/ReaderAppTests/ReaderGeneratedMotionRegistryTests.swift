@@ -4,17 +4,55 @@ import ReaderUIContract
 
 @MainActor
 final class ReaderGeneratedMotionRegistryTests: XCTestCase {
-    func testAll93GeneratedMotionsHaveExactSpecsAndNativeIdentity() {
+    func testAll95GeneratedMotionsHaveSpecsAndNativeIdentity() {
         let generated = Set(ReaderUIContract.MotionId.allCases)
         let specs = Set(ReaderUIContract.MotionSpecRegistry.all.map(\.id))
 
-        XCTAssertEqual(ReaderUIContract.MotionId.allCases.count, 93)
+        XCTAssertEqual(ReaderUIContract.MotionId.allCases.count, 95)
         XCTAssertEqual(specs, generated)
 
         for motionId in ReaderUIContract.MotionId.allCases {
             XCTAssertEqual(ReaderMotionAdapter.localMotionId(for: motionId), motionId)
             XCTAssertNotNil(ReaderMotionAdapter.spec(for: motionId), motionId.rawValue)
         }
+    }
+
+    func testGeneratedRegistrySeparates89ActiveExactMotionsFromSixNonProductionIds() {
+        let nonProductionIds: Set<String> = [
+            "reader.sourceSwitch.open-close",
+            "overlay.dialog.enter-exit",
+            "overlay.sheet.enter-exit",
+            "reader.session.controlSpace.enter",
+            "reader.session.controlSpace.update",
+            "reader.session.controlSpace.exit"
+        ]
+        let activeExact = ReaderUIContract.MotionSpecRegistry.all.filter { spec in
+            spec.trigger?.isEmpty == false &&
+                spec.from?.isEmpty == false &&
+                spec.to?.isEmpty == false &&
+                spec.interrupt?.isEmpty == false &&
+                spec.finalState?.isEmpty == false &&
+                spec.cleanup?.isEmpty == false
+        }
+        let exactIds = Set(activeExact.map(\.id.rawValue))
+        let pendingIds = Set(ReaderUIContract.MotionSpecRegistry.all.map(\.id.rawValue))
+            .subtracting(exactIds)
+        let deprecatedIds = Set(
+            ReaderUIContract.MotionSpecRegistry.all
+                .filter { $0.deprecated == true }
+                .map(\.id.rawValue)
+        )
+
+        XCTAssertEqual(activeExact.count, 89)
+        XCTAssertEqual(pendingIds, nonProductionIds)
+        XCTAssertEqual(
+            deprecatedIds,
+            [
+                "reader.sourceSwitch.open-close",
+                "overlay.dialog.enter-exit",
+                "overlay.sheet.enter-exit"
+            ]
+        )
     }
 
     func testGeneratedRawValuesRemainTheOnlyMotionWireNames() {

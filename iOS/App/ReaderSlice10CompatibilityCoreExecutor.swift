@@ -24,7 +24,7 @@ public enum ReaderSlice10CompatibilityExecutorError: Error, Equatable, Localized
 /// executor instead of a fake-only protocol seam.
 ///
 /// Contract maturity boundary:
-/// - replace.apply / replace.persist / replace.validate
+/// - replace.apply / replace.persist / replace.validate / replace.undo
 /// - source.switch.commit / source.switch.rollback
 /// live in `reader-contract/src/reader_ui.rs`, not the canonical command JSON
 /// schema. They are executable compatibility contracts and must not be
@@ -76,6 +76,13 @@ public final class ReaderSlice10CompatibilityCoreExecutor:
         correlationID: String
     ) async throws -> ReaderUIJSONResult {
         try await execute(method: "replace.validate", payload: payload, correlationID: correlationID)
+    }
+
+    public func executeUndo(
+        payload: ReaderUIJSONPayload,
+        correlationID: String
+    ) async throws -> ReaderUIJSONResult {
+        try await execute(method: "replace.undo", payload: payload, correlationID: correlationID)
     }
 
     public func executeCommit(

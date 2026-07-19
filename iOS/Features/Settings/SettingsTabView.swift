@@ -10,25 +10,37 @@ import ReaderShellValidation
 /// 本视图只做 Shell 入口与导航，不复刻业务状态机。
 public struct SettingsTabView: View {
     @ObservedObject var coordinator: ReadingFlowCoordinator
+    @ObservedObject private var cacheCoordinator: ReaderCacheCoordinator
     private let showsTopBar: Bool
     @State private var activeDemoRoute: String?
     private let motion = MotionEnvironment()
 
     static let demoRootRoutes: [String] = SettingsRootEntry.demoEntries.map(\.route)
 
-    public init(coordinator: ReadingFlowCoordinator, showsTopBar: Bool = true) {
+    public init(
+        coordinator: ReadingFlowCoordinator,
+        showsTopBar: Bool = true,
+        cacheCoordinator: ReaderCacheCoordinator? = nil
+    ) {
         self.coordinator = coordinator
         self.showsTopBar = showsTopBar
+        self._cacheCoordinator = ObservedObject(
+            wrappedValue: cacheCoordinator ?? ReaderCacheCoordinator.production()
+        )
     }
 
     public var body: some View {
         ZStack {
             if let activeDemoRoute {
-                SettingsDemoShellView(demoRoute: activeDemoRoute, onExit: {
-                    motion.withMotionAnimation(AppMotion.Duration.tabSwitch) {
-                        self.activeDemoRoute = nil
-                    }
-                })
+                SettingsDemoShellView(
+                    demoRoute: activeDemoRoute,
+                    onExit: {
+                        motion.withMotionAnimation(AppMotion.Duration.tabSwitch) {
+                            self.activeDemoRoute = nil
+                        }
+                    },
+                    cacheCoordinator: cacheCoordinator
+                )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
                 rootSettingsList
