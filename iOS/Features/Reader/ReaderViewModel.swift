@@ -42,6 +42,9 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var totalChapterCount: Int = 0
     @Published public var chapterTitle: String
     @Published public var isLocalBook: Bool = false
+    @Published public private(set) var readingDataFailureCode: String?
+    @Published public private(set) var readingDataFailureMessage: String?
+    @Published public private(set) var settingsPersistenceFailure: String?
 
     public private(set) var chapterURL: String
     public private(set) var chapterList: [TOCItem]
@@ -62,12 +65,14 @@ public final class ReaderViewModel: ObservableObject {
     private let cacheStore: ChapterCacheStore
     private let bookshelfStore: BookshelfStore
     private let snapshotStore: SnapshotStore
-    private let historyStore: ReadingHistoryStore
-    private let bookmarkStore: BookmarkStore
+    private let bookName: String?
+    private let bookAuthor: String?
+    private let readingDataService: (any ReaderSlice10ReadingDataServicing)?
 
     private var bookID: String?
     private var sourceID: String?
     private let source: BookSource?
+    private var settingsPersistenceAdmitted = false
 
     public var currentBookID: String? { bookID }
     public var currentSourceID: String? { sourceID }
@@ -80,14 +85,15 @@ public final class ReaderViewModel: ObservableObject {
         bookID: String? = nil,
         sourceID: String? = nil,
         source: BookSource? = nil,
+        bookName: String? = nil,
+        bookAuthor: String? = nil,
         provider: ReaderCoreServiceProvider = .shared,
         progressStore: ReadingProgressStore = .shared,
         settingsStore: ReaderSettingsStore = .shared,
         cacheStore: ChapterCacheStore = .shared,
         bookshelfStore: BookshelfStore = .shared,
         snapshotStore: SnapshotStore? = nil,
-        historyStore: ReadingHistoryStore = .shared,
-        bookmarkStore: BookmarkStore = .shared
+        readingDataService: (any ReaderSlice10ReadingDataServicing)? = nil
     ) {
         self.chapterURL = chapterURL
         self.chapterTitle = chapterTitle
@@ -103,6 +109,9 @@ public final class ReaderViewModel: ObservableObject {
         self.bookID = bookID
         self.sourceID = sourceID
         self.source = source
+        self.bookName = bookName
+        self.bookAuthor = bookAuthor
+        self.readingDataService = readingDataService
         self.isLocalBook = (sourceID == "local-book") || chapterURL.hasPrefix("local-book://")
         self.provider = provider
         self.progressStore = progressStore
@@ -112,8 +121,6 @@ public final class ReaderViewModel: ObservableObject {
         let snapRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent("ReaderApp/Snapshots", isDirectory: true)
         self.snapshotStore = snapshotStore ?? SnapshotStore(snapshotRoot: snapRoot)
-        self.historyStore = historyStore
-        self.bookmarkStore = bookmarkStore
         loadSettings()
         restoreReadingProgress()
     }
@@ -121,13 +128,30 @@ public final class ReaderViewModel: ObservableObject {
     // MARK: - Settings
 
     private func loadSettings() {
-        if let saved = try? settingsStore.loadSettings() {
+        do {
+            let saved = try settingsStore.loadSettings()
             displaySettings = saved
+            settingsPersistenceAdmitted = true
+            settingsPersistenceFailure = nil
+        } catch {
+            // Preserve the original document. In particular, a future schema
+            // must not be replaced by defaults during ReaderView.onDisappear.
+            settingsPersistenceAdmitted = false
+            settingsPersistenceFailure = error.localizedDescription
         }
     }
 
-    public func saveSettings() {
-        try? settingsStore.saveSettings(displaySettings)
+    @discardableResult
+    public func saveSettings() -> Bool {
+        guard settingsPersistenceAdmitted else { return false }
+        do {
+            try settingsStore.saveSettings(displaySettings)
+            settingsPersistenceFailure = nil
+            return true
+        } catch {
+            settingsPersistenceFailure = error.localizedDescription
+            return false
+        }
     }
 
     // MARK: - Content Loading (M3: cache-first)
@@ -237,38 +261,111 @@ public final class ReaderViewModel: ObservableObject {
 
     // MARK: - Reading History (M5-A)
 
-    /// Records the current chapter as a reading history event.
+    /// Updates Core's aggregate read record. `read-record.*` is not a
+    /// chapter-history locator contract, so iOS does not persist chapter URL or
+    /// progress in a second local model.
     public func recordHistoryEvent() {
-        guard let bid = bookID, let sid = sourceID else { return }
-        try? historyStore.recordOpen(
-            bookId: bid,
-            sourceId: sid,
-            sourceName: nil,
-            title: chapterTitle,
-            author: nil,
-            chapterURL: chapterURL,
-            chapterTitle: chapterTitle,
-            progress: readingProgress
-        )
+        guard let bookName, !bookName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            failReadingData(
+                code: "SLICE10_READ_RECORD_BOOK_NAME_MISSING",
+                message: "Core read-record requires the book title; chapterTitle is not a valid substitute"
+            )
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let service = try self.resolveReadingDataService()
+                let records = try await service.listReadRecords(
+                    deviceID: "",
+                    correlationID: "read-record-list:\(UUID().uuidString)"
+                )
+                let accumulated = records.first(where: { $0.bookName == bookName })?.readTime ?? 0
+                _ = try await service.upsertReadRecord(
+                    deviceID: "",
+                    bookName: bookName,
+                    readTime: accumulated,
+                    lastRead: Int64(Date().timeIntervalSince1970 * 1_000),
+                    correlationID: "read-record-upsert:\(UUID().uuidString)"
+                )
+                self.clearReadingDataFailure()
+            } catch is CancellationError {
+                return
+            } catch {
+                self.failReadingData(error)
+            }
+        }
     }
 
     // MARK: - Bookmark (M5-B)
 
     /// Adds a bookmark at the current reading position.
-    public func addBookmark(snippet: String? = nil, note: String? = nil) {
-        guard let bid = bookID, let sid = sourceID else { return }
-        try? bookmarkStore.addBookmarkNow(
-            bookId: bid,
-            sourceId: sid,
-            sourceName: nil,
-            title: chapterTitle,
-            author: nil,
-            chapterURL: chapterURL,
-            chapterTitle: chapterTitle,
-            progress: readingProgress,
-            snippet: snippet,
-            note: note
+    public func addBookmark(
+        chapterPosition: Int? = nil,
+        snippet: String? = nil,
+        note: String? = nil
+    ) {
+        guard let bookName, !bookName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            failReadingData(
+                code: "SLICE10_BOOKMARK_BOOK_NAME_MISSING",
+                message: "Core bookmark requires the book title"
+            )
+            return
+        }
+        guard let chapterPosition, chapterPosition >= 0 else {
+            failReadingData(
+                code: "SLICE10_BOOKMARK_POSITION_UNRESOLVED",
+                message: "A percentage cannot be converted into Core chapterPos; an exact locator is required"
+            )
+            return
+        }
+        let draft = ReaderCoreBookmarkDraft(
+            bookName: bookName,
+            bookAuthor: bookAuthor ?? "",
+            chapterIndex: currentChapterIndex,
+            chapterPosition: chapterPosition,
+            chapterName: chapterTitle,
+            bookText: snippet ?? "",
+            content: note ?? ""
         )
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let service = try self.resolveReadingDataService()
+                _ = try await service.createBookmark(
+                    draft,
+                    correlationID: "bookmark-create:\(UUID().uuidString)"
+                )
+                self.clearReadingDataFailure()
+            } catch is CancellationError {
+                return
+            } catch {
+                self.failReadingData(error)
+            }
+        }
+    }
+
+    private func resolveReadingDataService() throws -> any ReaderSlice10ReadingDataServicing {
+        if let readingDataService { return readingDataService }
+        return try ReaderSlice10CoreService.production()
+    }
+
+    private func failReadingData(_ error: Error) {
+        if let failure = error as? ReaderSlice10CoreServiceError {
+            failReadingData(code: failure.code, message: failure.localizedDescription)
+        } else {
+            failReadingData(code: "SLICE10_READING_DATA_FAILED", message: error.localizedDescription)
+        }
+    }
+
+    private func failReadingData(code: String, message: String) {
+        readingDataFailureCode = code
+        readingDataFailureMessage = message
+    }
+
+    private func clearReadingDataFailure() {
+        readingDataFailureCode = nil
+        readingDataFailureMessage = nil
     }
 
     // MARK: - Progress
@@ -341,10 +438,14 @@ public final class ReaderViewModel: ObservableObject {
 
         let params: [String: Any] = [
             "bookId": progress.bookID,
-            "bookName": progress.bookURL,
-            "chapterUrl": progress.chapterURL,
-            "chapterTitle": progress.chapterTitle,
-            "progress": progress.progressRatio,
+            "sourceId": progress.sourceID,
+            "updatedAt": Int64(Date().timeIntervalSince1970),
+            "chapterIndex": progress.chapterIndex,
+            // The legacy scrolling path has no canonical scalar offset. Zero
+            // is the explicit Core-compatible fallback; page Pilot uses the
+            // strict correlation-scoped service with the resolved offset.
+            "chapterOffset": 0,
+            "chapterProgress": progress.progressRatio,
         ]
 
         return await withCheckedContinuation { continuation in
@@ -357,7 +458,10 @@ public final class ReaderViewModel: ObservableObject {
                         params: params,
                         timeout: 10
                     )
-                    continuation.resume(returning: event.type == "result")
+                    continuation.resume(returning:
+                        event.type == "result"
+                            && (event.data?["stored"] as? Bool) == true
+                    )
                 } catch {
                     continuation.resume(returning: false)
                 }

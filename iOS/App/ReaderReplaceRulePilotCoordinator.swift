@@ -48,6 +48,13 @@ public protocol ReaderReplaceRuleCoreCommandExecuting: AnyObject {
     func executeApply(payload: ReaderUIJSONPayload, correlationID: String) async throws -> ReaderUIJSONResult
     func executePersist(payload: ReaderUIJSONPayload, correlationID: String) async throws -> ReaderUIJSONResult
     func executeValidate(payload: ReaderUIJSONPayload, correlationID: String) async throws -> ReaderUIJSONResult
+    func cancel(correlationID: String)
+    func finish(correlationID: String)
+}
+
+public extension ReaderReplaceRuleCoreCommandExecuting {
+    func cancel(correlationID: String) {}
+    func finish(correlationID: String) {}
 }
 
 /// Concrete executor that maps each typed replace-rule effect to the
@@ -96,11 +103,13 @@ public final class ReaderReplaceRuleEffectExecutor: ReaderReplaceRuleEffectExecu
 
     public func cancel(correlationID: String) {
         inFlightCancellers.removeValue(forKey: correlationID)?()
+        coreCommands.cancel(correlationID: correlationID)
         activeCorrelations.remove(correlationID)
     }
 
     public func finish(correlationID: String) {
         inFlightCancellers[correlationID] = nil
+        coreCommands.finish(correlationID: correlationID)
         activeCorrelations.remove(correlationID)
     }
 

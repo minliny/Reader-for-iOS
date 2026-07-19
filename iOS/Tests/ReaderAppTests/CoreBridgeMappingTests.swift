@@ -175,6 +175,9 @@ final class CoreBridgeMappingTests: XCTestCase {
         XCTAssertEqual(provider.lastDirectParams?["chapterOffset"] as? Int, 512)
         XCTAssertEqual(provider.lastDirectParams?["chapterProgress"] as? Double, 0.42)
         XCTAssertEqual(provider.lastDirectParams?["locationRevision"] as? String, "rev-7")
+        let updatedAt = (provider.lastDirectParams?["updatedAt"] as? NSNumber)?.int64Value
+        XCTAssertNotNil(updatedAt)
+        XCTAssertTrue((updatedAt ?? 0) > 0 && (updatedAt ?? 0) < 10_000_000_000)
         XCTAssertEqual(result.type, .reader_progress_updated)
         XCTAssertEqual(result.payload["stored"]?.value as? Bool, true)
     }

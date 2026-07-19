@@ -1,6 +1,9 @@
 import SwiftUI
 import ReaderCoreModels
 import ReaderShellValidation
+#if canImport(ReaderCoreNativeAdapter)
+import ReaderCoreNativeAdapter
+#endif
 // 注意：不在此处 `import ReaderUIContract`。
 // 该模块定义了 `public struct Content`，会与 SwiftUI `ViewModifier` 关联类型 `Content`
 // 产生命名歧义，导致 `HeroMatchedGeometryModifier` 无法 conform `ViewModifier`。
@@ -102,6 +105,13 @@ struct AppShellView: View {
     /// exactly-once Pilot pairs declared by the consumer lock.
     @ObservedObject private var playbackPilotCoordinator: ReaderPlaybackPilotCoordinator
 
+    /// Slice 10 compatibility commands are fully wired behind their existing
+    /// Shadow rollout switches. This preserves the consumer lock while making
+    /// an explicit future Pilot admission use real request-scoped Core
+    /// executors instead of test-only fakes.
+    @StateObject private var sourceSwitchPilotCoordinator: ReaderSourceSwitchPilotCoordinator
+    @StateObject private var replaceRulePilotCoordinator: ReaderReplaceRulePilotCoordinator
+
     /// P0 修复 5/7：ReaderCoordinator 包装 navigationState + ReaderReducer，
     /// 用于 dispatch `reader.module.switch` / `source.switch.confirm/cancel` 等事件。
     /// 生产环境无独立 reducer 持有者，通过此计算属性按需创建（共享同一 navigationState）。
@@ -109,7 +119,9 @@ struct AppShellView: View {
         ReaderCoordinator(
             navigationState: navigationState,
             runtimeShadow: runtimeCoordinator,
-            playbackPilot: playbackPilotCoordinator
+            playbackPilot: playbackPilotCoordinator,
+            sourceSwitchPilot: sourceSwitchPilotCoordinator,
+            replaceRulePilot: replaceRulePilotCoordinator
         )
     }
     @State private var mainNavVisibleByContent = true
@@ -139,6 +151,23 @@ struct AppShellView: View {
         self._playbackPilotCoordinator = ObservedObject(
             wrappedValue: playbackPilotCoordinator ?? ReaderPlaybackPilotCoordinator()
         )
+        var sourceSwitchPilot = ReaderSourceSwitchPilotCoordinator()
+        var replaceRulePilot = ReaderReplaceRulePilotCoordinator()
+        #if canImport(ReaderCoreNativeAdapter)
+        if let runtime = RustCoreRuntimeHolder.shared.current {
+            let coreExecutor = ReaderSlice10CompatibilityCoreExecutor(runtime: runtime)
+            sourceSwitchPilot = ReaderSourceSwitchPilotCoordinator(
+                configuration: .live,
+                executor: ReaderSourceSwitchEffectExecutor(coreCommands: coreExecutor)
+            )
+            replaceRulePilot = ReaderReplaceRulePilotCoordinator(
+                configuration: .live,
+                executor: ReaderReplaceRuleEffectExecutor(coreCommands: coreExecutor)
+            )
+        }
+        #endif
+        self._sourceSwitchPilotCoordinator = StateObject(wrappedValue: sourceSwitchPilot)
+        self._replaceRulePilotCoordinator = StateObject(wrappedValue: replaceRulePilot)
     }
 
     var body: some View {

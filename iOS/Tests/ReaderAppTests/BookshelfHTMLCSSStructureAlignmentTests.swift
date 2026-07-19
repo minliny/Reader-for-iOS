@@ -3,6 +3,7 @@ import XCTest
 import ReaderAppSupport
 import ReaderAppPersistence
 import ReaderCoreModels
+@testable import ReaderShellValidation
 
 /// Bookshelf structure alignment tests.
 ///
@@ -252,17 +253,15 @@ final class BookshelfHTMLCSSStructureAlignmentTests: XCTestCase {
     @MainActor
     func testBookmarksSheetAndRowUseDemoPrimitiveStructure() {
         let sheet = BookmarksListView(bookId: "demo-book", sourceId: "demo-source", bookTitle: "长夜余火")
-        let bookmark = Bookmark(
-            bookId: "demo-book",
-            sourceId: "demo-source",
-            sourceName: "优书网",
-            title: "长夜余火",
-            chapterURL: "demo://chapter/32",
-            chapterTitle: "第 32 章 雨夜",
-            progress: 0.38,
-            snippet: "雨声落在旧窗上。",
-            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
-            updatedAt: Date(timeIntervalSince1970: 1_800_000_100)
+        let bookmark = ReaderCoreBookmark(
+            time: 1_800_000_000_000,
+            bookName: "长夜余火",
+            bookAuthor: "爱潜水的乌贼",
+            chapterIndex: 31,
+            chapterPosition: 38,
+            chapterName: "第 32 章 雨夜",
+            bookText: "雨声落在旧窗上。",
+            content: ""
         )
         let row = BookmarkRowView(bookmark: bookmark, onOpen: {}, onDelete: {})
         XCTAssertNotNil(sheet)

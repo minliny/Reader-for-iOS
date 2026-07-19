@@ -1,6 +1,6 @@
 import SwiftUI
 import ReaderAppSupport
-import ReaderAppPersistence
+import ReaderShellValidation
 
 /// M5-B: Bookmarks list view shown as a sheet from BookshelfItemDetailView.
 /// Lists all bookmarks for a given book, sorted by most recent first.
@@ -8,56 +8,65 @@ public struct BookmarksListView: View {
     private let bookId: String
     private let sourceId: String
     private let bookTitle: String
+    private let bookAuthor: String?
     private let onClose: (() -> Void)?
-    @State private var bookmarks: [Bookmark] = []
-    @State private var selectedBookmark: Bookmark?
+    @State private var bookmarks: [ReaderCoreBookmark] = []
+    @State private var failureMessage: String?
     @SwiftUI.Environment(\.dismiss) private var dismiss
 
-    public init(bookId: String, sourceId: String, bookTitle: String, onClose: (() -> Void)? = nil) {
+    public init(
+        bookId: String,
+        sourceId: String,
+        bookTitle: String,
+        bookAuthor: String? = nil,
+        onClose: (() -> Void)? = nil
+    ) {
         self.bookId = bookId
         self.sourceId = sourceId
         self.bookTitle = bookTitle
+        self.bookAuthor = bookAuthor
         self.onClose = onClose
     }
 
     public var body: some View {
-        ZStack {
-            if let selectedBookmark {
-                ReaderView(
-                    chapterURL: selectedBookmark.chapterURL,
-                    chapterTitle: selectedBookmark.chapterTitle,
-                    bookID: bookId,
-                    sourceID: sourceId,
-                    onExit: { self.selectedBookmark = nil }
-                )
-            } else {
-                VStack(spacing: 0) {
-                    DemoBackBar(title: "书签", onBack: close) {
-                        Button("完成", action: close)
-                            .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
-                            .foregroundColor(ReaderDesignTokens.Color.primaryDark)
-                    }
+        VStack(spacing: 0) {
+            DemoBackBar(title: "书签", onBack: close) {
+                Button("完成", action: close)
+                    .font(.system(size: ReaderDesignTokens.settingsRowValueFontSize, weight: .black))
+                    .foregroundColor(ReaderDesignTokens.Color.primaryDark)
+            }
 
-                    DemoPaperScreen {
-                        ReaderCard {
-                            if bookmarks.isEmpty {
-                                BookmarkEmptyState(bookTitle: bookTitle)
-                            } else {
-                                VStack(spacing: 0) {
-                                    ForEach(Array(bookmarks.enumerated()), id: \.element.id) { index, bookmark in
-                                        BookmarkRowView(
-                                            bookmark: bookmark,
-                                            onOpen: {
-                                                selectedBookmark = bookmark
-                                            },
-                                            onDelete: {
-                                                deleteBookmark(bookmark)
-                                            }
-                                        )
-                                        if index < bookmarks.count - 1 {
-                                            Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
-                                        }
+            DemoPaperScreen {
+                ReaderCard {
+                    if let failureMessage {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("书签暂不可用", systemImage: "exclamationmark.triangle")
+                                .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
+                            Text(failureMessage)
+                                .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
+                                .foregroundStyle(ReaderDesignTokens.Color.muted)
+                            Button("重试") {
+                                Task { await loadBookmarks() }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 156, alignment: .leading)
+                    } else if bookmarks.isEmpty {
+                        BookmarkEmptyState(bookTitle: bookTitle)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(Array(bookmarks.enumerated()), id: \.element.id) { index, bookmark in
+                                BookmarkRowView(
+                                    bookmark: bookmark,
+                                    onOpen: {
+                                        failureMessage = "[SLICE10_BOOKMARK_LOCATOR_INCOMPLETE] Core bookmark does not yet carry sourceId/bookId/chapterURL; direct navigation is blocked"
+                                    },
+                                    onDelete: {
+                                        Task { await deleteBookmark(bookmark) }
                                     }
+                                )
+                                if index < bookmarks.count - 1 {
+                                    Divider().overlay(ReaderDesignTokens.Color.rssRowBorder)
                                 }
                             }
                         }
@@ -69,7 +78,7 @@ public struct BookmarksListView: View {
 #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
 #endif
-        .onAppear { loadBookmarks() }
+        .task { await loadBookmarks() }
     }
 
     private func close() {
@@ -80,18 +89,58 @@ public struct BookmarksListView: View {
         }
     }
 
-    private func loadBookmarks() {
-        bookmarks = (try? BookmarkStore.shared.loadBookmarksForBook(bookId: bookId)) ?? []
+    @MainActor
+    private func loadBookmarks() async {
+        do {
+            let service = try ReaderSlice10CoreService.production()
+            let loaded: [ReaderCoreBookmark]
+            if let bookAuthor {
+                loaded = try await service.listBookmarks(
+                    bookName: bookTitle,
+                    bookAuthor: bookAuthor,
+                    correlationID: "bookmark-list:\(bookId):\(UUID().uuidString)"
+                )
+            } else {
+                // The current Core filter is (bookName + bookAuthor) only.
+                // When legacy shelf metadata lacks author, load the Core-owned
+                // collection and narrow by bookName at the UI boundary.
+                loaded = try await service.listBookmarks(
+                    bookName: nil,
+                    bookAuthor: nil,
+                    correlationID: "bookmark-list:\(bookId):\(UUID().uuidString)"
+                )
+                .filter { $0.bookName == bookTitle }
+            }
+            guard !Task.isCancelled else { return }
+            bookmarks = loaded.sorted { $0.time > $1.time }
+            failureMessage = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            bookmarks = []
+            failureMessage = error.localizedDescription
+        }
     }
 
-    private func deleteBookmark(_ bookmark: Bookmark) {
-        try? BookmarkStore.shared.deleteBookmark(id: bookmark.id)
-        loadBookmarks()
+    @MainActor
+    private func deleteBookmark(_ bookmark: ReaderCoreBookmark) async {
+        do {
+            let service = try ReaderSlice10CoreService.production()
+            _ = try await service.deleteBookmark(
+                time: bookmark.time,
+                correlationID: "bookmark-delete:\(bookmark.time):\(UUID().uuidString)"
+            )
+            await loadBookmarks()
+        } catch is CancellationError {
+            return
+        } catch {
+            failureMessage = error.localizedDescription
+        }
     }
 }
 
 struct BookmarkRowView: View {
-    let bookmark: Bookmark
+    let bookmark: ReaderCoreBookmark
     let onOpen: () -> Void
     let onDelete: () -> Void
 
@@ -99,17 +148,18 @@ struct BookmarkRowView: View {
         HStack(spacing: ReaderDesignTokens.settingsRowGap) {
             Button(action: onOpen) {
                 HStack(spacing: ReaderDesignTokens.settingsRowGap) {
-                    ReaderIcon(.bookmark, size: 18, accessibilityLabel: bookmark.chapterTitle)
+                    ReaderIcon(.bookmark, size: 18, accessibilityLabel: bookmark.chapterName)
                         .frame(width: ReaderDesignTokens.settingsRowIconColumn, height: ReaderDesignTokens.settingsRowIconColumn)
                         .foregroundColor(ReaderDesignTokens.Color.primaryDark)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(bookmark.chapterTitle)
+                        Text(bookmark.chapterName.isEmpty ? "第 \(bookmark.chapterIndex + 1) 章" : bookmark.chapterName)
                             .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize, weight: .black))
                             .foregroundColor(ReaderDesignTokens.Color.ink)
                             .lineLimit(1)
 
-                        if let snippet = bookmark.snippet, !snippet.isEmpty {
+                        if !bookmark.bookText.isEmpty || !bookmark.content.isEmpty {
+                            let snippet = bookmark.bookText.isEmpty ? bookmark.content : bookmark.bookText
                             Text(snippet)
                                 .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize))
                                 .foregroundStyle(ReaderDesignTokens.Color.muted)
@@ -117,7 +167,7 @@ struct BookmarkRowView: View {
                         }
 
                         HStack(spacing: 8) {
-                            Text("\(Int(bookmark.progress * 100))%")
+                            Text("第 \(bookmark.chapterIndex + 1) 章 · 位置 \(bookmark.chapterPosition)")
                             Text(bookmark.createdAt, style: .date)
                         }
                         .font(.system(size: ReaderDesignTokens.settingsRowMetaFontSize, weight: .semibold))

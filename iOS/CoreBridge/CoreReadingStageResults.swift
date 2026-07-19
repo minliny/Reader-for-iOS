@@ -235,6 +235,80 @@ public struct CoreReaderLocationStageResult: Equatable, Sendable {
     }
 }
 
+/// Typed, correlation-scoped input for Core's `reading.progress.update`.
+///
+/// A page transaction creates this value only after Core has returned a
+/// canonical location. Unlike the legacy reader persistence path, every field
+/// is an exact Core protocol field; the service validates the value without
+/// clamping or inventing aliases before crossing the C-ABI boundary.
+public struct CoreReaderProgressStageRequest: Equatable, Sendable {
+    public let sourceID: String
+    public let bookID: String
+    public let deviceID: String?
+    public let updatedAt: Int64
+    public let chapterIndex: Int
+    public let chapterOffset: Int
+    public let chapterProgress: Double
+    public let locationRevision: String
+
+    public init(
+        sourceID: String,
+        bookID: String,
+        deviceID: String? = nil,
+        updatedAt: Int64 = Int64(Date().timeIntervalSince1970),
+        chapterIndex: Int,
+        chapterOffset: Int,
+        chapterProgress: Double,
+        locationRevision: String
+    ) {
+        self.sourceID = sourceID
+        self.bookID = bookID
+        self.deviceID = deviceID
+        self.updatedAt = updatedAt
+        self.chapterIndex = chapterIndex
+        self.chapterOffset = chapterOffset
+        self.chapterProgress = chapterProgress
+        self.locationRevision = locationRevision
+    }
+}
+
+/// Strict typed terminal result of Core's `reading.progress.update`.
+/// `stored` remains explicit so false or malformed values fail the page
+/// transaction instead of being treated as a successful local projection.
+public struct CoreReaderProgressStageResult: Equatable, Sendable {
+    public let sourceID: String
+    public let bookID: String
+    public let deviceID: String?
+    public let updatedAt: Int64
+    public let chapterIndex: Int
+    public let chapterOffset: Int
+    public let chapterProgress: Double
+    public let locationRevision: String
+    public let stored: Bool
+
+    public init(
+        sourceID: String,
+        bookID: String,
+        deviceID: String? = nil,
+        updatedAt: Int64,
+        chapterIndex: Int,
+        chapterOffset: Int,
+        chapterProgress: Double,
+        locationRevision: String,
+        stored: Bool
+    ) {
+        self.sourceID = sourceID
+        self.bookID = bookID
+        self.deviceID = deviceID
+        self.updatedAt = updatedAt
+        self.chapterIndex = chapterIndex
+        self.chapterOffset = chapterOffset
+        self.chapterProgress = chapterProgress
+        self.locationRevision = locationRevision
+        self.stored = stored
+    }
+}
+
 enum CoreReadingStageValue {
     static func stringMap(_ value: Any?) -> [String: String] {
         if let value = value as? [String: String] {

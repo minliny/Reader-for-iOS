@@ -25,6 +25,18 @@ public struct CoreLocalBookImportChapterSummary: Equatable, Sendable {
     }
 }
 
+/// Identifies the authority that made imported chapter text readable to the
+/// native reader. This is deliberately separate from format detection: a
+/// parser recognizing a file is not proof that the app can open its chapters.
+public enum CoreLocalBookReadingAuthority: String, Equatable, Sendable {
+    /// Reader-Core's Swift boundary parsed the file and the iOS snapshot cache
+    /// owns the readable chapter copy. This is currently limited to TXT.
+    case snapshotCache = "snapshot_cache"
+    /// Reader-Core-Native materialized the book/TOC/chapter bodies, then the
+    /// iOS renderer cache copied those exact Core chapter results.
+    case nativeCoreMaterialized = "native_core_materialized"
+}
+
 public struct CoreLocalBookImportSummary: Equatable, Sendable {
     public var book: LocalBook
     public var chapterCount: Int
@@ -37,6 +49,7 @@ public struct CoreLocalBookImportSummary: Equatable, Sendable {
     public var sourceChecksum: String
     public var cleanRoomMaintained: Bool
     public var externalGPLCodeCopied: Bool
+    public var readingAuthority: CoreLocalBookReadingAuthority
 
     public var firstChapterURL: String? { chapters.first(where: \.contentCached)?.chapterURL }
     public var firstChapterTitle: String? { chapters.first(where: \.contentCached)?.title }
@@ -55,6 +68,9 @@ public struct CoreLocalBookImportSummary: Equatable, Sendable {
                 )
             }
     }
+    public var canOpenReader: Bool {
+        !cachedTOCItems.isEmpty
+    }
 
     public init(
         book: LocalBook,
@@ -67,7 +83,8 @@ public struct CoreLocalBookImportSummary: Equatable, Sendable {
         inputByteCount: Int,
         sourceChecksum: String,
         cleanRoomMaintained: Bool = true,
-        externalGPLCodeCopied: Bool = false
+        externalGPLCodeCopied: Bool = false,
+        readingAuthority: CoreLocalBookReadingAuthority = .snapshotCache
     ) {
         self.book = book
         self.chapterCount = chapterCount
@@ -80,11 +97,13 @@ public struct CoreLocalBookImportSummary: Equatable, Sendable {
         self.sourceChecksum = sourceChecksum
         self.cleanRoomMaintained = cleanRoomMaintained
         self.externalGPLCodeCopied = externalGPLCodeCopied
+        self.readingAuthority = readingAuthority
     }
 }
 
 public enum CoreLocalBookImportBridgeError: Error, Equatable, LocalizedError, Sendable {
     case unsupported(diagnostics: [String])
+    case failedClosed(code: String, message: String)
 
     public var errorDescription: String? {
         switch self {
@@ -93,6 +112,8 @@ public enum CoreLocalBookImportBridgeError: Error, Equatable, LocalizedError, Se
                 return "Core local-book importer rejected the selected file."
             }
             return diagnostics.joined(separator: "\n")
+        case .failedClosed(let code, let message):
+            return "\(code): \(message)"
         }
     }
 }

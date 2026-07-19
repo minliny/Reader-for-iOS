@@ -17,6 +17,8 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.isPagePilot)
         XCTAssertTrue(coordinator.isTTSPilot)
         XCTAssertTrue(coordinator.isAutoPagePilot)
+        XCTAssertTrue(coordinator.acceptsRuntimePageProposals)
+        XCTAssertFalse(coordinator.isRuntimePageProjectionActive)
         XCTAssertEqual(coordinator.metrics.admittedTransactions, 0)
         XCTAssertFalse(ReaderView.shouldStartLegacyContentLoader(
             pilotManaged: false,
@@ -62,6 +64,7 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
 
     func testPagePilotBypassesImmediateReducerAndCommitsOnlyCanonicalResult() async throws {
         let executor = FakePlaybackExecutor()
+        executor.deferProgress = true
         let coordinator = makeCoordinator(
             configuration: ReaderPlaybackPilotConfiguration(pagePairMode: .pilot),
             executor: executor
@@ -76,10 +79,17 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
         let request = try XCTUnwrap(coordinator.pendingPageProposal)
         coordinator.providePageProposal(pageProposal(.next, target: 1), correlationID: request.correlationID)
 
+        try await eventually { executor.pendingProgressIDs.contains(request.correlationID) }
+        XCTAssertEqual(coordinator.committedPageIndex, 0, "location resolve alone must not project the page")
+        XCTAssertEqual(coordinator.canonicalLocation, "reader-location-v1:book-1:4:0")
+        XCTAssertFalse(executor.finished.contains(request.correlationID), "DomainContext must survive the commit boundary")
+
+        executor.resumeProgress(request.correlationID)
         try await eventually { coordinator.committedPageIndex == 1 }
         XCTAssertEqual(coordinator.canonicalLocation, "reader-location-v1:book-1:4:120")
-        XCTAssertEqual(executor.executed, ["reader.location.resolve"])
-        XCTAssertEqual(coordinator.metrics.executedCoreEffects, 1)
+        XCTAssertEqual(executor.executed, ["reader.location.resolve", "reader.progress.update"])
+        XCTAssertEqual(coordinator.metrics.executedCoreEffects, 2)
+        XCTAssertEqual(executor.finished.filter { $0 == request.correlationID }.count, 1)
         XCTAssertEqual(navigation.readerPageIndex, 0, "native reducer remains at zero after Core commit")
     }
 
@@ -104,6 +114,36 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.committedPageIndex, 0)
         XCTAssertGreaterThanOrEqual(coordinator.metrics.discardedCallbacks, 1)
         XCTAssertTrue(executor.finished.contains("page-a"))
+    }
+
+    func testOutOfOrderProgressOutcomeIsDiscardedWithoutCommittingOrDestroyingPageTransaction() async throws {
+        let executor = FakePlaybackExecutor()
+        executor.locationReturnsProgressOutOfOrder = true
+        let coordinator = makeCoordinator(
+            configuration: ReaderPlaybackPilotConfiguration(pagePairMode: .pilot),
+            executor: executor
+        )
+        coordinator.bindChapter(chapter())
+
+        XCTAssertTrue(coordinator.requestPage(
+            .next,
+            proposal: pageProposal(.next, target: 1),
+            correlationID: "page-out-of-order"
+        ))
+        try await eventually { coordinator.metrics.discardedCallbacks == 1 }
+
+        XCTAssertEqual(coordinator.committedPageIndex, 0)
+        XCTAssertTrue(coordinator.hasActiveTransaction)
+        XCTAssertFalse(executor.finished.contains("page-out-of-order"))
+
+        executor.locationReturnsProgressOutOfOrder = false
+        XCTAssertTrue(coordinator.requestPage(
+            .next,
+            proposal: pageProposal(.next, target: 1),
+            correlationID: "page-recovery"
+        ))
+        try await eventually { coordinator.committedPageIndex == 1 }
+        XCTAssertTrue(executor.invalidated.contains("page-out-of-order"))
     }
 
     func testTTSPlanQueueSpeechCompletionNextAndStopAreStrictlyOrdered() async throws {
@@ -148,7 +188,7 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
         let executor = FakePlaybackExecutor()
         let coordinator = makeCoordinator(
             configuration: ReaderPlaybackPilotConfiguration(
-                pagePairMode: .pilot,
+                pagePairMode: .shadow,
                 autoPagePairMode: .pilot
             ),
             executor: executor
@@ -158,6 +198,7 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordinator.startAutoPage(intervalMs: 250, correlationID: "auto-one-shot"))
         try await eventually { executor.timerArmCount == 1 }
         XCTAssertEqual(coordinator.activeSession, "auto-page")
+        XCTAssertFalse(coordinator.isRuntimePageProjectionActive, "Shadow page state must not snap to a stale coordinator index")
         let firstTimer = try XCTUnwrap(executor.timerCallback)
 
         firstTimer("auto-one-shot", executor.timerGeneration)
@@ -165,6 +206,7 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
         coordinator.providePageProposal(pageProposal(.next, target: 1), correlationID: request.correlationID)
 
         try await eventually { coordinator.committedPageIndex == 1 && executor.timerArmCount == 2 }
+        XCTAssertTrue(coordinator.isRuntimePageProjectionActive)
         XCTAssertEqual(executor.maxConcurrentLocationEffects, 1)
 
         coordinator.appDidEnterBackground()
@@ -174,6 +216,83 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
         let discardedBefore = coordinator.metrics.discardedCallbacks
         firstTimer("auto-one-shot", executor.timerGeneration)
         try await eventually { coordinator.metrics.discardedCallbacks > discardedBefore }
+    }
+
+    func testProgressFailurePreservesCommittedPageAndTerminatesAutoPageWithoutRearm() async throws {
+        let executor = FakePlaybackExecutor()
+        executor.progressFailure = "PROGRESS_STORE_FAILED"
+        let coordinator = makeCoordinator(
+            configuration: ReaderPlaybackPilotConfiguration(
+                pagePairMode: .pilot,
+                autoPagePairMode: .pilot
+            ),
+            executor: executor
+        )
+        coordinator.bindChapter(chapter())
+
+        XCTAssertTrue(coordinator.startAutoPage(intervalMs: 250, correlationID: "auto-progress-failure"))
+        try await eventually { executor.timerArmCount == 1 }
+        let timer = try XCTUnwrap(executor.timerCallback)
+        timer("auto-progress-failure", executor.timerGeneration)
+        let request = try await eventuallyValue { coordinator.pendingPageProposal }
+        coordinator.providePageProposal(pageProposal(.next, target: 1), correlationID: request.correlationID)
+
+        try await eventually { coordinator.activeSession == nil && executor.finished.contains(request.correlationID) }
+        XCTAssertEqual(coordinator.committedPageIndex, 0)
+        XCTAssertEqual(coordinator.canonicalLocation, "reader-location-v1:book-1:4:0")
+        XCTAssertEqual(executor.timerArmCount, 1, "failed persistence must not rearm auto-page")
+        XCTAssertTrue(coordinator.lastFailure?.contains("PROGRESS_STORE_FAILED") == true)
+    }
+
+    func testProgressCommitBoundaryBlocksCancelExitReplacementAndOverlappingPageUntilTerminalResult() async throws {
+        let executor = FakePlaybackExecutor()
+        executor.deferProgress = true
+        let coordinator = makeCoordinator(
+            configuration: ReaderPlaybackPilotConfiguration(pagePairMode: .pilot),
+            executor: executor
+        )
+        coordinator.bindChapter(chapter())
+
+        XCTAssertTrue(coordinator.requestPage(
+            .next,
+            proposal: pageProposal(.next, target: 1),
+            correlationID: "page-boundary"
+        ))
+        try await eventually { executor.pendingProgressIDs.contains("page-boundary") }
+
+        XCTAssertTrue(coordinator.requestPage(
+            .previous,
+            proposal: pageProposal(.previous, target: 0),
+            correlationID: "page-overlap"
+        ))
+        coordinator.rejectPageProposal(
+            ReaderPlaybackPageProposalRequest(
+                correlationID: "page-boundary",
+                direction: .next,
+                sequence: 99
+            ),
+            message: "renderer disappeared"
+        )
+        coordinator.readerDidExit()
+        await coordinator.replaceChapter(ReaderPlaybackChapterContext(
+            sourceID: "source-2",
+            bookID: "book-2",
+            chapterIndex: 0,
+            chapterTitle: "Other",
+            chapterURL: "https://example.test/other",
+            content: "Other content"
+        ))
+
+        XCTAssertFalse(executor.invalidated.contains("page-boundary"))
+        XCTAssertFalse(executor.finished.contains("page-boundary"))
+        XCTAssertEqual(executor.boundChapters.last?.bookID, "book-1")
+        XCTAssertEqual(coordinator.committedPageIndex, 0)
+        XCTAssertTrue(coordinator.lastFailure?.contains("PAGE_PROGRESS_COMMIT_PENDING") == true)
+
+        executor.resumeProgress("page-boundary")
+        try await eventually { coordinator.committedPageIndex == 1 }
+        XCTAssertEqual(executor.finished.filter { $0 == "page-boundary" }.count, 1)
+        XCTAssertFalse(executor.executedCorrelationIDs.contains("page-overlap"))
     }
 
     func testStartingAutoPageSeriallyTearsDownTTSBeforeTimerArm() async throws {
@@ -307,9 +426,14 @@ final class ReaderPlaybackPilotCoordinatorTests: XCTestCase {
 @MainActor
 private final class FakePlaybackExecutor: ReaderPlaybackEffectExecuting {
     var executed: [String] = []
+    var executedCorrelationIDs: [String] = []
     var invalidated: [String] = []
     var finished: [String] = []
+    var boundChapters: [ReaderPlaybackChapterContext] = []
     var deferLocations = false
+    var locationReturnsProgressOutOfOrder = false
+    var deferProgress = false
+    var progressFailure: String?
     var advanceOutcome: ReaderPlaybackTTSAdvanceOutcome = .speaking
     var timerCallback: (@MainActor (String, Int) -> Void)?
     var timerGeneration = 0
@@ -321,6 +445,7 @@ private final class FakePlaybackExecutor: ReaderPlaybackEffectExecuting {
     private var chapter: ReaderPlaybackChapterContext?
     private var proposals: [String: ReaderPlaybackPageProposal] = [:]
     private var pendingLocations: [String: CheckedContinuation<ReaderPlaybackEffectOutcome, Never>] = [:]
+    private var pendingProgress: [String: CheckedContinuation<ReaderPlaybackEffectOutcome, Never>] = [:]
     private var speechCallback: (@MainActor (String, Int, Int) -> Void)?
     private var speechCorrelationID = ""
     private var speechGeneration = 0
@@ -329,9 +454,11 @@ private final class FakePlaybackExecutor: ReaderPlaybackEffectExecuting {
     private var executorConcurrency = 0
 
     var pendingLocationIDs: Set<String> { Set(pendingLocations.keys) }
+    var pendingProgressIDs: Set<String> { Set(pendingProgress.keys) }
 
     func bindChapter(_ context: ReaderPlaybackChapterContext) {
         chapter = context
+        boundChapters.append(context)
     }
 
     func setPageProposal(_ proposal: ReaderPlaybackPageProposal, correlationID: String) {
@@ -350,8 +477,12 @@ private final class FakePlaybackExecutor: ReaderPlaybackEffectExecuting {
         }
         executed.append(effect.type)
         guard let correlationID = effect.correlationId else { return .failed("missing correlation") }
+        executedCorrelationIDs.append(correlationID)
         switch effect.type {
         case "reader.location.resolve":
+            if locationReturnsProgressOutOfOrder {
+                return progressOutcome(correlationID: correlationID)
+            }
             concurrentLocationEffects += 1
             maxConcurrentLocationEffects = max(maxConcurrentLocationEffects, concurrentLocationEffects)
             if deferLocations {
@@ -363,6 +494,17 @@ private final class FakePlaybackExecutor: ReaderPlaybackEffectExecuting {
             }
             concurrentLocationEffects -= 1
             return locationOutcome(correlationID: correlationID)
+
+        case "reader.progress.update":
+            if let progressFailure {
+                return .failed(progressFailure)
+            }
+            if deferProgress {
+                return await withCheckedContinuation { continuation in
+                    pendingProgress[correlationID] = continuation
+                }
+            }
+            return progressOutcome(correlationID: correlationID)
 
         case "tts.queue.plan":
             return .ttsPlan(plan())
@@ -415,16 +557,27 @@ private final class FakePlaybackExecutor: ReaderPlaybackEffectExecuting {
         if let continuation = pendingLocations.removeValue(forKey: correlationID) {
             continuation.resume(returning: locationOutcome(correlationID: correlationID, targetPage: 1))
         }
+        if let continuation = pendingProgress.removeValue(forKey: correlationID) {
+            continuation.resume(returning: .discarded)
+        }
     }
 
     func finish(correlationID: String) {
         finished.append(correlationID)
         proposals[correlationID] = nil
+        if let continuation = pendingProgress.removeValue(forKey: correlationID) {
+            continuation.resume(returning: .discarded)
+        }
     }
 
     func resumeLocation(_ correlationID: String, targetPage: Int) {
         guard let continuation = pendingLocations.removeValue(forKey: correlationID) else { return }
         continuation.resume(returning: locationOutcome(correlationID: correlationID, targetPage: targetPage))
+    }
+
+    func resumeProgress(_ correlationID: String) {
+        guard let continuation = pendingProgress.removeValue(forKey: correlationID) else { return }
+        continuation.resume(returning: progressOutcome(correlationID: correlationID))
     }
 
     func finishSpeech() {
@@ -447,6 +600,21 @@ private final class FakePlaybackExecutor: ReaderPlaybackEffectExecuting {
             primaryAnchor: "chapter-offset",
             fallbackAnchor: "chapter-progress",
             layoutIndependent: true
+        ))
+    }
+
+    private func progressOutcome(correlationID: String) -> ReaderPlaybackEffectOutcome {
+        let proposal = proposals[correlationID]
+        let target = proposal?.targetPageIndex ?? 0
+        return .progress(CoreReaderProgressStageResult(
+            sourceID: chapter?.sourceID ?? "source-1",
+            bookID: chapter?.bookID ?? "book-1",
+            updatedAt: 1_720_000_000,
+            chapterIndex: chapter?.chapterIndex ?? 4,
+            chapterOffset: target == 0 ? 0 : 120,
+            chapterProgress: target == 0 ? 0 : 0.5,
+            locationRevision: "reader-location-v1:book-1:4:\(target == 0 ? 0 : 120)",
+            stored: true
         ))
     }
 

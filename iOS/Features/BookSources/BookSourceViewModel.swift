@@ -73,11 +73,11 @@ public final class BookSourceViewModel: ObservableObject {
             let state = await provider.validateBookSource(from: normalizedData)
             switch state {
             case .loaded(let source):
-                try await store.add(source)
+                try await persistThroughCoreThenMirror(source)
                 importState = .success(source: source)
 
             case .partial(let source, let warning):
-                try await store.add(source)
+                try await persistThroughCoreThenMirror(source)
                 importState = .partial(source: source, warnings: [warning])
 
             case .unsupported(let reason):
@@ -100,5 +100,24 @@ public final class BookSourceViewModel: ObservableObject {
     public func reset() {
         jsonInput = ""
         importState = .idle
+    }
+
+    private func persistThroughCoreThenMirror(_ source: BookSource) async throws {
+        let sourceData = try JSONEncoder().encode(source)
+        let service = try ReaderSlice11CoreService.production()
+        _ = try await service.importLegadoSource(
+            jsonData: sourceData,
+            sourceID: source.id,
+            correlationID: "book-source-import-\(UUID().uuidString)"
+        )
+        // Existing search/back-up screens still consume BookSourceStore. Keep
+        // it as a UI compatibility mirror only after Core accepted the source;
+        // a Core rejection never falls back to local-only persistence.
+        if let sourceID = source.id,
+           try await store.load().contains(where: { $0.id == sourceID }) {
+            try await store.update(source)
+        } else {
+            try await store.add(source)
+        }
     }
 }

@@ -47,6 +47,13 @@ public protocol ReaderSourceSwitchEffectExecuting: AnyObject {
 public protocol ReaderSourceSwitchCoreCommandExecuting: AnyObject {
     func executeCommit(payload: ReaderUIJSONPayload, correlationID: String) async throws -> ReaderUIJSONResult
     func executeRollback(payload: ReaderUIJSONPayload, correlationID: String) async throws -> ReaderUIJSONResult
+    func cancel(correlationID: String)
+    func finish(correlationID: String)
+}
+
+public extension ReaderSourceSwitchCoreCommandExecuting {
+    func cancel(correlationID: String) {}
+    func finish(correlationID: String) {}
 }
 
 /// Concrete executor that maps each typed source-switch effect to the
@@ -88,11 +95,13 @@ public final class ReaderSourceSwitchEffectExecutor: ReaderSourceSwitchEffectExe
 
     public func cancel(correlationID: String) {
         inFlightCancellers.removeValue(forKey: correlationID)?()
+        coreCommands.cancel(correlationID: correlationID)
         activeCorrelations.remove(correlationID)
     }
 
     public func finish(correlationID: String) {
         inFlightCancellers[correlationID] = nil
+        coreCommands.finish(correlationID: correlationID)
         activeCorrelations.remove(correlationID)
     }
 

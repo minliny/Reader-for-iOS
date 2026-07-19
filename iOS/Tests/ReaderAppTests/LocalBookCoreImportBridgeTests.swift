@@ -11,7 +11,7 @@ final class LocalBookCoreImportBridgeTests: XCTestCase {
         try Data("Chapter 1\nBody\nChapter 2\nMore".utf8).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let viewModel = FileImportViewModel()
+        let viewModel = FileImportViewModel(importer: CoreLocalBookImportService())
         await viewModel.handleSelectedFile(url)
 
         guard case .imported(let summary) = viewModel.importState else {
@@ -104,7 +104,7 @@ final class LocalBookCoreImportBridgeTests: XCTestCase {
         try Data().write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let viewModel = FileImportViewModel()
+        let viewModel = FileImportViewModel(importer: CoreLocalBookImportService())
         await viewModel.handleSelectedFile(url)
 
         guard case .failed(let message) = viewModel.importState else {
@@ -131,6 +131,15 @@ final class LocalBookCoreImportBridgeTests: XCTestCase {
             chapterCount: 1,
             resourceCount: 0,
             diagnostics: [],
+            chapters: [
+                CoreLocalBookImportChapterSummary(
+                    index: 0,
+                    title: "PDF text",
+                    chapterURL: "local-book://book/localbook:fake/chapter/0",
+                    preview: "PDF text",
+                    contentCached: true
+                )
+            ],
             detectedFormat: .pdf,
             detectedEncoding: nil,
             inputByteCount: 9,
@@ -140,6 +149,21 @@ final class LocalBookCoreImportBridgeTests: XCTestCase {
         await viewModel.handleSelectedFile(url)
 
         XCTAssertEqual(viewModel.importState, .imported(summary: expected))
+    }
+
+    func testFileImportViewModelFailsClosedForMissingUnreadableURL() async {
+        let url = URL(
+            string: "reader-unreadable://missing/\(UUID().uuidString).txt"
+        )!
+        XCTAssertFalse(FileManager.default.isReadableFile(atPath: url.path))
+
+        let viewModel = FileImportViewModel(importer: CoreLocalBookImportService())
+        await viewModel.handleSelectedFile(url)
+
+        XCTAssertEqual(
+            viewModel.importState,
+            .failed(message: "Cannot access file. Permission denied.")
+        )
     }
 
     func testBookshelfViewModelPersistsImportedLocalBook() async throws {

@@ -1500,6 +1500,7 @@ struct BookshelfItemDetailView: View {
                         bookId: item.id,
                         sourceId: item.sourceID,
                         bookTitle: item.title,
+                        bookAuthor: item.author,
                         onClose: { showBookmarks = false }
                     )
                 }

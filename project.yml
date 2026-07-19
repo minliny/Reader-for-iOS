@@ -26,6 +26,7 @@ targets:
       - path: iOS/App/Persistence
     dependencies:
       - target: ReaderAppSupport
+      - target: ReaderCoreNativeAdapter
       - package: ReaderCore
         product: ReaderCoreModels
     settings:
@@ -258,6 +259,24 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
 
+  ReaderAppPersistenceTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: iOS/Tests/ReaderAppPersistenceTests
+    dependencies:
+      - target: ReaderAppPersistence
+      - target: ReaderAppSupport
+      - package: ReaderCore
+        product: ReaderCoreModels
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: 42MGMRS9BW
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+
 schemes:
   ReaderForIOSApp:
     build:
@@ -270,5 +289,6 @@ schemes:
       targets:
         - ShellSmokeTests
         - ReaderAppTests
+        - ReaderAppPersistenceTests
     archive:
       config: Release

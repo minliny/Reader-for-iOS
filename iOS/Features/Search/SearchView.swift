@@ -1,5 +1,6 @@
 import SwiftUI
 import ReaderCoreModels
+import ReaderShellValidation
 
 public struct SearchView: View {
     private enum SearchDestination {
@@ -16,10 +17,9 @@ public struct SearchView: View {
 
     @StateObject private var viewModel: SearchViewModel
     @StateObject private var bookshelfVM = BookshelfViewModel()
-    @AppStorage("search_history") private var historyData: Data = Data()
     @State private var searchHistory: [String] = []
+    @State private var searchHistoryFailure: String?
     @State private var selectedScope: SearchScope = .all
-    @State private var showDemoHistoryFallback = true
     @State private var didApplyInitialQuery = false
     @State private var toastMessage: String?
     @State private var activeDestination: SearchDestination?
@@ -54,16 +54,16 @@ public struct SearchView: View {
                     bookID: result.detailURL,
                     sourceID: sourceID(for: source),
                     source: source,
+                    bookName: result.title,
+                    bookAuthor: result.author,
                     onExit: { activeDestination = nil }
                 )
             case .none:
                 searchShell
             }
         }
-        .onAppear {
-            loadSearchHistory()
-            applyInitialQueryIfNeeded()
-        }
+        .onAppear { applyInitialQueryIfNeeded() }
+        .task { await loadSearchHistory() }
         .task {
             await bookshelfVM.loadItems()
         }
@@ -112,25 +112,12 @@ public struct SearchView: View {
     }
 
     private var visibleHistory: [(keyword: String, meta: String)] {
-        if !searchHistory.isEmpty {
-            return searchHistory.map { ($0, "历史搜索") }
-        }
-        guard showDemoHistoryFallback else { return [] }
-        return [
-            ("长夜余火", "书名 · 网络"),
-            ("三体", "书名 · 全部"),
-            ("爱潜水的乌贼", "作者 · 网络"),
-            ("本地导入", "关键词 · 本地")
-        ]
+        searchHistory.map { ($0, "Core 搜索历史") }
     }
 
     private var searchEntry: some View {
         Button {
-            if viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                viewModel.keyword = "长夜余火"
-            } else {
-                performSearch()
-            }
+            performSearch()
         } label: {
             HStack(spacing: ReaderDesignTokens.searchEntryGap) {
                 ReaderIcon(.search, size: 18, accessibilityLabel: "搜索")
@@ -228,7 +215,14 @@ public struct SearchView: View {
                 clearSearchHistory()
             }
 
-            if visibleHistory.isEmpty {
+            if let searchHistoryFailure {
+                SearchStateCard(
+                    title: "搜索历史暂不可用",
+                    message: searchHistoryFailure,
+                    icon: .warning,
+                    tone: .warning
+                )
+            } else if visibleHistory.isEmpty {
                 Text("暂无搜索历史")
                     .font(.system(size: ReaderDesignTokens.settingsRowTitleFontSize))
                     .foregroundStyle(ReaderDesignTokens.Color.muted)
@@ -238,7 +232,6 @@ public struct SearchView: View {
                     ForEach(visibleHistory, id: \.keyword) { row in
                         SearchHistoryRow(keyword: row.keyword, meta: row.meta) {
                             viewModel.keyword = row.keyword
-                            saveSearchHistory(row.keyword)
                             performSearch()
                         }
                         if row.keyword != visibleHistory.last?.keyword {
@@ -349,12 +342,14 @@ public struct SearchView: View {
     }
 
     private func performSearch() {
-        if viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            viewModel.keyword = "长夜余火"
+        let keyword = viewModel.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty else {
+            showToast("请输入搜索关键词")
+            return
         }
         selectScope(selectedScope)
-        saveSearchHistory(viewModel.keyword)
         Task {
+            await saveSearchHistory(keyword)
             await viewModel.search()
         }
     }
@@ -362,13 +357,22 @@ public struct SearchView: View {
     private func resetSearch() {
         viewModel.reset()
         selectedScope = .all
-        showDemoHistoryFallback = searchHistory.isEmpty
     }
 
     private func clearSearchHistory() {
-        searchHistory = []
-        historyData = Data()
-        showDemoHistoryFallback = false
+        Task {
+            do {
+                let service = try ReaderSlice10CoreService.production()
+                _ = try await service.clearSearchHistory(correlationID: "search-history-clear:\(UUID().uuidString)")
+                guard !Task.isCancelled else { return }
+                searchHistory = []
+                searchHistoryFailure = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                searchHistoryFailure = error.localizedDescription
+            }
+        }
     }
 
     private func addToBookshelf(result: SearchResultItem, source: BookSource?) {
@@ -405,9 +409,23 @@ public struct SearchView: View {
         return "找到 \(count) 个结果 · \(warnings.count) 条书源提示"
     }
 
-    private func loadSearchHistory() {
-        searchHistory = (try? JSONDecoder().decode([String].self, from: historyData)) ?? []
-        showDemoHistoryFallback = searchHistory.isEmpty
+    @MainActor
+    private func loadSearchHistory() async {
+        do {
+            let service = try ReaderSlice10CoreService.production()
+            let keywords = try await service.listSearchHistory(
+                limit: 10,
+                correlationID: "search-history-list:\(UUID().uuidString)"
+            )
+            guard !Task.isCancelled else { return }
+            searchHistory = keywords
+            searchHistoryFailure = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            searchHistory = []
+            searchHistoryFailure = error.localizedDescription
+        }
     }
 
     private func applyInitialQueryIfNeeded() {
@@ -418,21 +436,29 @@ public struct SearchView: View {
         guard !trimmed.isEmpty else { return }
 
         viewModel.keyword = trimmed
-        showDemoHistoryFallback = false
     }
 
-    private func saveSearchHistory(_ keyword: String) {
+    @MainActor
+    private func saveSearchHistory(_ keyword: String) async {
         let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        var history = searchHistory
-        history.removeAll { $0 == trimmed }
-        history.insert(trimmed, at: 0)
-        if history.count > 10 {
-            history = Array(history.prefix(10))
+        do {
+            let service = try ReaderSlice10CoreService.production()
+            try await service.addSearchHistory(
+                trimmed,
+                correlationID: "search-history-add:\(UUID().uuidString)"
+            )
+            guard !Task.isCancelled else { return }
+            searchHistory = try await service.listSearchHistory(
+                limit: 10,
+                correlationID: "search-history-refresh:\(UUID().uuidString)"
+            )
+            searchHistoryFailure = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            searchHistoryFailure = error.localizedDescription
         }
-        searchHistory = history
-        showDemoHistoryFallback = false
-        historyData = (try? JSONEncoder().encode(history)) ?? Data()
     }
 }
 

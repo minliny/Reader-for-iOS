@@ -98,6 +98,28 @@ final class RSSCoreIntegrationTests: XCTestCase {
         XCTAssertFalse(subscriptions[0].enableJs)
     }
 
+    func testProductionRSSStoreDoesNotFallbackToParallelLocalOwner() async {
+        let storeURL = temporaryFileURL(name: "rss-production-owner.json")
+        defer { try? FileManager.default.removeItem(at: storeURL) }
+        let store = RSSSubscriptionStore(
+            storageURL: storeURL,
+            allowsLocalCompatibilityWrites: false,
+            coreRuntimeProvider: { nil }
+        )
+
+        do {
+            try await store.addOrUpdate(RSSSource(
+                url: "https://example.com/rss.xml",
+                name: "Core-owned feed",
+                enableJs: false
+            ))
+            XCTFail("production must not persist RSS outside Core")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("SLICE11_CORE_NOT_BOOTED"))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storeURL.path))
+    }
+
     func testRSSFeedViewModelPersistsFetchedSubscription() async throws {
         let storeURL = temporaryFileURL(name: "rss-fetched-subscriptions.json")
         defer { try? FileManager.default.removeItem(at: storeURL) }

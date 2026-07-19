@@ -106,6 +106,8 @@ public struct ReaderView: View {
         bookID: String? = nil,
         sourceID: String? = nil,
         source: BookSource? = nil,
+        bookName: String? = nil,
+        bookAuthor: String? = nil,
         immersiveStart: Bool = false,
         directoryPresented: Bool = false,
         onExit: (() -> Void)? = nil,
@@ -131,7 +133,9 @@ public struct ReaderView: View {
             currentChapterIndex: currentChapterIndex,
             bookID: bookID,
             sourceID: sourceID,
-            source: source
+            source: source,
+            bookName: bookName,
+            bookAuthor: bookAuthor
         ))
         self._chromeVisible = State(initialValue: !immersiveStart)
         self.directoryPresented = directoryPresented
@@ -822,18 +826,27 @@ public struct ReaderView: View {
             },
             pageTurnTrigger: pageTurnTrigger,
             chapterIndex: viewModel.currentChapterIndex,
-            pilotCommittedPageIndex: playbackPilotCoordinator.isPagePilot
+            pilotCommittedPageIndex: playbackPilotCoordinator.isRuntimePageProjectionActive
                 ? playbackPilotCoordinator.committedPageIndex
                 : nil,
-            pilotProposalRequest: playbackPilotCoordinator.isPagePilot
+            pilotProposalRequest: playbackPilotCoordinator.acceptsRuntimePageProposals
                 ? playbackPilotCoordinator.pendingPageProposal
                 : nil,
-            onPilotPageIntent: playbackPilotCoordinator.isPagePilot
+            onPilotPageIntent: playbackPilotCoordinator.acceptsRuntimePageProposals
                 ? { direction, proposal in
-                    playbackPilotCoordinator.requestPage(direction, proposal: proposal)
+                    if playbackPilotCoordinator.isPagePilot {
+                        return playbackPilotCoordinator.requestPage(direction, proposal: proposal)
+                    }
+                    // The page pair remains Shadow in production, so a manual
+                    // page turn stays native. It must still synchronously stop
+                    // an active runtime-owned auto-page session first.
+                    if playbackPilotCoordinator.activeSession == "auto-page" {
+                        _ = playbackPilotCoordinator.stopAutoPage()
+                    }
+                    return false
                 }
                 : nil,
-            onPilotPageProposal: playbackPilotCoordinator.isPagePilot
+            onPilotPageProposal: playbackPilotCoordinator.acceptsRuntimePageProposals
                 ? { request, proposal in
                     playbackPilotCoordinator.providePageProposal(
                         proposal,
@@ -841,7 +854,7 @@ public struct ReaderView: View {
                     )
                 }
                 : nil,
-            onPilotPageUnavailable: playbackPilotCoordinator.isPagePilot
+            onPilotPageUnavailable: playbackPilotCoordinator.acceptsRuntimePageProposals
                 ? { request, message in
                     playbackPilotCoordinator.rejectPageProposal(request, message: message)
                 }

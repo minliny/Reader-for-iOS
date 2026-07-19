@@ -267,6 +267,7 @@ public struct ReaderPlaybackPilotMetrics: Equatable, Sendable {
 
 public enum ReaderPlaybackEffectOutcome {
     case location(CoreReaderLocationStageResult)
+    case progress(CoreReaderProgressStageResult)
     case ttsPlan(CoreTTSSlicePlan)
     case ttsQueue(CoreTTSQueueSnapshot)
     case speechStarted
@@ -319,6 +320,12 @@ public protocol ReaderPlaybackEffectExecuting: AnyObject {
 /// corresponding Core method, native speech engine, or foreground timer.
 @MainActor
 final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
+    private struct PageContext {
+        let chapter: ReaderPlaybackChapterContext
+        let proposal: ReaderPlaybackPageProposal
+        var resolvedLocation: CoreReaderLocationStageResult?
+    }
+
     private struct TTSContext {
         var plan: CoreTTSSlicePlan?
         var snapshot: CoreTTSQueueSnapshot?
@@ -327,22 +334,25 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
     }
 
     private let locationService: RustCoreReaderLocationService
+    private let progressService: RustCoreReaderProgressService
     private let ttsService: RustCoreTTSService
     private let speech: any ReaderPlaybackSpeechDriving
     private let timer: any ReaderForegroundTimerScheduling
 
     private var chapter: ReaderPlaybackChapterContext?
-    private var pageProposals: [String: ReaderPlaybackPageProposal] = [:]
+    private var pageContexts: [String: PageContext] = [:]
     private var ttsContexts: [String: TTSContext] = [:]
     private var inFlight: [String: () -> Void] = [:]
 
     init(
         locationService: RustCoreReaderLocationService,
+        progressService: RustCoreReaderProgressService,
         ttsService: RustCoreTTSService,
         speech: any ReaderPlaybackSpeechDriving,
         timer: any ReaderForegroundTimerScheduling
     ) {
         self.locationService = locationService
+        self.progressService = progressService
         self.ttsService = ttsService
         self.speech = speech
         self.timer = timer
@@ -356,6 +366,7 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
     ) {
         self.init(
             locationService: RustCoreReaderLocationService(runtime: runtime, requestTimeout: requestTimeout),
+            progressService: RustCoreReaderProgressService(runtime: runtime, requestTimeout: requestTimeout),
             ttsService: RustCoreTTSService(runtime: runtime, requestTimeout: requestTimeout),
             speech: speech,
             timer: timer ?? ReaderForegroundOneShotTimer()
@@ -367,7 +378,12 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
     }
 
     func setPageProposal(_ proposal: ReaderPlaybackPageProposal, correlationID: String) {
-        pageProposals[correlationID] = proposal
+        guard let chapter else { return }
+        pageContexts[correlationID] = PageContext(
+            chapter: chapter,
+            proposal: proposal,
+            resolvedLocation: nil
+        )
     }
 
     func execute(
@@ -380,6 +396,8 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
         switch effect.type {
         case "reader.location.resolve":
             return await executeLocation(correlationID: correlationID)
+        case "reader.progress.update":
+            return await executeProgress(correlationID: correlationID)
         case "tts.queue.plan":
             return await executeTTSPlan(correlationID: correlationID)
         case "tts.queue.start":
@@ -458,7 +476,7 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
 
     func invalidate(correlationID: String) {
         inFlight.removeValue(forKey: correlationID)?()
-        pageProposals[correlationID] = nil
+        pageContexts[correlationID] = nil
         if var context = ttsContexts[correlationID] {
             context.invalidated = true
             context.generation += 1
@@ -468,16 +486,18 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
 
     func finish(correlationID: String) {
         inFlight[correlationID] = nil
-        pageProposals[correlationID] = nil
+        pageContexts[correlationID] = nil
         ttsContexts[correlationID] = nil
     }
 
     private func executeLocation(correlationID: String) async -> ReaderPlaybackEffectOutcome {
-        guard let chapter,
-              let proposal = pageProposals[correlationID],
-              proposal.chapterIndex == chapter.chapterIndex else {
+        guard var context = pageContexts[correlationID],
+              context.resolvedLocation == nil,
+              context.proposal.chapterIndex == context.chapter.chapterIndex else {
             return .failed("PAGE_DOMAIN_CONTEXT_MISSING")
         }
+        let chapter = context.chapter
+        let proposal = context.proposal
         do {
             let handle = try locationService.startResolveStage(
                 CoreReaderLocationStageRequest(
@@ -499,7 +519,7 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
                 correlationID: correlationID
             )
             let location = try await awaitValue(handle, correlationID: correlationID)
-            guard pageProposals[correlationID] == proposal else { return .discarded }
+            guard pageContexts[correlationID]?.proposal == proposal else { return .discarded }
             guard location.bookID == chapter.bookID,
                   location.chapterIndex == chapter.chapterIndex,
                   location.layoutIndependent,
@@ -507,11 +527,54 @@ final class ReaderPlaybackDomainExecutor: ReaderPlaybackEffectExecuting {
                   !location.resolverVersion.isEmpty else {
                 return .failed("PAGE_LOCATION_IDENTITY_MISMATCH")
             }
+            context.resolvedLocation = location
+            pageContexts[correlationID] = context
             return .location(location)
         } catch is CancellationError {
             return .discarded
         } catch {
-            return pageProposals[correlationID] == nil
+            return pageContexts[correlationID] == nil
+                ? .discarded
+                : .failed(error.localizedDescription)
+        }
+    }
+
+    private func executeProgress(correlationID: String) async -> ReaderPlaybackEffectOutcome {
+        guard let context = pageContexts[correlationID],
+              let location = context.resolvedLocation else {
+            return .failed("PAGE_PROGRESS_DOMAIN_CONTEXT_MISSING")
+        }
+        let request = CoreReaderProgressStageRequest(
+            sourceID: context.chapter.sourceID,
+            bookID: context.chapter.bookID,
+            updatedAt: Int64(Date().timeIntervalSince1970),
+            chapterIndex: location.chapterIndex,
+            chapterOffset: location.chapterOffset,
+            chapterProgress: location.chapterProgress,
+            locationRevision: location.locationRevision
+        )
+        do {
+            let handle = try progressService.startUpdateStage(request, correlationID: correlationID)
+            let result = try await awaitValue(handle, correlationID: correlationID)
+            guard let active = pageContexts[correlationID],
+                  active.proposal == context.proposal,
+                  active.resolvedLocation == location else {
+                return .discarded
+            }
+            guard result.sourceID == context.chapter.sourceID,
+                  result.bookID == context.chapter.bookID,
+                  result.chapterIndex == location.chapterIndex,
+                  result.chapterOffset == location.chapterOffset,
+                  result.chapterProgress == location.chapterProgress,
+                  result.locationRevision == location.locationRevision,
+                  result.stored else {
+                return .failed("PAGE_PROGRESS_IDENTITY_MISMATCH")
+            }
+            return .progress(result)
+        } catch is CancellationError {
+            return .discarded
+        } catch {
+            return pageContexts[correlationID] == nil
                 ? .discarded
                 : .failed(error.localizedDescription)
         }
@@ -679,6 +742,7 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
     @Published public private(set) var canonicalLocation: String?
     @Published public private(set) var pendingPageProposal: ReaderPlaybackPageProposalRequest?
     @Published public private(set) var activeSession: String?
+    @Published public private(set) var autoPageHasCommittedPage = false
     @Published public private(set) var lastFailure: String?
     @Published public private(set) var metrics = ReaderPlaybackPilotMetrics()
 
@@ -698,10 +762,19 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
     public var isPagePilot: Bool { configuration.pagePairMode == .pilot }
     public var isTTSPilot: Bool { configuration.ttsPairMode == .pilot }
     public var isAutoPagePilot: Bool { configuration.autoPagePairMode == .pilot }
+    public var acceptsRuntimePageProposals: Bool { isPagePilot || isAutoPagePilot }
+    public var isRuntimePageProjectionActive: Bool {
+        isPagePilot
+            || (isAutoPagePilot && activeSession == "auto-page" && autoPageHasCommittedPage)
+    }
     public var hasActiveTransaction: Bool {
         runtime.state.pageTransaction != nil
             || runtime.state.ttsTransaction != nil
             || runtime.state.autoPageTransaction != nil
+    }
+
+    private var isPageProgressCommitPending: Bool {
+        runtime.state.pageTransaction?.stage == "persisting-progress"
     }
 
     public func bindChapter(_ context: ReaderPlaybackChapterContext) {
@@ -714,6 +787,10 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
            chapterIdentity != context.identity,
            hasActiveTransaction {
             failClosed("BOOK_REPLACEMENT_REQUIRES_PLAYBACK_TEARDOWN")
+            guard !isPageProgressCommitPending else {
+                lastFailure = "PAGE_PROGRESS_COMMIT_PENDING"
+                return
+            }
             Task { [weak self] in
                 await self?.replaceChapter(context)
             }
@@ -726,8 +803,20 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
     }
 
     public func replaceChapter(_ context: ReaderPlaybackChapterContext) async {
+        guard !isPageProgressCommitPending else {
+            failClosed("PAGE_PROGRESS_COMMIT_PENDING")
+            return
+        }
         await enqueueAndWait { coordinator in
+            guard !coordinator.isPageProgressCommitPending else {
+                coordinator.failClosed("PAGE_PROGRESS_COMMIT_PENDING")
+                return
+            }
             await coordinator.teardownAllNow()
+            guard !coordinator.isPageProgressCommitPending else {
+                coordinator.failClosed("PAGE_PROGRESS_COMMIT_PENDING")
+                return
+            }
             coordinator.chapterIdentity = context.identity
             coordinator.committedPageIndex = context.initialPageIndex
             coordinator.canonicalLocation = context.canonicalLocation
@@ -792,7 +881,9 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
         _ proposal: ReaderPlaybackPageProposal,
         correlationID: String
     ) {
-        guard isPagePilot,
+        // An auto-page Pilot owns the same measured paginator proposal even
+        // while the manual page pair remains Shadow in production.
+        guard acceptsRuntimePageProposals,
               proposal.isValid,
               proposal.direction.rawValue == runtime.state.pageTransaction?.direction,
               runtime.state.pageTransaction?.correlationId == correlationID,
@@ -834,15 +925,22 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
             return
         }
         let wasAutoPage = runtime.state.pageTransaction?.source == "auto-page"
-        let cancelled = runtime.cancelPageStep(correlationId: request.correlationID)
-        invalidate(cancelled.cancelledCorrelationIds)
-        executor?.finish(correlationID: request.correlationID)
-        pendingPageProposal = nil
-        lastFailure = message
-        if wasAutoPage, let auto = runtime.state.autoPageTransaction?.correlationId {
-            _ = stopAutoPage(correlationID: auto)
+        do {
+            let cancelled = try runtime.cancelPageStep(correlationId: request.correlationID)
+            invalidate(cancelled.cancelledCorrelationIds)
+            executor?.finish(correlationID: request.correlationID)
+            pendingPageProposal = nil
+            lastFailure = message
+            if wasAutoPage, let auto = runtime.state.autoPageTransaction?.correlationId {
+                _ = stopAutoPage(correlationID: auto)
+            }
+            projectRuntimeState()
+        } catch {
+            // Once progress persistence begins, cancellation is forbidden. Keep
+            // the request handle and DomainContext alive for its terminal result.
+            lastFailure = error.localizedDescription
+            projectRuntimeState()
         }
-        projectRuntimeState()
     }
 
     @discardableResult
@@ -897,6 +995,10 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
         }
         let correlationID = correlationID ?? nextCorrelation(prefix: "auto-page")
         do {
+            // Page remains Shadow in production, so the coordinator may not
+            // know the paginator's current native page. Do not project its
+            // stored index until the first measured auto-page commit succeeds.
+            autoPageHasCommittedPage = false
             let transition = try runtime.dispatch(
                 event: "reader.autoPage.start",
                 payload: ["intervalMs": String(intervalMs)],
@@ -948,6 +1050,10 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
 
     public func readerDidExit() {
         guard isPagePilot || isTTSPilot || isAutoPagePilot else { return }
+        guard !isPageProgressCommitPending else {
+            failClosed("PAGE_PROGRESS_COMMIT_PENDING")
+            return
+        }
         enqueue { coordinator in await coordinator.teardownAllNow() }
     }
 
@@ -990,9 +1096,17 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
             transition.cancelledCorrelationIds.forEach { executor?.finish(correlationID: $0) }
         }
         if let page = runtime.state.pageTransaction?.correlationId {
-            let transition = runtime.cancelPageStep(correlationId: page)
-            invalidate(transition.cancelledCorrelationIds)
-            executor?.finish(correlationID: page)
+            do {
+                let transition = try runtime.cancelPageStep(correlationId: page)
+                invalidate(transition.cancelledCorrelationIds)
+                executor?.finish(correlationID: page)
+            } catch {
+                // A Core mutation already crossed the commit boundary. Session
+                // teardown may finish, but the page correlation must survive.
+                lastFailure = error.localizedDescription
+                projectRuntimeState()
+                return
+            }
         }
         pendingPageProposal = nil
         projectRuntimeState()
@@ -1034,6 +1148,10 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
         guard let correlationID = effect.correlationId else { return }
         switch outcome {
         case .location(let location):
+            guard effect.type == "reader.location.resolve" else {
+                metrics.discardedCallbacks += 1
+                return
+            }
             guard let proposal = executorProposalTarget(correlationID: correlationID) else {
                 metrics.discardedCallbacks += 1
                 executor?.finish(correlationID: correlationID)
@@ -1049,8 +1167,37 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
                 executor?.finish(correlationID: correlationID)
                 return
             }
+            projectRuntimeState()
+            await processNow(transition.effects)
+
+        case .progress:
+            guard effect.type == "reader.progress.update" else {
+                metrics.discardedCallbacks += 1
+                return
+            }
+            let wasAutoPage = runtime.state.pageTransaction?.source == "auto-page"
+            let transition: ReaderUIPlaybackTransition
+            do {
+                transition = try runtime.acceptPageProgressJSONResult(
+                    correlationId: correlationID,
+                    result: ["stored": .bool(true)]
+                )
+            } catch {
+                metrics.failedEffects += 1
+                lastFailure = error.localizedDescription
+                await fail(effect: effect, correlationID: correlationID, message: error.localizedDescription)
+                return
+            }
+            guard transition.accepted else {
+                metrics.discardedCallbacks += 1
+                executor?.finish(correlationID: correlationID)
+                return
+            }
             committedPageIndex = transition.state.readerPageIndex
             canonicalLocation = transition.state.readerCanonicalLocation
+            if wasAutoPage {
+                autoPageHasCommittedPage = true
+            }
             projectRuntimeState()
             executor?.finish(correlationID: correlationID)
             await processNow(transition.effects)
@@ -1104,6 +1251,8 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
         switch effect.type {
         case "reader.location.resolve":
             transition = runtime.acceptPageLocationResult(correlationId: correlationID, error: message)
+        case "reader.progress.update":
+            transition = runtime.acceptPageProgressResult(correlationId: correlationID, error: message)
         case "tts.queue.plan", "tts.queue.start":
             transition = runtime.acceptTTSCoreResult(
                 coreType: effect.type,
@@ -1122,6 +1271,11 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
             projectRuntimeState()
             await processNow(transition.effects.filter { $0.type != effect.type })
             transition.cancelledCorrelationIds.forEach { executor?.finish(correlationID: $0) }
+        }
+        if effect.type == "reader.location.resolve" || effect.type == "reader.progress.update" {
+            // Both Core stages are terminal on failure. Progress failure clears
+            // only the pending proposal; the last committed page remains.
+            executor?.finish(correlationID: correlationID)
         }
     }
 
@@ -1241,6 +1395,9 @@ public final class ReaderPlaybackPilotCoordinator: ObservableObject {
 
     private func projectRuntimeState() {
         activeSession = runtime.state.activeSession
+        if activeSession != "auto-page" {
+            autoPageHasCommittedPage = false
+        }
         if let error = runtime.state.error, !error.isEmpty {
             lastFailure = error
         }

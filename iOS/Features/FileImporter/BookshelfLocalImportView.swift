@@ -26,7 +26,7 @@ struct BookshelfLocalImportView: View {
                     showFilePicker = true
                 }
             } trailing: {
-                BookshelfImportBottomButton(title: "完成导入", isPrimary: false) {
+                BookshelfImportBottomButton(title: "完成导入", isPrimary: false, isEnabled: importedSummary != nil) {
                     finishImport()
                 }
             }
@@ -88,7 +88,7 @@ struct BookshelfLocalImportView: View {
     private var importResultsList: some View {
         ReaderCard {
             VStack(alignment: .leading, spacing: 0) {
-                managementTitle("待导入文件")
+                managementTitle(importResultsTitle)
                 ForEach(importRows) { row in
                     BookshelfImportResultRow(row: row)
                     if row.id != importRows.last?.id {
@@ -103,7 +103,7 @@ struct BookshelfLocalImportView: View {
     private var importEntrySubtitle: String {
         switch viewModel.importState {
         case .idle, .selecting:
-            return "选择后识别分组并确认导入"
+            return "选择后由 Core 识别、物化并验证可读章节"
         case .importing(let name):
             return "正在识别 \(name) 的元数据与章节"
         case .imported(let summary):
@@ -116,7 +116,7 @@ struct BookshelfLocalImportView: View {
     private var importRows: [BookshelfImportRow] {
         switch viewModel.importState {
         case .idle, .selecting:
-            return BookshelfImportRow.demoRows
+            return BookshelfImportRow.formatCapabilities
         case .importing(let name):
             return [
                 BookshelfImportRow(id: "importing", title: name, meta: "正在读取元数据 · 加入默认分组", state: "解析中", tone: .warn)
@@ -138,6 +138,15 @@ struct BookshelfLocalImportView: View {
             return [
                 BookshelfImportRow(id: "failed", title: "导入失败", meta: message, state: "失败", tone: .danger)
             ]
+        }
+    }
+
+    private var importResultsTitle: String {
+        switch viewModel.importState {
+        case .idle, .selecting:
+            return "格式能力"
+        case .importing, .imported, .failed:
+            return "待导入文件"
         }
     }
 
@@ -193,10 +202,13 @@ private struct BookshelfImportRow: Identifiable, Hashable {
     let state: String
     let tone: Tone
 
-    static let demoRows: [BookshelfImportRow] = [
-        BookshelfImportRow(id: "rain-night", title: "雨夜.epub", meta: "作者已识别 · 加入默认分组", state: "可导入", tone: .good),
-        BookshelfImportRow(id: "scan-text", title: "旧书扫描.txt", meta: "编码 UTF-8 · 章节识别中", state: "72%", tone: .warn),
-        BookshelfImportRow(id: "missing-chapter", title: "缺失章节.mobi", meta: "格式不支持 · 可移除后重选", state: "失败", tone: .danger)
+    /// Product capability rows, not pretend user files or execution evidence.
+    static let formatCapabilities: [BookshelfImportRow] = [
+        BookshelfImportRow(id: "format-txt", title: "TXT", meta: "Core 章节索引与正文可直接阅读", state: "可用", tone: .good),
+        BookshelfImportRow(id: "format-epub", title: "EPUB", meta: "章节文字可读；复杂排版、字体与图片待专用渲染", state: "文本可读", tone: .warn),
+        BookshelfImportRow(id: "format-pdf", title: "PDF", meta: "可提取的分页文字可读；PDFKit 交互与 OCR 未开放", state: "有限", tone: .warn),
+        BookshelfImportRow(id: "format-mobi", title: "MOBI", meta: "基础 PalmDOC/MOBI 文字可读；KF8、DRM 拒绝", state: "有限", tone: .warn),
+        BookshelfImportRow(id: "format-umd", title: "UMD", meta: "基础章节文字可读；加密内容拒绝", state: "有限", tone: .warn)
     ]
 }
 
@@ -331,6 +343,7 @@ private struct BookshelfImportStatePill: View {
 private struct BookshelfImportBottomButton: View {
     let title: String
     let isPrimary: Bool
+    var isEnabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -347,5 +360,7 @@ private struct BookshelfImportBottomButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
     }
 }

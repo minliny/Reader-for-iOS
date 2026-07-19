@@ -20,6 +20,7 @@ public final class ReaderCoordinator {
     private let runtimeShadow: ReaderUIRuntimeShadowCoordinator?
     private let playbackPilot: ReaderPlaybackPilotCoordinator?
     private let sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator?
+    private let replaceRulePilot: ReaderReplaceRulePilotCoordinator?
     private let syncPilot: ReaderSyncPilotCoordinator?
 
     public init(
@@ -27,12 +28,14 @@ public final class ReaderCoordinator {
         runtimeShadow: ReaderUIRuntimeShadowCoordinator? = nil,
         playbackPilot: ReaderPlaybackPilotCoordinator? = nil,
         sourceSwitchPilot: ReaderSourceSwitchPilotCoordinator? = nil,
+        replaceRulePilot: ReaderReplaceRulePilotCoordinator? = nil,
         syncPilot: ReaderSyncPilotCoordinator? = nil
     ) {
         self.navigationState = navigationState
         self.runtimeShadow = runtimeShadow
         self.playbackPilot = playbackPilot
         self.sourceSwitchPilot = sourceSwitchPilot
+        self.replaceRulePilot = replaceRulePilot
         self.syncPilot = syncPilot
     }
 
@@ -116,7 +119,8 @@ public final class ReaderCoordinator {
         navigationState: navigationState,
         runtimeShadow: runtimeShadow,
         playbackPilot: playbackPilot,
-        sourceSwitchPilot: sourceSwitchPilot
+        sourceSwitchPilot: sourceSwitchPilot,
+        replaceRulePilot: replaceRulePilot
     )
 
     /// Generic ScreenGraph controls enter the same reducer/pilot boundary as hand-authored Native

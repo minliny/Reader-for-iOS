@@ -262,7 +262,10 @@ public final class ReaderCoreBridge {
         var params: [String: Any] = [
             "bookId": bookId,
             "sourceId": string(command.payload, keys: ["sourceId", "sourceID"]) ?? "local",
-            "updatedAt": Int64(Date().timeIntervalSince1970 * 1000),
+            // Core's ReadingProgressUpdateParams uses Unix seconds, not
+            // milliseconds. Keeping this exact avoids a synthetic far-future
+            // timestamp winning LWW sync conflict resolution.
+            "updatedAt": Int64(Date().timeIntervalSince1970),
             "chapterIndex": chapterIndex,
             "chapterOffset": chapterOffset,
             "chapterProgress": chapterProgress,

@@ -78,10 +78,36 @@ public struct ReaderApp: App {
         #if canImport(ReaderCoreNativeAdapter)
         do {
             try RustCoreRuntimeHolder.shared.boot()
-            ReaderCoreServiceProvider.shared.configureRustCoreMode()
-            logger.info("RustCore runtime booted + provider configured for rustCore mode")
+            guard let runtime = RustCoreRuntimeHolder.shared.current else {
+                throw ReaderSlice11HostManifestError.rejected("runtime is missing after boot")
+            }
+            // Fail-closed before any business command: without an explicit
+            // manifest Core runs in optimistic mode and can emit Host work
+            // iOS does not actually support (notably anti_bot/captcha).
+            try ReaderSlice11HostManifest.apply(to: runtime)
+            guard ReaderCoreServiceProvider.shared.configureRustCoreMode() else {
+                throw ReaderSlice11HostManifestError.rejected("provider rejected the booted runtime")
+            }
+            logger.info("RustCore runtime booted + explicit Host manifest applied + provider configured")
+            try ReaderCoreAggregateStorageGate.beginRestore()
+            let storageService = RustCoreAggregateStorageService(runtime: runtime)
+            Task { @MainActor in
+                do {
+                    let result = try await storageService.restore()
+                    ReaderCoreAggregateStorageGate.complete(result)
+                    logger.info(
+                        "RustCore aggregate storage ready schema=\(result.schemaVersion, privacy: .public) restored=\(result.restoredExistingSnapshot, privacy: .public)"
+                    )
+                } catch {
+                    ReaderCoreAggregateStorageGate.fail(error)
+                    logger.error(
+                        "RustCore aggregate storage restore failed closed: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            }
         } catch {
-            logger.error("RustCore boot failed at app init: \(String(describing: error), privacy: .public) — falling back to mock")
+            RustCoreRuntimeHolder.shared.shutdown()
+            logger.error("RustCore boot failed at app init: \(String(describing: error), privacy: .public) — production business commands remain fail-closed")
         }
         #endif
 

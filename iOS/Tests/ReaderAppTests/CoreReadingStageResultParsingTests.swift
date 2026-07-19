@@ -40,6 +40,37 @@ final class CoreReadingStageResultParsingTests: XCTestCase {
         XCTAssertTrue(result.layoutIndependent)
     }
 
+    func testRealCoreReaderProgressUpdatePersistsCanonicalLocation() async throws {
+        let runtime = try ReaderCoreNativeRuntime()
+        defer { runtime.destroy() }
+        let service = RustCoreReaderProgressService(runtime: runtime, requestTimeout: 5)
+        let request = CoreReaderProgressStageRequest(
+            sourceID: "source-progress-proof",
+            bookID: "book-progress-proof",
+            deviceID: "ios-progress-proof",
+            updatedAt: 1_720_000_100,
+            chapterIndex: 2,
+            chapterOffset: 128,
+            chapterProgress: 0.5,
+            locationRevision: "reader-location-v1:book-progress-proof:2:128"
+        )
+
+        let result = try await service.updateStage(
+            request,
+            correlationID: "progress-binary-proof"
+        )
+
+        XCTAssertEqual(result.sourceID, request.sourceID)
+        XCTAssertEqual(result.bookID, request.bookID)
+        XCTAssertEqual(result.deviceID, request.deviceID)
+        XCTAssertEqual(result.updatedAt, request.updatedAt)
+        XCTAssertEqual(result.chapterIndex, request.chapterIndex)
+        XCTAssertEqual(result.chapterOffset, request.chapterOffset)
+        XCTAssertEqual(result.chapterProgress, request.chapterProgress)
+        XCTAssertEqual(result.locationRevision, request.locationRevision)
+        XCTAssertTrue(result.stored)
+    }
+
     func testBookDetailStagePreservesRootTocURLAndVariables() {
         let fallback = SearchResultItem(
             title: "Fallback",
