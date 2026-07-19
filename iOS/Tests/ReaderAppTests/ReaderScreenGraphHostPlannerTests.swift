@@ -15,12 +15,12 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         "RssFavoriteGroupsPage", "RssSourceGroupsPage", "RssSourceImportPage", "RssSourceEditPage",
         "SettingsHomePage", "SettingsGeneralPage", "BookshelfSearchSettingsPage", "ProgressSyncPage",
         "SearchInputBox", "ScopeSelector", "GroupSelector", "SearchHistoryList", "BookHero",
-        "ReadingTextFlow", "Loading", "Offline", "ReaderBase", "ReaderTopArea",
+        "ReadingTextFlow", "ReadingBackgroundLayer", "Loading", "Offline", "Button", "ReaderBase", "ReaderTopArea",
         "ReaderControlSheet", "ReaderBottomBar", "ReaderDirectoryPanel", "ReaderAppearancePanel",
         "ReaderTtsPanel", "ReaderSettingsPanel", "ReaderFullDirectoryPage", "ReaderFullTtsPage",
         "ReaderFullAppearancePage", "ReaderFullSettingsPage", "ReaderBookCachePage",
         "ReaderDebugInfoPage", "ReaderSearchPanel", "ReaderReplacePanel", "ReaderAutoScrollPanel",
-        "NightToast", "SourceSwitchFlowPage", "SourceImportPreviewPage", "SourceGroupsPage",
+        "NightToast", "FloatingPageControl", "SourceSwitchFlowPage", "SourceImportPreviewPage", "SourceGroupsPage",
         "SourceDetectPage", "SourceDebugPage", "SourceDebugRunningPage", "SourceDebugResultPage",
         "SourceDebugContentLogPage", "SourceCodeViewPage", "SourceLogsPage",
         "SourceDeleteConfirmPage", "SourceRuleEditPage", "SourceBatchPage", "AppShellStructure",
@@ -31,32 +31,36 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         "RssErrorState", "GlobalStatePage", "OfflineStatePage", "AboutVersionPage",
         "ReadingSettingsEntryPage", "BookGroupManagementPage", "GroupManagementPage",
         "BookBatchManagementPage", "BookDirectoryPage", "AboutFeedbackPage", "GlobalSettingsPage",
-        "BackupSettingsPage", "RssSubscriptionManagementPage"
+        "BackupSettingsPage", "RssSubscriptionManagementPage", "BookCover"
     ]
 
     private let expectedGenericRaw: Set<String> = [
-        "BookshelfEmptyPage", "Button", "Content", "Dialog", "Empty", "ErrorState",
-        "FormSection", "List", "ListRow", "Permission", "ReadingBackgroundLayer",
-        "ReadingInfoLayer", "SourceSwitchResultsPanel", "Toast"
+        "BookshelfEmptyPage", "Content", "Dialog", "Dropdown", "Empty", "Error", "ErrorState",
+        "FormSection", "Input", "List", "ListRow", "LocalBookImportPage", "MainTabsStructure",
+        "Permission", "PermissionRequiredPage", "ProgressBar", "ReadingInfoLayer",
+        "RestoreProgressPage", "SettingsListItem", "Slider", "SourceFormPage",
+        "SourceSwitchResultsPanel", "Toast", "Toggle", "WebView"
     ]
 
     private let expectedVisibleGapRaw: Set<String> = [
-        "BookChapterList", "BookMoreMenuPage", "BookSummaryCard", "Error", "FloatingPageControl",
-        "LocalBookImportPage", "MainTabsStructure", "PermissionRequiredPage",
-        "RemoteWebDavBooksPage", "RestoreConfirmPage", "RestoreProgressPage", "RestoreResultPage",
-        "TapZones"
+        "BookChapterList", "BookMoreMenuPage", "BookSummaryCard",
+        "RemoteWebDavBooksPage", "RestoreConfirmPage", "RestoreResultPage"
+    ]
+
+    private let expectedHostCompositeRaw: Set<String> = [
+        "ReaderBase", "ReaderTopArea", "ReaderBottomBar", "TapZones"
     ]
 
     private let expectedExplicitGapRaw: Set<String> = [
         "SearchEntry", "SourceTypeSegment", "CurrentSourceCard", "SourceCategoryChips",
         "DiscoveryContentCard", "SourceStatusBar", "ShelfChipGroup", "RecentUpdateCard",
-        "BookListItem", "ProgressBar", "SubscriptionSummaryCard", "FeedStatusChips",
+        "BookListItem", "SubscriptionSummaryCard", "FeedStatusChips",
         "FeedSourceChips", "RssEntryItem", "UnreadIndicator", "LocalOverviewCard", "QuickEntryGrid",
-        "SettingsSection", "SettingsListItem", "SearchResultList", "AddToShelfButton", "ReadButton",
-        "BookCover", "BookTitleAuthor", "SourceStatus", "DirectoryPreview", "BookIntro", "ConfigEntry",
-        "Sheet", "Overlay", "Card", "Chip", "Toggle", "Slider", "Stepper", "Segment", "Dropdown",
-        "Input", "FilterBar", "WebView", "FloatingBrightness", "FloatingQuickActions",
-        "SourceSettingsEntryPage", "WebDavConfigPage", "SourceFormPage"
+        "SettingsSection", "SearchResultList", "AddToShelfButton", "ReadButton",
+        "BookTitleAuthor", "SourceStatus", "DirectoryPreview", "BookIntro", "ConfigEntry",
+        "Sheet", "Overlay", "Card", "Chip", "Stepper", "Segment",
+        "FilterBar", "FloatingBrightness", "FloatingQuickActions",
+        "SourceSettingsEntryPage", "WebDavConfigPage"
     ]
 
     func testCanonicalRegistryIntegrityAndExactMetrics() throws {
@@ -64,23 +68,25 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
 
         XCTAssertEqual(planner.metrics.sha256, ReaderScreenGraphHostPlanner.expectedCanonicalSHA256)
         XCTAssertEqual(planner.metrics.sha256, ScreenGraphCanonicalAsset.sha256)
-        XCTAssertEqual(planner.metrics.routeCount, 235)
-        XCTAssertEqual(planner.metrics.directRouteCount, 159)
+        XCTAssertEqual(planner.metrics.routeCount, 260)
+        XCTAssertEqual(planner.metrics.directRouteCount, 184)
         XCTAssertEqual(planner.metrics.aliasRouteCount, 76)
-        XCTAssertEqual(planner.metrics.variantCount, 165)
-        XCTAssertEqual(planner.metrics.recursiveComponentCount, 519)
-        XCTAssertEqual(planner.metrics.bindingCount, 36)
+        XCTAssertEqual(planner.metrics.variantCount, 190)
+        XCTAssertEqual(planner.metrics.recursiveComponentCount, 615)
+        XCTAssertEqual(planner.metrics.bindingCount, 97)
+        XCTAssertEqual(planner.metrics.executableBindingCount, 38)
+        XCTAssertEqual(planner.metrics.plannedFailClosedBindingCount, 59)
         XCTAssertEqual(planner.metrics.stateEventEvidenceCount, 19)
-        XCTAssertEqual(planner.metrics.eventReferenceCount, 55)
-        XCTAssertEqual(planner.metrics.referencedComponentTypeCount, 129)
-        XCTAssertEqual(planner.metrics.explicitGapComponentTypeCount, 45)
+        XCTAssertEqual(planner.metrics.eventReferenceCount, 116)
+        XCTAssertEqual(planner.metrics.referencedComponentTypeCount, 138)
+        XCTAssertEqual(planner.metrics.explicitGapComponentTypeCount, 36)
         XCTAssertEqual(planner.metrics.actionGapCount, 6)
         XCTAssertEqual(planner.registry.document.routes.map(\.routeId), RouteId.allCases)
     }
 
-    func testAll235RouteQueriesAnd76AliasesResolveToPlans() throws {
+    func testAll260RouteQueriesAnd76AliasesResolveToPlans() throws {
         let planner = try ReaderScreenGraphHostPlanner()
-        XCTAssertEqual(RouteId.allCases.count, 235)
+        XCTAssertEqual(RouteId.allCases.count, 260)
 
         for routeId in RouteId.allCases {
             let plan = try planner.plan(routeId: routeId)
@@ -162,14 +168,14 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(componentCount, 519)
-        XCTAssertEqual(bindingCount, 36)
+        XCTAssertEqual(componentCount, 615)
+        XCTAssertEqual(bindingCount, 97)
         XCTAssertEqual(stateEventEvidenceCount, 19)
-        XCTAssertEqual(bindingCount + stateEventEvidenceCount, 55)
+        XCTAssertEqual(bindingCount + stateEventEvidenceCount, 116)
 
         let bookshelf = try planner.plan(routeId: .bookshelf)
         XCTAssertNotNil(bookshelf.component(withId: "bookshelf-shelf-section"))
-        XCTAssertNotNil(bookshelf.component(withId: "book-1"))
+        XCTAssertNotNil(bookshelf.component(withId: "book-bk-001"))
     }
 
     func testJSONValueAndNestedBindingPayloadsRemainLossless() throws {
@@ -240,22 +246,33 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
 
         XCTAssertEqual(
             rawValues(coverage.canonicalReferenced),
-            expectedSupportedRaw.union(expectedGenericRaw).union(expectedVisibleGapRaw)
+            expectedSupportedRaw
+                .union(expectedGenericRaw)
+                .union(expectedVisibleGapRaw)
+                .union(expectedHostCompositeRaw)
         )
         XCTAssertEqual(rawValues(coverage.canonicalExplicitGaps), expectedExplicitGapRaw)
-        XCTAssertEqual(rawValues(coverage.faithfulReferenced), expectedSupportedRaw)
+        XCTAssertEqual(
+            rawValues(coverage.faithfulReferenced),
+            expectedSupportedRaw.subtracting(expectedHostCompositeRaw)
+        )
         XCTAssertEqual(rawValues(coverage.genericUsableReferenced), expectedGenericRaw)
         XCTAssertEqual(
+            rawValues(coverage.hostCompositeIntegratedReferenced),
+            expectedHostCompositeRaw
+        )
+        XCTAssertEqual(
             rawValues(coverage.supportedReferenced),
-            expectedSupportedRaw.union(expectedGenericRaw)
+            expectedSupportedRaw.union(expectedGenericRaw).union(expectedHostCompositeRaw)
         )
         XCTAssertEqual(rawValues(coverage.visibleReferencedGaps), expectedVisibleGapRaw)
-        XCTAssertEqual(coverage.faithfulReferenced.count, 102)
-        XCTAssertEqual(coverage.genericUsableReferenced.count, 14)
-        XCTAssertEqual(coverage.supportedReferenced.count, 116)
-        XCTAssertEqual(coverage.visibleReferencedGaps.count, 13)
-        XCTAssertEqual(coverage.canonicalReferenced.count, 129)
-        XCTAssertEqual(coverage.canonicalExplicitGaps.count, 45)
+        XCTAssertEqual(coverage.faithfulReferenced.count, 103)
+        XCTAssertEqual(coverage.genericUsableReferenced.count, 25)
+        XCTAssertEqual(coverage.hostCompositeIntegratedReferenced.count, 4)
+        XCTAssertEqual(coverage.supportedReferenced.count, 132)
+        XCTAssertEqual(coverage.visibleReferencedGaps.count, 6)
+        XCTAssertEqual(coverage.canonicalReferenced.count, 138)
+        XCTAssertEqual(coverage.canonicalExplicitGaps.count, 36)
         XCTAssertEqual(rawValues(coverage.screenGraphAdapterTypes), expectedGenericRaw)
         XCTAssertTrue(coverage.explicitGapAdapterTypes.isEmpty)
         XCTAssertFalse(coverage.fullRenderer)
@@ -267,17 +284,517 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         XCTAssertEqual(
             rawValues(coverage.nativeRenderersForExplicitGaps),
             [
-                "AddToShelfButton", "BookCover", "BookIntro", "BookListItem",
+                "AddToShelfButton", "BookIntro", "BookListItem",
                 "BookTitleAuthor", "DirectoryPreview", "ReadButton", "SourceStatus"
             ]
         )
+
+        let referencedInstanceCounts = Dictionary(uniqueKeysWithValues:
+            planner.registry.document.componentCatalog
+                .filter { $0.status == .referenced }
+                .map { ($0.type, $0.instanceCount) }
+        )
+        func instanceCount(for types: Set<ComponentType>) -> Int {
+            types.reduce(0) { $0 + (referencedInstanceCounts[$1] ?? 0) }
+        }
+        XCTAssertEqual(instanceCount(for: coverage.faithfulReferenced), 425)
+        XCTAssertEqual(instanceCount(for: coverage.genericUsableReferenced), 67)
+        XCTAssertEqual(instanceCount(for: coverage.hostCompositeIntegratedReferenced), 115)
+        XCTAssertEqual(instanceCount(for: coverage.visibleReferencedGaps), 8)
     }
 
-    func testOnly36TriggeredBindingsAreExecutableAnd19StateEventsStayReadOnly() throws {
+    func testHostCompositesKeepAuditTreeButDoNotRecursivelyProjectViewState() throws {
+        let planner = try ReaderScreenGraphHostPlanner()
+        let plan = try planner.plan(routeId: .readerPageBoundaryFirst)
+        let readerBase = try XCTUnwrap(plan.component(withId: "reader-base"))
+
+        XCTAssertEqual(readerBase.compositionMode, .hostComposite)
+        XCTAssertEqual(
+            readerBase.stateAuthorities,
+            ["core", "reader-ui-runtime", "host-store", "host-layout"]
+        )
+        XCTAssertEqual(readerBase.children.count, 4, "Canonical descendants remain auditable.")
+        XCTAssertTrue(
+            readerBase.component.children?.isEmpty == true,
+            "Host composite descendants must not enter the generic ViewState renderer."
+        )
+
+        let tapZones = try XCTUnwrap(readerBase.component(withId: "reader-tap-zones"))
+        XCTAssertEqual(tapZones.compositionMode, .hostComposite)
+        XCTAssertEqual(tapZones.stateAuthorities, ["reader-ui-runtime", "host-layout"])
+        XCTAssertTrue(tapZones.children.isEmpty)
+
+        let reader = try planner.plan(routeId: .reader)
+        for (id, authorities) in [
+            ("reader-top-area", ["core", "reader-ui-runtime", "host-store"]),
+            ("reader-bottom-bar", ["reader-ui-runtime", "host-store"]),
+        ] {
+            let component = try XCTUnwrap(reader.component(withId: id), id)
+            XCTAssertEqual(component.compositionMode, .hostComposite, id)
+            XCTAssertEqual(component.stateAuthorities, authorities, id)
+        }
+    }
+
+    func testTapZonesCanonicalTargetsPreserveBindingsAndProductionIntentChain() throws {
+        let planner = try ReaderScreenGraphHostPlanner()
+        let cases: [(RouteId, [ReaderTapZoneTarget])] = [
+            (.readerContentLoading, []),
+            (.readerContentOffline, [.previous, .control, .next]),
+            (.readerContentError, [.previous, .control, .next]),
+            (.readerPageBoundaryFirst, [.control, .next]),
+            (.readerPageBoundaryLast, [.previous, .control]),
+        ]
+
+        for (routeId, expectedTargets) in cases {
+            let tapZones = try XCTUnwrap(
+                planner.plan(routeId: routeId).component(withId: "reader-tap-zones"),
+                routeId.rawValue
+            )
+            XCTAssertEqual(tapZones.compositionMode, .hostComposite, routeId.rawValue)
+            XCTAssertEqual(tapZones.component.props?.string("mode"), "horizontal")
+            XCTAssertEqual(tapZones.component.props?.double("previousRatio"), 0.26)
+            XCTAssertEqual(tapZones.component.props?.double("controlRatio"), 0.48)
+            XCTAssertEqual(tapZones.component.props?.double("nextRatio"), 0.26)
+            XCTAssertEqual(tapZones.bindings.map(\.target), expectedTargets.map(\.rawValue))
+            XCTAssertEqual(
+                tapZones.component.bindings?.map(\.target),
+                expectedTargets.map(\.rawValue),
+                "ScreenGraph explicit bindings must survive the ViewState bridge."
+            )
+
+            for target in ReaderTapZoneTarget.allCases {
+                let action = ReaderScreenGraphHostCompositePolicy.action(for: target, in: tapZones)
+                if expectedTargets.contains(target) {
+                    let action = try XCTUnwrap(action, "\(routeId.rawValue)/\(target.rawValue)")
+                    switch target {
+                    case .previous:
+                        XCTAssertEqual(action.event, .reader_page_prev)
+                        XCTAssertTrue(action.payload.isEmpty)
+                    case .control:
+                        XCTAssertEqual(action.event, .reader_control_toggle)
+                        XCTAssertEqual(action.payload.string("overlay"), "reader-control")
+                    case .next:
+                        XCTAssertEqual(action.event, .reader_page_next)
+                        XCTAssertTrue(action.payload.isEmpty)
+                    }
+                } else {
+                    XCTAssertNil(action, "\(routeId.rawValue)/\(target.rawValue)")
+                }
+            }
+        }
+
+        XCTAssertEqual(ReaderHotZoneSegment.previousPage.canonicalTarget, .previous)
+        XCTAssertEqual(ReaderHotZoneSegment.controls.canonicalTarget, .control)
+        XCTAssertEqual(ReaderHotZoneSegment.nextPage.canonicalTarget, .next)
+
+        let navigationState = AppNavigationState()
+        let coordinator = ReaderCoordinator(navigationState: navigationState)
+        XCTAssertEqual(navigationState.overlayState, .none)
+        coordinator.toggleReaderControl()
+        XCTAssertEqual(navigationState.overlayState, .sheet)
+        coordinator.toggleReaderControl()
+        XCTAssertEqual(navigationState.overlayState, .none)
+    }
+
+    func testFloatingPageControlFaithfullyDecodesReadOnlyBoundaryEvidence() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+
+        let firstComponent = try XCTUnwrap(
+            planner.plan(routeId: .readerPageBoundaryFirst)
+                .component(withId: "reader_page_boundary_first-control")?.component
+        )
+        let first = try XCTUnwrap(FloatingPageControlProps(props: firstComponent.props))
+        XCTAssertEqual(first.title, "已是第一章")
+        XCTAssertEqual(first.bookId, "bk-001")
+        XCTAssertEqual(first.boundary, .first)
+
+        let lastComponent = try XCTUnwrap(
+            planner.plan(routeId: .readerPageBoundaryLast)
+                .component(withId: "reader_page_boundary_last-control")?.component
+        )
+        let last = try XCTUnwrap(FloatingPageControlProps(props: lastComponent.props))
+        XCTAssertEqual(last.title, "已是最后一章")
+        XCTAssertEqual(last.bookId, "bk-001")
+        XCTAssertEqual(last.boundary, .last)
+
+        XCTAssertTrue(ComponentRegistry.isRegistered(.floatingPageControl))
+        XCTAssertFalse(ComponentRegistry.genericRendererTypes.contains(.floatingPageControl))
+    }
+
+    func testPermissionRequiredPageStrictGenericPreservesVisibleActionGap() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+
+        let planned = try XCTUnwrap(
+            planner.plan(routeId: .permissionRequired)
+                .component(withId: "permission-page")
+        )
+        let props = try XCTUnwrap(
+            ReaderScreenGraphPermissionRequiredPageProps(props: planned.component.props)
+        )
+        XCTAssertEqual(props.title, "需要存储权限")
+        XCTAssertEqual(props.message, "授予权限后可导入本地书籍。")
+        XCTAssertEqual(props.actionLabel, "授予权限")
+        XCTAssertTrue(planned.bindings.isEmpty)
+        XCTAssertNil(ReaderScreenGraphButtonActionResolver.action(for: planned.component))
+        XCTAssertTrue(ComponentRegistry.isRegistered(.permissionRequiredPage))
+        XCTAssertTrue(ComponentRegistry.genericRendererTypes.contains(.permissionRequiredPage))
+        XCTAssertFalse(ComponentRegistry.faithfulRendererTypes.contains(.permissionRequiredPage))
+        _ = ReaderScreenGraphGenericComponentView(component: planned.component)
+
+        XCTAssertNil(
+            ReaderScreenGraphPermissionRequiredPageProps(
+                props: [
+                    "title": AnyCodable("需要存储权限"),
+                    "message": AnyCodable("授予权限后可导入本地书籍。"),
+                    "action": AnyCodable("授予权限"),
+                    "uiEvent": AnyCodable("host.permission.request")
+                ]
+            ),
+            "A future executable binding must be reviewed instead of silently entering the read-only adapter."
+        )
+    }
+
+    func testMainTabsStructureStrictGenericDoesNotInventTabIdentityOrSelection() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+
+        let planned = try XCTUnwrap(
+            planner.plan(routeId: .mainTabs)
+                .component(withId: "main-tabs-structure")
+        )
+        let props = try XCTUnwrap(
+            ReaderScreenGraphMainTabsStructureProps(props: planned.component.props)
+        )
+        XCTAssertEqual(props.title, "主导航")
+        XCTAssertEqual(props.message, "底部四项：书架、发现、RSS、设置。")
+        XCTAssertTrue(planned.bindings.isEmpty)
+        XCTAssertTrue(planned.children.isEmpty)
+        XCTAssertNil(ReaderScreenGraphButtonActionResolver.action(for: planned.component))
+        XCTAssertTrue(ComponentRegistry.isRegistered(.mainTabsStructure))
+        XCTAssertTrue(ComponentRegistry.genericRendererTypes.contains(.mainTabsStructure))
+        XCTAssertFalse(ComponentRegistry.faithfulRendererTypes.contains(.mainTabsStructure))
+        _ = ReaderScreenGraphGenericComponentView(component: planned.component)
+
+        XCTAssertNil(
+            ReaderScreenGraphMainTabsStructureProps(
+                props: [
+                    "title": AnyCodable("主导航"),
+                    "message": AnyCodable("底部四项：书架、发现、RSS、设置。"),
+                    "selectedTab": AnyCodable("bookshelf")
+                ]
+            ),
+            "A future tab model must be reviewed instead of silently entering the read-only adapter."
+        )
+    }
+
+    func testRestoreProgressStrictGenericIsIndeterminateAcrossBothLoadingRoutes() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+
+        let cases: [(RouteId, String, ReaderScreenGraphRestoreProgressPhase)] = [
+            (.restoreRunning, "restore-running-page", .running),
+            (.restoreProgress, "restore-progress-page", .unspecified)
+        ]
+        for (route, componentId, expectedPhase) in cases {
+            let plan = try planner.plan(routeId: route)
+            XCTAssertEqual(plan.viewState.pageState, .loading, route.rawValue)
+            let planned = try XCTUnwrap(plan.component(withId: componentId), route.rawValue)
+            let props = try XCTUnwrap(
+                ReaderScreenGraphRestoreProgressProps(props: planned.component.props),
+                route.rawValue
+            )
+            XCTAssertEqual(props.phase, expectedPhase, route.rawValue)
+            XCTAssertTrue(planned.bindings.isEmpty, route.rawValue)
+            XCTAssertTrue(planned.stateEventEvidence.isEmpty, route.rawValue)
+            XCTAssertTrue(planned.children.isEmpty, route.rawValue)
+            XCTAssertNil(
+                ReaderScreenGraphButtonActionResolver.action(for: planned.component),
+                route.rawValue
+            )
+            _ = ReaderScreenGraphGenericComponentView(component: planned.component)
+        }
+
+        XCTAssertTrue(ComponentRegistry.isRegistered(.restoreProgressPage))
+        XCTAssertTrue(ComponentRegistry.genericRendererTypes.contains(.restoreProgressPage))
+        XCTAssertFalse(ComponentRegistry.faithfulRendererTypes.contains(.restoreProgressPage))
+        XCTAssertNil(
+            ReaderScreenGraphRestoreProgressProps(
+                props: [
+                    "variant": AnyCodable("running"),
+                    "progress": AnyCodable(0.68)
+                ]
+            ),
+            "Determinate progress requires a reviewed canonical schema."
+        )
+        XCTAssertNil(
+            ReaderScreenGraphRestoreProgressProps(
+                props: ["variant": AnyCodable("completed")]
+            ),
+            "A future restore phase must fail closed until reviewed."
+        )
+    }
+
+    func testRestoreConfirmAndResultStayVisibleGapsWithoutSemanticModels() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+
+        let confirmCases: [(RouteId, String, String?)] = [
+            (.restoreScopes, "restore-scopes-page", "scopes"),
+            (.restorePreview, "restore-preview-page", "preview"),
+            (.restoreConfirm, "restore-confirm-page", nil)
+        ]
+        for (route, componentId, expectedVariant) in confirmCases {
+            let planned = try XCTUnwrap(
+                planner.plan(routeId: route).component(withId: componentId),
+                route.rawValue
+            )
+            XCTAssertEqual(planned.component.props?.string("variant"), expectedVariant)
+            XCTAssertTrue(planned.bindings.isEmpty, route.rawValue)
+            XCTAssertTrue(planned.stateEventEvidence.isEmpty, route.rawValue)
+            XCTAssertTrue(planned.children.isEmpty, route.rawValue)
+            XCTAssertEqual(
+                ComponentRegistry.renderingDisposition(for: planned.component),
+                .visibleFailure(type: .restoreConfirmPage, id: componentId),
+                route.rawValue
+            )
+        }
+
+        let result = try XCTUnwrap(
+            planner.plan(routeId: .restoreResult).component(withId: "restore-result-page")
+        )
+        XCTAssertTrue(result.component.props?.isEmpty == true)
+        XCTAssertTrue(result.bindings.isEmpty)
+        XCTAssertTrue(result.stateEventEvidence.isEmpty)
+        XCTAssertTrue(result.children.isEmpty)
+        XCTAssertEqual(
+            ComponentRegistry.renderingDisposition(for: result.component),
+            .visibleFailure(type: .restoreResultPage, id: "restore-result-page")
+        )
+
+        XCTAssertFalse(ComponentRegistry.isRegistered(.restoreConfirmPage))
+        XCTAssertFalse(ComponentRegistry.isRegistered(.restoreResultPage))
+        XCTAssertEqual(
+            ReaderScreenGraphGenericComponentPolicy.visibleGapReasons[.restoreConfirmPage]?.code,
+            "missing-confirmation-model"
+        )
+        XCTAssertEqual(
+            ReaderScreenGraphGenericComponentPolicy.visibleGapReasons[.restoreResultPage]?.code,
+            "missing-semantic-props"
+        )
+    }
+
+    func testErrorStrictGenericShowsMessageWithoutInventingRetryAction() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+
+        let plan = try planner.plan(routeId: .stateError)
+        XCTAssertEqual(plan.viewState.pageState, .error)
+        XCTAssertEqual(plan.viewState.context?["message"]?.stringValue, "网络异常")
+        let planned = try XCTUnwrap(plan.component(withId: "global-error"))
+        let props = try XCTUnwrap(
+            ReaderScreenGraphErrorProps(props: planned.component.props)
+        )
+        XCTAssertEqual(props.message, "网络异常")
+        XCTAssertTrue(props.retryable)
+        XCTAssertTrue(planned.bindings.isEmpty)
+        XCTAssertTrue(planned.stateEventEvidence.isEmpty)
+        XCTAssertTrue(planned.children.isEmpty)
+        XCTAssertNil(ReaderScreenGraphButtonActionResolver.action(for: planned.component))
+        XCTAssertTrue(ComponentRegistry.isRegistered(.error))
+        XCTAssertTrue(ComponentRegistry.genericRendererTypes.contains(.error))
+        XCTAssertFalse(ComponentRegistry.faithfulRendererTypes.contains(.error))
+        _ = ReaderScreenGraphGenericComponentView(component: planned.component)
+
+        XCTAssertNil(
+            ReaderScreenGraphErrorProps(
+                props: [
+                    "message": AnyCodable("网络异常"),
+                    "retryable": AnyCodable(true),
+                    "uiEvent": AnyCodable("state.retry")
+                ]
+            ),
+            "A future retry binding must be reviewed instead of entering the read-only adapter."
+        )
+        XCTAssertNil(
+            ReaderScreenGraphErrorProps(
+                props: ["message": AnyCodable("网络异常"), "retryable": AnyCodable(false)]
+            ),
+            "A future non-retryable variant must fail closed until reviewed."
+        )
+    }
+
+    func testBookSummaryAndChapterListStayVisibleGapsWithoutComponentData() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+        let plan = try planner.plan(routeId: .bookDetail)
+        XCTAssertEqual(plan.viewState.context?["bookId"]?.stringValue, "bk-001")
+
+        let cases: [(String, ComponentType)] = [
+            ("detail-summary", .bookSummaryCard),
+            ("detail-chapters", .bookChapterList)
+        ]
+        for (componentId, type) in cases {
+            let planned = try XCTUnwrap(plan.component(withId: componentId), componentId)
+            XCTAssertTrue(planned.component.props?.isEmpty == true, componentId)
+            XCTAssertTrue(planned.bindings.isEmpty, componentId)
+            XCTAssertTrue(planned.stateEventEvidence.isEmpty, componentId)
+            XCTAssertTrue(planned.children.isEmpty, componentId)
+            XCTAssertEqual(
+                ComponentRegistry.renderingDisposition(for: planned.component),
+                .visibleFailure(type: type, id: componentId),
+                componentId
+            )
+        }
+
+        XCTAssertFalse(ComponentRegistry.isRegistered(.bookSummaryCard))
+        XCTAssertFalse(ComponentRegistry.isRegistered(.bookChapterList))
+        XCTAssertEqual(
+            ReaderScreenGraphGenericComponentPolicy.visibleGapReasons[.bookSummaryCard]?.code,
+            "missing-semantic-props"
+        )
+        XCTAssertEqual(
+            ReaderScreenGraphGenericComponentPolicy.visibleGapReasons[.bookChapterList]?.code,
+            "missing-collection-items"
+        )
+    }
+
+    func testLocalImportTitleOnlySchemaHasReadOnlyNativeStructure() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+
+        let plan = try planner.plan(routeId: .localImport)
+        XCTAssertEqual(plan.viewState.pageState, .defaultValue)
+        XCTAssertTrue(plan.viewState.context?.isEmpty == true)
+        XCTAssertTrue(plan.facets.isEmpty)
+        XCTAssertTrue(plan.actionGaps.isEmpty)
+
+        let planned = try XCTUnwrap(plan.component(withId: "local-import-page"))
+        let props = try XCTUnwrap(planned.component.props)
+        XCTAssertEqual(Set(props.keys), ["title"])
+        XCTAssertEqual(props.string("title"), "本地导入")
+        XCTAssertTrue(planned.bindings.isEmpty)
+        XCTAssertTrue(planned.stateEventEvidence.isEmpty)
+        XCTAssertTrue(planned.children.isEmpty)
+        XCTAssertEqual(
+            ComponentRegistry.renderingDisposition(for: planned.component),
+            .registered
+        )
+        XCTAssertTrue(ComponentRegistry.isRegistered(.localBookImportPage))
+        XCTAssertTrue(
+            ComponentRegistry.genericRendererTypes.contains(.localBookImportPage)
+        )
+        XCTAssertNil(
+            ReaderScreenGraphGenericComponentPolicy.visibleGapReasons[.localBookImportPage]
+        )
+
+        let catalog = try XCTUnwrap(
+            planner.registry.document.componentCatalog.first { $0.type == .localBookImportPage }
+        )
+        XCTAssertEqual(catalog.status, .referenced)
+        XCTAssertEqual(catalog.instanceCount, 2)
+        XCTAssertEqual(Set(catalog.routeIds), [.localImport, .localFormatSupport])
+    }
+
+    func testRemoteWebDavBooksTitleOnlySchemaStaysVisibleGap() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+        let plan = try planner.plan(routeId: .remoteWebdavBooks)
+
+        XCTAssertEqual(plan.viewState.pageState, .defaultValue)
+        XCTAssertTrue(plan.viewState.context?.isEmpty == true)
+        XCTAssertTrue(plan.facets.isEmpty)
+        XCTAssertTrue(plan.actionGaps.isEmpty)
+
+        let planned = try XCTUnwrap(plan.component(withId: "remote-webdav-books-page"))
+        let props = try XCTUnwrap(planned.component.props)
+        XCTAssertEqual(Set(props.keys), ["title"])
+        XCTAssertEqual(props.string("title"), "远端书籍")
+        XCTAssertTrue(planned.bindings.isEmpty)
+        XCTAssertTrue(planned.stateEventEvidence.isEmpty)
+        XCTAssertTrue(planned.children.isEmpty)
+        XCTAssertEqual(
+            ComponentRegistry.renderingDisposition(for: planned.component),
+            .visibleFailure(
+                type: .remoteWebDavBooksPage,
+                id: "remote-webdav-books-page"
+            )
+        )
+        XCTAssertFalse(ComponentRegistry.isRegistered(.remoteWebDavBooksPage))
+        XCTAssertEqual(
+            ReaderScreenGraphGenericComponentPolicy
+                .visibleGapReasons[.remoteWebDavBooksPage]?.code,
+            "missing-collection-items"
+        )
+
+        let catalog = try XCTUnwrap(
+            planner.registry.document.componentCatalog.first {
+                $0.type == .remoteWebDavBooksPage
+            }
+        )
+        XCTAssertEqual(catalog.status, .referenced)
+        XCTAssertEqual(catalog.instanceCount, 1)
+        XCTAssertEqual(catalog.routeIds, [.remoteWebdavBooks])
+    }
+
+    func testBookMoreMenuStaysVisibleGapWithoutMenuItemsOrActions() throws {
+        ComponentRegistry.reset()
+        ComponentRegistry.bootstrapAllSlices()
+        let planner = try ReaderScreenGraphHostPlanner()
+        let plan = try planner.plan(routeId: .bookshelfBookMoreMenu)
+
+        XCTAssertEqual(plan.viewState.pageState, .defaultValue)
+        XCTAssertEqual(plan.viewState.context?["tab"]?.stringValue, "bookshelf")
+        XCTAssertTrue(plan.facets.isEmpty)
+        XCTAssertTrue(plan.actionGaps.isEmpty)
+
+        let planned = try XCTUnwrap(plan.component(withId: "book-more-menu-page"))
+        let props = try XCTUnwrap(planned.component.props)
+        XCTAssertEqual(Set(props.keys), ["subtitle", "title"])
+        XCTAssertEqual(props.string("title"), "深空信号")
+        XCTAssertEqual(props.string("subtitle"), "本地书籍")
+        XCTAssertTrue(planned.bindings.isEmpty)
+        XCTAssertTrue(planned.stateEventEvidence.isEmpty)
+        XCTAssertTrue(planned.children.isEmpty)
+        XCTAssertNil(ReaderScreenGraphButtonActionResolver.action(for: planned.component))
+        XCTAssertEqual(
+            ComponentRegistry.renderingDisposition(for: planned.component),
+            .visibleFailure(type: .bookMoreMenuPage, id: "book-more-menu-page")
+        )
+        XCTAssertFalse(ComponentRegistry.isRegistered(.bookMoreMenuPage))
+        XCTAssertEqual(
+            ReaderScreenGraphGenericComponentPolicy.visibleGapReasons[.bookMoreMenuPage]?.code,
+            "missing-action-model"
+        )
+
+        let catalog = try XCTUnwrap(
+            planner.registry.document.componentCatalog.first { $0.type == .bookMoreMenuPage }
+        )
+        XCTAssertEqual(catalog.status, .referenced)
+        XCTAssertEqual(catalog.instanceCount, 1)
+        XCTAssertEqual(catalog.routeIds, [.bookshelfBookMoreMenu])
+    }
+
+    func test97BindingsSeparate38ExecutableFrom59PlannedAnd19StateEventsStayReadOnly() throws {
         let planner = try ReaderScreenGraphHostPlanner()
         var bindingCount = 0
+        var selfBindingCount = 0
+        var semanticTargetBindingCount = 0
+        var executableBindingCount = 0
+        var plannedBindingCount = 0
         var stateEvidenceCount = 0
-        var executableGenericButtons = 0
+        var executableButtons = 0
+        var plannedButtons = 0
 
         for route in planner.registry.document.routes where route.status == .direct {
             for variant in route.variants {
@@ -287,23 +804,34 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
                 )
                 for component in flatten(plan.components) {
                     bindingCount += component.bindings.count
+                    selfBindingCount += component.bindings.filter { $0.target == "self" }.count
+                    semanticTargetBindingCount += component.bindings.filter { $0.target != "self" }.count
+                    executableBindingCount += component.bindings.filter(\.isExecutable).count
+                    plannedBindingCount += component.bindings.filter { !$0.isExecutable }.count
                     stateEvidenceCount += component.stateEventEvidence.count
-                    XCTAssertTrue(component.bindings.allSatisfy { $0.trigger == "tap" })
+                    XCTAssertTrue(component.bindings.allSatisfy {
+                        ["tap", "appear", "change", "submit"].contains($0.trigger)
+                    })
                     XCTAssertTrue(component.stateEventEvidence.allSatisfy {
                         $0.classification == "state-evidence"
                     })
 
-                    let action = ReaderScreenGraphGenericActionResolver.action(
+                    let action = ReaderScreenGraphButtonActionResolver.action(
                         for: component.component
                     )
                     if component.component.type == .button, let binding = component.bindings.first {
-                        let action = try XCTUnwrap(action, component.component.id ?? "button")
-                        XCTAssertEqual(action.event, binding.event)
-                        XCTAssertEqual(
-                            try canonicalJSON(AnyCodable(action.payload)),
-                            try canonicalJSON(AnyCodable(binding.payload))
-                        )
-                        executableGenericButtons += 1
+                        if binding.isExecutable {
+                            let action = try XCTUnwrap(action, component.component.id ?? "button")
+                            XCTAssertEqual(action.event, binding.event)
+                            XCTAssertEqual(
+                                try canonicalJSON(AnyCodable(action.payload)),
+                                try canonicalJSON(AnyCodable(binding.payload))
+                            )
+                            executableButtons += 1
+                        } else {
+                            XCTAssertNil(action, component.component.id ?? "button")
+                            plannedButtons += 1
+                        }
                     } else {
                         XCTAssertNil(action, component.component.id ?? component.component.type.rawValue)
                     }
@@ -315,24 +843,29 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(bindingCount, 36)
+        XCTAssertEqual(bindingCount, 97)
+        XCTAssertEqual(selfBindingCount, 36)
+        XCTAssertEqual(semanticTargetBindingCount, 61)
+        XCTAssertEqual(executableBindingCount, 38)
+        XCTAssertEqual(plannedBindingCount, 59)
         XCTAssertEqual(stateEvidenceCount, 19)
-        XCTAssertEqual(executableGenericButtons, 31)
+        XCTAssertEqual(executableButtons, 19)
+        XCTAssertEqual(plannedButtons, 38)
     }
 
-    func testGenericFamiliesExposeSemanticPropsRecursiveChildrenCallbackAndAccessibility() throws {
+    func testGenericFamiliesAndDedicatedButtonExposeSemanticPropsCallbackAndAccessibility() throws {
         ComponentRegistry.reset()
         ComponentRegistry.bootstrapAllSlices()
         let planner = try ReaderScreenGraphHostPlanner()
 
-        let listPlan = try planner.plan(routeId: .bookshelfListMode)
-        let list = try XCTUnwrap(listPlan.component(withId: "book-list"))
+        let listPlan = try planner.plan(routeId: .readerReplacePage)
+        let list = try XCTUnwrap(listPlan.component(withId: "reader_replace_page-state"))
         XCTAssertEqual(list.component.type, .list)
-        XCTAssertEqual(list.children.map(\.component.type), [.listRow, .listRow])
-        XCTAssertEqual(list.children.first?.component.props?.string("title"), "长夜余火")
+        XCTAssertTrue(list.children.isEmpty)
+        XCTAssertEqual(list.component.props?.string("title"), "替换规则管理")
         XCTAssertTrue(
             ReaderScreenGraphGenericAccessibility.identifier(for: list.component)
-                .hasSuffix("List-book-list")
+                .hasSuffix("List-reader_replace_page-state")
         )
         _ = ReaderScreenGraphGenericComponentView(component: list.component)
 
@@ -346,7 +879,7 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         let themePlan = try planner.plan(routeId: .readerThemeNew)
         let button = try XCTUnwrap(themePlan.component(withId: "reader_theme_new-confirm"))
         let action = try XCTUnwrap(
-            ReaderScreenGraphGenericActionResolver.action(for: button.component)
+            ReaderScreenGraphButtonActionResolver.action(for: button.component)
         )
         var received: UiEvent?
         let callback: (UiEvent) -> Void = { received = $0 }
@@ -363,10 +896,10 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         )
         XCTAssertEqual(evidence.component.props?.string("title"), "部分导入成功")
         XCTAssertEqual(evidence.component.props?.string("uiEventTrigger"), "state-evidence")
-        XCTAssertNil(ReaderScreenGraphGenericActionResolver.action(for: evidence.component))
+        XCTAssertNil(ReaderScreenGraphButtonActionResolver.action(for: evidence.component))
     }
 
-    func testUnknownRouteAndUnsupportedReferencedPrimitiveFailClosedVisibly() throws {
+    func testUnknownRouteAndRawHostCompositeWithoutHostAdapterFailClosedVisibly() throws {
         let planner = try ReaderScreenGraphHostPlanner()
         let unknown = try JSONDecoder().decode(
             ViewState.self,
@@ -399,11 +932,11 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         let failure = UnsupportedComponentFailureView(
             type: .tapZones,
             componentId: "missing-tap-zones",
-            reason: "missing-tap-zone-definitions"
+            reason: "host-composite-requires-host-adapter"
         )
         XCTAssertEqual(failure.type, .tapZones)
         XCTAssertEqual(failure.componentId, "missing-tap-zones")
-        XCTAssertEqual(failure.reason, "missing-tap-zone-definitions")
+        XCTAssertEqual(failure.reason, "host-composite-requires-host-adapter")
     }
 
     func testProductionHostAndContract25EntriesConsumeShadowWithoutPromotion() throws {
@@ -477,7 +1010,35 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
         for (source, target) in zip(canonical, planned) {
             XCTAssertEqual(source.id, target.component.id, routeId, file: file, line: line)
             XCTAssertEqual(source.type, target.component.type, routeId, file: file, line: line)
+            XCTAssertEqual(
+                source.stateAuthorities,
+                target.stateAuthorities,
+                routeId,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                source.compositionMode,
+                target.compositionMode.rawValue,
+                routeId,
+                file: file,
+                line: line
+            )
             XCTAssertEqual(source.bindings.count, target.bindings.count, routeId, file: file, line: line)
+            XCTAssertEqual(
+                source.bindings.map(\.target),
+                target.bindings.map(\.target),
+                routeId,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                source.bindings.map(\.target),
+                target.component.bindings?.map(\.target) ?? [],
+                routeId,
+                file: file,
+                line: line
+            )
             XCTAssertEqual(
                 source.stateEventEvidence.count,
                 target.stateEventEvidence.count,
@@ -486,6 +1047,22 @@ final class ReaderScreenGraphHostPlannerTests: XCTestCase {
                 line: line
             )
             XCTAssertEqual(source.children.count, target.children.count, routeId, file: file, line: line)
+            if target.compositionMode == .hostComposite {
+                XCTAssertTrue(
+                    target.component.children?.isEmpty == true,
+                    routeId,
+                    file: file,
+                    line: line
+                )
+            } else {
+                XCTAssertEqual(
+                    source.children.count,
+                    target.component.children?.count ?? 0,
+                    routeId,
+                    file: file,
+                    line: line
+                )
+            }
             assertSameTree(source.children, target.children, routeId: routeId, file: file, line: line)
         }
     }

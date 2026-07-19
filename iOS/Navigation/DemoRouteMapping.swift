@@ -137,11 +137,14 @@ public enum DemoRouteMappings {
         "rss-favorite-add", "rss-favorite-remove",
         // Reader UI 2.5 local-import flow states
         "import-permission-denied", "import-format-unsupported", "import-empty-file", "import-parsing",
-        "import-duplicate", "import-conflict-resolve", "import-partial-success", "import-result-detail"
+        "import-duplicate", "import-conflict-resolve", "import-partial-success", "import-result-detail",
+        // Reader UI 3.0 capability-complete library structures
+        "local-format-support", "book-cover-change", "book-cover-search", "chapter-reviews",
+        "bookmarks-manager", "download-queue", "download-task-detail"
     ]
 
     public static let expectedSettingsShellRoutes: [String] = [
-        "discover-rule-test", "discover-source-bulk", "settings-general", "bookshelf-search-settings", "about-feedback", "sync-backup",
+        "discover-rule-test", "discover-source-bulk", "settings-general", "settings-developer", "bookshelf-search-settings", "about-feedback", "sync-backup",
         "webdav-config", "restore-confirm", "restore-progress", "restore-conflict", "restore-result", "source-management",
         "source-import-options", "source-import-preview", "source-batch", "source-groups", "source-detail", "source-detect",
         "source-rule-edit", "source-debug", "source-debug-search-result", "source-debug-detail-result", "source-debug-catalog-result", "source-debug-content-log",
@@ -156,7 +159,10 @@ public enum DemoRouteMappings {
         "source-settings-entry", "sync-settings-entry", "reading-settings-entry",
         "progress-sync", "progress-sync-status", "sync-error",
         "backup-settings", "remote-webdav-books",
-        "about", "about-version"
+        "about", "about-version",
+        // Reader UI 3.0 capability-complete settings structures
+        "http-tts-management", "http-tts-editor", "http-tts-test", "storage-management",
+        "settings-tts", "settings-storage", "settings-accessibility"
     ]
 
     public static let expectedReaderShellRoutes: [String] = [
@@ -177,7 +183,9 @@ public enum DemoRouteMappings {
         "reader-toc-loading", "reader-toc-offline", "reader-toc-error",
         "reader-content-loading", "reader-content-offline", "reader-content-error",
         "reader-page-boundary-first", "reader-page-boundary-last", "reader-progress-restore",
-        "reader-background-restore"
+        "reader-background-restore",
+        // Reader UI 3.0 platform-owned reading structures
+        "pdf-reader", "manga-reader", "content-edit"
     ]
 
     public static let expectedFlowShellRoutes: [String] = [
@@ -186,7 +194,10 @@ public enum DemoRouteMappings {
         "source-switch-results",
         // Reader UI 2.5 source-switch states
         "source-switch-empty", "source-switch-error", "source-switch-timeout",
-        "source-switch-loading", "source-switch-rollback", "source-switch-preview"
+        "source-switch-loading", "source-switch-rollback", "source-switch-preview",
+        // Reader UI 3.0 onboarding and WebView capability structures
+        "onboarding-welcome", "onboarding-capability-setup", "permission-recovery",
+        "webview-login", "webview-captcha", "webview-challenge", "webview-cookie-return"
     ]
 
     public static let expectedRoutesByShell: [(shell: String, routes: [String])] = [
@@ -255,6 +266,7 @@ public enum DemoRouteMappings {
             guard route != "immersive-reading", route != "reader" else { return false }
             guard let routeId = ReaderUIContract.RouteId(rawValue: route) else { return true }
             return ReaderContract25RouteRegistry.page(for: routeId) == nil
+                && ReaderContract30RouteRegistry.page(for: routeId) == nil
         }
         .map { route in
             DemoRouteMapping(
@@ -270,6 +282,10 @@ public enum DemoRouteMappings {
         }
 
     private static let settingsFeatureMappings: [DemoRouteMapping] = expectedSettingsShellRoutes
+        .filter { route in
+            guard let routeId = ReaderUIContract.RouteId(rawValue: route) else { return true }
+            return ReaderContract30RouteRegistry.page(for: routeId) == nil
+        }
         .map { route in
             DemoRouteMapping(
                 demoRoute: route,
@@ -1062,7 +1078,40 @@ public enum DemoRouteMappings {
         )
     }
 
-    private static let concreteMappings: [DemoRouteMapping] = baseConcreteMappings + discoverFeatureMappings + libraryFeatureMappings + readerFeatureMappings + settingsFeatureMappings + closedPlannedRouteMappings + contract25Mappings
+    /// Reader UI 3.0 additions are explicit Native structural plans. ScreenGraph remains shadow
+    /// authority; the registry and component adapters expose the complete hierarchy while the
+    /// generated runtime contract keeps planned actions fail-closed.
+    private static let contract30Mappings: [DemoRouteMapping] = ReaderContract30RouteRegistry.all.map { page in
+        let slice: Int
+        switch page.shell {
+        case .libraryShell: slice = 2
+        case .readerShell: slice = 3
+        case .settingsShell: slice = 6
+        case .flowShell: slice = 7
+        case .mainTabShell: slice = 1
+        }
+
+        return DemoRouteMapping(
+            demoRoute: page.routeId.rawValue,
+            slice: slice,
+            shell: page.shell.rawValue,
+            platformTarget: .featureState(
+                "ReaderContract30RouteRegistry -> ReaderScreenGraphHostPlanner(\(page.renderer.rawValue))"
+            ),
+            stateModel: "ReaderContract30RouteRegistry + canonical ScreenGraph ViewState tree + ComponentRegistry structural adapters + generated ReaderUIRuntime typed binding admission",
+            navigationEntry: "route resolves to its explicit canonical shell/tree; runtime-implemented bindings may dispatch and planned bindings stay visible but disabled",
+            motionIDs: page.shell == .readerShell
+                ? ["reader.module.switch", "state.content.replace"]
+                : ["app.route.push.forward", "state.content.replace"],
+            acceptanceTests: [
+                "ReaderContract30RouteRegistryTests",
+                "ReaderScreenGraphHostPlannerTests",
+                "DemoRouteMappingTests"
+            ]
+        )
+    }
+
+    private static let concreteMappings: [DemoRouteMapping] = baseConcreteMappings + discoverFeatureMappings + libraryFeatureMappings + readerFeatureMappings + settingsFeatureMappings + closedPlannedRouteMappings + contract25Mappings + contract30Mappings
 
     private static var concreteRouteNames: Set<String> {
         Set(concreteMappings.map(\.demoRoute))

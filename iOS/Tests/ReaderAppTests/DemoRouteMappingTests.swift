@@ -1,4 +1,5 @@
 import XCTest
+import ReaderUIContract
 @testable import ReaderApp
 
 @MainActor
@@ -294,7 +295,9 @@ final class DemoRouteMappingTests: XCTestCase {
 
     func testReaderShellRoutesMapToFeatureStatesNotMainTabs() {
         let readerRoutes = DemoRouteMappings.expectedReaderShellRoutes.filter {
-            $0 != "immersive-reading" && $0 != "reader"
+            guard $0 != "immersive-reading", $0 != "reader" else { return false }
+            guard let routeId = ReaderUIContract.RouteId(rawValue: $0) else { return true }
+            return ReaderContract30RouteRegistry.page(for: routeId) == nil
         }
         XCTAssertEqual(readerRoutes.count, 49)
 
@@ -320,8 +323,11 @@ final class DemoRouteMappingTests: XCTestCase {
     }
 
     func testSettingsShellRoutesMapToFeatureStatesNotMainTabs() {
-        let settingsRoutes = DemoRouteMappings.expectedSettingsShellRoutes
-        XCTAssertEqual(settingsRoutes.count, 54)
+        let settingsRoutes = DemoRouteMappings.expectedSettingsShellRoutes.filter { route in
+            guard let routeId = ReaderUIContract.RouteId(rawValue: route) else { return true }
+            return ReaderContract30RouteRegistry.page(for: routeId) == nil
+        }
+        XCTAssertEqual(settingsRoutes.count, 55)
 
         for route in settingsRoutes {
             let mapping = DemoRouteMappings.mapping(for: route)
@@ -532,7 +538,7 @@ final class DemoRouteMappingTests: XCTestCase {
     }
 
     func testAllDemoContractRoutesAreOwnedByIOSMapping() {
-        XCTAssertEqual(DemoRouteMappings.expectedRouteCount, 235)
+        XCTAssertEqual(DemoRouteMappings.expectedRouteCount, 260)
         XCTAssertEqual(DemoRouteMappings.all.count, DemoRouteMappings.expectedRouteCount)
 
         let mappedRoutes = Set(DemoRouteMappings.all.map(\.demoRoute))
@@ -548,10 +554,10 @@ final class DemoRouteMappingTests: XCTestCase {
             .mapValues(\.count)
 
         XCTAssertEqual(counts["MainTabShell"], 48)
-        XCTAssertEqual(counts["LibraryShell"], 74)
-        XCTAssertEqual(counts["SettingsShell"], 54)
-        XCTAssertEqual(counts["ReaderShell"], 51)
-        XCTAssertEqual(counts["FlowShell"], 8)
+        XCTAssertEqual(counts["LibraryShell"], 81)
+        XCTAssertEqual(counts["SettingsShell"], 62)
+        XCTAssertEqual(counts["ReaderShell"], 54)
+        XCTAssertEqual(counts["FlowShell"], 15)
     }
 
     func testNoUnimplementedRoutesRemainPlanned() {

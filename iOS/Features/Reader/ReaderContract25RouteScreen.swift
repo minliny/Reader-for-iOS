@@ -8,6 +8,7 @@ import ReaderAppSupport
 /// intentionally exhaustive and has no generic fallback, so a new renderer family cannot become
 /// a silent placeholder.
 struct ReaderContract25RouteScreen: View {
+    @Environment(\.readerThemePalette) private var palette
     @State private var navigation: ReaderContract25RouteNavigation
     private let onNavigate: ((ReaderUIContract.RouteId) -> Void)?
     private let onExit: (() -> Void)?
@@ -61,17 +62,16 @@ struct ReaderContract25RouteScreen: View {
         _ page: ReaderContract25RoutePage,
         icon: ReaderAssetIcon
     ) -> some View {
-        GeometryReader { proxy in
+        precondition(
+            page.renderer.usesHostReadingBackground,
+            "Reader state surface must use a Host-owned reading background"
+        )
+        return GeometryReader { proxy in
             let layout = ReaderResponsiveLayout.make(size: proxy.size)
             DemoReaderShell(layout: layout) {
                 ZStack {
-                    LinearGradient(
-                        colors: [
-                            ReaderDesignTokens.Color.readerPaperGradientStart,
-                            ReaderDesignTokens.Color.readerPaperGradientEnd
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
+                    ReaderScreenGraphReadingBackgroundLayerPresentation.backgroundColor(
+                        for: palette
                     )
                     .ignoresSafeArea()
 

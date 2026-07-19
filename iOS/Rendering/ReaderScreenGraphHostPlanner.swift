@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import ReaderUIContract
+import ReaderUIRuntime
 import SwiftUI
 
 /// Canonical facts verified when the production shadow planner is initialized.
@@ -16,6 +17,8 @@ public struct ReaderScreenGraphCanonicalMetrics: Equatable, Sendable {
     public let variantCount: Int
     public let recursiveComponentCount: Int
     public let bindingCount: Int
+    public let executableBindingCount: Int
+    public let plannedFailClosedBindingCount: Int
     public let stateEventEvidenceCount: Int
     public let eventReferenceCount: Int
     public let referencedComponentTypeCount: Int
@@ -64,11 +67,64 @@ public enum ReaderScreenGraphRenderAuthority: String, Equatable, Sendable {
     case shadow
 }
 
+public enum ReaderScreenGraphCompositionMode: String, Equatable, Sendable {
+    case contractTree = "contract-tree"
+    case hostComposite = "host-composite"
+}
+
+/// Runtime admission is derived from Reader UI's generated 63-action typed payload registry.
+/// A canonical UiEvent without a generated runtime contract remains visible for planning and
+/// audit, but it must never become a Native callback.
+public enum ReaderScreenGraphBindingDisposition: String, Equatable, Sendable {
+    case executableRuntime = "executable-runtime"
+    case plannedFailClosed = "planned-fail-closed"
+}
+
+public enum ReaderScreenGraphRuntimeBindingPolicy {
+    public static func hasGeneratedContract(for event: UiEventType) -> Bool {
+        GeneratedRuntimeTypedPayloadContracts.byEvent[event.rawValue] != nil
+    }
+
+    public static func disposition(
+        event: UiEventType,
+        payload: [String: AnyCodable]
+    ) throws -> ReaderScreenGraphBindingDisposition {
+        guard hasGeneratedContract(for: event) else {
+            return .plannedFailClosed
+        }
+        let runtimePayload = try ReaderUIJSONBridge.payload(from: payload)
+        guard try validateReaderUITypedPayload(
+            event: event.rawValue,
+            payload: runtimePayload
+        ) != nil else {
+            return .plannedFailClosed
+        }
+        return .executableRuntime
+    }
+
+    public static func isExecutable(
+        event: UiEventType,
+        payload: [String: AnyCodable]
+    ) -> Bool {
+        (try? disposition(event: event, payload: payload)) == .executableRuntime
+    }
+}
+
+public enum ReaderTapZoneTarget: String, CaseIterable, Equatable, Sendable {
+    case previous
+    case control
+    case next
+}
+
 public struct ReaderScreenGraphPlannedBinding: Sendable {
+    public let target: String
     public let event: UiEventType
     public let payload: [String: AnyCodable]
     public let evidenceProperty: String
     public let trigger: String
+    public let disposition: ReaderScreenGraphBindingDisposition
+
+    public var isExecutable: Bool { disposition == .executableRuntime }
 }
 
 public struct ReaderScreenGraphPlannedStateEventEvidence: Sendable {
@@ -80,6 +136,8 @@ public struct ReaderScreenGraphPlannedStateEventEvidence: Sendable {
 
 public struct ReaderScreenGraphPlannedComponent: Sendable {
     public let component: ViewStateComponent
+    public let stateAuthorities: [String]
+    public let compositionMode: ReaderScreenGraphCompositionMode
     public let bindings: [ReaderScreenGraphPlannedBinding]
     public let stateEventEvidence: [ReaderScreenGraphPlannedStateEventEvidence]
     public let children: [ReaderScreenGraphPlannedComponent]
@@ -90,6 +148,16 @@ public struct ReaderScreenGraphPlannedComponent: Sendable {
 
     public var recursiveBindingCount: Int {
         bindings.count + children.reduce(0) { $0 + $1.recursiveBindingCount }
+    }
+
+    public var recursiveExecutableBindingCount: Int {
+        bindings.filter(\.isExecutable).count
+            + children.reduce(0) { $0 + $1.recursiveExecutableBindingCount }
+    }
+
+    public var recursivePlannedFailClosedBindingCount: Int {
+        bindings.filter { !$0.isExecutable }.count
+            + children.reduce(0) { $0 + $1.recursivePlannedFailClosedBindingCount }
     }
 
     public var recursiveStateEventEvidenceCount: Int {
@@ -128,6 +196,14 @@ public struct ReaderScreenGraphRoutePlan: Sendable {
         components.reduce(0) { $0 + $1.recursiveBindingCount }
     }
 
+    public var recursiveExecutableBindingCount: Int {
+        components.reduce(0) { $0 + $1.recursiveExecutableBindingCount }
+    }
+
+    public var recursivePlannedFailClosedBindingCount: Int {
+        components.reduce(0) { $0 + $1.recursivePlannedFailClosedBindingCount }
+    }
+
     public var recursiveStateEventEvidenceCount: Int {
         components.reduce(0) { $0 + $1.recursiveStateEventEvidenceCount }
     }
@@ -140,14 +216,15 @@ public struct ReaderScreenGraphRoutePlan: Sendable {
     }
 }
 
-/// Exact canonical-vs-native coverage. `supportedReferenced` is the real intersection with the
-/// existing Native registry; unsupported referenced primitives stay visible through fail-closed.
-/// Explicit gaps are reported separately and never receive a ScreenGraph adapter in R16.
+/// Exact canonical-vs-native coverage. `supportedReferenced` combines faithful Native renderers,
+/// conservative generic adapters, and separately audited Host-composite integrations. Unsupported
+/// referenced primitives stay visible through fail-closed. Explicit gaps are reported separately.
 public struct ReaderScreenGraphComponentCoverage: Sendable {
     public let canonicalReferenced: Set<ComponentType>
     public let canonicalExplicitGaps: Set<ComponentType>
     public let faithfulReferenced: Set<ComponentType>
     public let genericUsableReferenced: Set<ComponentType>
+    public let hostCompositeIntegratedReferenced: Set<ComponentType>
     public let supportedReferenced: Set<ComponentType>
     public let visibleReferencedGaps: Set<ComponentType>
     public let visibleGapReasons: [ComponentType: ReaderScreenGraphVisibleGapReason]
@@ -155,15 +232,15 @@ public struct ReaderScreenGraphComponentCoverage: Sendable {
     public let screenGraphAdapterTypes: Set<ComponentType>
     public let explicitGapAdapterTypes: Set<ComponentType>
 
-    /// "Full" means every referenced type is backed by a type-specific Native renderer. Generic
-    /// closure is useful but never promoted to faithful parity.
+    /// "Full" means every referenced type is either a faithful Native renderer or a reviewed
+    /// Host-composite integration. Generic closure is useful but never promoted to faithful parity.
     public var fullRenderer: Bool {
         visibleReferencedGaps.isEmpty && genericUsableReferenced.isEmpty
     }
 }
 
 public struct ReaderScreenGraphHostPlanner: Sendable {
-    public static let expectedCanonicalSHA256 = "6a9c9623d5cbef3a4a1fb1625b9503b3b20bbe01b74a4e16c6df34a0cd8f8f02"
+    public static let expectedCanonicalSHA256 = "78052471b2ab3ac2c5729499d7234c0a94e6e1273862e8b48528cc512e6b089e"
 
     public let registry: ScreenGraphRegistry
     public let metrics: ReaderScreenGraphCanonicalMetrics
@@ -186,15 +263,34 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
         var variantCount = 0
         var recursiveComponentCount = 0
         var bindingCount = 0
+        var executableBindingCount = 0
+        var plannedFailClosedBindingCount = 0
         var stateEventEvidenceCount = 0
         var actionGapCount = 0
+        let catalogByType = Dictionary(
+            uniqueKeysWithValues: registry.document.componentCatalog.map { ($0.type, $0) }
+        )
 
-        func walk(_ nodes: [ScreenGraphComponentNode]) {
+        func walk(_ nodes: [ScreenGraphComponentNode]) throws {
             for node in nodes {
+                guard let catalog = catalogByType[node.type],
+                      node.stateAuthorities == catalog.stateAuthorities,
+                      node.compositionMode == catalog.compositionMode else {
+                    throw ReaderScreenGraphPlannerError.canonicalIntegrity(
+                        "component metadata drift: \(node.id)"
+                    )
+                }
                 recursiveComponentCount += 1
                 bindingCount += node.bindings.count
+                for binding in node.bindings {
+                    if GeneratedRuntimeTypedPayloadContracts.byEvent[binding.event.rawValue] != nil {
+                        executableBindingCount += 1
+                    } else {
+                        plannedFailClosedBindingCount += 1
+                    }
+                }
                 stateEventEvidenceCount += node.stateEventEvidence.count
-                walk(node.children)
+                try walk(node.children)
             }
         }
 
@@ -202,7 +298,7 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
             variantCount += route.variants.count
             for variant in route.variants {
                 actionGapCount += variant.actionGaps.count
-                walk(variant.components)
+                try walk(variant.components)
             }
         }
 
@@ -219,6 +315,8 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
             variantCount: variantCount,
             recursiveComponentCount: recursiveComponentCount,
             bindingCount: bindingCount,
+            executableBindingCount: executableBindingCount,
+            plannedFailClosedBindingCount: plannedFailClosedBindingCount,
             stateEventEvidenceCount: stateEventEvidenceCount,
             eventReferenceCount: bindingCount + stateEventEvidenceCount,
             referencedComponentTypeCount: referencedCount,
@@ -228,16 +326,18 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
 
         let expected = ReaderScreenGraphCanonicalMetrics(
             sha256: Self.expectedCanonicalSHA256,
-            routeCount: 235,
-            directRouteCount: 159,
+            routeCount: 260,
+            directRouteCount: 184,
             aliasRouteCount: 76,
-            variantCount: 165,
-            recursiveComponentCount: 519,
-            bindingCount: 36,
+            variantCount: 190,
+            recursiveComponentCount: 615,
+            bindingCount: 97,
+            executableBindingCount: 38,
+            plannedFailClosedBindingCount: 59,
             stateEventEvidenceCount: 19,
-            eventReferenceCount: 55,
-            referencedComponentTypeCount: 129,
-            explicitGapComponentTypeCount: 45,
+            eventReferenceCount: 116,
+            referencedComponentTypeCount: 138,
+            explicitGapComponentTypeCount: 36,
             actionGapCount: 6
         )
 
@@ -270,9 +370,14 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
                 .filter { $0.status == .explicitGap }
                 .map(\.type)
         )
-        let faithful = referenced.intersection(registeredTypes.subtracting(genericRendererTypes))
+        let hostComposite = referenced.intersection(
+            ReaderScreenGraphHostCompositePolicy.integratedTypes
+        )
+        let faithful = referenced
+            .intersection(registeredTypes.subtracting(genericRendererTypes))
+            .subtracting(hostComposite)
         let generic = referenced.intersection(genericRendererTypes)
-        let supported = faithful.union(generic)
+        let supported = faithful.union(generic).union(hostComposite)
         let visible = referenced.subtracting(supported)
         let reasons = ReaderScreenGraphGenericComponentPolicy.visibleGapReasons.filter {
             visible.contains($0.key)
@@ -282,6 +387,7 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
             canonicalExplicitGaps: explicitGaps,
             faithfulReferenced: faithful,
             genericUsableReferenced: generic,
+            hostCompositeIntegratedReferenced: hostComposite,
             supportedReferenced: supported,
             visibleReferencedGaps: visible,
             visibleGapReasons: reasons,
@@ -389,17 +495,40 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
     private static func convertComponent(
         _ node: ScreenGraphComponentNode
     ) throws -> ReaderScreenGraphPlannedComponent {
+        guard let compositionMode = ReaderScreenGraphCompositionMode(rawValue: node.compositionMode) else {
+            throw ReaderScreenGraphPlannerError.componentConversion(
+                componentId: node.id,
+                reason: "unsupported compositionMode \(node.compositionMode)"
+            )
+        }
+        guard !node.stateAuthorities.isEmpty,
+              node.stateAuthorities.allSatisfy({ !$0.isEmpty }) else {
+            throw ReaderScreenGraphPlannerError.componentConversion(
+                componentId: node.id,
+                reason: "stateAuthorities must be non-empty"
+            )
+        }
+        // Preserve the canonical tree for audit/count/target lookup. The ViewState projection
+        // below intentionally drops these descendants for host-composite nodes so the generic
+        // renderer cannot recursively fabricate a second Host-owned surface.
         let children = try node.children.map(convertComponent)
         let props = try convertObject(node.props, path: "component.\(node.id).props")
         let bindings = try node.bindings.enumerated().map { index, binding in
-            ReaderScreenGraphPlannedBinding(
+            let payload = try convertObject(
+                binding.payload,
+                path: "component.\(node.id).bindings[\(index)].payload"
+            )
+            return ReaderScreenGraphPlannedBinding(
+                target: binding.target,
                 event: binding.event,
-                payload: try convertObject(
-                    binding.payload,
-                    path: "component.\(node.id).bindings[\(index)].payload"
-                ),
+                payload: payload,
                 evidenceProperty: binding.evidenceProperty,
-                trigger: binding.trigger
+                trigger: binding.trigger,
+                disposition: try bindingDisposition(
+                    event: binding.event,
+                    payload: payload,
+                    componentId: node.id
+                )
             )
         }
         let stateEventEvidence = try node.stateEventEvidence.enumerated().map { index, evidence in
@@ -414,33 +543,74 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
             )
         }
 
-        for binding in bindings {
-            guard binding.evidenceProperty == "uiEvent" else {
-                throw ReaderScreenGraphPlannerError.bindingMismatch(
-                    componentId: node.id,
-                    reason: "unexpected evidence property \(binding.evidenceProperty)"
-                )
+        switch compositionMode {
+        case .contractTree:
+            for binding in bindings {
+                switch binding.evidenceProperty {
+                case "uiEvent":
+                    guard binding.target == "self" else {
+                        throw ReaderScreenGraphPlannerError.bindingMismatch(
+                            componentId: node.id,
+                            reason: "uiEvent binding target must be self"
+                        )
+                    }
+                    guard props["uiEvent"]?.value as? String == binding.event.rawValue else {
+                        throw ReaderScreenGraphPlannerError.bindingMismatch(
+                            componentId: node.id,
+                            reason: "uiEvent prop does not match \(binding.event.rawValue)"
+                        )
+                    }
+                    guard binding.trigger == "tap",
+                          props["uiEventTrigger"]?.value as? String == binding.trigger else {
+                        throw ReaderScreenGraphPlannerError.bindingMismatch(
+                            componentId: node.id,
+                            reason: "uiEvent binding requires matching tap trigger"
+                        )
+                    }
+                    guard let payload = props["uiEventPayload"],
+                          try canonicalJSON(payload) == canonicalJSON(AnyCodable(binding.payload)) else {
+                        throw ReaderScreenGraphPlannerError.bindingMismatch(
+                            componentId: node.id,
+                            reason: "uiEventPayload prop does not match action binding"
+                        )
+                    }
+
+                case "explicitBinding":
+                    guard !binding.target.isEmpty, binding.target != "self" else {
+                        throw ReaderScreenGraphPlannerError.bindingMismatch(
+                            componentId: node.id,
+                            reason: "explicit binding requires a non-self semantic target"
+                        )
+                    }
+                    guard ["tap", "appear", "change", "submit"].contains(binding.trigger) else {
+                        throw ReaderScreenGraphPlannerError.bindingMismatch(
+                            componentId: node.id,
+                            reason: "unreviewed explicit binding trigger \(binding.trigger)"
+                        )
+                    }
+                    guard props["uiEvent"] == nil,
+                          props["uiEventPayload"] == nil,
+                          props["uiEventTrigger"] == nil else {
+                        throw ReaderScreenGraphPlannerError.bindingMismatch(
+                            componentId: node.id,
+                            reason: "explicit binding must not duplicate prop-derived uiEvent evidence"
+                        )
+                    }
+
+                default:
+                    throw ReaderScreenGraphPlannerError.bindingMismatch(
+                        componentId: node.id,
+                        reason: "unexpected evidence property \(binding.evidenceProperty)"
+                    )
+                }
             }
-            guard props["uiEvent"]?.value as? String == binding.event.rawValue else {
-                throw ReaderScreenGraphPlannerError.bindingMismatch(
-                    componentId: node.id,
-                    reason: "uiEvent prop does not match \(binding.event.rawValue)"
-                )
-            }
-            guard binding.trigger == "tap",
-                  props["uiEventTrigger"]?.value as? String == binding.trigger else {
-                throw ReaderScreenGraphPlannerError.bindingMismatch(
-                    componentId: node.id,
-                    reason: "executable binding requires matching tap trigger"
-                )
-            }
-            guard let payload = props["uiEventPayload"],
-                  try canonicalJSON(payload) == canonicalJSON(AnyCodable(binding.payload)) else {
-                throw ReaderScreenGraphPlannerError.bindingMismatch(
-                    componentId: node.id,
-                    reason: "uiEventPayload prop does not match action binding"
-                )
-            }
+        case .hostComposite:
+            try ReaderScreenGraphHostCompositePolicy.validate(
+                type: node.type,
+                componentId: node.id,
+                props: props,
+                bindings: bindings
+            )
         }
 
         for evidence in stateEventEvidence {
@@ -476,10 +646,13 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
             type: node.type,
             id: node.id,
             props: props,
-            children: children.map(\.component)
+            children: compositionMode == .contractTree ? children.map(\.component) : [],
+            bindings: bindings
         )
         return ReaderScreenGraphPlannedComponent(
             component: component,
+            stateAuthorities: node.stateAuthorities,
+            compositionMode: compositionMode,
             bindings: bindings,
             stateEventEvidence: stateEventEvidence,
             children: children
@@ -535,17 +708,39 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
         let id: String
         let props: [String: AnyCodable]
         let children: [ViewStateComponent]
+        let bindings: [ViewStateBindingWire]
+    }
+
+    private struct ViewStateBindingWire: Encodable {
+        let target: String
+        let event: String
+        let payload: [String: AnyCodable]
+        let trigger: String
     }
 
     private static func makeComponent(
         type: ComponentType,
         id: String,
         props: [String: AnyCodable],
-        children: [ViewStateComponent]
+        children: [ViewStateComponent],
+        bindings: [ReaderScreenGraphPlannedBinding]
     ) throws -> ViewStateComponent {
         do {
             let data = try JSONEncoder().encode(
-                ViewStateComponentWire(type: type, id: id, props: props, children: children)
+                ViewStateComponentWire(
+                    type: type,
+                    id: id,
+                    props: props,
+                    children: children,
+                    bindings: bindings.map {
+                        ViewStateBindingWire(
+                            target: $0.target,
+                            event: $0.event.rawValue,
+                            payload: $0.payload,
+                            trigger: $0.trigger
+                        )
+                    }
+                )
             )
             return try JSONDecoder().decode(ViewStateComponent.self, from: data)
         } catch {
@@ -591,6 +786,26 @@ public struct ReaderScreenGraphHostPlanner: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(value)
+    }
+
+    private static func bindingDisposition(
+        event: UiEventType,
+        payload: [String: AnyCodable],
+        componentId: String
+    ) throws -> ReaderScreenGraphBindingDisposition {
+        do {
+            return try ReaderScreenGraphRuntimeBindingPolicy.disposition(
+                event: event,
+                payload: payload
+            )
+        } catch let error as ReaderScreenGraphPlannerError {
+            throw error
+        } catch {
+            throw ReaderScreenGraphPlannerError.bindingMismatch(
+                componentId: componentId,
+                reason: "typed runtime payload rejected for \(event.rawValue): \(error)"
+            )
+        }
     }
 }
 

@@ -4,12 +4,12 @@ import ReaderUIContract
 
 @MainActor
 final class ReaderContract25RouteRegistryTests: XCTestCase {
-    func testNativeRegistryExactlyMatchesAll235GeneratedRoutes() {
+    func testNativeRegistryExactlyMatchesAll260GeneratedRoutes() {
         let generated = Set(ReaderUIContract.RouteId.allCases.map(\.rawValue))
         let native = Set(DemoRouteMappings.all.map(\.demoRoute))
 
-        XCTAssertEqual(ReaderUIContract.RouteId.allCases.count, 235)
-        XCTAssertEqual(DemoRouteMappings.all.count, 235)
+        XCTAssertEqual(ReaderUIContract.RouteId.allCases.count, 260)
+        XCTAssertEqual(DemoRouteMappings.all.count, 260)
         XCTAssertEqual(native, generated)
     }
 

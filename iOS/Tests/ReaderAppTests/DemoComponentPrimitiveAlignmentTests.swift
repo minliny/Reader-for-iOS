@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 import ReaderCoreModels
 import ReaderAppSupport
+import ReaderUIContract
 @testable import ReaderApp
 
 final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
@@ -438,8 +439,22 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
 
     @MainActor
     func testSettingsDemoFeatureStateViewsCanInitFromDemoRoutes() {
-        XCTAssertEqual(DemoRouteMappings.expectedSettingsShellRoutes.count, 54)
-        for route in DemoRouteMappings.expectedSettingsShellRoutes {
+        let canonicalRoutes = DemoRouteMappings.expectedSettingsShellRoutes.filter { route in
+            guard let routeId = ReaderUIContract.RouteId(rawValue: route) else { return true }
+            return ReaderContract30RouteRegistry.page(for: routeId) == nil
+        }
+        let mappedRoutes = DemoRouteMappings.all.compactMap { mapping -> String? in
+            guard mapping.shell == "SettingsShell" else { return nil }
+            guard case .featureState(let stateName) = mapping.platformTarget,
+                  stateName.contains("SettingsDemoShellView") else {
+                return nil
+            }
+            return mapping.demoRoute
+        }
+
+        XCTAssertEqual(canonicalRoutes.count, Set(canonicalRoutes).count)
+        XCTAssertEqual(Set(mappedRoutes), Set(canonicalRoutes))
+        for route in canonicalRoutes {
             let view = SettingsDemoShellView(demoRoute: route)
             XCTAssertNotNil(view)
         }
@@ -499,6 +514,41 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
         XCTAssertEqual(settings.backgroundMode, .sepia)
         ReaderAppearanceQuickAction.pageTurnMode(.paginated).apply(to: &settings)
         XCTAssertEqual(settings.pageTurnMode, .paginated)
+    }
+
+    func testReaderFullAppearanceThemeOrderAndColorsMatchReader2() {
+        XCTAssertEqual(ReaderAppearanceSpecRegistry.source.path, "Reader 2/Full/AppearanceContent")
+        XCTAssertEqual(
+            ReaderThemeResolver.fullAppearanceOptions.map { "\($0.themeId)|\($0.label)|\($0.isNight)" },
+            [
+                "blue|日间|false", "warm|暖白|false",
+                "blue|夜间|true", "warm|暖夜|true",
+                "paper|纸纹|false", "green|青叶纹|false",
+                "paper|夜纹|true", "green|林夜纹|true",
+            ]
+        )
+        XCTAssertEqual(ReaderThemeResolver.swatchHex(themeId: "blue", isNight: false), "#FFFFFF")
+        XCTAssertEqual(ReaderThemeResolver.swatchHex(themeId: "warm", isNight: true), "#302922")
+        XCTAssertEqual(ReaderThemeResolver.swatchHex(themeId: "paper", isNight: true), "#34302B")
+        XCTAssertEqual(ReaderThemeResolver.swatchHex(themeId: "green", isNight: true), "#263129")
+        XCTAssertEqual(
+            ReaderAppearanceSpecRegistry.fonts.map(\.label),
+            ["系统", "宋体", "黑体", "楷体", "仿宋", "等宽", "思源宋体", "霞鹜文楷", "+ 导入"]
+        )
+        XCTAssertEqual(
+            ReaderSettingsPanel.appearanceFontChoices.map(\.label),
+            ["系统", "宋体", "黑体", "楷体", "仿宋", "等宽", "思源宋体", "霞鹜文楷"]
+        )
+        XCTAssertEqual(ReaderSettingsPanel.appearanceFontLabel(for: ReaderDisplaySettings.demoSerifFontFamily), "宋体")
+        XCTAssertEqual(ReaderAppearanceSpecRegistry.steppers.map(\.defaultValue), [18, 1.96, 16, 0])
+        XCTAssertEqual(Double(ReaderDisplaySettings.default.fontSize), ReaderAppearanceSpecRegistry.stepper(id: "fontSize")?.defaultValue)
+        XCTAssertEqual(ReaderDisplaySettings.default.lineHeightRatio, ReaderAppearanceSpecRegistry.stepper(id: "lineHeight")?.defaultValue)
+        XCTAssertEqual(ReaderDisplaySettings.default.paragraphSpacing, ReaderAppearanceSpecRegistry.stepper(id: "paragraphGap")?.defaultValue)
+        XCTAssertEqual(ReaderDisplaySettings.default.letterSpacing, ReaderAppearanceSpecRegistry.stepper(id: "letterSpacing")?.defaultValue)
+        XCTAssertEqual(ReaderDisplaySettings.default.textConversion, ReaderAppearanceSpecRegistry.select(id: "textConversion")?.defaultValue)
+        XCTAssertEqual(ReaderDisplaySettings.default.textAlignment, ReaderAppearanceSpecRegistry.select(id: "textAlignment")?.defaultValue)
+        XCTAssertEqual(ReaderDisplaySettings.default.pageAnimation, ReaderAppearanceSpecRegistry.select(id: "pageAnimation")?.defaultValue)
+        XCTAssertEqual(ReaderDisplaySettings.default.readerThemeId, ReaderAppearanceSpecRegistry.defaults.dayThemeId)
     }
 
     func testReaderSettingsQuickActionsMutateDisplaySettings() {
@@ -944,11 +994,23 @@ final class DemoComponentPrimitiveAlignmentTests: XCTestCase {
 
     @MainActor
     func testReaderDemoFeatureStateViewsCanInitFromDemoRoutes() {
-        let routes = DemoRouteMappings.expectedReaderShellRoutes.filter {
-            $0 != "immersive-reading" && $0 != "reader"
+        let canonicalRoutes = DemoRouteMappings.expectedReaderShellRoutes.filter { route in
+            guard route != "immersive-reading", route != "reader" else { return false }
+            guard let routeId = ReaderUIContract.RouteId(rawValue: route) else { return true }
+            return ReaderContract30RouteRegistry.page(for: routeId) == nil
         }
-        XCTAssertEqual(routes.count, 49)
-        for route in routes {
+        let mappedRoutes = DemoRouteMappings.all.compactMap { mapping -> String? in
+            guard mapping.shell == "ReaderShell" else { return nil }
+            guard case .featureState(let stateName) = mapping.platformTarget,
+                  stateName.contains("ReaderDemoShellView") else {
+                return nil
+            }
+            return mapping.demoRoute
+        }
+
+        XCTAssertEqual(canonicalRoutes.count, Set(canonicalRoutes).count)
+        XCTAssertEqual(Set(mappedRoutes), Set(canonicalRoutes))
+        for route in canonicalRoutes {
             let view = ReaderDemoShellView(demoRoute: route)
             XCTAssertNotNil(view)
         }

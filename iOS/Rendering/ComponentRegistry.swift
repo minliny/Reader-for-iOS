@@ -189,6 +189,9 @@ public enum ComponentRegistry {
         registerSlice6Components()
         registerBookDetailComponents()
         registerReaderContract25Components()
+        registerReaderScreenGraphBoundaryComponents()
+        registerReaderScreenGraphButtonComponent()
+        registerReaderScreenGraphReadingBackgroundLayerComponent()
         registerReaderScreenGraphGenericComponents()
     }
 

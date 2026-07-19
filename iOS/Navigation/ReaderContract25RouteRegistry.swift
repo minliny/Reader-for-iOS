@@ -11,6 +11,17 @@ enum ReaderContract25Renderer: String, CaseIterable, Sendable {
     case sourceSwitchState
     case readerContentState
     case localImportState
+
+    /// These three ReaderShell families share the production full-page reading surface. Their
+    /// background is owned by the Host-injected ReaderThemePalette, never by route fixture state.
+    var usesHostReadingBackground: Bool {
+        switch self {
+        case .readerWorkspaceState, .readerReplacementState, .readerContentState:
+            return true
+        case .sourceSwitchState, .localImportState:
+            return false
+        }
+    }
 }
 
 struct ReaderContract25RouteAction: Equatable, Sendable {
@@ -189,9 +200,13 @@ enum ReaderContract25RouteRegistry {
 /// 35-route registry fills its currently missing shell metadata.
 enum ReaderNativeRouteShellLookup {
     static func shell(for routeId: String) -> ReaderUIContract.RouteShell? {
-        if let generatedRouteId = ReaderUIContract.RouteId(rawValue: routeId),
-           let page = ReaderContract25RouteRegistry.page(for: generatedRouteId) {
-            return page.shell
+        if let generatedRouteId = ReaderUIContract.RouteId(rawValue: routeId) {
+            if let page = ReaderContract30RouteRegistry.page(for: generatedRouteId) {
+                return page.shell
+            }
+            if let page = ReaderContract25RouteRegistry.page(for: generatedRouteId) {
+                return page.shell
+            }
         }
         return ReaderUIContract.RouteShellLookup.shell(for: routeId)
     }
