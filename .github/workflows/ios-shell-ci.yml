@@ -201,11 +201,13 @@ jobs:
           const sha256 = (value, label) => {
             if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) throw new Error(`${label} must be SHA-256`);
           };
-          exactKeys(payload, ['artifact', 'manifestSha256', 'releaseId', 'runtimeActionsSha256', 'source', 'tag', 'targetConfigSha256', 'version'], 'client_payload');
+          exactKeys(payload, ['artifact', 'manifestSha256', 'releaseId', 'runtimeActionsSha256', 'runtimePayloadContractsSchemaVersion', 'runtimePayloadContractsSha256', 'source', 'tag', 'targetConfigSha256', 'version'], 'client_payload');
           if (!/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(payload.version)) throw new Error('version is not canonical semver');
           if ((payload.version.split('-', 2)[1] || '').split('.').some((part) => /^0\d+$/.test(part))) throw new Error('numeric prerelease identifiers cannot contain leading zeroes');
           if (payload.tag !== `v${payload.version}`) throw new Error('tag does not match version');
           sha256(payload.runtimeActionsSha256, 'runtimeActionsSha256');
+          if (!Number.isSafeInteger(payload.runtimePayloadContractsSchemaVersion) || payload.runtimePayloadContractsSchemaVersion < 1) throw new Error('runtimePayloadContractsSchemaVersion must be a positive safe integer');
+          sha256(payload.runtimePayloadContractsSha256, 'runtimePayloadContractsSha256');
           sha256(payload.manifestSha256, 'manifestSha256');
           sha256(payload.targetConfigSha256, 'targetConfigSha256');
           exactKeys(payload.source, ['ref', 'repository', 'sha'], 'source');
@@ -297,21 +299,24 @@ jobs:
           const after = JSON.parse(fs.readFileSync(`${repository}/READER_UI_CONSUMER.json`, 'utf8'));
           const exactKeys = (value, expected, label) => {
             const actual = Object.keys(value).sort(); expected = [...expected].sort();
-            if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) throw new Error(`${label} keys changed outside the lock v2 contract`);
+            if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) throw new Error(`${label} keys changed outside the lock v3 contract`);
           };
-          exactKeys(after, ['blockedProof', 'host', 'hostRequestSchemaVersion', 'knownDifferences', 'readerUiVersion', 'releaseIdentity', 'rollout', 'runtimeActionsSchemaVersion', 'runtimeActionsSha256', 'schemaVersion'], 'consumer lock');
+          exactKeys(after, ['blockedProof', 'host', 'hostRequestSchemaVersion', 'knownDifferences', 'readerUiVersion', 'releaseIdentity', 'rollout', 'runtimeActionsSchemaVersion', 'runtimeActionsSha256', 'runtimePayloadContractsSchemaVersion', 'runtimePayloadContractsSha256', 'schemaVersion'], 'consumer lock');
           exactKeys(after.releaseIdentity, ['manifestSha256', 'releaseId', 'sourceSha', 'targetConfigSha256'], 'releaseIdentity');
           for (const field of ['host', 'rollout', 'knownDifferences', 'blockedProof']) {
             if (JSON.stringify(before[field]) !== JSON.stringify(after[field])) throw new Error(`protected lock field changed: ${field}`);
           }
-          if (after.schemaVersion !== 2 || after.readerUiVersion !== payload.version || after.runtimeActionsSha256 !== payload.runtimeActionsSha256) throw new Error('lock version/runtime identity does not match dispatch');
+          if (after.schemaVersion !== 3 || after.readerUiVersion !== payload.version || after.runtimeActionsSha256 !== payload.runtimeActionsSha256 || after.runtimePayloadContractsSchemaVersion !== payload.runtimePayloadContractsSchemaVersion || after.runtimePayloadContractsSha256 !== payload.runtimePayloadContractsSha256) throw new Error('lock version/runtime identity does not match dispatch');
           if (after.releaseIdentity.releaseId !== payload.releaseId || after.releaseIdentity.sourceSha !== payload.source.sha || after.releaseIdentity.manifestSha256 !== payload.manifestSha256 || after.releaseIdentity.targetConfigSha256 !== payload.targetConfigSha256) throw new Error('lock releaseIdentity does not match dispatch');
           const version = JSON.parse(fs.readFileSync('Reader-UI-release/source/contracts/VERSION.json', 'utf8'));
           const runtimeBytes = fs.readFileSync('Reader-UI-release/source/ui-spec/runtime-actions.json');
           const runtime = JSON.parse(runtimeBytes);
+          const payloadContractsBytes = fs.readFileSync('Reader-UI-release/source/ui-spec/runtime-payload-contracts.json');
+          const payloadContracts = JSON.parse(payloadContractsBytes);
           if (version.version !== payload.version) throw new Error('artifact VERSION.json does not match dispatch version');
-          if (version.schema?.['host-request'] !== after.hostRequestSchemaVersion || runtime.schemaVersion !== after.runtimeActionsSchemaVersion) throw new Error('lock schema versions do not match the release artifact');
+          if (version.schema?.['host-request'] !== after.hostRequestSchemaVersion || runtime.schemaVersion !== after.runtimeActionsSchemaVersion || payloadContracts.schemaVersion !== after.runtimePayloadContractsSchemaVersion) throw new Error('lock schema versions do not match the release artifact');
           if (crypto.createHash('sha256').update(runtimeBytes).digest('hex') !== payload.runtimeActionsSha256) throw new Error('artifact runtime actions do not match dispatch hash');
+          if (crypto.createHash('sha256').update(payloadContractsBytes).digest('hex') !== payload.runtimePayloadContractsSha256) throw new Error('artifact runtime payload contracts do not match dispatch hash');
           const status = execFileSync('git', ['-C', repository, 'status', '--porcelain=v1', '--untracked-files=all'], { encoding: 'utf8' }).trimEnd();
           const paths = status ? status.split(/\r?\n/).map((line) => line.slice(3)) : [];
           if (paths.length > 1 || (paths.length === 1 && paths[0] !== 'READER_UI_CONSUMER.json')) throw new Error(`host changes escaped the consumer lock: ${paths.join(',')}`);
