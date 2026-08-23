@@ -1,5 +1,0 @@
-module ReaderCore {
-    header "reader_core.h"
-    link "reader_core"
-    export *
-}
