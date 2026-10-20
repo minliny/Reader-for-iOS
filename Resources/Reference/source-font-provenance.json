@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "scope": "Source-switch static UI 400/500 versus original demo variable font at the same axes",
+  "tool": "FontTools 4.60.2; TTFont.getGlyphSet(location), RecordingPen",
+  "source": "../../../entry/src/main/resources/rawfile/NotoSansSC-VF.otf",
+  "sourceSha256": "d13ed01ec8aa45d6178999b648e96fb92150683e9f8e2a581f2acf208dcbe44b",
+  "sourceVersion": "Version 2.004;hotconv 1.0.118;makeotfexe 2.5.65603",
+  "sourceRevision": 2.003997802734375,
+  "unitsPerEm": 1000,
+  "coordinateToleranceInFontUnits": 0.015625,
+  "advanceToleranceInFontUnits": 0.5,
+  "advanceQuantizationNote": "Static hmtx stores integer advances; variable HVAR can expose fractional advances. Initial 1/64 advance check failed on space400 with delta0.4898681640625; this recorded check allows the corresponding half-unit integer rounding, while retaining the separate stricter outline tolerance.",
+  "assetsUnmodified": true,
+  "browserRendered": false,
+  "nativeRendered": false,
+  "outputs": [
+    {
+      "file": "../../../entry/src/main/resources/rawfile/NotoSansSC-UIRegular.otf",
+      "sha256": "26903423458d18bb9be20b12f7982a604118e10f10c62c83b45d10f04dfb939e",
+      "axis": {
+        "wght": 400
+      },
+      "fontVersion": "Version 2.004;hotconv 1.0.118;makeotfexe 2.5.65603",
+      "fontRevision": 2.003997802734375,
+      "glyphCount": 31036,
+      "unicodeCount": 30890,
+      "coverageAndGlyphOrderMatch": true,
+      "licenseAndCopyrightMatch": true,
+      "staticWeight": 400,
+      "retainedPostScriptName": "NotoSansSC-Thin",
+      "postScriptNameNote": "The inherited Thin name is metadata; the shared reference uses the same explicitly registered static assets as native. Equivalence to original variable-font outlines is not claimed.",
+      "exactOutlineCount": 230,
+      "maximumOutlineDeltaInFontUnits": null,
+      "maximumAdvanceDeltaInFontUnits": 0.499267578125,
+      "unmatchedGlyphCount": 30806,
+      "firstUnmatchedGlyphs": [
+        {
+          "glyph": "exclam",
+          "outlineDelta": 0.900146484375,
+          "advanceDelta": 0.418212890625
+        },
+        {
+          "glyph": "quotedbl",
+          "outlineDelta": 1.0,
+          "advanceDelta": 0.2337646484375
+        },
+        {
+          "glyph": "numbersign",
+          "outlineDelta": 1.9298095703125,
+          "advanceDelta": 0.3212890625
+        },
+        {
+          "glyph": "dollar",
+          "outlineDelta": 1.35888671875,
+          "advanceDelta": 0.3212890625
+        },
+        {
+          "glyph": "percent",
+          "outlineDelta": 1.71923828125,
+          "advanceDelta": 0.341552734375
+        },
+        {
+          "glyph": "ampersand",
+          "outlineDelta": 1.901611328125,
+          "advanceDelta": 0.2822265625
+        },
+        {
+          "glyph": "quotesingle",
+          "outlineDelta": 1.0,
+          "advanceDelta": 0.1982421875
+        },
+        {
+          "glyph": "parenleft",
+          "outlineDelta": 1.780029296875,
+          "advanceDelta": 0.3914794921875
+        },
+        {
+          "glyph": "parenright",
+          "outlineDelta": 0.780029296875,
+          "advanceDelta": 0.3914794921875
+        },
+        {
+          "glyph": "asterisk",
+          "outlineDelta": 1.0904541015625,
+          "advanceDelta": 0.218505859375
+        }
+      ],
+      "status": "FAILED_OUTLINE_EQUIVALENCE",
+      "maximumOutlineDeltaReason": "At least one RecordingPen command topology/length mismatch; a finite coordinate delta does not represent that comparison."
+    },
+    {
+      "file": "../../../entry/src/main/resources/rawfile/NotoSansSC-UIMedium.otf",
+      "sha256": "319a7e09915410a00906741980b6afabe5fe23ae3b46052570b9cdd2b20c715d",
+      "axis": {
+        "wght": 500
+      },
+      "fontVersion": "Version 2.004;hotconv 1.0.118;makeotfexe 2.5.65603",
+      "fontRevision": 2.003997802734375,
+      "glyphCount": 31036,
+      "unicodeCount": 30890,
+      "coverageAndGlyphOrderMatch": true,
+      "licenseAndCopyrightMatch": true,
+      "staticWeight": 500,
+      "retainedPostScriptName": "NotoSansSC-Thin",
+      "postScriptNameNote": "The inherited Thin name is metadata; the shared reference uses the same explicitly registered static assets as native. Equivalence to original variable-font outlines is not claimed.",
+      "exactOutlineCount": 230,
+      "maximumOutlineDeltaInFontUnits": null,
+      "maximumAdvanceDeltaInFontUnits": 0.480224609375,
+      "unmatchedGlyphCount": 30805,
+      "firstUnmatchedGlyphs": [
+        {
+          "glyph": "exclam",
+          "outlineDelta": 2.5596923828125,
+          "advanceDelta": 0.3197021484375
+        },
+        {
+          "glyph": "quotedbl",
+          "outlineDelta": 1.71966552734375,
+          "advanceDelta": 0.08062744140625
+        },
+        {
+          "glyph": "numbersign",
+          "outlineDelta": 0.84002685546875,
+          "advanceDelta": 0.27978515625
+        },
+        {
+          "glyph": "dollar",
+          "outlineDelta": 4.11981201171875,
+          "advanceDelta": 0.27978515625
+        },
+        {
+          "glyph": "percent",
+          "outlineDelta": 1.67987060546875,
+          "advanceDelta": 0.3597412109375
+        },
+        {
+          "glyph": "ampersand",
+          "outlineDelta": 2.44000244140625,
+          "advanceDelta": 0.11962890625
+        },
+        {
+          "glyph": "quotesingle",
+          "outlineDelta": 1.0,
+          "advanceDelta": 0.19970703125
+        },
+        {
+          "glyph": "parenleft",
+          "outlineDelta": 2.1199951171875,
+          "advanceDelta": 0.44024658203125
+        },
+        {
+          "glyph": "parenright",
+          "outlineDelta": 2.63995361328125,
+          "advanceDelta": 0.44024658203125
+        },
+        {
+          "glyph": "asterisk",
+          "outlineDelta": 1.47979736328125,
+          "advanceDelta": 0.1197509765625
+        }
+      ],
+      "status": "FAILED_OUTLINE_EQUIVALENCE",
+      "maximumOutlineDeltaReason": "At least one RecordingPen command topology/length mismatch; a finite coordinate delta does not represent that comparison."
+    }
+  ],
+  "status": "FAILED_OUTLINE_EQUIVALENCE",
+  "sameUpstreamVersionAndCoverage": true,
+  "originalVariableToStaticOutlineEquivalence": false,
+  "normalizationNote": "Existing full-glyph result normalized to strict JSON; no scan rerun or tolerance relaxation after the failed outline check."
+}

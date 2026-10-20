@@ -1,0 +1,3219 @@
+{
+  "schemaVersion": 1,
+  "baseline": {
+    "Reader-for-HarmonyOS": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+    "Reader-UI": "95366cd93775ea0ad3ecbc0f60e8882717f93169",
+    "Reader-Core": "2a301653c140eef457e786fd6ab3bb9b8e3045c8"
+  },
+  "policy": "Frozen Git objects; no dirty UI input. SVG paths unchanged, rasterized by sharp/libvips at three display scales. UI fonts have identity-only name adaptation recorded per input; glyphs retain full cmap for dynamic titles and TXT.",
+  "inputs": [
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/NotoSerifSC-Regular.ttf",
+      "gitBlob": "af5de5b355b511d5554b4e8527d9c3a8fcdd2470",
+      "sha256": "9502147ceba7b5bc7fd3415083f6a5d133f22d8f9efb4974d4b85f3a97ea2d3a",
+      "bytes": 14854712,
+      "destination": "Fonts/NotoSerifSC-Regular.ttf",
+      "license": "OFL-1.1"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/NotoSerifSC-Bold.ttf",
+      "gitBlob": "ee0a8ee7ef4c6f780b25d5f6aefeb2cb24879ee5",
+      "sha256": "3fb07709c24ed05993636d0b137917ea0bae5cf976f157d5e258fd068399a894",
+      "bytes": 14853692,
+      "destination": "Fonts/NotoSerifSC-Bold.ttf",
+      "license": "OFL-1.1"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/NotoSansSC-UIRegular.otf",
+      "gitBlob": "e8deaaa81f0d3e473ccfca4c2000ed0a5a369ebd",
+      "sha256": "26903423458d18bb9be20b12f7982a604118e10f10c62c83b45d10f04dfb939e",
+      "bytes": 7715508,
+      "destination": "Fonts/NotoSansSC-UIRegular.otf",
+      "license": "OFL-1.1",
+      "transformation": {
+        "tool": "fonttools 4.60.2",
+        "reason": "The two frozen static UI faces share PostScript name NotoSansSC-Thin; iOS font registration requires distinct physical names.",
+        "operation": "Rename sfnt name-table family/style/full/PostScript identities only. All 15 other non-head tables, including CFF2 outlines, cmap, metrics, weight, and hinting, are byte-identical to the frozen source.",
+        "nameIDs": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          16,
+          17,
+          21,
+          22
+        ],
+        "postScriptName": "ReaderSansUI-Regular",
+        "sourceMetadata": {
+          "weight": 400,
+          "glyphs": 31036,
+          "cmap": 30890
+        },
+        "outputMetadata": {
+          "weight": 400,
+          "glyphs": 31036,
+          "cmap": 30890
+        },
+        "unchangedTableEvidence": {
+          "BASE": {
+            "sourceSha256": "8fc4a94e4a39c46aead8cf703a69e79975ce4d28190680a1fa095981712d4491",
+            "outputSha256": "8fc4a94e4a39c46aead8cf703a69e79975ce4d28190680a1fa095981712d4491",
+            "identical": true
+          },
+          "CFF2": {
+            "sourceSha256": "138032c4d3031c862fe6bf6bfe7e229d4250cfea5166132d03a1615532b0d3c0",
+            "outputSha256": "138032c4d3031c862fe6bf6bfe7e229d4250cfea5166132d03a1615532b0d3c0",
+            "identical": true
+          },
+          "GDEF": {
+            "sourceSha256": "6871504753d8c93a6ba6a03a7a82439ca10f087085b591da013eb0a2a8665016",
+            "outputSha256": "6871504753d8c93a6ba6a03a7a82439ca10f087085b591da013eb0a2a8665016",
+            "identical": true
+          },
+          "GPOS": {
+            "sourceSha256": "2a4f108a8b40e794d19df57248bfbbbc43a72c444d61faa05b2f87d46d3f39f1",
+            "outputSha256": "2a4f108a8b40e794d19df57248bfbbbc43a72c444d61faa05b2f87d46d3f39f1",
+            "identical": true
+          },
+          "GSUB": {
+            "sourceSha256": "c031a50c42a0af12273902921fef89660288cbb999e5c90aa855a9ba8301dc53",
+            "outputSha256": "c031a50c42a0af12273902921fef89660288cbb999e5c90aa855a9ba8301dc53",
+            "identical": true
+          },
+          "OS/2": {
+            "sourceSha256": "857ed51d94116ba3cd738acd2c0b3bbc54acedf35967d427feff3435af86332d",
+            "outputSha256": "857ed51d94116ba3cd738acd2c0b3bbc54acedf35967d427feff3435af86332d",
+            "identical": true
+          },
+          "STAT": {
+            "sourceSha256": "2615b455a24a7028cced8e1bcca0a02ef22346e4e4790fb9cda5313feb3a70e3",
+            "outputSha256": "2615b455a24a7028cced8e1bcca0a02ef22346e4e4790fb9cda5313feb3a70e3",
+            "identical": true
+          },
+          "VORG": {
+            "sourceSha256": "550918df8dad6d3047e7d5393ecd92b2a5a7e219558fd13cd369b40f05acc76b",
+            "outputSha256": "550918df8dad6d3047e7d5393ecd92b2a5a7e219558fd13cd369b40f05acc76b",
+            "identical": true
+          },
+          "cmap": {
+            "sourceSha256": "f4ce789020ae9f282718f1c4ef0f6c3551fcd4b08035e008bb5733c2948b5403",
+            "outputSha256": "f4ce789020ae9f282718f1c4ef0f6c3551fcd4b08035e008bb5733c2948b5403",
+            "identical": true
+          },
+          "hhea": {
+            "sourceSha256": "94790035411e75169196968f27ded2fccb071b52b717460c1a737fec1e9e1e20",
+            "outputSha256": "94790035411e75169196968f27ded2fccb071b52b717460c1a737fec1e9e1e20",
+            "identical": true
+          },
+          "hmtx": {
+            "sourceSha256": "0a9537edd5916c327ac9ce2522d6eed2f2a1f618347e03c8564408bf0069bd71",
+            "outputSha256": "0a9537edd5916c327ac9ce2522d6eed2f2a1f618347e03c8564408bf0069bd71",
+            "identical": true
+          },
+          "maxp": {
+            "sourceSha256": "b06a12d5d8feb62482eedc7d30907565f6625c8ec66dd918e4ee8a0ba13754b4",
+            "outputSha256": "b06a12d5d8feb62482eedc7d30907565f6625c8ec66dd918e4ee8a0ba13754b4",
+            "identical": true
+          },
+          "post": {
+            "sourceSha256": "22dd499f08932214bde96943f3882f3619324478217095c049b68a57c6c10693",
+            "outputSha256": "22dd499f08932214bde96943f3882f3619324478217095c049b68a57c6c10693",
+            "identical": true
+          },
+          "vhea": {
+            "sourceSha256": "6fa7acaec8a00a2cd7a04770c782d3efa46d85c11889bf2491c982d84bb84e20",
+            "outputSha256": "6fa7acaec8a00a2cd7a04770c782d3efa46d85c11889bf2491c982d84bb84e20",
+            "identical": true
+          },
+          "vmtx": {
+            "sourceSha256": "afb2e1c2877365f5c5de30ebd32284b52f7fc8f02c0e50518a8afa43ac5fe0dd",
+            "outputSha256": "afb2e1c2877365f5c5de30ebd32284b52f7fc8f02c0e50518a8afa43ac5fe0dd",
+            "identical": true
+          }
+        }
+      },
+      "destinationSha256": "0ca507797f882b129129efef5ac557b2adc09af98ecc369419ec024a7e92b364",
+      "destinationBytes": 7715624
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/NotoSansSC-UIBold.otf",
+      "gitBlob": "0daf987b6db68e09e2441578d5adfe082edefdcc",
+      "sha256": "995b908ebac24174fae7965b03324f21371dfe57bbfbe2794116d71ddde262cd",
+      "bytes": 7791444,
+      "destination": "Fonts/NotoSansSC-UIBold.otf",
+      "license": "OFL-1.1",
+      "transformation": {
+        "tool": "fonttools 4.60.2",
+        "reason": "The two frozen static UI faces share PostScript name NotoSansSC-Thin; iOS font registration requires distinct physical names.",
+        "operation": "Rename sfnt name-table family/style/full/PostScript identities only. All 15 other non-head tables, including CFF2 outlines, cmap, metrics, weight, and hinting, are byte-identical to the frozen source.",
+        "nameIDs": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          16,
+          17,
+          21,
+          22
+        ],
+        "postScriptName": "ReaderSansUI-Bold",
+        "sourceMetadata": {
+          "weight": 700,
+          "glyphs": 31036,
+          "cmap": 30890
+        },
+        "outputMetadata": {
+          "weight": 700,
+          "glyphs": 31036,
+          "cmap": 30890
+        },
+        "unchangedTableEvidence": {
+          "BASE": {
+            "sourceSha256": "8fc4a94e4a39c46aead8cf703a69e79975ce4d28190680a1fa095981712d4491",
+            "outputSha256": "8fc4a94e4a39c46aead8cf703a69e79975ce4d28190680a1fa095981712d4491",
+            "identical": true
+          },
+          "CFF2": {
+            "sourceSha256": "8b899627ba59cce3035cbc3d3844f50a9af5df665940cf96a8869d0a0888fa81",
+            "outputSha256": "8b899627ba59cce3035cbc3d3844f50a9af5df665940cf96a8869d0a0888fa81",
+            "identical": true
+          },
+          "GDEF": {
+            "sourceSha256": "6871504753d8c93a6ba6a03a7a82439ca10f087085b591da013eb0a2a8665016",
+            "outputSha256": "6871504753d8c93a6ba6a03a7a82439ca10f087085b591da013eb0a2a8665016",
+            "identical": true
+          },
+          "GPOS": {
+            "sourceSha256": "bf0ff8fffb9d97ea4f1cac4ac1d9d8377f76f146984d9a88374837ef84363bc7",
+            "outputSha256": "bf0ff8fffb9d97ea4f1cac4ac1d9d8377f76f146984d9a88374837ef84363bc7",
+            "identical": true
+          },
+          "GSUB": {
+            "sourceSha256": "c031a50c42a0af12273902921fef89660288cbb999e5c90aa855a9ba8301dc53",
+            "outputSha256": "c031a50c42a0af12273902921fef89660288cbb999e5c90aa855a9ba8301dc53",
+            "identical": true
+          },
+          "OS/2": {
+            "sourceSha256": "da6f44ec48e2980979a1ab3d2439b9347b476352d0674b096d6d5420810a3a0f",
+            "outputSha256": "da6f44ec48e2980979a1ab3d2439b9347b476352d0674b096d6d5420810a3a0f",
+            "identical": true
+          },
+          "STAT": {
+            "sourceSha256": "d89e875f121a9916e3967666bfdce587fa590367784ca0ebb58debf68d8fda81",
+            "outputSha256": "d89e875f121a9916e3967666bfdce587fa590367784ca0ebb58debf68d8fda81",
+            "identical": true
+          },
+          "VORG": {
+            "sourceSha256": "550918df8dad6d3047e7d5393ecd92b2a5a7e219558fd13cd369b40f05acc76b",
+            "outputSha256": "550918df8dad6d3047e7d5393ecd92b2a5a7e219558fd13cd369b40f05acc76b",
+            "identical": true
+          },
+          "cmap": {
+            "sourceSha256": "f4ce789020ae9f282718f1c4ef0f6c3551fcd4b08035e008bb5733c2948b5403",
+            "outputSha256": "f4ce789020ae9f282718f1c4ef0f6c3551fcd4b08035e008bb5733c2948b5403",
+            "identical": true
+          },
+          "hhea": {
+            "sourceSha256": "3e1ad3e28fb381d062f84b9594c3e240ad8b9f02b9c9717d8213fb01191a3d95",
+            "outputSha256": "3e1ad3e28fb381d062f84b9594c3e240ad8b9f02b9c9717d8213fb01191a3d95",
+            "identical": true
+          },
+          "hmtx": {
+            "sourceSha256": "02c3e7dae5beae8bef8fd33e06df18f767360c1a0bbd985a4a6d6ef4b8624fa5",
+            "outputSha256": "02c3e7dae5beae8bef8fd33e06df18f767360c1a0bbd985a4a6d6ef4b8624fa5",
+            "identical": true
+          },
+          "maxp": {
+            "sourceSha256": "b06a12d5d8feb62482eedc7d30907565f6625c8ec66dd918e4ee8a0ba13754b4",
+            "outputSha256": "b06a12d5d8feb62482eedc7d30907565f6625c8ec66dd918e4ee8a0ba13754b4",
+            "identical": true
+          },
+          "post": {
+            "sourceSha256": "22dd499f08932214bde96943f3882f3619324478217095c049b68a57c6c10693",
+            "outputSha256": "22dd499f08932214bde96943f3882f3619324478217095c049b68a57c6c10693",
+            "identical": true
+          },
+          "vhea": {
+            "sourceSha256": "bd616552ead6f87efb7128c2493e2001ca0b37370c9ad5695986874b9da51a35",
+            "outputSha256": "bd616552ead6f87efb7128c2493e2001ca0b37370c9ad5695986874b9da51a35",
+            "identical": true
+          },
+          "vmtx": {
+            "sourceSha256": "afb2e1c2877365f5c5de30ebd32284b52f7fc8f02c0e50518a8afa43ac5fe0dd",
+            "outputSha256": "afb2e1c2877365f5c5de30ebd32284b52f7fc8f02c0e50518a8afa43ac5fe0dd",
+            "identical": true
+          }
+        }
+      },
+      "destinationSha256": "e8baf58584fd97cabd6d102de5cf6832e7e6237f3506b13a4e14957551c1b5bb",
+      "destinationBytes": 7791544
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/InterVariable.ttf",
+      "gitBlob": "4ab79e0102bbe0ffa1ed879b13e52ac8c6487833",
+      "sha256": "4989b125924991b90d05b2d16e0e388c48f7d5bb8b30539bbf9c755278d0ccaf",
+      "bytes": 879708,
+      "destination": "Fonts/InterVariable.ttf",
+      "license": "OFL-1.1"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/Noto-OFL.txt",
+      "gitBlob": "d952d62c065f3f35fb83a173496e90b21525aef3",
+      "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+      "bytes": 4301,
+      "destination": "Licenses/Noto-OFL.txt",
+      "license": "OFL-1.1"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/Inter-OFL.txt",
+      "gitBlob": "9b2ca37b3ffc77391d8b2ebef4a974ef32bf46ea",
+      "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+      "bytes": 4380,
+      "destination": "Licenses/Inter-OFL.txt",
+      "license": "OFL-1.1"
+    },
+    {
+      "repository": "Reader-UI",
+      "commit": "95366cd93775ea0ad3ecbc0f60e8882717f93169",
+      "path": "theme/registry.json",
+      "gitBlob": "3e88d593fa5924017ed67f0f3be94c713b6dc0cb",
+      "sha256": "1a3ea68f162a2e440b60fa0dfe0001bc9c3051b6adba7700a60fdc73024a798f",
+      "bytes": 270292,
+      "destination": "Reference/theme-registry.json"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_library_outline.svg",
+      "gitBlob": "01bc8373ba9dd289f61755c7824cd2837992a6d6",
+      "sha256": "7b7208a08c5f77a474fac7f713e9db46401ae5a0da8071bc2eadf20dab1203cb",
+      "bytes": 1463,
+      "destination": "Reference/SVG/bookshelf_library_outline.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_library_outline_theme_night.svg",
+      "gitBlob": "dfa7da7d304b5ce35e989de29ba01fb530f25b99",
+      "sha256": "45c1c718ba03088fb184cdb83904d9333249cdaa4f5506b822e2a43d151a75fa",
+      "bytes": 1463,
+      "destination": "Reference/SVG/bookshelf_library_outline_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_library_active.svg",
+      "gitBlob": "a37cd0e037c0f338c8b7e3ec90f2b671f10da5cb",
+      "sha256": "01bf345c1850c480ae5adaf68c2880c734084025beb40572b291e0fe5262b631",
+      "bytes": 1463,
+      "destination": "Reference/SVG/bookshelf_library_active.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_library_active.svg",
+      "gitBlob": "a37cd0e037c0f338c8b7e3ec90f2b671f10da5cb",
+      "sha256": "01bf345c1850c480ae5adaf68c2880c734084025beb40572b291e0fe5262b631",
+      "bytes": 1463,
+      "destination": "Reference/SVG/bookshelf_library_active.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_settings_outline.svg",
+      "gitBlob": "a9e7ff71f929460d20f37c42ea72c9cac7c02883",
+      "sha256": "d9e93c48b3e57ed16733197f3d50b311a720e53d864993730f557a91806abbd5",
+      "bytes": 2433,
+      "destination": "Reference/SVG/bookshelf_settings_outline.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_settings_outline_theme_night.svg",
+      "gitBlob": "b54c75ee3527f646df207f2d3526a237d243f1d5",
+      "sha256": "cefa679fcc508b43c7268c1d0aaa3fe07782f5e261d74903bff9020adb8c53d0",
+      "bytes": 2433,
+      "destination": "Reference/SVG/bookshelf_settings_outline_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_settings_active.svg",
+      "gitBlob": "34224acfbd74c907e4f4563871f5993c5aa179e1",
+      "sha256": "306497f835b92461bba6d4fdea759a79948241517095ed893dc0efffd721d559",
+      "bytes": 2433,
+      "destination": "Reference/SVG/bookshelf_settings_active.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_settings_active.svg",
+      "gitBlob": "34224acfbd74c907e4f4563871f5993c5aa179e1",
+      "sha256": "306497f835b92461bba6d4fdea759a79948241517095ed893dc0efffd721d559",
+      "bytes": 2433,
+      "destination": "Reference/SVG/bookshelf_settings_active.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_dots.svg",
+      "gitBlob": "9dda0bff456445bb5ca2f6ee0f161c261d76e97a",
+      "sha256": "406c682a44490397f6e6f48b93880cf932b6a6caf735a4449447475e7636555e",
+      "bytes": 1473,
+      "destination": "Reference/SVG/rc_dots.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_dots_theme_night.svg",
+      "gitBlob": "d03cf4103c39c67f822caae78e479f6049a1d582",
+      "sha256": "141a6d501b38df93d361ffbb2cf4abb1f3ce99df64e986fb60da90671348deb8",
+      "bytes": 1473,
+      "destination": "Reference/SVG/rc_dots_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/book_detail_back.svg",
+      "gitBlob": "ac52c2fa13c52bd83832012a0a2054c7aab309bb",
+      "sha256": "1522ea73ddfe8a6fb66e9032021ebbdfa29f00572a6f3ca14b6b019f54a3afba",
+      "bytes": 564,
+      "destination": "Reference/SVG/book_detail_back.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/book_detail_back_theme_night.svg",
+      "gitBlob": "979f1b01b539edac49abfffb584cbcbec931f8a8",
+      "sha256": "f237e69ae5dd2d97b4771042cc6a3c9b54adba6ed16cb4da76194a97263625cc",
+      "bytes": 564,
+      "destination": "Reference/SVG/book_detail_back_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_palette.svg",
+      "gitBlob": "3ccf041259283e7c50c6a8c07f692447b5b8cf8f",
+      "sha256": "60ef2580e871c25a6374ac2c7e5c3d2ef35a85bcc5dba483f28a6c5bb50c2a15",
+      "bytes": 2179,
+      "destination": "Reference/SVG/rc_palette.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_palette_theme_night.svg",
+      "gitBlob": "9f8ce1d2d616d7362d2a21e7abc839046510eb0f",
+      "sha256": "b07f1f5347bed6ed00c05c8bbc52a933ceab9c83f228262d17ebcf2bfc55a8b1",
+      "bytes": 2179,
+      "destination": "Reference/SVG/rc_palette_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_list.svg",
+      "gitBlob": "61b7dfcc19a554ca8e74e0a88526096ab5625ead",
+      "sha256": "f27bb46d8852b782423d65e6d0071e130126bbb8003d0d072af69b98ce97e79a",
+      "bytes": 884,
+      "destination": "Reference/SVG/rc_list.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_list_theme_night.svg",
+      "gitBlob": "19e91a808a1585f674399d65132b785844f794b9",
+      "sha256": "9a3638e9a5438f73b76570c88100788c1e5f22265a3cc228f57870e10cf183be",
+      "bytes": 884,
+      "destination": "Reference/SVG/rc_list_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_chevron_down.svg",
+      "gitBlob": "ecece9861c83ec2fa52d16be78f56d49812c719e",
+      "sha256": "64648167da5824e0e5ebf78e44e3861b68625e87cd52b82eaf4d9d56519a512d",
+      "bytes": 388,
+      "destination": "Reference/SVG/reader_chevron_down.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_chevron_down_theme_night.svg",
+      "gitBlob": "0c4b0970eac76df03e751dc8083d83abd4c904b5",
+      "sha256": "447b31bfd4257aa696adfe70334ede321d4a332b477d9fbb27662e7e020dcc3f",
+      "bytes": 388,
+      "destination": "Reference/SVG/reader_chevron_down_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_chevron_left.svg",
+      "gitBlob": "4eb444e34cef13c4deb1735ad51612219658db05",
+      "sha256": "f96ff27ce760c035013a56d92dbd961f54682fc7078d2c0a379f283e4f506e80",
+      "bytes": 359,
+      "destination": "Reference/SVG/rc_chevron_left.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_chevron_left_theme_night.svg",
+      "gitBlob": "5d23b2a5051d059b707e3e275810f1aa9c631dbf",
+      "sha256": "2beb173c5a5ba8b04b248c7c00a10a8c62ebad8f70c1d71ceb000d18d8d12307",
+      "bytes": 359,
+      "destination": "Reference/SVG/rc_chevron_left_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_chevron_right.svg",
+      "gitBlob": "8db06665a65c701f60c45358f3bf266e0a8a9a2e",
+      "sha256": "1486523612711e092ce951ce6bf4a6b80e459337137b44964218f07cf125b17b",
+      "bytes": 357,
+      "destination": "Reference/SVG/rc_chevron_right.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_chevron_right_theme_night.svg",
+      "gitBlob": "adc4ec709c649a59896e83a0bf1495fcccaf3baa",
+      "sha256": "9a9f46c777d97ccea090a19dcc7b5c40fad7621a8330085a531e01f1cd54f104",
+      "bytes": 357,
+      "destination": "Reference/SVG/rc_chevron_right_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_more_import.svg",
+      "gitBlob": "b37d481531ff7ae04ea9230130cc81574e9af9a5",
+      "sha256": "c268570c99df72ac82cd222fe94fd58322d8f4529db4a654fceb4093a69bd02f",
+      "bytes": 883,
+      "destination": "Reference/SVG/bookshelf_more_import.svg",
+      "license": "Reader project design"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_more_import_theme_night.svg",
+      "gitBlob": "9cdfacd2e264c5d22c25ef7e61e4bdf0e14eaa9b",
+      "sha256": "f662db28c1995188b3a05c549130881f906385442912fc4a3bd63b53df1966ff",
+      "bytes": 883,
+      "destination": "Reference/SVG/bookshelf_more_import_theme_night.svg",
+      "license": "Reader project design"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_search.svg",
+      "gitBlob": "ca531490638e134a65515ab0e237c70636ea139d",
+      "sha256": "4f01cd169355eb9e5729efc05f0024671e1a9446e30f330fc9bd9dc6b5be7e72",
+      "bytes": 1164,
+      "destination": "Reference/SVG/bookshelf_search.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_search_theme_night.svg",
+      "gitBlob": "6f96860625b5ccc6fbfabec7289acd6e2ca27fae",
+      "sha256": "a8b685bccb41bf32df39417fb43478d46ff87a006f975a91df7755d3271f3596",
+      "bytes": 1164,
+      "destination": "Reference/SVG/bookshelf_search_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_grid_outline.svg",
+      "gitBlob": "43824389e0937623ed846480a7a2a2316910c827",
+      "sha256": "cacb654b88613941e104bf28758237b47e5c25f15aa8b84514998d5449441dcc",
+      "bytes": 1955,
+      "destination": "Reference/SVG/bookshelf_grid_outline.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_grid_outline_theme_night.svg",
+      "gitBlob": "599632718cc5980b4cfd174f27816477af0626a2",
+      "sha256": "c934bc71357bc38ff3e581777c1374db678a75e8aacb630a241f3c14e6e172e3",
+      "bytes": 1955,
+      "destination": "Reference/SVG/bookshelf_grid_outline_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_grid.svg",
+      "gitBlob": "cf92eadacc68c0ecbe30cda7379aecc8f2f81718",
+      "sha256": "610f694acb03c1fc7633aff02ef51351474d29d71f66fec46e98ffcbd25165c1",
+      "bytes": 1955,
+      "destination": "Reference/SVG/bookshelf_grid.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_grid_theme_night.svg",
+      "gitBlob": "fd3fdfccef3cc4bb92f24074f9fd23d8dc7cc51a",
+      "sha256": "3aa71c92325492eaccec91bca1cae451012c8d174198d33a164591cb09120416",
+      "bytes": 1955,
+      "destination": "Reference/SVG/bookshelf_grid_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_list.svg",
+      "gitBlob": "fe733a2c1ce6340b8c6fe7fdab37c2f132d10aac",
+      "sha256": "f02bf267147e6ccc706c8795e6384b43bbb47a24504c6d079cbe7c97df4b7658",
+      "bytes": 956,
+      "destination": "Reference/SVG/bookshelf_list.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_list_theme_night.svg",
+      "gitBlob": "103c6e06c204582321382f38fde39abb13918cba",
+      "sha256": "7112fe50737ed972c4a4493f0200c4148264f623d8673901a8246113f22fca8c",
+      "bytes": 956,
+      "destination": "Reference/SVG/bookshelf_list_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_list_active.svg",
+      "gitBlob": "4cb642e4959b9fd1e282d8093c17cb0729a2cc7b",
+      "sha256": "39ef610830c5ffe72f2682a40899841c4f0c7ff7ea7ddb4fd263bc97bec5b8ac",
+      "bytes": 956,
+      "destination": "Reference/SVG/bookshelf_list_active.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_list_active_theme_night.svg",
+      "gitBlob": "9248caef7742f8def4ffab11e7cc1c46e873167f",
+      "sha256": "0892b2094fe1422d4c2576e506500e08efaad82227fa20512c1d59d142773a31",
+      "bytes": 956,
+      "destination": "Reference/SVG/bookshelf_list_active_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_filter.svg",
+      "gitBlob": "b2be84e6189fc11175fbab09d484382490768bee",
+      "sha256": "7a6aa2f19feea44e685b21a209894622018e9e19045d75e9689af4d939315362",
+      "bytes": 487,
+      "destination": "Reference/SVG/bookshelf_filter.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_filter_theme_night.svg",
+      "gitBlob": "6999d55ff9c789c24a2cc454a2c0cd4925141e0b",
+      "sha256": "86de84c1ed9419f7cba294586b226cb9523965ed57ef236facd25cf01ae4a056",
+      "bytes": 487,
+      "destination": "Reference/SVG/bookshelf_filter_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_filter_active.svg",
+      "gitBlob": "65ab9fe1e92bc47e98a5087890e8771389b196cb",
+      "sha256": "282874c97032b2c4f844df29077945c179341974aba5c6454a3776d662ef8581",
+      "bytes": 487,
+      "destination": "Reference/SVG/bookshelf_filter_active.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/bookshelf_filter_active_theme_night.svg",
+      "gitBlob": "08bae9bca4b61bb225bb13dec2c4522723fdb921",
+      "sha256": "6b831c05080c29e35436ad58788bb0a1603276799ee4846ba2c2042fabb4950a",
+      "bytes": 487,
+      "destination": "Reference/SVG/bookshelf_filter_active_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_sun.svg",
+      "gitBlob": "b88dfee64d4916750f005066810706b8827816e1",
+      "sha256": "d5b33dadda3748f9e47af26a3176c89ae96a3e2528359a2f201e96518fc99e82",
+      "bytes": 870,
+      "destination": "Reference/SVG/rc_sun.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/rc_sun_theme_night.svg",
+      "gitBlob": "1eb57dd8a0e67232c9b7119eab2e838757e964f4",
+      "sha256": "620956b69899fea0392f9bab1162ef5e952496b745c97382231ad14e2c2d732d",
+      "bytes": 870,
+      "destination": "Reference/SVG/rc_sun_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_directory_marker_bookmark.svg",
+      "gitBlob": "5e878e611fc69f4335f624bdaeff2f5bb55fe865",
+      "sha256": "3c0956f29ad63bd0cbaa52aa1d5dcaa7d9eb10adb0da85b0e01438828e9a8e60",
+      "bytes": 516,
+      "destination": "Reference/SVG/reader_directory_marker_bookmark.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_directory_marker_bookmark_theme_night.svg",
+      "gitBlob": "b3f9dea0658db4fe746002efb367bc9f94d2b65d",
+      "sha256": "afeeeaca4d3c9b5fd7ef77d59a48f927c84ba04193b820a729501e73b13c5f7e",
+      "bytes": 516,
+      "destination": "Reference/SVG/reader_directory_marker_bookmark_theme_night.svg",
+      "license": "MIT"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_action_check.svg",
+      "gitBlob": "1108f0afe18f8c795dac5a57eaf753cf42b6d797",
+      "sha256": "620cfea4ef37712e38b96d1ee4d3188b36b09270358010c1d5e6a57cc260ca1e",
+      "bytes": 485,
+      "destination": "Reference/SVG/reader_action_check.svg",
+      "license": "Reader project design"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_action_check_theme_night.svg",
+      "gitBlob": "b2c6b0941f2749db00755fdfac55d419b6763378",
+      "sha256": "ae3d1f141e6df0f1a97783511bee21922014f4061bfe1218f9ddd0213f460bb0",
+      "bytes": 485,
+      "destination": "Reference/SVG/reader_action_check_theme_night.svg",
+      "license": "Reader project design"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_action_close.svg",
+      "gitBlob": "5768c4c887e7c4ac768e9a55b67e04589252e229",
+      "sha256": "90cc36f159e9b6ab682f10ae162c694b93bb1548a38bbcf8746092dc029da664",
+      "bytes": 228,
+      "destination": "Reference/SVG/reader_action_close.svg",
+      "license": "ISC"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reader_action_close_theme_night.svg",
+      "gitBlob": "845952141c71b0a807a9e2686f11f35271ea9b9d",
+      "sha256": "df96e8cc493b392127e77c998d7ff584d5038f532b14247bea29aa4c16823e79",
+      "bytes": 228,
+      "destination": "Reference/SVG/reader_action_close_theme_night.svg",
+      "license": "ISC"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "docs/ui-design/svg-provenance/radix-icons/LICENSE",
+      "gitBlob": "a18858fb7b014098cba85703e66609be66a26ef5",
+      "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
+      "bytes": 1063,
+      "destination": "Licenses/Radix-Icons-LICENSE.txt"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "docs/ui-design/svg-provenance/download-lucide/LICENSE",
+      "gitBlob": "718bb3f0e44153809972abed31839375804bf652",
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+      "bytes": 3208,
+      "destination": "Licenses/Lucide-LICENSE.txt"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "docs/ui-design/source-switch-reference/font-provenance.json",
+      "gitBlob": "313539e69701e9e0c956bb2407d5311963460c41",
+      "sha256": "c21b816d37f5d92827a2a0664b32d4a01d199dc5937f0ee984cebf8729704f03",
+      "bytes": 6347,
+      "destination": "Reference/source-font-provenance.json"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "AppScope/resources/base/media/app_icon.png",
+      "gitBlob": "24eec6859b1478e89ee923c5119b5955e942a383",
+      "sha256": "36e26a54dece69525a568157ca4bfad96423873a407f9d2bad13edc84c83989b",
+      "bytes": 1949773,
+      "destination": "Reference/app-icon-source.png",
+      "license": "Reader project design"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reading_paper_phone.png",
+      "gitBlob": "c622248136cc137a988a01c2f72a0aa16bd02a70",
+      "sha256": "bfa7f242279d457b7707a7de9116047438c6fb2d437ac143125e8b35c7987a7a",
+      "bytes": 102323,
+      "destination": "Reference/PaperSources/reading_paper_phone.png",
+      "license": "Reader project design"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reading_paper_tablet.png",
+      "gitBlob": "c622248136cc137a988a01c2f72a0aa16bd02a70",
+      "sha256": "bfa7f242279d457b7707a7de9116047438c6fb2d437ac143125e8b35c7987a7a",
+      "bytes": 102323,
+      "destination": "Reference/PaperSources/reading_paper_tablet.png",
+      "license": "Reader project design"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reading_paper_phone_highlight.svg",
+      "gitBlob": "7d2f9784d0782f0592fb28f342086bacc63b6a7b",
+      "sha256": "1e66526af4b5933dfe130c026df2e99e0b9f391a9c48dfaebba2707733c8ace4",
+      "bytes": 621,
+      "destination": "Reference/PaperSources/reading_paper_phone_highlight.svg",
+      "license": "Reader project design",
+      "provenance": {
+        "file": "reading_paper_phone_highlight.svg",
+        "semanticRole": "phone paper highlight",
+        "originType": "figma-css-primitive",
+        "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+        "figmaNodeId": "1023:18356",
+        "license": "Reader project design",
+        "sourceFile": "Figma get_design_context inline SVG background layer",
+        "sourceSha256": null,
+        "transform": {
+          "pathMutation": "not-applicable",
+          "width": 388.89,
+          "height": 842.88,
+          "gradientTransform": "matrix(0 -71.799 -71.799 0 194.44 151.72)",
+          "stops": [
+            [
+              "rgba(255,255,255,0.7)",
+              0
+            ],
+            [
+              "rgba(191,191,191,0.525)",
+              0.105
+            ],
+            [
+              "rgba(128,128,128,0.35)",
+              0.21
+            ],
+            [
+              "rgba(64,64,64,0.175)",
+              0.315
+            ],
+            [
+              "rgba(0,0,0,0)",
+              0.42
+            ]
+          ]
+        },
+        "sha256": "1e66526af4b5933dfe130c026df2e99e0b9f391a9c48dfaebba2707733c8ace4"
+      }
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reading_paper_phone_shade.svg",
+      "gitBlob": "c136f323a8b4305375d87f9a57e4cd4b6e6e8d28",
+      "sha256": "62d26d409d5f58fa1099e649c224822e39678b29074d7a8dc9fe76cad8ff5998",
+      "bytes": 446,
+      "destination": "Reference/PaperSources/reading_paper_phone_shade.svg",
+      "license": "Reader project design",
+      "provenance": {
+        "file": "reading_paper_phone_shade.svg",
+        "semanticRole": "phone paper shade",
+        "originType": "figma-css-primitive",
+        "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+        "figmaNodeId": "1023:18356",
+        "license": "Reader project design",
+        "sourceFile": "Figma get_design_context inline SVG background layer",
+        "sourceSha256": null,
+        "transform": {
+          "pathMutation": "not-applicable",
+          "width": 388.89,
+          "height": 842.88,
+          "gradientTransform": "matrix(0 -59.601 -27.499 0 194.44 421.44)",
+          "stops": [
+            [
+              "rgba(0,0,0,0)",
+              0.56
+            ],
+            [
+              "rgba(89,70,50,0.1)",
+              1
+            ]
+          ]
+        },
+        "sha256": "62d26d409d5f58fa1099e649c224822e39678b29074d7a8dc9fe76cad8ff5998"
+      }
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reading_paper_tablet_highlight.svg",
+      "gitBlob": "d0596ad65afcad36fd78811d3c560b0eaed7b7a3",
+      "sha256": "9a06a0e6329ebad6bc1e325bea08f0f660cbcf600b1eb616ee1cfdb3fb922a14",
+      "bytes": 620,
+      "destination": "Reference/PaperSources/reading_paper_tablet_highlight.svg",
+      "license": "Reader project design",
+      "provenance": {
+        "file": "reading_paper_tablet_highlight.svg",
+        "semanticRole": "tablet paper highlight",
+        "originType": "figma-css-primitive",
+        "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+        "figmaNodeId": "1023:18372",
+        "license": "Reader project design",
+        "sourceFile": "Figma get_design_context inline SVG background layer",
+        "sourceSha256": null,
+        "transform": {
+          "pathMutation": "not-applicable",
+          "width": 758.89,
+          "height": 958.89,
+          "gradientTransform": "matrix(0 -81.681 -140.11 0 379.44 172.6)",
+          "stops": [
+            [
+              "rgba(255,255,255,0.7)",
+              0
+            ],
+            [
+              "rgba(191,191,191,0.525)",
+              0.105
+            ],
+            [
+              "rgba(128,128,128,0.35)",
+              0.21
+            ],
+            [
+              "rgba(64,64,64,0.175)",
+              0.315
+            ],
+            [
+              "rgba(0,0,0,0)",
+              0.42
+            ]
+          ]
+        },
+        "sha256": "9a06a0e6329ebad6bc1e325bea08f0f660cbcf600b1eb616ee1cfdb3fb922a14"
+      }
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/base/media/reading_paper_tablet_shade.svg",
+      "gitBlob": "06de7efc24651c406b43da7a47badfe3ed87d518",
+      "sha256": "d30d6287b32ff669412ce1e27097cb2019e91221641c2d9e95bad3ff6d3a3e7c",
+      "bytes": 446,
+      "destination": "Reference/PaperSources/reading_paper_tablet_shade.svg",
+      "license": "Reader project design",
+      "provenance": {
+        "file": "reading_paper_tablet_shade.svg",
+        "semanticRole": "tablet paper shade",
+        "originType": "figma-css-primitive",
+        "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+        "figmaNodeId": "1023:18372",
+        "license": "Reader project design",
+        "sourceFile": "Figma get_design_context inline SVG background layer",
+        "sourceSha256": null,
+        "transform": {
+          "pathMutation": "not-applicable",
+          "width": 758.89,
+          "height": 958.89,
+          "gradientTransform": "matrix(0 -67.804 -53.662 0 379.44 479.44)",
+          "stops": [
+            [
+              "rgba(0,0,0,0)",
+              0.56
+            ],
+            [
+              "rgba(89,70,50,0.1)",
+              1
+            ]
+          ]
+        },
+        "sha256": "d30d6287b32ff669412ce1e27097cb2019e91221641c2d9e95bad3ff6d3a3e7c"
+      }
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/resources/rawfile/licenses/aosp-brightness/LICENSE.txt",
+      "gitBlob": "78173fa2e753d614bb0aa5ad125ddbbe70b282c4",
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+      "bytes": 10849,
+      "destination": "Licenses/AOSP-Brightness-LICENSE.txt",
+      "license": "Apache-2.0"
+    }
+  ],
+  "icons": {
+    "bookshelf": {
+      "asset": "reader-icon-bookshelf",
+      "variants": {
+        "day": {
+          "source": "bookshelf_library_outline.svg",
+          "provenance": {
+            "file": "bookshelf_library_outline.svg",
+            "semanticRole": "bookshelf library inactive navigation",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:96",
+            "componentName": "Icon/Bookshelf",
+            "upstreamName": "Bookshelf",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Bookshelf.svg",
+            "sourceSha256": "9765a88fdb5eab6ee68a5728482e5a00b1058940dfbf6e10b4eff50f0c2792d9",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#756F69",
+              "rotationDegrees": 0
+            },
+            "sha256": "7b7208a08c5f77a474fac7f713e9db46401ae5a0da8071bc2eadf20dab1203cb"
+          }
+        },
+        "night": {
+          "source": "bookshelf_library_outline_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_library_outline_theme_night.svg",
+            "semanticRole": "bookshelf_library_outline night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:96",
+            "componentName": "Icon/Bookshelf",
+            "upstreamName": "Bookshelf",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Bookshelf.svg",
+            "sourceSha256": "9765a88fdb5eab6ee68a5728482e5a00b1058940dfbf6e10b4eff50f0c2792d9",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_library_outline.756F69"
+              ]
+            },
+            "baseAsset": "bookshelf_library_outline.svg",
+            "baseSha256": "7b7208a08c5f77a474fac7f713e9db46401ae5a0da8071bc2eadf20dab1203cb",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "45c1c718ba03088fb184cdb83904d9333249cdaa4f5506b822e2a43d151a75fa"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelf.imageset/day@1x.png",
+          "sha256": "e7a4d8503077aff51859d320152101270d7f2105b352224f4a8355e90b7a43bf"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelf.imageset/day@2x.png",
+          "sha256": "4a62d083a1c5b044e90a4d712bddede910895cb23b625143d2cfb643e253fa7d"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelf.imageset/day@3x.png",
+          "sha256": "68a86138d57ae389bfc7a22f64a928b1898b1ce2e491b5530ff0267b93fd5378"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelf.imageset/night@1x.png",
+          "sha256": "3727ced877ac2f85f03fc1c0adfcfb40769af04fb10be71866b2780b55a2a9a6"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelf.imageset/night@2x.png",
+          "sha256": "349ad6a85aee5982e2dc2464658e6dbc80e5cc86d0754c8f398f31f05cd72aa3"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelf.imageset/night@3x.png",
+          "sha256": "826ea3edf4303ef28f321d2f5883cbdafcc3be4d15c0c0a733e2704184b43646"
+        }
+      ]
+    },
+    "bookshelfActive": {
+      "asset": "reader-icon-bookshelfActive",
+      "variants": {
+        "day": {
+          "source": "bookshelf_library_active.svg",
+          "provenance": {
+            "file": "bookshelf_library_active.svg",
+            "semanticRole": "bookshelf library active navigation",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:96",
+            "componentName": "Icon/Bookshelf",
+            "upstreamName": "Bookshelf",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Bookshelf.svg",
+            "sourceSha256": "9765a88fdb5eab6ee68a5728482e5a00b1058940dfbf6e10b4eff50f0c2792d9",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#FFFAF4",
+              "rotationDegrees": 0
+            },
+            "sha256": "01bf345c1850c480ae5adaf68c2880c734084025beb40572b291e0fe5262b631"
+          }
+        },
+        "night": {
+          "source": "bookshelf_library_active.svg",
+          "provenance": {
+            "file": "bookshelf_library_active.svg",
+            "semanticRole": "bookshelf library active navigation",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:96",
+            "componentName": "Icon/Bookshelf",
+            "upstreamName": "Bookshelf",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Bookshelf.svg",
+            "sourceSha256": "9765a88fdb5eab6ee68a5728482e5a00b1058940dfbf6e10b4eff50f0c2792d9",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#FFFAF4",
+              "rotationDegrees": 0
+            },
+            "sha256": "01bf345c1850c480ae5adaf68c2880c734084025beb40572b291e0fe5262b631"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelfActive.imageset/day@1x.png",
+          "sha256": "aa8c2dbe7e5538d9e5571531fa921a1a6b29483f188e603246da0f09088cd26b"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelfActive.imageset/day@2x.png",
+          "sha256": "920765de8c399e3ecc71dcc095f66578e47caf3b35379a0258ed1d1ba37664a2"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelfActive.imageset/day@3x.png",
+          "sha256": "8515cb5c187b228ea9c229943a2db46572b4b23bfad53d80600431e0eca555e3"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelfActive.imageset/night@1x.png",
+          "sha256": "aa8c2dbe7e5538d9e5571531fa921a1a6b29483f188e603246da0f09088cd26b"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelfActive.imageset/night@2x.png",
+          "sha256": "920765de8c399e3ecc71dcc095f66578e47caf3b35379a0258ed1d1ba37664a2"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookshelfActive.imageset/night@3x.png",
+          "sha256": "8515cb5c187b228ea9c229943a2db46572b4b23bfad53d80600431e0eca555e3"
+        }
+      ]
+    },
+    "settings": {
+      "asset": "reader-icon-settings",
+      "variants": {
+        "day": {
+          "source": "bookshelf_settings_outline.svg",
+          "provenance": {
+            "file": "bookshelf_settings_outline.svg",
+            "semanticRole": "bookshelf settings inactive navigation",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:472",
+            "componentName": "Icon/Settings",
+            "upstreamName": "Settings",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Settings.svg",
+            "sourceSha256": "991b85162a8e75bda30a062835181fe2c01ba5259744b3c97465796d5148fc90",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#756F69",
+              "rotationDegrees": 0
+            },
+            "sha256": "d9e93c48b3e57ed16733197f3d50b311a720e53d864993730f557a91806abbd5"
+          }
+        },
+        "night": {
+          "source": "bookshelf_settings_outline_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_settings_outline_theme_night.svg",
+            "semanticRole": "bookshelf_settings_outline night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:472",
+            "componentName": "Icon/Settings",
+            "upstreamName": "Settings",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Settings.svg",
+            "sourceSha256": "991b85162a8e75bda30a062835181fe2c01ba5259744b3c97465796d5148fc90",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_settings_outline.756F69"
+              ]
+            },
+            "baseAsset": "bookshelf_settings_outline.svg",
+            "baseSha256": "d9e93c48b3e57ed16733197f3d50b311a720e53d864993730f557a91806abbd5",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "cefa679fcc508b43c7268c1d0aaa3fe07782f5e261d74903bff9020adb8c53d0"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-settings.imageset/day@1x.png",
+          "sha256": "4014267b2330478b9dad58438dbc9c7f0b1158b0d709e7dfc741b1221dbc6dd5"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settings.imageset/day@2x.png",
+          "sha256": "9f0137ea921761753539c48c7dc6b65227cbede2db13d5c51c7ed2ae5f304718"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settings.imageset/day@3x.png",
+          "sha256": "215c776ddf316eeacab61247e919fbb7cf7db74909620da7a069cfe7ca317a7b"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settings.imageset/night@1x.png",
+          "sha256": "100111dd9591408a6e5b405108f148695e93f0c344a011f8d6c5325947e2872e"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settings.imageset/night@2x.png",
+          "sha256": "89d8bfb69a320b8c38399c32373c7bfe5f6a17844ec2743f7776bcf3b59841b8"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settings.imageset/night@3x.png",
+          "sha256": "dcdbc4d2f1920e6f06d81dba8a04f18c5a55d5156ad076e369243f62aa80ea82"
+        }
+      ]
+    },
+    "settingsActive": {
+      "asset": "reader-icon-settingsActive",
+      "variants": {
+        "day": {
+          "source": "bookshelf_settings_active.svg",
+          "provenance": {
+            "file": "bookshelf_settings_active.svg",
+            "semanticRole": "bookshelf settings active navigation",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:472",
+            "componentName": "Icon/Settings",
+            "upstreamName": "Settings",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Settings.svg",
+            "sourceSha256": "991b85162a8e75bda30a062835181fe2c01ba5259744b3c97465796d5148fc90",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#FFFAF4",
+              "rotationDegrees": 0
+            },
+            "sha256": "306497f835b92461bba6d4fdea759a79948241517095ed893dc0efffd721d559"
+          }
+        },
+        "night": {
+          "source": "bookshelf_settings_active.svg",
+          "provenance": {
+            "file": "bookshelf_settings_active.svg",
+            "semanticRole": "bookshelf settings active navigation",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:472",
+            "componentName": "Icon/Settings",
+            "upstreamName": "Settings",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Settings.svg",
+            "sourceSha256": "991b85162a8e75bda30a062835181fe2c01ba5259744b3c97465796d5148fc90",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#FFFAF4",
+              "rotationDegrees": 0
+            },
+            "sha256": "306497f835b92461bba6d4fdea759a79948241517095ed893dc0efffd721d559"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-settingsActive.imageset/day@1x.png",
+          "sha256": "b16ddf408aeadd5d2b4cdd43beef43ac9ca0250db66b2baf957f463158065acb"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settingsActive.imageset/day@2x.png",
+          "sha256": "676969da1f8f2207345095ec4674643fc7b14167ac8c82fd7a3526b95fd9f310"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settingsActive.imageset/day@3x.png",
+          "sha256": "8f295ef95b70cc408c59034e6380925b671f6b2bd8dce658b42a257bff7a7afd"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settingsActive.imageset/night@1x.png",
+          "sha256": "b16ddf408aeadd5d2b4cdd43beef43ac9ca0250db66b2baf957f463158065acb"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settingsActive.imageset/night@2x.png",
+          "sha256": "676969da1f8f2207345095ec4674643fc7b14167ac8c82fd7a3526b95fd9f310"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-settingsActive.imageset/night@3x.png",
+          "sha256": "8f295ef95b70cc408c59034e6380925b671f6b2bd8dce658b42a257bff7a7afd"
+        }
+      ]
+    },
+    "more": {
+      "asset": "reader-icon-more",
+      "variants": {
+        "day": {
+          "source": "rc_dots.svg",
+          "provenance": {
+            "file": "rc_dots.svg",
+            "semanticRole": "reader control more",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:333",
+            "componentName": "Icon/More",
+            "upstreamName": "More",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__More.svg",
+            "sourceSha256": "406c682a44490397f6e6f48b93880cf932b6a6caf735a4449447475e7636555e",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#1F1B17",
+              "rotationDegrees": 0
+            },
+            "sha256": "406c682a44490397f6e6f48b93880cf932b6a6caf735a4449447475e7636555e"
+          }
+        },
+        "night": {
+          "source": "rc_dots_theme_night.svg",
+          "provenance": {
+            "file": "rc_dots_theme_night.svg",
+            "semanticRole": "rc_dots night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:333",
+            "componentName": "Icon/More",
+            "upstreamName": "More",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__More.svg",
+            "sourceSha256": "406c682a44490397f6e6f48b93880cf932b6a6caf735a4449447475e7636555e",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.rc_dots.1F1B17"
+              ]
+            },
+            "baseAsset": "rc_dots.svg",
+            "baseSha256": "406c682a44490397f6e6f48b93880cf932b6a6caf735a4449447475e7636555e",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "141a6d501b38df93d361ffbb2cf4abb1f3ce99df64e986fb60da90671348deb8"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-more.imageset/day@1x.png",
+          "sha256": "38b43d5d22503b5ce3a5742bd8912d83f7fdb4b846a4601a15d3e4652bc776d4"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-more.imageset/day@2x.png",
+          "sha256": "233ee076aa6b306920bda51dcea1989aea4ce6efd07ba9de1272d9cd2a643a7d"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-more.imageset/day@3x.png",
+          "sha256": "e0e1ef0e4d927be1dcea209a675d3f54c0389f2bc285492de03889847590d178"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-more.imageset/night@1x.png",
+          "sha256": "76f3d8549301f61822987b4386e29ca7d616235c2431aedba225193488db3bb7"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-more.imageset/night@2x.png",
+          "sha256": "bbc37806926306d23b4f19a062aad35e54b16aa111ff136c4f7ed02d9ee5bf78"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-more.imageset/night@3x.png",
+          "sha256": "3e38215e6af5c3a554fac056deefb97eae6e6342a8d41aef870bdf98706f90ba"
+        }
+      ]
+    },
+    "back": {
+      "asset": "reader-icon-back",
+      "variants": {
+        "day": {
+          "source": "book_detail_back.svg",
+          "provenance": {
+            "file": "book_detail_back.svg",
+            "semanticRole": "book detail back",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:37",
+            "componentName": "Icon/Back",
+            "upstreamName": "Back",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Back.svg",
+            "sourceSha256": "1522ea73ddfe8a6fb66e9032021ebbdfa29f00572a6f3ca14b6b019f54a3afba",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#1F1B17",
+              "rotationDegrees": 0
+            },
+            "sha256": "1522ea73ddfe8a6fb66e9032021ebbdfa29f00572a6f3ca14b6b019f54a3afba"
+          }
+        },
+        "night": {
+          "source": "book_detail_back_theme_night.svg",
+          "provenance": {
+            "file": "book_detail_back_theme_night.svg",
+            "semanticRole": "book_detail_back night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:37",
+            "componentName": "Icon/Back",
+            "upstreamName": "Back",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Back.svg",
+            "sourceSha256": "1522ea73ddfe8a6fb66e9032021ebbdfa29f00572a6f3ca14b6b019f54a3afba",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.book_detail_back.1F1B17"
+              ]
+            },
+            "baseAsset": "book_detail_back.svg",
+            "baseSha256": "1522ea73ddfe8a6fb66e9032021ebbdfa29f00572a6f3ca14b6b019f54a3afba",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "f237e69ae5dd2d97b4771042cc6a3c9b54adba6ed16cb4da76194a97263625cc"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-back.imageset/day@1x.png",
+          "sha256": "8e138283e8ac6733db47992d11eac04b6ca493340020b842ecdf246c989eff6f"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-back.imageset/day@2x.png",
+          "sha256": "a1f4258d382e5b87c6c887967121d0ad61598942e4c95e8915440d37338afd20"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-back.imageset/day@3x.png",
+          "sha256": "313bfa07de8c272ecb0085a4e9b01ad8128e2f2cce79cd3a1afb510ec2dd8d6e"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-back.imageset/night@1x.png",
+          "sha256": "19fc984a37e4c6e74a45317961917969a24d6dfc1c22a825272e118343bc12a3"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-back.imageset/night@2x.png",
+          "sha256": "b5ee5a9c4ccfdb95117cc9ed04de31c2b24805aa006c8a83f46bbdf5613ddb9c"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-back.imageset/night@3x.png",
+          "sha256": "5b8e4ee3e950bc7fa1cf601ba591a91428725931cdd4f246ce2dea3d69ba45b6"
+        }
+      ]
+    },
+    "appearance": {
+      "asset": "reader-icon-appearance",
+      "variants": {
+        "day": {
+          "source": "rc_palette.svg",
+          "provenance": {
+            "file": "rc_palette.svg",
+            "semanticRole": "reader appearance module inactive",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:448",
+            "componentName": "Icon/ReaderModuleAppearance",
+            "upstreamName": "ReaderModuleAppearance",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ReaderModuleAppearance.svg",
+            "sourceSha256": "63c863ec8192a937c4e714c4193aaa20f8923670c56663b8446d2f55f87f0a75",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#2F6373",
+              "rotationDegrees": 0
+            },
+            "sha256": "60ef2580e871c25a6374ac2c7e5c3d2ef35a85bcc5dba483f28a6c5bb50c2a15"
+          }
+        },
+        "night": {
+          "source": "rc_palette_theme_night.svg",
+          "provenance": {
+            "file": "rc_palette_theme_night.svg",
+            "semanticRole": "rc_palette night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:448",
+            "componentName": "Icon/ReaderModuleAppearance",
+            "upstreamName": "ReaderModuleAppearance",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ReaderModuleAppearance.svg",
+            "sourceSha256": "63c863ec8192a937c4e714c4193aaa20f8923670c56663b8446d2f55f87f0a75",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.rc_palette.2F6373"
+              ]
+            },
+            "baseAsset": "rc_palette.svg",
+            "baseSha256": "60ef2580e871c25a6374ac2c7e5c3d2ef35a85bcc5dba483f28a6c5bb50c2a15",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "b07f1f5347bed6ed00c05c8bbc52a933ceab9c83f228262d17ebcf2bfc55a8b1"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-appearance.imageset/day@1x.png",
+          "sha256": "d944e1e54dd67c2baf94545955697aa8772b9d9b7c7529805e1b7cfddcf31330"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-appearance.imageset/day@2x.png",
+          "sha256": "0a60a5284c00d4f9d366aacd25322e974eae1dfdc81f852c3be63bafb92e06a6"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-appearance.imageset/day@3x.png",
+          "sha256": "9d025005f645f3f3552dad9c574c028d96cb300399589e5a50b558414aee3f49"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-appearance.imageset/night@1x.png",
+          "sha256": "95ee6ed423be88c722c017431200442e9883b8928f6a62d58a9427cde44fdfde"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-appearance.imageset/night@2x.png",
+          "sha256": "154700e62d059e443df14449d5c7ee388efe49b60c3c6fd871c2291a8adf41bc"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-appearance.imageset/night@3x.png",
+          "sha256": "8e49a3c115382775babd438519edd2a02ff4bf73f8822c9a2794e06c66560b92"
+        }
+      ]
+    },
+    "directory": {
+      "asset": "reader-icon-directory",
+      "variants": {
+        "day": {
+          "source": "rc_list.svg",
+          "provenance": {
+            "file": "rc_list.svg",
+            "semanticRole": "reader directory module inactive",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:436",
+            "componentName": "Icon/ReaderModuleDirectory",
+            "upstreamName": "ReaderModuleDirectory",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ReaderModuleDirectory.svg",
+            "sourceSha256": "b7eda9b4a3324814755693cf48e80600305999185395da412310e14de56f9e45",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#2F6373",
+              "rotationDegrees": 0
+            },
+            "sha256": "f27bb46d8852b782423d65e6d0071e130126bbb8003d0d072af69b98ce97e79a"
+          }
+        },
+        "night": {
+          "source": "rc_list_theme_night.svg",
+          "provenance": {
+            "file": "rc_list_theme_night.svg",
+            "semanticRole": "rc_list night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:436",
+            "componentName": "Icon/ReaderModuleDirectory",
+            "upstreamName": "ReaderModuleDirectory",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ReaderModuleDirectory.svg",
+            "sourceSha256": "b7eda9b4a3324814755693cf48e80600305999185395da412310e14de56f9e45",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.rc_list.2F6373"
+              ]
+            },
+            "baseAsset": "rc_list.svg",
+            "baseSha256": "f27bb46d8852b782423d65e6d0071e130126bbb8003d0d072af69b98ce97e79a",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "9a3638e9a5438f73b76570c88100788c1e5f22265a3cc228f57870e10cf183be"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-directory.imageset/day@1x.png",
+          "sha256": "564c179bdd858a1e23b839709555582cb8aed3ceafdc13d2cb8f863f3a4c46b9"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-directory.imageset/day@2x.png",
+          "sha256": "85e5eb4806d6226eee72f82365b1e09bd0c93b2bd66cf0af9e5fdd9e5f960d25"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-directory.imageset/day@3x.png",
+          "sha256": "77d3d280649e765da4a443172c8591f5a21213cd701eefe36ce67e12e9b6ab97"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-directory.imageset/night@1x.png",
+          "sha256": "909c98c8466a7d1f5b4ab1c10e1f80fddcd215fa32b8966256471c484da808fe"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-directory.imageset/night@2x.png",
+          "sha256": "18cc7be2c625d9305a63039f4d65c5f5b0438c6805d7e00e2cc9406004faa32d"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-directory.imageset/night@3x.png",
+          "sha256": "ab9c9beac48db255cf45cb05d703adfef9413b6da5d601a2b2f34f1053b20da0"
+        }
+      ]
+    },
+    "chevronDown": {
+      "asset": "reader-icon-chevronDown",
+      "variants": {
+        "day": {
+          "source": "reader_chevron_down.svg",
+          "provenance": {
+            "file": "reader_chevron_down.svg",
+            "semanticRole": "select chevron down",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:119",
+            "componentName": "Icon/Chevron",
+            "upstreamName": "Chevron",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Chevron.svg",
+            "sourceSha256": "7f9958ce24cc1fdb99cf34aa6cf553d4d85fd24837a68fda93a4de9afe8045e6",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#41484C",
+              "rotationDegrees": 90
+            },
+            "sha256": "64648167da5824e0e5ebf78e44e3861b68625e87cd52b82eaf4d9d56519a512d"
+          }
+        },
+        "night": {
+          "source": "reader_chevron_down_theme_night.svg",
+          "provenance": {
+            "file": "reader_chevron_down_theme_night.svg",
+            "semanticRole": "reader_chevron_down night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:119",
+            "componentName": "Icon/Chevron",
+            "upstreamName": "Chevron",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Chevron.svg",
+            "sourceSha256": "7f9958ce24cc1fdb99cf34aa6cf553d4d85fd24837a68fda93a4de9afe8045e6",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.reader_chevron_down.41484C"
+              ]
+            },
+            "baseAsset": "reader_chevron_down.svg",
+            "baseSha256": "64648167da5824e0e5ebf78e44e3861b68625e87cd52b82eaf4d9d56519a512d",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "447b31bfd4257aa696adfe70334ede321d4a332b477d9fbb27662e7e020dcc3f"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-chevronDown.imageset/day@1x.png",
+          "sha256": "e9a0de36fcd5cf60c09faf8341ff79861abab501a1589b2e0bf56523728f1c75"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronDown.imageset/day@2x.png",
+          "sha256": "656648ca057f913a41b43dbac6b928dc260e9d32810d20a9a927f6283f9ca664"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronDown.imageset/day@3x.png",
+          "sha256": "6ae19b5a03bf08e5b95e03985cba03c14bcce4f82497ac591eef08e8ae6d455c"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronDown.imageset/night@1x.png",
+          "sha256": "f9d231cb08d16558f0f599ad4f99394ace975d2bf73d478a5fe654cc3ddc22a1"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronDown.imageset/night@2x.png",
+          "sha256": "86a5f21b5a4c29a8308976407bd0eaa59dd53be376edc03cd7575152d728f743"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronDown.imageset/night@3x.png",
+          "sha256": "bfd4ab16b568f014bab8479e59c4a441415e33d00b66ba59020ca0ab43b53f3e"
+        }
+      ]
+    },
+    "chevronLeft": {
+      "asset": "reader-icon-chevronLeft",
+      "variants": {
+        "day": {
+          "source": "rc_chevron_left.svg",
+          "provenance": {
+            "file": "rc_chevron_left.svg",
+            "semanticRole": "reader previous chapter",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:124",
+            "componentName": "Icon/ChevronLeft",
+            "upstreamName": "ChevronLeft",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ChevronLeft.svg",
+            "sourceSha256": "9f24d27fd1df5559af07875598096b0656b0dbed42db8b3eda72577fca26150a",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#4D463F",
+              "rotationDegrees": 0
+            },
+            "sha256": "f96ff27ce760c035013a56d92dbd961f54682fc7078d2c0a379f283e4f506e80"
+          }
+        },
+        "night": {
+          "source": "rc_chevron_left_theme_night.svg",
+          "provenance": {
+            "file": "rc_chevron_left_theme_night.svg",
+            "semanticRole": "rc_chevron_left night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:124",
+            "componentName": "Icon/ChevronLeft",
+            "upstreamName": "ChevronLeft",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ChevronLeft.svg",
+            "sourceSha256": "9f24d27fd1df5559af07875598096b0656b0dbed42db8b3eda72577fca26150a",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.rc_chevron_left.4D463F"
+              ]
+            },
+            "baseAsset": "rc_chevron_left.svg",
+            "baseSha256": "f96ff27ce760c035013a56d92dbd961f54682fc7078d2c0a379f283e4f506e80",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "2beb173c5a5ba8b04b248c7c00a10a8c62ebad8f70c1d71ceb000d18d8d12307"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-chevronLeft.imageset/day@1x.png",
+          "sha256": "20811251af510400bc2842149642ce6d162378a8b39b291310182cb95d2fa6eb"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronLeft.imageset/day@2x.png",
+          "sha256": "421a13d51cf7deadb894c52ef07e572eddab541cc1a13de2d9d160fb9effa3a3"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronLeft.imageset/day@3x.png",
+          "sha256": "553afba51e39c387b59a2f1c387ae8bf55527e12833660daca121d323fd12d46"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronLeft.imageset/night@1x.png",
+          "sha256": "26c08f0ef4656c4f8d08083da278b2e4ca4d58b5dc154c446fb28e1aedf73e13"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronLeft.imageset/night@2x.png",
+          "sha256": "097ae477be6eaaa776fd41a08d6453a14f38477ba5fb0801872443b0fa7df3c7"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronLeft.imageset/night@3x.png",
+          "sha256": "d3b8e05f9e64a5e73a73aceb34d4a0f4ca941ebe59cb69326c262f3d651a8199"
+        }
+      ]
+    },
+    "chevronRight": {
+      "asset": "reader-icon-chevronRight",
+      "variants": {
+        "day": {
+          "source": "rc_chevron_right.svg",
+          "provenance": {
+            "file": "rc_chevron_right.svg",
+            "semanticRole": "reader next chapter",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "362:15",
+            "componentName": "Icon/ChevronRight",
+            "upstreamName": "ChevronRight",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ChevronRight.svg",
+            "sourceSha256": "651bef1c49216b39349268c9b3b9a24c150d188327576b8f7872eb15ee807f5c",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#4D463F",
+              "rotationDegrees": 0
+            },
+            "sha256": "1486523612711e092ce951ce6bf4a6b80e459337137b44964218f07cf125b17b"
+          }
+        },
+        "night": {
+          "source": "rc_chevron_right_theme_night.svg",
+          "provenance": {
+            "file": "rc_chevron_right_theme_night.svg",
+            "semanticRole": "rc_chevron_right night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "362:15",
+            "componentName": "Icon/ChevronRight",
+            "upstreamName": "ChevronRight",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__ChevronRight.svg",
+            "sourceSha256": "651bef1c49216b39349268c9b3b9a24c150d188327576b8f7872eb15ee807f5c",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.rc_chevron_right.4D463F"
+              ]
+            },
+            "baseAsset": "rc_chevron_right.svg",
+            "baseSha256": "1486523612711e092ce951ce6bf4a6b80e459337137b44964218f07cf125b17b",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "9a9f46c777d97ccea090a19dcc7b5c40fad7621a8330085a531e01f1cd54f104"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-chevronRight.imageset/day@1x.png",
+          "sha256": "7f84f7cdb7a40795bbe57707c0ea4c991a9b79b156d6993848e5d508fb2e23e1"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronRight.imageset/day@2x.png",
+          "sha256": "920962a4c796521e173767a34dd347da4786a7ec779fbaa694a3c312e6954379"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronRight.imageset/day@3x.png",
+          "sha256": "320d97435fabae24d81b317a1507de1032ad8c2af7bab2e3f3af1103ef34e6ec"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronRight.imageset/night@1x.png",
+          "sha256": "94adca170638bddc6015516cdf9fb1e645b7322b817b15cd53d63985b7731c63"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronRight.imageset/night@2x.png",
+          "sha256": "5e1fa635e072aa030bad7b511aa4a94455ce16fb3ead5dc3ebac79a24de99e48"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-chevronRight.imageset/night@3x.png",
+          "sha256": "5ddd365d947195ce0cb51d2a18d2259ae9dd25f725df5a75202e13a6e1cd30c7"
+        }
+      ]
+    },
+    "importFile": {
+      "asset": "reader-icon-importFile",
+      "variants": {
+        "day": {
+          "source": "bookshelf_more_import.svg",
+          "provenance": {
+            "file": "bookshelf_more_import.svg",
+            "semanticRole": "bookshelf more local import action",
+            "originType": "figma-node-export",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaNodeId": "4575:14",
+            "license": "Reader project design",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-page-assets/bookshelf_more_import.svg",
+            "sourceSha256": "c268570c99df72ac82cd222fe94fd58322d8f4529db4a654fceb4093a69bd02f",
+            "transform": {
+              "pathMutation": "none"
+            },
+            "sha256": "c268570c99df72ac82cd222fe94fd58322d8f4529db4a654fceb4093a69bd02f"
+          }
+        },
+        "night": {
+          "source": "bookshelf_more_import_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_more_import_theme_night.svg",
+            "semanticRole": "bookshelf_more_import night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaNodeId": "4575:14",
+            "license": "Reader project design",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-page-assets/bookshelf_more_import.svg",
+            "sourceSha256": "c268570c99df72ac82cd222fe94fd58322d8f4529db4a654fceb4093a69bd02f",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_more_import.1F1B17"
+              ]
+            },
+            "baseAsset": "bookshelf_more_import.svg",
+            "baseSha256": "c268570c99df72ac82cd222fe94fd58322d8f4529db4a654fceb4093a69bd02f",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "f662db28c1995188b3a05c549130881f906385442912fc4a3bd63b53df1966ff"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-importFile.imageset/day@1x.png",
+          "sha256": "6370649636d7f5128c01abacb3daacb02aed468443614283e0d8627831da9174"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-importFile.imageset/day@2x.png",
+          "sha256": "4c96a2b6a6b368a4f20a213ca103da085fa03dee794d975b7a5f6cc4a87edcb8"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-importFile.imageset/day@3x.png",
+          "sha256": "3ee5eeb5fa34218d7550320d6eb991bb8c481bc54d867d514269bfcda3673387"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-importFile.imageset/night@1x.png",
+          "sha256": "bdd7fd73514551e81b126c13d5a821232e881764d3304ea71c1b13ddd97bac5f"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-importFile.imageset/night@2x.png",
+          "sha256": "e7d5104e552b513e50d400fa5c456e72ad69f0ef0d77232cb80bf23e0374b99d"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-importFile.imageset/night@3x.png",
+          "sha256": "e868278fbd0100e9e796cfa8a7743affcb2f9b6ebb2ce82e13267019e26d310f"
+        }
+      ]
+    },
+    "search": {
+      "asset": "reader-icon-search",
+      "variants": {
+        "day": {
+          "source": "bookshelf_search.svg",
+          "provenance": {
+            "file": "bookshelf_search.svg",
+            "semanticRole": "bookshelf search",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:466",
+            "componentName": "Icon/Search",
+            "upstreamName": "Search",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Search.svg",
+            "sourceSha256": "63468f05b1c0575504cc5ec7359d6c1b439de055d279501974ac4eefa7ff2b4e",
+            "transform": {
+              "pathMutation": "fill-none-on-stroke-paths",
+              "recolor": "#1F1B17",
+              "rotationDegrees": 0
+            },
+            "sha256": "4f01cd169355eb9e5729efc05f0024671e1a9446e30f330fc9bd9dc6b5be7e72"
+          }
+        },
+        "night": {
+          "source": "bookshelf_search_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_search_theme_night.svg",
+            "semanticRole": "bookshelf_search night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:466",
+            "componentName": "Icon/Search",
+            "upstreamName": "Search",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Search.svg",
+            "sourceSha256": "63468f05b1c0575504cc5ec7359d6c1b439de055d279501974ac4eefa7ff2b4e",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_search.1F1B17"
+              ]
+            },
+            "baseAsset": "bookshelf_search.svg",
+            "baseSha256": "4f01cd169355eb9e5729efc05f0024671e1a9446e30f330fc9bd9dc6b5be7e72",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "a8b685bccb41bf32df39417fb43478d46ff87a006f975a91df7755d3271f3596"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-search.imageset/day@1x.png",
+          "sha256": "d6aca75eeab7e54fe87c15abc0ebd9895f787e4f95e7750d5ebc5348cc28976c"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-search.imageset/day@2x.png",
+          "sha256": "47858764d9784331d62add0c387164df5bd524777f2b202f23eaef662282fb6e"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-search.imageset/day@3x.png",
+          "sha256": "ba7809bcbfa3c9a036bfe91f33d9f04981b598f35d32d9d998e928a55ed054e4"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-search.imageset/night@1x.png",
+          "sha256": "d678283fc7e5688905d3759a86d05a43068e3aa09358ba7309407606f9c2e09d"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-search.imageset/night@2x.png",
+          "sha256": "8d6166901bb3ac98934eb8c8ec18b5b75d50fa500199f8bcf75f62055004345b"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-search.imageset/night@3x.png",
+          "sha256": "1de6c9ec02232efdba2b61ecabd5907f3cd84efad06f5538325eb2a2c120a466"
+        }
+      ]
+    },
+    "grid": {
+      "asset": "reader-icon-grid",
+      "variants": {
+        "day": {
+          "source": "bookshelf_grid_outline.svg",
+          "provenance": {
+            "file": "bookshelf_grid_outline.svg",
+            "semanticRole": "bookshelf grid mode inactive",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:262",
+            "componentName": "Icon/Grid",
+            "upstreamName": "Grid",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Grid.svg",
+            "sourceSha256": "3e94dcb069fe6943e297e8fc3f949feea4c6c5376a13239f60b24607025ccb00",
+            "transform": {
+              "pathMutation": "fill-none-on-stroke-paths",
+              "recolor": "#756F69",
+              "rotationDegrees": 0
+            },
+            "sha256": "cacb654b88613941e104bf28758237b47e5c25f15aa8b84514998d5449441dcc"
+          }
+        },
+        "night": {
+          "source": "bookshelf_grid_outline_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_grid_outline_theme_night.svg",
+            "semanticRole": "bookshelf_grid_outline night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:262",
+            "componentName": "Icon/Grid",
+            "upstreamName": "Grid",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Grid.svg",
+            "sourceSha256": "3e94dcb069fe6943e297e8fc3f949feea4c6c5376a13239f60b24607025ccb00",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_grid_outline.756F69"
+              ]
+            },
+            "baseAsset": "bookshelf_grid_outline.svg",
+            "baseSha256": "cacb654b88613941e104bf28758237b47e5c25f15aa8b84514998d5449441dcc",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "c934bc71357bc38ff3e581777c1374db678a75e8aacb630a241f3c14e6e172e3"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-grid.imageset/day@1x.png",
+          "sha256": "c0ad51b243a00bf8ba1e3d874d391c602a0dd48331d544ebae80b9ecb758d4ad"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-grid.imageset/day@2x.png",
+          "sha256": "8969b91234f4840bacd9d3b71950dcfd29522665506a7a2aa7432652f8d019f9"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-grid.imageset/day@3x.png",
+          "sha256": "6c5bcbd7cb07fc8d6ae91d502c61e5998e5066959a29844e70f86cd08f9f3948"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-grid.imageset/night@1x.png",
+          "sha256": "38cd1a706765d5671a7bacd917a51bb370fb3029be146148246e9d53b8396c71"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-grid.imageset/night@2x.png",
+          "sha256": "ee2b9e4ab05446f46f85c72f5cfb5bf0a79b2e100af5ddd75435a6aaa8ad90db"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-grid.imageset/night@3x.png",
+          "sha256": "735e88180cbaef362c00cc9e99d269a1bbcb69b20b25d6159ae85ffda2390a3a"
+        }
+      ]
+    },
+    "gridActive": {
+      "asset": "reader-icon-gridActive",
+      "variants": {
+        "day": {
+          "source": "bookshelf_grid.svg",
+          "provenance": {
+            "file": "bookshelf_grid.svg",
+            "semanticRole": "bookshelf grid mode active",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:262",
+            "componentName": "Icon/Grid",
+            "upstreamName": "Grid",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Grid.svg",
+            "sourceSha256": "3e94dcb069fe6943e297e8fc3f949feea4c6c5376a13239f60b24607025ccb00",
+            "transform": {
+              "pathMutation": "fill-none-on-stroke-paths",
+              "recolor": "#2D4A3E",
+              "rotationDegrees": 0
+            },
+            "sha256": "610f694acb03c1fc7633aff02ef51351474d29d71f66fec46e98ffcbd25165c1"
+          }
+        },
+        "night": {
+          "source": "bookshelf_grid_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_grid_theme_night.svg",
+            "semanticRole": "bookshelf_grid night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:262",
+            "componentName": "Icon/Grid",
+            "upstreamName": "Grid",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Grid.svg",
+            "sourceSha256": "3e94dcb069fe6943e297e8fc3f949feea4c6c5376a13239f60b24607025ccb00",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_grid.2D4A3E"
+              ]
+            },
+            "baseAsset": "bookshelf_grid.svg",
+            "baseSha256": "610f694acb03c1fc7633aff02ef51351474d29d71f66fec46e98ffcbd25165c1",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "3aa71c92325492eaccec91bca1cae451012c8d174198d33a164591cb09120416"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-gridActive.imageset/day@1x.png",
+          "sha256": "243d07f32a32d0c9332a71996ae5e9c5a70f01035e98b93a58572c3ef5f602ec"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-gridActive.imageset/day@2x.png",
+          "sha256": "e846ddd8f237359c726c708351873d43592178df94ebba9e50a94f9250414356"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-gridActive.imageset/day@3x.png",
+          "sha256": "15dcd19e5634e80982a682af32912461e6740e187ac006911dbfca383511db18"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-gridActive.imageset/night@1x.png",
+          "sha256": "e1b5f6eaf3b7add1d3e635d6ea83f3e18cf8c0756b52ebdea367819b5437ea41"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-gridActive.imageset/night@2x.png",
+          "sha256": "14331bc42aacc9347a8bb43aa896cafc2f1720f0e8e6bcfc271768bb29ed00cd"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-gridActive.imageset/night@3x.png",
+          "sha256": "f836ae898f664abc90c3bc995c9562143247c70568b7bee5d557305bc8599552"
+        }
+      ]
+    },
+    "list": {
+      "asset": "reader-icon-list",
+      "variants": {
+        "day": {
+          "source": "bookshelf_list.svg",
+          "provenance": {
+            "file": "bookshelf_list.svg",
+            "semanticRole": "bookshelf list mode",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:303",
+            "componentName": "Icon/List",
+            "upstreamName": "List",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__List.svg",
+            "sourceSha256": "b79f8493de8051ae9cacd8f1f41a8cbad64385bb6f37c284bb422b42594abce9",
+            "transform": {
+              "pathMutation": "fill-none-on-stroke-paths",
+              "recolor": "#756F69",
+              "rotationDegrees": 0
+            },
+            "sha256": "f02bf267147e6ccc706c8795e6384b43bbb47a24504c6d079cbe7c97df4b7658"
+          }
+        },
+        "night": {
+          "source": "bookshelf_list_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_list_theme_night.svg",
+            "semanticRole": "bookshelf_list night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:303",
+            "componentName": "Icon/List",
+            "upstreamName": "List",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__List.svg",
+            "sourceSha256": "b79f8493de8051ae9cacd8f1f41a8cbad64385bb6f37c284bb422b42594abce9",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_list.756F69"
+              ]
+            },
+            "baseAsset": "bookshelf_list.svg",
+            "baseSha256": "f02bf267147e6ccc706c8795e6384b43bbb47a24504c6d079cbe7c97df4b7658",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "7112fe50737ed972c4a4493f0200c4148264f623d8673901a8246113f22fca8c"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-list.imageset/day@1x.png",
+          "sha256": "d80013be15e0edb5497558b215d1f12a74e60d395c263de720b56f6f484b33e1"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-list.imageset/day@2x.png",
+          "sha256": "819ed9d89de688b2d3e5c54683ce39f7e0b554f599b95d8d8e592c5a43e461a6"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-list.imageset/day@3x.png",
+          "sha256": "49cb9f64171d549bafe637f76f98b990ee43814fba96c17b114916ef4282ed92"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-list.imageset/night@1x.png",
+          "sha256": "a7eb560bdebdb5dd07c50f099e4683eca0c16b0935a408ee35b84904b0989310"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-list.imageset/night@2x.png",
+          "sha256": "fc0da84d5f79b814c023f016d21504db0702199aef993daa8b59e0ca527b05aa"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-list.imageset/night@3x.png",
+          "sha256": "938edcdb451cbb6ad9eed7b1eed2e1ec90a521b191ee48d49eb503cbf930fb5a"
+        }
+      ]
+    },
+    "listActive": {
+      "asset": "reader-icon-listActive",
+      "variants": {
+        "day": {
+          "source": "bookshelf_list_active.svg",
+          "provenance": {
+            "file": "bookshelf_list_active.svg",
+            "semanticRole": "bookshelf list mode active",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:303",
+            "componentName": "Icon/List",
+            "upstreamName": "List",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__List.svg",
+            "sourceSha256": "b79f8493de8051ae9cacd8f1f41a8cbad64385bb6f37c284bb422b42594abce9",
+            "transform": {
+              "pathMutation": "fill-none-on-stroke-paths",
+              "recolor": "#2D4A3E",
+              "rotationDegrees": 0
+            },
+            "sha256": "39ef610830c5ffe72f2682a40899841c4f0c7ff7ea7ddb4fd263bc97bec5b8ac"
+          }
+        },
+        "night": {
+          "source": "bookshelf_list_active_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_list_active_theme_night.svg",
+            "semanticRole": "bookshelf_list_active night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:303",
+            "componentName": "Icon/List",
+            "upstreamName": "List",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__List.svg",
+            "sourceSha256": "b79f8493de8051ae9cacd8f1f41a8cbad64385bb6f37c284bb422b42594abce9",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_list_active.2D4A3E"
+              ]
+            },
+            "baseAsset": "bookshelf_list_active.svg",
+            "baseSha256": "39ef610830c5ffe72f2682a40899841c4f0c7ff7ea7ddb4fd263bc97bec5b8ac",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "0892b2094fe1422d4c2576e506500e08efaad82227fa20512c1d59d142773a31"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-listActive.imageset/day@1x.png",
+          "sha256": "43813d6acde80b467ea641fc05bee1d74881af59fda14c5d55a3d0ad61d95395"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-listActive.imageset/day@2x.png",
+          "sha256": "e9ba774016898012ef94e1bf4250dd908c4561e61447d3c638f7886320636ff3"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-listActive.imageset/day@3x.png",
+          "sha256": "29293f59d6456b63e78f4587f4703681e765a0551de4aaccb522ecbf99f333b3"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-listActive.imageset/night@1x.png",
+          "sha256": "909c98c8466a7d1f5b4ab1c10e1f80fddcd215fa32b8966256471c484da808fe"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-listActive.imageset/night@2x.png",
+          "sha256": "18cc7be2c625d9305a63039f4d65c5f5b0438c6805d7e00e2cc9406004faa32d"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-listActive.imageset/night@3x.png",
+          "sha256": "ab9c9beac48db255cf45cb05d703adfef9413b6da5d601a2b2f34f1053b20da0"
+        }
+      ]
+    },
+    "filter": {
+      "asset": "reader-icon-filter",
+      "variants": {
+        "day": {
+          "source": "bookshelf_filter.svg",
+          "provenance": {
+            "file": "bookshelf_filter.svg",
+            "semanticRole": "bookshelf filter",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:220",
+            "componentName": "Icon/Filter",
+            "upstreamName": "Filter",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Filter.svg",
+            "sourceSha256": "f2f6af86ab878e9e759e36d4b2bb96a18a81db4ef314a445094a8a40fba2fa3c",
+            "transform": {
+              "pathMutation": "fill-none-on-stroke-paths",
+              "recolor": "#756F69",
+              "rotationDegrees": 0
+            },
+            "sha256": "7a6aa2f19feea44e685b21a209894622018e9e19045d75e9689af4d939315362"
+          }
+        },
+        "night": {
+          "source": "bookshelf_filter_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_filter_theme_night.svg",
+            "semanticRole": "bookshelf_filter night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:220",
+            "componentName": "Icon/Filter",
+            "upstreamName": "Filter",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Filter.svg",
+            "sourceSha256": "f2f6af86ab878e9e759e36d4b2bb96a18a81db4ef314a445094a8a40fba2fa3c",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_filter.756F69"
+              ]
+            },
+            "baseAsset": "bookshelf_filter.svg",
+            "baseSha256": "7a6aa2f19feea44e685b21a209894622018e9e19045d75e9689af4d939315362",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "86de84c1ed9419f7cba294586b226cb9523965ed57ef236facd25cf01ae4a056"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-filter.imageset/day@1x.png",
+          "sha256": "6215c2867ff3a157ad0c767941632da95b191451df7a2ce01de90c15865a10cb"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filter.imageset/day@2x.png",
+          "sha256": "0deadddf98a07ab77a905fc513ee80fbec57e4fe9b5ef4cb3c425319c8c2f12d"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filter.imageset/day@3x.png",
+          "sha256": "5268dcb71c5c8df3689a38c56fbbcbd42d99930d83d6a48b614efcbdc872a42b"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filter.imageset/night@1x.png",
+          "sha256": "0d074c12971bb224a26679c2dba1a6c00061ce6ac6699a692c4c7d1c05a587e1"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filter.imageset/night@2x.png",
+          "sha256": "169a7f8399d2baf3f5bb1efc16155750a70e6ef8d34090c2af3a3eb6168554bd"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filter.imageset/night@3x.png",
+          "sha256": "8f6b739c4824cd2cb0a188b8d407750216f47e9f84c833c107a266c7c2e60513"
+        }
+      ]
+    },
+    "filterActive": {
+      "asset": "reader-icon-filterActive",
+      "variants": {
+        "day": {
+          "source": "bookshelf_filter_active.svg",
+          "provenance": {
+            "file": "bookshelf_filter_active.svg",
+            "semanticRole": "bookshelf filter active",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:220",
+            "componentName": "Icon/Filter",
+            "upstreamName": "Filter",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Filter.svg",
+            "sourceSha256": "f2f6af86ab878e9e759e36d4b2bb96a18a81db4ef314a445094a8a40fba2fa3c",
+            "transform": {
+              "pathMutation": "fill-none-on-stroke-paths",
+              "recolor": "#2D4A3E",
+              "rotationDegrees": 0
+            },
+            "sha256": "282874c97032b2c4f844df29077945c179341974aba5c6454a3776d662ef8581"
+          }
+        },
+        "night": {
+          "source": "bookshelf_filter_active_theme_night.svg",
+          "provenance": {
+            "file": "bookshelf_filter_active_theme_night.svg",
+            "semanticRole": "bookshelf_filter_active night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:220",
+            "componentName": "Icon/Filter",
+            "upstreamName": "Filter",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Filter.svg",
+            "sourceSha256": "f2f6af86ab878e9e759e36d4b2bb96a18a81db4ef314a445094a8a40fba2fa3c",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.bookshelf_filter_active.2D4A3E"
+              ]
+            },
+            "baseAsset": "bookshelf_filter_active.svg",
+            "baseSha256": "282874c97032b2c4f844df29077945c179341974aba5c6454a3776d662ef8581",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "6b831c05080c29e35436ad58788bb0a1603276799ee4846ba2c2042fabb4950a"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-filterActive.imageset/day@1x.png",
+          "sha256": "1721c7ec3d4813113f500c96456fa351c3d5e1784e4cb6907ed27417c95ceee1"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filterActive.imageset/day@2x.png",
+          "sha256": "2d0d7f70ac41ebc9eff74ae815cf8e7683336b4eb4614f1795042e9995139d04"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filterActive.imageset/day@3x.png",
+          "sha256": "268bd273bc448794f0f71fc188ea83b3d220f98da8b811a81b1c3c93dd6dc9dd"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filterActive.imageset/night@1x.png",
+          "sha256": "80dfc196aec283f7b3bf13e0391254e25e55063faa0ae552ff3ab64c5c9af4ea"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filterActive.imageset/night@2x.png",
+          "sha256": "24e0372fbaf6dca64961575b1f118098a954de2cc89474ce16f5ce1cbbb4d6f2"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-filterActive.imageset/night@3x.png",
+          "sha256": "c7d05abd32535fa3e05a9880cf2d08b657f4f61f5e4238e71ed6fb281a2fb1c1"
+        }
+      ]
+    },
+    "sun": {
+      "asset": "reader-icon-sun",
+      "variants": {
+        "day": {
+          "source": "rc_sun.svg",
+          "provenance": {
+            "file": "rc_sun.svg",
+            "semanticRole": "reader brightness",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:555",
+            "componentName": "Icon/Sun",
+            "upstreamName": "Sun",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Sun.svg",
+            "sourceSha256": "ebd1da293707725ecf65cb3243e747c3febfbb2f632b33a4fb6b665efe1a6d9e",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#2F6373",
+              "rotationDegrees": 0
+            },
+            "sha256": "d5b33dadda3748f9e47af26a3176c89ae96a3e2528359a2f201e96518fc99e82"
+          }
+        },
+        "night": {
+          "source": "rc_sun_theme_night.svg",
+          "provenance": {
+            "file": "rc_sun_theme_night.svg",
+            "semanticRole": "rc_sun night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:555",
+            "componentName": "Icon/Sun",
+            "upstreamName": "Sun",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Sun.svg",
+            "sourceSha256": "ebd1da293707725ecf65cb3243e747c3febfbb2f632b33a4fb6b665efe1a6d9e",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.rc_sun.2F6373"
+              ]
+            },
+            "baseAsset": "rc_sun.svg",
+            "baseSha256": "d5b33dadda3748f9e47af26a3176c89ae96a3e2528359a2f201e96518fc99e82",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "620956b69899fea0392f9bab1162ef5e952496b745c97382231ad14e2c2d732d"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-sun.imageset/day@1x.png",
+          "sha256": "a7225bcb9198272a65f1993467b18a24bcc001729a155c6b5e5f9dffdc1719a9"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-sun.imageset/day@2x.png",
+          "sha256": "355b08b02c38fb628f077804db47a8f916a485116cb5dcbe30accba52473fbe6"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-sun.imageset/day@3x.png",
+          "sha256": "ebde2d5a382546225ccb31c421666332d54ee01a5ea20b85fbe21b4123bad696"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-sun.imageset/night@1x.png",
+          "sha256": "14fa7b25554ed518e84454182bd6704691144faec66edc110471d535588984e5"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-sun.imageset/night@2x.png",
+          "sha256": "00dee5f61cc6c34f75030d650642d104b4990928b1ad609dc5ca4fd5aaef0a7c"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-sun.imageset/night@3x.png",
+          "sha256": "c07a5f8782d658ee1a4119e580d2e41cfb7695b7aa4e591ada3fd8c6b0bdd094"
+        }
+      ]
+    },
+    "bookmark": {
+      "asset": "reader-icon-bookmark",
+      "variants": {
+        "day": {
+          "source": "reader_directory_marker_bookmark.svg",
+          "provenance": {
+            "file": "reader_directory_marker_bookmark.svg",
+            "semanticRole": "reader directory bookmark marker",
+            "originType": "figma-component-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:73",
+            "componentName": "Icon/Bookmark",
+            "upstreamName": "Bookmark",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Bookmark.svg",
+            "sourceSha256": "8afe54487abb2d3151853f5ff867605d7cec1925555db2f58716e3f63da07d34",
+            "transform": {
+              "pathMutation": "none",
+              "recolor": "#5B5046",
+              "rotationDegrees": 0
+            },
+            "sha256": "3c0956f29ad63bd0cbaa52aa1d5dcaa7d9eb10adb0da85b0e01438828e9a8e60"
+          }
+        },
+        "night": {
+          "source": "reader_directory_marker_bookmark_theme_night.svg",
+          "provenance": {
+            "file": "reader_directory_marker_bookmark_theme_night.svg",
+            "semanticRole": "reader_directory_marker_bookmark night app palette",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaPageNodeId": "259:4",
+            "figmaNodeId": "271:73",
+            "componentName": "Icon/Bookmark",
+            "upstreamName": "Bookmark",
+            "upstreamVersion": "3.44.0",
+            "license": "MIT",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-icons/Icon__Bookmark.svg",
+            "sourceSha256": "8afe54487abb2d3151853f5ff867605d7cec1925555db2f58716e3f63da07d34",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "app.icon.reader_directory_marker_bookmark.5B5046"
+              ]
+            },
+            "baseAsset": "reader_directory_marker_bookmark.svg",
+            "baseSha256": "3c0956f29ad63bd0cbaa52aa1d5dcaa7d9eb10adb0da85b0e01438828e9a8e60",
+            "themeRegistrySha256": "7bc79c1f78c0f1a34230fb0c955187abb7e4595cabdc590ec41cee1c8715c340",
+            "sha256": "afeeeaca4d3c9b5fd7ef77d59a48f927c84ba04193b820a729501e73b13c5f7e"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-bookmark.imageset/day@1x.png",
+          "sha256": "ddbf9780f63ff12a1e088d7e5e238c8dce43fb3477afcb96885bcdf2554cdf9a"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookmark.imageset/day@2x.png",
+          "sha256": "874a7d5b7fdc32b94731d76e188495a63ea79d0ae7a9dcc00ec3c3964af0eb66"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookmark.imageset/day@3x.png",
+          "sha256": "03a306dc5d71a37e3ee82fe43628ddfd360fb60bf9434aa1288c0f72be0e36d8"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookmark.imageset/night@1x.png",
+          "sha256": "8c6fd15cf383c065ec018e0fc92041637d060986951c21b7fc17fd357341b534"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookmark.imageset/night@2x.png",
+          "sha256": "db2273377083af34fab59cadb106e2361ad9c4dcc1bf5cfed3837e70ef2babe7"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-bookmark.imageset/night@3x.png",
+          "sha256": "20b2a04d3fd97a457dd92ee1f9afe25794179ee2df525216bef7756ac45c0932"
+        }
+      ]
+    },
+    "check": {
+      "asset": "reader-icon-check",
+      "variants": {
+        "day": {
+          "source": "reader_action_check.svg",
+          "provenance": {
+            "file": "reader_action_check.svg",
+            "semanticRole": "reader action-sheet check day on action background",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaNodeId": "4575:5",
+            "license": "Reader project design",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-page-assets/bookshelf_more_batch.svg",
+            "sourceSha256": "d977e06549acd85a7991764669674a20c8ed460703ca5abedf257f7a10fa3b2e",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "day",
+              "colorRoles": [
+                "TOK_DOWNLOAD_GREEN_INK"
+              ]
+            },
+            "baseAsset": "bookshelf_more_batch.svg",
+            "baseSha256": "d977e06549acd85a7991764669674a20c8ed460703ca5abedf257f7a10fa3b2e",
+            "themeRegistrySha256": "ac84b3b172a3da22dc69b6e63f9b93559e5a31c9d8aefa075a9ca4759e04efc1",
+            "sha256": "620cfea4ef37712e38b96d1ee4d3188b36b09270358010c1d5e6a57cc260ca1e"
+          }
+        },
+        "night": {
+          "source": "reader_action_check_theme_night.svg",
+          "provenance": {
+            "file": "reader_action_check_theme_night.svg",
+            "semanticRole": "reader action-sheet check night on action background",
+            "originType": "theme-palette-derived",
+            "figmaFileKey": "klhs2jMM4MncaJFqZMfqEK",
+            "figmaNodeId": "4575:5",
+            "license": "Reader project design",
+            "sourceFile": "docs/ui-design/svg-provenance/figma-page-assets/bookshelf_more_batch.svg",
+            "sourceSha256": "d977e06549acd85a7991764669674a20c8ed460703ca5abedf257f7a10fa3b2e",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "TOK_DOWNLOAD_GREEN_INK"
+              ]
+            },
+            "baseAsset": "bookshelf_more_batch.svg",
+            "baseSha256": "d977e06549acd85a7991764669674a20c8ed460703ca5abedf257f7a10fa3b2e",
+            "themeRegistrySha256": "ac84b3b172a3da22dc69b6e63f9b93559e5a31c9d8aefa075a9ca4759e04efc1",
+            "sha256": "ae3d1f141e6df0f1a97783511bee21922014f4061bfe1218f9ddd0213f460bb0"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-check.imageset/day@1x.png",
+          "sha256": "7726febc2a9f7168e805dc54baac905ffecbe0850334e1a3a0489ce65cb30c24"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-check.imageset/day@2x.png",
+          "sha256": "a0247fbb4e1f1aca155cc27e8014a8ad5102927bbafd4bcbf6f0247f71830ff2"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-check.imageset/day@3x.png",
+          "sha256": "e238b69ffc4221647780c3c503cedea8eb82b6b6e1508981e8818ab611c67be3"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-check.imageset/night@1x.png",
+          "sha256": "5fc39eecbdbab46453d52159f849747aaf15ecbd110337d52ffd87a1a574d7ba"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-check.imageset/night@2x.png",
+          "sha256": "b2c1df05eb3d3d3bdf401fe8914ec27006d2eb0ee617c1a5885d04c649bf3edd"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-check.imageset/night@3x.png",
+          "sha256": "b7e0ac0a7ff6eadb8306021d0346f946ff476ab711a4f9eea0c8232c70fd64ed"
+        }
+      ]
+    },
+    "close": {
+      "asset": "reader-icon-close",
+      "variants": {
+        "day": {
+          "source": "reader_action_close.svg",
+          "provenance": {
+            "file": "reader_action_close.svg",
+            "semanticRole": "reader action-sheet close day on action background",
+            "originType": "theme-palette-derived",
+            "componentName": "X",
+            "upstreamPackage": "lucide",
+            "upstreamVersion": "1.8.0",
+            "upstreamUrl": "https://www.npmjs.com/package/lucide/v/1.8.0",
+            "license": "ISC",
+            "licenseFile": "docs/ui-design/svg-provenance/download-lucide/LICENSE",
+            "licenseSha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+            "sourceReceiptFile": "docs/ui-design/svg-provenance/download-lucide/SOURCE.json",
+            "sourceReceiptSha256": "da2d58dfbf08c2e8ac12638508611020061e209a152b76af48b5a83eb649cc35",
+            "sourceFile": "docs/ui-design/svg-provenance/download-lucide/X.json",
+            "sourceSha256": "313479e8bc7fc3997f1c5147c105d682143252815aebff8f4b2c03192f74ae16",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "day",
+              "colorRoles": [
+                "TOK_DOWNLOAD_GREEN_INK"
+              ]
+            },
+            "baseAsset": "download_visual_close.svg",
+            "baseSha256": "a7cadaee9cfbcd6abb69a0800b94380dbbcbf4cb053170b7c4d2405edd2bc97f",
+            "themeRegistrySha256": "ac84b3b172a3da22dc69b6e63f9b93559e5a31c9d8aefa075a9ca4759e04efc1",
+            "sha256": "90cc36f159e9b6ab682f10ae162c694b93bb1548a38bbcf8746092dc029da664"
+          }
+        },
+        "night": {
+          "source": "reader_action_close_theme_night.svg",
+          "provenance": {
+            "file": "reader_action_close_theme_night.svg",
+            "semanticRole": "reader action-sheet close night on action background",
+            "originType": "theme-palette-derived",
+            "componentName": "X",
+            "upstreamPackage": "lucide",
+            "upstreamVersion": "1.8.0",
+            "upstreamUrl": "https://www.npmjs.com/package/lucide/v/1.8.0",
+            "license": "ISC",
+            "licenseFile": "docs/ui-design/svg-provenance/download-lucide/LICENSE",
+            "licenseSha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+            "sourceReceiptFile": "docs/ui-design/svg-provenance/download-lucide/SOURCE.json",
+            "sourceReceiptSha256": "da2d58dfbf08c2e8ac12638508611020061e209a152b76af48b5a83eb649cc35",
+            "sourceFile": "docs/ui-design/svg-provenance/download-lucide/X.json",
+            "sourceSha256": "313479e8bc7fc3997f1c5147c105d682143252815aebff8f4b2c03192f74ae16",
+            "transform": {
+              "pathMutation": "none",
+              "palette": "night",
+              "colorRoles": [
+                "TOK_DOWNLOAD_GREEN_INK"
+              ]
+            },
+            "baseAsset": "download_visual_close.svg",
+            "baseSha256": "a7cadaee9cfbcd6abb69a0800b94380dbbcbf4cb053170b7c4d2405edd2bc97f",
+            "themeRegistrySha256": "ac84b3b172a3da22dc69b6e63f9b93559e5a31c9d8aefa075a9ca4759e04efc1",
+            "sha256": "df96e8cc493b392127e77c998d7ff584d5038f532b14247bea29aa4c16823e79"
+          }
+        }
+      },
+      "outputs": [
+        {
+          "path": "Assets.xcassets/reader-icon-close.imageset/day@1x.png",
+          "sha256": "6d2c0e6bcb8ac9fa9cbcab750d425aa92f4a56a0199fb4533e0ef775c59fffc7"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-close.imageset/day@2x.png",
+          "sha256": "8d0c808aad7d45ba1f9cd9de9e5b01a478ddf554cbfe5632315af480444c35a9"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-close.imageset/day@3x.png",
+          "sha256": "08ee83e8eb1c0422be406d4fb80c7108afda0eb83e75e39989faf497c800fd8f"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-close.imageset/night@1x.png",
+          "sha256": "507763ec149922e030052b9c84759164897a14ab080a01e70a8b6698b5ef0656"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-close.imageset/night@2x.png",
+          "sha256": "a0a3e7f4a9152a67d7b4e4dc6767d96b25d7961994792ade30675940719e08c5"
+        },
+        {
+          "path": "Assets.xcassets/reader-icon-close.imageset/night@3x.png",
+          "sha256": "ee9ea14a1e948b61a859ed8eac401997edd20d7885a276aa37c14fa425cd00cb"
+        }
+      ]
+    }
+  },
+  "conversion": {
+    "renderer": "sharp/libvips",
+    "versions": {
+      "aom": "3.15.1",
+      "archive": "3.8.9",
+      "cairo": "1.18.6",
+      "cgif": "0.5.4",
+      "exif": "0.6.26",
+      "expat": "2.8.5",
+      "ffi": "3.8.0",
+      "fontconfig": "2.18.3",
+      "freetype": "2.14.3",
+      "fribidi": "1.0.17",
+      "glib": "2.90.0",
+      "harfbuzz": "14.5.0",
+      "heif": "1.23.5",
+      "highway": "1.4.0",
+      "imagequant": "2.4.1",
+      "lcms": "2.19.1",
+      "mozjpeg": "0826579",
+      "pango": "1.58.2",
+      "pixman": "0.46.4",
+      "png": "1.6.58",
+      "proxy-libintl": "0.5",
+      "rsvg": "2.63.2",
+      "tiff": "4.7.2",
+      "uhdr": "2.0.2",
+      "vips": "8.18.7",
+      "webp": "1.6.0",
+      "xml2": "2.15.4",
+      "zlib-ng": "2.3.3",
+      "sharp": "0.35.5"
+    },
+    "sourcePathMutation": "none",
+    "displayPointSize": 24,
+    "scales": [
+      1,
+      2,
+      3
+    ]
+  },
+  "designSources": [
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/ReaderTypography.ets",
+      "gitBlob": "268bd2ddae3b1cfe710b5700a403db0590cb2c3b",
+      "sha256": "e74b3087815ac45857a35020482c524fbaae15608943c4c9e5f832eb11065675"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/ReaderFontFamilies.ts",
+      "gitBlob": "6f0a057f5fa05901444ef00e9107260f6bd1e25a",
+      "sha256": "da256271159a8bb1a1688c52fe70bb1f053eb48c287f610706dd2b74883160b1"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/ReaderFonts.ets",
+      "gitBlob": "2efc75a9bffc5af94ab56f7db99127d2a3e54473",
+      "sha256": "ad6eafc09e73e3cb1b825e43a54c9c8af65b4c12524cdda1449fdf49043dcd41"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/ReaderTokens.ets",
+      "gitBlob": "c4bd5387406a7bd6401826bf1f258818e2686f35",
+      "sha256": "040889752658f2060da49079b7fce61e0b3277a8cc5357d82da10b02c4b8b1ad"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/AppTopBar.ets",
+      "gitBlob": "b7e51f806eb2b4140f005d9b34c755a1249e2cbc",
+      "sha256": "d8de1378e248fbddb2aa82f2b2d1a33fe5af1c247fcf1b2dcdffbaa9cedcbd04"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/ProductMotionTiming.ts",
+      "gitBlob": "73514fc0884039c29ee800cb9e6da4f3ec208ed8",
+      "sha256": "1074dac727f6a00f08b0c421bb2d441ebcec955e8f185e02536cef71dc2b94e4"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/reading/ReaderLayoutGeometry.ts",
+      "gitBlob": "f64eab41903df16a430a702113b85705c30df7eb",
+      "sha256": "7d56991d2db12d628c516c4c223170d7bc39cb6f48ac3a0b8af4f3d1cff22756"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/reading/ReaderControlGeometry.ts",
+      "gitBlob": "e2692c9dfd70408e9b9b540c5aa358e15e51787d",
+      "sha256": "d8701c251fb44df13f7ede69e5b68a3aeff7fd6963ba77e825e0c52ba11da38b"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/reading/ReaderControlMotionPolicy.ts",
+      "gitBlob": "8443408b77eb410c5b676e9b456e38d5b5091294",
+      "sha256": "cd1d00f844cae7ffb84bd4801cc21e670ec257a6558a08603b8b9dff765c798d"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/reading/ReaderAppearanceState.ts",
+      "gitBlob": "47a27671f42f4956f0991cac30fd67d54d59c483",
+      "sha256": "a3315d4b34872aa793590b9437a907587d0b7af2b105fc28f4233ddb3e209507"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/reading/ReaderAppearanceRenderStyle.ts",
+      "gitBlob": "c41cacd07966148160af65db486534abee54cce8",
+      "sha256": "67b7fefed963daeb7bdc926222501846e087ce0e89117265696de92b1182fb7c"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/bookshelf/BookshelfPage.ets",
+      "gitBlob": "53174ac020e67c3878e84c16040c8e47a4eeb52b",
+      "sha256": "675480b7004a182d3a439f47e1de1bf6b4bc0d26b25561e1c3ba4fbe97c8b1a4"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "docs/ui-design/SVG_PROVENANCE.json",
+      "gitBlob": "5b9773d109ec99a904844c821716c357518aca5f",
+      "sha256": "20a97e781267ba4742d0123b4042b7f1ffcf7f7bc1d27158c8b8dec1ad312f45"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/bookshelf/NoCoverCover.ets",
+      "gitBlob": "12cc0a10c89e88eb6fa3bf30ff21a1cfec7591d2",
+      "sha256": "8bdeabcf85c8b6c7c6252274c2ad59faa1c1339e5de235f4bf749634dc857838"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/bookshelf/ShelfBookListDetails.ets",
+      "gitBlob": "c3f75e349259ff44b5cc24745e9f239680724eff",
+      "sha256": "c5e735c8f35b0bbc77f206d339d67e5b82d51a04aa03c9a48beb5c783d18ea03"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/shell/MainTabBar.ets",
+      "gitBlob": "bd5ebb74623635ba487ebc66680604325f6ebb7a",
+      "sha256": "6361263e732cd46c83b7c13a74776fb52179d3f9f0102f051c7f6c3f8eed9854"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/ReaderFloatingBarMetrics.ts",
+      "gitBlob": "82c417086b876014ce69bdd135e7a4b54b0768bb",
+      "sha256": "1bba7d7fcffe90f4960ca770eb5e6282dc003bf3abc30796566c3aecab8e422a"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/common/ReaderPressFeedback.ets",
+      "gitBlob": "a9ef02b6d81a15204a3556bcc658b6a80cd4b905",
+      "sha256": "de661500ec97b4f1b6688a0d6d89fa59439757a2a7aaee4f9ce1bd72d528480e"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/reading/ReaderPaperBackground.ets",
+      "gitBlob": "b05990a6412174a5a22e950f78be5c16a1e22deb",
+      "sha256": "acf214a21ac128378501a1678978e183d438e7e86adfdfe52b7350daaea59da2"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/features/reading/ReaderBrightnessCurve.ts",
+      "gitBlob": "9f7c1b27b1ee8611c923f963f2d0e52fedd243a1",
+      "sha256": "4517b986927c10937567c0507d1914a791a769433b2495fd3b92866a3e26c34e"
+    },
+    {
+      "repository": "Reader-for-HarmonyOS",
+      "commit": "33f7c7b21474a76a042ebda911c5f0ff2d73cf54",
+      "path": "entry/src/main/ets/app/ReaderBrightnessWriter.ts",
+      "gitBlob": "0a889415d269e942cd49840107825aed827a2c25",
+      "sha256": "1a0b5de52e814fa02e28ebad95cb6ad98f579479ab14f4c927bbc25e26a157d4"
+    }
+  ],
+  "v1Limitations": [
+    "Only five V1 physical font faces are bundled. Optional font-library choices, imported-font reordering, TTS, auto page-turn, and source switching are not claimed.",
+    "PNG icon outputs preserve source colors and aspect at a 24pt canvas. Device visual calibration remains open.",
+    "Chapter heading is system-scaled per frozen TYPE_READER_CHAPTER_TITLE; reader body uses saved appearance size. Layout must scale the explicit heading line box once.",
+    "Frozen Host static UI fonts are reused exactly except registration names. Their existing source provenance records failed static-versus-variable outline equivalence; no new upstream-equivalence or device-font-parity claim is made.",
+    "V1 header search is explicitly local bookshelf text filtering. Global source search and source/content-type chips are outside scope; no fake remote results are rendered.",
+    "V1 bookshelf menu contains real local import and persisted layout choices only; unavailable download/update/batch-book actions are omitted.",
+    "Shelf static endpoints use the frozen metrics. The 1000ms layered Cover/List choreography and the populated tablet rail are not implemented or claimed.",
+    "Bottom navigation uses the frozen two-tab 196x68 endpoint; platform safe-area placement and Dynamic Type line-box calibration still require rendered evidence.",
+    "Frozen paper texture and lighting layers are implemented by ReaderPaperBackground; cross-platform raster interpolation and rendered device visual parity remain unverified.",
+    "Brightness has no automatic-mode API or control on iOS. Simulator brightness-property checks can verify local lifecycle semantics only; physical display dimming and device acceptance remain unverified."
+  ],
+  "appIcon": {
+    "asset": "AppIcon",
+    "source": "Reference/app-icon-source.png",
+    "sourceDimensions": [
+      1254,
+      1254
+    ],
+    "transformation": "sharp/libvips resize frozen opaque 1254x1254 PNG to 1024x1024; no authored artwork, alpha, or background changes.",
+    "output": "Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+    "outputSha256": "5dcf0b4c8b2ad56fe9b45ee3ec5cd6956029f35e4dee48e759cf84eb88b8060a"
+  },
+  "paperBackground": {
+    "source": "Reader-for-HarmonyOS@33f7c7b21474a76a042ebda911c5f0ff2d73cf54:entry/src/main/ets/features/reading/ReaderPaperBackground.ets",
+    "themeSource": "Reader-UI@95366cd93775ea0ad3ecbc0f60e8882717f93169:theme/registry.json",
+    "composition": [
+      "opaque paperStart→paperEnd vertical gradient",
+      "sourcePaperLighting: shade then highlight stretched independently to the full canvas",
+      "paperTexture: original texture PNG repeated at 100x100 logical points, top-left origin"
+    ],
+    "effects": {
+      "day": [],
+      "warm": [],
+      "night": [],
+      "warmNight": [],
+      "paper": [
+        "shade",
+        "highlight",
+        "texture"
+      ],
+      "green": [],
+      "paperNight": [
+        "texture"
+      ],
+      "greenNight": []
+    },
+    "texture": {
+      "sourcePixels": [
+        200,
+        200
+      ],
+      "assetScale": "2x",
+      "logicalTilePoints": [
+        100,
+        100
+      ],
+      "sourceBytesCopied": true,
+      "phoneAndTabletGitBlobIdentical": true
+    },
+    "lighting": {
+      "renderer": "sharp/libvips from unchanged registered SVG; normal source-over alpha blending; Phone390x844 and Tablet760x960 raster endpoints at 1x/2x/3x; stretched to actual canvas as in Host ImageFit.Fill",
+      "sourcePathMutation": "none"
+    },
+    "outputs": [
+      {
+        "path": "Assets.xcassets/reader-paper-texture.imageset/texture@2x.png",
+        "sha256": "bfa7f242279d457b7707a7de9116047438c6fb2d437ac143125e8b35c7987a7a"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-phone-shade.imageset/shade@1x.png",
+        "sha256": "c2bdbd9357b7600511f95dca2dddd7d435292c1c1388b2b0434b62af2f74e057"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-phone-shade.imageset/shade@2x.png",
+        "sha256": "1897d5c5c1e07b513204e0409ff9e3a8d8f7759a25b437ddad324612694ae4e2"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-phone-shade.imageset/shade@3x.png",
+        "sha256": "665543e1ff79adb90228a1c4c64c8f9e72adeebd6157d45cf83d064f8afe1ee2"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-phone-highlight.imageset/highlight@1x.png",
+        "sha256": "366e37b923d8c6b567eaf70ce7440f9384b29c4d6df7f2e63b39d5d100d5ea92"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-phone-highlight.imageset/highlight@2x.png",
+        "sha256": "495b2b90c6bb7e893dc0039e673ee1e8ab62c8534faa66ad5512146048f317bc"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-phone-highlight.imageset/highlight@3x.png",
+        "sha256": "ad029a817aa89940baad4a0f2bf2143d9376eb52d6f6fd23fa935c9c716a149d"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-tablet-shade.imageset/shade@1x.png",
+        "sha256": "1bc9c6e85ba55cf808a5e84b2f0f1408e3064aee6ae75c4bd2509cecc8c549f5"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-tablet-shade.imageset/shade@2x.png",
+        "sha256": "2abb466a3dd6d92abe56af823043e7f5205b96272a33a6a593ac195cfde6a1b5"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-tablet-shade.imageset/shade@3x.png",
+        "sha256": "b9e12eeaa9d24bbe1c56b5515d67b17f9adaa3cefd1c8af1ac19db491f828364"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-tablet-highlight.imageset/highlight@1x.png",
+        "sha256": "3ac6b9a089b82a3536bbd5d2e9df164edf8b5daf52776fc1707d559a1124f17a"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-tablet-highlight.imageset/highlight@2x.png",
+        "sha256": "f3eff7cfd795948f1bd98d4d8523f271f331eada30ac7bd3e2c9f5f3a11c0898"
+      },
+      {
+        "path": "Assets.xcassets/reader-paper-tablet-highlight.imageset/highlight@3x.png",
+        "sha256": "71f6fd23d43259f9eb2c2c2647a0f221e9a3c4722b60b6fefbaf453770776e6e"
+      }
+    ],
+    "scopeBoundary": "ReaderPaperFxLayer is absent from frozen Host33f7. No later native shader, random noise, new paper effect, or device-equivalence claim is included."
+  },
+  "brightness": {
+    "sources": [
+      "entry/src/main/ets/features/reading/ReaderBrightnessCurve.ts",
+      "entry/src/main/ets/app/ReaderBrightnessWriter.ts",
+      "entry/src/main/ets/features/reading/ReaderControlGeometry.ts"
+    ],
+    "upstream": "AOSP android-15.0.0_r1 SettingsLib/DisplayUtils BrightnessUtils.java",
+    "upstreamSha256": "7d9a706e4b4ff49ae8decef1406719ca8c6b518d652488f171a22e1800785247",
+    "license": "Licenses/AOSP-Brightness-LICENSE.txt",
+    "adaptation": "Existing frozen HLG formulas translated without algorithm changes. Thin UIKit screen access is resolved from the actual hosting window scene. Synchronous native writes need no copied asynchronous recovery queue. Cancel observes the last applied value; reader exit/scene deactivation restore the original baseline; activation reads a new baseline.",
+    "geometry": {
+      "rail": [
+        38,
+        190
+      ],
+      "icon": [
+        20,
+        20
+      ],
+      "iconTop": 9,
+      "track": [
+        8,
+        104
+      ],
+      "trackHitWidth": 24,
+      "controlGap": 14,
+      "unsupportedAutomaticEndpointSlot": [
+        24,
+        20
+      ],
+      "stepPercent": 0.1
+    },
+    "validationBoundary": "No brightness build/test or device execution performed by this resource task. Local value/lifecycle verification cannot establish physical display response, calibration, or automatic brightness behavior. Automatic brightness is not exposed."
+  }
+}

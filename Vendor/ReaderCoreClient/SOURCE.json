@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/minliny/Reader-Core",
+  "commit": "2a301653c140eef457e786fd6ab3bb9b8e3045c8",
+  "license": "MIT OR Apache-2.0",
+  "minimumDeploymentTarget": "17.0",
+  "files": [
+    {
+      "source": "bindings/ios/Sources/ReaderCoreClient/ReaderCoreClient.swift",
+      "destination": "Vendor/ReaderCoreClient/ReaderCoreClient.swift",
+      "sha256": "8b1e6804e1964cae486481ce20c34f1836bace2898f50b1acaac4cac77819604"
+    }
+  ]
+}
