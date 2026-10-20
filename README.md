@@ -85,12 +85,18 @@ App。失败后不自动收集整机诊断，XCTest 常规失败附件、截图�
 ./scripts/deploy-simulator.sh --udid <UDID> --launch
 ```
 
-该入口只接受显式 UDID，要求目标已启动。它只读取一次 `.build/app-build.json`，核对其中
+该入口只接受显式 UDID，要求目标已启动；安装前退出 App 并停止并行数据写入。
+它只读取一次 `.build/app-build.json`，核对其中
 固定目录的 App、输入快照与 Core 回执后，使用同一份只读 App 调用 `simctl install`
-覆盖同一 bundle，并核对安装前后数据容器路径；后续构建更新最新回执不会改变本次安装来源。
+覆盖同一 bundle；后续构建更新最新回执不会改变本次安装来源。
+安装前及安装后启动前，比较受保护相对文件的摘要：`Documents`、`Library/Application Support`
+递归文件及存在时的 `Library/Preferences/io.reader.minliny.plist`。普通文件逐字节核对 SHA-256；
+SQLite 主库使用 Python sqlite3 只读连接的 `iterdump` 语义 SHA，不输出内容，配套 `-wal`/`-shm`
+不按字节比较，以允许合法 checkpoint。容器路径允许迁移、新文件允许增加，既有受保护文件
+不得丢失或变化；首次安装没有安装前数据。数据核对失败时不启动 App。
 不会自动启动其他模拟器，也不执行卸载、擦除、构建或测试。`--launch` 为可选的独立启动动作。
-原始安装与启动回执保存在 `.build/deployments/`；容器路径保留只证明安装动作保数据，
-不能替代书籍与进度的交互验证。
+原始安装与启动回执保存在 `.build/deployments/`，记录路径迁移、保护摘要与比较及部署脚本 SHA。
+既有失败回执保留；保护摘要通过仍不能替代书籍与进度的交互验证。
 
 更新 Core 时先调整 `scripts/core-dependency.json` 的 commit 和准确文件 SHA，再同步 wrapper、
 重建 Core 和 App。不要手改 Vendor 副本，也不要把旧 XCFramework 重新登记为新源码的产物。
