@@ -99,6 +99,7 @@
 		871FD56C212718C70B12C846 /* ReaderRuleToolsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0FCBBB03A85020640CE520 /* ReaderRuleToolsPanel.swift */; };
 		8BA4AEE0F01E6439965FAF9D /* ReaderDirectoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7410F4BE79B4F9374D2921D2 /* ReaderDirectoryService.swift */; };
 		8C0353A878EA5A73B400EE55 /* ReaderRemoteImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D628A70B9133F97F25CFDF07 /* ReaderRemoteImageService.swift */; };
+		8E9356A24137463E518D6F99 /* ReaderImportStaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB7C33E6BC58E8744DACCED /* ReaderImportStaging.swift */; };
 		8EF92F076BE66D82B88E9BFB /* ReaderEbookDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3EEC101B8E35E3CCF73A447 /* ReaderEbookDocument.swift */; };
 		918B6C9AAF3F9211EA038ED5 /* ReaderOnlineAdmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF82CB697AAE13AAC5BC03BD /* ReaderOnlineAdmission.swift */; };
 		918DADE2B1F26FFDD370A25F /* ReaderEbookNotices.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 7A71257EDC67962C6B7107FD /* ReaderEbookNotices.bundle */; };
@@ -195,6 +196,7 @@
 		F1D2C4ECAEF044EC4B0A9438 /* ReaderPendingHostPumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AF5C3764C8982ACED36895 /* ReaderPendingHostPumpTests.swift */; };
 		F1E9AAE57322C633A264EB1C /* LXGWWenKaiGBLite-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3FE6B776E0715167D9883EEB /* LXGWWenKaiGBLite-Regular.ttf */; };
 		F24542403C30C9A892CB280D /* rc_list.svg in Resources */ = {isa = PBXBuildFile; fileRef = B62A81986CD92E5FBA85144F /* rc_list.svg */; };
+		F48C1CAA15F77F6055035B2B /* ReaderImportStagingOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9693713BDF11EDD9E0BC49 /* ReaderImportStagingOwnershipTests.swift */; };
 		F68E6023570B4435EC200984 /* bookshelf_filter_active.svg in Resources */ = {isa = PBXBuildFile; fileRef = B876D98D10C432C1A2B98A67 /* bookshelf_filter_active.svg */; };
 		F818C7789121FE97188FE6DF /* ReaderLibraryFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9DF88F78FDFE3E5ECCE26D /* ReaderLibraryFeatureTests.swift */; };
 		F9EC0EAFD2B763EE53DCF77D /* app-icon-source.png in Resources */ = {isa = PBXBuildFile; fileRef = 34DFEEB1D6996BFEB0F00C92 /* app-icon-source.png */; };
@@ -377,7 +379,9 @@
 		C592414797BD423062C796CC /* Lucide-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Lucide-LICENSE.txt"; sourceTree = "<group>"; };
 		CA2AB2596FC7008C29F04971 /* rc_chevron_right_theme_night.svg */ = {isa = PBXFileReference; path = rc_chevron_right_theme_night.svg; sourceTree = "<group>"; };
 		CA71A173047975BF22F27FD2 /* ReaderHostLibraryIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHostLibraryIdentity.swift; sourceTree = "<group>"; };
+		CAB7C33E6BC58E8744DACCED /* ReaderImportStaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderImportStaging.swift; sourceTree = "<group>"; };
 		CF519112C6057D26EFB74480 /* ReaderReadingToolsJourneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderReadingToolsJourneyTests.swift; sourceTree = "<group>"; };
+		CF9693713BDF11EDD9E0BC49 /* ReaderImportStagingOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderImportStagingOwnershipTests.swift; sourceTree = "<group>"; };
 		D0CA56BE43355036F0D2046F /* NotoSerifSC-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NotoSerifSC-Bold.ttf"; sourceTree = "<group>"; };
 		D20172DC3D70DE1486EBDE09 /* rc_chevron_left_theme_night.svg */ = {isa = PBXFileReference; path = rc_chevron_left_theme_night.svg; sourceTree = "<group>"; };
 		D365C7C08B74E4B13F5E4881 /* bookshelf_filter.svg */ = {isa = PBXFileReference; path = bookshelf_filter.svg; sourceTree = "<group>"; };
@@ -583,6 +587,7 @@
 				1D760AF3D4F99BA64062ECF5 /* ReaderFeatureRecoveryTests.swift */,
 				3607F2F38B20E1795F7B79F8 /* ReaderFilePickerOwnerTests.swift */,
 				4583EC16EFCE9896F4B909A8 /* ReaderHostLibraryIdentityTests.swift */,
+				CF9693713BDF11EDD9E0BC49 /* ReaderImportStagingOwnershipTests.swift */,
 				DD9D8FE0DBF9A00CF84576E0 /* ReaderLateMutationTests.swift */,
 				8E9DF88F78FDFE3E5ECCE26D /* ReaderLibraryFeatureTests.swift */,
 				B752E901179024B85EF6D958 /* ReaderLibraryServiceTests.swift */,
@@ -811,6 +816,7 @@
 				46A25F1D9B7157D37B7962FF /* ReaderDownloadService.swift */,
 				7D09B22EC5B09968AFC58630 /* ReaderFeatureRecovery.swift */,
 				CA71A173047975BF22F27FD2 /* ReaderHostLibraryIdentity.swift */,
+				CAB7C33E6BC58E8744DACCED /* ReaderImportStaging.swift */,
 				C035AA666F71E712DDB641B2 /* ReaderLibraryFeatures.swift */,
 				D4AAD3E6923EBAC75D70DE77 /* ReaderLibraryFeatureService.swift */,
 				9F01B9B2734806D4BB0F9F06 /* ReaderLibraryService.swift */,
@@ -1057,6 +1063,7 @@
 				D3D6159B877CD3DBD8C3EAF3 /* ReaderFontLibrary.swift in Sources */,
 				49AFC46D4C61ABB79FAC6435 /* ReaderHostLibraryIdentity.swift in Sources */,
 				35DCFECB7EA7B30A045E666A /* ReaderIcon.swift in Sources */,
+				8E9356A24137463E518D6F99 /* ReaderImportStaging.swift in Sources */,
 				6F07C797B27F7BABC41E853C /* ReaderLibraryActionOwner.swift in Sources */,
 				9BBD76EF0AE7366B8FC3B73F /* ReaderLibraryFeatureService.swift in Sources */,
 				A131CCADF85C549E0C0F3DB0 /* ReaderLibraryFeatures.swift in Sources */,
@@ -1116,6 +1123,7 @@
 				2E985A8B82477D1967DDA171 /* ReaderFeatureRecoveryTests.swift in Sources */,
 				182EB942AD47EC18E7AE1D84 /* ReaderFilePickerOwnerTests.swift in Sources */,
 				5A01F3768948093A7C5EBD00 /* ReaderHostLibraryIdentityTests.swift in Sources */,
+				F48C1CAA15F77F6055035B2B /* ReaderImportStagingOwnershipTests.swift in Sources */,
 				4E2952498A794D531A498C25 /* ReaderLateMutationTests.swift in Sources */,
 				F818C7789121FE97188FE6DF /* ReaderLibraryFeatureTests.swift in Sources */,
 				C12690855822FBFA5D0952C4 /* ReaderLibraryServiceTests.swift in Sources */,

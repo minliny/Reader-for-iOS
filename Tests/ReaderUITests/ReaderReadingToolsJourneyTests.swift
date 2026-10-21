@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import Vision
+import CryptoKit
 
 /// Bind every result to the delivery owner's sealed build. The real TXT must be
 /// provisioned; all Core operations, clipboard use and positions originate in
@@ -11,6 +12,135 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     private enum JourneyError: Error { case prerequisite, nativeSelection, missingOwnedRule }
     private var displayRestored = false
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    /// Current native paper only. No import, rule/draft form, seek, chapter
+    /// action, display preference, Core injection or reprocess is requested.
+    func testExistingRealTXTVisibleLiteralCaptureAndNormalExitWithoutRuleMutation() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let json = environment["READER_TXT_VISIBLE_CAPTURE_PREFLIGHT_JSON"],
+              let expectedSHA = environment["READER_TXT_VISIBLE_CAPTURE_PREFLIGHT_SHA256"],
+              expectedSHA.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil,
+              SHA256.hash(data: Data(json.utf8)).map({ String(format: "%02x", $0) }).joined() == expectedSHA,
+              let proof = try? JSONDecoder().decode(TXTVisibleCapturePrerequisite.self, from: Data(json.utf8)),
+              proof.schemaVersion == 1, proof.purpose == "existing-real-txt-visible-literal-capture-only",
+              proof.targetUDID == "EEA74BB1-5DFA-479A-ACAA-460503AD0F6B",
+              proof.sourceId == "local", proof.bookId == String(bookID.dropFirst("book-".count)),
+              proof.originalSHA256 == "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5",
+              proof.capturedAfterInstallBeforeLaunch, UUID(uuidString: proof.captureID) != nil,
+              !proof.capturedAt.isEmpty, proof.processedScalarCount > 0,
+              proof.chapterOffset <= proof.processedScalarCount,
+              [proof.bodyVersion, proof.processingVersion, proof.libraryIdentitySHA256, proof.basisSHA256]
+                .allSatisfy({ $0.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil }) else {
+            XCTFail("Root must bind fresh actual post-install/pre-launch original progress, persisted Core processed scalar count, versions, library and true TXT SHA; never reuse the old3752 observation")
+            throw JourneyError.prerequisite
+        }
+        if let actualUDID = environment["SIMULATOR_UDID"] { XCTAssertEqual(actualUDID, proof.targetUDID) }
+        let binding = XCTAttachment(string: json + "\nPREFLIGHT_SHA256=" + expectedSHA)
+        binding.name = "real-txt-visible-capture-original-readonly-basis-not-write-ack"
+        binding.lifetime = .keepAlways; add(binding)
+        let app = XCUIApplication(); app.launch()
+        var returnedToShelf = false
+        var terminated = false
+        defer {
+            if !returnedToShelf {
+                evidence(app, "real-txt-visible-capture-failed-before-normal-return")
+                let failure = XCTAttachment(string: app.debugDescription)
+                failure.name = "real-txt-visible-capture-failed-actual-AX"; failure.lifetime = .keepAlways; add(failure)
+            }
+            // Failure is retained. Do not retry a tap, navigate another book,
+            // discard a draft, or assert that an unobserved close completed.
+            if !terminated {
+                if app.state == .runningForeground { XCUIDevice.shared.press(.home) }
+                if app.state != .notRunning { app.terminate() }
+            }
+        }
+        let shelf = app.buttons["更多书架操作"]
+        XCTAssertTrue(shelf.waitForExistence(timeout: 20)); XCTAssertTrue(shelf.isHittable)
+        let exactBook = app.buttons.matching(NSPredicate(format: "identifier == %@", bookID))
+        XCTAssertTrue(exactBook.firstMatch.waitForExistence(timeout: 20)); XCTAssertEqual(exactBook.count, 1)
+        guard exactBook.element.isHittable, exactBook.element.isEnabled else {
+            XCTFail("The already present exact original must be normally visible under the actual shelf state; do not clear a filter/group, import a substitute, or force-tap")
+            throw JourneyError.prerequisite
+        }
+        evidence(app, "real-txt-visible-capture-existing-original-before-open")
+        exactBook.element.tap()
+        XCTAssertTrue(body(app).waitForExistence(timeout: 30))
+        openModule("home", app: app)
+        let expectedBookAX = "reading-book:" + proof.sourceId + "|" + proof.bookId
+        let header = app.staticTexts.matching(NSPredicate(format: "identifier == %@", expectedBookAX))
+        let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+        XCTAssertTrue(header.firstMatch.waitForExistence(timeout: 5)); XCTAssertEqual(header.count, 1)
+        XCTAssertEqual(chapter.count, 1)
+        XCTAssertEqual(chapter.element.identifier, "reading-chapter:\(proof.chapterIndex)")
+        XCTAssertEqual(header.element.label, title)
+        let rect: (CGRect) -> [String: Double] = { ["x": Double($0.minX), "y": Double($0.minY), "width": Double($0.width), "height": Double($0.height)] }
+        let publicSession: [String: Any] = ["bookAX": header.element.identifier, "bookLabel": header.element.label,
+            "bookFrame": rect(header.element.frame), "chapterAX": chapter.element.identifier,
+            "chapterLabel": chapter.element.label, "chapterFrame": rect(chapter.element.frame),
+            "modelSessionUUIDExposedByAX": false,
+            "boundary": "Actual public book/chapter/body/progress identity tuple, not an invented ReaderActiveSession UUID or UI bodyVersion observation"]
+        evidence(app, "real-txt-visible-capture-actual-public-session-header")
+        hideControls(app)
+        let paper = app.textViews.matching(NSPredicate(format: "identifier == 'reading-body'"))
+        let progress = app.staticTexts.matching(NSPredicate(format: "identifier == 'reading-progress'"))
+        waitUntil("Actual single current paper and footer after controls finish dismissing", timeout: 5) {
+            paper.count == 1 && paper.element.isHittable && progress.count == 1 && progress.element.exists
+        }
+        XCTAssertEqual(paper.count, 1); XCTAssertTrue(paper.element.isHittable)
+        XCTAssertEqual(progress.count, 1)
+        let expectedPercent = Int(Double(proof.chapterOffset) / Double(proof.processedScalarCount) * 100)
+        XCTAssertEqual(progress.element.label, "\(expectedPercent)%", "Bind the actual fresh processed scalar basis; never treat a percent as a scalar/second or guess from raw TXT length")
+        let progressBefore = progress.element.label
+        let capture = try screen(app)
+        guard capture.lines.contains(where: { normalized($0.text).count >= 2 }) else {
+            XCTFail("Current real paper has insufficient visible OCR text; preserve the capture premise and do not seek/turn to manufacture a literal")
+            throw JourneyError.prerequisite
+        }
+        XCTAssertEqual(progress.element.label, progressBefore)
+        let payload: [String: Any] = ["purpose": "visible-literal-capture-only-not-save-admission",
+            "captureID": proof.captureID, "freshOriginalBasisSHA256": proof.basisSHA256,
+            "preflightSHA256": expectedSHA, "publicReadingSession": publicSession,
+            "bodyAX": paper.element.identifier, "bodyFrame": rect(paper.element.frame),
+            "progressAX": progress.element.identifier, "progressLabel": progressBefore, "progressFrame": rect(progress.element.frame),
+            "appFrame": rect(app.frame), "actualOCRViewport": rect(capture.viewport), "actualOCRPixelCrop": rect(capture.pixelCrop),
+            "imagePixelWidth": capture.image.width, "imagePixelHeight": capture.image.height,
+            "lines": capture.lines.map { ["text": $0.text, "normalizedBoxInActualCrop": rect($0.box)] as [String: Any] },
+            "noRuleOrDraftOrSeekRequested": true]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        let observation = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+        observation.name = "real-txt-current-paper-original-native-OCR-and-public-session"; observation.lifetime = .keepAlways; add(observation)
+        let actualImage = XCTAttachment(image: UIImage(cgImage: capture.image))
+        actualImage.name = "real-txt-current-paper-same-OCR-capture"; actualImage.lifetime = .keepAlways; add(actualImage)
+        let ax = XCTAttachment(string: app.debugDescription)
+        ax.name = "real-txt-current-paper-original-AX"; ax.lifetime = .keepAlways; add(ax)
+        leaveReader(app)
+        XCTAssertTrue(shelf.isHittable)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "identifier == %@", expectedBookAX)).firstMatch.exists)
+        evidence(app, "real-txt-visible-capture-normal-return-to-original-shelf")
+        returnedToShelf = true
+        XCUIDevice.shared.press(.home)
+        app.terminate(); terminated = true
+        XCTAssertEqual(app.state, .notRunning)
+    }
+
+    private struct TXTVisibleCapturePrerequisite: Decodable {
+        let schemaVersion: Int
+        let purpose: String
+        let targetUDID: String
+        let captureID: String
+        let capturedAt: String
+        let capturedAfterInstallBeforeLaunch: Bool
+        let sourceId: String
+        let bookId: String
+        let originalSHA256: String
+        let chapterIndex: UInt32
+        let chapterOffset: UInt64
+        let processedScalarCount: UInt64
+        let bodyVersion: String
+        let processingVersion: String
+        let libraryIdentitySHA256: String
+        let basisSHA256: String
+    }
 
     func testOriginalTXTSearchNativeCopyHighlightPreviewAndAutomaticPageConsumer() throws {
         let app = XCUIApplication(); app.launch()

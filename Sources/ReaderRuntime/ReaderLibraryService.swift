@@ -12,6 +12,9 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     let client: any ReaderCoreEventClient
     let hostTransport: ReaderIOSHostTransport?
     private let timing: ReaderRequestTiming
+    private let importStagingObserver: ReaderImportStagingObserver
+    private let importSourceDirectorySync: @Sendable (URL) throws -> Void
+    private var liveImportResources: [String: ReaderImportStagingOwner] = [:]
     let sourceURL: URL
     private let stagingURL: URL
     let operationsURL: URL
@@ -42,9 +45,13 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         self.client = native
         self.hostTransport = transport
         self.timing = .live
+        self.importStagingObserver = { _, _ in }
+        self.importSourceDirectorySync = { try ReaderImportStagingLease.synchronizeDirectory($0) }
     }
 
-    init(storageURL: URL, sourceURL: URL, client: any ReaderCoreEventClient, timing: ReaderRequestTiming) throws {
+    init(storageURL: URL, sourceURL: URL, client: any ReaderCoreEventClient, timing: ReaderRequestTiming,
+         importStagingObserver: @escaping ReaderImportStagingObserver = { _, _ in },
+         importSourceDirectorySync: @escaping @Sendable (URL) throws -> Void = { try ReaderImportStagingLease.synchronizeDirectory($0) }) throws {
         let manager = FileManager.default
         try manager.createDirectory(at: storageURL, withIntermediateDirectories: true)
         try manager.createDirectory(at: sourceURL, withIntermediateDirectories: true)
@@ -56,6 +63,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         self.client = client
         self.hostTransport = nil
         self.timing = timing
+        self.importStagingObserver = importStagingObserver
+        self.importSourceDirectorySync = importSourceDirectorySync
     }
 
     public func listBooks() async throws -> [ReaderBook] {
@@ -169,23 +178,31 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         guard try !hasPendingAssetRemoval() else { throw ReaderLibraryError.operationPending("source cleanup") }
         guard ["txt", "epub", "mobi", "azw", "azw3", "kf8"].contains(url.pathExtension.lowercased()) else { throw ReaderLibraryError.unsupportedFile }
         try Task.checkCancellation()
+        let stagingLease = try ReaderImportStagingLease(stagingURL: stagingURL, observe: importStagingObserver)
+        defer { stagingLease.release() }
         importInFlight = true
         defer { importInFlight = false }
         let selection = UUID().uuidString.lowercased()
-        let staged = stagingURL.appendingPathComponent(selection + ".source")
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        do { try FileManager.default.copyItem(at: url, to: staged) }
-        catch {
-            try? FileManager.default.removeItem(at: staged)
-            throw error
+        let copyCancellation = ReaderImportCopyCancellation()
+        let stagingOwner = try await withTaskCancellationHandler(operation: {
+            try stagingLease.copy(url, selection: selection, cancellation: copyCancellation)
+        }, onCancel: { copyCancellation.cancel() })
+        let staged = stagingLease.payloadURL(stagingOwner)
+        defer {
+            // A malformed or unreadable business journal makes cleanup unsafe.
+            // Existing original mutations, including unknown outcomes, win.
+            if let protections = try? stagingProtections() {
+                try? stagingLease.retirePrecommit(stagingOwner, protections: protections)
+            }
         }
         var record: HostImportRecord?
-        var createdSource = false
+        var persistSendAttempted = false
         var shelfDispatched = false
         var shelfAcknowledged = false
         do {
-            let hash = try Self.sha256(at: staged)
+            guard let hash = stagingOwner.sha256 else { throw ReaderLibraryError.invalidResponse("unsealed import source") }
             let bookID = "local:" + hash
             if let original = try records().first(where: { $0.hash == hash && $0.phase != .finalize }) {
                 throw ReaderLibraryError.operationPending(original.id)
@@ -207,22 +224,28 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                   ["complete", "recoverable"].contains(integrity["readability"] as? String ?? "") else {
                 throw ReaderLibraryError.invalidResponse("unreadable local import")
             }
+            try stagingLease.parsed(stagingOwner)
             try Task.checkCancellation()
             let transactionID = "ios-import-" + selection
             record = HostImportRecord(id: transactionID, fileName: url.lastPathComponent,
                                       stagedName: staged.lastPathComponent, hash: hash,
                                       phase: .persistAwaiting, rollbackToken: nil, shelfParameters: nil)
             try writeRecord(record!)
+            liveImportResources[transactionID] = stagingOwner
+            liveImportResources[transactionID] = try stagingLease.handoff(stagingOwner)
             let persisted = try await request("import.persist", [
                 "transactionId": transactionID, "parsed": parsedObject
-            ], mutation: true, timeout: 120, owner: .importOperation(id: transactionID, stage: .persist))
+            ], mutation: true, timeout: 120, owner: .importOperation(id: transactionID, stage: .persist),
+               onSendAttempt: { persistSendAttempted = true })
             var persistedRecord = record!
             let local = try applyPersistedReceipt(persisted, record: &persistedRecord)
             record = persistedRecord
             finishMutation(.importOperation(id: transactionID, stage: .persist))
             let token = try object(persistedRecord.rollbackToken!)
             let shelf = try object(persistedRecord.shelfParameters!)
-            createdSource = try commitSource(staged, hash: hash)
+            _ = try commitSource(staged, hash: hash) { created in
+                try registerSourceCreation(created, owner: stagingOwner, using: stagingLease)
+            }
             record?.phase = .shelfAwaiting
             try writeRecord(record!)
             shelfDispatched = true
@@ -237,9 +260,12 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             do {
                 try writeRecord(record!)
                 finishMutation(.importOperation(id: transactionID, stage: .shelf))
-                _ = try await request("import.finalize", ["rollbackToken": token], mutation: true,
+                let finalized = try await request("import.finalize", ["rollbackToken": token], mutation: true,
                                       owner: .importOperation(id: transactionID, stage: .finalize))
+                try validateImportTerminal(finalized, record: record!, stage: .finalize)
+                try retireImportResources(record!, authority: .finalized, using: stagingLease)
                 try removeRecord(transactionID)
+                liveImportResources.removeValue(forKey: transactionID)
                 finishMutation(.importOperation(id: transactionID, stage: .finalize))
                 pending = false
             } catch { /* Keep the opaque receipt for explicit startup recovery. */ }
@@ -252,8 +278,18 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             if shelfAcknowledged { throw ReaderLibraryError.operationPending(record?.id ?? selection) }
             if let record, hasPendingImport(record.id) { throw ReaderLibraryError.operationPending(record.id) }
             let unknown = isUnknownOutcome(error)
+            if let current = record, !persistSendAttempted {
+                // This same invocation has not entered client.send for persist.
+                // Local record/handoff I/O failure is not an unknown Core write.
+                liveImportResources[current.id] = liveImportResources[current.id] ?? stagingOwner
+                try retireImportResources(current, authority: .notDispatched, using: stagingLease)
+                do { try removeRecord(current.id) }
+                catch let failure as CocoaError where failure.code == .fileNoSuchFile {}
+                liveImportResources.removeValue(forKey: current.id)
+                throw error
+            }
             if let current = record {
-                if current.rollbackToken == nil && unknown {
+                if current.rollbackToken == nil && !Self.isDefiniteMutationRejection(error) {
                     throw ReaderLibraryError.operationPending(current.id)
                 }
                 if shelfDispatched && unknown { throw ReaderLibraryError.operationPending(current.id) }
@@ -264,15 +300,21 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                         rollbackRecord.rejection = StoredImportRejection(error)
                         rollbackRecord.originalFailure = String(describing: error)
                         try writeRecord(rollbackRecord)
-                        _ = try await request("import.rollback", ["rollbackToken": try object(tokenData)], mutation: true,
+                        let rolledBack = try await request("import.rollback", ["rollbackToken": try object(tokenData)], mutation: true,
                                               owner: .importOperation(id: current.id, stage: .rollback))
+                        try validateImportTerminal(rolledBack, record: rollbackRecord, stage: .rollback)
+                        try retireImportResources(rollbackRecord, authority: .rolledBack, using: stagingLease)
                     } catch { throw ReaderLibraryError.operationPending(current.id) }
+                } else {
+                    // Only this actual persist rejection permits cleanup. An
+                    // owner-file absence is not loss of the live inode proof.
+                    try retireImportResources(current, authority: .persistRejected, using: stagingLease)
                 }
-                if createdSource { try? FileManager.default.removeItem(at: stableSource(current.hash)) }
                 try removeRecord(current.id)
+                liveImportResources.removeValue(forKey: current.id)
                 finishMutation(.importOperation(id: current.id, stage: .rollback))
             }
-            try? FileManager.default.removeItem(at: staged)
+            // The private owner defer retires only a proved precommit inode.
             throw error
         }
     }
@@ -294,10 +336,12 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         guard book.sourceId == "local", !operationID.isEmpty else { throw ReaderLibraryError.unsupportedFile }
         guard !importInFlight, !recovering, !assetMutationInFlight else { throw ReaderLibraryError.busy }
         guard try !hasPendingAssetRemoval() else { throw ReaderLibraryError.operationPending("source cleanup") }
+        let stagingLease = try ReaderImportStagingLease(stagingURL: stagingURL)
+        defer { stagingLease.release() }
         importInFlight = true
         defer { importInFlight = false }
         let transactionID = "ios-reprocess-" + SHA256.hash(data: Data(operationID.utf8)).map { String(format: "%02x", $0) }.joined()
-        try drainUnresolvedReplies(importsOnly: true)
+        try drainUnresolvedReplies(importsOnly: true, resourceLease: stagingLease)
         var record: HostImportRecord
         if let original = try records(includeCompleted: true).first(where: { $0.id == transactionID }) {
             guard original.reprocessOperationID == operationID, "local:" + original.hash == book.bookId else {
@@ -424,9 +468,14 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     public func recoverPendingImports() async throws -> [ReaderPendingImport] {
         guard !isClosed else { throw ReaderLibraryError.closed }
         guard !importInFlight, !recovering, !assetMutationInFlight else { throw ReaderLibraryError.busy }
+        let stagingLease = try ReaderImportStagingLease(stagingURL: stagingURL)
+        defer { stagingLease.release() }
         recovering = true
         defer { recovering = false }
-        try drainUnresolvedReplies(importsOnly: true)
+        // Read every original journal before resource recovery. An unknown or
+        // malformed old journal is never interpreted as an absent Core owner.
+        try stagingLease.recoverPrecommit(protections: stagingProtections())
+        try drainUnresolvedReplies(importsOnly: true, resourceLease: stagingLease)
         var completedRejection: Error?
         for var record in try records() {
             // A live original request owns this phase until its terminal reply
@@ -442,11 +491,13 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             let token = try object(tokenData)
             do {
                 if record.phase == .rollback {
-                    _ = try await request("import.rollback", ["rollbackToken": token], mutation: true,
+                    let rolledBack = try await request("import.rollback", ["rollbackToken": token], mutation: true,
                                           owner: .importOperation(id: record.id, stage: .rollback))
+                    try validateImportTerminal(rolledBack, record: record, stage: .rollback)
+                    try retireImportResources(record, authority: .rolledBack, using: stagingLease)
                     try removeRecord(record.id)
+                    liveImportResources.removeValue(forKey: record.id)
                     finishMutation(.importOperation(id: record.id, stage: .rollback))
-                    try? FileManager.default.removeItem(at: stagingURL.appendingPathComponent(record.stagedName))
                     if completedRejection == nil {
                         completedRejection = rollbackCompletion(record)
                     }
@@ -454,7 +505,10 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 }
                 if record.phase != .finalize {
                     guard let shelf = record.shelfParameters else { continue }
-                    _ = try commitSource(stagingURL.appendingPathComponent(record.stagedName), hash: record.hash)
+                    let ownership = try importResourceProof(for: record, using: stagingLease)
+                    _ = try commitSource(stagingURL.appendingPathComponent(record.stagedName), hash: record.hash) { created in
+                        if let ownership { try registerSourceCreation(created, owner: ownership, using: stagingLease) }
+                    }
                     record.phase = .shelfAwaiting
                     try writeRecord(record)
                     _ = try await request("bookshelf.add", try object(shelf), mutation: true,
@@ -463,9 +517,12 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                     try writeRecord(record)
                     finishMutation(.importOperation(id: record.id, stage: .shelf))
                 }
-                _ = try await request("import.finalize", ["rollbackToken": token], mutation: true,
+                let finalized = try await request("import.finalize", ["rollbackToken": token], mutation: true,
                                       owner: .importOperation(id: record.id, stage: .finalize))
+                try validateImportTerminal(finalized, record: record, stage: .finalize)
+                try retireImportResources(record, authority: .finalized, using: stagingLease)
                 try removeRecord(record.id)
+                liveImportResources.removeValue(forKey: record.id)
                 finishMutation(.importOperation(id: record.id, stage: .finalize))
             } catch { /* Retain receipt and source on every unresolved recovery. */ }
         }
@@ -487,7 +544,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     }
 
     func request(_ method: String, _ params: [String: Any], mutation: Bool = false,
-                         timeout: TimeInterval = 30, owner: PendingMutationOwner? = nil) async throws -> Data {
+                         timeout: TimeInterval = 30, owner: PendingMutationOwner? = nil,
+                         onSendAttempt: (() -> Void)? = nil) async throws -> Data {
         guard !isClosed else { throw ReaderLibraryError.closed }
         if !mutation { try Task.checkCancellation() }
         if mutation {
@@ -504,7 +562,10 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             // deadline: actor reentrancy cannot dispatch a competing write.
             unresolvedWrites[id] = PendingMutation(method: method, owner: owner, terminal: nil)
         }
-        do { try client.send(method: method, requestId: id, params: params) }
+        do {
+            onSendAttempt?() // Infallible: after reservation, immediately before the actual send attempt.
+            try client.send(method: method, requestId: id, params: params)
+        }
         catch {
             unresolvedWrites.removeValue(forKey: id)
             hostTransport?.finish(requestID: id)
@@ -750,7 +811,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
 
     /// pollEvent consumes an event. Retain it first, then retire it only after
     /// its original owner has durably applied the corresponding phase.
-    func drainUnresolvedReplies(owner: PendingMutationOwner? = nil, importsOnly: Bool = false) throws {
+    func drainUnresolvedReplies(owner: PendingMutationOwner? = nil, importsOnly: Bool = false,
+                               resourceLease: ReaderImportStagingLease? = nil) throws {
         for id in unresolvedWrites.keys.sorted() {
             guard !activeRequests.contains(id), var pending = unresolvedWrites[id] else { continue }
             if let owner, pending.owner != owner { continue }
@@ -786,8 +848,9 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                         unresolvedWrites.removeValue(forKey: id)
                         throw error
                     }
+                    try retireImportResources(record, authority: .persistRejected, using: resourceLease)
                     try removeRecord(recordID)
-                    try? FileManager.default.removeItem(at: stagingURL.appendingPathComponent(record.stagedName))
+                    liveImportResources.removeValue(forKey: recordID)
                     unresolvedWrites.removeValue(forKey: id)
                     throw error
                 }
@@ -815,9 +878,10 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                     }
                     record.phase = .completed
                     try writeRecord(record)
-                } else { try removeRecord(recordID) }
-                if stage == .rollback {
-                    try? FileManager.default.removeItem(at: stagingURL.appendingPathComponent(record.stagedName))
+                } else {
+                    try retireImportResources(record, authority: stage == .rollback ? .rolledBack : .finalized, using: resourceLease)
+                    try removeRecord(recordID)
+                    liveImportResources.removeValue(forKey: recordID)
                 }
             }
             unresolvedWrites.removeValue(forKey: id)
@@ -872,23 +936,80 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     func stableSource(_ hash: String) -> URL { sourceURL.appendingPathComponent(hash + ".source") }
 
     @discardableResult
-    private func commitSource(_ staged: URL, hash: String) throws -> Bool {
+    private func commitSource(_ staged: URL, hash: String,
+                              didCreate: (ReaderImportStagingOwner.CreatedSource) throws -> Void = { _ in }) throws -> Bool {
         let destination = stableSource(hash)
         if FileManager.default.fileExists(atPath: destination.path) {
-            guard try Self.sha256(at: destination) == hash else {
+            guard try ReaderImportStagingLease.verifiedSHA256(at: destination) == hash else {
                 throw ReaderLibraryError.invalidResponse("source identity mismatch")
             }
             if staged != destination, FileManager.default.fileExists(atPath: staged.path) {
+                guard try ReaderImportStagingLease.verifiedSHA256(at: staged) == hash else {
+                    throw ReaderLibraryError.invalidResponse("staged source identity mismatch")
+                }
                 try FileManager.default.removeItem(at: staged)
+                try importSourceDirectorySync(staged.deletingLastPathComponent())
             }
             return false
         }
-        try FileManager.default.moveItem(at: staged, to: destination)
+        let verified = try ReaderImportStagingLease.verifiedFile(at: staged)
+        guard verified.sha256 == hash else {
+            throw ReaderLibraryError.invalidResponse("staged source identity mismatch")
+        }
+        try ReaderImportStagingLease.moveExclusively(staged, to: destination)
+        // The no-overwrite rename preserves the verified inode. Publish that
+        // creation fact BEFORE the callback's durable write or either fsync.
+        try didCreate(.init(name: destination.lastPathComponent, identity: verified.identity))
+        try importSourceDirectorySync(sourceURL)
+        try importSourceDirectorySync(staged.deletingLastPathComponent())
         return true
     }
 
+    private func registerSourceCreation(_ created: ReaderImportStagingOwner.CreatedSource,
+                                        owner original: ReaderImportStagingOwner,
+                                        using lease: ReaderImportStagingLease) throws {
+        var owner = original
+        owner.phase = .handedOff
+        owner.createdSource = created
+        liveImportResources[owner.transactionID] = owner // Infallible before any following I/O.
+        try lease.recordCreatedSource(owner)
+    }
+
+    private func importResourceProof(for record: HostImportRecord, using lease: ReaderImportStagingLease) throws -> ReaderImportStagingOwner? {
+        let proof = try liveImportResources[record.id] ?? lease.owner(for: record.id)
+        guard let proof else { return nil } // Legacy bare staging is never guessed to be ours.
+        guard proof.transactionID == record.id, proof.stagedName == record.stagedName, proof.sha256 == record.hash else {
+            throw ReaderLibraryError.invalidResponse("original import resource identity")
+        }
+        return proof
+    }
+
+    private func retireImportResources(_ record: HostImportRecord,
+                                       authority: ReaderImportStagingLease.RetirementAuthority,
+                                       using provided: ReaderImportStagingLease? = nil) throws {
+        guard record.reprocessOperationID == nil else { return }
+        let lease = try provided ?? ReaderImportStagingLease(stagingURL: stagingURL)
+        defer { if provided == nil { lease.release() } }
+        guard let proof = try importResourceProof(for: record, using: lease) else { return }
+        // No other original business owner may claim the exact path being
+        // retired. A shared SHA never establishes that we created its source.
+        let others = try records(includeCompleted: true).filter { $0.id != record.id }
+        guard !others.contains(where: { $0.stagedName == record.stagedName ||
+            (authority == .rolledBack && proof.createdSource != nil && $0.hash == record.hash) }) else {
+            throw ReaderLibraryError.operationPending(record.id)
+        }
+        try lease.retireOwned(proof, authority: authority)
+    }
+
     private func writeRecord(_ record: HostImportRecord) throws {
-        try JSONEncoder().encode(record).write(to: operationsURL.appendingPathComponent(record.id + ".json"), options: .atomic)
+        try ReaderImportStagingLease.writeDurably(try JSONEncoder().encode(record),
+            to: operationsURL.appendingPathComponent(record.id + ".json"))
+    }
+
+    private func stagingProtections() throws -> [ReaderImportStagingLease.Protection] {
+        try records(includeCompleted: true).map {
+            .init(transactionID: $0.id, stagedName: $0.stagedName, hash: $0.hash)
+        }
     }
 
     private func removeRecord(_ id: String) throws {
