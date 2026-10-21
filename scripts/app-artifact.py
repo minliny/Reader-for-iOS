@@ -85,14 +85,25 @@ def verify_simulator_identity(app, helper):
 def prepare_copied_signature(app):
     # FileProvider metadata is not part of the App's bytes, but FinderInfo is
     # forbidden by codesign. Touch only this unpublished generated copy.
+    remove_xattr = getattr(os, "removexattr", None)
+    missing_attribute_errors = {getattr(errno, name) for name in ("ENOATTR", "ENODATA")
+                                if hasattr(errno, name)}
     for path in (app, *app.rglob("*")):
         if path.is_symlink():
             continue
-        try:
-            os.removexattr(path, "com.apple.FinderInfo", follow_symlinks=False)
-        except OSError as error:
-            if error.errno not in (errno.ENOATTR, errno.ENODATA):
-                raise
+        if remove_xattr is not None:
+            try:
+                remove_xattr(path, "com.apple.FinderInfo", follow_symlinks=False)
+            except OSError as error:
+                if error.errno not in missing_attribute_errors:
+                    raise
+        else:
+            # Python's xattr functions are not provided by every macOS
+            # runtime. The system tool lists names without reading values;
+            # remove only the forbidden tag on this exact non-symlink path.
+            attributes = subprocess.check_output(["/usr/bin/xattr", str(path)], text=True).splitlines()
+            if "com.apple.FinderInfo" in attributes:
+                subprocess.run(["/usr/bin/xattr", "-d", "com.apple.FinderInfo", str(path)], check=True)
 
 
 def git_identity():
