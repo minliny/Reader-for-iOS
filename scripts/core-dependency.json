@@ -1,14 +1,34 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/minliny/Reader-Core",
-  "commit": "2a301653c140eef457e786fd6ab3bb9b8e3045c8",
+  "commit": "8766e78068ff6a5dc0b6c4b89862fff3d8195f3d",
   "license": "MIT OR Apache-2.0",
   "minimumDeploymentTarget": "17.0",
   "files": [
     {
       "source": "bindings/ios/Sources/ReaderCoreClient/ReaderCoreClient.swift",
       "destination": "Vendor/ReaderCoreClient/ReaderCoreClient.swift",
-      "sha256": "8b1e6804e1964cae486481ce20c34f1836bace2898f50b1acaac4cac77819604"
+      "sha256": "e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0"
     }
-  ]
+  ],
+  "previousCommit": "2a301653c140eef457e786fd6ab3bb9b8e3045c8",
+  "upgrade": {
+    "cABI": "unchanged; existing rc_epub_read_entry and owned bytes ABI reused",
+    "addedContracts": [
+      "local_book.chapter.presentation.v1",
+      "local_book.presentation.kind.v1",
+      "rule-sub.update.preview.v1",
+      "rules.mutation.apply: rule-sub.update.apply.v1",
+      "bookshelf.list: optional hasGroup",
+      "source.switch.transaction.query: originalCommit, expectedStage, expectedCanonical",
+      "source.switch.finalize/rollback: optional original stage binding",
+      "cache.download.operation.query",
+      "cache.download.operation.settle",
+      "cache prefetch/control/materialization: optional original operation binding",
+      "txt-toc-rule.preview: read-only real-original draft recognition with saved-rule priority and bounded scalar ranges"
+    ],
+    "positionChange": "local search now publishes the exact local reading snapshot scope; ebook original XHTML is bound to canonical scalar window; existing import reprocessing transaction reused",
+    "readLifecycle": "Swift response-owner admission and exact read retirement; abandoned read/control envelopes cannot accumulate; original business mutation receipts remain owned",
+    "operationRecovery": "Core-owned original download plan with safe exact continuation, immutable resource leases and pause/cancel dispositions; atomic source-switch stage receipts and canonical progress ACK"
+  }
 }

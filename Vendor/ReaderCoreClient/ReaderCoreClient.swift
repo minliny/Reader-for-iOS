@@ -523,9 +523,54 @@ private let readerCoreEventCallback: rc_event_callback = { context, bytes, lengt
     sink.onEvent(Data(bytes: bytes, count: length))
 }
 
-private final class ReaderCoreEventBuffer {
+final class ReaderCoreEventBuffer {
     private let condition = NSCondition()
     private var events: [Result<ReaderCoreEvent, ReaderCoreClientError>] = []
+    private var responseOwners: [UInt64: UUID] = [:]
+
+    /// Registration precedes send because the native callback can be synchronous.
+    /// The token prevents a failed send from removing a later registration.
+    func registerResponse(requestId: UInt64) throws -> UUID {
+        condition.lock()
+        defer { condition.unlock() }
+        guard responseOwners[requestId] == nil else { throw ReaderCoreClientError.busy }
+        let token = UUID()
+        responseOwners[requestId] = token
+        return token
+    }
+
+    func requireUnowned(requestId: UInt64) throws {
+        condition.lock()
+        defer { condition.unlock() }
+        guard responseOwners[requestId] == nil else { throw ReaderCoreClientError.busy }
+    }
+
+    func removeRegistration(requestId: UInt64, token: UUID) {
+        condition.lock()
+        defer { condition.unlock() }
+        guard responseOwners[requestId] == token else { return }
+        retireLocked(requestId: requestId)
+    }
+
+    /// Only an abandoned read may give up its future terminal. No tombstone is
+    /// retained: callbacks for IDs without a response owner are never enqueued.
+    func retireReadRequest(requestId: UInt64) {
+        condition.lock()
+        defer { condition.unlock() }
+        retireLocked(requestId: requestId)
+    }
+
+    private func retireLocked(requestId: UInt64) {
+        responseOwners.removeValue(forKey: requestId)
+        events.removeAll { if case .success(let event) = $0 { return event.requestId == requestId }; return false }
+    }
+
+    func removeAll() {
+        condition.lock()
+        defer { condition.unlock() }
+        responseOwners.removeAll()
+        events.removeAll()
+    }
 
     func append(_ data: Data) {
         let event: Result<ReaderCoreEvent, ReaderCoreClientError>
@@ -538,9 +583,39 @@ private final class ReaderCoreEventBuffer {
         }
 
         condition.lock()
+        switch event {
+        case .success(let value):
+            guard let requestId = value.requestId else {
+                // Valid unsolicited notifications have no consumer in the
+                // request demultiplexer. Preserve an uncorrelated error only
+                // as a protocol diagnostic, never as another request's ACK.
+                if value.type == "error" { appendDiagnosticLocked(.invalidEventJSON) }
+                condition.unlock()
+                return
+            }
+            guard responseOwners[requestId] != nil else { condition.unlock(); return }
+        case .failure(let error):
+            appendDiagnosticLocked(error)
+            condition.unlock()
+            return
+        }
         events.append(event)
         condition.broadcast()
         condition.unlock()
+    }
+
+    private func appendDiagnosticLocked(_ error: ReaderCoreClientError) {
+        // Keep the first malformed global event until a consumer observes it;
+        // repeated malformed callbacks must not form another unbounded queue.
+        guard !events.contains(where: { if case .failure = $0 { return true }; return false }) else { return }
+        events.append(.failure(error))
+        condition.broadcast()
+    }
+
+    private func consumedLocked(_ event: ReaderCoreEvent) {
+        if ["result", "error"].contains(event.type), let requestId = event.requestId {
+            responseOwners.removeValue(forKey: requestId)
+        }
     }
 
     func wait(requestId: UInt64, timeout: TimeInterval) throws -> ReaderCoreEvent {
@@ -554,6 +629,7 @@ private final class ReaderCoreEventBuffer {
                 switch event {
                 case .success(let event) where event.requestId == requestId:
                     events.remove(at: index)
+                    consumedLocked(event)
                     return event
                 case .failure(let error):
                     events.remove(at: index)
@@ -580,6 +656,7 @@ private final class ReaderCoreEventBuffer {
             switch event {
             case .success(let event) where event.requestId == requestId:
                 events.remove(at: index)
+                consumedLocked(event)
                 return .success(event)
             case .failure(let error):
                 events.remove(at: index)
@@ -760,6 +837,16 @@ public final class ReaderCoreClient {
         try runtime.cancel(requestId: requestId)
     }
 
+    /// Stop retaining replies for an abandoned read after cancelling its Core
+    /// work. Never use this for a dispatched mutation whose ACK is still owned.
+    /// Request IDs must not be reused while their original Core work is active.
+    public func retireReadRequest(requestId: UInt64) {
+        eventBuffer.retireReadRequest(requestId: requestId)
+    }
+
+    /// Automatic envelope IDs have no response owner: valid Host completion
+    /// resumes the original request. To inspect an envelope's own rejection,
+    /// provide an explicit requestId and consume it through pollEvent.
     @discardableResult
     public func sendHostComplete(
         operationId: UInt64,
@@ -773,11 +860,14 @@ public final class ReaderCoreClient {
             params: [
                 "operationId": NSNumber(value: operationId),
                 "result": result,
-            ]
+            ],
+            expectsResponse: requestId != nil
         )
         return commandId
     }
 
+    /// As with sendHostComplete, only an explicit control requestId retains
+    /// the envelope's own error; the original request keeps its normal owner.
     @discardableResult
     public func sendHostError(
         operationId: UInt64,
@@ -803,16 +893,18 @@ public final class ReaderCoreClient {
                     "message": message,
                     "retryable": retryable,
                 ],
-            ]
+            ],
+            expectsResponse: requestId != nil
         )
         return commandId
     }
 
     public func destroy() {
         runtime.destroy()
+        eventBuffer.removeAll()
     }
 
-    private func sendCommand(method: String, requestId: UInt64, params: [String: Any]) throws {
+    private func sendCommand(method: String, requestId: UInt64, params: [String: Any], expectsResponse: Bool = true) throws {
         let command: [String: Any] = [
             "protocolVersion": NSNumber(value: Self.protocolVersion),
             "requestId": NSNumber(value: requestId),
@@ -831,7 +923,18 @@ public final class ReaderCoreClient {
             throw ReaderCoreClientError.invalidCommandJSON
         }
 
-        try runtime.send(json: json)
+        // Automatic host envelopes have no response consumer. Core routes a
+        // valid completion to the original request and can reject a late
+        // envelope under its own ID; neither creates an unowned buffered reply.
+        // Supply an explicit control requestId to observe envelope diagnostics.
+        let owner: UUID?
+        if expectsResponse { owner = try eventBuffer.registerResponse(requestId: requestId) }
+        else { try eventBuffer.requireUnowned(requestId: requestId); owner = nil }
+        do { try runtime.send(json: json) }
+        catch {
+            if let owner { eventBuffer.removeRegistration(requestId: requestId, token: owner) }
+            throw error
+        }
     }
 
     private func waitForResolved(requestId: UInt64, timeout: TimeInterval) throws -> ReaderCoreEvent {

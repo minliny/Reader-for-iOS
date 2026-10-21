@@ -2,11 +2,12 @@ import SwiftUI
 
 @main
 struct ReaderApp: App {
+    @UIApplicationDelegateAdaptor(ReaderOrientationDelegate.self) private var orientationDelegate
     @StateObject private var bootstrap = ReaderBootstrap()
     @StateObject private var preferences = ReaderPreferences()
     @Environment(\.scenePhase) private var phase
 
-    init() { ReaderFonts.registerBundledFonts() }
+    init() { ReaderFonts.registerBundledFonts(); ReaderRuleSubscriptionScheduler.shared.register() }
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +23,7 @@ struct ReaderApp: App {
                         .preferredColorScheme(preferences.appDark ? .dark : .light)
                 }
             }
+            .background(ReaderSystemAppearanceAttachment(changed: { preferences.applySystemAppearance(systemDark: $0) }).frame(width: 0, height: 0))
             .background(ReaderPalette(preferences.appDark ? .dark : .light).paper)
             .task { bootstrap.setForeground(phase == .active); await bootstrap.prepare() }
             .onOpenURL { url in bootstrap.openFile(url) }
@@ -35,38 +37,55 @@ final class ReaderBootstrap: ObservableObject {
     @Published private(set) var model: ReaderApplicationModel?
     @Published private(set) var failed = false
     private var preparing = false
-    private var pendingFile: URL?
+    private var pendingFiles: [URL] = []
     private var foreground = true
+    private var subscriptionOpportunity: Task<Void, Never>?
+    private var subscriptionOpportunityID = UUID()
 
     func prepare() async {
         guard model == nil, !preparing else { return }
         preparing = true
         failed = false
         do {
-            let directory = try FileManager.default.url(for: .applicationSupportDirectory,
-                in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("Reader", isDirectory: true)
-            let storage = directory.appendingPathComponent("Core", isDirectory: true)
-            let sources = directory.appendingPathComponent("LocalSources", isDirectory: true)
-            let service = try await Task.detached(priority: .userInitiated) {
-                try ReaderLibraryService(storageURL: storage, sourceURL: sources)
-            }.value
+            let service = try await ReaderAppRuntimeStore.shared.library()
             let model = ReaderApplicationModel(service: service)
             self.model = model
             model.setForeground(foreground)
             await model.start()
-            if let pendingFile { self.pendingFile = nil; model.importFile(pendingFile) }
+            beginSubscriptionOpportunity()
+            if !pendingFiles.isEmpty {
+                let files = pendingFiles; pendingFiles.removeAll()
+                model.importFiles(files)
+            }
         } catch { failed = true }
         preparing = false
     }
 
     func openFile(_ url: URL) {
         guard url.isFileURL else { return }
-        if let model { model.importFile(url) } else { pendingFile = url }
+        if let model, !preparing { model.importFile(url) } else { pendingFiles.append(url) }
     }
 
     func setForeground(_ active: Bool) {
+        let changed = foreground != active
         foreground = active
         model?.setForeground(active)
+        guard changed else { return }
+        if active { beginSubscriptionOpportunity() }
+        else {
+            subscriptionOpportunityID = UUID()
+            subscriptionOpportunity?.cancel(); subscriptionOpportunity = nil
+        }
+    }
+
+    private func beginSubscriptionOpportunity() {
+        guard foreground, model != nil, subscriptionOpportunity == nil else { return }
+        let generation = UUID(); subscriptionOpportunityID = generation
+        subscriptionOpportunity = Task { [weak self] in
+            await ReaderRuleSubscriptionScheduler.shared.foregroundOpportunity()
+            guard let self, subscriptionOpportunityID == generation else { return }
+            subscriptionOpportunity = nil
+        }
     }
 }
 
@@ -78,46 +97,72 @@ struct ReaderRootView: View {
     @State private var shelfAnchor: String?
     @State private var shelfQuery = ""
     @State private var shelfSearching = false
+    @StateObject private var shelfPresentation = ReaderShelfPresentation()
+    @State private var online = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            if let session = model.reader {
-                ReaderReadingView(model: model, preferences: preferences, session: session)
-                    .id(session.id)
-            } else {
+            Group {
+                if online {
+                    ReaderOnlineWorkspace(model: model, preferences: preferences, close: { online = false })
+                } else {
                 VStack(spacing: 0) {
                     if settings {
-                        ReaderSettingsView(preferences: preferences)
+                        ReaderSettingsView(preferences: preferences, online: { online = true })
                     } else {
                         ReaderBookshelfView(model: model, preferences: preferences,
                             shelfAnchor: $shelfAnchor, query: $shelfQuery, searching: $shelfSearching,
-                            importFile: { if model.importBusy { model.importResultVisible = true } else { _ = filePicker.begin() } })
+                            presentation: shelfPresentation,
+                            importFile: { if model.importBusy { model.importResultVisible = true } else { _ = filePicker.begin() } },
+                            online: { online = true })
                     }
                     navigation
                 }
+                }
+            }.opacity(model.reader == nil ? 1 : 0).allowsHitTesting(model.reader == nil)
+                .accessibilityHidden(model.reader != nil)
+            if let session = model.reader {
+                ReaderReadingView(model: model, preferences: preferences, session: session).id(session.id)
             }
+            ReaderFeatureRecoveryEntry(model: model, owner: model.featureRecovery)
+                .environment(\.colorScheme, preferences.appDark ? .dark : .light)
+                .padding(.bottom, 94)
             if let feedback = model.feedback {
                 ReaderTransientFeedback(message: feedback).padding(.horizontal, 24).padding(.bottom, 100)
                     .environment(\.colorScheme, preferences.appDark ? .dark : .light)
                     .allowsHitTesting(false)
             }
+            VStack {
+                ReaderOperationStatus(owner: model.actions, scope: model.reader?.book.id ?? "shelf",
+                    allowGlobalRecovery: true,
+                    recoveryContext: model.books.first(where: { $0.id == model.actions.scope }).map { "《" + $0.title + "》" }) {
+                    Task { await model.reloadLibrary() }
+                }.environment(\.colorScheme, preferences.appDark ? .dark : .light)
+                ReaderOperationStatus(owner: model.readingTime.actions, scope: model.readingTime.scope) {
+                    Task { await model.readingTime.flush() }
+                }.environment(\.colorScheme, preferences.appDark ? .dark : .light)
+                Spacer()
+            }.padding(16)
         }.background(ReaderPalette(scheme).paper)
             .preferredColorScheme((model.reader == nil ? preferences.appDark : preferences.theme.isDark) ? .dark : .light)
             .sheet(isPresented: filePicker.presented, onDismiss: {
-                if let url = filePicker.didDismiss() { model.importFile(url) }
+                if let urls = filePicker.didDismissFiles() { model.importFiles(urls) }
             }) {
                 if let operation = filePicker.operationID {
                     ReaderDocumentPicker(selected: { url in
                         if let ready = filePicker.select(url, operationID: operation) { model.importFile(ready) }
-                    }, cancelled: { filePicker.cancel(operationID: operation) })
+                    }, cancelled: { filePicker.cancel(operationID: operation) }, selectedFiles: { urls in
+                        if let ready = filePicker.selectFiles(urls, operationID: operation) { model.importFiles(ready) }
+                    }, allowsMultipleSelection: true)
                 }
             }
             .sheet(isPresented: $model.importResultVisible) {
                 if let operation = model.importOperation {
                     ReaderImportResultView(operation: operation, close: { model.importResultVisible = false },
-                        reconcile: { Task { await model.reconcileImports(); await model.reloadLibrary() } })
-                        .presentationDetents([.medium])
+                        reconcile: { Task { await model.reconcileImports(); await model.reloadLibrary() } },
+                        stopRemaining: model.stopRemainingImports, feedback: model.feedback)
+                        .presentationDetents([.medium, .large])
                         .preferredColorScheme(preferences.appDark ? .dark : .light)
                 }
             }

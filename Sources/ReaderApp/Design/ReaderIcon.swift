@@ -4,6 +4,7 @@ enum ReaderIconName: String, CaseIterable {
     case bookshelf, bookshelfActive, settings, settingsActive, more, back, appearance, directory
     case chevronDown, chevronLeft, chevronRight, importFile, search, grid, gridActive, list, listActive
     case filter, filterActive, sun, bookmark, check, close
+    case autoPage, replace, play, pause, stop, clock
     var assetName: String { "reader-icon-" + rawValue }
 }
 

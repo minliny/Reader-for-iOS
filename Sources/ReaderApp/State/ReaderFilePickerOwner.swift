@@ -20,7 +20,7 @@ final class ReaderFilePickerOwner: ObservableObject {
 
     private struct Operation {
         let id: UUID
-        var selectedURL: URL?
+        var selectedURLs: [URL]?
         var dismissed = false
     }
     private var operation: Operation?
@@ -45,14 +45,20 @@ final class ReaderFilePickerOwner: ObservableObject {
     /// Return a URL only when the matching dismissal has also arrived.
     @discardableResult
     func select(_ url: URL, operationID id: UUID) -> URL? {
+        selectFiles([url], operationID: id)?.first
+    }
+
+    @discardableResult
+    func selectFiles(_ urls: [URL], operationID id: UUID) -> [URL]? {
         guard var current = operation, current.id == id else {
             trace("select ignored", id: id)
             return nil
         }
         // UIDocumentPicker may redeliver a delegate event; the first selection
         // is the operation's immutable intent until consumption or cancellation.
-        guard current.selectedURL == nil else { trace("duplicate select ignored", id: id); return nil }
-        current.selectedURL = url
+        guard current.selectedURLs == nil else { trace("duplicate select ignored", id: id); return nil }
+        guard !urls.isEmpty else { cancel(operationID: id); return nil }
+        current.selectedURLs = urls
         operation = current
         trace("select", id: id)
         presentationWillClose()
@@ -64,6 +70,11 @@ final class ReaderFilePickerOwner: ObservableObject {
     /// closing identity, or the active operation if dismissal arrived first.
     @discardableResult
     func didDismiss(operationID explicitID: UUID? = nil) -> URL? {
+        didDismissFiles(operationID: explicitID)?.first
+    }
+
+    @discardableResult
+    func didDismissFiles(operationID explicitID: UUID? = nil) -> [URL]? {
         guard let id = explicitID ?? awaitingDismissal.first ?? operation?.id else { return nil }
         awaitingDismissal.removeAll { $0 == id }
         guard var current = operation, current.id == id else {
@@ -93,14 +104,14 @@ final class ReaderFilePickerOwner: ObservableObject {
         isPresented = false
     }
 
-    private func consumeReadyOperation() -> URL? {
-        guard let current = operation, current.dismissed, let url = current.selectedURL else { return nil }
+    private func consumeReadyOperation() -> [URL]? {
+        guard let current = operation, current.dismissed, let urls = current.selectedURLs else { return nil }
         operation = nil
         operationID = nil
         awaitingDismissal.removeAll { $0 == current.id }
         isPresented = false
         trace("ready", id: current.id)
-        return url
+        return urls
     }
 
     private func trace(_ event: String, id: UUID) {

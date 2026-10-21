@@ -32,8 +32,15 @@ for selector in "${selectors[@]}"; do
 done
 python3 "$ios_root/scripts/core-dependency.py" verify-framework
 bash "$ios_root/scripts/generate-project.sh"
-xcodebuild -project "$ios_root/Reader.xcodeproj" -scheme Reader \
-  -configuration Debug -sdk iphonesimulator -destination "$destination" \
-  -derivedDataPath "$ios_root/.build/TestDerivedData" \
-  -collect-test-diagnostics never \
-  "${selected_tests[@]}" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO test
+test_derived="$(python3 "$ios_root/scripts/build-paths.py" --kind test-derived)"
+test_command=(xcodebuild -project "$ios_root/Reader.xcodeproj" -scheme Reader
+  -configuration Debug -sdk iphonesimulator -destination "$destination"
+  -derivedDataPath "$test_derived"
+  -collect-test-diagnostics never
+  "${selected_tests[@]}" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
+# Verify the compiled host before running the selected methods. This does not
+# add a test suite or rebuild Core; test-without-building uses these products.
+"${test_command[@]}" build-for-testing
+python3 "$ios_root/scripts/verify-simulator-identity.py" \
+  --app "$test_derived/Build/Products/Debug-iphonesimulator/Reader.app"
+"${test_command[@]}" test-without-building

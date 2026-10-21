@@ -1,0 +1,8 @@
+Reader contains libmobi 0.12.
+Copyright (c) 2014-2022 Bartek Fabiszewski and contributors.
+Upstream: https://github.com/bfabiszewski/libmobi/tree/v0.12
+License: GNU Lesser General Public License, version 3 or later.
+Library source: Reader-Core-Native/third_party/libmobi-0.12.
+Reader adapter: Reader-Core-Native/crates/reader-local-book/src/mobi_bridge.c
+Encryption and DRM code are not enabled.
+See READER_INTEGRATION.md in the source package for build and relinking details.

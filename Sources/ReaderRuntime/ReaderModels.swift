@@ -11,21 +11,31 @@ public struct ReaderBook: Codable, Hashable, Sendable, Identifiable {
     /// Core's whole-book progress in basis points, 0...10000.
     public let readProgress: UInt32?
     public let lastReadAt: Int64?
+    public let coverUrl: String?
+    public let intro: String?
+    public let kind: String?
+    public let group: String?
+    public let addedAt: Int64?
+    public let sortIndex: Int32
+    public let sourceName: String?
     public var id: String { "\(sourceId)|\(bookId)" }
 
     public init(sourceId: String = "local", bookId: String, title: String, author: String = "",
                 chapterCount: UInt32 = 0, currentChapterTitle: String? = nil,
                 currentChapterIndex: UInt32? = nil, readProgress: UInt32? = nil,
-                lastReadAt: Int64? = nil) {
+                lastReadAt: Int64? = nil, coverUrl: String? = nil, intro: String? = nil,
+                kind: String? = nil, group: String? = nil, addedAt: Int64? = nil,
+                sortIndex: Int32 = 0, sourceName: String? = nil) {
         self.sourceId = sourceId; self.bookId = bookId; self.title = title; self.author = author
         self.chapterCount = chapterCount; self.currentChapterTitle = currentChapterTitle
         self.currentChapterIndex = currentChapterIndex; self.readProgress = readProgress
-        self.lastReadAt = lastReadAt
+        self.lastReadAt = lastReadAt; self.coverUrl = coverUrl; self.intro = intro; self.kind = kind
+        self.group = group; self.addedAt = addedAt; self.sortIndex = sortIndex; self.sourceName = sourceName
     }
 
     private enum CodingKeys: String, CodingKey {
         case sourceId, bookId, title, author, chapterCount, currentChapterTitle,
-             currentChapterIndex, readProgress, lastReadAt
+             currentChapterIndex, readProgress, lastReadAt, coverUrl, intro, kind, group, addedAt, sortIndex, sourceName
     }
 
     public init(from decoder: Decoder) throws {
@@ -41,6 +51,13 @@ public struct ReaderBook: Codable, Hashable, Sendable, Identifiable {
         currentChapterIndex = try values.decodeIfPresent(UInt32.self, forKey: .currentChapterIndex)
         readProgress = try values.decodeIfPresent(UInt32.self, forKey: .readProgress)
         lastReadAt = try values.decodeIfPresent(Int64.self, forKey: .lastReadAt)
+        coverUrl = try values.decodeIfPresent(String.self, forKey: .coverUrl)
+        intro = try values.decodeIfPresent(String.self, forKey: .intro)
+        kind = try values.decodeIfPresent(String.self, forKey: .kind)
+        group = try values.decodeIfPresent(String.self, forKey: .group)
+        addedAt = try values.decodeIfPresent(Int64.self, forKey: .addedAt)
+        sortIndex = try values.decodeIfPresent(Int32.self, forKey: .sortIndex) ?? 0
+        sourceName = try values.decodeIfPresent(String.self, forKey: .sourceName)
     }
 }
 
@@ -55,6 +72,24 @@ public struct ReaderChapter: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
+public struct ReaderContentBlock: Codable, Hashable, Sendable {
+    public let kind: String
+    public let text: String?
+    public let source: String?
+    public let startScalar: UInt64
+    public let endScalar: UInt64
+    public let imageWidthBasisPoints: UInt32?
+    public let imageIntrinsicWidth: UInt32?
+    public let imageIntrinsicHeight: UInt32?
+    public init(kind: String, text: String? = nil, source: String? = nil,
+                startScalar: UInt64, endScalar: UInt64, imageWidthBasisPoints: UInt32? = nil,
+                imageIntrinsicWidth: UInt32? = nil, imageIntrinsicHeight: UInt32? = nil) {
+        self.kind = kind; self.text = text; self.source = source; self.startScalar = startScalar
+        self.endScalar = endScalar; self.imageWidthBasisPoints = imageWidthBasisPoints
+        self.imageIntrinsicWidth = imageIntrinsicWidth; self.imageIntrinsicHeight = imageIntrinsicHeight
+    }
+}
+
 public struct ReaderChapterContent: Codable, Hashable, Sendable {
     public let sourceId: String
     public let bookId: String
@@ -63,14 +98,29 @@ public struct ReaderChapterContent: Codable, Hashable, Sendable {
     public let content: String
     public let bodyVersion: String?
     public let processingVersion: String?
+    public let blocks: [ReaderContentBlock]
     public var scalarCount: UInt64 { UInt64(content.unicodeScalars.count) }
 
     public init(sourceId: String = "local", bookId: String, chapterIndex: UInt32,
                 chapterTitle: String, content: String, bodyVersion: String? = nil,
-                processingVersion: String? = nil) {
+                processingVersion: String? = nil, blocks: [ReaderContentBlock] = []) {
         self.sourceId = sourceId; self.bookId = bookId; self.chapterIndex = chapterIndex
         self.chapterTitle = chapterTitle; self.content = content
-        self.bodyVersion = bodyVersion; self.processingVersion = processingVersion
+        self.bodyVersion = bodyVersion; self.processingVersion = processingVersion; self.blocks = blocks
+    }
+    private enum CodingKeys: String, CodingKey {
+        case sourceId, bookId, chapterIndex, chapterTitle, content, bodyVersion, processingVersion, blocks
+    }
+    public init(from decoder: Decoder) throws {
+        let v = try decoder.container(keyedBy: CodingKeys.self)
+        sourceId = try v.decode(String.self, forKey: .sourceId)
+        bookId = try v.decode(String.self, forKey: .bookId)
+        chapterIndex = try v.decode(UInt32.self, forKey: .chapterIndex)
+        chapterTitle = try v.decode(String.self, forKey: .chapterTitle)
+        content = try v.decode(String.self, forKey: .content)
+        bodyVersion = try v.decodeIfPresent(String.self, forKey: .bodyVersion)
+        processingVersion = try v.decodeIfPresent(String.self, forKey: .processingVersion)
+        blocks = try v.decodeIfPresent([ReaderContentBlock].self, forKey: .blocks) ?? []
     }
 }
 
@@ -137,8 +187,8 @@ public enum ReaderLibraryError: Error, Sendable, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .closed: return "阅读服务已关闭"
-        case .busy: return "正在导入，请稍后再试"
-        case .unsupportedFile: return "请选择 TXT 文件"
+        case .busy: return "当前操作尚未完成，请稍后再试"
+        case .unsupportedFile: return "请选择支持的 TXT、EPUB 或 MOBI 家族文件"
         case .invalidPosition: return "阅读位置已失效，请重新打开章节"
         case .invalidResponse: return "阅读数据暂时不可用"
         case .core(_, let message, _, _): return message

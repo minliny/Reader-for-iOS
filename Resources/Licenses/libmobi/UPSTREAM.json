@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/bfabiszewski/libmobi",
+  "tag": "v0.12",
+  "archiveSha256": "78826d161c02ce93ff1cd62838b4d749df754f52185474b82e4093badf4689c1",
+  "localChanges": "none; Reader adapter and build configuration live in crates/reader-local-book"
+}

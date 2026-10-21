@@ -1,12 +1,15 @@
 # Reader for iOS
 
 Reader 的 iOS SwiftUI 客户端，最低系统版本 iOS 17。App 包标识为 `io.reader.minliny`。
-本地 TXT 的导入、目录、正文与位置由 Rust Reader Core 提供；iOS Host 负责文件授权、
-持久化目录、界面和用户意图。Core Swift wrapper 与 App 编入同一个 `Reader` 模块，
-底层 C 模块 `ReaderCore` 来自静态 XCFramework。
-首版本地阅读能力与恢复边界见 [本地阅读说明](docs/LOCAL_READING.md)。
-后续版本目标、必做范围与验收要求统一见
-[iOS V2–V8 版本要求](../DEVELOPMENT_BACKLOG.md#ios-version-requirements)；规划状态不代表能力已接入。
+Core 负责书库、正文、目录、位置、规则与事务；iOS Host 负责文件授权、展示、网络与平台资源。
+Core Swift wrapper 与 App 编入同一个 `Reader` 模块，底层 C 模块 `ReaderCore` 来自静态 XCFramework。
+
+当前开发源码已扩展到 V2 日用 TXT、V3 多格式本地与阅读工具、V4 在线小说，
+新增接线与修复的 `SOURCE_READY` 不代表版本交付或最新 App 验收通过。
+能力、原书保护、已知方法结果与平台边界见 [阅读能力与所有权说明](docs/LOCAL_READING.md)。
+版本必做范围与完成状态只在工作区唯一待办
+[iOS V2–V8 版本要求](../DEVELOPMENT_BACKLOG.md#ios-version-requirements) 维护。
+V5 听书、V6 漫画尚不属于本客户端已支持能力；AZW/AZW3/KF8 的真实原书验证按用户要求暂跳过，仍为 OPEN。
 
 ## 工程与依赖
 
@@ -37,24 +40,40 @@ open Reader.xcodeproj
 ./scripts/build.sh
 ```
 
-默认只构建 arm64 iOS Simulator（显式设置 `ARCHS=arm64 ONLY_ACTIVE_ARCH=YES`），不提供 Intel
-Simulator slice。先在本仓 `.build/core-source/<commit>` 建立固定 Core
-commit 的独立本地快照，再调用该快照的 `scripts/build-ios-xcframework.sh`；其嵌套动作只有
-`cargo rustc` 与 `xcodebuild -create-xcframework`，不传 `--swift-smoke`，不运行业务测试。
-编译缓存位于 `.build/core-target`，XCFramework 位于 `.build/ReaderCore.xcframework`。
-每次 Core 打包后记录 `.build/core-build.json`，绑定实际输入身份、wrapper SHA 和所有
-XCFramework 文件 SHA。构建环境显式设置 `IPHONEOS_DEPLOYMENT_TARGET=17.0`；回执记录该输入，
-并通过 `xcrun otool -l` 检查归档内 Mach-O 对象的最低部署版本。高于 17.0 的旧对象不能只靠
-重拍 SHA 登记为兼容。快照路径变化不会使已绑定、字节未变的产物失效。
+默认只构建 arm64 iOS Simulator（显式设置 `ARCHS=arm64 ONLY_ACTIVE_ARCH=YES`），
+不提供 Intel Simulator slice。Core 构建从固定 commit 建立独立本地快照，再调用其中的
+`scripts/build-ios-xcframework.sh`；其嵌套动作只有 `cargo rustc` 与
+`xcodebuild -create-xcframework`，不传 `--swift-smoke`，不运行业务测试。
+Core 产物与实际输入绑定在 `.build/core-build.json`，工程使用 `.build/ReaderCore.xcframework`。
+环境显式设置 `IPHONEOS_DEPLOYMENT_TARGET=17.0`；回执记录该输入，并以 Apple 工具核对
+归档内对象的最低部署版本。高于 17.0 的旧对象不能靠重拍 SHA 登记为兼容。
 
-App 构建使用 `xcodebuild ... build`，每次在全新的 `.build/AppDerivedData/<run-id>` 编译，
-与测试输出分开。默认关闭模拟器代码签名。
-已准备配套 Core 产物时可运行 `./scripts/build.sh --skip-core`；该参数仍校验产物与源码绑定。
+App 编译、测试与不可变 App 产物分别位于用户缓存目录，实际路径从同一个入口查询：
+
+```sh
+python3 scripts/build-paths.py --kind root
+python3 scripts/build-paths.py --kind app-derived
+python3 scripts/build-paths.py --kind test-derived
+python3 scripts/build-paths.py --kind artifacts
+```
+
+默认根目录为 `~/Library/Caches/Reader-iOS/<工作区身份>/`。可用 `READER_IOS_BUILD_ROOT`
+指定绝对路径；入口拒绝工作区、Documents、Desktop 及所识别的 FileProvider 位置。
+这只选择构建输出位置，源码、下载目录原书与已安装 App 的数据目录不迁移。
+旧 `.build/AppDerivedData`、`.build/TestDerivedData`、`.build/app-artifacts` 中的历史产物
+不作为新构建的输出目录。
+
+App 使用 `xcodebuild ... build`，每次在查询所得 App DerivedData 下的新 `<run-id>` 编译，
+与测试产物分开。模拟器采用本地 ad-hoc 签名，并核对实际模拟器包与 Keychain 访问身份；
+该身份核验不代替真实网络登录测试或设备签名验收。
+已准备配套 Core 产物时可运行 `./scripts/build.sh --skip-core`，仍核对原产物与固定源码绑定；
 `--configuration Release` 切换 App 构建配置。
-App 编译前保存直接输入快照，编译后核对输入没有变化，并拒绝包含 `.xctest` 的 App。
-成功后将 App、输入快照与配套 Core 回执复制到 `.build/app-artifacts/<run-id>/`，保存
-`manifest.json` 并设为只读。`.build/app-build.json` 原子更新为该次完整回执的副本，绑定
-输入指纹、包身份与 App 文件 SHA；交付 App 位于该次目录的 `Reader.app`。
+
+编译前保存直接输入快照，编译后核对输入没有变化，并拒绝包含 `.xctest` 的 App。
+成功后将 App、输入快照与配套 Core 回执复制到查询所得 artifacts 下的 `<run-id>/`，
+保存 schema 2 `manifest.json` 并设为只读。`.build/app-build.json` 仍是最新产物回执指针
+（完整回执副本），绑定输入指纹、包身份和 App 文件 SHA；交付 App 来自该次不可变目录的 `Reader.app`。
+修改构建路径不会把旧产物自动改认成新产物，也不表示新构建已通过。
 
 需要设备或双平台 Core slice 时显式使用 `./scripts/build-core.sh --platform device` 或
 `--platform all`，并提前安装对应 Rust targets。真机签名应在 Xcode 选择有效开发团队和
@@ -63,7 +82,7 @@ App 编译前保存直接输入快照，编译后核对输入没有变化，并�
 ## 验证范围
 
 构建必要核验仅包含固定 Core 对象和 wrapper 配对、对应编译工具/目标、XCFramework 文件
-完整性及 App 编译；没有自动前置或附带的业务门禁。`Reader` scheme 的普通 Build 不构建
+完整性、App 编译及模拟器包/签名与 Keychain 身份；没有自动前置或附带的业务门禁。`Reader` scheme 的普通 Build 不构建
 或运行 `ReaderTests`。测试必须另外指定准确模拟器 UDID 与所需类或方法：
 
 ```sh
@@ -72,8 +91,10 @@ App 编译前保存直接输入快照，编译后核对输入没有变化，并�
 
 测试入口只使用已绑定的 Core 产物，不自动补建 Core；不选择 `--only` 时停止，不运行全量。
 原生 UI 测试另加 `--target ReaderUITests` 并选择该 target 的准确类或方法。
-测试输出使用 `.build/TestDerivedData`；`xcodebuild test` 会在指定目标安装并运行测试所需
-App。失败后不自动收集整机诊断，XCTest 常规失败附件、截图与日志仍保留。
+测试输出使用 `build-paths.py --kind test-derived` 查询所得目录。入口先执行
+`build-for-testing`，核对编译出的模拟器 App 身份，再以 `test-without-building` 只运行所选方法；
+该动作会在指定目标安装和运行测试 App。`-collect-test-diagnostics never` 禁用整机诊断采集，
+XCTest 常规失败附件、截图与日志仍保留。
 工程生成和 App 构建不操作模拟器。构建、所选测试、模拟器安装/交互、真机及用户验收分别记录。
 
 `ReaderNativeJourneyTests/testNativePickerToReadingAndColdReopen` 使用下载目录的真实
@@ -100,7 +121,15 @@ SQLite 主库使用 Python sqlite3 只读连接的 `iterdump` 语义 SHA，不�
 原始安装与启动回执保存在 `.build/deployments/`，记录路径迁移、保护摘要与比较及部署脚本 SHA。
 既有失败回执保留；保护摘要通过仍不能替代书籍与进度的交互验证。
 
-更新 Core 时先调整 `scripts/core-dependency.json` 的 commit 和准确文件 SHA，再同步 wrapper、
-重建 Core 和 App。不要手改 Vendor 副本，也不要把旧 XCFramework 重新登记为新源码的产物。
+固定视觉/交互参考与当前运行依赖分开：参考仍使用 `Resources/Reference/manifest.json`
+登记的冻结 Git 对象；当前 Core pin 和 wrapper SHA 以 `scripts/core-dependency.json` 为准。
+V2–V4 的新目录/电子书、规则订阅及原操作恢复合同需要配套 Core 升级，不能仅凭 Swift 接线
+就让旧 Framework 获得新能力。当前 pin 为 `8766e78068ff6a5dc0b6c4b89862fff3d8195f3d`，
+配套模拟器 Framework 已实际构建；具体方法及原生结果见 [能力与证据边界](docs/LOCAL_READING.md#已有结果与尚未闭合的证据)。
+最终交付 App 和保数据安装另行绑定，测试宿主不充当交付 App。
+
+更新 Core 时先登记协议、schema、位置迁移和原未决操作的兼容边界，调整固定 commit 与准确
+wrapper SHA，再同步 Vendor、重建 Core 和 App。保留原书、已确认位置和原操作 journal；
+不要手改 Vendor，也不要把旧 XCFramework 重新登记为新源码产物。
 在已知实际构建入口与输入的情况下，手动登记 Core 产物须同时提供
 `record-framework --source <实际源码目录> --deployment-target 17.0`；此动作仍执行 Mach-O 核验。

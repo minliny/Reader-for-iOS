@@ -82,16 +82,18 @@ struct ReaderTransientFeedback: View {
 struct ReaderRecoveryNotice: View {
     let message: String
     let busy: Bool
+    var title: String = "保存待确认"
+    var actionTitle: String = "重试"
     let retry: () -> Void
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("保存待确认").font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
+                Text(title).font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
                 Text(message).font(ReaderTypography.font(.controlHeader)).foregroundStyle(ReaderPalette(scheme).ink)
             }
             Spacer(minLength: 0)
-            Button("重试", action: retry).font(ReaderTypography.font(.action)).disabled(busy)
+            Button(actionTitle, action: retry).font(ReaderTypography.font(.action)).disabled(busy)
                 .frame(minWidth: 44, minHeight: 44)
         }.padding(14).background(ReaderPalette(scheme).card, in: RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(ReaderPalette(scheme).border, lineWidth: 1))
@@ -103,10 +105,16 @@ struct ReaderRecoveryNotice: View {
 struct ReaderDocumentPicker: UIViewControllerRepresentable {
     var selected: (URL) -> Void
     var cancelled: () -> Void
-    func makeCoordinator() -> Coordinator { Coordinator(selected: selected, cancelled: cancelled) }
+    var selectedFiles: (([URL]) -> Void)? = nil
+    static var supportedBookTypes: [UTType] {
+        ["txt", "epub", "mobi", "azw", "azw3", "kf8"].compactMap { UTType(filenameExtension: $0) }
+    }
+    var contentTypes: [UTType] = ReaderDocumentPicker.supportedBookTypes
+    var allowsMultipleSelection = false
+    func makeCoordinator() -> Coordinator { Coordinator(selected: selected, cancelled: cancelled, selectedFiles: selectedFiles) }
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let controller = UIDocumentPickerViewController(forOpeningContentTypes: [.plainText], asCopy: false)
-        controller.allowsMultipleSelection = false
+        let controller = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: false)
+        controller.allowsMultipleSelection = allowsMultipleSelection
         controller.directoryURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         controller.delegate = context.coordinator
         return controller
@@ -116,12 +124,15 @@ struct ReaderDocumentPicker: UIViewControllerRepresentable {
         private let log = Logger(subsystem: "io.reader.minliny", category: "FileSelection")
         let selected: (URL) -> Void
         let cancelled: () -> Void
-        init(selected: @escaping (URL) -> Void, cancelled: @escaping () -> Void) {
-            self.selected = selected; self.cancelled = cancelled
+        let selectedFiles: (([URL]) -> Void)?
+        init(selected: @escaping (URL) -> Void, cancelled: @escaping () -> Void, selectedFiles: (([URL]) -> Void)?) {
+            self.selected = selected; self.cancelled = cancelled; self.selectedFiles = selectedFiles
         }
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             log.debug("Native picker selected \(urls.count) item(s)")
-            if let url = urls.first { selected(url) } else { cancelled() }
+            if urls.isEmpty { cancelled() }
+            else if let selectedFiles { selectedFiles(urls) }
+            else if let url = urls.first { selected(url) }
         }
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
             log.debug("Native picker cancelled")
@@ -134,6 +145,8 @@ struct ReaderImportResultView: View {
     let operation: ReaderImportPresentation
     let close: () -> Void
     let reconcile: () -> Void
+    var stopRemaining: (() -> Void)? = nil
+    var feedback: String? = nil
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -142,11 +155,35 @@ struct ReaderImportResultView: View {
                 Spacer()
                 ReaderIconAction(icon: .close, label: "关闭导入结果", action: close)
             }
+            // The import owner keeps its current operation. A rejected new
+            // external input is short feedback, never a result of that import.
+            if let feedback { ReaderTransientFeedback(message: feedback).allowsHitTesting(false) }
             Text(operation.filename).font(ReaderTypography.font(.controlHeader)).lineLimit(2)
             HStack(spacing: 12) {
                 if operation.phase == .importing { ProgressView().tint(ReaderPalette(scheme).green) }
                 Text(operation.message).font(ReaderTypography.font(.caption))
             }.accessibilityIdentifier("import-status")
+            if !operation.items.isEmpty {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(operation.items) { item in
+                            HStack(spacing: 10) {
+                                if item.phase == .importing { ProgressView() }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.filename).font(ReaderTypography.font(.caption)).lineLimit(2)
+                                    Text(item.message).font(ReaderTypography.font(.caption))
+                                        .foregroundStyle(ReaderPalette(scheme).muted)
+                                }
+                                Spacer(minLength: 0)
+                            }.accessibilityElement(children: .combine)
+                        }
+                    }
+                }.frame(maxHeight: 300)
+            }
+            if operation.phase == .importing, operation.items.count > 1, let stopRemaining {
+                Button("停止后续文件", action: stopRemaining).buttonStyle(ReaderPressFeedback())
+                    .frame(minHeight: 44).accessibilityIdentifier("stop-remaining-imports")
+            }
             if operation.phase == .unresolved {
                 Button("核对原导入操作", action: reconcile).buttonStyle(ReaderPrimaryButtonStyle())
             }

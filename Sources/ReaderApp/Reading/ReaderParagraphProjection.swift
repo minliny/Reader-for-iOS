@@ -94,21 +94,29 @@ struct ReaderParagraphProjection {
     }
 
     @MainActor
-    func attributedBody(fontSize: CGFloat, lineHeight: CGFloat, ink: UIColor) -> NSAttributedString {
+    func attributedBody(fontSize: CGFloat, lineHeight: CGFloat, ink: UIColor, font: UIFont? = nil,
+                        paragraphSpacing: CGFloat = ReaderTypography.defaultParagraphSpacing,
+                        letterSpacing: CGFloat = 0, firstLineIndentEm: CGFloat = 0,
+                        alignment: NSTextAlignment = .justified,
+                        imageAssets: ReaderChapterImageAssets = .empty,
+                        chapter: ReaderChapterContent? = nil, imageViewport: CGSize = .zero) -> NSAttributedString {
         let style = NSMutableParagraphStyle()
         style.minimumLineHeight = fontSize * lineHeight
         style.maximumLineHeight = fontSize * lineHeight
-        style.paragraphSpacing = ReaderTypography.defaultParagraphSpacing
-        style.alignment = .justified
+        style.paragraphSpacing = paragraphSpacing
+        style.alignment = alignment
         // Frozen default indent is none. Original leading spaces remain text.
-        style.firstLineHeadIndent = 0
+        style.firstLineHeadIndent = fontSize * firstLineIndentEm
         let result = NSMutableAttributedString(string: text, attributes: [
-            .font: ReaderTypography.readingFont(size: fontSize), .foregroundColor: ink,
-            .paragraphStyle: style, .kern: ReaderTypography.defaultLetterSpacing
+            .font: font ?? ReaderTypography.readingFont(size: fontSize), .foregroundColor: ink,
+            .paragraphStyle: style, .kern: letterSpacing
         ])
         if let last = paragraphs.last, let terminalStyle = style.mutableCopy() as? NSMutableParagraphStyle {
             terminalStyle.paragraphSpacing = 0
             result.addAttribute(.paragraphStyle, value: terminalStyle, range: last.displayUTF16Range)
+        }
+        if let chapter {
+            imageAssets.attach(to: result, projection: self, content: chapter, viewport: imageViewport)
         }
         return result
     }

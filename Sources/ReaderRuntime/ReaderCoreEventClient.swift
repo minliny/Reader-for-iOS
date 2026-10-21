@@ -10,7 +10,14 @@ protocol ReaderCoreEventClient: AnyObject {
     func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64
     func pollEvent(requestId: UInt64) -> Result<ReaderCoreEvent, ReaderCoreClientError>?
     func cancel(requestId: UInt64) throws
+    func retireReadRequest(requestId: UInt64)
     func destroy()
+}
+
+extension ReaderCoreEventClient {
+    // Existing narrow reply decorators own their own buffers. Production
+    // ReaderCoreClient supplies the real response-owner retirement operation.
+    func retireReadRequest(requestId: UInt64) {}
 }
 
 extension ReaderCoreClient: ReaderCoreEventClient {}

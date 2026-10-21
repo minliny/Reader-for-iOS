@@ -2,6 +2,7 @@
 """Capture fixed build inputs and publish a source-bound simulator App artifact."""
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -14,9 +15,13 @@ import tempfile
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACTS = ROOT / ".build/app-artifacts"
 LATEST = ROOT / ".build/app-build.json"
 CORE_RECEIPT = ROOT / ".build/core-build.json"
+
+
+def build_path(kind):
+    return Path(subprocess.check_output(
+        ["python3", str(ROOT / "scripts/build-paths.py"), "--kind", kind], text=True).strip())
 
 
 def sha256(data):
@@ -42,17 +47,19 @@ def inputs():
                  "Reader.xcodeproj/project.xcworkspace/contents.xcworkspacedata", ".build/core-build.json",
                  "scripts/core-dependency.json", "scripts/build.sh", "scripts/app-artifact.py"):
         result[name] = sha256((ROOT / name).read_bytes())
+    for name in ("scripts/verify-simulator-identity.py", "scripts/build-paths.py"):
+        result[name] = sha256((ROOT / name).read_bytes())
     return result
 
 
 def run_directory(run_id):
     if str(uuid.UUID(run_id)) != run_id:
         raise RuntimeError("Expected a canonical artifact run UUID")
-    return ARTIFACTS / run_id
+    return build_path("artifacts") / run_id
 
 
 def build_app_path(configuration, run_id):
-    return ROOT / ".build/AppDerivedData" / run_id / "Build/Products" / (configuration + "-iphonesimulator") / "Reader.app"
+    return build_path("app-derived") / run_id / "Build/Products" / (configuration + "-iphonesimulator") / "Reader.app"
 
 
 def check_app(app):
@@ -68,6 +75,24 @@ def check_app(app):
     if architectures != ["arm64"]:
         raise RuntimeError("This simulator lane supports arm64 only")
     return files_under(app)
+
+
+def verify_simulator_identity(app, helper):
+    return json.loads(subprocess.check_output(
+        ["python3", str(helper), "--app", str(app)], text=True))
+
+
+def prepare_copied_signature(app):
+    # FileProvider metadata is not part of the App's bytes, but FinderInfo is
+    # forbidden by codesign. Touch only this unpublished generated copy.
+    for path in (app, *app.rglob("*")):
+        if path.is_symlink():
+            continue
+        try:
+            os.removexattr(path, "com.apple.FinderInfo", follow_symlinks=False)
+        except OSError as error:
+            if error.errno not in (errno.ENOATTR, errno.ENODATA):
+                raise
 
 
 def git_identity():
@@ -122,8 +147,14 @@ def record(configuration, run_id):
         raise RuntimeError("App inputs changed during compilation; finish source changes before rebuilding")
     source = build_app_path(configuration, run_id)
     source_files = check_app(source)
+    helper = directory / "inputs/scripts/verify-simulator-identity.py"
+    source_identity = verify_simulator_identity(source, helper)
     artifact = directory / "Reader.app"
     shutil.copytree(source, artifact)
+    prepare_copied_signature(artifact)
+    copied_identity = verify_simulator_identity(artifact, helper)
+    if source_identity != copied_identity:
+        raise RuntimeError("Simulator identity changed while copying the artifact")
     copied_files = check_app(artifact)
     if copied_files != source_files or files_under(source) != source_files:
         raise RuntimeError("App changed while copying its delivery artifact")
@@ -140,6 +171,7 @@ def record(configuration, run_id):
                 "buildEndGitIdentity": git_identity(),
                 "inputFingerprint": json_hash(captured), "inputs": captured,
                 "coreReceiptSha256": sha256(core_bytes), "coreBuild": json.loads(core_bytes),
+                "simulatorIdentity": copied_identity,
                 "appFiles": copied_files}
     data = (json.dumps(document, indent=2) + "\n").encode()
     (directory / "manifest.json").write_bytes(data)
@@ -155,7 +187,14 @@ def load_and_verify(receipt_path):
     document = json.loads(receipt_bytes)
     if document.get("schemaVersion") != 2:
         raise RuntimeError("Rebuild the App to publish an immutable artifact receipt")
-    directory = run_directory(document["artifactRunId"])
+    run_id = document["artifactRunId"]
+    if str(uuid.UUID(run_id)) != run_id:
+        raise RuntimeError("Invalid immutable artifact run identity")
+    directory = Path(document["appPath"]).parent
+    # Earlier unsigned Simulator artifacts remain historical evidence at
+    # their original location. New builds live outside FileProvider.
+    if directory not in (run_directory(run_id), ROOT / ".build/app-artifacts" / run_id):
+        raise RuntimeError("Unexpected immutable artifact directory")
     app = directory / "Reader.app"
     if ((directory / "manifest.json").read_bytes() != receipt_bytes
             or document.get("appPath") != str(app)
@@ -165,6 +204,10 @@ def load_and_verify(receipt_path):
             or document.get("appFiles") != check_app(app)):
         raise RuntimeError("Immutable App artifact or its captured inputs changed")
     core_bytes = (directory / "core-build.json").read_bytes()
+    if "simulatorIdentity" in document:
+        actual_identity = verify_simulator_identity(app, directory / "inputs/scripts/verify-simulator-identity.py")
+        if actual_identity != document["simulatorIdentity"]:
+            raise RuntimeError("Immutable Simulator identity changed")
     core = json.loads(core_bytes)
     dependency = json.loads((directory / "inputs/scripts/core-dependency.json").read_text())
     if (document.get("coreReceiptSha256") != sha256(core_bytes)
