@@ -763,19 +763,21 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         XCTAssertTrue(anchor.isHittable)
         let field = textInput(placeholder, app: app); reveal(field, towardBottom: towardBottom, app: app)
         XCTAssertTrue(field.exists && field.isHittable); field.tap()
-        if !isEmpty(field) { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: (field.value as? String ?? "").count)) }
+        let focused = textInput(placeholder, app: app)
+        XCTAssertTrue(focused.exists)
+        if !isEmpty(focused) { focused.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: (focused.value as? String ?? "").count)) }
         // Axis.vertical text fields treat Return as content. Do not silently
         // append a newline to the real literal/replacement/scope definitions.
-        field.typeText(text)
-        XCTAssertEqual(field.value as? String, text)
-        dismissKeyboardByScrolling(app, field: field)
+        focused.typeText(text)
+        let updated = textInput(placeholder, app: app)
+        XCTAssertEqual(updated.value as? String, text)
+        dismissKeyboardByScrolling(app, field: updated)
     }
     private func textInput(_ identifier: String, app: XCUIApplication) -> XCUIElement {
-        // SwiftUI axis.vertical can expose a native text view on iOS. Restrict
-        // to real editable AX roles while retaining the production identifier.
-        app.descendants(matching: .any).matching(identifier: identifier).matching(NSPredicate(
-            format: "elementType == %d OR elementType == %d", Int(XCUIElement.ElementType.textField.rawValue),
-            Int(XCUIElement.ElementType.textView.rawValue))).firstMatch
+        // The same SwiftUI axis.vertical input can change its reported AX role
+        // when focused. Keep its semantic identity without a role predicate;
+        // callers still require real hittability and the exact typed value.
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
     private func dismissKeyboardByScrolling(_ app: XCUIApplication, field: XCUIElement) {
         guard app.keyboards.firstMatch.exists else { return }
@@ -881,12 +883,12 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         for scroll in app.scrollViews.allElementsBoundByIndex {
             var viewport = scroll.frame.intersection(app.frame)
             guard !viewport.isNull, viewport.width > 80, viewport.height > 80 else { continue }
-            let children = scroll.descendants(matching: target.elementType)
+            let children = scroll.descendants(matching: .any)
             let containsTarget: Bool
             if !identifier.isEmpty { containsTarget = children.matching(identifier: identifier).count > 0 }
             else if !placeholder.isEmpty { containsTarget = children.matching(NSPredicate(format: "placeholderValue == %@", placeholder)).count > 0 }
             else if !label.isEmpty { containsTarget = children.matching(NSPredicate(format: "label == %@", label)).count > 0 }
-            else { containsTarget = children.count > 0 }
+            else { containsTarget = false }
             guard containsTarget else { continue }
             if app.keyboards.firstMatch.exists {
                 let keyboard = app.keyboards.firstMatch.frame

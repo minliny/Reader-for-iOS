@@ -245,21 +245,92 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
     }
     private func replaceNativeFilename(_ field: XCUIElement, with filename: String, app: XCUIApplication) throws {
         try require(field.isHittable && field.isEnabled, "The native exported filename must be editable")
-        field.tap(); field.press(forDuration: 0.8)
+        let originalValue = try XCTUnwrap(field.value as? String)
+        field.tap()
+        try settleNativeFilenameKeyboard(field, app: app)
+        try require(field.value as? String == originalValue, "Keyboard setup must preserve the original exported filename")
+        field.press(forDuration: 0.8)
         var selectAll: XCUIElement?
         for _ in 0..<3 {
-            let all = app.menuItems.matching(NSPredicate(format: "label == '全选' OR label == 'Select All'")).allElementsBoundByIndex
-                + app.buttons.matching(NSPredicate(format: "label == '全选' OR label == 'Select All'")).allElementsBoundByIndex
-            if let button = all.filter(\.isHittable).first { selectAll = button; break }
-            let more = app.buttons.matching(NSPredicate(format: "label IN %@", ["前进", "显示更多项目", "Show more items", "More"]))
-                .allElementsBoundByIndex.filter(\.isHittable)
-            guard let button = more.only else { break }; button.tap()
+            var all: [XCUIElement] = [], more: [XCUIElement] = []
+            let menu = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                all = (app.menuItems.matching(NSPredicate(format: "label == '全选' OR label == 'Select All'")).allElementsBoundByIndex
+                    + app.buttons.matching(NSPredicate(format: "label == '全选' OR label == 'Select All'")).allElementsBoundByIndex)
+                    .filter { $0.isHittable && $0.isEnabled }
+                more = app.buttons.matching(NSPredicate(format: "label IN %@", ["前进", "显示更多项目", "Show more items", "More"]))
+                    .allElementsBoundByIndex.filter { $0.isHittable && $0.isEnabled }
+                return !all.isEmpty || more.count == 1
+            }, object: nil)
+            if XCTWaiter.wait(for: [menu], timeout: 5) != .completed {
+                evidence(app, "rule-roundtrip-native-filename-menu-missing")
+                try require(false, "The native filename edit menu must present Select All or its actual next page")
+            }
+            if let button = all.first { selectAll = button; break }
+            let button = try XCTUnwrap(more.only, "Use only the actual unique native edit-menu next-page control")
+            button.tap()
         }
+        if selectAll == nil { evidence(app, "rule-roundtrip-native-filename-select-all-missing") }
         let selectedAll = try XCTUnwrap(selectAll,
             "Use the native Select All control; do not assume caret placement in a system filename")
         selectedAll.tap(); field.typeText(filename)
         try require((field.value as? String) == filename || (field.value as? String) == filename + ".json",
                     "The actual system filename must contain only the new UUID-owned name")
+    }
+    private func settleNativeFilenameKeyboard(_ field: XCUIElement, app: XCUIApplication) throws {
+        let explanation = "Speed up your typing by sliding your finger across the letters to compose a word."
+        let guide = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", explanation, explanation))
+        func visibleGuide() -> [XCUIElement] {
+            guide.allElementsBoundByIndex.filter { !$0.frame.isEmpty && app.frame.contains($0.frame) }
+        }
+        // The explanation is literal evidence from Rule6's native video; its
+        // AX role is not assumed. Without this exact text, retain the ordinary
+        // filename path and never select an unrelated Continue action.
+        let appeared = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !visibleGuide().isEmpty }, object: nil)
+        guard XCTWaiter.wait(for: [appeared], timeout: 1) == .completed else { return }
+
+        var previousField: CGRect?, previousKeyboard: CGRect?, stableSince: Date?
+        func resetStability() { previousField = nil; previousKeyboard = nil; stableSince = nil }
+        func sameFrame(_ first: CGRect, _ second: CGRect) -> Bool {
+            abs(first.minX - second.minX) < 0.5 && abs(first.minY - second.minY) < 0.5 &&
+                abs(first.width - second.width) < 0.5 && abs(first.height - second.height) < 0.5
+        }
+        func inputIsStable() -> Bool {
+            let keyboard = app.keyboards.firstMatch
+            guard field.exists, field.isHittable, field.isEnabled, keyboard.exists else { resetStability(); return false }
+            let fieldFrame = field.frame, keyboardFrame = keyboard.frame
+            guard !fieldFrame.isEmpty, !keyboardFrame.isEmpty, app.frame.contains(fieldFrame),
+                  keyboardFrame.intersects(app.frame), fieldFrame.maxY <= keyboardFrame.minY + 1 else {
+                resetStability(); return false
+            }
+            if let previousField, let previousKeyboard, let stableSince,
+               sameFrame(fieldFrame, previousField), sameFrame(keyboardFrame, previousKeyboard) {
+                return Date().timeIntervalSince(stableSince) >= 0.25
+            }
+            previousField = fieldFrame; previousKeyboard = keyboardFrame; stableSince = Date()
+            return false
+        }
+        var action: XCUIElement?
+        let actionable = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let buttons = app.buttons.matching(NSPredicate(format: "label == 'Continue'"))
+                .allElementsBoundByIndex.filter { $0.isHittable && $0.isEnabled && app.frame.contains($0.frame) }
+            guard let text = visibleGuide().only, let button = buttons.only,
+                  button.frame.minY >= text.frame.maxY else { return false }
+            action = button; return true
+        }, object: nil)
+        if XCTWaiter.wait(for: [actionable], timeout: 5) != .completed {
+            evidence(app, "rule-roundtrip-native-quickpath-not-actionable")
+            try require(false, "The exact QuickPath explanation must expose one visible enabled Continue")
+        }
+        evidence(app, "rule-roundtrip-observed-native-quickpath-guide")
+        try XCTUnwrap(action).tap()
+        resetStability()
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            !guide.firstMatch.exists && inputIsStable()
+        }, object: nil)
+        if XCTWaiter.wait(for: [settled], timeout: 10) != .completed {
+            evidence(app, "rule-roundtrip-native-filename-keyboard-not-settled")
+            try require(false, "QuickPath must dismiss and the same filename/keyboard must settle before long press")
+        }
     }
     private func draftValues(_ app: XCUIApplication) -> [String: String] {
         var result: [String: String] = [:]
