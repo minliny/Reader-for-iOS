@@ -169,6 +169,8 @@ struct ReaderEbookSurface: UIViewRepresentable {
                 options["start"] = parent.document.chapterStartScalar
                 options["end"] = parent.document.chapterEndScalar
                 options["content"] = parent.content.content
+                options["original"] = original
+                options["scalarCount"] = parent.content.scalarCount
                 options["edits"] = encodedEdits
                 options["offset"] = min(parent.scalarOffset, parent.content.scalarCount)
                 let source = try ReaderEbookScript.bootstrap(configuration: options)

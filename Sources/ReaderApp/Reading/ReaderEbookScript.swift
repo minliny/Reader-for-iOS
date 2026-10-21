@@ -71,6 +71,28 @@ enum ReaderEbookScript {
 """#
 
     static func bootstrap(configuration: [String: Any]) throws -> String {
+        var configuration = configuration
+        // Older direct bridge callers supply only the original scalar window.
+        // Native scalar views preserve that contract without a whole-flow Array.
+        // The production Surface supplies both values from its existing slice.
+        if configuration["original"] == nil {
+            guard let canonical = configuration["canonical"] as? String,
+                  let startValue = configuration["start"] as? NSNumber,
+                  let endValue = configuration["end"] as? NSNumber,
+                  startValue.doubleValue.isFinite, endValue.doubleValue.isFinite,
+                  startValue.doubleValue == Double(startValue.intValue),
+                  endValue.doubleValue == Double(endValue.intValue) else { throw ReaderEbookError.invalidDocument }
+            let start = startValue.intValue, end = endValue.intValue
+            let scalars = canonical.unicodeScalars
+            guard start >= 0, end >= start, end <= scalars.count else { throw ReaderEbookError.invalidDocument }
+            let lower = scalars.index(scalars.startIndex, offsetBy: start)
+            let upper = scalars.index(lower, offsetBy: end - start)
+            configuration["original"] = String(scalars[lower..<upper])
+        }
+        if configuration["scalarCount"] == nil {
+            guard let content = configuration["content"] as? String else { throw ReaderEbookError.invalidDocument }
+            configuration["scalarCount"] = content.unicodeScalars.count
+        }
         let json = try JSONSerialization.data(withJSONObject: configuration, options: [.sortedKeys])
         guard let encoded = String(data: json, encoding: .utf8) else { throw ReaderEbookError.invalidDocument }
         return "(function(){'use strict';const config=" + encoded + ";" + body + "})();"
@@ -85,9 +107,7 @@ const significant=text=>{const values=[];let scalar=0;for(const c of text){if(!w
 let points=[],expected=[],ready=false,lastAnchor=config.offset,userMoving=false,scrollTimer=0,pendingFrame=0,selectionActive=false,pageTurning=false,pageEpoch=0,layoutGeneration=0;
 const body=document.body||document.documentElement;
 const style=document.createElementNS('http://www.w3.org/1999/xhtml','style');document.head.appendChild(style);
-const walk=()=>{
-  const found=[];
-  const walker=document.createTreeWalker(body,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT,{
+const decodedWalker=()=>document.createTreeWalker(body,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT,{
     acceptNode(node){
       if(node.nodeType===Node.ELEMENT_NODE){
         const tag=node.localName.toLowerCase();
@@ -98,6 +118,8 @@ const walk=()=>{
       return NodeFilter.FILTER_ACCEPT;
     }
   });
+const walk=()=>{
+  const found=[],walker=decodedWalker();
   let node;
   while((node=walker.nextNode())){
     if(node.nodeType===Node.TEXT_NODE){let unit=0;for(const c of node.data){if(!whitespace(c))found.push({node,start:unit,end:unit+c.length,c});unit+=c.length;}}
@@ -123,13 +145,50 @@ const boundary=(array,reference,scalar)=>{
   return {node:body,offset:0};
 };
 const setRange=(range,method,point)=>range[method](point.node,point.offset);
+const documentWindow=()=>{
+  // Authenticate the entire original entry, including text outside this chapter.
+  // Only the two requested DOM/UTF-16 endpoints survive the streaming comparison;
+  // full-flow character objects and node-reference arrays are never constructed.
+  const reference=config.canonical[Symbol.iterator](),walker=decodedWalker();
+  let scalar=0,referenceScalar=0,referenceCount=0,actualCount=0,mismatch='';
+  let start=null,end=null,lastNode=null,lastEnd=0,lastImage=false;
+  const nextReference=()=>{
+    for(let value=reference.next();!value.done;value=reference.next()){
+      const index=scalar++;
+      if(!whitespace(value.value)){referenceScalar=index;referenceCount++;return value.value;}
+    }
+    return null;
+  };
+  const accept=(node,unit,past,c,image=false)=>{
+    const expectedCharacter=nextReference();
+    if(expectedCharacter!==null){
+      if(start===null&&referenceScalar>=config.start)start=endpoint({node,start:unit,end:past,image});
+      if(end===null&&referenceScalar>=config.end)end=endpoint({node,start:unit,end:past,image});
+      if(!mismatch&&expectedCharacter!==c)mismatch=`canonical-text:document:ordinal=${actualCount}:expected=U+${expectedCharacter.codePointAt(0).toString(16)}:actual=U+${c.codePointAt(0).toString(16)}`;
+    }
+    actualCount++;lastNode=node;lastEnd=past;lastImage=image;
+  };
+  let node;
+  while((node=walker.nextNode())){
+    if(node.nodeType===Node.TEXT_NODE){
+      let unit=0;for(const c of node.data){const past=unit+c.length;if(!whitespace(c))accept(node,unit,past,c);unit=past;}
+    }else if(node.getAttribute('src')||node.getAttribute('data-src')||node.getAttribute('href')||node.getAttribute('xlink:href'))accept(node,0,1,'\uFFFC',true);
+  }
+  // Exhaust the canonical iterator even when the DOM ended first. Keep the
+  // original length-first failure contract; no Range may mutate the DOM yet.
+  while(nextReference()!==null){}
+  if(referenceCount!==actualCount)throw Error(`canonical-length:document:expected=${referenceCount}:actual=${actualCount}`);
+  if(mismatch)throw Error(mismatch);
+  const pastLast=()=>lastNode?endpoint({node:lastNode,start:lastEnd,end:lastEnd,image:lastImage},true):{node:body,offset:0};
+  return {start:start||pastLast(),end:end||pastLast()};
+};
 const restrictChapter=()=>{
   // Keep original semantic ancestors, document styles, tables, lists and links.
   // Range is the browser's native DOM operation, not a second HTML parser.
   document.querySelectorAll('body style,body link[rel~="stylesheet"]').forEach(node=>document.head.appendChild(node.cloneNode(true)));
-  const full=match(config.canonical,'document'),range=document.createRange();
-  setRange(range,'setStart',boundary(full.actual,full.reference,config.start));
-  setRange(range,'setEnd',boundary(full.actual,full.reference,config.end));
+  const chapter=documentWindow(),range=document.createRange();
+  setRange(range,'setStart',chapter.start);
+  setRange(range,'setEnd',chapter.end);
   // Range clones partially selected descendants, but deliberately omits its
   // common ancestor. Preserve that semantic chain too (for example a chapter
   // consisting of one p/em, or a slice inside a table cell).
@@ -139,8 +198,7 @@ const restrictChapter=()=>{
   let fragment=range.extractContents();
   for(const original of ancestors){const shell=original.cloneNode(false);shell.appendChild(fragment);fragment=shell;}
   body.replaceChildren(fragment);
-  const original=Array.from(config.canonical).slice(config.start,config.end).join('');
-  const originalMap=match(original,'chapter-original');
+  const originalMap=match(config.original,'chapter-original');
   // Apply Core's confirmed rule output. The standard Swift diff is supplied
   // as data; no JavaScript regex/replacement engine re-runs business rules.
   for(const edit of config.edits.slice().reverse()){
@@ -164,10 +222,10 @@ const scalarAt=(node,offset)=>{
   const target=document.createRange();try{target.setStart(node,offset);target.collapse(true);}catch{return null;}
   let lo=0,hi=points.length;
   while(lo<hi){const mid=lo+((hi-lo)>>1);if(rangeAt(points[mid]).compareBoundaryPoints(Range.START_TO_START,target)<0)lo=mid+1;else hi=mid;}
-  return lo<expected.length?expected[lo].scalar:Array.from(config.content).length;
+  return lo<expected.length?expected[lo].scalar:config.scalarCount;
 };
 const restore=scalar=>{
-  lastAnchor=Math.max(0,Math.min(Array.from(config.content).length,scalar));
+  lastAnchor=Math.max(0,Math.min(config.scalarCount,scalar));
   const index=lower(expected,lastAnchor,'scalar');
   const point=points[Math.min(index,points.length-1)];if(!point){window.scrollTo(0,0);return;}
   let rect;if(point.image)rect=point.node.getBoundingClientRect();else{const range=rangeAt(point);range.setEnd(point.node,point.end);rect=range.getBoundingClientRect();}

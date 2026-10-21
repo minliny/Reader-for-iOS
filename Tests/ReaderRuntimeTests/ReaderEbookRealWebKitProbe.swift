@@ -7,9 +7,11 @@ import WebKit
 import XCTest
 @testable import Reader
 
-/// Native format evidence uses the actual Core runtime, source archive, scheme
-/// handler, UIViewRepresentable and WebKit font loader. No generated book,
-/// substituted content/descriptor or fake Core/Host response participates.
+/// Positive format evidence uses the actual Core descriptor/content, source
+/// archive, scheme handler, UIViewRepresentable and WebKit font loader. The
+/// explicit MOBI tail negatives copy only the DTO's canonical string in memory;
+/// they keep the original entry and current chapter unchanged. These negatives
+/// are method faults, not additional format inputs or fake Core/Host responses.
 @MainActor
 enum ReaderEbookRealWebKitProbe {
     static func verify(in test: XCTestCase, format: String, byteCount: Int, digest: String) async throws {
@@ -145,6 +147,17 @@ enum ReaderEbookRealWebKitProbe {
             let afterColdLayout = try await reopened.progress(for: book)
             XCTAssertEqual(afterColdLayout, restored)
             XCTAssertEqual(sha(try Data(contentsOf: coldSource, options: .mappedIfSafe)), digest)
+            if format == "mobi" {
+                try await assertRejectedCanonicalTails(in: test, document: restoredDocument,
+                    content: restoredContent, reader: coldReader, offset: position.chapterOffset, font: sans)
+                let afterTailFaults = try await reopened.progress(for: book)
+                XCTAssertEqual(afterTailFaults, afterColdLayout,
+                    "Fault-only canonical input must not change any original progress coordinate or metadata")
+                let afterTailEntry = try await coldReader.readEntry(restoredDocument.entryPath,
+                    maximumBytes: 32 * 1024 * 1024)
+                XCTAssertEqual(sha(afterTailEntry), entryDigest)
+                XCTAssertEqual(sha(try Data(contentsOf: coldSource, options: .mappedIfSafe)), digest)
+            }
             try await reopened.close()
         } catch {
             try? await library.close()
@@ -153,6 +166,145 @@ enum ReaderEbookRealWebKitProbe {
         }
         XCTAssertEqual(try original.resourceValues(forKeys: [.fileSizeKey]).fileSize, byteCount)
         XCTAssertEqual(sha(try Data(contentsOf: original, options: .mappedIfSafe)), digest)
+    }
+
+    /// The same authenticated original entry is loaded for each case. Only a
+    /// DTO canonical field is corrupted outside its untouched chapter window.
+    /// Never mutate the archive, current content, stored descriptor or Core ACK.
+    private static func assertRejectedCanonicalTails(in test: XCTestCase, document: ReaderEbookDocument,
+        content: ReaderChapterContent, reader: ReaderEbookArchiveReader, offset: UInt64, font: UIFont) async throws {
+        let original = document.documentCanonicalContent
+        let scalars = original.unicodeScalars
+        let tail = try XCTUnwrap(scalars.lastIndex { !$0.properties.isWhitespace },
+            "The real full entry must have a non-whitespace tail outside the selected chapter")
+        let tailOffset = scalars.distance(from: scalars.startIndex, to: tail)
+        let originalCount = scalars.count
+        let significantCount = scalars.reduce(into: 0) { count, scalar in
+            if !scalar.properties.isWhitespace { count += 1 }
+        }
+        guard UInt64(tailOffset) >= document.chapterEndScalar,
+              document.chapterEndScalar < UInt64(originalCount), significantCount > 0 else {
+            XCTFail("This real chapter has no full-entry tail outside its own canonical window")
+            throw ReaderEbookError.positionMismatch
+        }
+        let lower = scalars.index(scalars.startIndex, offsetBy: Int(document.chapterStartScalar))
+        let upper = scalars.index(scalars.startIndex, offsetBy: Int(document.chapterEndScalar))
+        let originalChapter = String(scalars[lower..<upper])
+        let currentChapterBytes = Data(content.content.utf8)
+        let marker: Unicode.Scalar = scalars[tail] == "X" ? "Y" : "X"
+        // These three small labels are not an array of full-entry scalars or
+        // retained fault documents. Each owned string/Surface leaves this scope
+        // before constructing the next fault.
+        for kind in ["substitute", "remove", "append"] {
+            var changed = original.unicodeScalars
+            let changedTail = changed.index(changed.startIndex, offsetBy: tailOffset)
+            let reason: String
+            switch kind {
+            case "substitute":
+                changed.replaceSubrange(changedTail...changedTail, with: CollectionOfOne(marker))
+                reason = "canonical-text:document:ordinal=\(significantCount - 1):expected=U+\(String(marker.value, radix: 16)):actual=U+\(String(scalars[tail].value, radix: 16))"
+            case "remove":
+                changed.remove(at: changedTail)
+                reason = "canonical-length:document:expected=\(significantCount - 1):actual=\(significantCount)"
+            default:
+                changed.append(marker)
+                reason = "canonical-length:document:expected=\(significantCount + 1):actual=\(significantCount)"
+            }
+            let faulty = ReaderEbookDocument(sourceId: document.sourceId, bookId: document.bookId,
+                chapterIndex: document.chapterIndex, bodyVersion: document.bodyVersion,
+                processingVersion: document.processingVersion, entryPath: document.entryPath,
+                documentCanonicalContent: String(changed), chapterStartScalar: document.chapterStartScalar,
+                chapterEndScalar: document.chapterEndScalar)
+            let faultyScalars = faulty.documentCanonicalContent.unicodeScalars
+            let faultyLower = faultyScalars.index(faultyScalars.startIndex, offsetBy: Int(document.chapterStartScalar))
+            let faultyUpper = faultyScalars.index(faultyScalars.startIndex, offsetBy: Int(document.chapterEndScalar))
+            XCTAssertEqual(Data(String(faultyScalars[faultyLower..<faultyUpper]).utf8), Data(originalChapter.utf8))
+            XCTAssertEqual(Data(content.content.utf8), currentChapterBytes)
+            // Host validation authenticates identity/window bounds; it must not
+            // short-circuit the actual JS full-entry comparison in this case.
+            try faulty.validate(content: content)
+            try await assertRejectedCanonicalTail(in: test, document: faulty, content: content,
+                reader: reader, offset: offset, font: font, kind: kind, expectedReason: reason)
+        }
+    }
+
+    private static func assertRejectedCanonicalTail(in test: XCTestCase, document: ReaderEbookDocument,
+        content: ReaderChapterContent, reader: ReaderEbookArchiveReader, offset: UInt64, font: UIFont,
+        kind: String, expectedReason: String) async throws {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = try XCTUnwrap(scenes.first { $0.activationState == .foregroundActive }
+            ?? scenes.first { $0.activationState == .foregroundInactive })
+        let oldKey = scene.windows.first { $0.isKeyWindow }
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 700)
+        var waiting: XCTestExpectation? = test.expectation(description: "real MOBI full-entry tail rejected: " + kind)
+        let terminal = try XCTUnwrap(waiting)
+        var failures: [ReaderEbookError] = []
+        var readyCount = 0, positionCount = 0
+        // A new Surface/host is mandatory: document.identity deliberately does
+        // not include this canonical field, so updating an old mount would not
+        // necessarily execute another bootstrap.
+        let surface = ReaderEbookSurface(document: document, content: content, archiveReader: reader,
+            scalarOffset: offset, restorationID: UUID(), fontSize: 26, lineHeight: 1.8,
+            horizontalInset: 20, bottomInset: 24, paper: ReaderPaperPalette(theme: .day),
+            positionChanged: { _ in positionCount += 1 }, selectionChanged: { _, _, _ in }, centerTapped: {},
+            failed: { error in
+                failures.append(error)
+                let current = waiting; waiting = nil; current?.fulfill()
+            }, fontName: font.fontName, paged: true,
+            layoutReady: {
+                readyCount += 1
+                let current = waiting; waiting = nil; current?.fulfill()
+            }, readerFont: font)
+        let host = UIHostingController(rootView: AnyView(surface))
+        window.rootViewController = host; window.makeKeyAndVisible()
+        host.view.frame = window.bounds; host.view.layoutIfNeeded()
+        defer {
+            waiting = nil
+            // The actual failure path retires its Coordinator/bridge before
+            // invoking failed. Dismantling also retires any unexpected ready or
+            // timeout path before the next independently mounted case.
+            host.rootView = AnyView(EmptyView()); host.view.layoutIfNeeded()
+            window.isHidden = true; window.rootViewController = nil; oldKey?.makeKey()
+        }
+        await test.fulfillment(of: [terminal], timeout: 45)
+        XCTAssertEqual(failures.count, 1)
+        XCTAssertEqual(readyCount, 0)
+        XCTAssertEqual(positionCount, 0)
+        guard failures.count == 1, readyCount == 0, positionCount == 0,
+              case .scriptFailure(let stage, let reason) = failures[0] else {
+            XCTFail("Expected the original document-stage canonical rejection, not a timeout, native failure or admitted layout: \(failures)")
+            throw ReaderEbookError.positionMismatch
+        }
+        let rawReason = reason.hasPrefix("Error: ") ? String(reason.dropFirst(7)) : reason
+        XCTAssertEqual(stage, "canonical-window")
+        XCTAssertEqual(rawReason, expectedReason)
+        guard stage == "canonical-window", rawReason == expectedReason else {
+            throw ReaderEbookError.positionMismatch
+        }
+        let web = try XCTUnwrap(findContainer(host.view)?.webView)
+        defer { web.stopLoading() }
+        let url = try XCTUnwrap(web.url)
+        XCTAssertEqual(try ReaderEbookResourcePath.entry(url: url, origin: try XCTUnwrap(url.host)), document.entryPath)
+        let sampled = try await web.callAsyncJavaScript("""
+            const root=document.documentElement;
+            return {display:root.style.getPropertyValue('display'),priority:root.style.getPropertyPriority('display'),
+                    hasAdmission:!!window.__readerEbookLayoutAdmission,url:location.href};
+            """, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
+        let observation = try XCTUnwrap(sampled)
+        XCTAssertEqual(observation["display"] as? String, "none")
+        XCTAssertEqual(observation["priority"] as? String, "important")
+        XCTAssertEqual(observation["hasAdmission"] as? Bool, true)
+        XCTAssertEqual(observation["url"] as? String, url.absoluteString)
+        XCTAssertEqual(readyCount, 0); XCTAssertEqual(positionCount, 0)
+        // The exact document-stage mismatch is thrown before Range extraction
+        // and admitChapter in production. This reads the resulting hold without
+        // calling or replacing that admission API.
+        try writeStandardOutput("tail-fault", ["kind": kind, "stage": stage, "reason": rawReason,
+            "entry": document.entryPath, "windowStart": document.chapterStartScalar,
+            "windowEnd": document.chapterEndScalar, "readyCount": readyCount, "positionCount": positionCount,
+            "rootDisplay": observation["display"] ?? NSNull(), "rootPriority": observation["priority"] ?? NSNull(),
+            "methodFaultOnly": true])
     }
 
     private static func printInput(phase: String, document: ReaderEbookDocument,
