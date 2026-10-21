@@ -5,6 +5,7 @@ import ReaderCoreClient
 
 extension ReaderLibraryService: ReaderOnlineServing {
     public func validateSources(_ data: Data) async throws -> [ReaderSourceImportItem] {
+        try ReaderSourcePackageInput.validateJSONBytes(data)
         let value = try JSONSerialization.jsonObject(with: data)
         let definitions: [[String: Any]]
         if let array = value as? [[String: Any]] { definitions = array }
@@ -35,6 +36,7 @@ extension ReaderLibraryService: ReaderOnlineServing {
         }
     }
     public func importSources(_ data: Data, operationID: String) async throws -> [ReaderSourceImportItem] {
+        try ReaderSourcePackageInput.validateJSONBytes(data)
         let value = try JSONSerialization.jsonObject(with: data)
         let definitions: [[String: Any]]
         if let list = value as? [[String: Any]] { definitions = list }

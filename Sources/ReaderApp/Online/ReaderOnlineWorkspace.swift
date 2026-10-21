@@ -344,6 +344,7 @@ private struct ReaderSourceManagement: View {
     @State private var link = ""
     @State private var importFile = false
     @State private var fileRead: ReaderSourceEditorDraftOwner.ReadRequest?
+    @State private var fileReadTask: Task<Void, Never>?
     @State private var exportFile = false
     @State private var exportData = ReaderSourceJSONDocument(data: Data())
     @State private var importResults: [ReaderSourceImportItem] = []
@@ -403,15 +404,27 @@ private struct ReaderSourceManagement: View {
             .disabled(state.actions.busy)
             .onAppear { draftOwner.activate(); restoreSaveIfNeeded() }
             .onDisappear {
+                fileReadTask?.cancel(); fileReadTask = nil
                 draftOwner.retire(); confirmation.request = nil; fileRead = nil
                 diagnosticGeneration = UUID(); validating = false
             }
-            .onChange(of: link) { _, _ in draftOwner.cancelRead() }
+            .onChange(of: link) { _, _ in
+                fileReadTask?.cancel(); fileReadTask = nil; fileRead = nil
+                draftOwner.cancelRead()
+            }
             .onChange(of: state.sourceLoading) { _, loading in if !loading { restoreSaveIfNeeded() } }
-            .onChange(of: draftOwner.editorGeneration) { _, _ in validating = false }
+            .onChange(of: draftOwner.editorGeneration) { _, _ in
+                validating = false
+                if let request = fileRead, !draftOwner.accepts(request) {
+                    fileReadTask?.cancel(); fileReadTask = nil; fileRead = nil
+                }
+            }
             .onChange(of: confirmation.request?.id) { _, id in if id == nil { draftOwner.dismissConfirmation() } }
             .onChange(of: state.actions.hasPending) { _, pending in
-                if pending { confirmation.request = nil; draftOwner.dismissConfirmation(); draftOwner.cancelRead() }
+                if pending {
+                    fileReadTask?.cancel(); fileReadTask = nil; fileRead = nil
+                    confirmation.request = nil; draftOwner.dismissConfirmation(); draftOwner.cancelRead()
+                }
                 else { restoreSaveIfNeeded() }
             }
             .onChange(of: state.actions.busy) { _, busy in if !busy { draftOwner.refreshPersistedDraft() } }
@@ -433,13 +446,24 @@ private struct ReaderSourceManagement: View {
             }
             .fileImporter(isPresented: $importFile, allowedContentTypes: [.json, .plainText]) { result in
                 guard let fileRequest, draftOwner.accepts(fileRequest) else { return }
-                defer { if fileRead == fileRequest { fileRead = nil } }
                 do {
-                    let url = try result.get(); let scoped = url.startAccessingSecurityScopedResource()
-                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                    let text = String(decoding: try Data(contentsOf: url), as: UTF8.self)
-                    receive(draftOwner.finishRead(fileRequest, target: .imported(text, label: "导入文件“\(url.lastPathComponent)”")))
-                } catch { draftOwner.cancelRead(); state.error = error.localizedDescription }
+                    let url = try result.get()
+                    fileReadTask?.cancel()
+                    fileReadTask = Task {
+                        defer { if fileRead == fileRequest { fileRead = nil; fileReadTask = nil } }
+                        do {
+                            let text = try await ReaderSourcePackageInput.readUTF8File(at: url)
+                            guard !Task.isCancelled, fileRead == fileRequest, draftOwner.accepts(fileRequest) else { return }
+                            receive(draftOwner.finishRead(fileRequest, target: .imported(text, label: "导入文件“\(url.lastPathComponent)”")))
+                        } catch {
+                            guard !Task.isCancelled, fileRead == fileRequest, draftOwner.accepts(fileRequest) else { return }
+                            draftOwner.cancelRead(); state.error = error.localizedDescription
+                        }
+                    }
+                } catch {
+                    if fileRead == fileRequest { fileRead = nil }
+                    draftOwner.cancelRead(); state.error = error.localizedDescription
+                }
             }
             .fileExporter(isPresented: $exportFile, document: exportData, contentType: .json, defaultFilename: "Reader-书源") { result in if case .failure(let error) = result { state.error = error.localizedDescription } }
     }
@@ -486,6 +510,7 @@ private struct ReaderSourceManagement: View {
     }
     private func chooseSourceFile() {
         guard let request = draftOwner.beginRead() else { return }
+        fileReadTask?.cancel(); fileReadTask = nil
         confirmation.request = nil; fileRead = request; importFile = true
     }
     private func validate() {
@@ -504,7 +529,8 @@ private struct ReaderSourceManagement: View {
         Task {
             do {
                 let result = try await service.onlineFetch(url)
-                receive(draftOwner.finishRead(request, target: .imported(String(decoding: result, as: UTF8.self), label: "导入链接中的书源")))
+                let text = try ReaderSourcePackageInput.decodeUTF8(result)
+                receive(draftOwner.finishRead(request, target: .imported(text, label: "导入链接中的书源")))
             } catch { if draftOwner.accepts(request) { draftOwner.cancelRead(); state.error = error.localizedDescription } }
         }
     }

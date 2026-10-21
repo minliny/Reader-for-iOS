@@ -19,6 +19,42 @@ final class ReaderTextToolsState: ObservableObject {
     var notesGeneration = UUID()
     var searchTask: Task<Void, Never>?
     var returnPosition: (ReaderContentPositionScope, UInt64)?
+
+    /// Retire only the current read. Confirmed results and return position stay
+    /// available; the Runtime owns cancellation and exact reply retirement.
+    func cancelSearch() {
+        searchGeneration = UUID()
+        searchTask?.cancel()
+        searchTask = nil
+        searchLoading = false
+    }
+
+    func startSearch(for book: ReaderBook, using service: any ReaderReadingToolsServing, more: Bool) {
+        let query = more ? submitted : self.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        cancelSearch()
+        let generation = UUID(); searchGeneration = generation
+        let offset = more ? results.count : 0
+        requested = query; searchLoading = true; searchFailure = nil
+        // The in-flight Core read owns its book/service. It must not retain the
+        // departed presentation state while waiting for an original terminal.
+        searchTask = Task { [weak self] in
+            do {
+                let page = try await service.searchContent(for: book, keyword: query, limit: 100, offset: UInt32(clamping: offset))
+                guard let self, self.searchGeneration == generation, !Task.isCancelled else { return }
+                self.submitted = query
+                self.results = more ? self.results + page.results : page.results
+                self.hasMore = page.hasMore
+            } catch {
+                guard let self, self.searchGeneration == generation, !Task.isCancelled else { return }
+                self.searchFailure = error.localizedDescription
+            }
+            if let self, self.searchGeneration == generation {
+                self.searchLoading = false
+                self.searchTask = nil
+            }
+        }
+    }
 }
 
 struct ReaderContentSearchPanel: View {
@@ -88,30 +124,10 @@ struct ReaderContentSearchPanel: View {
             }
         }.padding(10).font(ReaderTypography.font(.caption))
     }
-    private func stop() {
-        state.searchGeneration = UUID(); state.searchTask?.cancel(); state.searchTask = nil; state.searchLoading = false
-    }
+    private func stop() { state.cancelSearch() }
     private func search(more: Bool) {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
-        let query = more ? state.submitted : state.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
-        stop()
-        let generation = UUID(); state.searchGeneration = generation
-        let offset = more ? state.results.count : 0
-        state.requested = query; state.searchLoading = true; state.searchFailure = nil
-        state.searchTask = Task {
-            do {
-                let page = try await service.searchContent(for: book, keyword: query, limit: 100, offset: UInt32(clamping: offset))
-                guard state.searchGeneration == generation, !Task.isCancelled else { return }
-                state.submitted = query
-                state.results = more ? state.results + page.results : page.results
-                state.hasMore = page.hasMore
-            } catch {
-                guard state.searchGeneration == generation, !Task.isCancelled else { return }
-                state.searchFailure = error.localizedDescription
-            }
-            if state.searchGeneration == generation { state.searchLoading = false }
-        }
+        state.startSearch(for: book, using: service, more: more)
     }
 }
 

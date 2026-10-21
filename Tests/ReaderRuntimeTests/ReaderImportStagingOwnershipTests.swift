@@ -729,7 +729,7 @@ private final class StagingHandoffCapture: @unchecked Sendable {
 
 /// The actual pinned Core executes every command. Only one original terminal is
 /// retained, then released; no response body, book text or ACK is synthesized.
-private final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
+final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
     private let native: ReaderCoreClient
     private let lock = NSLock()
     struct SentRequest { let requestID: UInt64; let parameters: Data }
@@ -739,6 +739,7 @@ private final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable 
     private var terminals: [String: Data] = [:]
     private var heldMethod: String?
     private var heldID: UInt64?
+    private var observedCancelIDs: [UInt64] = []
     private var held: Result<ReaderCoreEvent, ReaderCoreClientError>?
     private var ready = false
     private var advancesDeadline = false
@@ -751,6 +752,8 @@ private final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable 
     var timing: ReaderRequestTiming { .init(now: { self.now }, suspend: { await Task.yield() }) }
     var now: TimeInterval { lock.lock(); defer { lock.unlock() }; return ProcessInfo.processInfo.systemUptime + clock }
     var hasHeldTerminal: Bool { lock.lock(); defer { lock.unlock() }; return held != nil }
+    var heldRequestID: UInt64? { lock.lock(); defer { lock.unlock() }; return heldID }
+    var cancelRequestIDs: [UInt64] { lock.lock(); defer { lock.unlock() }; return observedCancelIDs }
     func count(_ name: String) -> Int { lock.lock(); defer { lock.unlock() }; return counts[name, default: 0] }
     func originalRequest(_ method: String) -> SentRequest? { lock.lock(); defer { lock.unlock() }; return requests[method] }
     func originalTerminal(_ method: String) throws -> ReaderCoreEvent? {
@@ -796,6 +799,10 @@ private final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable 
         return terminal
     }
     func retireReadRequest(requestId: UInt64) { lock.lock(); defer { lock.unlock() }; native.retireReadRequest(requestId: requestId) }
-    func cancel(requestId: UInt64) throws { lock.lock(); defer { lock.unlock() }; try native.cancel(requestId: requestId) }
+    func cancel(requestId: UInt64) throws {
+        lock.lock(); defer { lock.unlock() }
+        try native.cancel(requestId: requestId)
+        observedCancelIDs.append(requestId)
+    }
     func destroy() { lock.lock(); defer { lock.unlock() }; native.destroy() }
 }

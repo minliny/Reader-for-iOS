@@ -4,6 +4,7 @@ import CoreText
 import CryptoKit
 import UIKit
 import SwiftUI
+import Darwin
 
 struct ReaderUserFont: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
@@ -37,6 +38,7 @@ final class ReaderFontLibrary: ObservableObject {
 
     private let defaults: UserDefaults
     private let directory: URL
+    private let importObserver: ReaderFontImportObserver
     private let manifestKey = "reader.fontLibrary.v1"
     private let orderKey = "reader.fontLibrary.order.v2"
     private static let systemSelection = "reader:system"
@@ -46,7 +48,9 @@ final class ReaderFontLibrary: ObservableObject {
     private var presentationActive = false
     var canModify: Bool { !busy && manifestReadable }
 
-    init(directory: URL? = nil, defaults: UserDefaults = .standard) {
+    init(directory: URL? = nil, defaults: UserDefaults = .standard,
+         importObserver: @escaping ReaderFontImportObserver = { _, _ in }) {
+        self.importObserver = importObserver
         self.defaults = defaults
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Reader/Fonts", isDirectory: true)
@@ -178,57 +182,111 @@ final class ReaderFontLibrary: ObservableObject {
 
     func importFonts(_ urls: [URL]) async {
         guard !busy, manifestReadable, !urls.isEmpty else { return }
+        guard urls.count <= ReaderFontImportBudget.maximumFiles else {
+            publish(ReaderFontError.tooManyFiles.localizedDescription, failed: true); return
+        }
         busy = true
         defer { busy = false }
-        var imported = 0
-        var duplicates = 0
+        let budget = ReaderFontImportBudget()
+        let cancellation = ReaderImportCopyCancellation()
+        var imported = 0, duplicates = 0
         var errors: [String] = []
-        for url in urls {
-            var staged: URL?
-            do {
-                let destination = directory
-                let candidate = try await Task.detached(priority: .userInitiated) {
-                    try Self.stage(url, in: destination)
-                }.value
-                staged = candidate.url
-                if fonts.contains(where: { $0.sha256 == candidate.sha256 }) {
-                    try? FileManager.default.removeItem(at: candidate.url)
-                    duplicates += 1
-                    continue
+        await withTaskCancellationHandler(operation: {
+            for url in urls {
+                var staged: StagedFont?
+                var createdFinal: (url: URL, identity: ReaderImportStagingOwner.FileIdentity)?
+                var registeredURL: URL?
+                defer { staged?.lease.release() }
+                do {
+                    try cancellation.check(); try Task.checkCancellation()
+                    let destination = directory, observe = importObserver
+                    // Shared cancellation is checked by the existing bounded
+                    // copy even when Foundation invokes its accessor elsewhere.
+                    // Await the worker's actual completion before releasing any
+                    // security scope, lease, FD or this library's busy owner.
+                    let candidate = try await Task.detached(priority: .userInitiated) {
+                        try Self.stage(url, in: destination, budget: budget,
+                                       cancellation: cancellation, observe: observe)
+                    }.value
+                    staged = candidate
+                    try cancellation.check(); try Task.checkCancellation()
+                    if fonts.contains(where: { $0.sha256 == candidate.sha256 }) {
+                        try candidate.lease.retireOwned(candidate.owner, authority: .notDispatched)
+                        duplicates += 1; continue
+                    }
+                    guard UIFont(name: candidate.postScriptName, size: 18) == nil,
+                          !fonts.contains(where: { $0.postScriptName == candidate.postScriptName }) else {
+                        throw ReaderFontError.identityConflict(candidate.displayName)
+                    }
+                    let fileName = candidate.sha256 + "." + candidate.fileExtension
+                    let finalURL = directory.appendingPathComponent(fileName)
+                    let record = ReaderUserFont(id: UUID(), displayName: candidate.displayName,
+                        postScriptName: candidate.postScriptName, familyName: candidate.familyName,
+                        fileName: fileName, sha256: candidate.sha256)
+                    let updated = fonts + [record]
+                    // Prepare all throwing manifest encoding before registering.
+                    let manifest = try JSONEncoder().encode(updated)
+                    let expectedIdentity: ReaderImportStagingOwner.FileIdentity
+                    if FileManager.default.fileExists(atPath: finalURL.path) {
+                        let existing = try ReaderImportStagingLease.verifiedFile(at: finalURL)
+                        guard existing.sha256 == candidate.sha256 else { throw ReaderFontError.invalidFile }
+                        expectedIdentity = existing.identity // Never owned by this invocation.
+                    } else {
+                        try ReaderImportStagingLease.moveExclusively(candidate.url, to: finalURL)
+                        // Capture the actual no-overwrite rename creation before
+                        // directory fsync or any later operation may throw.
+                        expectedIdentity = candidate.owner.payloadIdentity!
+                        createdFinal = (finalURL, expectedIdentity)
+                        try ReaderImportStagingLease.synchronizeDirectory(directory)
+                    }
+                    let final = try ReaderImportStagingLease.verifiedFile(at: finalURL)
+                    guard final.sha256 == candidate.sha256, final.identity == expectedIdentity else {
+                        throw ReaderFontError.invalidFile
+                    }
+                    try cancellation.check(); try Task.checkCancellation()
+                    guard Self.register(finalURL) else { throw ReaderFontError.registrationFailed(candidate.displayName) }
+                    registeredURL = finalURL // Only this successful registration may be undone.
+                    try importObserver(.registered, finalURL)
+                    let registeredFile = try ReaderImportStagingLease.verifiedFile(at: finalURL)
+                    guard registeredFile.sha256 == candidate.sha256,
+                          registeredFile.identity == expectedIdentity,
+                          Self.registeredFontMatches(finalURL, postScriptName: candidate.postScriptName) else {
+                        throw ReaderFontError.registrationFailed(candidate.displayName)
+                    }
+                    try cancellation.check(); try Task.checkCancellation()
+                    // Retire the exact temporary/receipt before the nonthrowing
+                    // manifest commit. A failure here still owns its new file
+                    // and registration and takes the rollback path below.
+                    try candidate.lease.retireOwned(candidate.owner, authority: .notDispatched)
+                    defaults.set(manifest, forKey: manifestKey)
+                    fonts = updated
+                    normalizeChoiceOrder()
+                    availablePostScriptNames.insert(record.postScriptName)
+                    registeredURL = nil; createdFinal = nil
+                    imported += 1
+                } catch {
+                    var cleanupFailure: Error?
+                    do {
+                        if let registeredURL {
+                            // Never unregister an old same-name face, or delete
+                            // its source if this operation's unregister fails.
+                            guard Self.unregister(registeredURL) else { throw ReaderFontError.fontInUse }
+                        }
+                        if let createdFinal {
+                            try Self.removeCreatedFont(createdFinal.url, identity: createdFinal.identity)
+                        }
+                        if let staged { try staged.lease.retireOwned(staged.owner, authority: .notDispatched) }
+                    } catch { cleanupFailure = error }
+                    if error is CancellationError {
+                        if let cleanupFailure { errors.append("\(url.lastPathComponent)：\(cleanupFailure.localizedDescription)") }
+                        break // Do not dispatch the remaining selected files.
+                    }
+                    errors.append("\(url.lastPathComponent)：\(error.localizedDescription)")
+                    if let cleanupFailure { errors.append("\(url.lastPathComponent)：\(cleanupFailure.localizedDescription)") }
+                    if let limit = error as? ReaderFontError, case .batchTooLarge = limit { break }
                 }
-                // A process cannot register two different outlines under one
-                // PostScript identity. Do not rename or silently use the old face.
-                guard UIFont(name: candidate.postScriptName, size: 18) == nil,
-                      !fonts.contains(where: { $0.postScriptName == candidate.postScriptName }) else {
-                    throw ReaderFontError.identityConflict(candidate.displayName)
-                }
-                let fileName = candidate.sha256 + "." + candidate.url.pathExtension
-                let finalURL = directory.appendingPathComponent(fileName)
-                if FileManager.default.fileExists(atPath: finalURL.path) {
-                    let existing = try Data(contentsOf: finalURL, options: .mappedIfSafe)
-                    guard Self.digest(existing) == candidate.sha256 else { throw ReaderFontError.invalidFile }
-                    try FileManager.default.removeItem(at: candidate.url)
-                } else { try FileManager.default.moveItem(at: candidate.url, to: finalURL) }
-                staged = nil
-                guard Self.register(finalURL),
-                      Self.registeredFontMatches(finalURL, postScriptName: candidate.postScriptName) else {
-                    throw ReaderFontError.registrationFailed(candidate.displayName)
-                }
-                let record = ReaderUserFont(id: UUID(), displayName: candidate.displayName,
-                    postScriptName: candidate.postScriptName, familyName: candidate.familyName,
-                    fileName: fileName, sha256: candidate.sha256)
-                let updated = fonts + [record]
-                let data = try JSONEncoder().encode(updated)
-                defaults.set(data, forKey: manifestKey)
-                fonts = updated
-                normalizeChoiceOrder()
-                availablePostScriptNames.insert(record.postScriptName)
-                imported += 1
-            } catch {
-                if let staged { try? FileManager.default.removeItem(at: staged) }
-                errors.append("\(url.lastPathComponent)：\(error.localizedDescription)")
             }
-        }
+        }, onCancel: { cancellation.cancel() })
         if !errors.isEmpty { publish(errors.joined(separator: "\n"), failed: true) }
         else if imported > 0 { publish("已导入 \(imported) 个字体" + (duplicates > 0 ? "，\(duplicates) 个已存在" : "")) }
         else if duplicates > 0 { publish("所选字体已在字体库中") }
@@ -301,42 +359,104 @@ final class ReaderFontLibrary: ObservableObject {
         let familyName: String
         let displayName: String
     }
-    private struct StagedFont: Sendable {
+    /// One worker transfers this immutable resource receipt to its awaiting
+    /// MainActor; only that caller uses/releases the OS lease afterwards.
+    private struct StagedFont: @unchecked Sendable {
         let url: URL
+        let lease: ReaderImportStagingLease
+        let owner: ReaderImportStagingOwner
+        let fileExtension: String
         let postScriptName: String
         let familyName: String
         let displayName: String
         let sha256: String
     }
 
-    nonisolated private static func stage(_ original: URL, in directory: URL) throws -> StagedFont {
+    nonisolated private static func stage(_ original: URL, in directory: URL,
+        budget: ReaderFontImportBudget, cancellation: ReaderImportCopyCancellation,
+        observe: @escaping ReaderFontImportObserver) throws -> StagedFont {
         let ext = original.pathExtension.lowercased()
         guard ext == "ttf" || ext == "otf" else { throw ReaderFontError.unsupportedFile }
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let staged = directory.appendingPathComponent(".import-" + UUID().uuidString + "." + ext)
-        var completed = false
-        defer { if !completed { try? FileManager.default.removeItem(at: staged) } }
         let scoped = original.startAccessingSecurityScopedResource()
         defer { if scoped { original.stopAccessingSecurityScopedResource() } }
-        var coordinationError: NSError?
-        var result: Result<Void, Error>?
-        NSFileCoordinator().coordinate(readingItemAt: original, options: .withoutChanges, error: &coordinationError) { readable in
-            result = Result { try FileManager.default.copyItem(at: readable, to: staged) }
+        let selection = UUID().uuidString.lowercased()
+        let staging = directory.appendingPathComponent(".import-staging", isDirectory: true)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        try ReaderImportStagingLease.synchronizeDirectory(directory)
+        let lease = try ReaderImportStagingLease(stagingURL: staging) { checkpoint, payload in
+            if checkpoint == .ownerDurable {
+                // The existing copy has already admitted one regular open FD
+                // at <=64MiB. Its durable receipt supplies that same FD's size
+                // before the payload is opened or a single byte is copied.
+                let receipt = staging.appendingPathComponent(".owners/" + selection + ".json")
+                let owner = try JSONDecoder().decode(ReaderImportStagingOwner.self, from: Data(contentsOf: receipt))
+                guard owner.id == selection, owner.stagedName == selection + ".source" else { throw ReaderFontError.invalidFile }
+                try budget.reserve(owner.expectedBytes)
+            }
+            try observe(.staging(checkpoint), payload)
         }
-        if let coordinationError { throw coordinationError }
-        guard let result else { throw ReaderFontError.invalidFile }
-        try result.get()
+        var owner: ReaderImportStagingOwner?
         do {
-            let data = try Data(contentsOf: staged, options: .mappedIfSafe)
-            guard !data.isEmpty else { throw ReaderFontError.invalidFile }
-            let value = try descriptor(at: staged)
-            completed = true
-            return StagedFont(url: staged, postScriptName: value.postScriptName, familyName: value.familyName,
-                displayName: value.displayName, sha256: digest(data))
+            let copied = try lease.copy(original, selection: selection, cancellation: cancellation)
+            owner = copied
+            try cancellation.check(); try Task.checkCancellation()
+            guard let expected = copied.sha256, let identity = copied.payloadIdentity else { throw ReaderFontError.invalidFile }
+            let url = lease.payloadURL(copied)
+            // CoreText receives the same bounded, inode-bound bytes whose hash
+            // the original FD copy retained, not a second path-based mapping.
+            let fd = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+            guard fd >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            defer { Darwin.close(fd) }
+            var before = stat(), after = stat()
+            guard fstat(fd, &before) == 0, (before.st_mode & S_IFMT) == S_IFREG,
+                  ReaderImportStagingOwner.FileIdentity(before) == identity,
+                  before.st_size == copied.expectedBytes,
+                  before.st_size > 0, before.st_size <= ReaderImportStagingLease.maximumInputBytes else {
+                throw ReaderFontError.invalidFile
+            }
+            let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
+            let bytes = try handle.read(upToCount: Int(copied.expectedBytes) + 1) ?? Data()
+            guard bytes.count == Int(copied.expectedBytes), digest(bytes) == expected,
+                  fstat(fd, &after) == 0,
+                  ReaderImportStagingOwner.FileIdentity(after) == identity,
+                  after.st_size == before.st_size,
+                  after.st_mtimespec.tv_sec == before.st_mtimespec.tv_sec,
+                  after.st_mtimespec.tv_nsec == before.st_mtimespec.tv_nsec,
+                  after.st_ctimespec.tv_sec == before.st_ctimespec.tv_sec,
+                  after.st_ctimespec.tv_nsec == before.st_ctimespec.tv_nsec else { throw ReaderFontError.invalidFile }
+            try cancellation.check(); try Task.checkCancellation()
+            guard let descriptors = CTFontManagerCreateFontDescriptorsFromData(bytes as CFData) as? [CTFontDescriptor],
+                  !descriptors.isEmpty else { throw ReaderFontError.invalidFile }
+            guard descriptors.count == 1, let descriptor = descriptors.first else {
+                throw ReaderFontError.multipleFacesOrInstances
+            }
+            let value = try descriptorNames(descriptor)
+            return StagedFont(url: url, lease: lease, owner: copied, fileExtension: ext,
+                postScriptName: value.postScriptName, familyName: value.familyName,
+                displayName: value.displayName, sha256: expected)
         } catch {
-            try? FileManager.default.removeItem(at: staged)
+            if let owner { try? lease.retireOwned(owner, authority: .notDispatched) }
+            lease.release()
             throw error
         }
+    }
+
+    /// Domain-specific rollback of this call's successful no-overwrite rename.
+    /// Preexisting files, symlinks and a changed inode are never removed.
+    nonisolated private static func removeCreatedFont(_ url: URL,
+        identity: ReaderImportStagingOwner.FileIdentity) throws {
+        let parent = open(url.deletingLastPathComponent().path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard parent >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        defer { Darwin.close(parent) }
+        var current = stat()
+        if fstatat(parent, url.lastPathComponent, &current, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            return
+        }
+        guard (current.st_mode & S_IFMT) == S_IFREG,
+              ReaderImportStagingOwner.FileIdentity(current) == identity else { throw ReaderFontError.invalidFile }
+        guard unlinkat(parent, url.lastPathComponent, 0) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        try ReaderImportStagingLease.synchronizeDirectory(url.deletingLastPathComponent())
     }
 
     nonisolated private static func descriptor(at url: URL, bundledVariableInstances: Bool = false) throws -> FontDescriptor {
@@ -351,6 +471,10 @@ final class ReaderFontLibrary: ObservableObject {
             guard bundledVariableInstances else { throw ReaderFontError.multipleFacesOrInstances }
             descriptor = try bundledVariableDescriptor(descriptors, at: url)
         }
+        return try descriptorNames(descriptor)
+    }
+
+    nonisolated private static func descriptorNames(_ descriptor: CTFontDescriptor) throws -> FontDescriptor {
         guard let name = CTFontDescriptorCopyAttribute(descriptor, kCTFontNameAttribute) as? String,
               !name.isEmpty else { throw ReaderFontError.invalidFile }
         let family = CTFontDescriptorCopyAttribute(descriptor, kCTFontFamilyNameAttribute) as? String ?? name
@@ -417,11 +541,35 @@ final class ReaderFontLibrary: ObservableObject {
     }
 }
 
+/// Thin observers expose real production checkpoints only; no fake descriptor,
+/// SHA, bytes, registration result or permission can be injected through them.
+enum ReaderFontImportCheckpoint: Equatable {
+    case staging(ReaderImportStagingCheckpoint)
+    case registered
+}
+typealias ReaderFontImportObserver = @Sendable (ReaderFontImportCheckpoint, URL) throws -> Void
+
+/// Font-import resource budget, not a replacement for the shared copy engine.
+/// Every admitted file consumes its full size, including duplicates/failures.
+private final class ReaderFontImportBudget: @unchecked Sendable {
+    static let maximumFiles = 32
+    private let lock = NSLock()
+    private var remaining: Int64 = 256 * 1024 * 1024
+    func reserve(_ bytes: Int64) throws {
+        lock.lock(); defer { lock.unlock() }
+        guard bytes >= 0, bytes <= ReaderImportStagingLease.maximumInputBytes else { throw CocoaError(.fileReadTooLarge) }
+        guard bytes <= remaining else { throw ReaderFontError.batchTooLarge }
+        remaining -= bytes
+    }
+}
+
 private enum ReaderFontError: LocalizedError {
-    case unsupportedFile, invalidFile, fontInUse, multipleFacesOrInstances
+    case unsupportedFile, invalidFile, fontInUse, multipleFacesOrInstances, tooManyFiles, batchTooLarge
     case identityConflict(String), registrationFailed(String)
     var errorDescription: String? {
         switch self {
+        case .tooManyFiles: return "一次最多选择 32 个字体文件"
+        case .batchTooLarge: return "本次字体文件合计不能超过 256 MiB"
         case .unsupportedFile: return "请选择 TTF 或 OTF 字体文件"
         case .invalidFile: return "这个文件不是可用的单字面字体"
         case .multipleFacesOrInstances: return "该字体包含多个字面或命名实例，暂不支持导入"

@@ -179,7 +179,7 @@ struct ReaderReadingView: View {
         .onChange(of: preferences.longPressSelectText) { _, enabled in
             if !enabled { model.updateSelection(start: 0, end: 0, text: "", sessionID: session.id, restorationID: session.restorationID) }
         }
-        .onDisappear { imageOwner.cancel(); model.setReadingBodyVisible(false, sessionID: session.id); automaticPage.stop(); pendingSheet = nil; moreVisible = false; pointerHeld = false; motion.stop(publishingFinalSample: false); brightness.leaveReader(); display.leaveReader() }
+        .onDisappear { textTools.cancelSearch(); imageOwner.cancel(); model.setReadingBodyVisible(false, sessionID: session.id); automaticPage.stop(); pendingSheet = nil; moreVisible = false; pointerHeld = false; motion.stop(publishingFinalSample: false); brightness.leaveReader(); display.leaveReader() }
         .onChange(of: reduceMotion) { _, enabled in
             if enabled { motion.move(to: motion.target, reduceMotion: true) }
         }
