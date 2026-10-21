@@ -250,4 +250,104 @@ final class ReaderDownloadControlOwnerTests: XCTestCase {
         XCTAssertEqual(unknown.controlActions.pendingOperationID, originalID)
         XCTAssertEqual(clearIDs, [originalID, originalID])
     }
+
+    /// Production DTO and presentation/action-owner boundary only. No Core
+    /// write, book, cached file, HTTP response or download task is created.
+    func testStorageCleanupReceiptKeepsOriginalIdentityAcrossRefreshRetryReplacementAndRetirement() async throws {
+        func summary(removed: Bool = false, hasMore: Bool = false, error: String? = nil) throws -> ReaderStorageSummary {
+            var wire: [String: Any] = [
+                "completedQueueChapters": [], "completedQueueHasMore": false,
+                "removedContentBytes": removed ? 17 : 0, "totalBytes": hasMore ? 23 : 0,
+                "retainedBytes": 0, "automaticBytes": hasMore ? 23 : 0,
+                "cleanableBytes": hasMore ? 23 : 0, "protectedChapters": [],
+                "removedChapters": removed ? [["sourceId": "dto-source", "bookId": "dto-book", "chapterIndex": 7]] : [],
+                "hasMore": hasMore
+            ]
+            if let error { wire["cleanupError"] = error }
+            return try JSONDecoder().decode(ReaderStorageSummary.self, from: JSONSerialization.data(withJSONObject: wire))
+        }
+        let owner = ReaderDownloadControlOwner()
+        let presentationID = owner.cleanupPresentationID
+        let actions = ReaderLibraryActionOwner()
+        let scope = "cleanup-presentation-boundary"
+        let partial = try summary(removed: true, hasMore: true, error: "retained original cleanup diagnostic")
+        let inventory = try summary(hasMore: false)
+        var attempts: [String] = []
+        let first = await actions.perform("清理缓存", scope: scope) { id in
+            attempts.append(id)
+            owner.beginStorageCleanup(operationID: id, scope: scope, presentationID: presentationID)
+            if attempts.count == 1 { throw ReaderLibraryError.operationPending(id) }
+            owner.receiveStorageCleanupReceipt(partial, operationID: id, scope: scope, presentationID: presentationID)
+        }
+        XCTAssertFalse(first)
+        let originalID = try XCTUnwrap(actions.pendingOperationID)
+        XCTAssertNil(owner.cleanupResult, "An unresolved write is not a cleanup receipt")
+        owner.receiveStorageSummary(inventory)
+        XCTAssertEqual(actions.pendingOperationID, originalID, "A refreshed inventory cannot acknowledge the original")
+        let resumed = await actions.resumeOriginal()
+        XCTAssertTrue(resumed)
+        XCTAssertEqual(attempts, [originalID, originalID])
+        XCTAssertFalse(actions.hasPending)
+        XCTAssertEqual(owner.cleanupResult?.operationID, originalID)
+        XCTAssertEqual(owner.cleanupResult?.kind, .partiallyFailed)
+        XCTAssertEqual(owner.cleanupResult?.summary.removedContentBytes, 17)
+        XCTAssertEqual(owner.cleanupResult?.summary.removedChapters.count, 1)
+        owner.receiveStorageSummary(inventory)
+        XCTAssertEqual(owner.storage?.cleanableBytes, 0)
+        XCTAssertEqual(owner.cleanupResult?.kind, .partiallyFailed)
+        XCTAssertEqual(owner.cleanupResult?.summary.cleanupError, partial.cleanupError)
+        XCTAssertEqual(owner.cleanupResult?.summary.hasMore, true, "Ordinary summary hasMore=false is not the original result")
+
+        let remaining = try summary(removed: true, hasMore: true)
+        var nextID: String?
+        let next = await actions.perform("清理缓存", scope: scope) { id in
+            nextID = id
+            owner.beginStorageCleanup(operationID: id, scope: scope, presentationID: presentationID)
+            XCTAssertNil(owner.cleanupResult, "A newly accepted cleanup retires the previous result")
+            owner.receiveStorageCleanupReceipt(partial, operationID: originalID, scope: scope, presentationID: presentationID)
+            owner.receiveStorageCleanupReceipt(partial, operationID: id, scope: "different-scope", presentationID: presentationID)
+            XCTAssertNil(owner.cleanupResult, "Old or mismatched receipts cannot replace the new intent")
+            owner.receiveStorageCleanupReceipt(remaining, operationID: id, scope: scope, presentationID: presentationID)
+        }
+        XCTAssertTrue(next, "A completed cleanup result must not block the next user action")
+        XCTAssertNotEqual(nextID, originalID)
+        XCTAssertEqual(owner.cleanupResult?.operationID, nextID)
+        XCTAssertEqual(owner.cleanupResult?.kind, .remaining)
+        XCTAssertNil(owner.cleanupResult?.summary.cleanupError)
+        XCTAssertFalse(actions.hasPending)
+        XCTAssertTrue(owner.canControl && owner.canResume && owner.canClear)
+
+        owner.beginStorageCleanup(operationID: "failure-only", scope: scope, presentationID: presentationID)
+        owner.receiveStorageCleanupReceipt(try summary(error: "original failure"), operationID: "failure-only", scope: scope, presentationID: presentationID)
+        XCTAssertEqual(owner.cleanupResult?.kind, .failed)
+        owner.beginStorageCleanup(operationID: "completed", scope: scope, presentationID: presentationID)
+        owner.receiveStorageCleanupReceipt(inventory, operationID: "completed", scope: scope, presentationID: presentationID)
+        XCTAssertEqual(owner.cleanupResult?.kind, .completed)
+        // The original accepted closure still runs on retry after dismissal,
+        // but its captured presentation generation can no longer begin or publish.
+        var lateAttempts: [String] = []
+        let accepted = await actions.perform("清理缓存", scope: scope) { id in
+            lateAttempts.append(id)
+            owner.beginStorageCleanup(operationID: id, scope: scope, presentationID: presentationID)
+            if lateAttempts.count == 1 { throw ReaderLibraryError.operationPending(id) }
+            owner.receiveStorageCleanupReceipt(partial, operationID: id, scope: scope, presentationID: presentationID)
+        }
+        XCTAssertFalse(accepted)
+        let lateID = try XCTUnwrap(actions.pendingOperationID)
+        owner.retireStorageCleanupPresentation()
+        XCTAssertNotEqual(owner.cleanupPresentationID, presentationID)
+        let lateResumed = await actions.resumeOriginal()
+        XCTAssertTrue(lateResumed, "Presentation retirement must not cancel the original business action")
+        XCTAssertEqual(lateAttempts, [lateID, lateID])
+        owner.beginStorageCleanup(operationID: lateID, scope: scope, presentationID: presentationID)
+        owner.receiveStorageCleanupReceipt(partial, operationID: lateID, scope: scope, presentationID: presentationID)
+        XCTAssertNil(owner.cleanupResult, "Old-generation begin and receive cannot rebuild retired presentation")
+        XCTAssertFalse(actions.hasPending)
+        let newPresentationID = owner.cleanupPresentationID
+        owner.beginStorageCleanup(operationID: "new-presentation", scope: scope, presentationID: newPresentationID)
+        owner.receiveStorageCleanupReceipt(inventory, operationID: "new-presentation", scope: scope, presentationID: newPresentationID)
+        XCTAssertEqual(owner.cleanupResult?.operationID, "new-presentation")
+        XCTAssertEqual(owner.cleanupResult?.kind, .completed)
+        XCTAssertTrue(owner.canControl && owner.canResume && owner.canClear)
+    }
 }

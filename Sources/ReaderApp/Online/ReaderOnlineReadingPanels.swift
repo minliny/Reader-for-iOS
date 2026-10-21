@@ -852,7 +852,6 @@ struct ReaderOnlineDownloadPanel: View {
     @StateObject private var downloadActions: ReaderDownloadControlOwner
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @State private var status: ReaderDownloadStatus?
-    @State private var storage: ReaderStorageSummary?
     @State private var start = "1"
     @State private var end = "1"
     @State private var failure: String?
@@ -892,9 +891,13 @@ struct ReaderOnlineDownloadPanel: View {
                         HStack { Button("整本下载") { download(0..<status.chapterCount) }; Spacer(); Button("下载所选") { downloadSelected() }.disabled(selected.isEmpty).accessibilityIdentifier("online-download-selected") }.disabled(model.actions.hasPending)
                         if let batchFeedback { Text(batchFeedback).font(ReaderTypography.font(.caption)) }
                         Text("阅读前后章缓存与主动下载分别记账。清理自动缓存保留已完成下载及当前章。").font(ReaderTypography.font(.caption))
-                        if let storage {
+                        if let storage = downloadActions.storage {
                             Text("可清理自动正文 \(ByteCountFormatter.string(fromByteCount: Int64(clamping: storage.cleanableBytes), countStyle: .file))").font(ReaderTypography.font(.caption))
                             Button("清理自动缓存") { confirmation.confirm("清理自动缓存？", message: "保留当前章和已完成下载；书架、阅读位置及原书不变。", actionTitle: "清理") { cleanup() } }.disabled(model.actions.hasPending)
+                        }
+                        if let result = downloadActions.cleanupResult, result.scope == session.book.id {
+                            ReaderPageState(title: result.title, detail: result.detail)
+                                .accessibilityIdentifier("online-cache-cleanup-result")
                         }
                         ForEach(status.chapters) { chapter in
                             VStack(alignment: .leading, spacing: 8) {
@@ -950,7 +953,7 @@ struct ReaderOnlineDownloadPanel: View {
                 while !Task.isCancelled { try? await Task.sleep(nanoseconds: 2_000_000_000); if !Task.isCancelled { await refresh() } }
             }
             .onChange(of: phase) { value in if value != .active { cancelCatalogRead() } }
-            .onDisappear { cancelCatalogRead() }
+            .onDisappear { cancelCatalogRead(); downloadActions.retireStorageCleanupPresentation() }
     }
     private func refresh() async {
         guard let service else { return }
@@ -958,7 +961,9 @@ struct ReaderOnlineDownloadPanel: View {
             let value = try await service.readerDownloadStatus(session.book)
             try Task.checkCancellation(); status = value
             if end == "1" { end = String(value.chapterCount) }
-            storage = try await service.readerStorageSummary(protected: [.init(book: session.book, chapterIndex: session.content.chapterIndex)])
+            let summary = try await service.readerStorageSummary(protected: [.init(book: session.book, chapterIndex: session.content.chapterIndex)])
+            try Task.checkCancellation()
+            downloadActions.receiveStorageSummary(summary)
             failure = nil
         } catch is CancellationError { } catch { failure = error.localizedDescription }
     }
@@ -1032,8 +1037,11 @@ struct ReaderOnlineDownloadPanel: View {
     }
     private func cleanup() {
         guard let service else { return }
+        let presentationID = downloadActions.cleanupPresentationID
         Task { _ = await model.actions.perform("清理缓存", scope: session.book.id) { id in
-            storage = try await service.cleanupReaderStorage(retained: [], protected: [.init(book: session.book, chapterIndex: session.content.chapterIndex)], operationID: id)
+            downloadActions.beginStorageCleanup(operationID: id, scope: session.book.id, presentationID: presentationID)
+            let result = try await service.cleanupReaderStorage(retained: [], protected: [.init(book: session.book, chapterIndex: session.content.chapterIndex)], operationID: id)
+            downloadActions.receiveStorageCleanupReceipt(result, operationID: id, scope: session.book.id, presentationID: presentationID)
         }; await refresh() }
     }
     private func clearChapter(_ chapter: ReaderDownloadChapter) {

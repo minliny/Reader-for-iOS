@@ -698,6 +698,194 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         throw SourceToolsFailure.prerequisite
     }
 
+
+    /// Uses the exact existing Large subscription captured in R33. Root binds
+    /// its fresh absent-intent precondition before execution. This method never
+    /// creates/edits/deletes a subscription, changes a toggle or applies sources.
+    /// Real HTTP/admission failures stay FAIL; an empty diff is not a new release.
+    func testExistingRealSubscriptionPreviewForegroundInvalidationAndExplicitRecheckPreserveOriginalState() throws {
+        let subscriptionID = "1792571258468"
+        let expectedName = "原生订阅-15781c89-a11c-4ad0-854e-64b66a9db637"
+        let expectedURL = "https://shuyuan-api.yiove.com/import/book-source-collection/3d9f811b-0831-4203-9fcb-3e8020f8aa2d"
+        let app = XCUIApplication(); app.launch()
+        addTeardownBlock { self.subscriptionPreviewCloseOnlyKnownReadHosts(app) }
+        openExistingSourceManagement(app)
+        let originalSources = try sourceToolsSourceLabels(app)
+        try sourceToolsRequire(!app.textViews["online-source-draft"].exists,
+            "Do not open, replace or close an unknown source draft", app: app)
+        let subscriptions = subscriptionPreviewButton("online-rule-subscriptions", app: app)
+        try subscriptionPreviewReveal(subscriptions, app: app, scrollID: "online-source-scroll", towardTop: true)
+        try sourceToolsRequire(subscriptions.isEnabled && subscriptions.isHittable, "Open only the existing subscription manager", app: app)
+        subscriptions.tap()
+        let addEntry = subscriptionPreviewButton("subscription-add", app: app)
+        try sourceToolsRequire(addEntry.waitForExistence(timeout: 15), "Existing subscription list must open normally", app: app)
+        let originalDraftEntryLabel = addEntry.label // Observe only; never open the draft.
+        let name = subscriptionPreviewText("subscription:" + subscriptionID, app: app)
+        let url = subscriptionPreviewText("subscription-url:" + subscriptionID, app: app)
+        let check = subscriptionPreviewButton("subscription-check:" + subscriptionID, app: app)
+        try subscriptionPreviewReveal(check, app: app, scrollID: "subscription-scroll", towardTop: true)
+        try sourceToolsRequire(name.exists && name.label == expectedName && url.exists && url.label == expectedURL,
+            "Require the entire original Core subscription identity and real saved URL; never create a replacement", app: app)
+        try sourceToolsRequire(check.isEnabled && check.isHittable && !app.staticTexts["原操作待核对"].exists
+            && !app.staticTexts["正在核对订阅操作"].exists && !app.textFields["subscription-url"].exists,
+            "No unknown accepted operation or subscription editor may be touched", app: app)
+        check.tap() // First explicit real fetch + Core preview; no apply.
+        let apply = subscriptionPreviewButton("subscription-apply-selection", app: app)
+        let invalid = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "subscription-preview-invalid:" + subscriptionID)).firstMatch
+        try subscriptionPreviewWaitForActualPlan(app, apply: apply, check: check, invalid: invalid, phase: "first explicit check")
+        let originalApplyLabel = apply.label
+        let selectedCount = try subscriptionPreviewSelectionCount(apply, app: app)
+        let firstRow = try subscriptionPreviewObserveOneActualDifference(subscriptionID: subscriptionID,
+            selectedCount: selectedCount, app: app)
+        let firstFacts: [String: Any] = ["subscriptionID": subscriptionID, "subscriptionName": expectedName,
+            "subscriptionURL": expectedURL, "applyLabel": originalApplyLabel, "selectedSafeCount": selectedCount,
+            "actualObservedRow": firstRow, "draftEntryLabel": originalDraftEntryLabel,
+            "scope": "Actual real URL preview only. No remote-version publication/update/apply claim; no toggle changes."]
+        let firstAttachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: firstFacts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+        firstAttachment.name = "subscription-preview-actual-original-identity-selection-and-observed-row"
+        firstAttachment.lifetime = .keepAlways; add(firstAttachment)
+        keepScreenshot(app, name: "subscription-preview-real-first-diff")
+
+        XCUIDevice.shared.press(.home)
+        try sourceToolsWait("Observe actual background transition; do not substitute a delay", timeout: 10) {
+            app.state == .runningBackground || app.state == .runningBackgroundSuspended
+        }
+        app.activate()
+        try sourceToolsWait("The same App must return to the foreground", timeout: 15) { app.state == .runningForeground }
+        // This production detail reports read-state invalidation only. It is
+        // not a successful source-update receipt or remote publication claim.
+        let invalidTitle = app.staticTexts.matching(NSPredicate(format: "label == %@", "差异需要重新检查")).firstMatch
+        try sourceToolsWait("The actual page-state title must be rendered after foreground return", timeout: 30) {
+            invalid.exists && invalidTitle.exists
+        }
+        try subscriptionPreviewReveal(invalidTitle, app: app, scrollID: "subscription-scroll", towardTop: true)
+        try sourceToolsWait("Actual ReaderPageState must retain the stale preview until explicit recheck", timeout: 30) {
+            invalid.exists && app.staticTexts["差异需要重新检查"].exists
+                && app.staticTexts["订阅检查状态已变化，请重新检查差异。"].exists
+                && apply.exists && apply.label == originalApplyLabel && !apply.isEnabled
+        }
+        try sourceToolsRequire(addEntry.label == originalDraftEntryLabel,
+            "Scene transitions must not replace the untouched subscription draft entry", app: app)
+        keepScreenshot(app, name: "subscription-preview-actual-read-state-requires-explicit-recheck")
+        if let switchID = firstRow["switchIdentifier"] {
+            let toggle = subscriptionPreviewSwitch(switchID, app: app)
+            try subscriptionPreviewReveal(toggle, app: app, scrollID: "subscription-scroll")
+            try sourceToolsRequire(toggle.exists && !toggle.isEnabled && toggle.label == firstRow["switchLabel"]
+                && (toggle.value as? String) == firstRow["switchValue"],
+                "The original safe source toggle must retain its exact selection and become disabled", app: app)
+        }
+        if let rowID = firstRow["kindIdentifier"] {
+            let row = subscriptionPreviewText(rowID, app: app)
+            try subscriptionPreviewReveal(row, app: app, scrollID: "subscription-scroll")
+            try sourceToolsRequire(row.label == firstRow["kindLabel"], "The same actual old difference must remain visible", app: app)
+        } else {
+            try sourceToolsRequire(firstRow["actualEmptyDiff"] == "true" && app.staticTexts["订阅没有变更"].exists,
+                "A real empty preview must remain empty; it is not update/publication evidence", app: app)
+        }
+        try sourceToolsRequire(apply.label == originalApplyLabel && !apply.isEnabled,
+            "No scene callback may replace the retained selection or enable Apply", app: app)
+        keepScreenshot(app, name: "subscription-preview-old-actual-diff-and-selection-disabled")
+
+        let retry = app.buttons.matching(NSPredicate(format: "label == %@", "重新检查"))
+        try sourceToolsRequire(retry.count == 1, "Only the actual ReaderPageState recheck action may start the second check", app: app)
+        try subscriptionPreviewReveal(retry.element, app: app, scrollID: "subscription-scroll", towardTop: true)
+        try sourceToolsRequire(retry.element.isHittable && retry.element.isEnabled, "The normal explicit recheck must be available", app: app)
+        retry.element.tap() // Second and final explicit fetch/preview; still no apply.
+        try subscriptionPreviewWaitForActualPlan(app, apply: apply, check: check, invalid: invalid, phase: "explicit PageState recheck")
+        let secondCount = try subscriptionPreviewSelectionCount(apply, app: app)
+        try sourceToolsRequire(addEntry.label == originalDraftEntryLabel, "Explicit reads must retain the untouched draft entry", app: app)
+        let finalFacts: [String: Any] = ["subscriptionID": subscriptionID, "subscriptionURL": expectedURL,
+            "secondApplyLabel": apply.label, "secondSelectedSafeCount": secondCount,
+            "safeToggleEvidence": firstRow["switchIdentifier"] == nil ? "not applicable: actual first preview has zero safe items" : "one actual source toggle retained and disabled",
+            "normalUIActions": "open existing subscription; explicit check; Home; activate; explicit PageState recheck; normal exits",
+            "remotePublicationVerified": false, "sourceApplyRequested": false, "businessMutationRequested": false]
+        let finalAttachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: finalFacts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+        finalAttachment.name = "subscription-preview-real-explicit-recheck-scope-and-empty-safe-boundary"
+        finalAttachment.lifetime = .keepAlways; add(finalAttachment)
+        keepScreenshot(app, name: "subscription-preview-real-explicit-recheck-restored")
+        let close = app.buttons.matching(NSPredicate(format: "label == %@", "关闭订阅管理"))
+        try sourceToolsRequire(close.count == 1 && close.element.isHittable, "Exit through the same normal subscription host", app: app)
+        close.element.tap()
+        try sourceToolsRequire(subscriptions.waitForExistence(timeout: 15), "Normal close returns to the original source host", app: app)
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalSources,
+            "The original sources must remain represented after the read-only journey", app: app)
+        leaveExistingSourceManagement(app)
+    }
+
+    private func subscriptionPreviewWaitForActualPlan(_ app: XCUIApplication, apply: XCUIElement,
+                                                      check: XCUIElement, invalid: XCUIElement, phase: String) throws {
+        try sourceToolsWait("Actual remote subscription terminal: " + phase, timeout: 180) {
+            (apply.exists && check.exists && check.isEnabled && !invalid.exists)
+                || app.staticTexts["订阅检查未完成"].exists
+        }
+        try sourceToolsRequire(apply.exists && check.isEnabled && !invalid.exists
+            && !app.staticTexts["订阅检查未完成"].exists && !app.staticTexts["正在检查订阅"].exists,
+            "The actual URL fetch/encoding/admission/preview must succeed; failures are FAIL, without fallback: " + phase, app: app)
+    }
+
+    private func subscriptionPreviewSelectionCount(_ apply: XCUIElement, app: XCUIApplication) throws -> Int {
+        let pieces = apply.label.split(separator: " ")
+        try sourceToolsRequire(pieces.count == 3 && pieces.first == "应用所选" && pieces.last == "项",
+            "Observe the production Apply label without replacing actual selection", app: app)
+        let count = try XCTUnwrap(Int(pieces[1])); try sourceToolsRequire(count >= 0, "Actual selected item count", app: app)
+        return count
+    }
+
+    private func subscriptionPreviewObserveOneActualDifference(subscriptionID: String, selectedCount: Int,
+                                                               app: XCUIApplication) throws -> [String: String] {
+        let changePrefix = "subscription-change:" + subscriptionID + ":"
+        let kindPrefix = "subscription-change-kind:" + subscriptionID + ":"
+        if selectedCount > 0 {
+            let toggle = app.switches.matching(NSPredicate(format: "identifier BEGINSWITH %@", changePrefix)).firstMatch
+            try subscriptionPreviewReveal(toggle, app: app, scrollID: "subscription-scroll")
+            try sourceToolsRequire(toggle.isEnabled && (toggle.value as? String) == "1",
+                "A fresh real preview must expose an actual selected safe item", app: app)
+            let kindID = kindPrefix + String(toggle.identifier.dropFirst(changePrefix.count))
+            let kind = subscriptionPreviewText(kindID, app: app)
+            try sourceToolsRequire(kind.exists && ["新增", "可更新"].contains(kind.label), "Full original safe source identity and kind", app: app)
+            return ["switchIdentifier": toggle.identifier, "switchLabel": toggle.label,
+                "switchValue": try XCTUnwrap(toggle.value as? String), "kindIdentifier": kindID, "kindLabel": kind.label]
+        }
+        let empty = app.staticTexts["订阅没有变更"]
+        let row = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", kindPrefix)).firstMatch
+        if !empty.exists { try subscriptionPreviewReveal(row, app: app, scrollID: "subscription-scroll") }
+        if row.exists { return ["kindIdentifier": row.identifier, "kindLabel": row.label] }
+        try sourceToolsRequire(empty.exists, "Zero safe items must retain an actual unsafe/unchanged difference or the real empty state", app: app)
+        return ["actualEmptyDiff": "true"]
+    }
+
+    // Full predicates preserve every source-URL byte beyond XCTest's subscript limit.
+    private func subscriptionPreviewText(_ id: String, app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "identifier == %@", id)).firstMatch
+    }
+    private func subscriptionPreviewButton(_ id: String, app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier == %@", id)).firstMatch
+    }
+    private func subscriptionPreviewSwitch(_ id: String, app: XCUIApplication) -> XCUIElement {
+        app.switches.matching(NSPredicate(format: "identifier == %@", id)).firstMatch
+    }
+    private func subscriptionPreviewReveal(_ element: XCUIElement, app: XCUIApplication,
+                                           scrollID: String, towardTop: Bool = false) throws {
+        let scroll = app.scrollViews.matching(NSPredicate(format: "identifier == %@", scrollID)).firstMatch
+        try sourceToolsRequire(scroll.exists, "The existing native scroll host is required", app: app)
+        for _ in 0..<24 {
+            if element.exists && element.frame.width > 0 && element.frame.height > 0
+                && element.frame.intersection(scroll.frame).height > 8 { return }
+            if towardTop { scroll.swipeDown() } else { scroll.swipeUp() }
+        }
+        try sourceToolsRequire(false, "Reveal only the exact actual UI element through ordinary scrolling: " + element.identifier, app: app)
+    }
+    private func subscriptionPreviewCloseOnlyKnownReadHosts(_ app: XCUIApplication) {
+        guard app.state == .runningForeground, !app.textViews["online-source-draft"].exists,
+              !app.textFields["subscription-url"].exists, !app.alerts.firstMatch.exists else { return }
+        let close = app.buttons.matching(NSPredicate(format: "label == %@", "关闭订阅管理")).firstMatch
+        if close.exists && close.isHittable { close.tap() }
+        let search = subscriptionPreviewButton("online-close-sources", app: app)
+        if search.exists && search.isHittable { search.tap() }
+        let workspace = subscriptionPreviewButton("online-close-workspace", app: app)
+        if workspace.exists && workspace.isHittable { workspace.tap() }
+    }
+
 }
 
 /// Read-only real-source search restoration; execution remains UNRUN.
