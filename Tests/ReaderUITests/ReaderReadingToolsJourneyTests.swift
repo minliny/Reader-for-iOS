@@ -190,6 +190,46 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         leaveReader(app)
     }
 
+    /// Complete only Auto5's remaining display readback and normal exit. Its
+    /// original whole-method failure and completed automatic consumers remain
+    /// separate evidence; this method never starts another automatic session.
+    func testOriginalAuto5DisplayValuesAndNormalExitWithoutReplayingConsumers() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let proofSHA = environment["READER_AUTO5_DISPLAY_RECOVERY_PROOF_SHA256"],
+              proofSHA.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil,
+              let json = environment["READER_AUTO5_ORIGINAL_DISPLAY_JSON"],
+              let original = try? JSONDecoder().decode(AutomaticDisplayRecoveryTuple.self, from: Data(json.utf8)),
+              original.mode == "分页", original.transition == "滑动", original.selectable == "1", original.paper == "夜间" else {
+            XCTFail("Root must bind Auto5's original video/source/product/exit and exact original display tuple to the same owned library; never adopt current values as before")
+            throw JourneyError.prerequisite
+        }
+        let proof = XCTAttachment(string: "externalEvidenceProofSHA256=\(proofSHA)\noriginalRun=compact-automatic-page-5\nbook=\(bookID)\noriginalMode=\(original.mode)\noriginalTransition=\(original.transition)\noriginalSelectable=\(original.selectable)\noriginalPaper=\(original.paper)\nproofRole=private evidence binding, not a Core operation UUID")
+        proof.name = "auto5-original-display-evidence-binding"; proof.lifetime = .keepAlways; add(proof)
+        let app = XCUIApplication(); app.launch(); openBook(app)
+        openModule("appearance", app: app)
+        let header = app.staticTexts["reading-book:local|" + String(bookID.dropFirst("book-".count))]
+        guard header.exists, header.label == title else {
+            XCTFail("Do not verify or restore another book's display")
+            throw JourneyError.prerequisite
+        }
+        let paper = try originalPaperControl(original.paper, app: app)
+        XCTAssertTrue(paper.isSelected, "Auto5 never changed paper; preserve any unowned different selection instead of overwriting it")
+        evidence(app, "auto5-original-night-paper-selected-through-real-heading")
+        let mode = app.buttons["reading-page-mode"]
+        reveal(mode, towardBottom: true, app: app)
+        XCTAssertEqual(try menuValue(mode, choices: ["滚动", "分页"]), original.mode)
+        let transition = app.buttons["reading-page-transition"]
+        reveal(transition, towardBottom: true, app: app)
+        XCTAssertEqual(try menuValue(transition, choices: ["仿真", "覆盖", "滑动", "无动画"]), original.transition)
+        evidence(app, "auto5-original-page-mode-and-transition-readback")
+        let selectable = app.switches["长按选择文本"]
+        reveal(selectable, towardBottom: true, app: app)
+        XCTAssertEqual(selectable.value as? String, original.selectable)
+        evidence(app, "auto5-original-text-selection-readback")
+        hideControls(app); leaveReader(app)
+        evidence(app, "auto5-original-display-readback-and-normal-exit-completed")
+    }
+
     /// Diagnose physical input separately from XCTest's AX hittability.
     /// Historical failures remain; consumers still require actual Core results.
     /// This method makes one read-only preview touch and never creates a rule.
@@ -941,6 +981,12 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         owner.restored = true
     }
 
+    private struct AutomaticDisplayRecoveryTuple: Decodable {
+        let mode: String
+        let transition: String
+        let selectable: String
+        let paper: String
+    }
     private struct Display { let mode: String; let transition: String; let selectable: String; let paper: String }
     private final class DisplaySetupRestoration {
         let paper: String
@@ -1069,10 +1115,31 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let selectable = app.switches["长按选择文本"]
         reveal(selectable, towardBottom: true, app: app); setSwitch(selectable, to: old.selectable)
         reveal(mode, towardBottom: false, app: app); choose(old.mode, picker: mode, app: app)
-        let paper = app.buttons[old.paper]
-        reveal(paper, towardBottom: false, app: app); paper.tap()
+        let paper = try originalPaperControl(old.paper, app: app)
+        paper.tap()
         XCTAssertTrue(paper.isSelected, "Restore the original paper through its normal visible control even after a failed test")
         evidence(app, "tools-original-reader-display-restored"); hideControls(app)
+    }
+    private func originalPaperControl(_ name: String, app: XCUIApplication) throws -> XCUIElement {
+        // The paper buttons are in LazyVGrid and can be absent from AX while
+        // offscreen. Its eager section heading still identifies the real Full
+        // appearance ScrollView; reveal that before querying the original key.
+        let headings = app.staticTexts.matching(NSPredicate(format: "label == %@", "阅读纸色"))
+        guard headings.count == 1 else {
+            XCTFail("Require the unique actual paper section heading")
+            throw JourneyError.prerequisite
+        }
+        reveal(headings.element, towardBottom: false, app: app)
+        guard headings.element.isHittable else { throw JourneyError.prerequisite }
+        let papers = app.buttons.matching(NSPredicate(format: "label == %@", name))
+        guard papers.count == 1 else {
+            XCTFail("The exact original paper must materialize uniquely after revealing its real section")
+            throw JourneyError.prerequisite
+        }
+        let paper = papers.element
+        reveal(paper, towardBottom: false, app: app)
+        guard paper.isEnabled, paper.isHittable else { throw JourneyError.prerequisite }
+        return paper
     }
 
     private func importAndOpenOriginal(_ app: XCUIApplication) throws {
