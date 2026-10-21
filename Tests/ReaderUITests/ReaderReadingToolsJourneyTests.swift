@@ -161,17 +161,9 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             self.displayRestored = true
         }
         chooseChapter(1, seekStart: true, app: app)
-        let actual = try screen(app)
-        let bodyText = try XCTUnwrap(body(app).value as? String)
-        let literal = try XCTUnwrap(actual.lines.lazy.flatMap { line -> [String] in
-            let scalars = Array(line.text.unicodeScalars)
-            return zip(scalars, scalars.dropFirst()).compactMap { first, second in
-                guard (0x4E00...0x9FFF).contains(first.value), (0x4E00...0x9FFF).contains(second.value) else { return nil }
-                return String(first) + String(second)
-            }
-        }.first(where: { bodyText.contains($0) }),
-            "Use a real visible OCR word also present verbatim in the actual native text, never generated chapter text")
-        try previewAndRemoveOwnedRule(literal, app: app)
+        // This remaining consumer previews Core's bounded body with its title
+        // removed. Use that real displayed preview as the rule's input sample.
+        try previewAndRemoveOwnedRule(nil, app: app)
         chooseChapter(1, seekStart: true, app: app)
         try automaticPageConsumers(app)
         try restoreDisplay(originalDisplay, app: app); displayRestored = true
@@ -333,7 +325,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         throw JourneyError.prerequisite
     }
 
-    private func previewAndRemoveOwnedRule(_ literal: String, app: XCUIApplication) throws {
+    private func previewAndRemoveOwnedRule(_ preferredLiteral: String?, app: XCUIApplication) throws {
         openTool("替换、字典与目录规则", app: app)
         let kind = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '规则类型'")).firstMatch
         XCTAssertTrue(kind.waitForExistence(timeout: 10)); kind.tap()
@@ -349,6 +341,20 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         reveal(after, towardBottom: true, app: app)
         evidence(app, "tools-existing-preview-processed-visible")
         let originalRaw = before.label, originalProcessed = after.label
+        let literal: String
+        if let preferredLiteral {
+            // The original copy/note journey keeps its same-selection contract.
+            literal = preferredLiteral
+        } else {
+            let scalars = Array(originalProcessed.unicodeScalars)
+            literal = try XCTUnwrap(zip(scalars, scalars.dropFirst()).compactMap { first, second -> String? in
+                guard (0x4E00...0x9FFF).contains(first.value), (0x4E00...0x9FFF).contains(second.value) else { return nil }
+                let candidate = String(first) + String(second)
+                return originalRaw.contains(candidate) ? candidate : nil
+            }.first, "Require an actual nonempty common original/processed Core preview sample; never generate chapter text")
+            let sample = XCTAttachment(string: "inputOrigin=actual visible Core preview UI\nliteral=\(literal)\noriginalUTF8Bytes=\(originalRaw.utf8.count)\nprocessedUTF8Bytes=\(originalProcessed.utf8.count)\nNo appended native chapter title, generated prose or request beyond the Core bound.")
+            sample.name = "tools-rule-input-from-real-bounded-preview"; sample.lifetime = .keepAlways; add(sample)
+        }
         XCTAssertTrue(originalProcessed.contains(literal), "The real displayed copied text must be in the bounded actual chapter preview")
         let create = app.buttons["新建"]
         reveal(create, towardBottom: false, app: app); create.tap()
