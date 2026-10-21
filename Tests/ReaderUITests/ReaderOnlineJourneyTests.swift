@@ -327,7 +327,7 @@ final class ReaderOnlineSearchRestorationJourneyTests: XCTestCase {
         clear.tap()
         try wait("Clearing only the filter must expose the original candidate identities", timeout: 10) {
             !empty.exists && initial.rows.allSatisfy { row in
-                let matches = app.buttons.matching(identifier: row.id)
+                let matches = app.buttons.matching(NSPredicate(format: "identifier == %@", row.id))
                 return matches.count == 1 && matches.element.label == row.label
             }
         }
@@ -353,7 +353,7 @@ final class ReaderOnlineSearchRestorationJourneyTests: XCTestCase {
             let now = try visibleRows(app)
             let newIdentity = now.rows.contains { !initiallyVisible.contains($0.id) }
             let oldMoved = beforeScroll.rows.contains { old in
-                let match = app.buttons.matching(identifier: old.id)
+                let match = app.buttons.matching(NSPredicate(format: "identifier == %@", old.id))
                 return match.count == 0 || abs(match.element.frame.minY - old.frame.minY) >= min(80, old.frame.height / 2)
             }
             if newIdentity && oldMoved { moved = now; break }
@@ -367,7 +367,7 @@ final class ReaderOnlineSearchRestorationJourneyTests: XCTestCase {
         try sourceRoundTrip(app)
         try assertRestored(scrolled, app: app, name: "source-management-return")
 
-        let original = app.buttons.matching(identifier: chosen.id)
+        let original = app.buttons.matching(NSPredicate(format: "identifier == %@", chosen.id))
         XCTAssertEqual(original.count, 1); XCTAssertTrue(original.element.isHittable)
         let identity = String(chosen.id.dropFirst("online-result:".count))
         let separator = try XCTUnwrap(identity.firstIndex(of: "|"))
@@ -377,9 +377,9 @@ final class ReaderOnlineSearchRestorationJourneyTests: XCTestCase {
         let binding = XCTAttachment(string: "keyword=\(keyword)\ncandidate=\(identity)\nsourceID=\(sourceID)\nbookID=\(bookID)\noriginalCandidateFrame=\(chosen.frame)\noriginalViewport=\(scrolled.frame)")
         binding.name = "actual-scrolled-source-book-binding"; binding.lifetime = .keepAlways; add(binding)
         original.element.tap()
-        let selected = app.staticTexts["online-selected:" + identity]
+        let selected = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "online-selected:" + identity)).element
         XCTAssertTrue(selected.waitForExistence(timeout: 10))
-        let detail = app.staticTexts["online-detail-book:" + bookID]
+        let detail = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "online-detail-book:" + bookID)).element
         XCTAssertTrue(detail.waitForExistence(timeout: 120), "Require this exact actual candidate's detail, with no generated fallback")
         XCTAssertFalse(detail.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         // The exact Core source/book IDs bind this detail. A real upstream
