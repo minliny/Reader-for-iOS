@@ -559,14 +559,36 @@ struct ReaderRuleToolsPanel: View {
         }
     }
     private func previewReplacement() {
+#if DEBUG
+        ReaderTXTPreviewTrace.emit("event=panel.replacement.tap presented=\(presented) serviceAvailable=\(model.libraryService is any ReaderReadingToolsServing) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id)")
+#endif
         guard let service = model.libraryService as? any ReaderReadingToolsServing,
               let current = model.reader, current.book.id == book.id else { return }
         Task {
             do {
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=replacement.service.begin session=\(current.id) chapter=\(current.content.chapterIndex)")
+#endif
                 let value = try await service.previewReplacement(for: book, chapterIndex: current.content.chapterIndex, maxScalars: 4000)
-                guard presented, model.reader?.id == current.id, model.reader?.content.chapterIndex == current.content.chapterIndex else { return }
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=replacement.service.result session=\(current.id) beforeUTF8Bytes=\(value.before.utf8.count) afterUTF8Bytes=\(value.after.utf8.count) truncated=\(value.truncated)")
+#endif
+                guard presented, model.reader?.id == current.id, model.reader?.content.chapterIndex == current.content.chapterIndex else {
+#if DEBUG
+                    ReaderTXTPreviewTrace.emit("event=replacement.discard.result presented=\(presented) sessionMatches=\(model.reader?.id == current.id) chapterMatches=\(model.reader?.content.chapterIndex == current.content.chapterIndex)")
+#endif
+                    return
+                }
                 state.replacementPreview = value
-            } catch { if presented, model.reader?.id == current.id { state.failure = error.localizedDescription } }
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=replacement.published.result session=\(current.id)")
+#endif
+            } catch {
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=replacement.service.error session=\(current.id) category=\(ReaderTXTPreviewTrace.errorCategory(error))")
+#endif
+                if presented, model.reader?.id == current.id { state.failure = error.localizedDescription }
+            }
         }
     }
     private func queryDictionary() {

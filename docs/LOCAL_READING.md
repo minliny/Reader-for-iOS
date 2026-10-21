@@ -20,9 +20,9 @@ UI `95366cd93775ea0ad3ecbc0f60e8882717f93169`、
 本轮 V2–V4 扩展增加了目录/电子书展示、规则订阅、下载及换源恢复等配套合同；
 旧 Framework 不会因为 Host 源码出现新入口就获得这些能力。
 最终升级须明确协议/schema、位置和历史未决操作的边界，保留原书与原 journal，
-重新构建并绑定准确产物。当前运行 pin 为 `8766e78068ff6a5dc0b6c4b89862fff3d8195f3d`，Swift binding SHA-256 为
+重新构建并绑定准确产物。当前运行 pin 为 `1411965a65a0f3098c02679be5ef979ae9462867`，Swift binding SHA-256 为
 `e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0`。
-配套模拟器 Framework 已通过实际构建（`core-txt-preview-framework-build.log` 与源码/字节回执）；C ABI 未变。新增 `txt-toc-rule.preview` 为真实原书的只读草稿识别快照，复用既有解析器；Core 三个准确原书方法已通过，Host 与界面消费者另验。
+配套模拟器 Framework 已通过实际构建（`core-txt-legacy-framework-build.log` 与源码/字节回执）；C ABI 和 Swift binding 未变。新增 `txt-toc-rule.preview` 为真实原书的只读草稿识别快照，复用既有解析器；`8766e780` 的三个准确原书方法已通过。当前 pin 补齐缺少 `localBookFormat` 的 V1 TXT 旧元数据识别，仍检查原书 SHA 与无扩展名提示的字节格式；对应两个准确方法通过后提交，Framework 来自该干净提交，Host 原生消费者另验。
 最终 App、安装与交互结果仍须分别绑定实际回执，Framework 通过不替代 App 交付。
 从参考 Core `2a301653` 升级到当前 pin，protocol/C ABI/runtime-config 仍为 1，
 SQLite `user_version` 仍为 38，存储快照 `schemaVersion` 仍为 16，本次未引入 DDL 迁移。
@@ -170,6 +170,7 @@ TTS 和漫画尚无已开放业务入口，不能把其他阅读入口的证据�
 | 第 19 次源码与原生增量 | 实现提交 `eac93dca` 与 432 个封存输入一致，实际构建/签名及 113 产物核对通过。TXT 预览4已通过真实多行键盘收起并点击预览，随后未观察到预期诊断而 FAIL；四条草稿标题与 Downloads 原文整行一致，Core 最少命中数确为 4，不能归因于样本不足。剩余工具 followup1 在首个保存规则预览命中前提 FAIL，规则与自动翻页消费者未进入；日志排除拖动/动画及输入门控卡住。本轮正常退回外观并恢复原夜间选择，断言及原图成立；隐藏模块仍见于 debug AX 树，不推定 VoiceOver 或实际命中通过。 |
 | 独立 App 产物交付 | `eac93dca` 的普通 App 编译及模拟器签名通过，发布副本时因当前 Python 缺少 `os.removexattr` 而失败；未发布 immutable manifest，不计交付。打包脚本已在 `fafa9f4` 增加系统 `xattr` 兼容路径，只清理新产物副本上的 FinderInfo；需新的独立构建证明，失败产物保留，不重命名复用。 |
 | 第 19 次整本与规则文件后续 | `large-whole-book-1` 实际唯一请求当前 Baidu 50 章，原 50 lease/report 全部确认完成，正文和首次冷启动的 50 任务/attempt 保留已执行，原件、旧来源完整行、原进度及原 Host/Core 回执保护通过。整条 FAIL：Core 的完成/仅缓存为互斥状态桶，实际摘要“已完成50、缓存0”正确，测试误要求缓存50；第二次冷启动未执行。到达后段时已完成，暂停/取消/继续均未发出，不计通过；原版本 observer 误等不保证持久化的表，版本证据未取得，不能用 post 补填。规则文件2在重新开启阅读控制时 FAIL，未到导出；17 项保护均通过，实际触摸未生效原因继续定位，不沿用已排除的坐标猜测。 |
+| 第 20 次真实诊断 | 构建/签名、433 输入及 113 产物核对通过，源码提交 `cac83546`。TXT 预览5实际请求到达 Core 并显示失败：V1 原书缺少新增 `localBookFormat`，但旧 `txt-3` 解析事实与原书 SHA 均在，属于旧元数据兼容缺口；非标题、请求丢弃或门控问题。Tools followup2 仍在首预览命中检查 FAIL；公开原生查询落在正确滚动容器内，不能由此证明按钮实际点击或定位 SwiftUI/AX 内部原因，原夜间已恢复。规则文件3真实打开系统保存页并进入 Reader 文件夹，随后测试未识别新版文件夹标题菜单而 FAIL，尚未保存/导入；之前重新打开控制栏的间歇失败仍保留，不据本次成功步骤声称已修复。 |
 | 最终 App、保数据安装及其他原生旅程 | 尚未闭合；测试宿主与交付 App 分开登记 |
 | 真实 AZW/AZW3/KF8 原书 | 用户明确暂跳过，DEFERRED / OPEN；不改名补证，不改写格式要求 |
 | 物理 iOS 设备、iOS 17 运行时、iPad/分屏、无障碍组合和用户验收 | OPEN；最低系统/设备族声明、模拟器或方法测试不能替代 |

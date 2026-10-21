@@ -21,10 +21,11 @@ final class ReaderDockHitDiagnostics: ObservableObject {
     private var observer: ReaderRejectAllTouchObserver?
     private var input = Input(module: "", progress: 0, endpointInput: false)
     private var remainingSamples = 16
+    private var remainingAXSamples = 4
     private var querying = false
 
     func update(_ value: Input) {
-        if input.module != value.module { remainingSamples = 16; generation = UUID() }
+        if input.module != value.module { remainingSamples = 16; remainingAXSamples = 4; generation = UUID() }
         input = value
     }
     fileprivate func attach(to incoming: UIWindow?, attachmentID: UUID) {
@@ -50,7 +51,7 @@ final class ReaderDockHitDiagnostics: ObservableObject {
     }
     fileprivate func register(_ view: ReaderDebugPreviewHitView) {
         if preview !== view || previewRole != view.role {
-            generation = UUID(); remainingSamples = 16
+            generation = UUID(); remainingSamples = 16; remainingAXSamples = 4
             Self.logger.debug("view event=dock-hit-probe role=\(view.role, privacy: .public) registered=true")
         }
         preview = view
@@ -95,6 +96,109 @@ final class ReaderDockHitDiagnostics: ObservableObject {
         let candidate = window.hitTest(center, with: nil)
         let facts = "role=\(preview.role) rect=\(rect) center=\(center) query=window.hitTest(nil-event) candidate=\(Self.chain(from: candidate, in: window)) ancestors=\(ancestors)"
         Self.logger.debug("view event=dock-preview-geometry \(facts, privacy: .public)")
+        sampleAccessibility(for: preview, layout: rect, in: window)
+    }
+
+    /// Public AX getters only. A logical SwiftUI element need not be a UIView;
+    /// the automation/container trees may also differ from the native view tree.
+    private func sampleAccessibility(for preview: ReaderDebugPreviewHitView, layout: CGRect, in window: UIWindow) {
+        guard remainingAXSamples > 0 else { return }
+        let targets: [String: String]
+        switch preview.role {
+        case "replacement-preview": targets = ["预览已保存规则": "preview", "校验草稿": "validation"]
+        case "txt-preview": targets = ["预览当前草稿": "preview", "校验草稿": "validation"]
+        default: return
+        }
+        var ancestor = preview.superview
+        var scroll: UIScrollView?
+        for _ in 0..<12 {
+            guard let current = ancestor else { break }
+            if let current = current as? UIScrollView { scroll = current; break }
+            ancestor = current.superview
+        }
+        guard let scroll, scroll.window === window else { return }
+        let scrollRect = scroll.convert(scroll.bounds, to: window)
+        guard scrollRect.contains(CGPoint(x: layout.midX, y: layout.midY)) else { return }
+        remainingAXSamples -= 1
+        let expected = generation
+        let screenSpace = window.screen.coordinateSpace
+        let layoutScreen = screenSpace.convert(layout, from: window)
+        let maximumNodes = 192, maximumDepth = 10, maximumChildren = 32, maximumMatches = 6
+        struct Node { let element: NSObject; let depth: Int; let route: String }
+        var queue = [Node(element: scroll, depth: 0, route: "root")]
+        var seen: Set<ObjectIdentifier> = [ObjectIdentifier(scroll)]
+        var index = 0, matches = 0
+        var truncated = false
+        func enqueue(_ value: Any, depth: Int, route: String) {
+            guard let element = value as? NSObject else { return }
+            let identity = ObjectIdentifier(element)
+            guard !seen.contains(identity) else { return }
+            guard depth <= maximumDepth, queue.count < maximumNodes else { truncated = true; return }
+            seen.insert(identity); queue.append(Node(element: element, depth: depth, route: route))
+        }
+        while index < queue.count, index < maximumNodes, matches < maximumMatches {
+            guard self.window === window, self.preview === preview, generation == expected,
+                  window.windowScene?.activationState == .foregroundActive else { return }
+            let entry = queue[index]; index += 1
+            let node = entry.element
+            // Read labels only for an exact comparison. No unowned label,
+            // identifier, value, hint, draft, or chapter text enters the log.
+            if let label = node.accessibilityLabel, let kind = targets[label] {
+                matches += 1
+                let frameScreen = node.accessibilityFrame
+                let pointScreen = node.accessibilityActivationPoint
+                let finiteFrame = frameScreen.minX.isFinite && frameScreen.minY.isFinite &&
+                    frameScreen.width.isFinite && frameScreen.height.isFinite
+                let finitePoint = pointScreen.x.isFinite && pointScreen.y.isFinite
+                let frameWindow = finiteFrame ? window.convert(frameScreen, from: screenSpace) : .null
+                let pointWindow = finitePoint ? window.convert(pointScreen, from: screenSpace) : CGPoint(x: CGFloat.nan, y: CGFloat.nan)
+                let finite = finiteFrame && finitePoint && pointWindow.x.isFinite && pointWindow.y.isFinite
+                let inWindow = finite && window.bounds.contains(pointWindow)
+                let inScroll = finite && scrollRect.contains(pointWindow)
+                // querying is already held by samplePreview. This nil-event
+                // lookup dispatches no touch and invokes no accessibility action.
+                let candidate = inWindow ? window.hitTest(pointWindow, with: nil) : nil
+                let containerFrame = (node as? UIAccessibilityElement).map { String(describing: $0.accessibilityFrameInContainerSpace) } ?? "unavailable"
+                let facts = "role=\(preview.role) kind=\(kind) route=\(entry.route) depth=\(entry.depth) frameScreen=\(frameScreen) pointScreen=\(pointScreen) frameWindow=\(frameWindow) pointWindow=\(pointWindow) layoutWindow=\(layout) layoutScreen=\(layoutScreen) layoutRoundTrip=\(window.convert(layoutScreen, from: screenSpace)) pathBoundsScreen=\(String(describing: node.accessibilityPath?.bounds)) frameInContainer=\(containerFrame) traits=\(node.accessibilityTraits.rawValue) isElement=\(node.isAccessibilityElement) hiddenChildren=\(node.accessibilityElementsHidden) modal=\(node.accessibilityViewIsModal) containerType=\(node.accessibilityContainerType.rawValue) finite=\(finite) pointInWindow=\(inWindow) pointInScroll=\(inScroll)"
+                Self.logger.debug("view event=dock-preview-ax \(facts, privacy: .public)")
+                Self.logger.debug("view event=dock-preview-ax-hit role=\(preview.role, privacy: .public) kind=\(kind, privacy: .public) query=window.hitTest(nil-event) candidate=\(Self.chain(from: candidate, in: window), privacy: .public)")
+                Self.logger.debug("view event=dock-preview-ax-ancestors role=\(preview.role, privacy: .public) kind=\(kind, privacy: .public) entries=\(Self.accessibilityChain(from: node), privacy: .public)")
+            }
+            let count = node.accessibilityElementCount()
+            if count > 0, count != NSNotFound {
+                if count > maximumChildren { truncated = true }
+                for child in 0..<min(count, maximumChildren) {
+                    if let value = node.accessibilityElement(at: child) { enqueue(value, depth: entry.depth + 1, route: "dynamic") }
+                }
+            }
+            if let values = node.accessibilityElements {
+                if values.count > maximumChildren { truncated = true }
+                for value in values.prefix(maximumChildren) { enqueue(value, depth: entry.depth + 1, route: "elements") }
+            }
+            if #available(iOS 17.0, *), let values = node.automationElements {
+                if values.count > maximumChildren { truncated = true }
+                for value in values.prefix(maximumChildren) { enqueue(value, depth: entry.depth + 1, route: "automation") }
+            }
+            if let view = node as? UIView {
+                if view.subviews.count > maximumChildren { truncated = true }
+                for value in view.subviews.prefix(maximumChildren) { enqueue(value, depth: entry.depth + 1, route: "subviews") }
+            }
+        }
+        if index < queue.count { truncated = true }
+        Self.logger.debug("view event=dock-preview-ax-scan role=\(preview.role, privacy: .public) visited=\(index) enqueued=\(queue.count) matches=\(matches) truncated=\(truncated) maxNodes=192 maxDepth=10 maxChildren=32 maxMatches=6 remainingScans=\(self.remainingAXSamples)")
+    }
+
+    private static func accessibilityChain(from first: NSObject) -> String {
+        var current: NSObject? = first
+        var seen = Set<ObjectIdentifier>()
+        var entries: [String] = []
+        while let node = current, entries.count < 8, seen.insert(ObjectIdentifier(node)).inserted {
+            let type = String(String(reflecting: Swift.type(of: node)).prefix(64))
+            entries.append("\(type)#\(ObjectIdentifier(node)){element=\(node.isAccessibilityElement),hiddenChildren=\(node.accessibilityElementsHidden),modal=\(node.accessibilityViewIsModal),containerType=\(node.accessibilityContainerType.rawValue)}")
+            if let element = node as? UIAccessibilityElement { current = element.accessibilityContainer as? NSObject }
+            else { current = (node as? UIView)?.superview }
+        }
+        return entries.joined(separator: " <- ")
     }
     private static func chain(from first: UIView?, in window: UIWindow) -> String {
         var result: [String] = []

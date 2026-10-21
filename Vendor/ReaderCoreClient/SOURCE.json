@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/minliny/Reader-Core",
-  "commit": "8766e78068ff6a5dc0b6c4b89862fff3d8195f3d",
+  "commit": "1411965a65a0f3098c02679be5ef979ae9462867",
   "license": "MIT OR Apache-2.0",
   "minimumDeploymentTarget": "17.0",
   "files": [
@@ -29,6 +29,7 @@
     ],
     "positionChange": "local search now publishes the exact local reading snapshot scope; ebook original XHTML is bound to canonical scalar window; existing import reprocessing transaction reused",
     "readLifecycle": "Swift response-owner admission and exact read retirement; abandoned read/control envelopes cannot accumulate; original business mutation receipts remain owned",
-    "operationRecovery": "Core-owned original download plan with safe exact continuation, immutable resource leases and pause/cancel dispositions; atomic source-switch stage receipts and canonical progress ACK"
+    "operationRecovery": "Core-owned original download plan with safe exact continuation, immutable resource leases and pause/cancel dispositions; atomic source-switch stage receipts and canonical progress ACK",
+    "legacyTXTPreview": "Read-only compatibility for original V1 schema1 txt-parser metadata, with unchanged source SHA validation and existing unhinted byte format detection; explicit non-TXT remains rejected."
   }
 }

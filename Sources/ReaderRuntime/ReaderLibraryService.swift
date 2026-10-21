@@ -8,7 +8,7 @@ import ReaderCoreClient
 /// owns one runtime and serializes FFI send/cancel/destroy. Polling suspends the
 /// actor instead of blocking MainActor or a cooperative executor in request().
 public actor ReaderLibraryService: ReaderLibraryServing {
-    public static let coreBaseline = "8766e78068ff6a5dc0b6c4b89862fff3d8195f3d"
+    public static let coreBaseline = "1411965a65a0f3098c02679be5ef979ae9462867"
     let client: any ReaderCoreEventClient
     let hostTransport: ReaderIOSHostTransport?
     private let timing: ReaderRequestTiming

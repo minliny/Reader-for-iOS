@@ -124,7 +124,7 @@ SQLite 主库使用 Python sqlite3 只读连接的 `iterdump` 语义 SHA，不�
 固定视觉/交互参考与当前运行依赖分开：参考仍使用 `Resources/Reference/manifest.json`
 登记的冻结 Git 对象；当前 Core pin 和 wrapper SHA 以 `scripts/core-dependency.json` 为准。
 V2–V4 的新目录/电子书、规则订阅及原操作恢复合同需要配套 Core 升级，不能仅凭 Swift 接线
-就让旧 Framework 获得新能力。当前 pin 为 `8766e78068ff6a5dc0b6c4b89862fff3d8195f3d`，
+就让旧 Framework 获得新能力。当前 pin 为 `1411965a65a0f3098c02679be5ef979ae9462867`，
 配套模拟器 Framework 已实际构建；具体方法及原生结果见 [能力与证据边界](docs/LOCAL_READING.md#已有结果与尚未闭合的证据)。
 最终交付 App 和保数据安装另行绑定，测试宿主不充当交付 App。
 

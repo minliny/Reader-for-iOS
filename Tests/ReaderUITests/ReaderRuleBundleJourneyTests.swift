@@ -192,13 +192,19 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         let localNames = ["我的 iPhone", "我的iPhone", "我的 iPad", "我的iPad", "On My iPhone", "On My iPad"]
         var visited = Set<String>()
         for _ in 0..<6 {
-            if app.navigationBars.matching(NSPredicate(format: "identifier == 'Reader' OR label == 'Reader'")).firstMatch.exists { return }
+            if readerDocumentsVisible(app) { return }
             let reader = app.cells.matching(NSPredicate(format: "identifier == 'Reader, Container' OR label BEGINSWITH 'Reader,'"))
             if let cell = reader.allElementsBoundByIndex.filter(\.isHittable).only {
                 cell.tap()
-                try wait("Enter the actual Reader Documents folder", timeout: 10) {
-                    app.navigationBars.matching(NSPredicate(format: "identifier == 'Reader' OR label == 'Reader'")).firstMatch.exists
+                let arrival = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                    self.readerDocumentsVisible(app)
+                }, object: nil)
+                let arrived = XCTWaiter.wait(for: [arrival], timeout: 10) == .completed
+                if !arrived {
+                    evidence(app, "rule-roundtrip-native-reader-folder-not-recognized")
                 }
+                try require(arrived, "Enter the actual Reader Documents folder")
+                evidence(app, "rule-roundtrip-actual-native-reader-folder")
                 return
             }
             let local = app.cells.containing(NSPredicate(format: "label IN %@", localNames))
@@ -216,6 +222,26 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         }
         evidence(app, "rule-roundtrip-native-Files-location-not-available")
         try require(false, "The normal Files sheet must expose the actual local Reader folder; do not write or provision a file behind the UI")
+    }
+    private func readerDocumentsVisible(_ app: XCUIApplication) -> Bool {
+        if app.navigationBars.matching(NSPredicate(format: "identifier == 'Reader' OR label == 'Reader'")).firstMatch.exists { return true }
+        // The actual iOS 26 save sheet shows its current folder as the
+        // navigation bar's Reader menu button, rather than naming the bar.
+        // Accept only that visible exact title within the native bar.
+        for bar in app.navigationBars.allElementsBoundByIndex {
+            let titleRegion = bar.frame.insetBy(dx: bar.frame.width * 0.25, dy: -2)
+            let buttons = bar.buttons.matching(NSPredicate(format: "label == 'Reader' AND identifier != 'BackButton'"))
+                .allElementsBoundByIndex.filter {
+                    $0.isHittable && titleRegion.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+                }
+            if buttons.count == 1 { return true }
+            let titles = bar.staticTexts.matching(NSPredicate(format: "label == 'Reader'"))
+                .allElementsBoundByIndex.filter {
+                    $0.isHittable && titleRegion.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+                }
+            if titles.count == 1 { return true }
+        }
+        return false
     }
     private func replaceNativeFilename(_ field: XCUIElement, with filename: String, app: XCUIApplication) throws {
         try require(field.isHittable && field.isEnabled, "The native exported filename must be editable")

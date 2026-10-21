@@ -178,6 +178,72 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         leaveReader(app)
     }
 
+    /// Diagnose physical input separately from XCTest's AX hittability. The
+    /// strict consumer journeys above retain their original failure contract.
+    /// This method makes one read-only preview touch and never creates a rule.
+    func testDiagnosticOriginalTXTVisiblePreviewSingleNativeTouchWithoutRuleMutation() throws {
+        let app = XCUIApplication(); app.launch(); openBook(app)
+        openTool("替换、字典与目录规则", app: app)
+        waitUntil("The existing rule load must finish before measuring a physical control", timeout: 30) {
+            !app.staticTexts["正在读取规则"].exists
+        }
+        XCTAssertFalse(app.staticTexts["规则工具尚未完成"].exists)
+        let preview = app.buttons.matching(NSPredicate(format: "label == '预览已保存规则'"))
+        XCTAssertEqual(preview.count, 1, "Use the one actual existing replacement preview control")
+        let button = preview.element
+        let viewports = app.scrollViews.allElementsBoundByIndex.filter { scroll in
+            scroll.buttons.matching(NSPredicate(format: "label == '预览已保存规则'")).count == 1
+                && scroll.frame.intersection(app.frame).height > 100
+        }
+        let scroll = try XCTUnwrap(viewports.min(by: { $0.frame.height < $1.frame.height }))
+        let viewport = scroll.frame.intersection(app.frame).insetBy(dx: 4, dy: 4)
+        var visible = false
+        for _ in 0..<12 {
+            if button.exists, button.frame.width > 0, button.frame.height > 0, viewport.contains(button.frame) {
+                visible = true; break
+            }
+            let high = coordinate(CGPoint(x: viewport.midX, y: viewport.minY + 30), app: app)
+            let low = coordinate(CGPoint(x: viewport.midX, y: viewport.maxY - 30), app: app)
+            low.press(forDuration: 0.05, thenDragTo: high)
+        }
+        XCTAssertTrue(visible, "The actual unique preview label must be completely inside its real native scroll viewport")
+        XCTAssertTrue(button.isEnabled)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        XCTAssertEqual(app.alerts.count, 0)
+        XCTAssertTrue(app.buttons["control-grabber"].label.hasPrefix("完整控制栏"))
+        let frame = button.frame, secondFrame = button.frame
+        XCTAssertLessThan(abs(frame.midX - secondFrame.midX), 0.5)
+        XCTAssertLessThan(abs(frame.midY - secondFrame.midY), 0.5)
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        let reportedHittable = button.isHittable
+        let observation = XCTAttachment(string: "diagnosticOnly=true\nAXHittable=\(reportedHittable)\nactualButtonFrame=\(frame)\nactualScrollViewport=\(viewport)\nsingleNativeTouchPoint=\(point)\nNo rule save, deletion, draft edit, direct Runner Core call or retry. This cannot promote either strict consumer's earlier failure to PASS.")
+        observation.name = "tools-preview-single-physical-touch-diagnostic-boundary"; observation.lifetime = .keepAlways; add(observation)
+        evidence(app, "tools-preview-visible-before-one-diagnostic-touch")
+        let finalViewport = scroll.frame.intersection(app.frame).insetBy(dx: 4, dy: 4)
+        let finalFrame = button.frame
+        guard preview.count == 1, button.isEnabled, finalViewport.contains(finalFrame),
+              finalFrame.width > 0, finalFrame.height > 0,
+              abs(frame.midX - finalFrame.midX) < 0.5, abs(frame.midY - finalFrame.midY) < 0.5,
+              !app.staticTexts["正在读取规则"].exists, !app.staticTexts["规则工具尚未完成"].exists,
+              !app.keyboards.firstMatch.exists, app.alerts.count == 0,
+              app.buttons["control-grabber"].label.hasPrefix("完整控制栏") else {
+            XCTFail("The same actual preview moved or became unavailable before the one diagnostic touch")
+            throw JourneyError.prerequisite
+        }
+        coordinate(CGPoint(x: finalFrame.midX, y: finalFrame.midY), app: app).tap()
+        let before = app.staticTexts["replacement-preview-before"]
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline && !(before.exists && before.isHittable) {
+            let high = coordinate(CGPoint(x: viewport.midX, y: viewport.minY + 30), app: app)
+            let low = coordinate(CGPoint(x: viewport.midX, y: viewport.maxY - 30), app: app)
+            low.press(forDuration: 0.05, thenDragTo: high)
+        }
+        evidence(app, "tools-preview-after-one-diagnostic-touch")
+        XCTAssertTrue(before.exists && before.isHittable && !before.label.isEmpty,
+                      "Only an actual visible Core preview result can establish that this single physical touch reached its consumer")
+        leaveReader(app)
+    }
+
     private struct UnpaintedNativeSelection {
         let before: Screen
         let line: Line
