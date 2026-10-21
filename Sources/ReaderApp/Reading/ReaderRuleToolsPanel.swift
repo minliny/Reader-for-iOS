@@ -293,6 +293,8 @@ struct ReaderRuleToolsPanel: View {
                         var draft = rule.draft; draft.isEnabled = value
                         mutate("保存替换规则") { id, service in _ = try await service.updateReplaceRule(id: rule.id, draft: draft, operationID: id) }
                     })).labelsHidden().disabled(model.actions.hasPending)
+                        .accessibilityLabel("启用规则：\(rule.name.isEmpty ? rule.pattern : rule.name)")
+                        .accessibilityIdentifier("enable-replace-rule-\(rule.id)")
                     Button("删除", role: .destructive) {
                         confirmDelete(rule.name) { mutate("删除替换规则") { id, service in _ = try await service.deleteReplaceRule(id: rule.id, operationID: id) } }
                     }.disabled(model.actions.hasPending)
