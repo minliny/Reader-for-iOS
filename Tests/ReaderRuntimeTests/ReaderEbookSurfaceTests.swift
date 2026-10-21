@@ -16,6 +16,121 @@ final class ReaderEbookSurfaceTests: XCTestCase {
         XCTAssertThrowsError(try ReaderEbookFontAsset.prepare(postScriptName: "Reader-Unregistered-Face-Does-Not-Exist"))
     }
 
+    /// Browser interoperability only: these three scalars are not a book or
+    /// EPUB/MOBI format evidence. Both branches execute the production script
+    /// with the same frozen paper/selection values and real WebKit Range.
+    @MainActor
+    func testFrozenSelectionAlphaSurvivesNativeCSSFallbackAndScalarSelectionOnEveryPaper() async throws {
+        func assertSelectionRGBA(_ value: Any?, phase: String, file: StaticString = #filePath, line: UInt = #line) throws {
+            let css = try XCTUnwrap(value as? String, phase, file: file, line: line)
+            let numbers = css.components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted).compactMap(Double.init)
+            XCTAssertEqual(numbers.count, 4, "\(phase): preserve original alpha in actual CSS: \(css)", file: file, line: line)
+            guard numbers.count == 4 else { return }
+            for (actual, expected) in zip(numbers, [89.0, 70.0, 50.0, 0.2]) {
+                XCTAssertEqual(actual, expected, accuracy: 0.0001, phase, file: file, line: line)
+            }
+        }
+        for fallback in [false, true] {
+            var ready: XCTestExpectation?
+            var selected: XCTestExpectation?
+            var selection: [String: Any]?
+            let handler = ReaderEbookScriptTestHandler { body in
+                if body["kind"] as? String == "failure" { XCTFail("Production browser script rejected: \(body)") }
+                if body["kind"] as? String == "ready" { let waiter = ready; ready = nil; waiter?.fulfill() }
+                if body["kind"] as? String == "selection", let value = body["value"] as? [String: Any] {
+                    selection = value; let waiter = selected; selected = nil; waiter?.fulfill()
+                }
+            }
+            let configuration = WKWebViewConfiguration()
+            configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+            configuration.userContentController.add(handler, contentWorld: .defaultClient, name: "readerEbook")
+            if fallback {
+                // This one private browser document models the API availability
+                // boundary. It changes no App, OS or persistent WebKit setting.
+                configuration.userContentController.addUserScript(WKUserScript(
+                    source: "Object.defineProperty(window,'Highlight',{value:undefined,configurable:true});",
+                    injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .defaultClient))
+            }
+            func options(_ theme: ReaderTheme) -> [String: Any] {
+                let paper = ReaderPaperPalette(theme: theme)
+                return ["session":"alpha-browser-\(fallback)","canonical":"甲😀乙","start":0,"end":3,
+                    "content":"甲😀乙","edits":[],"offset":0,"fontSize":26,"lineHeight":1.8,
+                    "horizontalInset":20,"leftInset":20,"rightInset":20,"topInset":8,"bottomInset":24,
+                    "dark":theme.isDark,"ink":ReaderEbookSurface.Coordinator.cssColor(UIColor(paper.ink)),
+                    "meta":ReaderEbookSurface.Coordinator.cssColor(UIColor(paper.meta)),
+                    "selection":ReaderEbookSurface.Coordinator.cssColor(UIColor(paper.selection)),
+                    "fontURL":"","paragraphSpacing":19,"letterSpacing":0,"firstLineIndentEm":0,
+                    "alignment":"left","paged":true,"highlights":[["start":0,"end":3]],
+                    "reduceMotion":true,"longPressSelectText":true,"systemFont":true,"layoutToken":theme.rawValue]
+            }
+            var initial = options(.day); initial["layoutToken"] = "bootstrap"
+            configuration.userContentController.addUserScript(WKUserScript(
+                source: try ReaderEbookScript.bootstrap(configuration: initial),
+                injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+            let web = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 600), configuration: configuration)
+            let window = UIWindow(frame: web.bounds), controller = UIViewController()
+            controller.view = web; window.rootViewController = controller; window.isHidden = false
+            defer {
+                ready = nil; selected = nil; window.isHidden = true; web.stopLoading()
+                configuration.userContentController.removeScriptMessageHandler(forName: "readerEbook", contentWorld: .defaultClient)
+            }
+            let first = expectation(description: "initial actual browser alpha branch=\(fallback)")
+            ready = first
+            web.loadHTMLString("<!doctype html><html><head></head><body><p id='one'>甲<em>😀</em>乙</p></body></html>", baseURL: nil)
+            await fulfillment(of: [first], timeout: 10)
+            for theme in ReaderTheme.allCases {
+                let phase = "\(theme.rawValue)/fallback=\(fallback)"
+                let next = expectation(description: phase + " actual browser configure")
+                ready = next
+                _ = try await web.callAsyncJavaScript("window.__readerEbook.configure(options)",
+                    arguments: ["options": options(theme)], in: nil, contentWorld: .defaultClient)
+                await fulfillment(of: [next], timeout: 5)
+                let observed = try await web.callAsyncJavaScript("""
+                    const p=document.getElementById('one'),marks=[...document.querySelectorAll('[data-reader-overlay] span')];
+                    const native=!!(window.CSS&&CSS.highlights&&typeof Highlight==='function');
+                    return {native,selection:getComputedStyle(p,'::selection').backgroundColor,
+                      cssRanges:native?CSS.highlights.get('reader-notes').size:0,
+                      cssText:native?[...CSS.highlights.get('reader-notes')][0].toString():'',
+                      marks:marks.map(mark=>({background:getComputedStyle(mark).backgroundColor,
+                        opacity:getComputedStyle(mark).opacity,width:mark.getBoundingClientRect().width}))};
+                    """, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
+                XCTAssertEqual(observed?["native"] as? Bool, !fallback, phase)
+                try assertSelectionRGBA(observed?["selection"], phase: phase + "/system-selection")
+                let marks = try XCTUnwrap(observed?["marks"] as? [[String: Any]])
+                if fallback {
+                    XCTAssertFalse(marks.isEmpty, "Actual native Range rectangles must paint fallback: " + phase)
+                    for mark in marks {
+                        try assertSelectionRGBA(mark["background"], phase: phase + "/fallback-highlight")
+                        XCTAssertEqual(mark["opacity"] as? String, "1", "No second opacity multiplier: " + phase)
+                        XCTAssertGreaterThan((mark["width"] as? NSNumber)?.doubleValue ?? 0, 0, phase)
+                    }
+                } else {
+                    XCTAssertTrue(marks.isEmpty, phase)
+                    XCTAssertEqual((observed?["cssRanges"] as? NSNumber)?.intValue, 1, phase)
+                    XCTAssertEqual(observed?["cssText"] as? String, "甲😀乙", phase)
+                    // The grouped stylesheet uses this exact RGBA for native
+                    // ::selection, ::highlight(reader-notes) and reader-follow.
+                    let rule = try await web.callAsyncJavaScript("""
+                        return [...document.styleSheets].flatMap(sheet=>[...sheet.cssRules]).filter(rule=>
+                          (rule.selectorText||'').includes('::highlight(reader-notes)')).map(rule=>rule.style.backgroundColor);
+                        """, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String]
+                    XCTAssertEqual(rule?.count, 1, phase)
+                    try assertSelectionRGBA(rule?.first, phase: phase + "/native-highlight-rule")
+                }
+                let selectionReady = expectation(description: phase + " actual scalar selection")
+                selected = selectionReady; selection = nil
+                _ = try await web.callAsyncJavaScript("""
+                    const text=document.querySelector('em').firstChild,range=document.createRange();
+                    range.setStart(text,0);range.setEnd(text,2);getSelection().removeAllRanges();getSelection().addRange(range);
+                    """, arguments: [:], in: nil, contentWorld: .defaultClient)
+                await fulfillment(of: [selectionReady], timeout: 5)
+                XCTAssertEqual((selection?["start"] as? NSNumber)?.uint64Value, 1, phase)
+                XCTAssertEqual((selection?["end"] as? NSNumber)?.uint64Value, 2, phase)
+                XCTAssertEqual(selection?["text"] as? String, "😀", phase)
+            }
+        }
+    }
+
     /// A browser interoperability fixture, not a generated novel or evidence
     /// of real EPUB/MOBI acceptance. System WebKit executes the production bridge.
     @MainActor

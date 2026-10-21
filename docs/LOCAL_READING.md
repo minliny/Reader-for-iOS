@@ -234,6 +234,9 @@ TTS 和漫画尚无已开放业务入口，不能把其他阅读入口的证据�
 | 书源链接读取任务取消 | 原链接读取只有迟到结果守卫，未持有Task，改链接或离页不能调用既有HTTP取消链。现由既有DraftOwner持有原ReadRequest/Task，原失效入口统一取消，结束仅释放同一任务；HTTP/UTF8/保存与确认owner不变。native59编译、签名及467输入/134产物封存PASS；Runtime35仅一个新方法PASS0.025秒，实际Task.cancel与受控迟到continuation验证改链接对应入口、新读、编辑、close、retire、新旧task槽及原accepted保存UUID/零重放。读取既有5606字节真实原包并核精确SHA，原文件未改；安装后、运行后三目标33组保护全真，源/产品无漂移。不是实际URLSession网络取消或原生链接UI验收，普通App交付另记。 |
 | 真实链接读取与取消替换 | native60仅新增UITest，其他466输入与native59相同；467输入/134产物编译、签名及封存PASS。唯一真实UI方法PASS52.755秒，实际1方法0失败：普通输入既有真实订阅URL并读取，出现完整的链接替换确认，仅点取消；原5606字节/f26草稿、三份来源及正常离页/冷重开保持。五原附件和日志保留，92项保护检查全真；运行仅两次启动对应的epoch/session变化已按固定Core归因，全部缓存及其他62表完整行保持。此UI取消的是读取完成后的草稿替换；在途URLSession取消、Keychain字节全等均不由此证明。 |
 | 普通App51 链接取消修复交付 | 源码`c610cfa`、Core `b6a5bb92` 的普通App运行号`6dc2bb48…`构建、签名和封存PASS；414生产输入逐项等于native59及native60，相对App50仅原DraftOwner和Workspace两项生产变化。108包文件、26份notices实核匹配，零XCTest；native60仅测试变化复用本包，未再次普通构建。准确大屏手机模拟器保数据安装与启动四阶段PASS，安装后启动前569项文件/逻辑SQL完全相同且容器迁移；安装108文件与实际PID匹配该普通包。不据此关闭整版V4或平台/用户验收。 |
+| EPUB 高亮颜色透明度审计 | 当前源码 `03e15ef` 的 `ReaderEbookSurface.metrics` 将冻结纸面 selection 色转为六位 RGB，丢失原 alpha；`ReaderEbookScript` 的旧 WebKit Range 装饰又固定乘以0.45。TXT 保留原 UIColor alpha，因此电子书与冻结基线不一致。此结论来自代码调用链，尚未执行修复后的方法或真实 EPUB 选文/笔记旅程；后续分别验证 CSS Highlight、兼容装饰及下载目录《终宋》原生消费者，不沿用夜间18与旧36阈值的测量失败来修改基线颜色。 |
+| native61 测试编译前提 | 两项高亮平台适配已编译，新增阅读记录附件的四处 `NSStringFromCGRect` 被当前 SDK 拒绝，实际 build-for-testing 退出65，零方法、零目标操作；原日志/失败保留。仅将这四处改为公共 `NSCoder.string(for:)`，重新执行必要的编译，不改变产品、测试断言或扩大范围。 |
+| Runtime36 EPUB 高亮透明度 | 两项最小平台适配保留 selection 原 alpha，并删除兼容 Range 装饰的额外0.45透明度。native62 的467输入/134产物编译、签名及封存PASS；仅一个新 WebKit 互操作方法实际PASS2.294秒、1方法0失败，八套冻结纸色均核原生CSS/选区与兼容矩形的RGBA及opacity1，emoji仍为scalar1..<2。安装后及运行后三目标33组保护全真，输入/产物无漂移。三标量浏览器互操作文档属于方法边界，不算真实电子书；原《终宋》系统复制、笔记和冷高亮消费者及普通App交付另记。 |
 | 真实 AZW/AZW3/KF8 原书 | 用户明确暂跳过，DEFERRED / OPEN；不改名补证，不改写格式要求 |
 | 物理 iOS 设备、iOS 17 运行时、iPad/分屏、无障碍组合和用户验收 | OPEN；最低系统/设备族声明、模拟器或方法测试不能替代 |
 

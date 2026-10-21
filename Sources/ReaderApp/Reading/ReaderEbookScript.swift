@@ -277,7 +277,7 @@ const paintHighlights=()=>{
   for(const range of [...ranges,...(follow?[follow]:[])])for(const rect of range.getClientRects()){
     if(++count>8192)break;if(rect.width<=0||rect.height<=0)continue;
     const mark=document.createElementNS('http://www.w3.org/1999/xhtml','span');
-    mark.style.cssText=`position:absolute;left:${scrollX+rect.left}px;top:${scrollY+rect.top}px;width:${rect.width}px;height:${rect.height}px;background:${config.selection};opacity:.45;pointer-events:none`;
+    mark.style.cssText=`position:absolute;left:${scrollX+rect.left}px;top:${scrollY+rect.top}px;width:${rect.width}px;height:${rect.height}px;background:${config.selection};pointer-events:none`;
     fragment.appendChild(mark);
   }
   overlay.replaceChildren(fragment);

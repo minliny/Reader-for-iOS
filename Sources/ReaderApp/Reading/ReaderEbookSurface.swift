@@ -1099,7 +1099,15 @@ struct ReaderEbookSurface: UIViewRepresentable {
              "highlights": ranges, "automaticHighlightProgress": parent.automaticHighlightProgress as Any? ?? NSNull(),
              "bottomInset": parent.bottomInset, "dark": parent.paper.theme.isDark,
              "ink": Self.hex(UIColor(parent.paper.ink)), "meta": Self.hex(UIColor(parent.paper.meta)),
-             "selection": Self.hex(UIColor(parent.paper.selection)), "reduceMotion": parent.reduceMotion || parent.reducePageMotion]
+             "selection": Self.cssColor(UIColor(parent.paper.selection)), "reduceMotion": parent.reduceMotion || parent.reducePageMotion]
+        }
+
+        /// CSS consumes the frozen selection's original alpha. Converting it
+        /// to RGB first would make WK highlights opaque on every paper.
+        static func cssColor(_ color: UIColor) -> String {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            color.getRed(&r, green: &g, blue: &b, alpha: &a)
+            return "rgba(\(Int((r * 255).rounded())),\(Int((g * 255).rounded())),\(Int((b * 255).rounded())),\(Double(a)))"
         }
 
         private static func hex(_ color: UIColor) -> String {

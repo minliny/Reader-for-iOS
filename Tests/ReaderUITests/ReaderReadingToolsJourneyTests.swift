@@ -7,11 +7,179 @@ import CryptoKit
 /// provisioned; all Core operations, clipboard use and positions originate in
 /// the real App UI. This runner never calls Runtime or reads UIPasteboard.
 final class ReaderReadingToolsJourneyTests: XCTestCase {
-    private let bookID = "book-local:aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5"
+    // Only this explicitly selected original EPUB method uses WK. Existing
+    // TXT methods retain their original identity on each XCTest instance.
+    private var realEpubJourney = false
+    private var bookID: String {
+        realEpubJourney
+            ? "book-local:5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67"
+            : "book-local:aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5"
+    }
     private let title = "仙子请听我解释"
     private enum JourneyError: Error { case prerequisite, nativeSelection, missingOwnedRule }
     private var displayRestored = false
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    /// Existing untouched Downloads EPUB only; no import or generated book.
+    /// Root binds fresh Large book/source/chapter20/scalar233/version facts and
+    /// all old notes/drafts before selecting this single native method.
+    func testExistingRealEpubNativeCopyAnnotationColdHighlightAndNoteJump() throws {
+        realEpubJourney = true
+        let app = XCUIApplication(); app.launch()
+        func openExisting() {
+            if app.buttons["书架"].waitForExistence(timeout: 10) { app.buttons["书架"].tap() }
+            XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+            XCTAssertFalse(app.textFields["shelf-filter"].exists, "Preserve any original shelf filter")
+            XCTAssertTrue(app.buttons["全部分组"].exists, "Preserve any original shelf group choice")
+            openBook(app)
+            waitUntil("The actual original EPUB WK viewport is visible", timeout: 45) {
+                self.body(app).isHittable && self.body(app).frame.width > 180 && self.body(app).frame.height > 120
+                    && !app.buttons["阅读控制"].exists
+            }
+            XCTAssertFalse(app.textViews["reading-body"].exists, "A TXT fallback cannot prove the EPUB consumer")
+        }
+        func readDisplay() throws -> (paper: String, mode: String, selectable: String) {
+            openModule("appearance", app: app)
+            let names = ["日间", "暖白", "夜间", "暖夜", "纸纹", "青叶纹", "靛夜", "林夜纹"] as NSArray
+            let selected = app.buttons.matching(NSPredicate(format: "label IN %@", names))
+                .allElementsBoundByIndex.filter(\.isSelected)
+            XCTAssertEqual(selected.count, 1, "Observe the effective visible original paper, not absent raw preference keys")
+            let paper = try XCTUnwrap(selected.first).label
+            let mode = app.buttons["reading-page-mode"]
+            reveal(mode, towardBottom: true, app: app)
+            let value = try menuValue(mode, choices: ["滚动", "分页"])
+            let selectable = app.switches["长按选择文本"]
+            reveal(selectable, towardBottom: true, app: app)
+            let allowsSelection = try XCTUnwrap(selectable.value as? String)
+            XCTAssertEqual(allowsSelection, "1", "Preserve a disabled original choice; do not enable it for a test")
+            hideControls(app)
+            return (paper, value, allowsSelection)
+        }
+        openExisting()
+        assertChapter(20, app: app) // Observe only; never reset/select a chapter.
+        let originalDisplay = try readDisplay()
+        // Exact frozen registry paperStart values. WK paints its solid original
+        // paper; the screenshot below must independently agree with that value.
+        let papers = ["日间":[247,243,234], "暖白":[242,232,211], "纸纹":[238,228,208], "青叶纹":[227,235,221],
+                      "夜间":[43,40,35], "暖夜":[65,48,32], "靛夜":[38,49,63], "林夜纹":[36,56,44]]
+        let expectedPaper = try XCTUnwrap(papers[originalDisplay.paper])
+        let originalAnchor = try anchor(app, name: "epub-note-original-existing-chapter20-passage")
+        let native = try unpaintedNativeSelection(app)
+        let selectionText = native.text
+        XCTAssertEqual(app.staticTexts["annotation-selected-text"].label, selectionText)
+        let note = textInput("annotation-note", app: app)
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        guard isEmpty(note), app.buttons["save-annotation"].label == "高亮并保存笔记" else {
+            XCTFail("Preserve an existing note draft/edit; this method owns no replacement")
+            throw JourneyError.prerequisite
+        }
+        note.tap(); note.press(forDuration: 0.8)
+        try menuAction(["粘贴", "Paste"], app: app).tap()
+        waitUntil("System Copy/Paste equals the same original WK scalar selection", timeout: 5) {
+            self.textInput("annotation-note", app: app).value as? String == selectionText
+        }
+        let actualPastedText = try XCTUnwrap(textInput("annotation-note", app: app).value as? String)
+        XCTAssertEqual(actualPastedText, selectionText)
+        let ownedNote = "EPUB原生选文-" + UUID().uuidString
+        let noteText = actualPastedText + " · " + ownedNote
+        textInput("annotation-note", app: app).typeText(" · " + ownedNote)
+        XCTAssertEqual(textInput("annotation-note", app: app).value as? String, noteText)
+        let query = app.textFields["搜索笔记"]
+        XCTAssertTrue(query.isHittable); query.tap(); query.typeText("\n")
+        waitUntil("The real note keyboard dismisses", timeout: 5) { !app.keyboards.firstMatch.exists }
+        let context = try native.before.context(startingAt: selectionText, in: native.line, count: 20)
+        let save = app.buttons["save-annotation"]
+        reveal(save, towardBottom: false, app: app)
+        XCTAssertTrue(save.isEnabled && save.isHittable); save.tap() // One original write only.
+        replace(query, with: ownedNote)
+        let rows = app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'annotation-' AND label CONTAINS %@", ownedNote))
+        waitUntil("Exactly one original Core note row confirms this UUID", timeout: 25) { rows.count == 1 }
+        let annotationID = rows.firstMatch.identifier
+        XCTAssertTrue(rows.firstMatch.label.contains(selectionText))
+        let facts: [String: Any] = ["bookAXID":bookID,"sourceID":"local","chapterIndex":20,
+            "annotationAXID":annotationID,"ownedNoteMarker":ownedNote,"noteText":noteText,
+            "selectedText":selectionText,"actualPastedText":actualPastedText,"context":context,
+            "originalPaper":originalDisplay.paper,"originalMode":originalDisplay.mode,
+            "originalSelectable":originalDisplay.selectable,"selectedRange":NSNull(),
+            "rangeBoundary":"Native UI does not expose scalar endpoints; Root must bind the original createHighlight ACK range/scope and exact bookText. No injected range or second save."]
+        let ownership = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys, .prettyPrinted]),
+            uniformTypeIdentifier: "public.json")
+        ownership.name = "epub-owned-original-note-visible-identity.json"; ownership.lifetime = .keepAlways; add(ownership)
+        evidence(app, "epub-system-copy-paste-and-original-note-row")
+
+        // Normal exit from the notes panel. Cold process retirement clears the
+        // live system selection without a guessed outside tap or injected DOM.
+        leaveReader(app); app.terminate(); app.launch(); openExisting()
+        try assertVisible(originalAnchor, app: app, name: "epub-note-cold-restored-original-passage")
+        let cold = try screen(app)
+        let coldLine = try XCTUnwrap(cold.lines.first { normalized($0.text) == normalized(native.line.text) })
+        let painted = try cold.wordImage(selectionText, in: coldLine)
+        try assertEpubAlphaHighlight(painted, baseline: native.crop, expectedPaper: expectedPaper, name: originalDisplay.paper)
+        let crop = XCTAttachment(image: UIImage(cgImage: painted))
+        crop.name = "epub-cold-WK-original-alpha-highlight-no-live-selection"; crop.lifetime = .keepAlways; add(crop)
+        assertChapter(20, app: app)
+
+        // Return from a genuinely different visible passage, using the original
+        // page mode. No mode/transition/paper/selectable setting is written.
+        if originalDisplay.mode == "分页" { try turn(app, awayFrom: context) }
+        else {
+            body(app).swipeUp()
+            waitUntil("The original scroll mode leaves the note passage", timeout: 20) {
+                guard let text = try? self.screen(app).text else { return false }
+                return !self.normalized(text).contains(context)
+            }
+        }
+        XCTAssertFalse(normalized(try screen(app).text).contains(context))
+        openTool("高亮与笔记", app: app)
+        replace(app.textFields["搜索笔记"], with: ownedNote)
+        let restored = app.buttons[annotationID]
+        XCTAssertTrue(restored.waitForExistence(timeout: 25))
+        XCTAssertTrue(restored.label.contains(ownedNote) && restored.label.contains(selectionText))
+        restored.tap(); hideControls(app)
+        try assertVisible(context, app: app, name: "epub-persisted-note-jump-back-from-different-passage")
+        assertChapter(20, app: app)
+        let finalDisplay = try readDisplay()
+        XCTAssertEqual(finalDisplay.paper, originalDisplay.paper)
+        XCTAssertEqual(finalDisplay.mode, originalDisplay.mode)
+        XCTAssertEqual(finalDisplay.selectable, originalDisplay.selectable)
+        leaveReader(app)
+        // Keep exactly this UUID-owned note/original ACK for Root's accounting.
+        // No old note, rule, draft or reading preference is edited/deleted.
+    }
+
+    /// EPUB-only alpha evidence. Existing TXT >=36/.12 checks remain unchanged.
+    private func assertEpubAlphaHighlight(_ image: CGImage, baseline: CGImage, expectedPaper: [Int], name: String) throws {
+        let selection = [89,70,50], alpha = 0.2
+        let composite = zip(selection, expectedPaper).map { Int((Double($0.0) * alpha + Double($0.1) * (1 - alpha)).rounded()) }
+        func measure(_ image: CGImage) throws -> (modal: [Int], fraction: Double) {
+            let pixels = try rgba(image); var bins: [Int: Int] = [:]; var matching = 0
+            for offset in stride(from: 0, to: pixels.count, by: 4) {
+                let rgb = [Int(pixels[offset]),Int(pixels[offset+1]),Int(pixels[offset+2])]
+                let key = rgb[0] << 16 | rgb[1] << 8 | rgb[2]; bins[key, default: 0] += 1
+                if zip(rgb, composite).allSatisfy({ abs($0.0 - $0.1) <= 2 }) { matching += 1 }
+            }
+            let modal = try XCTUnwrap(bins.max { $0.value < $1.value }?.key)
+            return ([modal >> 16 & 255,modal >> 8 & 255,modal & 255], Double(matching) / Double(max(1,image.width * image.height)))
+        }
+        let before = try measure(baseline), after = try measure(image)
+        for (actual, expected) in zip(before.modal, expectedPaper) {
+            XCTAssertEqual(Double(actual), Double(expected), accuracy: 2, "The original unpainted WK word must expose the actual selected paper")
+        }
+        for (actual, expected) in zip(after.modal, composite) {
+            XCTAssertEqual(Double(actual), Double(expected), accuracy: 2, "Cold WK highlight must retain the frozen 0.2 alpha, not opaque or twice-multiplied selection")
+        }
+        XCTAssertLessThan(before.fraction, 0.01, "The before image cannot already contain the target highlight")
+        XCTAssertGreaterThan(after.fraction, 0.30, "A real highlight background must occupy the selected glyph ROI")
+        XCTAssertGreaterThan(after.fraction - before.fraction, 0.12, "Glyph ink or a saved note row cannot prove painted background")
+        let facts: [String: Any] = ["paperName":name,"expectedPaperRGB":expectedPaper,"selectionRGB":selection,
+            "selectionAlpha":alpha,"expectedCompositeRGB":composite,"channelTolerance":2,
+            "beforeModalRGB":before.modal,"coldModalRGB":after.modal,
+            "beforeCompositeFraction":before.fraction,"coldCompositeFraction":after.fraction,
+            "boundary":"Same uniquely mapped original OCR word before selection vs cold WK with no live selection. No threshold change to TXT; no paper or display write."]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
+        attachment.name = "epub-original-paper-alpha-pixel-measurement.json"; attachment.lifetime = .keepAlways; add(attachment)
+    }
 
     /// A new Large-owned rule intent. This does not resume or replace the
     /// Compact rejected draft. Root's final fresh clone gate is required first.
@@ -159,6 +327,137 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         // Core may migrate complete protected positions. Root verifies each
         // original mutation/reprocess ACK and all resulting position/version
         // facts, not pixel equality, guessed scalar mapping or one wholeDB hash.
+    }
+
+    /// Reads the existing four Core-backed records. The sole destructive
+    /// confirmation is cancelled; no record is removed or constructed.
+    func testExistingRealReadingRecordsShowFourBooksAndCancelClearPreservesOriginalRows() throws {
+        let app = XCUIApplication()
+        var normalExit = false
+        defer {
+            if !normalExit {
+                let retained = XCTAttachment(string: app.debugDescription)
+                retained.name = "reading-records-failure-preserve-original-state"
+                retained.lifetime = .keepAlways; add(retained)
+                evidence(app, "reading-records-failure-current-interface")
+            }
+        }
+        guard bookID == "book-local:aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5" else {
+            XCTFail("This independent method requires its default real TXT identity, not another journey's mode")
+            throw JourneyError.prerequisite
+        }
+        app.launch()
+        try openExistingRuleRoundtripBook(app)
+        openTool("阅读记录", app: app)
+        let total = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^累计阅读 [0-9]+ 分钟$"))
+        waitUntil("Actual Core-backed reading summary is visible", timeout: 20) { total.count == 1 }
+        let before = try readingRecordsUISnapshot(app, stage: "before-cancel")
+        guard before.clearForTXT.isEnabled, before.clearForTXT.isHittable else {
+            XCTFail("Only the actual Clear button paired with the existing TXT record may open the confirmation")
+            throw JourneyError.prerequisite
+        }
+        before.clearForTXT.tap()
+        let alert = app.alerts["清除阅读记录"]
+        guard alert.waitForExistence(timeout: 5), app.alerts.count == 1,
+              alert.staticTexts.matching(NSPredicate(format: "label == %@", "清除《仙子请听我解释》的阅读时长，书籍和位置保留。")).count == 1,
+              alert.buttons["清除"].exists, alert.buttons["清除"].isEnabled,
+              alert.buttons["取消"].exists, alert.buttons["取消"].isEnabled, alert.buttons["取消"].isHittable else {
+            XCTFail("Require the confirmation for the exact observed TXT record; never tap a destructive action")
+            throw JourneyError.prerequisite
+        }
+        evidence(app, "reading-records-exact-clear-confirmation-before-cancel")
+        alert.buttons["取消"].tap()
+        waitUntil("Cancel dismisses only the reading-record confirmation", timeout: 5) { !alert.exists }
+        let after = try readingRecordsUISnapshot(app, stage: "after-cancel")
+        XCTAssertEqual(after.minutesByName, before.minutesByName,
+            "Cancel must preserve all four observed record values in the same loaded summary")
+        XCTAssertEqual(after.totalMinutes, before.totalMinutes,
+            "Cancel must preserve the actual loaded aggregate, independently of time accrued before this panel loaded")
+        leaveReader(app)
+        evidence(app, "reading-records-normal-bookshelf-exit")
+        normalExit = true
+        // The delivery account separately checks all original records and every
+        // original time ACK and progress coordinates. Ordinary progress has no Host journal; a fresh read is not ACK.
+    }
+
+    private struct ReadingRecordsUISnapshot {
+        let minutesByName: [String: Int]
+        let totalMinutes: Int
+        let clearForTXT: XCUIElement
+    }
+    private func readingRecordsUISnapshot(_ app: XCUIApplication, stage: String) throws -> ReadingRecordsUISnapshot {
+        let names = ["仙子请听我解释", "终宋_怪诞的表哥_牧云斋_z_library_sk,_1lib_sk,_z_lib_sk",
+                     "覆汉_校对版全本_榴弹怕水_z_library_sk,_1lib_sk,_z_lib_sk", "剑来"]
+        for failure in ["正在读取记录", "暂无阅读记录", "阅读时长尚未入账", "阅读记录刷新失败，保留原列表", "原操作待核对"] {
+            guard !app.staticTexts.matching(NSPredicate(format: "label == %@", failure)).allElementsBoundByIndex.contains(where: { $0.isHittable }) else {
+                XCTFail("The original record state must be settled before this read-only consumer: \(failure)")
+                throw JourneyError.prerequisite
+            }
+        }
+        let totalQuery = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^累计阅读 [0-9]+ 分钟$"))
+        guard totalQuery.count == 1, totalQuery.element.isHittable else { throw JourneyError.prerequisite }
+        let totalLabel = totalQuery.element.label
+        guard let totalMinutes = Int(totalLabel.replacingOccurrences(of: "累计阅读 ", with: "").replacingOccurrences(of: " 分钟", with: "")), totalMinutes > 0 else {
+            throw JourneyError.prerequisite
+        }
+        let candidates = app.scrollViews.allElementsBoundByIndex.filter {
+            $0.frame.width > 0 && $0.frame.height > 0 &&
+            $0.staticTexts.matching(NSPredicate(format: "label == %@", totalLabel)).count == 1
+        }.sorted { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+        guard let viewport = candidates.first,
+              candidates.count == 1 || candidates[1].frame.width * candidates[1].frame.height > viewport.frame.width * viewport.frame.height else {
+            XCTFail("Require one smallest real ScrollView containing the loaded reading-record summary")
+            throw JourneyError.prerequisite
+        }
+        let titles = try names.map { name -> XCUIElement in
+            let query = viewport.staticTexts.matching(NSPredicate(format: "label == %@", name))
+            guard query.count == 1, query.element.isHittable,
+                  query.element.frame.minY >= viewport.frame.minY - 1,
+                  query.element.frame.maxY <= viewport.frame.maxY + 1 else {
+                XCTFail("All four original record titles must be uniquely visible in their real viewport: \(name)")
+                throw JourneyError.prerequisite
+            }
+            return query.element
+        }.sorted { $0.frame.minY < $1.frame.minY }
+        let minutes = viewport.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^[0-9]+ 分钟$")).allElementsBoundByIndex
+        let clear = viewport.buttons.matching(NSPredicate(format: "label == %@", "清除")).allElementsBoundByIndex
+        guard minutes.count == 4, clear.count == 4 else {
+            XCTFail("Require exactly four actual minute labels and four real Clear controls, without selecting an arbitrary action")
+            throw JourneyError.prerequisite
+        }
+        var values: [String: Int] = [:]
+        var clearForTXT: XCUIElement?
+        var rows: [[String: Any]] = []
+        for (index, heading) in titles.enumerated() {
+            let upper = index + 1 < titles.count ? titles[index + 1].frame.minY : viewport.frame.maxY
+            let rowMinutes = minutes.filter { $0.frame.midY >= heading.frame.maxY - 1 && $0.frame.midY < upper }
+            let rowClear = clear.filter { $0.frame.midY >= heading.frame.minY && $0.frame.midY < upper }
+            guard rowMinutes.count == 1, rowClear.count == 1,
+                  rowMinutes[0].isHittable, rowClear[0].isHittable,
+                  rowMinutes[0].frame.maxY <= viewport.frame.maxY + 1,
+                  let value = Int(rowMinutes[0].label.replacingOccurrences(of: " 分钟", with: "")), value > 0 else {
+                XCTFail("Pair the actual title, minutes and Clear only within the same visible row band")
+                throw JourneyError.prerequisite
+            }
+            values[heading.label] = value
+            if heading.label == title { clearForTXT = rowClear[0] }
+            rows.append(["bookName": heading.label, "minutesLabel": rowMinutes[0].label,
+                         "titleFrame": NSCoder.string(for: heading.frame), "minutesFrame": NSCoder.string(for: rowMinutes[0].frame),
+                         "clearFrame": NSCoder.string(for: rowClear[0].frame)])
+        }
+        guard values.count == 4, let clearForTXT else { throw JourneyError.prerequisite }
+        let sum = values.values.reduce(0, +)
+        XCTAssertGreaterThanOrEqual(totalMinutes, sum,
+            "Core floors the total after summing milliseconds, separately from each book's displayed floor")
+        XCTAssertLessThanOrEqual(totalMinutes, sum + names.count - 1,
+            "Four per-book minute floors can differ from the real aggregate by at most three minutes")
+        let facts: [String: Any] = ["stage": stage, "totalLabel": totalLabel, "minutesByName": values,
+                                  "viewportFrame": NSCoder.string(for: viewport.frame), "rows": rows]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+        attachment.name = "reading-records-\(stage)-actual-ui-values"
+        attachment.lifetime = .keepAlways; add(attachment)
+        evidence(app, "reading-records-\(stage)-actual-four-rows")
+        return ReadingRecordsUISnapshot(minutesByName: values, totalMinutes: totalMinutes, clearForTXT: clearForTXT)
     }
 
     private func openExistingRuleRoundtripBook(_ app: XCUIApplication) throws {
@@ -1597,7 +1896,12 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let book = app.buttons[bookID]; XCTAssertTrue(book.waitForExistence(timeout: 20)); book.tap()
         XCTAssertTrue(body(app).waitForExistence(timeout: 30))
     }
-    private func body(_ app: XCUIApplication) -> XCUIElement { app.textViews["reading-body"] }
+    private func body(_ app: XCUIApplication) -> XCUIElement {
+        if realEpubJourney {
+            return app.descendants(matching: .any).matching(identifier: "reading-ebook-body").firstMatch
+        }
+        return app.textViews["reading-body"]
+    }
     private func openModule(_ module: String, app: XCUIApplication) {
         let grabber = app.buttons["control-grabber"]
         if !grabber.exists {
