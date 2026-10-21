@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import Vision
+import CryptoKit
 
 /// Select only after a read-only snapshot of the actual admitted library.
 /// Environment belongs to this UITest runner, never the App. No queue, cache,
@@ -317,6 +318,164 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
         // control opportunity. An unissued pause/cancel is still a FAIL here.
         XCTAssertTrue(paused != nil, "Pause was not confirmed against a live original whole-book task; completion alone cannot pass the control prerequisite")
         XCTAssertTrue(cancelled != nil, "Cancel was not confirmed against a different live original whole-book task; never slow, clear or repeat the batch to manufacture this prerequisite")
+    }
+
+    /// Consumes only the already completed original 0..<50 request. Root must
+    /// verify a fresh same-library preproof before this method can launch App.
+    /// Normal reading may add acknowledged reading-time/history receipts.
+    /// Neither this method nor a zero cache miss proves OS network unavailability.
+    func testExistingOriginalWholeCompletionSummaryAndSecondColdRetentionWithoutRedispatch() throws {
+        struct TaskProof: Decodable {
+            let chapterIndex: UInt32
+            let state: String
+            let attempts: UInt32
+        }
+        struct PositionProof: Decodable {
+            let chapterIndex: UInt32
+            let chapterOffset: UInt64
+            let chapterProgress: Double
+            let locationRevision: String
+        }
+        struct RootChecks: Decodable {
+            let readOnlySnapshot: Bool
+            let capturedAfterInstallBeforeLaunch: Bool
+            let sameOriginalLibrary: Bool
+            let exactOriginalWholeAnd50ReportACKsSettled: Bool
+            let all50OriginalTasksUnchanged: Bool
+            let all50CachedBodiesAndResourcesMatchOriginal: Bool
+            let originalCanonicalCatalogUnchanged: Bool
+            let originalPositionUnchanged: Bool
+            let rawFilesAndOtherSourcesPreserved: Bool
+            let noPendingOperationsOrLeases: Bool
+        }
+        struct Preproof: Decodable {
+            let schemaVersion: Int
+            let policy: String
+            let capturedAtUTC: String
+            let targetUDID: String
+            let bundleID: String
+            let originalAuditSHA256: String
+            let originalAfterSnapshotSHA256: String
+            let originalWholeHostID: String
+            let originalWholeCoreID: String
+            let libraryIdentitySHA256: String
+            let sourceId: String
+            let bookId: String
+            let title: String
+            let expectedChapterCount: UInt32
+            let canonicalRowsSHA256: String
+            let originalTaskRowsSHA256: String
+            let currentTaskRowsSHA256: String
+            let taskProjectionSHA256: String
+            let originalMaterializationReportCount: Int
+            let physicalCachedBodyCount: Int
+            let position: PositionProof
+            let tasks: [TaskProof]
+            let checks: RootChecks
+        }
+        let raw = try required("READER_WHOLE_COMPLETION_PREPROOF_JSON")
+        let rawSHA = try required("READER_WHOLE_COMPLETION_PREPROOF_SHA256")
+        let bytes = Data(raw.utf8)
+        guard bytes.count <= 32 * 1024,
+              rawSHA.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil,
+              SHA256.hash(data: bytes).map({ String(format: "%02x", $0) }).joined() == rawSHA else {
+            XCTFail("The exact Root-verified preproof bytes and digest are required before launching App")
+            throw Prerequisite.invalid("original whole-completion preproof binding")
+        }
+        let proof = try JSONDecoder().decode(Preproof.self, from: bytes)
+        let book = Book(source: try required("READER_ONLINE_SOURCE_ID"), id: try required("READER_ONLINE_BOOK_ID"),
+                        title: try required("READER_ONLINE_BOOK_TITLE"))
+        let originalBookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4305547728&pageNum=1&order=asc&site="
+        let expectedLocation = "reader-location-v1:" + originalBookID + ":3:0"
+        let checks = proof.checks
+        guard proof.schemaVersion == 1, proof.policy == "existing-original-whole-completion-readonly-v1",
+              !proof.capturedAtUTC.isEmpty,
+              proof.targetUDID == "EEA74BB1-5DFA-479A-ACAA-460503AD0F6B", proof.bundleID == "io.reader.minliny",
+              proof.originalAuditSHA256 == "a0e6f3439eb461ae72abad29badcc694cd8a6c78708a1cf2476caff7681c42d0",
+              proof.originalAfterSnapshotSHA256 == "bb69fa45431ef3c764982ca26b5d0830390a04350dad8fd952398599ff15f9b2",
+              proof.originalWholeHostID == "5991536b-f56a-438a-a217-379026cf43ca",
+              proof.originalWholeCoreID == "47d385db-48a3-f4a0-db34-8c118e47cd2d/3",
+              proof.libraryIdentitySHA256 == "5d64bdadcf224edbb8287c1867e2b1d0efd565232dc17286d29dca47d9f8cba2",
+              proof.sourceId == "https://dushu.baidu.com/", proof.bookId == originalBookID, proof.title == "剑来",
+              book.source == proof.sourceId, book.id == proof.bookId, book.title == proof.title,
+              proof.expectedChapterCount == 50, proof.originalMaterializationReportCount == 50, proof.physicalCachedBodyCount == 50,
+              proof.canonicalRowsSHA256 == "56eebfc67199ba0fa856091b63e5517e291d2a0dbc6635414947a2e5aec5b7dc",
+              proof.originalTaskRowsSHA256 == "bc18833bcba77080d201d7038be86f98c6326c4f41b3c28e7ee2ef69329487e1",
+              proof.currentTaskRowsSHA256 == proof.originalTaskRowsSHA256,
+              proof.taskProjectionSHA256 == "9aff8d8ae9c5e5e9013561e792f9b135827cd4552894e786da5346ef130e2834",
+              proof.position.chapterIndex == 3, proof.position.chapterOffset == 0, proof.position.chapterProgress == 0,
+              proof.position.locationRevision == expectedLocation,
+              proof.tasks.map(\.chapterIndex) == Array(UInt32(0)..<UInt32(50)),
+              proof.tasks.allSatisfy({ $0.state == "completed" && $0.attempts > 0 }),
+              checks.readOnlySnapshot, checks.capturedAfterInstallBeforeLaunch, checks.sameOriginalLibrary,
+              checks.exactOriginalWholeAnd50ReportACKsSettled, checks.all50OriginalTasksUnchanged,
+              checks.all50CachedBodiesAndResourcesMatchOriginal, checks.originalCanonicalCatalogUnchanged,
+              checks.originalPositionUnchanged, checks.rawFilesAndOtherSourcesPreserved, checks.noPendingOperationsOrLeases else {
+            XCTFail("Require the exact original whole request, all 50 settled tasks and original chapter-3 scalar-0 location; a current read never substitutes for an ACK")
+            throw Prerequisite.invalid("original whole-completion proof identity")
+        }
+        let projection: [[String: Any]] = proof.tasks.map {
+            ["chapterIndex": $0.chapterIndex, "state": $0.state, "attempts": $0.attempts]
+        }
+        let projectionBytes = try JSONSerialization.data(withJSONObject: projection, options: [.sortedKeys])
+        guard SHA256.hash(data: projectionBytes).map({ String(format: "%02x", $0) }).joined() == proof.taskProjectionSHA256 else {
+            XCTFail("Every original task index/state/attempt must match the byte-bound original mapping")
+            throw Prerequisite.invalid("original task projection")
+        }
+        facts(["preproofSHA256": rawSHA, "capturedAtUTC": proof.capturedAtUTC,
+               "originalWholeHostID": proof.originalWholeHostID, "originalWholeCoreID": proof.originalWholeCoreID,
+               "scope": "Existing original completion only; no original download intent is replayed",
+               "scalarBoundary": "Root's actual preproof establishes chapter 3/scalar 0; the footer is a percentage, not a scalar measurement",
+               "networkBoundary": "OS network availability is not changed or accepted by this method"], name: "existing-whole-completion-original-proof-binding")
+
+        let app = XCUIApplication(); app.launch(); open(book, app: app)
+        XCTAssertEqual(try currentChapter(book, app: app), proof.position.chapterIndex)
+        hideControls(app)
+        let warmProgress = app.staticTexts["reading-progress"]
+        XCTAssertTrue(warmProgress.waitForExistence(timeout: 5))
+        let originalProgress = warmProgress.label
+        XCTAssertEqual(originalProgress, "0%")
+        // This anchor is captured from the real body just opened by this
+        // method. It is never synthesized from an old snapshot or cache text.
+        let originalAnchor = try anchor(app)
+        let summary = "已完成 50 · 缓存 0 · 失败 0 · 暂停 0"
+        for cold in [false, true] {
+            if cold {
+                app.terminate(); app.launch(); open(book, app: app)
+                XCTAssertEqual(try currentChapter(book, app: app), proof.position.chapterIndex)
+                hideControls(app)
+                try visible(originalAnchor, app: app, name: "existing-whole-second-cold-original-visible-body")
+                let coldProgress = app.staticTexts["reading-progress"]
+                XCTAssertTrue(coldProgress.waitForExistence(timeout: 5))
+                XCTAssertEqual(coldProgress.label, originalProgress)
+            }
+            downloads(app)
+            let summaryLabel = app.staticTexts[summary]
+            revealTop(summaryLabel, app: app)
+            wait("The original 50 completed tasks must remain in their mutually exclusive completed bucket", timeout: 30) { summaryLabel.exists }
+            XCTAssertEqual(app.textFields["末章"].value as? String, String(proof.expectedChapterCount),
+                           "Read the original canonical extent without editing a range or refreshing its catalog")
+            for expected in proof.tasks {
+                let actual = try observe(expected.chapterIndex, book: book, app: app)
+                XCTAssertEqual(actual.state, "已完成")
+                XCTAssertEqual(actual.attempts, expected.attempts, "Retain this exact original task's Core counter, not a new request")
+            }
+            revealTop(summaryLabel, app: app); XCTAssertTrue(summaryLabel.exists)
+            keep(app, name: cold ? "existing-whole-second-cold-original-task-retention" : "existing-whole-original-completion-summary")
+            app.buttons["online-download-close"].tap()
+            XCTAssertEqual(try currentChapter(book, app: app), proof.position.chapterIndex)
+            hideControls(app)
+            try visible(originalAnchor, app: app, name: cold ? "existing-whole-second-cold-returned-original-body" : "existing-whole-summary-returned-original-body")
+            let returnedProgress = app.staticTexts["reading-progress"]
+            XCTAssertTrue(returnedProgress.waitForExistence(timeout: 5))
+            XCTAssertEqual(returnedProgress.label, originalProgress)
+            leave(app) // Existing normal reader exit and save barrier.
+        }
+        facts(["originalTasksAndAttemptsRetained": "50", "summary": summary,
+               "newDownloadOrControlIntentRequested": "false", "originalOCRAnchorSource": "actual visible body opened in this method",
+               "allowedNewRecords": "Normal acknowledged reading-time/progress/history receipts; never claim whole-DB byte equality",
+               "openBoundaries": "OS offline, original whole version-origin, pause/continue/cancel remain OPEN"],
+              name: "existing-whole-completion-tail-boundary")
     }
 
     private func attemptWholeControl(_ action: String, terminal: String, index: UInt32,
