@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import XCTest
 #if canImport(ReaderSourceDraftContract)
 @testable import ReaderSourceDraftContract
@@ -212,5 +213,136 @@ final class ReaderSourceEditorDraftOwnerTests: XCTestCase {
         restored.activate()
         XCTAssertEqual(restored.draft, "new page's persisted unsaved text")
         XCTAssertTrue(restored.hasUnsavedInput, "An old ACK must neither replace new text nor mark that new text clean")
+    }
+
+    @MainActor
+    private final class HeldLinkRead {
+        let entered = XCTestExpectation(description: "Current owned link read entered")
+        let cancelled = XCTestExpectation(description: "Original link task received cancellation")
+        private var continuation: CheckedContinuation<Void, Never>?
+        func hold() async {
+            let cancellation = cancelled
+            await withTaskCancellationHandler(operation: {
+                await withCheckedContinuation { continuation in
+                    self.continuation = continuation; entered.fulfill()
+                }
+            }, onCancel: { cancellation.fulfill() })
+        }
+        func release() { let original = continuation; continuation = nil; original?.resume() }
+    }
+    private enum LinkReadProbeError: Error { case unavailable }
+
+    /// Actual Task cancellation and production input-owner scheduling only.
+    /// Uses the provisioned source package as input, without HTTP, Core writes,
+    /// a new source definition, credentials, file mutation or an import ACK.
+    func testOwnedLinkReadCancellationDrainsLateResultsWithoutClearingNewReadOrAcceptedSave() async throws {
+        let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let original = try Data(contentsOf: documents.appendingPathComponent("Reader-real-sources.json"))
+        XCTAssertEqual(original.count, 5_606)
+        XCTAssertEqual(SHA256.hash(data: original).map { String(format: "%02x", $0) }.joined(),
+                       "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322")
+        let text = try ReaderSourcePackageInput.decodeUTF8(original)
+        let (defaults, suite) = try isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let actions = ReaderLibraryActionOwner()
+        let owner = ReaderSourceEditorDraftOwner(actions: actions, defaults: defaults)
+        owner.activate(); owner.resumeDraft(); owner.updateDraft(text + "\n")
+        var completed = 0, failed = 0
+        var held: [HeldLinkRead] = []
+        defer { held.forEach { $0.release() }; owner.retire() }
+        func start(_ request: ReaderSourceEditorDraftOwner.ReadRequest? = nil)
+            throws -> (ReaderSourceEditorDraftOwner.ReadRequest, HeldLinkRead, Task<Void, Never>) {
+            let request = try request ?? XCTUnwrap(owner.beginRead())
+            let gate = HeldLinkRead(); held.append(gate)
+            let task = try XCTUnwrap(owner.performRead(request, operation: {
+                await gate.hold()
+                // Deliberately return after cancellation to exercise the real
+                // request-generation guard, without inventing an HTTP response.
+                return .imported(text, label: "原书源包的读取边界")
+            }, completion: { _ in completed += 1 }, failure: { _ in failed += 1 }))
+            return (request, gate, task)
+        }
+        let beforeDraft = owner.draft
+        let beforeMetadata = defaults.data(forKey: "reader.source-editor.draft.metadata.v1")
+        let (first, firstGate, firstTask) = try start()
+        await fulfillment(of: [firstGate.entered], timeout: 3)
+        owner.cancelRead() // The existing URL-field change consumer calls this.
+        await fulfillment(of: [firstGate.cancelled], timeout: 3)
+        XCTAssertFalse(owner.accepts(first))
+        let (second, secondGate, secondTask) = try start()
+        await fulfillment(of: [secondGate.entered], timeout: 3)
+        firstGate.release(); await firstTask.value
+        XCTAssertTrue(owner.accepts(second))
+        XCTAssertNil(owner.performRead(second, operation: {
+            XCTFail("A late old defer must not clear the newer read task slot")
+            throw LinkReadProbeError.unavailable
+        }, completion: { _ in XCTFail("No duplicate completion") }, failure: { _ in XCTFail("No duplicate failure") }))
+        XCTAssertEqual(owner.draft, beforeDraft)
+        XCTAssertEqual(defaults.data(forKey: "reader.source-editor.draft.metadata.v1"), beforeMetadata)
+
+        let third = try XCTUnwrap(owner.beginRead()) // A new read cancels its predecessor.
+        await fulfillment(of: [secondGate.cancelled], timeout: 3)
+        let (_, thirdGate, thirdTask) = try start(third)
+        await fulfillment(of: [thirdGate.entered], timeout: 3)
+        secondGate.release(); await secondTask.value
+        XCTAssertTrue(owner.accepts(third))
+        owner.updateDraft(text + "\n\n")
+        await fulfillment(of: [thirdGate.cancelled], timeout: 3)
+        let editedDraft = owner.draft
+        let editedMetadata = defaults.data(forKey: "reader.source-editor.draft.metadata.v1")
+        thirdGate.release(); await thirdTask.value
+        XCTAssertEqual(owner.draft, editedDraft)
+        XCTAssertEqual(defaults.data(forKey: "reader.source-editor.draft.metadata.v1"), editedMetadata)
+
+        let (_, closedGate, closedTask) = try start()
+        await fulfillment(of: [closedGate.entered], timeout: 3)
+        owner.close()
+        await fulfillment(of: [closedGate.cancelled], timeout: 3)
+        closedGate.release(); await closedTask.value
+        XCTAssertFalse(owner.presented)
+        owner.resumeDraft()
+        let (_, retiredGate, retiredTask) = try start()
+        await fulfillment(of: [retiredGate.entered], timeout: 3)
+        let acceptedID = "09547051-672d-41bf-ac76-af8b6c442508"
+        var acceptedExecutions = 0
+        XCTAssertTrue(actions.restoreAccepted(id: acceptedID, label: "原保存", scope: "online") { _ in
+            acceptedExecutions += 1
+            XCTFail("Read retirement cannot execute or replay an accepted save")
+        })
+        owner.retire()
+        await fulfillment(of: [retiredGate.cancelled], timeout: 3)
+        let reopened = ReaderSourceEditorDraftOwner(actions: ReaderLibraryActionOwner(), defaults: defaults)
+        reopened.activate(); reopened.resumeDraft()
+        defer { reopened.retire() }
+        retiredGate.release(); await retiredTask.value
+        XCTAssertEqual(completed, 0); XCTAssertEqual(failed, 0)
+        XCTAssertEqual(actions.pendingOperationID, acceptedID)
+        XCTAssertEqual(acceptedExecutions, 0)
+        XCTAssertEqual(reopened.draft, editedDraft)
+        XCTAssertEqual(defaults.data(forKey: "reader.source-editor.draft.metadata.v1"), editedMetadata)
+
+        let failedRead = try XCTUnwrap(reopened.beginRead())
+        let failureTask = try XCTUnwrap(reopened.performRead(failedRead, operation: {
+            throw LinkReadProbeError.unavailable
+        }, completion: { _ in XCTFail("No result for current failed read") }, failure: { _ in failed += 1 }))
+        await failureTask.value
+        XCTAssertEqual(failed, 1)
+        XCTAssertFalse(reopened.accepts(failedRead))
+        let successfulRead = try XCTUnwrap(reopened.beginRead())
+        let successTask = try XCTUnwrap(reopened.performRead(successfulRead, operation: {
+            .imported(text, label: "原书源包")
+        }, completion: { result in
+            guard case .confirmation = result else { return XCTFail("Unsaved real input still requires the original replacement confirmation") }
+            completed += 1
+        }, failure: { _ in XCTFail("No failure for current source input") }))
+        await successTask.value
+        XCTAssertEqual(completed, 1)
+        XCTAssertEqual(reopened.draft, editedDraft)
+        reopened.dismissConfirmation()
+        // Completion and failure both release the original task slot.
+        XCTAssertNotNil(reopened.beginRead())
+        XCTAssertEqual(actions.pendingOperationID, acceptedID)
+        XCTAssertEqual(acceptedExecutions, 0)
+        XCTAssertEqual(try Data(contentsOf: documents.appendingPathComponent("Reader-real-sources.json")), original)
     }
 }

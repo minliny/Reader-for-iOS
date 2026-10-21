@@ -75,6 +75,7 @@ final class ReaderSourceEditorDraftOwner: ObservableObject {
     private var lifecycle = UUID()
     private var active = false
     private var readRequest: ReadRequest?
+    private var readTask: (request: ReadRequest, task: Task<Void, Never>)?
     private var replacement: Replacement?
     private var actionObservation: AnyCancellable?
     private var accepted: AcceptedSave?
@@ -128,7 +129,34 @@ final class ReaderSourceEditorDraftOwner: ObservableObject {
         readRequest = request
         return request
     }
+    /// Own only the current link read's cancellation and publication. Runtime
+    /// still owns HTTP, and the action owner still owns accepted saves.
+    @discardableResult
+    func performRead(_ request: ReadRequest,
+                     operation: @escaping () async throws -> Target,
+                     completion: @escaping (OpenResult) -> Void,
+                     failure: @escaping (Error) -> Void) -> Task<Void, Never>? {
+        guard accepts(request), readTask == nil else { return nil }
+        let task = Task { [self] in
+            defer { if readTask?.request == request { readTask = nil } }
+            do {
+                try Task.checkCancellation()
+                guard accepts(request) else { return }
+                let target = try await operation()
+                try Task.checkCancellation()
+                guard accepts(request) else { return }
+                completion(finishRead(request, target: target))
+            } catch {
+                guard !Task.isCancelled, accepts(request) else { return }
+                cancelRead()
+                failure(error)
+            }
+        }
+        readTask = (request, task)
+        return task
+    }
     func cancelRead() {
+        readTask?.task.cancel(); readTask = nil
         readRequest = nil
     }
     func accepts(_ request: ReadRequest) -> Bool {
@@ -229,7 +257,8 @@ final class ReaderSourceEditorDraftOwner: ObservableObject {
         invalidateIncoming(); store(target.text, clean: clean); presented = true
     }
     private func invalidateIncoming() {
-        editorGeneration = UUID(); readRequest = nil; replacement = nil
+        cancelRead()
+        editorGeneration = UUID(); replacement = nil
     }
     private var persistedInputIsCurrent: Bool {
         (defaults.string(forKey: draftKey) ?? "") == draft && defaults.data(forKey: metadataKey) == metadataBytes

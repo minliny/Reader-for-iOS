@@ -602,13 +602,11 @@ private struct ReaderSourceManagement: View {
     private func fetch() {
         guard let url = URL(string: link), let service = state.service, let request = draftOwner.beginRead() else { return }
         confirmation.request = nil
-        Task {
-            do {
-                let result = try await service.onlineFetch(url)
-                let text = try ReaderSourcePackageInput.decodeUTF8(result)
-                receive(draftOwner.finishRead(request, target: .imported(text, label: "导入链接中的书源")))
-            } catch { if draftOwner.accepts(request) { draftOwner.cancelRead(); state.error = error.localizedDescription } }
-        }
+        draftOwner.performRead(request, operation: {
+            let result = try await service.onlineFetch(url)
+            let text = try ReaderSourcePackageInput.decodeUTF8(result)
+            return .imported(text, label: "导入链接中的书源")
+        }, completion: receive, failure: { state.error = $0.localizedDescription })
     }
     private func exportSources() {
         guard let service = state.service else { return }
