@@ -886,6 +886,92 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         if workspace.exists && workspace.isHittable { workspace.tap() }
     }
 
+    /// One normal real URL read reaches the existing UTF-8/replacement consumer.
+    /// Only Cancel is selected. This does not prove URLSession cancellation,
+    /// JSON save/import, an upstream new version or a newly installed source.
+    func testExistingRealSourceLinkReadReplacementCancelledAndColdReopenPreserveExactDraft() throws {
+        let expectedSHA = "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322"
+        let expectedBytes = 5606
+        let expectedURL = "https://shuyuan-api.yiove.com/import/book-source-collection/3d9f811b-0831-4203-9fcb-3e8020f8aa2d"
+        let expectedMessage = "导入链接中的书源将覆盖当前未保存的内容。取消可保留原草稿。"
+        let app = XCUIApplication(); app.launch()
+        openExistingSourceManagement(app)
+        let originalSources = try sourceToolsSourceLabels(app)
+        try sourceToolsRequire(originalSources.count == 3
+            && originalSources["online-source:https://dushu.baidu.com/"] == "百度小说"
+            && originalSources["online-source:https://m.idejian.com"] == "得间小说",
+            "Use the same actual existing three-source library, preserving its third source", app: app)
+        assertPreservedSourceDraft(app, sha: expectedSHA, bytes: expectedBytes)
+        keepScreenshot(app, name: "source-link-original-complete-unsaved-draft-before-read")
+        closePreservedSourceDraft(app)
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalSources,
+            "Observing and normally closing the original editor must preserve all original source identities", app: app)
+        try sourceToolsRequire(!app.alerts.firstMatch.exists && !app.staticTexts["原操作待核对"].exists
+            && !app.staticTexts["书源操作未完成"].exists,
+            "Do not proceed under an unrelated pending operation, error or confirmation", app: app)
+
+        let fields = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "书源包链接"))
+        try sourceToolsRequire(fields.count == 1 && fields.element.isEnabled && fields.element.isHittable,
+            "Require the actual unique normal source-package URL field", app: app)
+        let initialValue = try XCTUnwrap(fields.element.value as? String)
+        try sourceToolsRequire(initialValue.isEmpty || initialValue == "书源包链接",
+            "Do not overwrite an existing user-entered link", app: app)
+        fields.element.tap(); fields.element.typeText(expectedURL)
+        try sourceToolsRequire(fields.count == 1 && fields.element.value as? String == expectedURL,
+            "The complete original real subscription URL must be entered through normal UI", app: app)
+        let reads = app.buttons.matching(NSPredicate(format: "label == %@", "读取"))
+        try sourceToolsRequire(reads.count == 1 && reads.element.isEnabled && reads.element.isHittable,
+            "Use exactly one ordinary visible source-link read action", app: app)
+        keepScreenshot(app, name: "source-link-exact-real-url-before-only-read")
+        reads.element.tap()
+        let replacement = app.alerts["替换当前书源草稿？"]
+        // Host's real read deadline is 30 seconds. Observe its actual terminal,
+        // allowing UI delivery time; never race a close or fabricate a response.
+        try sourceToolsWait("The real source-link read must reach replacement confirmation or an actual error", timeout: 70) {
+            replacement.exists || app.staticTexts["书源操作未完成"].exists
+        }
+        try sourceToolsRequire(replacement.exists && !app.staticTexts["书源操作未完成"].exists,
+            "Real HTTP/UTF-8 failure is FAIL; only the actual replacement consumer satisfies this journey", app: app)
+        let completeMessage = replacement.staticTexts.matching(NSPredicate(format: "label == %@", expectedMessage))
+        try sourceToolsRequire(completeMessage.count == 1 && completeMessage.element.label.contains("导入链接中的书源"),
+            "Require the entire actual link-replacement message, including its incoming origin and preservation consequence", app: app)
+        let facts: [String: Any] = ["actualInputURL": expectedURL,
+            "originalDraftSHA256": expectedSHA, "originalDraftUTF8Bytes": expectedBytes,
+            "originalSourceLabels": originalSources,
+            "actualAlertTexts": replacement.staticTexts.allElementsBoundByIndex.map(\.label),
+            "actualReplacementMessage": completeMessage.element.label,
+            "sourceSaveRequested": false, "replacementAccepted": false,
+            "urlSessionCancellationVerified": false, "remoteNewVersionVerified": false]
+        let terminal = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.prettyPrinted, .sortedKeys]),
+            uniformTypeIdentifier: "public.json")
+        terminal.name = "source-link-real-read-terminal-and-original-input-binding"; terminal.lifetime = .keepAlways; add(terminal)
+        keepScreenshot(app, name: "source-link-actual-full-replacement-confirmation-before-cancel")
+        let cancellations = replacement.buttons.matching(NSPredicate(format: "label == %@", "取消"))
+        try sourceToolsRequire(cancellations.count == 1 && cancellations.element.isEnabled && cancellations.element.isHittable,
+            "Only cancel the actual original-draft replacement; never accept or save", app: app)
+        cancellations.element.tap()
+        try sourceToolsWait("Cancellation must dismiss only the actual replacement confirmation", timeout: 5) { !replacement.exists }
+        try subscriptionPreviewReveal(app.buttons["导入 JSON"], app: app, scrollID: "online-source-scroll", towardTop: true)
+        assertPreservedSourceDraft(app, sha: expectedSHA, bytes: expectedBytes)
+        closePreservedSourceDraft(app)
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalSources,
+            "The real URL read and Cancel must leave every original source identity/name unchanged", app: app)
+        leaveExistingSourceManagement(app)
+
+        // Cold startup follows normal parent exit and the completed read.
+        // No source save/import/delete, draft edit or source update is submitted.
+        app.terminate(); app.launch()
+        openExistingSourceManagement(app)
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalSources,
+            "Cold startup must retain the same original source identities/names", app: app)
+        assertPreservedSourceDraft(app, sha: expectedSHA, bytes: expectedBytes)
+        keepScreenshot(app, name: "source-link-original-full-draft-cold-reopened-after-cancel")
+        closePreservedSourceDraft(app)
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalSources,
+            "Normal cold-session editor close must still retain all original source projections", app: app)
+        leaveExistingSourceManagement(app)
+    }
+
 }
 
 /// Read-only real-source search restoration; execution remains UNRUN.
