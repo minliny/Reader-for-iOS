@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/minliny/Reader-Core",
-  "commit": "e978bf20c67a3842697dd454ad826e0b25dd1755",
+  "commit": "b6a5bb9294279acda508b1492f1ed3592907d427",
   "license": "MIT OR Apache-2.0",
   "minimumDeploymentTarget": "17.0",
   "files": [
@@ -11,11 +11,12 @@
       "sha256": "e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0"
     }
   ],
-  "previousCommit": "1411965a65a0f3098c02679be5ef979ae9462867",
+  "previousCommit": "e978bf20c67a3842697dd454ad826e0b25dd1755",
   "upgrade": {
     "cABI": "Unchanged C ABI, protocol v1, runtime-config v1, headers and exact e503d27a Swift binding.",
     "storageSchema": "SQLite38 and portable snapshot16 unchanged; no DDL, position, original ACK/journal or migration changes.",
-    "sourceDebugReplay": "source.debug is now read-only pure L1-L5 replay in a fresh no-Host-bridge sandbox, using existing extractors. It validates nested identity, carries local book/TOC/readable chapter context, rejects real bad supplied layers, and marks missing/paginated/limited layers explicitly. No search/books/catalog/cache/source/Host credential publication.",
-    "scope": "Only reader-runtime remote.rs and its exact source_debug_structured tests differ from the previous pinned Core141. Host read cancellation and original mutation lanes remain separate."
+    "preparedDocumentAdmission": "Retain the already validated same-title normalized document and all parts in the original strict admission transaction. Avoid redundant parent REPLACE and byte-counter overcount; exact retained row identity checked before committing.",
+    "sourceDebugReplay": "Prior e978 read-only pure L1-L5 replay is unchanged; its six precise results and real native L2 consumer remain separately bound to their original input bytes.",
+    "scope": "Only reader-storage reading_preparation.rs and the existing exact reading_documents strict-admission test differ from previous e978. No new parser, global SQLite recursion setting or target DB repair. Historical516B residue remains OPEN."
   }
 }
