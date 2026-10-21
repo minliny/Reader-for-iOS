@@ -9,9 +9,48 @@ enum ReaderEbookScript {
     /// This changes only the presentation DOM, never the retained archive.
     static let viewport = #"""
 (function(){'use strict';
+  // Parse and authenticate the original DOM without rendering an entire
+  // one-entry MOBI before the document-end Core chapter window is admitted.
+  // This owner changes only its own root's inline display property.
+  const ownedDocument=document;
+  let ownedRoot=null,originalDisplay='',originalPriority='',hadStyle=false,state='holding';
+  const ownsRoot=()=>document===ownedDocument&&ownedRoot===ownedDocument.documentElement;
+  const hold=()=>{
+    if(state!=='holding'||document!==ownedDocument)return false;
+    const root=ownedDocument.documentElement;if(!root)return false;
+    if(ownedRoot&&ownedRoot!==root)return false;
+    if(!ownedRoot){
+      ownedRoot=root;hadStyle=root.hasAttribute('style');
+      originalDisplay=root.style.getPropertyValue('display');
+      originalPriority=root.style.getPropertyPriority('display');
+    }
+    root.style.setProperty('display','none','important');return true;
+  };
+  const admission=Object.freeze({
+    admitChapter(){
+      if(state==='admitted')return ownsRoot();
+      if(state!=='holding'||!ownsRoot())return false;
+      if(ownedRoot.style.getPropertyValue('display')!=='none'||ownedRoot.style.getPropertyPriority('display')!=='important')return false;
+      if(originalDisplay)ownedRoot.style.setProperty('display',originalDisplay,originalPriority);
+      else ownedRoot.style.removeProperty('display');
+      if(!hadStyle&&ownedRoot.style.length===0)ownedRoot.removeAttribute('style');
+      state='admitted';return true;
+    },
+    block(){
+      if(state==='retired'||document!==ownedDocument)return;
+      if(!ownedRoot)hold();
+      if(ownsRoot())ownedRoot.style.setProperty('display','none','important');
+      state='blocked';
+    },
+    retire(){state='retired';} // Never reveal an unadmitted or another document.
+  });
+  Object.defineProperty(window,'__readerEbookLayoutAdmission',{value:admission});
+  hold();
   const value='width=device-width, initial-scale=1';
   const waiting=new MutationObserver(install);
   function install(){
+    if(document!==ownedDocument)return;
+    hold();
     const head=document.head||document.querySelector('head');if(!head)return;
     waiting.disconnect();
     const owned=document.createElementNS('http://www.w3.org/1999/xhtml','meta');
@@ -40,6 +79,7 @@ enum ReaderEbookScript {
     private static let body = #"""
 const send=(kind,value)=>window.webkit.messageHandlers.readerEbook.postMessage({session:config.session,kind,value});
 const failure=(stage,error)=>send('failure',{stage,reason:String(error).slice(0,256)});
+const admissionDocument=document,documentAdmission=window.__readerEbookLayoutAdmission;
 const whitespace=c=>/^\p{White_Space}$/u.test(c);
 const significant=text=>{const values=[];let scalar=0;for(const c of text){if(!whitespace(c))values.push({c,scalar});scalar++;}return values;};
 let points=[],expected=[],ready=false,lastAnchor=config.offset,userMoving=false,scrollTimer=0,pendingFrame=0,selectionActive=false,pageTurning=false,pageEpoch=0,layoutGeneration=0;
@@ -223,7 +263,7 @@ window.__readerEbook={
   acknowledgePage(epoch,scalar){if(!ready||!pageTurning||epoch!==pageEpoch)return;lastAnchor=scalar;pageTurning=false;userMoving=false;paintHighlights();},
   cancelPage(){pageEpoch++;pageTurning=false;userMoving=false;},
   inlineImage(id,url){const image=body.querySelector('img[data-reader-inline-id="'+id+'"]');if(image)image.setAttribute('src',url);},
-  retire(){ready=false;pageEpoch++;pageTurning=false;layoutGeneration++;clearTimeout(scrollTimer);cancelAnimationFrame(pendingFrame);overlay.remove();}
+  retire(){ready=false;pageEpoch++;pageTurning=false;layoutGeneration++;clearTimeout(scrollTimer);cancelAnimationFrame(pendingFrame);overlay.remove();documentAdmission?.retire();}
 };
 document.addEventListener('selectionchange',()=>{
   if(!ready)return;const selection=getSelection();selectionActive=!!selection&&!selection.isCollapsed;
@@ -256,11 +296,21 @@ try{
   document.querySelectorAll('base').forEach(node=>node.remove());
   document.querySelectorAll('img:not([src])[data-src]').forEach(node=>node.setAttribute('src',node.getAttribute('data-src')));
   colorAndMetrics(config);restrictChapter();
+  // DOM Range/TreeWalker admission needs no rendered geometry. Reveal only
+  // this authenticated chapter before any font-ready/rAF/geometry await.
+  if(documentAdmission&&!documentAdmission.admitChapter())throw Error('chapter-display-admission-stale');
   body.querySelectorAll('img').forEach(image=>{if(image.complete&&!image.naturalWidth){image.setAttribute('data-reader-missing','');if(!image.getAttribute('alt'))image.setAttribute('alt','插图暂不可用');}});
   ready=true;
   let inlineIndex=0;body.querySelectorAll('img').forEach(image=>{const source=image.getAttribute('src')||'';if(source.startsWith('data:image/')){const id=String(inlineIndex++);image.setAttribute('data-reader-inline-id',id);send('inlineImage',{id,source});}});
   layout().catch(error=>failure('initial-layout',error));
   window.addEventListener('resize',()=>{if(ready)layout().catch(error=>failure('resize-layout',error));},{passive:true});
-}catch(error){ready=false;failure('canonical-window',error);}
+}catch(error){
+  ready=false;
+  if(document===admissionDocument){
+    if(documentAdmission)documentAdmission.block();
+    else document.documentElement?.style.setProperty('display','none','important');
+  }
+  failure('canonical-window',error);
+}
 """#
 }

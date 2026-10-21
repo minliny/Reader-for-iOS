@@ -88,6 +88,7 @@ enum ReaderEbookRealWebKitProbe {
             XCTAssertEqual(saved.progress?.bodyVersion, content.bodyVersion)
             XCTAssertEqual(saved.progress?.processingVersion, content.processingVersion)
             XCTAssertEqual(saved.progress?.chapterOffset, UInt64(anchor))
+            try printInput(phase: format + "-original", document: document, content: content, entryBytes: entry.count)
             try await render(in: test, document: document, content: content, reader: reader,
                 offset: UInt64(anchor), fonts: [serif, sans], label: format + "-original", originalImageEntry: originalImageEntry)
             let afterLayout = try await library.progress(for: book)
@@ -137,6 +138,8 @@ enum ReaderEbookRealWebKitProbe {
                 XCTAssertEqual(sha(coldImage),
                     "eccb75a442539543da708e81c5a1de7fe67efef31511abe353e1005b35b6b925")
             }
+            try printInput(phase: format + "-runtime-reopened", document: restoredDocument,
+                content: restoredContent, entryBytes: coldEntry.count)
             try await render(in: test, document: restoredDocument, content: restoredContent, reader: coldReader,
                 offset: position.chapterOffset, fonts: [sans], label: format + "-runtime-reopened", originalImageEntry: originalImageEntry)
             let afterColdLayout = try await reopened.progress(for: book)
@@ -150,6 +153,24 @@ enum ReaderEbookRealWebKitProbe {
         }
         XCTAssertEqual(try original.resourceValues(forKeys: [.fileSizeKey]).fileSize, byteCount)
         XCTAssertEqual(sha(try Data(contentsOf: original, options: .mappedIfSafe)), digest)
+    }
+
+    private static func printInput(phase: String, document: ReaderEbookDocument,
+                                   content: ReaderChapterContent, entryBytes: Int) throws {
+        try writeStandardOutput("input", ["phase": phase, "entry": document.entryPath, "entryBytes": entryBytes,
+            "canonicalScalarCount": document.documentCanonicalContent.unicodeScalars.count,
+            "chapterScalarCount": content.scalarCount, "chapterIndex": document.chapterIndex,
+            "windowStart": document.chapterStartScalar, "windowEnd": document.chapterEndScalar,
+            "bodyVersion": document.bodyVersion, "processingVersion": document.processingVersion])
+    }
+
+    private static func writeStandardOutput(_ stage: String, _ payload: [String: Any]) throws {
+        // A small unbuffered stdout record survives when a watchdog prevents
+        // XCTest from retaining attachments. Never include source body text.
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        var line = Data(("ReaderEbookRealWK." + stage + " ").utf8)
+        line.append(data); line.append(0x0a)
+        FileHandle.standardOutput.write(line)
     }
 
     private static func assertFont(_ font: UIFont, file: String, expectedDigest: String) throws {
@@ -230,7 +251,8 @@ enum ReaderEbookRealWebKitProbe {
         let web = try XCTUnwrap(container.webView)
         defer { web.stopLoading() }
         XCTAssertEqual(web.url.flatMap { try? ReaderEbookResourcePath.entry(url: $0, origin: $0.host ?? "") }, document.entryPath)
-        try await assertVisible(web, content: content, offset: offset, font: try XCTUnwrap(fonts.first))
+        try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
+            font: try XCTUnwrap(fonts.first), phase: label + "/initial")
         for font in fonts.dropFirst() {
             let ready = test.expectation(description: label + " actual @font-face " + font.fontName)
             waiting = ready
@@ -240,11 +262,13 @@ enum ReaderEbookRealWebKitProbe {
             await test.fulfillment(of: [ready], timeout: 30)
             if let failure { XCTFail("\(label) actual font \(font.fontName): \(failure)"); throw failure }
             XCTAssertTrue(container.webView === web, "Font reflow must keep one active book WebKit")
-            try await assertVisible(web, content: content, offset: offset, font: font)
+            try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
+                font: font, phase: label + "/font-reflow")
         }
         if let originalImageEntry {
             try await assertOriginalImage(in: test, web: web, content: content, offset: offset, entry: originalImageEntry, label: label)
-            try await assertVisible(web, content: content, offset: offset, font: try XCTUnwrap(fonts.last))
+            try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
+                font: try XCTUnwrap(fonts.last), phase: label + "/after-original-image")
         }
         XCTAssertTrue(unsolicitedPositions.isEmpty, "Restoration and font reflow must retain the exact source anchor without an unsolicited write")
         let configuration = WKSnapshotConfiguration()
@@ -262,10 +286,13 @@ enum ReaderEbookRealWebKitProbe {
         test.add(attachment)
     }
 
-    private static func assertVisible(_ web: WKWebView, content: ReaderChapterContent, offset: UInt64, font: UIFont) async throws {
+    private static func assertVisible(in test: XCTestCase, web: WKWebView, document: ReaderEbookDocument,
+                                      content: ReaderChapterContent, offset: UInt64, font: UIFont,
+                                      phase: String) async throws {
         // The test observes native decoded nodes and native Range geometry. It
         // never substitutes the chapter/descriptor or modifies the original DOM.
-        let value = try await web.callAsyncJavaScript(#"""
+        let nativeBefore = nativeGeometry(web)
+        let javascript = #"""
             const significant=c=>!/^\p{White_Space}$/u.test(c);
             const before=Array.from(content).slice(0,offset).filter(significant).length;
             const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT,{
@@ -276,13 +303,48 @@ enum ReaderEbookRealWebKitProbe {
               else if(node.getAttribute('src')||node.getAttribute('href')||node.getAttribute('xlink:href'))ordinal++;
             }
             if(!range)throw Error('restored-source-anchor-not-found');
+            const geometry=()=>{
+              const rect=range.getBoundingClientRect(),vv=visualViewport,sc=document.scrollingElement;
+              const css=node=>{const s=getComputedStyle(node);return {tag:node.localName,fontFamily:s.fontFamily,fontSize:s.fontSize,lineHeight:s.lineHeight,
+                fontVariationSettings:s.fontVariationSettings,display:s.display,position:s.position,transform:s.transform,zoom:s.zoom,
+                marginTop:s.marginTop,marginBottom:s.marginBottom,paddingTop:s.paddingTop,paddingBottom:s.paddingBottom,
+                overflowY:s.overflowY,scrollBehavior:s.scrollBehavior,scrollSnapType:s.scrollSnapType,overflowAnchor:s.overflowAnchor||''};};
+              const ancestors=[];for(let node=element;node&&ancestors.length<5;node=node.parentElement)ancestors.push(css(node));
+              return {time:performance.now(),top:rect.top,left:rect.left,width:rect.width,height:rect.height,
+                scrollY,scrollX,innerWidth,innerHeight,documentHeight:document.documentElement.scrollHeight,
+                maxScroll:Math.max(0,document.documentElement.scrollHeight-innerHeight),fontStatus:document.fonts.status,
+                faces:[...document.fonts].filter(face=>face.family==='ReaderSelectedFace').map(face=>({family:face.family,status:face.status})),
+                scrollingElement:sc?{tag:sc.localName,scrollTop:sc.scrollTop,scrollHeight:sc.scrollHeight,clientHeight:sc.clientHeight,style:css(sc)}:null,
+                visualViewport:vv?{scale:vv.scale,width:vv.width,height:vv.height,offsetTop:vv.offsetTop,offsetLeft:vv.offsetLeft,pageTop:vv.pageTop,pageLeft:vv.pageLeft}:null,
+                ancestors};
+            };
+            if(observeFrames){
+              const before=geometry();await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+              return {before,afterTwoFrames:geometry()};
+            }
             const rect=range.getBoundingClientRect(),style=getComputedStyle(element);
+            const geometryBeforeFontLoad=geometry();
             const faces=[...document.fonts].filter(face=>face.family==='ReaderSelectedFace').map(face=>({family:face.family,status:face.status}));
             const loaded=await document.fonts.load('26px ReaderSelectedFace',character);
             return {charset:document.characterSet,scale:visualViewport.scale,nativeWidth:innerWidth,visibleText:document.body.innerText.trim().length,character,top:rect.top,height:rect.height,width:rect.width,
-              viewport:innerHeight,scroll:scrollY,family:style.fontFamily,axes:style.fontVariationSettings,faces,loaded:loaded.length};
-            """#, arguments: ["content": content.content, "offset": offset], in: nil, contentWorld: .defaultClient) as? [String: Any]
+              viewport:innerHeight,scroll:scrollY,family:style.fontFamily,axes:style.fontVariationSettings,faces,loaded:loaded.length,
+              geometryBeforeFontLoad,geometryAfterFontLoad:geometry()};
+            """#
+        let value = try await web.callAsyncJavaScript(javascript,
+            arguments: ["content": content.content, "offset": offset, "observeFrames": false],
+            in: nil, contentWorld: .defaultClient) as? [String: Any]
         let data = try XCTUnwrap(value)
+        let identity: [String: Any] = ["phase": phase, "font": font.fontName, "fontSize": font.pointSize,
+            "sourceId": content.sourceId, "bookId": content.bookId, "chapterIndex": content.chapterIndex,
+            "bodyVersion": document.bodyVersion, "processingVersion": document.processingVersion,
+            "offset": offset, "documentIdentity": document.identity]
+        try writeStandardOutput("original-sample", ["identity": identity,
+            "top": data["top"] ?? NSNull(), "scrollY": data["scroll"] ?? NSNull(),
+            "fontFamily": data["family"] ?? NSNull(), "fontAxes": data["axes"] ?? NSNull(),
+            "visibleText": data["visibleText"] ?? NSNull(), "viewport": data["viewport"] ?? NSNull(),
+            "nativeContentOffsetY": web.scrollView.contentOffset.y, "nativeBoundsHeight": web.bounds.height])
+        try attachGeometry(in: test, identity: identity, phase: "original-sample",
+            observation: data, nativeBefore: nativeBefore, nativeAfter: nativeGeometry(web))
         XCTAssertEqual((data["charset"] as? String)?.uppercased(), "UTF-8",
             "Core admits this exact original document as UTF-8; native HTML encoding guesses cannot reinterpret it")
         XCTAssertEqual(try XCTUnwrap(data["scale"] as? NSNumber).doubleValue, 1, accuracy: 0.02,
@@ -307,6 +369,45 @@ enum ReaderEbookRealWebKitProbe {
             let css = try XCTUnwrap(data["axes"] as? String)
             XCTAssertTrue(css.contains("wght") && css.contains("400"), "WebKit must consume the resolved UIFont's real weight axis")
         }
+        // Observation only: the original assertions above continue to use the
+        // first sample, even when these later public geometry values differ.
+        // No restore, configure, scroll or progress command is dispatched here.
+        let nativeBeforeFrames = nativeGeometry(web)
+        let frameObservation = try await web.callAsyncJavaScript(javascript,
+            arguments: ["content": content.content, "offset": offset, "observeFrames": true],
+            in: nil, contentWorld: .defaultClient) as? [String: Any]
+        try attachGeometry(in: test, identity: identity, phase: "later-two-rAF-observation",
+            observation: try XCTUnwrap(frameObservation), nativeBefore: nativeBeforeFrames, nativeAfter: nativeGeometry(web))
+    }
+
+    private static func nativeGeometry(_ web: WKWebView) -> [String: Any] {
+        let scroll = web.scrollView
+        let rect: (CGRect) -> [String: CGFloat] = { ["x": $0.minX, "y": $0.minY, "width": $0.width, "height": $0.height] }
+        var result: [String: Any] = ["uptime": ProcessInfo.processInfo.systemUptime, "inWindow": web.window != nil,
+            "bounds": rect(web.bounds), "frame": rect(web.frame), "windowBounds": NSNull(),
+            "contentOffset": ["x": scroll.contentOffset.x, "y": scroll.contentOffset.y],
+            "contentSize": ["width": scroll.contentSize.width, "height": scroll.contentSize.height],
+            "contentInset": ["top": scroll.contentInset.top, "left": scroll.contentInset.left,
+                "bottom": scroll.contentInset.bottom, "right": scroll.contentInset.right],
+            "adjustedContentInset": ["top": scroll.adjustedContentInset.top, "left": scroll.adjustedContentInset.left,
+                "bottom": scroll.adjustedContentInset.bottom, "right": scroll.adjustedContentInset.right],
+            "zoomScale": scroll.zoomScale, "isDragging": scroll.isDragging,
+            "isDecelerating": scroll.isDecelerating, "isTracking": scroll.isTracking]
+        if let window = web.window { result["windowBounds"] = rect(window.bounds) }
+        return result
+    }
+
+    private static func attachGeometry(in test: XCTestCase, identity: [String: Any], phase: String,
+                                       observation: [String: Any], nativeBefore: [String: Any],
+                                       nativeAfter: [String: Any]) throws {
+        let payload: [String: Any] = ["identity": identity, "sample": phase,
+            "originalAssertionsUnchanged": true, "observation": observation,
+            "nativeBefore": nativeBefore, "nativeAfter": nativeAfter]
+        let bytes = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        let attachment = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+        attachment.name = "actual-scalar-geometry-" + (identity["phase"] as? String ?? "unknown") + "-" + phase
+        attachment.lifetime = .keepAlways
+        test.add(attachment)
     }
 
     private static func assertOriginalImage(in test: XCTestCase, web: WKWebView, content: ReaderChapterContent,

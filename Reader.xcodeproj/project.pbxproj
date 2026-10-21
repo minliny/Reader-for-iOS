@@ -66,6 +66,7 @@
 		5408DDD7BF18482E80071507 /* reader_action_close_theme_night.svg in Resources */ = {isa = PBXBuildFile; fileRef = DB23FCDF0E373F7BD0A0158C /* reader_action_close_theme_night.svg */; };
 		54898F47E0809936E54EA451 /* bookshelf_grid_theme_night.svg in Resources */ = {isa = PBXBuildFile; fileRef = 268C5A1AC3669273F813096F /* bookshelf_grid_theme_night.svg */; };
 		55D73420C3CF2C651CF23BC5 /* bookshelf_list_active_theme_night.svg in Resources */ = {isa = PBXBuildFile; fileRef = 0CD9F8294FE0BA380CEA1FBF /* bookshelf_list_active_theme_night.svg */; };
+		5771FF9C20CAEF6646BEC405 /* ReaderEbookResourceBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D676C090D10B2958148104A /* ReaderEbookResourceBudgetTests.swift */; };
 		58EBA25EB8D900B2EB880779 /* ReaderRealSubscriptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93794369A8424CCB94EE7419 /* ReaderRealSubscriptionTests.swift */; };
 		5A01F3768948093A7C5EBD00 /* ReaderHostLibraryIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4583EC16EFCE9896F4B909A8 /* ReaderHostLibraryIdentityTests.swift */; };
 		5C7E24BA6E1F10CD09682BBC /* bookshelf_filter_theme_night.svg in Resources */ = {isa = PBXBuildFile; fileRef = 8E60540420528F0149B0C90B /* bookshelf_filter_theme_night.svg */; };
@@ -289,6 +290,7 @@
 		6AFAAA8C834EADA1D9D04A94 /* NotoSerifSC-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NotoSerifSC-Regular.ttf"; sourceTree = "<group>"; };
 		6B6124FE130C26526BEAA5AA /* ReaderSourceEditorDraftOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderSourceEditorDraftOwner.swift; sourceTree = "<group>"; };
 		6BA79449051EE32C9B876FC4 /* reader_chevron_down.svg */ = {isa = PBXFileReference; path = reader_chevron_down.svg; sourceTree = "<group>"; };
+		6D676C090D10B2958148104A /* ReaderEbookResourceBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderEbookResourceBudgetTests.swift; sourceTree = "<group>"; };
 		70500A417BE750B17460382C /* ReaderOnlineWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderOnlineWorkspace.swift; sourceTree = "<group>"; };
 		70E28DA36307180F61AAA93C /* ReaderEbookJourneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderEbookJourneyTests.swift; sourceTree = "<group>"; };
 		719A57BA1B7A28A48FEF7E1C /* ReaderTXTTOCPreviewJourneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderTXTTOCPreviewJourneyTests.swift; sourceTree = "<group>"; };
@@ -575,6 +577,7 @@
 				7B4C2F48B324899642DBED7F /* ReaderDownloadControlOwnerTests.swift */,
 				28283BD28752434C6E778A56 /* ReaderDownloadReceiptTests.swift */,
 				9E9AC41EC54023D8D13F5E25 /* ReaderEbookRealWebKitProbe.swift */,
+				6D676C090D10B2958148104A /* ReaderEbookResourceBudgetTests.swift */,
 				9AEE8F2D09D6860F9228E061 /* ReaderEbookSurfaceTests.swift */,
 				69AA57719CEDB7B711659A72 /* ReaderFeatureMutationTests.swift */,
 				1D760AF3D4F99BA64062ECF5 /* ReaderFeatureRecoveryTests.swift */,
@@ -1107,6 +1110,7 @@
 				3CEEF1BB2F24C817B8BC77B6 /* ReaderDownloadControlOwnerTests.swift in Sources */,
 				75C31CD88AC08954E481A312 /* ReaderDownloadReceiptTests.swift in Sources */,
 				DD0B1B2BA5FEFE4F156FD6A9 /* ReaderEbookRealWebKitProbe.swift in Sources */,
+				5771FF9C20CAEF6646BEC405 /* ReaderEbookResourceBudgetTests.swift in Sources */,
 				9AF6E8A4C59A612212DAF16B /* ReaderEbookSurfaceTests.swift in Sources */,
 				6FF675C859D72282A6CB7294 /* ReaderFeatureMutationTests.swift in Sources */,
 				2E985A8B82477D1967DDA171 /* ReaderFeatureRecoveryTests.swift in Sources */,

@@ -230,7 +230,8 @@ final class ReaderEbookResourceBridge: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         let id = ObjectIdentifier(urlSchemeTask)
         guard !retired, let url = urlSchemeTask.request.url,
-              let entry = try? ReaderEbookResourcePath.entry(url: url, origin: origin), requestCount < 512 else {
+              let entry = try? ReaderEbookResourcePath.entry(url: url, origin: origin),
+              requestCount < ReaderEbookResourceLoader.maximumRequests else {
             urlSchemeTask.didFailWithError(ReaderEbookError.invalidEntry)
             return
         }
@@ -278,6 +279,8 @@ final class ReaderEbookResourceBridge: NSObject, WKURLSchemeHandler {
         retired = true
         tasks.values.forEach { $0.cancel() }
         tasks.removeAll()
+        let loader = self.loader
+        Task { await loader.retire() }
         inlineImages.removeAll()
         inlineBytes = 0
         fontAsset = nil
@@ -288,26 +291,114 @@ final class ReaderEbookResourceBridge: NSObject, WKURLSchemeHandler {
         + "frame-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'"
 }
 
-/// Serial resource preparation bounds both compressed bytes admitted by Core
-/// and image decoding outside MainActor. It stores no second resource cache.
-private actor ReaderEbookResourceLoader {
-    let reader: ReaderEbookArchiveReader
+/// One complete archive read and ImageIO preparation owns this document slot.
+/// Waiting resources spend no byte allowance and are not missing resources.
+/// No resource cache or second archive/decoder is introduced.
+actor ReaderEbookResourceLoader {
+    static let maximumRequests = 512
+    private let readEntry: @Sendable (String, Int) async throws -> Data
     private var remainingBytes = 64 * 1024 * 1024
     private var remainingPixels = 16_000_000
-    init(reader: ReaderEbookArchiveReader) { self.reader = reader }
+    private var activeRead: UUID?
+    private var waitingReads: [WaitingRead] = []
+    private var retired = false
+
+    private struct WaitingRead {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Error>
+    }
+
+    init(reader: ReaderEbookArchiveReader) {
+        self.readEntry = { entry, maximumBytes in
+            try await reader.readEntry(entry, maximumBytes: maximumBytes)
+        }
+    }
+
+    /// A read-only seam for controlled asynchronous admission/lifetime tests.
+    init(readEntry: @escaping @Sendable (String, Int) async throws -> Data) {
+        self.readEntry = readEntry
+    }
+
     func load(_ entry: String, mime: String) async throws -> (Data, String) {
-        let maximum = mime.hasPrefix("image/") ? 8 * 1024 * 1024 : 32 * 1024 * 1024
-        guard remainingBytes > 0 else { throw ReaderEbookError.resourceLimit }
-        let bytes = try await reader.readEntry(entry, maximumBytes: min(maximum, remainingBytes))
+        let id = UUID()
+        try await acquireRead(id)
+        defer { releaseRead(id) }
         try Task.checkCancellation()
-        // Reentrancy is checked after the read. Concurrent completions cannot
-        // each spend the same remaining budget.
-        guard bytes.count <= remainingBytes else { throw ReaderEbookError.resourceLimit }
-        remainingBytes -= bytes.count
+        guard !retired else { throw CancellationError() }
+        let maximum = mime.hasPrefix("image/") ? 8 * 1024 * 1024 : 32 * 1024 * 1024
+        // Only the owner reaches this check. Other requests wait while its
+        // allowance is reserved, then see the actual spent-byte balance.
+        guard remainingBytes > 0 else { throw ReaderEbookError.resourceLimit }
+        let allowance = min(maximum, remainingBytes)
+        remainingBytes -= allowance
+        var uncommittedAllowance = allowance
+        // Refund before handing the serial slot to the next waiter. An active
+        // cancelled/noncooperative read owns the slot until it really returns.
+        defer { remainingBytes += uncommittedAllowance }
+        let bytes = try await readEntry(entry, allowance)
+        try Task.checkCancellation()
+        guard !retired else { throw CancellationError() }
+        guard bytes.count <= allowance else { throw ReaderEbookError.resourceLimit }
+        remainingBytes += allowance - bytes.count
+        uncommittedAllowance = 0
+        // Keep the original post-read failure accounting: bytes stay spent
+        // if metadata/pixel validation fails, and validated pixels also stay
+        // spent if preparation fails. No await can split this commit/work.
         let pixels = try ReaderEbookImageBudget.decodedPixelCost(bytes, mimeType: mime)
         guard pixels <= remainingPixels else { throw ReaderEbookError.resourceLimit }
         remainingPixels -= pixels
         return try ReaderEbookImageBudget.prepare(bytes, mimeType: mime)
+    }
+
+    func retire() {
+        guard !retired else { return }
+        retired = true
+        let originalWaiters = waitingReads
+        waitingReads.removeAll()
+        originalWaiters.forEach { $0.continuation.resume(throwing: CancellationError()) }
+        // The existing bridge cancels its active Task. Do not pretend that a
+        // synchronous archive call has ended or let another owner overlap it.
+    }
+
+    private func acquireRead(_ id: UUID) async throws {
+        try Task.checkCancellation()
+        guard !retired else { throw CancellationError() }
+        if activeRead == nil {
+            activeRead = id
+            return
+        }
+        try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                guard !retired, !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                // This is the same finite request limit as the WK bridge,
+                // not a transient byte-budget rejection. One request is active.
+                guard waitingReads.count < Self.maximumRequests - 1 else {
+                    continuation.resume(throwing: ReaderEbookError.invalidEntry)
+                    return
+                }
+                waitingReads.append(WaitingRead(id: id, continuation: continuation))
+            }
+        }, onCancel: { Task { await self.cancelWaitingRead(id) } })
+        // The caller installs its release defer before checking cancellation.
+        // A cancelled waiter promoted just before its handler runs must still
+        // release the exact slot it was granted, never a later owner's slot.
+    }
+
+    private func cancelWaitingRead(_ id: UUID) {
+        guard let index = waitingReads.firstIndex(where: { $0.id == id }) else { return }
+        waitingReads.remove(at: index).continuation.resume(throwing: CancellationError())
+    }
+
+    private func releaseRead(_ id: UUID) {
+        guard activeRead == id else { return }
+        activeRead = nil
+        guard !retired, !waitingReads.isEmpty else { return }
+        let next = waitingReads.removeFirst()
+        activeRead = next.id
+        next.continuation.resume()
     }
 }
 
