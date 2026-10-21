@@ -29,9 +29,75 @@ import WebKit
     private var detailID = UUID()
     private var detailTask: Task<Void, Never>?
     private var sourcesID = UUID()
+    // Cached switch sheets opt into this read lifetime. The ordinary workspace
+    // keeps its existing source-management and mutation owners.
+    private var discoveryManaged = false
+    private var discoveryPresentationID: UUID?
+    private var discoverySourcesTask: Task<[ReaderOnlineSource], Error>?
     private var lastKeyword = ""
     private var announcedSourceFailure: UUID?
-    deinit { searchTask?.cancel(); detailTask?.cancel() }
+    deinit { searchTask?.cancel(); detailTask?.cancel(); discoverySourcesTask?.cancel() }
+
+    func activateDiscoveryPresentation(_ identity: UUID) {
+        guard !Task.isCancelled, discoveryPresentationID != identity else { return }
+        retireDiscoveryReads()
+        discoveryManaged = true; discoveryPresentationID = identity
+    }
+
+    func isCurrentDiscoveryPresentation(_ identity: UUID) -> Bool {
+        discoveryManaged && discoveryPresentationID == identity
+    }
+
+    func retireDiscoveryPresentation(_ identity: UUID) {
+        guard isCurrentDiscoveryPresentation(identity) else { return }
+        discoveryPresentationID = nil
+        retireDiscoveryReads()
+    }
+
+    func retireCachedDiscovery() {
+        discoveryManaged = true; discoveryPresentationID = nil
+        retireDiscoveryReads()
+    }
+
+    private func retireDiscoveryReads() {
+        sourcesID = UUID(); discoverySourcesTask?.cancel(); discoverySourcesTask = nil
+        sourceLoading = false
+        if searching { stopped = true }
+        searchID = UUID(); searchTask?.cancel(); searchTask = nil; searching = false
+        // Keep obtained candidates/query/scroll/timings and every write owner.
+    }
+
+    private func searchPresentationIsCurrent(_ identity: UUID?) -> Bool {
+        !discoveryManaged || (identity != nil && discoveryPresentationID == identity)
+    }
+
+    func refreshDiscoverySources(presentationID identity: UUID) async {
+        guard !Task.isCancelled, isCurrentDiscoveryPresentation(identity), let service else { return }
+        discoverySourcesTask?.cancel()
+        let generation = UUID(); sourcesID = generation
+        sourceLoading = true
+        let read = Task {
+            try Task.checkCancellation()
+            return try await service.onlineSources()
+        }
+        discoverySourcesTask = read
+        defer {
+            if sourcesID == generation { sourceLoading = false; discoverySourcesTask = nil }
+        }
+        do {
+            let result = try await withTaskCancellationHandler(operation: {
+                try await read.value
+            }, onCancel: { read.cancel() })
+            guard !Task.isCancelled, sourcesID == generation,
+                  isCurrentDiscoveryPresentation(identity) else { return }
+            sources = result; sourceReadFailure = nil; sourceReadFailureID = nil
+            if !searched { search() }
+        } catch {
+            guard !Task.isCancelled, sourcesID == generation,
+                  isCurrentDiscoveryPresentation(identity) else { return }
+            sourceReadFailure = error.localizedDescription; sourceReadFailureID = UUID()
+        }
+    }
     func loadSources() async {
         guard let service else { return }
         let generation = UUID(); sourcesID = generation
@@ -48,7 +114,9 @@ import WebKit
     func search() { startSearch(retainCandidates: false) }
     func researchCandidates() { startSearch(retainCandidates: true) }
     private func startSearch(retainCandidates: Bool) {
-        guard let service, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let presentationID = discoveryPresentationID
+        guard let service, searchPresentationIsCurrent(presentationID),
+              !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         stop()
         let enabled = sources.filter(\.enabled)
         guard !enabled.isEmpty else { return }
@@ -58,10 +126,13 @@ import WebKit
         lastKeyword = keyword; currentResultIDs = []
         timings = [:]; failures = [:]; searched = true; stopped = false; searching = true; error = nil
         searchTask = Task {
+            guard !Task.isCancelled, generation == searchID,
+                  searchPresentationIsCurrent(presentationID) else { return }
             await withTaskGroup(of: (String, ReaderSourceSearchResult?, String?).self) { group in
                 var remaining = enabled.makeIterator()
                 func enqueue(_ source: ReaderOnlineSource) {
                     group.addTask {
+                        guard !Task.isCancelled else { return (source.id, nil, nil) }
                         do { return (source.id, try await service.searchSource(source.id, keyword: keyword, page: 1), nil) }
                         catch is CancellationError { return (source.id, nil, nil) }
                         catch { return (source.id, nil, error.localizedDescription) }
@@ -69,7 +140,8 @@ import WebKit
                 }
                 for _ in 0..<4 { if let source = remaining.next() { enqueue(source) } }
                 while let (sourceID, response, failure) = await group.next() {
-                    guard generation == searchID, !Task.isCancelled else { group.cancelAll(); return }
+                    guard generation == searchID, !Task.isCancelled,
+                          searchPresentationIsCurrent(presentationID) else { group.cancelAll(); return }
                     if let response {
                         // Stable identity/order: late metadata never moves a tapped row.
                         var indexes = Dictionary(uniqueKeysWithValues: results.enumerated().map { ($0.element.id, $0.offset) })
@@ -83,7 +155,9 @@ import WebKit
                     if let source = remaining.next() { enqueue(source) }
                 }
             }
-            if generation == searchID { searching = false }
+            if generation == searchID, searchPresentationIsCurrent(presentationID) {
+                searching = false; searchTask = nil
+            }
         }
     }
     func showDetail(_ candidate: ReaderOnlineCandidate) {

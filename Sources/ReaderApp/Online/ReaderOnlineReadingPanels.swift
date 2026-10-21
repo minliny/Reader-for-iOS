@@ -8,7 +8,10 @@ import SwiftUI
     static func state(for identity: String) -> ReaderOnlineWorkspaceModel {
         if let state = states[identity] { return state }
         let state = ReaderOnlineWorkspaceModel(); states[identity] = state; order.append(identity)
-        while order.count > 8 { states.removeValue(forKey: order.removeFirst()) }
+        while order.count > 8 {
+            let evicted = order.removeFirst()
+            states.removeValue(forKey: evicted)?.retireCachedDiscovery()
+        }
         return state
     }
 }
@@ -18,6 +21,7 @@ struct ReaderOnlineSwitchPanel: View {
     @ObservedObject var preferences: ReaderPreferences
     let session: ReaderActiveSession
     @StateObject private var state: ReaderOnlineWorkspaceModel
+    @State private var discoveryPresentationID = UUID()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     init(model: ReaderApplicationModel, preferences: ReaderPreferences, session: ReaderActiveSession) {
@@ -25,6 +29,7 @@ struct ReaderOnlineSwitchPanel: View {
         _state = StateObject(wrappedValue: ReaderSwitchPresentationCache.state(for: session.book.id))
     }
     var body: some View {
+        let presentationID = discoveryPresentationID
         VStack(spacing: 12) {
             HStack {
                 Button("关闭") { dismiss() }.accessibilityIdentifier("online-switch-close")
@@ -75,21 +80,21 @@ struct ReaderOnlineSwitchPanel: View {
                 .accessibilityIdentifier("online-switch-outcome")
         }.padding(.vertical, 20).background(ReaderPalette(scheme).paper)
             .task {
+                guard !Task.isCancelled else { return }
+                state.activateDiscoveryPresentation(presentationID)
                 state.service = model.libraryService as? any ReaderOnlineServing
                 if state.query.isEmpty { state.query = session.book.title }
-                await state.loadSources()
-                if !state.searched, state.sourceReadFailure == nil { state.search() }
+                await state.refreshDiscoverySources(presentationID: presentationID)
             }
+            .onDisappear { state.retireDiscoveryPresentation(presentationID) }
     }
     @ViewBuilder private var emptyCandidates: some View {
         if state.sourceLoading {
             ReaderPageState(title: "正在加载书源", loading: true)
         } else if state.sources.allSatisfy({ !$0.enabled }) {
             ReaderPageState(title: state.sourceReadFailure == nil ? "还没有启用的书源" : "书源加载失败", detail: state.sourceReadFailure ?? "可在书源管理中启用书源，已有正文和阅读位置保留。", actionTitle: state.sourceReadFailure == nil ? nil : "重试") {
-                Task {
-                    await state.loadSources()
-                    if !state.searched, state.sourceReadFailure == nil { state.search() }
-                }
+                let presentationID = discoveryPresentationID
+                Task { await state.refreshDiscoverySources(presentationID: presentationID) }
             }
         } else if state.stopped {
             ReaderPageState(title: "查找已停止", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重新搜索", action: state.researchCandidates)
