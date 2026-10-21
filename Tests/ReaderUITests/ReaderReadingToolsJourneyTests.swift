@@ -178,12 +178,31 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         leaveReader(app)
     }
 
-    /// Diagnose physical input separately from XCTest's AX hittability. The
-    /// strict consumer journeys above retain their original failure contract.
+    /// Diagnose physical input separately from XCTest's AX hittability.
+    /// Historical failures remain; consumers still require actual Core results.
     /// This method makes one read-only preview touch and never creates a rule.
     func testDiagnosticOriginalTXTVisiblePreviewSingleNativeTouchWithoutRuleMutation() throws {
         let app = XCUIApplication(); app.launch(); openBook(app)
         openTool("替换、字典与目录规则", app: app)
+        let viewport = try tapSavedReplacementPreviewOnce(app, evidenceName: "tools-preview-single-physical-touch-diagnostic")
+        let before = app.staticTexts["replacement-preview-before"]
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline && !(before.exists && before.isHittable) {
+            let high = coordinate(CGPoint(x: viewport.midX, y: viewport.minY + 30), app: app)
+            let low = coordinate(CGPoint(x: viewport.midX, y: viewport.maxY - 30), app: app)
+            low.press(forDuration: 0.05, thenDragTo: high)
+        }
+        evidence(app, "tools-preview-after-one-diagnostic-touch")
+        XCTAssertTrue(before.exists && before.isHittable && !before.label.isEmpty,
+                      "Only an actual visible Core preview result can establish that this single physical touch reached its consumer")
+        leaveReader(app)
+    }
+
+    /// Native evidence proves this measured center reaches the real action even
+    /// when XCTest reports AXHittable=false. Keep that AX observation, require
+    /// the same settled/unique/visible control, and send exactly one touch.
+    @discardableResult
+    private func tapSavedReplacementPreviewOnce(_ app: XCUIApplication, evidenceName: String) throws -> CGRect {
         waitUntil("The existing rule load must finish before measuring a physical control", timeout: 30) {
             !app.staticTexts["正在读取规则"].exists
         }
@@ -196,15 +215,17 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 && scroll.frame.intersection(app.frame).height > 100
         }
         let scroll = try XCTUnwrap(viewports.min(by: { $0.frame.height < $1.frame.height }))
-        let viewport = scroll.frame.intersection(app.frame).insetBy(dx: 4, dy: 4)
+        var viewport = scroll.frame.intersection(app.frame).insetBy(dx: 4, dy: 4)
         var visible = false
-        for _ in 0..<12 {
+        for _ in 0..<24 {
+            viewport = scroll.frame.intersection(app.frame).insetBy(dx: 4, dy: 4)
             if button.exists, button.frame.width > 0, button.frame.height > 0, viewport.contains(button.frame) {
                 visible = true; break
             }
             let high = coordinate(CGPoint(x: viewport.midX, y: viewport.minY + 30), app: app)
             let low = coordinate(CGPoint(x: viewport.midX, y: viewport.maxY - 30), app: app)
-            low.press(forDuration: 0.05, thenDragTo: high)
+            if button.exists && button.frame.midY < viewport.minY { high.press(forDuration: 0.05, thenDragTo: low) }
+            else { low.press(forDuration: 0.05, thenDragTo: high) }
         }
         XCTAssertTrue(visible, "The actual unique preview label must be completely inside its real native scroll viewport")
         XCTAssertTrue(button.isEnabled)
@@ -216,9 +237,9 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         XCTAssertLessThan(abs(frame.midY - secondFrame.midY), 0.5)
         let point = CGPoint(x: frame.midX, y: frame.midY)
         let reportedHittable = button.isHittable
-        let observation = XCTAttachment(string: "diagnosticOnly=true\nAXHittable=\(reportedHittable)\nactualButtonFrame=\(frame)\nactualScrollViewport=\(viewport)\nsingleNativeTouchPoint=\(point)\nNo rule save, deletion, draft edit, direct Runner Core call or retry. This cannot promote either strict consumer's earlier failure to PASS.")
-        observation.name = "tools-preview-single-physical-touch-diagnostic-boundary"; observation.lifetime = .keepAlways; add(observation)
-        evidence(app, "tools-preview-visible-before-one-diagnostic-touch")
+        let observation = XCTAttachment(string: "physicalControlDriver=true\nAXHittable=\(reportedHittable)\nactualButtonFrame=\(frame)\nactualScrollViewport=\(viewport)\nsingleNativeTouchPoint=\(point)\nThis helper performs no rule save, deletion, draft edit, direct Runner Core call or retry. Historical failures remain; callers require actual Core results.")
+        observation.name = evidenceName + "-boundary"; observation.lifetime = .keepAlways; add(observation)
+        evidence(app, evidenceName + "-before-touch")
         let finalViewport = scroll.frame.intersection(app.frame).insetBy(dx: 4, dy: 4)
         let finalFrame = button.frame
         guard preview.count == 1, button.isEnabled, finalViewport.contains(finalFrame),
@@ -231,17 +252,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             throw JourneyError.prerequisite
         }
         coordinate(CGPoint(x: finalFrame.midX, y: finalFrame.midY), app: app).tap()
-        let before = app.staticTexts["replacement-preview-before"]
-        let deadline = Date().addingTimeInterval(30)
-        while Date() < deadline && !(before.exists && before.isHittable) {
-            let high = coordinate(CGPoint(x: viewport.midX, y: viewport.minY + 30), app: app)
-            let low = coordinate(CGPoint(x: viewport.midX, y: viewport.maxY - 30), app: app)
-            low.press(forDuration: 0.05, thenDragTo: high)
-        }
-        evidence(app, "tools-preview-after-one-diagnostic-touch")
-        XCTAssertTrue(before.exists && before.isHittable && !before.label.isEmpty,
-                      "Only an actual visible Core preview result can establish that this single physical touch reached its consumer")
-        leaveReader(app)
+        return finalViewport
     }
 
     private struct UnpaintedNativeSelection {
@@ -327,13 +338,16 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let kind = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '规则类型'")).firstMatch
         XCTAssertTrue(kind.waitForExistence(timeout: 10)); kind.tap()
         XCTAssertTrue(app.buttons["替换"].waitForExistence(timeout: 5)); app.buttons["替换"].tap()
-        let preview = app.buttons["预览已保存规则"]
-        reveal(preview, towardBottom: true, app: app); preview.tap()
+        try tapSavedReplacementPreviewOnce(app, evidenceName: "tools-existing-preview-single-touch")
         let before = app.staticTexts["replacement-preview-before"]
         let after = app.staticTexts["replacement-preview-after"]
         waitUntil("Read the actual existing Core preview before adding an owned rule", timeout: 25) {
             before.exists && after.exists && !before.label.isEmpty && !after.label.isEmpty
         }
+        reveal(before, towardBottom: true, app: app)
+        evidence(app, "tools-existing-preview-original-visible")
+        reveal(after, towardBottom: true, app: app)
+        evidence(app, "tools-existing-preview-processed-visible")
         let originalRaw = before.label, originalProcessed = after.label
         XCTAssertTrue(originalProcessed.contains(literal), "The real displayed copied text must be in the bounded actual chapter preview")
         let create = app.buttons["新建"]
@@ -367,20 +381,23 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         // Assertions remain failures; a successful cleanup never changes that.
         var deleted = false
         defer { if !deleted { removeOwnedRule(ruleID, name: ownedName, app: app) } }
-        reveal(preview, towardBottom: true, app: app); preview.tap()
+        try tapSavedReplacementPreviewOnce(app, evidenceName: "tools-owned-rule-preview-single-touch")
         waitUntil("Real Core preview must consume the owned saved rule", timeout: 25) {
             before.exists && after.exists && before.label.contains(literal) && after.label.contains(replacement)
         }
+        reveal(after, towardBottom: true, app: app)
         XCTAssertEqual(before.label, originalRaw, "Previewing a rule cannot rewrite the original chapter")
         XCTAssertNotEqual(before.label, after.label)
         let previewText = XCTAttachment(string: "BEFORE:\n" + before.label + "\nAFTER:\n" + after.label)
         previewText.name = "tools-real-core-owned-replacement-preview"; previewText.lifetime = .keepAlways; add(previewText)
         evidence(app, "tools-real-rule-preview-consumer")
         removeOwnedRule(ruleID, name: ownedName, app: app); deleted = true
-        reveal(preview, towardBottom: true, app: app); preview.tap()
+        try tapSavedReplacementPreviewOnce(app, evidenceName: "tools-removed-owned-rule-preview-single-touch")
         waitUntil("Deleting the exact owned rule must remove its real preview effect", timeout: 25) {
             before.exists && before.label == originalRaw && after.exists && !after.label.contains(replacement) && after.label == originalProcessed
         }
+        reveal(after, towardBottom: true, app: app)
+        evidence(app, "tools-removed-owned-rule-effect-no-longer-visible")
         // The only discarded draft is this method's exact UUID-owned draft.
         let name = textInput("规则名称", app: app)
         reveal(name, towardBottom: false, app: app)

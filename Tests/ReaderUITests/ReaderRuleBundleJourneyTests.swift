@@ -230,7 +230,7 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         // Accept only that visible exact title within the native bar.
         for bar in app.navigationBars.allElementsBoundByIndex {
             let titleRegion = bar.frame.insetBy(dx: bar.frame.width * 0.25, dy: -2)
-            let buttons = bar.buttons.matching(NSPredicate(format: "label == 'Reader' AND identifier != 'BackButton'"))
+            let buttons = bar.buttons.matching(NSPredicate(format: "label IN %@ AND identifier != 'BackButton'", ["Reader", "Reader, 操作菜单"]))
                 .allElementsBoundByIndex.filter {
                     $0.isHittable && titleRegion.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
                 }

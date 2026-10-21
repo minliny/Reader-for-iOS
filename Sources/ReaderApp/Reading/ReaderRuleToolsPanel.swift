@@ -569,7 +569,7 @@ struct ReaderRuleToolsPanel: View {
 #if DEBUG
                 ReaderTXTPreviewTrace.emit("event=replacement.service.begin session=\(current.id) chapter=\(current.content.chapterIndex)")
 #endif
-                let value = try await service.previewReplacement(for: book, chapterIndex: current.content.chapterIndex, maxScalars: 4000)
+                let value = try await service.previewReplacement(for: book, chapterIndex: current.content.chapterIndex, maxScalars: 2048)
 #if DEBUG
                 ReaderTXTPreviewTrace.emit("event=replacement.service.result session=\(current.id) beforeUTF8Bytes=\(value.before.utf8.count) afterUTF8Bytes=\(value.after.utf8.count) truncated=\(value.truncated)")
 #endif
