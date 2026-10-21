@@ -858,9 +858,20 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     }
     private func textInput(_ identifier: String, app: XCUIApplication) -> XCUIElement {
         // The same SwiftUI axis.vertical input can change its reported AX role
-        // when focused. Keep its semantic identity without a role predicate;
-        // callers still require real hittability and the exact typed value.
-        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        // when focused, and its placeholder disappears after entering content.
+        // Resolve the replacement form's semantic names to declared stable IDs;
+        // every input stage keeps that identity without a role/value predicate.
+        let stableID: String
+        switch identifier {
+        case "规则名称": stableID = "replacement-draft-name"
+        case "匹配内容": stableID = "replacement-draft-pattern"
+        case "替换为": stableID = "replacement-draft-replacement"
+        case "规则分组": stableID = "replacement-draft-group"
+        case "排除范围": stableID = "replacement-draft-exclude-scope"
+        case "作用范围，留空为全部": stableID = "replacement-draft-scope"
+        default: stableID = identifier
+        }
+        return app.descendants(matching: .any).matching(identifier: stableID).firstMatch
     }
     private func dismissKeyboardByScrolling(_ app: XCUIApplication, field: XCUIElement) {
         guard app.keyboards.firstMatch.exists else { return }

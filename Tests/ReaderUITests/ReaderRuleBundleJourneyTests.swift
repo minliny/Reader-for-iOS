@@ -55,20 +55,24 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         try wait("The native save sheet must expose the actual exported filename for editing", timeout: 15) {
             names.allElementsBoundByAccessibilityElement.filter(\.isHittable).count == 1
         }
-        // Keep this actual UIKit element when its value changes; a query still
-        // matching the old filename cannot resolve the renamed field.
-        let name = try XCTUnwrap(names.allElementsBoundByAccessibilityElement.first(where: \.isHittable))
-        try replaceNativeFilename(name, with: fileBase, app: app)
+        // Value discovers the initial filename only. Resolve the observed
+        // native identifier afresh throughout editing and sheet dismissal.
+        let nameFields = app.textFields.matching(identifier: "DOCPicker.filenameTextField")
+        try replaceNativeFilename(nameFields, with: fileBase, app: app)
         let saveLabels = ["导出", "存储", "保存", "移动", "Export", "Save", "Move"]
         let saves = app.navigationBars.buttons.matching(NSPredicate(format: "label IN %@", saveLabels))
         let save = try XCTUnwrap(saves.allElementsBoundByIndex.filter { $0.isHittable && $0.isEnabled }.only,
             "Use one actual native save/export button; never substitute a background file write")
-        try require((name.value as? String) == fileBase || (name.value as? String) == fileBase + ".json",
-                    "Verify the new UUID-owned filename before the one actual save action")
+        let nameBeforeSave = nameFields.count == 1 ? (nameFields.element.value as? String) : nil
+        guard nameBeforeSave == fileBase || nameBeforeSave == fileBase + ".json" else {
+            evidence(app, "rule-roundtrip-native-owned-filename-mismatch-before-save")
+            try require(false, "Verify the new UUID-owned filename before the one actual save action")
+            return
+        }
         evidence(app, "rule-roundtrip-actual-native-owned-filename-before-save")
         save.tap()
         try wait("The normal native save sheet must return to the same rules workspace", timeout: 30) {
-            (!name.exists && app.buttons["导入规则"].isHittable) || app.alerts.firstMatch.exists
+            (nameFields.count == 0 && app.buttons["导入规则"].isHittable) || app.alerts.firstMatch.exists
         }
         try require(!app.alerts.firstMatch.exists, "Never replace an existing file or accept an unexpected native save confirmation")
         try require(app.buttons["导入规则"].isHittable, "Return from actual Files saving before importing")
@@ -243,29 +247,27 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         }
         return false
     }
-    private func replaceNativeFilename(_ field: XCUIElement, with filename: String, app: XCUIApplication) throws {
-        try require(field.isHittable && field.isEnabled, "The native exported filename must be editable")
-        let originalValue = try XCTUnwrap(field.value as? String)
-        try require(originalValue.count > 1, "The original filename must contain more than one character to verify one native Delete")
-        field.tap()
-        try settleNativeFilenameKeyboard(field, app: app)
-        try require(field.value as? String == originalValue, "Keyboard setup must preserve the original exported filename")
-        // One native Delete must remove the entire known multi-character
-        // name. A caret-only deletion must fail before typing or saving.
-        field.typeText(XCUIKeyboardKey.delete.rawValue)
-        let empty = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            field.exists && (field.value as? String) == ""
-        }, object: nil)
-        guard XCTWaiter.wait(for: [empty], timeout: 3) == .completed else {
-            evidence(app, "rule-roundtrip-native-filename-not-empty-after-one-delete")
-            try require(false, "One native Delete must leave the same filename field strictly empty before entering the UUID")
+    private func replaceNativeFilename(_ fields: XCUIElementQuery, with filename: String, app: XCUIApplication) throws {
+        try require(fields.count == 1 && fields.element.isHittable && fields.element.isEnabled,
+                    "The native identifier must resolve one editable exported filename")
+        let originalValue = try XCTUnwrap(fields.element.value as? String)
+        try require(originalValue.count > 1, "The original filename must contain more than one character")
+        fields.element.tap()
+        try settleNativeFilenameKeyboard(fields, app: app)
+        try require(fields.count == 1 && (fields.element.value as? String) == originalValue,
+                    "Keyboard setup must preserve the original exported filename")
+        // Use one native Delete and one UUID input. The complete resulting
+        // value, rather than the empty field's AX representation, gates Save.
+        fields.element.typeText(XCUIKeyboardKey.delete.rawValue)
+        fields.element.typeText(filename)
+        let actualValue = fields.count == 1 ? (fields.element.value as? String) : nil
+        guard actualValue == filename || actualValue == filename + ".json" else {
+            evidence(app, "rule-roundtrip-native-owned-filename-mismatch-after-input")
+            try require(false, "The actual system filename must contain only the new UUID-owned name")
             return
         }
-        field.typeText(filename)
-        try require((field.value as? String) == filename || (field.value as? String) == filename + ".json",
-                    "The actual system filename must contain only the new UUID-owned name")
     }
-    private func settleNativeFilenameKeyboard(_ field: XCUIElement, app: XCUIApplication) throws {
+    private func settleNativeFilenameKeyboard(_ fields: XCUIElementQuery, app: XCUIApplication) throws {
         let explanation = "Speed up your typing by sliding your finger across the letters to compose a word."
         let guide = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", explanation, explanation))
         func visibleGuide() -> [XCUIElement] {
@@ -285,6 +287,8 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         }
         func inputIsStable() -> Bool {
             let keyboard = app.keyboards.firstMatch
+            guard fields.count == 1 else { resetStability(); return false }
+            let field = fields.element
             guard field.exists, field.isHittable, field.isEnabled, keyboard.exists else { resetStability(); return false }
             let fieldFrame = field.frame, keyboardFrame = keyboard.frame
             guard !fieldFrame.isEmpty, !keyboardFrame.isEmpty, app.frame.contains(fieldFrame),
