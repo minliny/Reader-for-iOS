@@ -128,6 +128,137 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         }
     }
 
+
+    func testOrdinaryWorkspaceRetirementCancelsReadsWithoutDispatchingLaterSources() async throws {
+        let service = DiscoveryControlledService()
+        var state: ReaderOnlineWorkspaceModel? = ReaderOnlineWorkspaceModel()
+        weak var weakState = state
+        defer { state?.retireCachedDiscovery(); service.releaseAll() }
+        state?.service = service; state?.query = "workspace read identity"
+        let identity = UUID(); state?.activateDiscoveryPresentation(identity)
+        let listed = expectation(description: "Ordinary workspace source-list read entered")
+        service.onSourcesEntered = { _ in listed.fulfill() }
+        let listTask = Task { @MainActor [weak model = state] in await model?.loadSources() }
+        defer { listTask.cancel() }
+        await fulfillment(of: [listed], timeout: 2)
+        try service.completeSources(0, with: .success(DiscoveryControlledService.sources(6)))
+        await listTask.value
+        let fourReads = expectation(description: "Exactly the first four source reads entered")
+        fourReads.expectedFulfillmentCount = 4
+        service.onSearchEntered = { count in if count <= 4 { fourReads.fulfill() } }
+        state?.search()
+        await fulfillment(of: [fourReads], timeout: 2)
+        XCTAssertEqual(service.searchCalls.count, 4)
+        let snapshot = DiscoverySnapshot(try XCTUnwrap(state))
+        let actions = try XCTUnwrap(state?.actions)
+        let originalID = "dc0c9c88-7f50-4975-8940-c795cc7c3288"
+        var writeExecutions = 0
+        XCTAssertTrue(actions.restoreAccepted(id: originalID, label: "原操作", scope: "workspace-contract|accepted-write") { _ in
+            writeExecutions += 1
+            XCTFail("Leaving search must never execute an accepted write")
+            throw DiscoveryControlledService.Failure.unsupported
+        })
+        var latePublications = 0
+        let observations = [
+            try XCTUnwrap(state).$results.dropFirst().sink { _ in latePublications += 1 },
+            try XCTUnwrap(state).$timings.dropFirst().sink { _ in latePublications += 1 },
+            try XCTUnwrap(state).$currentResultIDs.dropFirst().sink { _ in latePublications += 1 }
+        ]
+        defer { observations.forEach { $0.cancel() } }
+        let cancelled = expectation(description: "All four exact workspace reads observed cancellation")
+        cancelled.expectedFulfillmentCount = 4
+        service.onSearchCancelled = { _ in cancelled.fulfill() }
+        // This is the exact top-level back/onDisappear hook, not child-page return.
+        state?.retireDiscoveryPresentation(identity)
+        await fulfillment(of: [cancelled], timeout: 2)
+        XCTAssertEqual(service.cancelledSearches, Set(0..<4))
+        XCTAssertFalse(try XCTUnwrap(state).searching)
+        XCTAssertEqual(DiscoverySnapshot(try XCTUnwrap(state)), snapshot)
+        state = nil
+        // Noncooperative original reads return real protocol values only after
+        // retirement. No fifth/sixth read, write or publication may follow.
+        try service.completeRemainingSearches()
+        let released = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in weakState == nil }, object: nil)
+        await fulfillment(of: [released], timeout: 2)
+        XCTAssertNil(weakState)
+        XCTAssertEqual(service.searchCalls.count, 4)
+        XCTAssertEqual(latePublications, 0)
+        XCTAssertEqual(actions.pendingOperationID, originalID)
+        XCTAssertEqual(actions.scope, "workspace-contract|accepted-write")
+        XCTAssertTrue(actions.hasPending); XCTAssertFalse(actions.busy)
+        XCTAssertEqual(writeExecutions, 0); XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
+    func testOrdinaryWorkspaceLateSourceAndDetailReadsCannotPublishAfterRetirement() async throws {
+        let service = DiscoveryControlledService()
+        var state: ReaderOnlineWorkspaceModel? = ReaderOnlineWorkspaceModel()
+        weak var weakState = state
+        defer { state?.retireCachedDiscovery(); service.releaseAll() }
+        state?.service = service
+        let originalID = UUID(); state?.activateDiscoveryPresentation(originalID)
+        let candidate = ReaderOnlineCandidate(sourceId: "retained", bookId: "candidate", title: "Retained identity")
+        let listed = expectation(description: "Original workspace source read entered")
+        let detailed = expectation(description: "Original detail read entered")
+        service.onSourcesEntered = { index in if index == 0 { listed.fulfill() } }
+        service.onDetailEntered = { index in if index == 0 { detailed.fulfill() } }
+        let oldListTask = Task { @MainActor [weak model = state] in await model?.loadSources() }
+        defer { oldListTask.cancel() }
+        state?.showDetail(candidate)
+        await fulfillment(of: [listed, detailed], timeout: 2)
+        let sourceCancelled = expectation(description: "Original source read cancellation")
+        let detailCancelled = expectation(description: "Original detail read cancellation")
+        service.onSourcesCancelled = { index in if index == 0 { sourceCancelled.fulfill() } }
+        service.onDetailCancelled = { index in if index == 0 { detailCancelled.fulfill() } }
+        state?.retireDiscoveryPresentation(originalID)
+        await fulfillment(of: [sourceCancelled, detailCancelled], timeout: 2)
+        XCTAssertFalse(try XCTUnwrap(state).sourceLoading)
+        XCTAssertFalse(try XCTUnwrap(state).detailLoading)
+        var latePublications = 0
+        let observations = [
+            try XCTUnwrap(state).$sources.dropFirst().sink { _ in latePublications += 1 },
+            try XCTUnwrap(state).$sourceReadFailure.dropFirst().sink { _ in latePublications += 1 },
+            try XCTUnwrap(state).$detail.dropFirst().sink { _ in latePublications += 1 },
+            try XCTUnwrap(state).$error.dropFirst().sink { _ in latePublications += 1 },
+            try XCTUnwrap(state).$detailLoading.dropFirst().sink { _ in latePublications += 1 }
+        ]
+        defer { observations.forEach { $0.cancel() } }
+        // Reopening the top-level workspace creates an independent StateObject.
+        let reopened = ReaderOnlineWorkspaceModel(); reopened.service = service
+        let reopenedID = UUID(); reopened.activateDiscoveryPresentation(reopenedID)
+        defer { reopened.retireDiscoveryPresentation(reopenedID) }
+        let newListed = expectation(description: "Reopened workspace source read entered")
+        let newDetailed = expectation(description: "Reopened workspace detail read entered")
+        service.onSourcesEntered = { index in if index == 1 { newListed.fulfill() } }
+        service.onDetailEntered = { index in if index == 1 { newDetailed.fulfill() } }
+        let newListTask = Task { await reopened.loadSources() }
+        defer { newListTask.cancel() }
+        reopened.showDetail(candidate)
+        await fulfillment(of: [newListed, newDetailed], timeout: 2)
+        let reopenedSnapshot = DiscoverySnapshot(reopened)
+        state?.showDetail(candidate)
+        XCTAssertEqual(service.detailReadCount, 2, "A retired original host cannot start another detail read")
+        state = nil
+        try service.completeSources(0, with: .success(DiscoveryControlledService.sources(3)))
+        try service.failDetail(0)
+        await oldListTask.value
+        // Weak release establishes that both old model continuations drained;
+        // no sleep or late callback assumption stands in for their completion.
+        let released = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in weakState == nil }, object: nil)
+        await fulfillment(of: [released], timeout: 2)
+        XCTAssertNil(weakState); XCTAssertEqual(latePublications, 0)
+        XCTAssertEqual(DiscoverySnapshot(reopened), reopenedSnapshot)
+        XCTAssertTrue(reopened.isCurrentDiscoveryPresentation(reopenedID))
+        XCTAssertTrue(reopened.sourceLoading); XCTAssertTrue(reopened.detailLoading)
+        XCTAssertNil(reopened.error)
+        XCTAssertEqual(service.cancelledSources, [0]); XCTAssertEqual(service.cancelledDetails, [0])
+        reopened.retireDiscoveryPresentation(reopenedID)
+        try service.completeSources(1, with: .success(DiscoveryControlledService.sources(2)))
+        try service.failDetail(1)
+        await newListTask.value
+        XCTAssertEqual(service.sourceReadCount, 2); XCTAssertEqual(service.detailReadCount, 2)
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
     func testOldPresentationCannotRetireReopenedOwnerAndEvictionReleasesReadLifetime() async throws {
         // Exercise the production cache with an independent owner. These are
         // presentation identities only: no books, sources or requests are made,
@@ -373,6 +504,8 @@ private final class DiscoveryControlledService: ReaderOnlineServing {
     enum Failure: Error { case unsupported, lateRead, teardown, missingContinuation }
     struct SearchCall { let sourceID: String; let keyword: String; let page: Int }
     private(set) var sourceReadCount = 0
+    private(set) var detailReadCount = 0
+    private(set) var cancelledDetails = Set<Int>()
     private(set) var searchCalls: [SearchCall] = []
     private(set) var cancelledSources = Set<Int>()
     private(set) var cancelledSearches = Set<Int>()
@@ -381,8 +514,11 @@ private final class DiscoveryControlledService: ReaderOnlineServing {
     var onSourcesCancelled: ((Int) -> Void)?
     var onSearchEntered: ((Int) -> Void)?
     var onSearchCancelled: ((Int) -> Void)?
+    var onDetailEntered: ((Int) -> Void)?
+    var onDetailCancelled: ((Int) -> Void)?
     private var sourceReads: [Int: CheckedContinuation<[ReaderOnlineSource], Error>] = [:]
     private var searches: [Int: CheckedContinuation<ReaderSourceSearchResult, Error>] = [:]
+    private var details: [Int: CheckedContinuation<ReaderOnlineDetail, Error>] = [:]
     private var closed = false
 
     static func sources(_ count: Int) -> [ReaderOnlineSource] {
@@ -439,11 +575,20 @@ private final class DiscoveryControlledService: ReaderOnlineServing {
             elapsedMilliseconds: 10 + index, timing: nil))
     }
     func completeRemainingSearches() throws { for index in searches.keys.sorted() { try completeSearch(index) } }
+    func failDetail(_ index: Int) throws {
+        guard let continuation = details.removeValue(forKey: index) else {
+            XCTFail("The exact detail read has not entered"); throw Failure.missingContinuation
+        }
+        continuation.resume(throwing: Failure.lateRead)
+    }
     func releaseAll() {
         closed = true
         onSourcesEntered = nil; onSourcesCancelled = nil; onSearchEntered = nil; onSearchCancelled = nil
+        onDetailEntered = nil; onDetailCancelled = nil
+        let pendingDetails = details; details.removeAll()
         let reads = sourceReads; sourceReads.removeAll()
         let pendingSearches = searches; searches.removeAll()
+        for continuation in pendingDetails.values { continuation.resume(throwing: Failure.teardown) }
         for continuation in reads.values { continuation.resume(throwing: Failure.teardown) }
         for continuation in pendingSearches.values { continuation.resume(throwing: Failure.teardown) }
     }
@@ -474,7 +619,20 @@ private final class DiscoveryControlledService: ReaderOnlineServing {
     func onlineCommand(_ method: String, parameters: Data, operationID: String?) async throws -> Data { try forbiddenWrite("onlineCommand") }
     func validateSources(_ data: Data) async throws -> [ReaderSourceImportItem] { try unexpectedRead("validateSources") }
     func exportSources(_ identities: [String]?) async throws -> Data { try unexpectedRead("exportSources") }
-    func onlineDetail(_ candidate: ReaderOnlineCandidate) async throws -> ReaderOnlineDetail { try unexpectedRead("onlineDetail") }
+    func onlineDetail(_ candidate: ReaderOnlineCandidate) async throws -> ReaderOnlineDetail {
+        guard !closed else { throw Failure.teardown }
+        let index = detailReadCount; detailReadCount += 1
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                details[index] = continuation; onDetailEntered?(index)
+            }
+        }, onCancel: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.cancelledDetails.insert(index).inserted else { return }
+                self.onDetailCancelled?(index)
+            }
+        })
+    }
     func refreshOnlineCatalog(for book: ReaderBook) async throws -> ReaderOnlineDetail { try unexpectedRead("refreshOnlineCatalog") }
     func onlineDiagnostic(_ sourceID: String, keyword: String) async throws -> Data { try unexpectedRead("onlineDiagnostic") }
     func onlineFetch(_ url: URL) async throws -> Data { try unexpectedRead("onlineFetch") }

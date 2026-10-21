@@ -29,8 +29,8 @@ import WebKit
     private var detailID = UUID()
     private var detailTask: Task<Void, Never>?
     private var sourcesID = UUID()
-    // Cached switch sheets opt into this read lifetime. The ordinary workspace
-    // keeps its existing source-management and mutation owners.
+    // The complete search workspace and cached switch sheets opt into the same
+    // read lifetime. Source-management and accepted mutation owners stay intact.
     private var discoveryManaged = false
     private var discoveryPresentationID: UUID?
     private var discoverySourcesTask: Task<[ReaderOnlineSource], Error>?
@@ -64,6 +64,7 @@ import WebKit
         sourceLoading = false
         if searching { stopped = true }
         searchID = UUID(); searchTask?.cancel(); searchTask = nil; searching = false
+        detailID = UUID(); detailTask?.cancel(); detailTask = nil; detailLoading = false
         // Keep obtained candidates/query/scroll/timings and every write owner.
     }
 
@@ -99,11 +100,31 @@ import WebKit
         }
     }
     func loadSources() async {
-        guard let service else { return }
+        let presentationID = discoveryPresentationID
+        guard !Task.isCancelled, searchPresentationIsCurrent(presentationID), let service else { return }
+        discoverySourcesTask?.cancel()
         let generation = UUID(); sourcesID = generation
-        sourceLoading = true; defer { if sourcesID == generation { sourceLoading = false } }
-        do { let result = try await service.onlineSources(); guard sourcesID == generation else { return }; sources = result; sourceReadFailure = nil; sourceReadFailureID = nil }
-        catch { guard sourcesID == generation else { return }; sourceReadFailure = error.localizedDescription; sourceReadFailureID = UUID() }
+        sourceLoading = true
+        let read = Task {
+            try Task.checkCancellation()
+            return try await service.onlineSources()
+        }
+        discoverySourcesTask = read
+        defer {
+            if sourcesID == generation { sourceLoading = false; discoverySourcesTask = nil }
+        }
+        do {
+            let result = try await withTaskCancellationHandler(operation: {
+                try await read.value
+            }, onCancel: { read.cancel() })
+            guard !Task.isCancelled, sourcesID == generation,
+                  searchPresentationIsCurrent(presentationID) else { return }
+            sources = result; sourceReadFailure = nil; sourceReadFailureID = nil
+        } catch {
+            guard !Task.isCancelled, sourcesID == generation,
+                  searchPresentationIsCurrent(presentationID) else { return }
+            sourceReadFailure = error.localizedDescription; sourceReadFailureID = UUID()
+        }
     }
     func consumeSourceRefreshNotice() -> String? {
         guard !sources.isEmpty, let id = sourceReadFailureID, announcedSourceFailure != id else { return nil }
@@ -161,13 +182,24 @@ import WebKit
         }
     }
     func showDetail(_ candidate: ReaderOnlineCandidate) {
-        guard let service else { return }
+        let presentationID = discoveryPresentationID
+        guard !Task.isCancelled, searchPresentationIsCurrent(presentationID), let service else { return }
         detailTask?.cancel()
         let generation = UUID(); detailID = generation; selected = candidate; detail = nil; detailLoading = true; error = nil
         detailTask = Task {
-            do { let value = try await service.onlineDetail(candidate); guard !Task.isCancelled, generation == detailID else { return }; detail = value }
-            catch { guard !Task.isCancelled, generation == detailID else { return }; self.error = error.localizedDescription }
-            if generation == detailID { detailLoading = false }
+            guard !Task.isCancelled, generation == detailID,
+                  searchPresentationIsCurrent(presentationID) else { return }
+            do {
+                let value = try await service.onlineDetail(candidate)
+                guard !Task.isCancelled, generation == detailID,
+                      searchPresentationIsCurrent(presentationID) else { return }
+                detail = value
+            } catch {
+                guard !Task.isCancelled, generation == detailID,
+                      searchPresentationIsCurrent(presentationID) else { return }
+                self.error = error.localizedDescription
+            }
+            if generation == detailID, searchPresentationIsCurrent(presentationID) { detailLoading = false }
         }
     }
     func closeDetail() { detailTask?.cancel(); detailTask = nil; detailID = UUID(); selected = nil; detail = nil; detailLoading = false; error = nil }
@@ -181,6 +213,7 @@ struct ReaderOnlineWorkspace: View {
     @StateObject private var state = ReaderOnlineWorkspaceModel()
     @State private var managing = false
     @State private var subscriptions = false
+    @State private var workspacePresentationID = UUID()
     private enum SearchField: Hashable { case query, filter }
     @FocusState private var focusedSearchField: SearchField?
     @Environment(\.colorScheme) private var scheme
@@ -188,7 +221,10 @@ struct ReaderOnlineWorkspace: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                ReaderIconAction(icon: .back, label: "返回", action: close)
+                ReaderIconAction(icon: .back, label: "返回") {
+                    state.retireDiscoveryPresentation(workspacePresentationID)
+                    close()
+                }
                     .accessibilityIdentifier("online-close-workspace")
                 Text(managing ? "书源管理" : "在线搜索").font(ReaderTypography.font(.controlHeader))
                 Spacer()
@@ -212,7 +248,15 @@ struct ReaderOnlineWorkspace: View {
             ReaderOnlineSourceRefreshNotice(state: state)
             ReaderOperationStatus(owner: state.actions, scope: "online")
         }.foregroundStyle(ReaderPalette(scheme).ink).background(ReaderPalette(scheme).paper)
-            .task { state.service = model.libraryService as? any ReaderOnlineServing; await state.loadSources() }
+            .task {
+                guard !Task.isCancelled else { return }
+                state.activateDiscoveryPresentation(workspacePresentationID)
+                state.service = model.libraryService as? any ReaderOnlineServing
+                await state.loadSources()
+            }
+            // Only the complete workspace lifetime ends here. Its management/
+            // detail overlays and the root's reading opacity keep this view alive.
+            .onDisappear { state.retireDiscoveryPresentation(workspacePresentationID) }
     }
     private var searchPage: some View {
         VStack(spacing: 12) {
@@ -349,7 +393,7 @@ private struct ReaderSourceManagement: View {
     @State private var exportData = ReaderSourceJSONDocument(data: Data())
     @State private var importResults: [ReaderSourceImportItem] = []
     @State private var filter = ""
-    @State private var login: ReaderOnlineSource?
+    @State private var login: ReaderSourceLoginPresentation?
     @State private var diagnostic = ""
     @State private var subscriptionPage = false
     @State private var diagnosticGeneration = UUID()
@@ -391,7 +435,7 @@ private struct ReaderSourceManagement: View {
                                 .accessibilityIdentifier("online-source-edit:" + source.id)
                             Button("检测") { diagnose(source) }
                             Button("调试") { debugSource = source }
-                            Button("网页登录") { login = source }
+                            Button("网页登录") { login = ReaderSourceLoginPresentation(source: source) }
                             Spacer()
                             Button("删除", role: .destructive) { confirmation.confirm("删除书源？", message: "已有书籍与缓存保留，后续联网将需要重新导入此书源。", actionTitle: "删除", destructive: true) { mutate("删除书源") { id in try await state.service?.deleteSource(source.id, operationID: id) } } }
                         }.font(ReaderTypography.font(.caption))
@@ -439,7 +483,12 @@ private struct ReaderSourceManagement: View {
                     ReaderOperationStatus(owner: state.actions, scope: "online", completed: { Task { await state.loadSources(); draftOwner.refreshPersistedDraft() } })
                 }.padding(20).onAppear { restoreSaveIfNeeded() }
             }
-            .sheet(item: $login) { source in ReaderSourceLogin(source: source, service: state.service) }
+            .sheet(item: $login) { request in
+                ReaderSourceLogin(source: request.source, service: state.service, lifetime: request.lifetime) {
+                    guard login?.id == request.id else { return }
+                    request.lifetime.retire(); login = nil
+                }.id(request.id)
+            }
             .sheet(item: $debugSource) { source in if let service = state.service { ReaderSourceDebugPanel(source: source, service: service) } }
             .sheet(isPresented: $subscriptionPage, onDismiss: { Task { await state.loadSources() } }) {
                 if let service = state.service as? any ReaderRuleSubscriptionServing { ReaderRuleSubscriptionPanel(service: service) }
@@ -554,40 +603,148 @@ struct ReaderSourceJSONDocument: FileDocument {
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }
 
+/// Ephemeral presentation/readiness only. Native CookieJar/Keychain remain the
+/// credential owner; accepted original writes are never cancelled here.
+@MainActor
+final class ReaderSourceLoginLifetime {
+    struct Ticket: Equatable {
+        let id: UUID
+        let presentationID: UUID
+        let sourceID: String
+    }
+    let presentationID: UUID
+    let sourceID: String
+    private var active = true
+    private var preparation: Ticket?
+    private var prepared = false
+    private var cookieSeed: Ticket?
+    private var seedReady = false
+    private var save: Ticket?
+    private var credentialWriteDispatched = false
+
+    init(presentationID: UUID = UUID(), sourceID: String) {
+        self.presentationID = presentationID; self.sourceID = sourceID
+    }
+    private func ticket() -> Ticket {
+        .init(id: UUID(), presentationID: presentationID, sourceID: sourceID)
+    }
+    private func belongs(_ token: Ticket) -> Bool {
+        token.presentationID == presentationID && token.sourceID == sourceID
+    }
+    func beginPreparation() -> Ticket? {
+        guard active, save == nil else { return nil }
+        prepared = false; cookieSeed = nil; seedReady = false
+        let token = ticket(); preparation = token; return token
+    }
+    func finishPreparation(_ token: Ticket) -> Bool {
+        guard active, belongs(token), preparation == token else { return false }
+        preparation = nil; prepared = true; return true
+    }
+    func acceptsPreparation(_ token: Ticket) -> Bool {
+        active && belongs(token) && preparation == token
+    }
+    func beginCookieSeed() -> Ticket? {
+        guard active, prepared, save == nil else { return nil }
+        seedReady = false
+        let token = ticket(); cookieSeed = token; return token
+    }
+    func acceptsCookieSeed(_ token: Ticket) -> Bool {
+        active && belongs(token) && cookieSeed == token
+    }
+    func finishCookieSeed(_ token: Ticket) -> Bool {
+        guard acceptsCookieSeed(token) else { return false }
+        cookieSeed = nil; seedReady = true; return true
+    }
+    var canSave: Bool { active && seedReady && save == nil }
+    func beginSave() -> Ticket? {
+        guard canSave else { return nil }
+        let token = ticket(); save = token; credentialWriteDispatched = false; return token
+    }
+    func beginCredentialWrite(_ token: Ticket) -> Bool {
+        guard active, belongs(token), save == token, !credentialWriteDispatched else { return false }
+        credentialWriteDispatched = true; return true
+    }
+    /// Clear only this exact completion. False means no UI or navigation right.
+    func finishSave(_ token: Ticket) -> Bool {
+        guard belongs(token), save == token else { return false }
+        save = nil; credentialWriteDispatched = false
+        return active
+    }
+    func retire() {
+        active = false; preparation = nil; prepared = false; cookieSeed = nil; seedReady = false
+        // Keep the accepted save ticket for its exact completion; no write replay
+        // or cancellation, and no authority to publish after this presentation.
+    }
+}
+
+private struct ReaderSourceLoginPresentation: Identifiable {
+    let id: UUID
+    let source: ReaderOnlineSource
+    let lifetime: ReaderSourceLoginLifetime
+    @MainActor init(source: ReaderOnlineSource) {
+        let id = UUID(); self.id = id; self.source = source
+        lifetime = ReaderSourceLoginLifetime(presentationID: id, sourceID: source.id)
+    }
+}
+
 private struct ReaderSourceLogin: View {
     let source: ReaderOnlineSource
     let service: (any ReaderOnlineServing)?
+    let lifetime: ReaderSourceLoginLifetime
+    let closePresentation: () -> Void
     @State private var webView: WKWebView?
     @State private var cookies: [HTTPCookie]?
     @State private var failure: String?
     @State private var saving = false
-    @Environment(\.dismiss) private var dismiss
     var body: some View {
         VStack {
-            HStack { Button("关闭") { dismiss() }; Spacer(); Text(source.name); Spacer(); Button("完成登录") { save() }.disabled(webView == nil || saving) }.padding()
+            HStack { Button("关闭") { close() }; Spacer(); Text(source.name); Spacer(); Button("完成登录") { save() }.disabled(webView == nil || saving || !lifetime.canSave) }.padding()
             if let failure { ReaderPageState(title: "网页登录未完成", detail: failure) }
-            else if let cookies { ReaderSourceLoginWebView(url: loginURL, cookies: cookies, webView: $webView) }
+            else if let cookies { ReaderSourceLoginWebView(url: loginURL, cookies: cookies, lifetime: lifetime, webView: $webView) }
             else { ReaderPageState(title: "正在准备来源登录", loading: true) }
-        }.task { do { cookies = try await service?.prepareLogin(source.id) ?? [] } catch { failure = error.localizedDescription } }
+        }.task {
+            guard let token = lifetime.beginPreparation() else { return }
+            do {
+                let original = try await service?.prepareLogin(token.sourceID) ?? []
+                guard !Task.isCancelled, lifetime.finishPreparation(token) else { return }
+                cookies = original
+            } catch {
+                guard !Task.isCancelled, lifetime.acceptsPreparation(token) else { return }
+                failure = error.localizedDescription
+            }
+        }.onDisappear { lifetime.retire() }
     }
     private var loginURL: URL? {
         let raw = (try? JSONSerialization.jsonObject(with: source.definition)) as? [String: Any]
         return URL(string: raw?["loginUrl"] as? String ?? source.baseURL)
     }
+    private func close() {
+        lifetime.retire(); closePresentation()
+    }
     private func save() {
-        guard let webView, let service, !saving else { return }; saving = true
+        guard let webView, let service, !saving, let token = lifetime.beginSave() else { return }
+        saving = true
         let originalCookies = cookies ?? []
         Task {
-            let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
-            do { try await service.completeLogin(source.id, cookies: cookies, originalCookies: originalCookies); dismiss() }
-            catch { failure = error.localizedDescription }
-            saving = false
+            let updatedCookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+            // This is still a read until the original exact-source write is
+            // dispatched. A retired snapshot must not start a new credential write.
+            guard lifetime.beginCredentialWrite(token) else { _ = lifetime.finishSave(token); return }
+            do {
+                try await service.completeLogin(token.sourceID, cookies: updatedCookies, originalCookies: originalCookies)
+                guard lifetime.finishSave(token) else { return }
+                saving = false; close()
+            } catch {
+                guard lifetime.finishSave(token) else { return }
+                failure = error.localizedDescription; saving = false
+            }
         }
     }
 }
 private struct ReaderSourceLoginWebView: UIViewRepresentable {
     let url: URL?
     let cookies: [HTTPCookie]
+    let lifetime: ReaderSourceLoginLifetime
     @Binding var webView: WKWebView?
     final class Coordinator {
         var active = true
@@ -599,13 +756,14 @@ private struct ReaderSourceLoginWebView: UIViewRepresentable {
         let view = WKWebView(frame: .zero, configuration: config)
         let coordinator = context.coordinator
         coordinator.setup = Task { @MainActor in
-            guard coordinator.active, !Task.isCancelled else { return }
-            webView = view
+            guard coordinator.active, !Task.isCancelled, let token = lifetime.beginCookieSeed() else { return }
             for cookie in cookies {
                 await config.websiteDataStore.httpCookieStore.setCookie(cookie)
-                guard coordinator.active, !Task.isCancelled else { return }
+                guard coordinator.active, !Task.isCancelled, lifetime.acceptsCookieSeed(token) else { return }
             }
-            guard coordinator.active, !Task.isCancelled else { return }
+            guard coordinator.active, !Task.isCancelled, lifetime.finishCookieSeed(token) else { return }
+            // Savable publication happens only after every original native seed.
+            webView = view
             if let url, ["http", "https"].contains(url.scheme ?? "") { view.load(URLRequest(url: url)) }
         }
         return view
