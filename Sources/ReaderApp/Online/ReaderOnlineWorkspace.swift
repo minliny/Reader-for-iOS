@@ -107,7 +107,10 @@ struct ReaderOnlineWorkspace: View {
     @StateObject private var state = ReaderOnlineWorkspaceModel()
     @State private var managing = false
     @State private var subscriptions = false
+    private enum SearchField: Hashable { case query, filter }
+    @FocusState private var focusedSearchField: SearchField?
     @Environment(\.colorScheme) private var scheme
+    private var searchVisible: Bool { !managing && state.selected == nil }
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -115,15 +118,22 @@ struct ReaderOnlineWorkspace: View {
                     .accessibilityIdentifier("online-close-workspace")
                 Text(managing ? "书源管理" : "在线搜索").font(ReaderTypography.font(.controlHeader))
                 Spacer()
-                Button(managing ? "搜索" : "书源") { managing.toggle() }.frame(minWidth: 44, minHeight: 44)
+                Button(managing ? "搜索" : "书源") { focusedSearchField = nil; managing.toggle() }.frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier(managing ? "online-close-sources" : "online-open-sources")
             }.padding(.horizontal, 12)
-            if managing {
-                ReaderSourceManagement(state: state)
-            } else if let candidate = state.selected {
-                detail(candidate)
-            } else {
+            ZStack(alignment: .top) {
+                // Keep the native scroll container and its intra-row offset
+                // alive through these child routes. An item ID alone cannot
+                // reconstruct the original viewport after remounting.
                 searchPage
+                    .opacity(searchVisible ? 1 : 0)
+                    .allowsHitTesting(searchVisible)
+                    .accessibilityHidden(!searchVisible)
+                if managing {
+                    ReaderSourceManagement(state: state)
+                } else if let candidate = state.selected {
+                    detail(candidate)
+                }
             }
             ReaderOnlineSourceRefreshNotice(state: state)
             ReaderOperationStatus(owner: state.actions, scope: "online")
@@ -134,6 +144,7 @@ struct ReaderOnlineWorkspace: View {
         VStack(spacing: 12) {
             HStack {
                 TextField("书名或作者", text: $state.query).submitLabel(.search).onSubmit(state.search).readerField()
+                    .focused($focusedSearchField, equals: .query)
                     .accessibilityIdentifier("online-search-query")
                 if state.searching { Button("停止", action: state.stop).accessibilityIdentifier("online-search-stop") }
                 else { Button("搜索", action: state.search).accessibilityIdentifier("online-search-submit") }
@@ -146,6 +157,7 @@ struct ReaderOnlineWorkspace: View {
             } else {
                 HStack {
                     TextField("筛选来源或书名", text: $state.sourceFilter).readerField()
+                        .focused($focusedSearchField, equals: .filter)
                     Text("\(state.results.count) 项").font(ReaderTypography.font(.caption))
                 }.padding(.horizontal, 20)
                 if state.searching { ProgressView("正在搜索 · 已返回 \(state.timings.count + state.failures.count)/\(state.sources.filter(\.enabled).count) 个书源").font(ReaderTypography.font(.caption)) }
@@ -158,7 +170,7 @@ struct ReaderOnlineWorkspace: View {
                     ScrollView {
                         LazyVStack(spacing: 0) {
                             ForEach(filteredResults) { book in
-                                Button { state.showDetail(book) } label: {
+                                Button { focusedSearchField = nil; state.showDetail(book) } label: {
                                     HStack(spacing: 14) {
                                         ReaderBookCover(book: ReaderBook(sourceId: book.sourceId, bookId: book.bookId, title: book.title, coverUrl: book.coverUrl), imageService: state.service as? any ReaderRemoteImageServing).frame(width: 54, height: 76)
                                         VStack(alignment: .leading, spacing: 8) {
