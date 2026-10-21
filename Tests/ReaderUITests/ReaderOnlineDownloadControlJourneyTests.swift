@@ -285,9 +285,13 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
             XCTAssertEqual(value.state, "已完成"); XCTAssertGreaterThan(value.attempts, 0)
             completed[index] = value
         }
-        let summary = "已完成 \(readable.count) · 缓存 \(readable.count) · 失败 0 · 暂停 0"
+        // These are mutually exclusive Core state buckets. A chapter with a
+        // completed explicit task belongs to completedCount, while cachedCount
+        // describes a reading-cache-only chapter. Root separately verifies
+        // all 50 physical cached bodies and the original lease/report ACKs.
+        let summary = "已完成 \(readable.count) · 缓存 0 · 失败 0 · 暂停 0"
         revealTop(whole, app: app)
-        wait("All CURRENT readable canonical chapters must have actual completed tasks and cached bodies", timeout: 30) {
+        wait("All CURRENT readable canonical chapters must occupy the actual completed-task bucket", timeout: 30) {
             app.staticTexts[summary].exists
         }
         keep(app, name: "actual-current-whole-book-completed-and-cached")
@@ -300,7 +304,8 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
         downloads(app)
         for index in readable.sorted() { XCTAssertEqual(try observe(index, book: book, app: app), completed[index]) }
         revealTop(whole, app: app); XCTAssertTrue(app.staticTexts[summary].exists)
-        facts(["currentReadableCount": String(readable.count), "allCurrentCompletedAndCached": "true",
+        facts(["currentReadableCount": String(readable.count), "allCurrentTaskStatesCompleted": "true",
+               "physicalCacheProof": "Root must separately verify all physical bodies and original lease/report ACKs; the UI buckets do not count a chapter twice",
                "coldTaskAndAttemptRetention": "true", "pauseActuallyConfirmed": String(paused != nil),
                "cancelActuallyConfirmed": String(cancelled != nil),
                "receiptEvidence": "Original operation IDs/outcomes come only from Root's retained read-only ledger, not fresh task rows",

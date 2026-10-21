@@ -51,6 +51,9 @@ struct ReaderReadingView: View {
     @State private var directoryLoadedGeneration = UUID()
     @State private var moduleParents: [ReaderControlModule] = []
     @State private var readingHeaderHeight: CGFloat = 54
+    #if DEBUG
+    @StateObject private var dockHitDiagnostics = ReaderDockHitDiagnostics()
+    #endif
     @ScaledMetric(relativeTo: .body) private var footerHeight: CGFloat = 24
 
     init(model: ReaderApplicationModel, preferences: ReaderPreferences, session: ReaderActiveSession) {
@@ -455,6 +458,12 @@ struct ReaderReadingView: View {
             .shadow(color: .black.opacity(preferences.appDark ? 0.2 : 0.08), radius: 20, y: 8)
             .accessibilityElement(children: .contain)
             #if DEBUG
+            .environment(\.readerDockHitDiagnostics, dockHitDiagnostics)
+            .background {
+                ReaderDockHitDiagnosticsAttachment(owner: dockHitDiagnostics,
+                    input: .init(module: String(describing: module), progress: p, endpointInput: endpointInput))
+                    .frame(width: 0, height: 0)
+            }
             .onChange(of: dockInputTraceKey(progress: p, endpointInput: endpointInput), initial: true) { _, _ in
                 traceDockInput(progress: p, endpointInput: endpointInput)
             }

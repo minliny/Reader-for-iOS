@@ -58,10 +58,9 @@ final class ReaderTXTTOCPreviewJourneyTests: XCTestCase {
         let preview = app.buttons["txt-toc-preview-draft"]
         try reveal(preview, towardBottom: true, app: app)
         try require(preview.isEnabled, "Preview must be available for this actual local TXT"); preview.tap()
-        let validStatus = app.staticTexts.matching(NSPredicate(format: "identifier IN %@",
-            ["txt-toc-preview-status:selected", "txt-toc-preview-status:shadowed"])).firstMatch
-        try wait("The real Core must evaluate the genuine-title draft in its complete saved priority order", timeout: 120) { validStatus.exists }
-        try reveal(validStatus, towardBottom: true, app: app)
+        let validStatus = try visiblePreviewDiagnosis(app)
+        try require(["txt-toc-preview-status:selected", "txt-toc-preview-status:shadowed"].contains(validStatus.identifier),
+                    "The real Core must evaluate the genuine-title draft in its complete saved priority order: " + validStatus.identifier)
         let actualCount = try previewCount(app)
         let rows = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'txt-toc-preview-chapter:'"))
         try require(rows.count == min(actualCount, 20), "Read the actual bounded Core title list, not an assumed 20 rows")
@@ -73,9 +72,8 @@ final class ReaderTXTTOCPreviewJourneyTests: XCTestCase {
             !validStatus.exists && rows.count == 0 && self.countText(app).exists == false
         }
         try reveal(preview, towardBottom: true, app: app); try require(preview.isEnabled, "Do not save or reprocess to obtain a preview"); preview.tap()
-        let invalid = app.staticTexts["txt-toc-preview-status:invalidRegex"]
-        try wait("The actual Core must return the invalid-regex diagnosis", timeout: 120) { invalid.exists }
-        try reveal(invalid, towardBottom: true, app: app)
+        let invalid = try visiblePreviewDiagnosis(app)
+        try require(invalid.identifier == "txt-toc-preview-status:invalidRegex", "The actual Core must return the invalid-regex diagnosis: " + invalid.identifier)
         try require(!validStatus.exists, "An old valid/shadowed result cannot accompany the new invalid draft")
         let invalidCount = try previewCount(app)
         try require(rows.count == min(invalidCount, 20), "Any saved-rule/automatic fallback directory remains a bounded actual Core result")
@@ -234,6 +232,36 @@ final class ReaderTXTTOCPreviewJourneyTests: XCTestCase {
     private func chapterID(_ app: XCUIApplication) throws -> String {
         let value = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'")).firstMatch
         try require(value.waitForExistence(timeout: 5), "Read the actual current canonical chapter identity"); return value.identifier
+    }
+    private func visiblePreviewDiagnosis(_ app: XCUIApplication) throws -> XCUIElement {
+        // Results follow the draft and explanatory copy. Reveal that actual
+        // part of the ScrollView before waiting on its accessibility element;
+        // an offscreen SwiftUI child need not have an AX node yet.
+        let statuses = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'txt-toc-preview-status:'"))
+        let failure = app.staticTexts["目录草稿预览未完成"]
+        let deadline = Date().addingTimeInterval(120)
+        while Date() < deadline {
+            try require(statuses.count <= 1, "Only the current draft may own a preview diagnosis")
+            if statuses.count == 1 {
+                let status = statuses.element
+                if status.isHittable {
+                    let identifier = status.identifier
+                    evidence(app, "txt-actual-visible-preview-diagnosis", text: "diagnosis=" + identifier)
+                    return exact(identifier, type: .staticText, app: app)
+                }
+                let top = app.buttons["control-grabber"].frame.maxY + 70
+                try scroll(towardBottom: status.frame.midY >= top, app: app)
+            } else {
+                if failure.exists && failure.isHittable {
+                    evidence(app, "txt-actual-preview-failure", text: "Actual App preview failure; no redispatch, save or reprocess")
+                    try require(false, "The actual Core preview failed; keep its real failure instead of waiting for an expected status")
+                }
+                try scroll(towardBottom: true, app: app)
+            }
+        }
+        evidence(app, "txt-actual-preview-diagnosis-unavailable", text: "No visible diagnosis within the original 120-second preview budget")
+        try require(false, "The real preview must expose its actual diagnosis through normal scrolling")
+        throw JourneyError.prerequisite("Unreachable preview diagnosis")
     }
     private func reveal(_ target: XCUIElement, towardBottom: Bool, chapterIndex: UInt32? = nil, app: XCUIApplication) throws {
         for _ in 0..<28 {

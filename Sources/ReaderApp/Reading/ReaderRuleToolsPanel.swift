@@ -1,18 +1,64 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if DEBUG
+import CryptoKit
+import OSLog
+
+@MainActor
+private enum ReaderTXTPreviewTrace {
+    private static let logger = Logger(subsystem: "io.reader.minliny", category: "reader-txt-preview")
+    private struct Input: Encodable {
+        let sessionID: UUID
+        let bookID: String
+        let sourceSHA: String
+        let draft: ReaderTXTTOCRuleDraft
+        let editingID: Int64?
+    }
+    static func emit(_ event: String) { logger.notice("\(event, privacy: .public)") }
+    static func inputSHA(_ value: ReaderRuleWorkspace.TXTPreviewInput) -> String {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let input = Input(sessionID: value.sessionID, bookID: value.bookID, sourceSHA: value.sourceSHA,
+                          draft: value.draft, editingID: value.editingID)
+        guard let data = try? encoder.encode(input) else { return "unavailable" }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+    static func errorCategory(_ error: Error) -> String {
+        if error is DecodingError { return "host.decoding" }
+        guard let value = error as? ReaderLibraryError else { return "other" }
+        switch value {
+        case .closed: return "host.closed"
+        case .busy: return "host.busy"
+        case .unsupportedFile: return "host.unsupportedFile"
+        case .invalidPosition: return "host.invalidPosition"
+        case .invalidResponse: return "host.invalidResponse"
+        case .operationPending: return "host.operationPending"
+        case .core(let code, _, _, _):
+            let known = ["INVALID_PARAMS", "INTERNAL", "BUSY", "TIMEOUT", "CANCELLED", "NOT_FOUND", "UNKNOWN_METHOD", "UNSUPPORTED", "IO_ERROR", "CONFLICT"]
+            return known.contains(code) ? "core." + code : "core.other"
+        }
+    }
+}
+#endif
 
 @MainActor
 final class ReaderRuleWorkspace: ObservableObject {
     enum Kind: String, CaseIterable { case replace = "替换", txt = "TXT目录", dictionary = "字典", hierarchy = "本书分组" }
-    @Published var kind: Kind = .replace { didSet { if kind != oldValue { invalidateTXTPreview() } } }
+    @Published var kind: Kind = .replace { didSet { if kind != oldValue { invalidateTXTPreview(reason: "kind.changed") } } }
     @Published var replaceRules: [ReaderReplaceRule] = []
-    @Published var txtRules: [ReaderTXTTOCRule] = [] { didSet { if txtRules != oldValue { invalidateTXTPreview() } } }
+    @Published var txtRules: [ReaderTXTTOCRule] = [] { didSet { if txtRules != oldValue { invalidateTXTPreview(reason: "savedRules.changed") } } }
     @Published var dictionaryRules: [ReaderDictionaryRule] = []
     @Published var replaceDraft = ReaderReplaceRuleDraft(pattern: "") { didSet { persistDrafts() } }
-    @Published var txtDraft = ReaderTXTTOCRuleDraft(rule: "") { didSet { invalidateTXTPreview(); persistDrafts() } }
+    @Published var txtDraft = ReaderTXTTOCRuleDraft(rule: "") {
+        didSet {
+#if DEBUG
+            ReaderTXTPreviewTrace.emit("event=draft.didSet sameValue=\(txtDraft == oldValue)")
+#endif
+            invalidateTXTPreview(reason: "draft.didSet"); persistDrafts()
+        }
+    }
     @Published var dictionaryDraft = ReaderDictionaryRule(name: "") { didSet { persistDrafts() } }
     @Published var editingReplace: Int64? { didSet { persistDrafts() } }
-    @Published var editingTXT: Int64? { didSet { invalidateTXTPreview(); persistDrafts() } }
+    @Published var editingTXT: Int64? { didSet { invalidateTXTPreview(reason: "editingID.didSet"); persistDrafts() } }
     @Published var dictionaryWord = ""
     @Published var dictionaryResult: String?
     @Published var hierarchyJSON = "[]" { didSet { persistDrafts() } }
@@ -61,35 +107,76 @@ final class ReaderRuleWorkspace: ObservableObject {
     }
     deinit { txtPreviewTask?.cancel() }
 
-    func invalidateTXTPreview() {
+    func invalidateTXTPreview(reason: String = "caller") {
+#if DEBUG
+        let previousGeneration = txtPreviewGeneration
+        let previousInput = txtPreviewInput.map { ReaderTXTPreviewTrace.inputSHA($0) } ?? "none"
+        let hadTask = txtPreviewTask != nil, hadResult = txtPreview != nil, wasLoading = txtPreviewLoading
+#endif
         txtPreviewGeneration = UUID(); txtPreviewTask?.cancel(); txtPreviewTask = nil
         txtPreview = nil; txtPreviewInput = nil; txtPreviewFailure = nil; txtPreviewLoading = false
+#if DEBUG
+        ReaderTXTPreviewTrace.emit("event=invalidate reason=\(reason) previousGeneration=\(previousGeneration) generation=\(txtPreviewGeneration) inputSHA=\(previousInput) hadTask=\(hadTask) hadResult=\(hadResult) wasLoading=\(wasLoading)")
+#endif
     }
     func previewTXT(for book: ReaderBook, sessionID: UUID, service: any ReaderReadingToolsServing,
                     isCurrent: @escaping () -> Bool) {
-        invalidateTXTPreview()
+        invalidateTXTPreview(reason: "preview.start")
         let generation = txtPreviewGeneration
         let input = TXTPreviewInput(sessionID: sessionID, bookID: book.id,
             sourceSHA: String(book.bookId.dropFirst("local:".count)), draft: txtDraft, editingID: editingTXT)
         txtPreviewInput = input; txtPreviewLoading = true
+#if DEBUG
+        let inputSHA = ReaderTXTPreviewTrace.inputSHA(input)
+        ReaderTXTPreviewTrace.emit("event=workspace.dispatch generation=\(generation) session=\(sessionID) inputSHA=\(inputSHA) ruleUTF8Bytes=\(input.draft.rule.utf8.count) nameUTF8Bytes=\(input.draft.name.utf8.count) exampleUTF8Bytes=\(input.draft.example?.utf8.count ?? 0) editingExisting=\(input.editingID != nil) enabled=\(input.draft.enable) serial=\(input.draft.serialNumber)")
+#endif
         txtPreviewTask = Task { [weak self] in
             guard let self else { return }
             defer {
                 if txtPreviewGeneration == generation { txtPreviewLoading = false; txtPreviewTask = nil }
             }
             do {
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=service.begin generation=\(generation) inputSHA=\(inputSHA)")
+#endif
                 let result = try await service.previewTXTTOCRule(for: book, draft: input.draft,
                                                                  editingRuleID: input.editingID, limit: 20)
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=service.result generation=\(generation) inputSHA=\(inputSHA) status=\(result.draftStatus.rawValue) matchCount=\(result.draftMatchCount) chapterCount=\(result.chapterCount) resultChapters=\(result.chapters.count) regexError=\(result.regexError != nil) draftSelected=\(result.draftSelected) automaticFallback=\(result.automaticFallback)")
+#endif
                 guard !Task.isCancelled, txtPreviewGeneration == generation, kind == .txt,
                       txtDraft == input.draft, editingTXT == input.editingID, isCurrent(),
                       result.sourceId == book.sourceId, result.bookId == book.bookId,
-                      result.sourceSha256 == input.sourceSHA else { return }
+                      result.sourceSha256 == input.sourceSHA else {
+#if DEBUG
+                    ReaderTXTPreviewTrace.emit("event=discard.result generation=\(generation) currentGeneration=\(txtPreviewGeneration) inputSHA=\(inputSHA) cancelled=\(Task.isCancelled) generationMatches=\(txtPreviewGeneration == generation) kindTXT=\(kind == .txt) draftMatches=\(txtDraft == input.draft) editingMatches=\(editingTXT == input.editingID) ownerCurrent=\(isCurrent()) sourceMatches=\(result.sourceId == book.sourceId) bookMatches=\(result.bookId == book.bookId) sourceSHAMatches=\(result.sourceSha256 == input.sourceSHA)")
+#endif
+                    return
+                }
                 txtPreview = result
-            } catch is CancellationError { }
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=published.result generation=\(generation) inputSHA=\(inputSHA) status=\(result.draftStatus.rawValue)")
+#endif
+            } catch is CancellationError {
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=service.cancelled generation=\(generation) inputSHA=\(inputSHA)")
+#endif
+            }
             catch {
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=service.error generation=\(generation) inputSHA=\(inputSHA) category=\(ReaderTXTPreviewTrace.errorCategory(error))")
+#endif
                 guard !Task.isCancelled, txtPreviewGeneration == generation, kind == .txt,
-                      txtDraft == input.draft, editingTXT == input.editingID, isCurrent() else { return }
+                      txtDraft == input.draft, editingTXT == input.editingID, isCurrent() else {
+#if DEBUG
+                    ReaderTXTPreviewTrace.emit("event=discard.error generation=\(generation) currentGeneration=\(txtPreviewGeneration) inputSHA=\(inputSHA) cancelled=\(Task.isCancelled) generationMatches=\(txtPreviewGeneration == generation) kindTXT=\(kind == .txt) draftMatches=\(txtDraft == input.draft) editingMatches=\(editingTXT == input.editingID) ownerCurrent=\(isCurrent())")
+#endif
+                    return
+                }
                 txtPreviewFailure = error.localizedDescription
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=published.error generation=\(generation) inputSHA=\(inputSHA) category=\(ReaderTXTPreviewTrace.errorCategory(error))")
+#endif
             }
         }
     }
@@ -160,8 +247,18 @@ struct ReaderRuleToolsPanel: View {
             }.font(ReaderTypography.font(.caption)).padding(12)
         }.scrollDismissesKeyboard(.immediately)
             .task { await load() }
-            .onAppear { presented = true }
-            .onDisappear { presented = false; fileGeneration = UUID(); state.invalidateTXTPreview() }
+            .onAppear {
+                presented = true
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=panel.appear presented=\(presented) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id)")
+#endif
+            }
+            .onDisappear {
+                presented = false; fileGeneration = UUID(); state.invalidateTXTPreview(reason: "panel.disappear")
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=panel.disappear presented=\(presented) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id)")
+#endif
+            }
             .readerConfirmation(confirmation)
             .fileImporter(isPresented: $importFile, allowedContentTypes: [.json, .plainText]) { result in
                 switch result {
@@ -177,9 +274,9 @@ struct ReaderRuleToolsPanel: View {
                 }
             }
             .onChange(of: state.replaceDraft) { _, _ in state.validation = nil }
-            .onChange(of: book.id) { _, _ in state.invalidateTXTPreview() }
-            .onChange(of: model.reader?.id) { _, _ in state.invalidateTXTPreview() }
-            .onChange(of: model.reader?.book.id) { _, _ in state.invalidateTXTPreview() }
+            .onChange(of: book.id) { _, _ in state.invalidateTXTPreview(reason: "panel.book.changed") }
+            .onChange(of: model.reader?.id) { _, _ in state.invalidateTXTPreview(reason: "panel.session.changed") }
+            .onChange(of: model.reader?.book.id) { _, _ in state.invalidateTXTPreview(reason: "panel.readerBook.changed") }
             .onChange(of: state.hierarchyJSON) { _, value in if state.hierarchyPreviewInput != value { state.hierarchyPreview = nil } }
             .onChange(of: model.actions.hasPending) { old, new in if old && !new { Task { await load() } } }
     }
@@ -234,6 +331,9 @@ struct ReaderRuleToolsPanel: View {
             }.frame(minHeight: 44)
             if let validation = state.validation { Text(validation) }
             Button("预览已保存规则") { previewReplacement() }.frame(minHeight: 44)
+#if DEBUG
+                .background { ReaderDebugPreviewHitProbe(role: "replacement-preview") }
+#endif
             if let preview = state.replacementPreview {
                 Text(preview.truncated ? "当前章预览（已截取）" : "当前章预览").font(ReaderTypography.font(.controlHeader))
                 Text("原文").font(ReaderTypography.font(.controlHeader)); Text(preview.before).textSelection(.enabled)
@@ -281,6 +381,9 @@ struct ReaderRuleToolsPanel: View {
                 Button("新建") { txtEditor(nil) }.disabled(model.actions.hasPending)
             }.frame(minHeight: 44)
             Button("预览当前草稿", action: previewTXT).frame(minHeight: 44)
+#if DEBUG
+                .background { ReaderDebugPreviewHitProbe(role: "txt-preview") }
+#endif
                 .disabled(state.txtPreviewLoading || book.sourceId != "local")
                 .accessibilityIdentifier("txt-toc-preview-draft")
             Text("使用当前本地 TXT 原书，按当前全部已保存识别规则的优先顺序模拟此草稿；预览不保存规则，也不改变当前目录。保存与重新处理需分别执行。")
@@ -336,6 +439,9 @@ struct ReaderRuleToolsPanel: View {
         }
     }
     private func previewTXT() {
+#if DEBUG
+        ReaderTXTPreviewTrace.emit("event=panel.preview.tap presented=\(presented) serviceAvailable=\(model.libraryService is any ReaderReadingToolsServing) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id) local=\(book.sourceId == "local")")
+#endif
         guard presented, let service = model.libraryService as? any ReaderReadingToolsServing,
               let current = model.reader, current.book.id == book.id, book.sourceId == "local" else { return }
         state.previewTXT(for: book, sessionID: current.id, service: service) {
