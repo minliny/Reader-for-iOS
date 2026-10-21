@@ -173,7 +173,9 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     /// The existing rejected replacement draft is unrelated to the native
     /// scheduler. Do not visit its form, replay its Save, or discard its data.
     func testExistingRealTXTAutomaticPageConsumersAndBackgroundPauseWithoutRuleMutation() throws {
+        let recovery = try originalAutomaticSpeedRecoveryProof()
         let app = XCUIApplication(); app.launch(); openBook(app)
+        if let recovery { try restorePriorAutomaticSpeed(recovery, app: app) }
         let originalDisplay = try configureDisplay(app)
         displayRestored = false
         addTeardownBlock {
@@ -548,20 +550,25 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         waitUntil("Only the exact owned Core rule is removed", timeout: 25) { !row.exists }
     }
 
+    private final class AutomaticSpeedRestoration {
+        let original: Int
+        var ownedValues: Set<Int>
+        var requested = false
+        var restored = false
+        init(original: Int) { self.original = original; ownedValues = [original] }
+    }
     private final class AutomaticPageRestoration {
         let minute: String
         let second: String
-        let speed: CGFloat
+        let speed: AutomaticSpeedRestoration
         var minuteRequested = false
         var secondRequested = false
-        var speedRequested = false
         var minuteRestored = false
         var secondRestored = false
-        var speedRestored = false
         var runRequested = false
         var runRetired = false
-        init(minute: String, second: String, speed: CGFloat) {
-            self.minute = minute; self.second = second; self.speed = speed
+        init(minute: String, second: String, speed: Int) {
+            self.minute = minute; self.second = second; self.speed = AutomaticSpeedRestoration(original: speed)
         }
     }
     private enum AutomaticPagePreference: Equatable { case minute, second, speed }
@@ -579,9 +586,9 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let minute = wheels.element(boundBy: 0), second = wheels.element(boundBy: 1)
         reveal(minute, towardBottom: false, app: app)
         let oldMinute = try XCTUnwrap(minute.value as? String), oldSecond = try XCTUnwrap(second.value as? String)
-        let speed = app.sliders["自动翻页速度"]
-        reveal(speed, towardBottom: true, app: app)
-        let oldSpeed = try sliderFraction(speed)
+        try quickAutomaticPage(app)
+        let oldSpeed = try XCTUnwrap(observedQuickAutomaticSpeed(app))
+        try fullAutomaticPage(app)
         let restoration = AutomaticPageRestoration(minute: oldMinute, second: oldSecond, speed: oldSpeed)
         // XCTest tears these stages down in reverse order: stop only this
         // method's run, then restore speed/seconds/minutes independently. Each
@@ -599,13 +606,10 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             restoration.secondRequested = true; second.adjust(toPickerWheelValue: "45 秒")
         }
         XCTAssertEqual(minute.value as? String, "00 分"); XCTAssertEqual(second.value as? String, "45 秒")
-        reveal(speed, towardBottom: true, app: app)
-        if abs(oldSpeed - 1.0 / 18.0) > 0.015 {
-            restoration.speedRequested = true
-            speed.adjust(toNormalizedSliderPosition: 1.0 / 18.0) // Native 2...20 step 1 => 3 seconds.
-        }
-        XCTAssertTrue(app.staticTexts["3 秒"].exists, "Read the actual selected UI speed before testing its consumer")
-        XCTAssertEqual(try sliderFraction(speed), 1.0 / 18.0, accuracy: 0.015)
+        try quickAutomaticPage(app)
+        try stepAutomaticSpeed(to: 3, owner: restoration.speed, app: app)
+        try fullAutomaticPage(app)
+        try assertFullAutomaticSpeed(3, app: app)
         reveal(toggle, towardBottom: false, app: app)
         let initialProgress = app.staticTexts["reading-progress"].label
         XCTAssertEqual(toggle.label, "开始自动翻页")
@@ -660,8 +664,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         try restoreAutomaticPreference(.minute, owner: restoration, app: app)
         reveal(minute, towardBottom: false, app: app)
         XCTAssertEqual(minute.value as? String, oldMinute); XCTAssertEqual(second.value as? String, oldSecond)
-        reveal(speed, towardBottom: true, app: app)
-        XCTAssertEqual(try sliderFraction(speed), oldSpeed, accuracy: 0.015)
+        try assertFullAutomaticSpeed(oldSpeed, app: app)
         evidence(app, "tools-original-auto-configuration-restored")
         hideControls(app)
     }
@@ -700,38 +703,177 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         switch preference {
         case .minute: guard owner.minuteRequested, !owner.minuteRestored else { return }
         case .second: guard owner.secondRequested, !owner.secondRestored else { return }
-        case .speed: guard owner.speedRequested, !owner.speedRestored else { return }
+        case .speed: guard owner.speed.requested, !owner.speed.restored else { return }
+        }
+        if preference == .speed {
+            try restoreAutomaticSpeed(owner.speed, app: app)
+            return
         }
         try openAutomaticRestorationPanel(app)
         guard app.buttons["auto-page-toggle"].label == "开始自动翻页", !app.buttons["auto-page-stop"].isEnabled else {
             XCTFail("Do not restore settings beneath a live or unowned automatic session")
             throw JourneyError.prerequisite
         }
-        if preference == .speed {
-            let control = app.sliders["自动翻页速度"]
-            reveal(control, towardBottom: true, app: app)
-            let actual = try sliderFraction(control)
-            guard abs(actual - owner.speed) <= 0.015 || abs(actual - 1.0 / 18.0) <= 0.015 else {
-                XCTFail("Preserve an automatic speed other than the captured original or this method's 3-second request")
-                throw JourneyError.prerequisite
-            }
-            if abs(actual - owner.speed) > 0.015 { control.adjust(toNormalizedSliderPosition: owner.speed) }
-            XCTAssertEqual(try sliderFraction(control), owner.speed, accuracy: 0.015)
-            owner.speedRestored = true
-        } else {
-            let wheel = app.pickerWheels.element(boundBy: preference == .minute ? 0 : 1)
-            let original = preference == .minute ? owner.minute : owner.second
-            let requested = preference == .minute ? "00 分" : "45 秒"
-            reveal(wheel, towardBottom: false, app: app)
-            let actual = try XCTUnwrap(wheel.value as? String)
-            guard actual == original || actual == requested else {
-                XCTFail("Preserve a timer value other than the captured original or this method's request")
-                throw JourneyError.prerequisite
-            }
-            if actual != original { wheel.adjust(toPickerWheelValue: original) }
-            XCTAssertEqual(wheel.value as? String, original)
-            if preference == .minute { owner.minuteRestored = true } else { owner.secondRestored = true }
+        let wheel = app.pickerWheels.element(boundBy: preference == .minute ? 0 : 1)
+        let original = preference == .minute ? owner.minute : owner.second
+        let requested = preference == .minute ? "00 分" : "45 秒"
+        reveal(wheel, towardBottom: false, app: app)
+        let actual = try XCTUnwrap(wheel.value as? String)
+        guard actual == original || actual == requested else {
+            XCTFail("Preserve a timer value other than the captured original or this method's request")
+            throw JourneyError.prerequisite
         }
+        if actual != original { wheel.adjust(toPickerWheelValue: original) }
+        XCTAssertEqual(wheel.value as? String, original)
+        if preference == .minute { owner.minuteRestored = true } else { owner.secondRestored = true }
+    }
+
+    private struct AutomaticSpeedRecoveryProof {
+        let originalSeconds: Int
+        let changedSeconds: Int
+        let sha256: String
+    }
+    private func originalAutomaticSpeedRecoveryProof() throws -> AutomaticSpeedRecoveryProof? {
+        let environment = ProcessInfo.processInfo.environment
+        let original = environment["READER_AUTO_PRIOR_ORIGINAL_SECONDS"]
+        let changed = environment["READER_AUTO_PRIOR_OWNED_SECONDS"]
+        let sha = environment["READER_AUTO_PRIOR_RECOVERY_PROOF_SHA256"]
+        if original == nil, changed == nil, sha == nil { return nil }
+        guard original == "8", changed == "2", let sha,
+              sha.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil else {
+            XCTFail("All three Runner-only recovery values must bind Root's exact Auto1 proof; incomplete or unknown prior ownership must not change a preference")
+            throw JourneyError.prerequisite
+        }
+        // Root's private preflight binds this digest to the failed sealed29
+        // run, exact target/library/book, preserved rejected draft and original
+        // rejection ACK. Nothing is passed into the App or assigned to prefs.
+        let attachment = XCTAttachment(string: "proofSHA256=\(sha)\noriginalRun=compact-automatic-page-1 (exit 65 preserved)\nbook=\(bookID)\noriginalSeconds=8 (original video UI; no fabricated prefs-before)\nchangedSeconds=2 (actual read-only post prefs)")
+        attachment.name = "auto1-original-owned-speed-recovery-proof"; attachment.lifetime = .keepAlways; add(attachment)
+        return AutomaticSpeedRecoveryProof(originalSeconds: 8, changedSeconds: 2, sha256: sha)
+    }
+    private func restorePriorAutomaticSpeed(_ proof: AutomaticSpeedRecoveryProof, app: XCUIApplication) throws {
+        try openAutomaticRestorationPanel(app)
+        guard app.buttons["auto-page-toggle"].label == "开始自动翻页", !app.buttons["auto-page-stop"].isEnabled else {
+            XCTFail("Do not change speed beneath an unowned live automatic session")
+            throw JourneyError.prerequisite
+        }
+        try quickAutomaticPage(app)
+        guard observedQuickAutomaticSpeed(app) == proof.changedSeconds else {
+            XCTFail("The exact old Auto1-owned 2-second result is required; another value is preserved without guessing")
+            throw JourneyError.prerequisite
+        }
+        let restoration = AutomaticSpeedRestoration(original: proof.originalSeconds)
+        restoration.ownedValues.insert(proof.changedSeconds); restoration.requested = true
+        // The historical ownership proof and teardown are armed before the
+        // first real UI step. A partial recovery still has only owned values.
+        addTeardownBlock {
+            guard !restoration.restored else { return }
+            try self.restoreAutomaticSpeed(restoration, app: app)
+        }
+        try stepAutomaticSpeed(to: proof.originalSeconds, owner: restoration, app: app)
+        try fullAutomaticPage(app)
+        try assertFullAutomaticSpeed(proof.originalSeconds, app: app)
+        restoration.restored = true
+        evidence(app, "auto1-owned-two-to-original-eight-restored-through-normal-ui")
+        hideControls(app)
+    }
+    private func quickAutomaticPage(_ app: XCUIApplication) throws {
+        let matches = app.buttons.matching(identifier: "control-grabber")
+        guard matches.count == 1 else { XCTFail("Use the unique actual reading grabber"); throw JourneyError.prerequisite }
+        let grabber = matches.element
+        if grabber.label.hasPrefix("完整控制栏") {
+            guard grabber.isEnabled, grabber.isHittable else { XCTFail("The Full grabber must be a real visible touch target"); throw JourneyError.prerequisite }
+            grabber.tap()
+        }
+        waitUntil("Actual Quick automatic endpoint", timeout: 5) { grabber.label.hasPrefix("快捷控制栏") }
+        guard grabber.label.hasPrefix("快捷控制栏"), observedQuickAutomaticSpeed(app) != nil else {
+            XCTFail("The real Quick speed buttons and readout must be unique and visible")
+            throw JourneyError.prerequisite
+        }
+    }
+    private func fullAutomaticPage(_ app: XCUIApplication) throws {
+        let matches = app.buttons.matching(identifier: "control-grabber")
+        guard matches.count == 1 else { XCTFail("Use the unique actual reading grabber"); throw JourneyError.prerequisite }
+        let grabber = matches.element
+        guard grabber.label.hasPrefix("快捷控制栏"), grabber.isEnabled, grabber.isHittable else {
+            XCTFail("Return from the actual Quick endpoint using its real grabber")
+            throw JourneyError.prerequisite
+        }
+        grabber.tap()
+        waitUntil("Actual Full automatic endpoint", timeout: 5) { grabber.label.hasPrefix("完整控制栏") }
+        guard grabber.label.hasPrefix("完整控制栏"), app.buttons["auto-page-toggle"].exists else {
+            XCTFail("Only the actual Full automatic panel exposes its native slider")
+            throw JourneyError.prerequisite
+        }
+    }
+    private func observedQuickAutomaticSpeed(_ app: XCUIApplication) -> Int? {
+        guard app.buttons["control-grabber"].label.hasPrefix("快捷控制栏") else { return nil }
+        let slower = app.buttons.matching(NSPredicate(format: "label == %@", "减慢自动翻页"))
+        let faster = app.buttons.matching(NSPredicate(format: "label == %@", "加快自动翻页"))
+        guard slower.count == 1, faster.count == 1 else { return nil }
+        let left = slower.element, right = faster.element
+        guard left.isEnabled, right.isEnabled, left.isHittable, right.isHittable,
+              app.frame.contains(left.frame), app.frame.contains(right.frame), right.frame.minX > left.frame.maxX else { return nil }
+        let region = CGRect(x: left.frame.maxX, y: min(left.frame.minY, right.frame.minY),
+            width: right.frame.minX - left.frame.maxX, height: max(left.frame.maxY, right.frame.maxY) - min(left.frame.minY, right.frame.minY))
+        // Full's retained endpoint labels must not masquerade as the current
+        // value. Read only the actual label between the two visible Quick keys.
+        let values = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", #"^[0-9]{1,2} 秒$"#))
+            .allElementsBoundByIndex.filter { $0.isHittable && region.contains($0.frame) }
+        guard values.count == 1, let value = Int(values[0].label.replacingOccurrences(of: " 秒", with: "")), (2...20).contains(value) else { return nil }
+        return value
+    }
+    private func stepAutomaticSpeed(to target: Int, owner: AutomaticSpeedRestoration, app: XCUIApplication) throws {
+        guard (2...20).contains(target), let current = observedQuickAutomaticSpeed(app), owner.ownedValues.contains(current) else {
+            XCTFail("Preserve an automatic speed outside the original and this owner's requested/observed values")
+            throw JourneyError.prerequisite
+        }
+        var value = current
+        let count = abs(target - current)
+        guard count <= 18 else { throw JourneyError.prerequisite }
+        for _ in 0..<count {
+            let next = value + (target > value ? 1 : -1)
+            let label = next > value ? "减慢自动翻页" : "加快自动翻页"
+            let matches = app.buttons.matching(NSPredicate(format: "label == %@", label))
+            guard matches.count == 1, matches.element.isEnabled, matches.element.isHittable,
+                  observedQuickAutomaticSpeed(app) == value else {
+                XCTFail("Only one actual one-second control may advance the same observed speed")
+                throw JourneyError.prerequisite
+            }
+            owner.requested = true; owner.ownedValues.insert(next) // Arm before the real touch.
+            matches.element.tap()
+            waitUntil("Actual Quick speed becomes exactly \(next) seconds", timeout: 5) { self.observedQuickAutomaticSpeed(app) == next }
+            guard observedQuickAutomaticSpeed(app) == next else { throw JourneyError.prerequisite }
+            let observation = XCTAttachment(string: "beforeSeconds=\(value)\nrequestedSeconds=\(next)\nobservedSeconds=\(next)\ncontrol=\(label)")
+            observation.name = "auto-speed-owned-native-one-second-step"; observation.lifetime = .keepAlways; add(observation)
+            value = next
+        }
+        XCTAssertEqual(observedQuickAutomaticSpeed(app), target)
+    }
+    private func assertFullAutomaticSpeed(_ seconds: Int, app: XCUIApplication) throws {
+        let matches = app.sliders.matching(NSPredicate(format: "label == %@", "自动翻页速度"))
+        guard matches.count == 1 else { XCTFail("Require one actual Full speed slider"); throw JourneyError.prerequisite }
+        let control = matches.element
+        reveal(control, towardBottom: true, app: app)
+        guard control.isEnabled, control.isHittable else {
+            XCTFail("The native Full slider must be visible before its value confirms the actual speed")
+            throw JourneyError.prerequisite
+        }
+        XCTAssertTrue(app.staticTexts["\(seconds) 秒"].exists, "Read the actual selected UI speed before testing its consumer")
+        XCTAssertEqual(try sliderFraction(control), CGFloat(seconds - 2) / 18, accuracy: 0.015)
+    }
+    private func restoreAutomaticSpeed(_ owner: AutomaticSpeedRestoration, app: XCUIApplication) throws {
+        guard owner.requested, !owner.restored else { return }
+        try openAutomaticRestorationPanel(app)
+        guard app.buttons["auto-page-toggle"].label == "开始自动翻页", !app.buttons["auto-page-stop"].isEnabled else {
+            XCTFail("Stop this method's automatic session before restoring its speed")
+            throw JourneyError.prerequisite
+        }
+        try quickAutomaticPage(app)
+        try stepAutomaticSpeed(to: owner.original, owner: owner, app: app)
+        try fullAutomaticPage(app)
+        try assertFullAutomaticSpeed(owner.original, app: app)
+        owner.restored = true
     }
 
     private struct Display { let mode: String; let transition: String; let selectable: String; let paper: String }
