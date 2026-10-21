@@ -152,6 +152,188 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         }
     }
 
+    /// Real discovery reads only. The same observed candidate identities,
+    /// labels/timings and intra-row geometry must survive ordinary sheet closes.
+    /// The Runner selects an already admitted real book; no candidate is tapped.
+    func testExistingOnlineSourceSwitchSheetReopenPreservesActualScrolledCandidatesWithoutSwitching() throws {
+        let book = try originalBook()
+        let app = XCUIApplication(); app.launch(); open(book, app: app)
+        let originalChapter = try currentChapter(book, app: app)
+        hideControls(app)
+        let originalProgress = app.staticTexts["reading-progress"].label
+        let originalAnchor = try anchor(app, name: "real-switch-viewport-original-body")
+        openReadOnlySwitchSheet(app)
+        let initial = try stableSwitchSnapshot(app, timeout: 180, name: "initial-real-settled-candidates")
+        try keepSwitchGeometry(initial, app: app, name: "initial-real-settled-candidates")
+
+        var scrolled: SwitchSnapshot?
+        for attempt in 0..<6 {
+            let current = try stableSwitchSnapshot(app, timeout: 10, name: "before-owned-drag-\(attempt)")
+            let distance = min(CGFloat(120), max(CGFloat(50), current.rows[0].frame.height * 0.45))
+            let from = switchCoordinate(CGPoint(x: current.frame.midX, y: current.frame.minY + current.frame.height * 0.72), app: app)
+            let to = switchCoordinate(CGPoint(x: current.frame.midX, y: current.frame.minY + current.frame.height * 0.72 - distance), app: app)
+            from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.2)
+            let now = try stableSwitchSnapshot(app, timeout: 10, name: "after-owned-drag-\(attempt)")
+            try keepSwitchGeometry(now, app: app, name: "after-owned-drag-\(attempt)")
+            let hasMoved = initial.rows.contains { old in
+                guard let current = now.rows.first(where: { $0.id == old.id }) else { return true }
+                return abs(current.frame.minY - old.frame.minY) >= min(CGFloat(40), old.frame.height / 3)
+            }
+            let hasIntraRowOffset = now.rows.contains { row in
+                row.frame.minY <= now.frame.minY - 12 && row.frame.maxY >= now.frame.minY + 28
+            }
+            if hasMoved && hasIntraRowOffset { scrolled = now; break }
+        }
+        guard let baseline = scrolled else {
+            XCTFail("Actual candidates must provide genuine scrolling with a clipped row's interior at the viewport edge; do not manufacture candidates or replace this prerequisite with a top-aligned row")
+            throw Prerequisite.invalid("actual intra-row scroll unavailable")
+        }
+        try keepSwitchGeometry(baseline, app: app, name: "exact-intra-row-baseline")
+        closeReadOnlySwitchSheet(app)
+        XCTAssertEqual(try currentChapter(book, app: app), originalChapter)
+        hideControls(app)
+        try visible(originalAnchor, app: app, name: "real-body-preserved-after-first-sheet-close")
+        XCTAssertEqual(app.staticTexts["reading-progress"].label, originalProgress)
+
+        openReadOnlySwitchSheet(app)
+        try assertSwitchRestored(baseline, query: baseline.query, app: app, name: "same-query-first-reopen")
+        closeReadOnlySwitchSheet(app)
+        XCTAssertEqual(try currentChapter(book, app: app), originalChapter)
+        hideControls(app)
+        try visible(originalAnchor, app: app, name: "real-switch-viewport-final-original-body")
+        XCTAssertEqual(app.staticTexts["reading-progress"].label, originalProgress)
+        leave(app)
+    }
+
+    private struct SwitchRow {
+        let id: String
+        let label: String
+        let timing: String
+        let frame: CGRect
+    }
+    private struct SwitchSnapshot {
+        let query: String
+        let frame: CGRect
+        let rows: [SwitchRow]
+        let observedUptime: TimeInterval
+    }
+    private func openReadOnlySwitchSheet(_ app: XCUIApplication) {
+        controls(app); app.buttons["reader-more"].tap()
+        let route = app.buttons["切换书源"]
+        XCTAssertTrue(route.waitForExistence(timeout: 5)); XCTAssertTrue(route.isHittable); route.tap()
+        XCTAssertTrue(app.buttons["online-switch-close"].waitForExistence(timeout: 15))
+    }
+    private func closeReadOnlySwitchSheet(_ app: XCUIApplication) {
+        let close = app.buttons["online-switch-close"]
+        XCTAssertTrue(close.isHittable); close.tap()
+        wait("The real switch sheet and its keyboard must finish dismissing", timeout: 10) {
+            !close.exists && !app.keyboards.firstMatch.exists
+        }
+    }
+    private func switchQueryValue(_ app: XCUIApplication) -> String? {
+        let fields = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "书名或作者"))
+            .allElementsBoundByIndex.filter(\.isHittable)
+        guard fields.count == 1, let value = fields[0].value as? String else { return nil }
+        return value == "书名或作者" ? "" : value
+    }
+    private func observedSwitchSnapshot(_ app: XCUIApplication) -> SwitchSnapshot? {
+        guard !app.keyboards.firstMatch.exists, app.buttons["online-switch-close"].isHittable,
+              let query = switchQueryValue(app) else { return nil }
+        let owner = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "online-switch-owner:settled"))
+        let settled = app.buttons.matching(NSPredicate(format: "label == %@", "重新搜索"))
+        guard owner.count == 1, owner.element.exists, settled.count == 1, settled.element.isHittable,
+              !app.buttons.matching(NSPredicate(format: "label == %@", "停止")).firstMatch.exists,
+              !app.staticTexts["正在查找其他来源"].exists else { return nil }
+        let prefix = "online-switch-candidate:"
+        let frames = app.scrollViews.allElementsBoundByIndex.compactMap { scroll -> CGRect? in
+            let frame = scroll.frame.intersection(app.frame)
+            guard !frame.isNull, frame.width > 100, frame.height > 100,
+                  scroll.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+                    .allElementsBoundByIndex.contains(where: { $0.isHittable && frame.intersects($0.frame) }) else { return nil }
+            return frame
+        }
+        guard let viewport = frames.min(by: { $0.height < $1.height }) else { return nil }
+        let visible = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+            .allElementsBoundByIndex.filter { row in
+                let frame = row.frame, intersection = frame.intersection(viewport)
+                return row.isHittable && !intersection.isNull && intersection.height >= 12 && frame.width > 0 && frame.height > 0
+            }
+        // Do not silently drop a visible stale/untimed/disabled candidate from
+        // the exact geometry group merely because other rows would qualify.
+        var rows: [SwitchRow] = []
+        for row in visible {
+            guard row.isEnabled, let timingRange = row.label.range(of: #"[0-9]+ ms"#, options: .regularExpression),
+                  !row.label.contains("上次候选") else { return nil }
+            let identity = String(row.identifier.dropFirst(prefix.count))
+            guard let split = identity.firstIndex(of: "|"), split != identity.startIndex,
+                  identity.index(after: split) != identity.endIndex else { return nil }
+            rows.append(SwitchRow(id: row.identifier, label: row.label,
+                timing: String(row.label[timingRange]), frame: row.frame))
+        }
+        rows.sort { $0.frame.minY == $1.frame.minY ? $0.frame.minX < $1.frame.minX : $0.frame.minY < $1.frame.minY }
+        guard rows.count >= 2, Set(rows.map(\.id)).count == rows.count else { return nil }
+        return SwitchSnapshot(query: query, frame: viewport, rows: rows, observedUptime: ProcessInfo.processInfo.systemUptime)
+    }
+
+    private func sameSwitchGeometry(_ a: SwitchSnapshot, _ b: SwitchSnapshot, tolerance: CGFloat, compareQuery: Bool) -> Bool {
+        func equal(_ x: CGRect, _ y: CGRect) -> Bool {
+            [abs(x.minX-y.minX), abs(x.minY-y.minY), abs(x.width-y.width), abs(x.height-y.height)].allSatisfy { $0 <= tolerance }
+        }
+        guard (!compareQuery || a.query == b.query), equal(a.frame, b.frame),
+              a.rows.map(\.id) == b.rows.map(\.id) else { return false }
+        return zip(a.rows,b.rows).allSatisfy { x,y in
+            x.label == y.label && x.timing == y.timing &&
+            equal(x.frame.offsetBy(dx: -a.frame.minX, dy: -a.frame.minY), y.frame.offsetBy(dx: -b.frame.minX, dy: -b.frame.minY))
+        }
+    }
+    private func stableSwitchSnapshot(_ app: XCUIApplication, timeout: TimeInterval, name: String) throws -> SwitchSnapshot {
+        var reference: SwitchSnapshot?, since: TimeInterval?, captured: SwitchSnapshot?
+        let condition = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+            guard let now = self.observedSwitchSnapshot(app) else { reference=nil; since=nil; return false }
+            let time = ProcessInfo.processInfo.systemUptime
+            if let old = reference, self.sameSwitchGeometry(old, now, tolerance: 0.25, compareQuery: true) {
+                if let began = since, time-began >= 0.5 { captured=now; return true }
+            } else { reference=now; since=time }
+            return false
+        }, object: nil)
+        let outcome = XCTWaiter.wait(for: [condition], timeout: timeout)
+        if let actual = observedSwitchSnapshot(app) { try keepSwitchGeometry(actual, app: app, name: name+"-actual") }
+        guard outcome == .completed, let result = captured else {
+            keep(app, name: name+"-prerequisite-failure")
+            let evidence = XCTAttachment(string: app.debugDescription); evidence.name=name+"-actual-AX"; evidence.lifetime = .keepAlways; add(evidence)
+            XCTFail("Require settled real search, >=2 actual candidates with real timings, no keyboard and stable public geometry: "+name)
+            throw Prerequisite.invalid("real switch viewport prerequisite")
+        }
+        return result
+    }
+    private func assertSwitchRestored(_ original: SwitchSnapshot, query: String, app: XCUIApplication, name: String) throws {
+        let actual = try stableSwitchSnapshot(app, timeout: 15, name: name)
+        try keepSwitchGeometry(original, app: app, name: name+"-original-reference", includeScreenshot: false)
+        try keepSwitchGeometry(actual, app: app, name: name+"-reopened-actual")
+        XCTAssertEqual(actual.query, query, "Preserve the exact visible query intent without starting a new search")
+        guard actual.query == query, sameSwitchGeometry(original, actual, tolerance: 2, compareQuery: false) else {
+            XCTFail("The same complete candidate IDs/order/labels/timings and each viewport-relative x/y/width/height must survive the real sheet reopen within the original2pt; do not snap to a row or scroll to repair the observation")
+            throw Prerequisite.invalid("actual sheet viewport changed")
+        }
+    }
+    private func keepSwitchGeometry(_ snapshot: SwitchSnapshot, app: XCUIApplication, name: String, includeScreenshot: Bool = true) throws {
+        func rect(_ value: CGRect) -> [String: Double] {
+            ["x":Double(value.minX),"y":Double(value.minY),"width":Double(value.width),"height":Double(value.height)]
+        }
+        let value: [String: Any] = ["query":snapshot.query,"viewport":rect(snapshot.frame),
+            "rows":snapshot.rows.map { row -> [String: Any] in
+                ["identifier":row.id,"label":row.label,"timing":row.timing,"frame":rect(row.frame),
+                 "viewportRelative":rect(row.frame.offsetBy(dx:-snapshot.frame.minX,dy:-snapshot.frame.minY))]
+            },"keyboardVisibleAtAttachment":app.keyboards.firstMatch.exists,"observedUptime":snapshot.observedUptime,
+            "attachmentAtUptime":ProcessInfo.processInfo.systemUptime]
+        let attachment = XCTAttachment(data:try JSONSerialization.data(withJSONObject:value,options:[.sortedKeys]),uniformTypeIdentifier:"public.json")
+        attachment.name=name+"-actual-source-book-geometry"; attachment.lifetime = .keepAlways; add(attachment)
+        if includeScreenshot { keep(app,name:name) }
+    }
+    private func switchCoordinate(_ point: CGPoint, app: XCUIApplication) -> XCUICoordinate {
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx:point.x-app.frame.minX,dy:point.y-app.frame.minY))
+    }
+
     private func required(_ key: String) throws -> String {
         guard let value = ProcessInfo.processInfo.environment[key], !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             XCTFail("Required actual-journey provenance is absent from the UITest process: " + key)

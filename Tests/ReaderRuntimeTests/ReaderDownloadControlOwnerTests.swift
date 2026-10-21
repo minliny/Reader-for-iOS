@@ -128,4 +128,126 @@ final class ReaderDownloadControlOwnerTests: XCTestCase {
         XCTAssertTrue(owner.canResume)
         XCTAssertTrue(owner.canClear)
     }
+
+    private enum ObserverFailure: Error { case unavailable }
+
+    /// This controls only presentation-owner outcomes. It fabricates no Core
+    /// reply, book, source or download state; terminal success is not a Core ACK.
+    func testOrdinaryErrorsKeepExactOriginalIDsForPendingOrUnknownQueriesAcrossIndependentDownloadLanes() async throws {
+        var pendingAnswer: Bool? = true
+        var checkedIDs: [String] = []
+        let owner = ReaderDownloadControlOwner(pendingChecker: { id in
+            checkedIDs.append(id)
+            return pendingAnswer
+        })
+        var resumeIDs: [String] = []
+        var controlIDs: [String] = []
+        let firstResume = await owner.performResume(scope: "download-owner-query-boundary") { id in
+            resumeIDs.append(id)
+            if resumeIDs.count < 3 { throw ObserverFailure.unavailable }
+        }
+        XCTAssertFalse(firstResume)
+        let resumeID = try XCTUnwrap(owner.resumeActions.pendingOperationID)
+        XCTAssertEqual(checkedIDs, [resumeID])
+        XCTAssertNotNil(owner.resumeActions.recovery)
+        XCTAssertFalse(owner.canResume)
+        XCTAssertFalse(owner.canClear)
+        XCTAssertTrue(owner.canControl, "An unresolved resume must leave the short control lane available")
+
+        let firstControl = await owner.performControl(scope: "download-owner-query-boundary") { id in
+            controlIDs.append(id)
+            if controlIDs.count < 3 { throw ObserverFailure.unavailable }
+        }
+        XCTAssertFalse(firstControl)
+        let controlID = try XCTUnwrap(owner.controlActions.pendingOperationID)
+        XCTAssertNotEqual(controlID, resumeID)
+        XCTAssertEqual(checkedIDs, [resumeID, controlID])
+        XCTAssertNotNil(owner.controlActions.recovery)
+        XCTAssertFalse(owner.canControl)
+
+        pendingAnswer = nil
+        let unknownResume = await owner.resumeActions.resumeOriginal()
+        let unknownControl = await owner.controlActions.resumeOriginal()
+        XCTAssertFalse(unknownResume)
+        XCTAssertFalse(unknownControl)
+        XCTAssertEqual(owner.resumeActions.pendingOperationID, resumeID)
+        XCTAssertEqual(owner.controlActions.pendingOperationID, controlID)
+        XCTAssertEqual(resumeIDs, [resumeID, resumeID])
+        XCTAssertEqual(controlIDs, [controlID, controlID])
+        XCTAssertEqual(checkedIDs, [resumeID, controlID, resumeID, controlID],
+                       "Both true and nil are about each exact retained original ID")
+        let replacementResume = await owner.performResume(scope: "download-owner-query-boundary") { _ in
+            XCTFail("An unknown original resume cannot be replaced")
+        }
+        let replacementControl = await owner.performControl(scope: "download-owner-query-boundary") { _ in
+            XCTFail("An unknown original control cannot be replaced")
+        }
+        let prematureClear = await owner.performClear(scope: "download-owner-query-boundary") { _ in
+            XCTFail("An unknown original download cannot be cleared")
+        }
+        XCTAssertFalse(replacementResume)
+        XCTAssertFalse(replacementControl)
+        XCTAssertFalse(prematureClear)
+
+        // The unchanged original closures now return. One child's terminal
+        // presentation cannot clear the other child's distinct original owner.
+        let resumed = await owner.resumeActions.resumeOriginal()
+        XCTAssertTrue(resumed)
+        XCTAssertFalse(owner.resumeActions.hasPending)
+        XCTAssertEqual(owner.controlActions.pendingOperationID, controlID)
+        XCTAssertFalse(owner.canResume)
+        XCTAssertFalse(owner.canClear)
+        let controlled = await owner.controlActions.resumeOriginal()
+        XCTAssertTrue(controlled)
+        XCTAssertEqual(resumeIDs, [resumeID, resumeID, resumeID])
+        XCTAssertEqual(controlIDs, [controlID, controlID, controlID])
+        XCTAssertTrue(owner.canControl)
+        XCTAssertTrue(owner.canResume)
+        XCTAssertTrue(owner.canClear)
+        XCTAssertEqual(checkedIDs, [resumeID, controlID, resumeID, controlID])
+    }
+
+    func testOnlyExactNegativeQueryReleasesOrdinaryFailureAndMissingCheckerRetainsOriginalClear() async throws {
+        var checkedIDs: [String] = []
+        var attemptedIDs: [String] = []
+        let definite = ReaderDownloadControlOwner(pendingChecker: { id in
+            checkedIDs.append(id)
+            return false
+        })
+        let resume = await definite.performResume(scope: "download-owner-negative-query") { id in
+            attemptedIDs.append(id); throw ObserverFailure.unavailable
+        }
+        let control = await definite.performControl(scope: "download-owner-negative-query") { id in
+            attemptedIDs.append(id); throw ObserverFailure.unavailable
+        }
+        let clear = await definite.performClear(scope: "download-owner-negative-query") { id in
+            attemptedIDs.append(id); throw ObserverFailure.unavailable
+        }
+        XCTAssertFalse(resume)
+        XCTAssertFalse(control)
+        XCTAssertFalse(clear)
+        XCTAssertEqual(checkedIDs, attemptedIDs)
+        XCTAssertEqual(Set(attemptedIDs).count, 3)
+        XCTAssertFalse(definite.resumeActions.hasPending)
+        XCTAssertFalse(definite.controlActions.hasPending)
+        XCTAssertTrue(definite.canResume)
+        XCTAssertTrue(definite.canControl)
+        XCTAssertTrue(definite.canClear)
+
+        let unknown = ReaderDownloadControlOwner()
+        var clearIDs: [String] = []
+        let first = await unknown.performClear(scope: "download-owner-missing-query") { id in
+            clearIDs.append(id); throw ObserverFailure.unavailable
+        }
+        XCTAssertFalse(first)
+        let originalID = try XCTUnwrap(unknown.controlActions.pendingOperationID)
+        XCTAssertNotNil(unknown.controlActions.recovery)
+        XCTAssertFalse(unknown.canControl)
+        XCTAssertFalse(unknown.canResume)
+        XCTAssertFalse(unknown.canClear)
+        let continued = await unknown.controlActions.resumeOriginal()
+        XCTAssertFalse(continued)
+        XCTAssertEqual(unknown.controlActions.pendingOperationID, originalID)
+        XCTAssertEqual(clearIDs, [originalID, originalID])
+    }
 }

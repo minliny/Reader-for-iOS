@@ -1,20 +1,38 @@
 import SwiftUI
+import UIKit
+#if DEBUG
+import OSLog
+#endif
 
 /// Bounded presentation cache: candidates/query/timing survive closing the
 /// switch sheet. Core remains the owner of books, catalogs and transactions.
 @MainActor final class ReaderSwitchPresentationCache {
     static let shared = ReaderSwitchPresentationCache()
-    private var states: [String: ReaderOnlineWorkspaceModel] = [:]
+    private struct Entry {
+        let state: ReaderOnlineWorkspaceModel
+        let candidates: ReaderSwitchCandidateHost
+    }
+    private var entries: [String: Entry] = [:]
     private var order: [String] = []
     func state(for identity: String, initialQuery: String) -> ReaderOnlineWorkspaceModel {
-        if let state = states[identity] { return state }
+        entry(for: identity, initialQuery: initialQuery).state
+    }
+    func candidateHost(for identity: String, initialQuery: String) -> ReaderSwitchCandidateHost {
+        entry(for: identity, initialQuery: initialQuery).candidates
+    }
+    private func entry(for identity: String, initialQuery: String) -> Entry {
+        if let entry = entries[identity] { return entry }
         let state = ReaderOnlineWorkspaceModel(); state.query = initialQuery
-        states[identity] = state; order.append(identity)
+        let entry = Entry(state: state, candidates: ReaderSwitchCandidateHost(state: state, currentBookID: identity))
+        entries[identity] = entry; order.append(identity)
         while order.count > 8 {
             let evicted = order.removeFirst()
-            states.removeValue(forKey: evicted)?.retireCachedDiscovery()
+            if let entry = entries.removeValue(forKey: evicted) {
+                entry.state.retireCachedDiscovery()
+                entry.candidates.retire()
+            }
         }
-        return state
+        return entry
     }
 }
 
@@ -24,58 +42,41 @@ struct ReaderOnlineSwitchPanel: View {
     let session: ReaderActiveSession
     @StateObject private var state: ReaderOnlineWorkspaceModel
     @State private var discoveryPresentationID = UUID()
+    @State private var candidateHost: ReaderSwitchCandidateHost
+    @FocusState private var queryFocused: Bool
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     init(model: ReaderApplicationModel, preferences: ReaderPreferences, session: ReaderActiveSession) {
         self.model = model; self.preferences = preferences; self.session = session
-        _state = StateObject(wrappedValue: ReaderSwitchPresentationCache.shared.state(for: session.book.id, initialQuery: session.book.title))
+        let cache = ReaderSwitchPresentationCache.shared
+        _state = StateObject(wrappedValue: cache.state(for: session.book.id, initialQuery: session.book.title))
+        _candidateHost = State(initialValue: cache.candidateHost(for: session.book.id, initialQuery: session.book.title))
     }
     var body: some View {
         let presentationID = discoveryPresentationID
+        let queryFocus = $queryFocused
+        let dismissAction = dismiss
         VStack(spacing: 12) {
             HStack {
-                Button("关闭") { dismiss() }.accessibilityIdentifier("online-switch-close")
+                Button("关闭") { queryFocused = false; dismiss() }.accessibilityIdentifier("online-switch-close")
                 Spacer()
                 Text("切换书源").font(ReaderTypography.font(.controlHeader))
                     .accessibilityIdentifier("online-switch-owner:\(model.actions.busy ? "busy" : model.actions.hasPending ? "pending" : "settled")")
                 Spacer()
                 Button(state.searching ? "停止" : "重新搜索") { if state.searching { state.stop() } else { state.researchCandidates() } }
             }.padding(.horizontal, 20)
-            HStack { TextField("书名或作者", text: $state.query).readerField(); Button("搜索", action: state.researchCandidates) }.padding(.horizontal, 20)
+            HStack { TextField("书名或作者", text: $state.query).readerField().focused($queryFocused); Button("搜索", action: state.researchCandidates) }.padding(.horizontal, 20)
             Text("当前：\(session.book.sourceName ?? state.sourceName(session.book.sourceId))").font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
             if state.searching { ProgressView("正在查找其他来源") }
             if !state.failures.isEmpty { Text("\(state.failures.count) 个来源未完成").font(ReaderTypography.font(.caption)) }
             if candidates.isEmpty, !state.searching {
                 emptyCandidates
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(candidates) { candidate in
-                            Button {
-                                Task {
-                                    if await model.actions.perform("切换书源", scope: session.book.id, action: { id in
-                                        try await model.switchOnlineSource(candidate, operationID: id)
-                                    }) { dismiss() }
-                                }
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(candidate.title).font(ReaderTypography.font(.controlHeader))
-                                        Text(candidate.author).font(ReaderTypography.font(.caption))
-                                        Text(state.sourceName(candidate.sourceId) + (state.timings[candidate.sourceId].map { " · \($0) ms" } ?? "")).font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
-                                        if !state.currentResultIDs.contains(candidate.id) { Text(state.searching ? "上次候选 · 本次搜索中" : "上次候选 · 本次未确认").font(ReaderTypography.font(.caption)) }
-                                    }
-                                    Spacer(); ReaderIcon(.chevronRight)
-                                }.padding(18).contentShape(Rectangle())
-                            }.buttonStyle(ReaderPressFeedback()).disabled(model.actions.hasPending)
-                                .id(candidate.id)
-                                .accessibilityIdentifier("online-switch-candidate:" + candidate.id)
-                            Divider()
-                        }
-                    }.scrollTargetLayout()
-                }.scrollPosition(id: Binding(get: { state.scrollAnchor }, set: { id in
-                    if let id, candidates.contains(where: { $0.id == id }) { state.scrollAnchor = id }
-                }))
+                ReaderSwitchCandidateViewport(owner: candidateHost, state: state,
+                    actions: model.actions, model: model, sessionID: session.id,
+                    bookID: session.book.id, presentationID: presentationID,
+                    clearQueryFocus: { queryFocus.wrappedValue = false }, dismissPanel: { dismissAction() })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             ReaderOnlineSourceRefreshNotice(state: state)
             ReaderOperationStatus(owner: model.actions, scope: session.book.id)
@@ -87,7 +88,11 @@ struct ReaderOnlineSwitchPanel: View {
                 state.service = model.libraryService as? any ReaderOnlineServing
                 await state.refreshDiscoverySources(presentationID: presentationID)
             }
-            .onDisappear { state.retireDiscoveryPresentation(presentationID) }
+            .onDisappear {
+                queryFocused = false
+                candidateHost.endPresentation(presentationID)
+                state.retireDiscoveryPresentation(presentationID)
+            }
     }
     @ViewBuilder private var emptyCandidates: some View {
         if state.sourceLoading {
@@ -110,10 +115,741 @@ struct ReaderOnlineSwitchPanel: View {
     private var candidates: [ReaderOnlineCandidate] { state.results.filter { $0.id != session.book.id } }
 }
 
+// Only the candidate list survives dismissal. Header/focus/status/dismissal stay
+// in the new sheet, and a cached graph never owns an application/session closure.
+@MainActor final class ReaderSwitchCandidateHost {
+    private let state: ReaderOnlineWorkspaceModel
+    private let currentBookID: String
+    private var hosting: ReaderSwitchCandidateHostingController?
+    private var presentationInput: ReaderSwitchCandidatePresentationInput?
+    private var rootConfiguration: ReaderSwitchCandidatePresentationInput.Configuration? {
+        presentationInput?.configuration
+    }
+    private weak var attachment: ReaderSwitchCandidateViewportController?
+    private var retired = false
+    // A per-book platform viewport only. Core/business/candidate ownership is
+    // unchanged; UIKit supplies native layout, scrolling and gesture physics.
+    private struct ViewportDisplay: Equatable {
+        let query: String
+        let candidates: [ReaderOnlineCandidate]
+        let sourceNames: [String]
+        let timings: [Int?]
+        let currentIDs: Set<String>
+        let searching: Bool
+    }
+    private struct ViewportGeometry {
+        let bounds: CGSize
+        let content: CGSize
+        let inset: UIEdgeInsets
+        let adjusted: UIEdgeInsets
+        let zoom: CGFloat
+        init(_ scroll: UIScrollView) {
+            bounds = scroll.bounds.size; content = scroll.contentSize
+            inset = scroll.contentInset; adjusted = scroll.adjustedContentInset; zoom = scroll.zoomScale
+        }
+        var finite: Bool {
+            [bounds.width,bounds.height,content.width,content.height,inset.top,inset.left,inset.bottom,inset.right,
+             adjusted.top,adjusted.left,adjusted.bottom,adjusted.right,zoom].allSatisfy { $0.isFinite }
+        }
+        func accepts(_ offset: CGPoint, epsilon: CGFloat) -> Bool {
+            // Public UIKit scrollable extents only; no paging/physics algorithm.
+            let minX = -adjusted.left, minY = -adjusted.top
+            let maxX = max(minX, content.width - bounds.width + adjusted.right)
+            let maxY = max(minY, content.height - bounds.height + adjusted.bottom)
+            return finite && offset.x.isFinite && offset.y.isFinite &&
+                offset.x >= minX - epsilon && offset.x <= maxX + epsilon &&
+                offset.y >= minY - epsilon && offset.y <= maxY + epsilon
+        }
+        func sameViewport(as other: Self, epsilon: CGFloat) -> Bool {
+            // Zoom is dimensionless; a pixel tolerance applies only to points.
+            guard zoom == other.zoom else { return false }
+            return zip([bounds.width,bounds.height,inset.top,inset.left,inset.bottom,inset.right,
+                 adjusted.top,adjusted.left,adjusted.bottom,adjusted.right],
+                [other.bounds.width,other.bounds.height,other.inset.top,other.inset.left,other.inset.bottom,other.inset.right,
+                 other.adjusted.top,other.adjusted.left,other.adjusted.bottom,other.adjusted.right])
+                .allSatisfy { abs($0.0 - $0.1) <= epsilon }
+        }
+        func sameContent(as other: Self, epsilon: CGFloat) -> Bool {
+            abs(content.width - other.content.width) <= epsilon && abs(content.height - other.content.height) <= epsilon
+        }
+    }
+    private struct ViewportSnapshot {
+        let id = UUID()
+        let sourceAttachmentID: UUID
+        let display: ViewportDisplay
+        let environment: ReaderSwitchCandidateEnvironment
+        let geometry: ViewportGeometry
+        let offset: CGPoint
+    }
+    private struct ViewportRestore {
+        let snapshotID: UUID
+        let attachmentID: UUID
+        var hostAppeared = false
+        var containerAppeared = false
+        var appliedNativeIDs = Set<ObjectIdentifier>()
+    }
+    private var viewportSnapshot: ViewportSnapshot?
+    private var viewportRestore: ViewportRestore?
+    private var viewportInteraction: ReaderSwitchViewportInteraction?
+    private var applyingViewportOffset = false
+    #if DEBUG
+    private static let viewportLogger = Logger(subsystem: "io.reader.minliny", category: "reader-switch-viewport")
+    private var viewportTraceCount = 0
+    private var viewportLayoutTraceCount = 0
+    private(set) var viewportRootAssignments = 0
+    private var viewportLastLayout: String?
+
+    // Public, synchronous getters only. Never materialize an unloaded view,
+    // force layout, observe/replace a delegate, or retain a native view here.
+    fileprivate func traceViewport(_ phase: String, container: ReaderSwitchCandidateViewportController? = nil) {
+        guard viewportTraceCount < 96 else { return }
+        if ["layout", "hosting.layout"].contains(phase), viewportLayoutTraceCount >= 24 { return }
+        let target = container ?? attachment
+        let hostView = hosting?.viewIfLoaded
+        var record: [String: Any] = [:]
+        record["phase"] = phase
+        record["owner"] = Self.viewportIdentity(self)
+        record["workspace"] = Self.viewportIdentity(state)
+        record["hosting"] = Self.viewportIdentity(hosting)
+        record["hostingParent"] = Self.viewportIdentity(hosting?.parent)
+        record["container"] = Self.viewportIdentity(target)
+        record["containerParent"] = Self.viewportIdentity(target?.parent)
+        record["currentAttachment"] = Self.viewportIdentity(attachment)
+        record["isCurrentAttachment"] = target.map { self.isAttached($0) } ?? false
+        record["attachmentUUID"] = target?.attachmentID.uuidString ?? "-"
+        record["presentationUUID"] = target?.presentationID.uuidString ?? "-"
+        record["configuredAttachmentUUID"] = rootConfiguration?.attachmentID.uuidString ?? "-"
+        record["retired"] = retired
+        record["rootAssignments"] = viewportRootAssignments
+        record["viewportSnapshotStored"] = viewportSnapshot != nil
+        record["viewportSnapshotSourceAttachmentUUID"] = viewportSnapshot?.sourceAttachmentID.uuidString ?? "-"
+        record["viewportRestorePending"] = viewportRestore != nil
+        record["viewportRestoreAttachmentUUID"] = viewportRestore?.attachmentID.uuidString ?? "-"
+        record["viewportRestoreAppliedNativeCount"] = viewportRestore?.appliedNativeIDs.count ?? 0
+        record["resultCount"] = state.results.count
+        record["searching"] = state.searching
+        record["containerView"] = Self.viewportView(target?.viewIfLoaded)
+        record["hostingView"] = Self.viewportView(hostView)
+        var pending: [(UIView, Int)] = hostView.map { [($0, 0)] } ?? []
+        var visited = Set<ObjectIdentifier>()
+        var scrollViews: [[String: Any]] = []
+        var treeLimited = false
+        var scrollViewsLimited = false
+        while let (view, depth) = pending.popLast() {
+            let identity = ObjectIdentifier(view)
+            guard !visited.contains(identity) else { continue }
+            guard visited.count < 256 else { treeLimited = true; break }
+            visited.insert(identity)
+            if let scroll = view as? UIScrollView {
+                if scrollViews.count < 8 {
+                    var item = Self.viewportView(scroll)
+                    item["offset"] = Self.viewportPoint(scroll.contentOffset)
+                    item["contentSize"] = Self.viewportSize(scroll.contentSize)
+                    item["contentInset"] = Self.viewportInset(scroll.contentInset)
+                    item["adjustedInset"] = Self.viewportInset(scroll.adjustedContentInset)
+                    item["insetAdjustmentBehavior"] = scroll.contentInsetAdjustmentBehavior.rawValue
+                    item["tracking"] = scroll.isTracking
+                    item["dragging"] = scroll.isDragging
+                    item["decelerating"] = scroll.isDecelerating
+                    item["scrollEnabled"] = scroll.isScrollEnabled
+                    scrollViews.append(item)
+                } else { scrollViewsLimited = true }
+            }
+            let children = view.subviews
+            if depth < 16 {
+                let available = max(0, 256 - visited.count - pending.count)
+                if children.count > available { treeLimited = true }
+                for child in children.prefix(available).reversed() { pending.append((child, depth + 1)) }
+            } else if !children.isEmpty { treeLimited = true }
+        }
+        record["scrollViews"] = scrollViews
+        record["treeVisited"] = visited.count
+        record["treeLimited"] = treeLimited
+        record["scrollViewsLimited"] = scrollViewsLimited
+        guard let signatureData = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]),
+              let signature = String(data: signatureData, encoding: .utf8) else { return }
+        if ["layout", "hosting.layout"].contains(phase) {
+            guard viewportLastLayout != signature else { return }
+            viewportLastLayout = signature
+            viewportLayoutTraceCount += 1
+        }
+        viewportTraceCount += 1
+        record["sequence"] = viewportTraceCount
+        record["uptime"] = ProcessInfo.processInfo.systemUptime
+        guard let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]),
+              let message = String(data: data, encoding: .utf8) else { return }
+        Self.viewportLogger.notice("\(message, privacy: .public)")
+    }
+    private static func viewportIdentity(_ value: AnyObject?) -> String {
+        value.map { String(describing: ObjectIdentifier($0)) } ?? "-"
+    }
+    private static func viewportView(_ view: UIView?) -> [String: Any] {
+        guard let view else { return ["loaded": false] }
+        var result: [String: Any] = [:]
+        result["loaded"] = true
+        result["identity"] = viewportIdentity(view)
+        result["superview"] = viewportIdentity(view.superview)
+        result["window"] = viewportIdentity(view.window)
+        result["bounds"] = viewportRect(view.bounds)
+        result["frame"] = viewportRect(view.frame)
+        result["safeArea"] = viewportInset(view.safeAreaInsets)
+        result["hidden"] = view.isHidden
+        result["alpha"] = Double(view.alpha)
+        if let window = view.window {
+            result["frameInWindow"] = viewportRect(view.convert(view.bounds, to: window))
+            result["windowBounds"] = viewportRect(window.bounds)
+        }
+        return result
+    }
+    private static func viewportPoint(_ point: CGPoint) -> [String: Double] {
+        ["x": Double(point.x), "y": Double(point.y)]
+    }
+    private static func viewportSize(_ size: CGSize) -> [String: Double] {
+        ["width": Double(size.width), "height": Double(size.height)]
+    }
+    private static func viewportRect(_ rect: CGRect) -> [String: Double] {
+        ["x": Double(rect.origin.x), "y": Double(rect.origin.y),
+         "width": Double(rect.width), "height": Double(rect.height)]
+    }
+    private static func viewportInset(_ inset: UIEdgeInsets) -> [String: Double] {
+        ["top": Double(inset.top), "left": Double(inset.left),
+         "bottom": Double(inset.bottom), "right": Double(inset.right)]
+    }
+    #endif
+    init(state: ReaderOnlineWorkspaceModel, currentBookID: String) {
+        self.state = state; self.currentBookID = currentBookID
+    }
+    func beginAttachment(_ container: ReaderSwitchCandidateViewportController) {
+        guard !retired else { return }
+        #if DEBUG
+        traceViewport("begin.before", container: container)
+        #endif
+        if let previous = attachment, previous !== container { detach(previous) }
+        attachment = container
+        invalidateChangedViewportDisplay()
+        if let snapshot = viewportSnapshot {
+            viewportRestore = ViewportRestore(snapshotID: snapshot.id, attachmentID: container.attachmentID)
+        }
+        #if DEBUG
+        traceViewport("begin.after", container: container)
+        #endif
+    }
+    func isAttached(_ container: ReaderSwitchCandidateViewportController) -> Bool {
+        !retired && attachment === container
+    }
+    func update(_ container: ReaderSwitchCandidateViewportController, disabled: Bool,
+                environment: ReaderSwitchCandidateEnvironment) {
+        guard isAttached(container) else { return }
+        let configuration = ReaderSwitchCandidatePresentationInput.Configuration(
+            attachmentID: container.attachmentID, disabled: disabled, environment: environment)
+        if let presentationInput {
+            // Update the stable root's observed platform input. Assigning a new
+            // UIHostingController.rootView across attachments can recreate its
+            // native ScrollView even when the hosting controller stays alive.
+            if presentationInput.configuration != configuration {
+                #if DEBUG
+                traceViewport("input.before", container: container)
+                #endif
+                presentationInput.update(configuration)
+                #if DEBUG
+                traceViewport("input.after", container: container)
+                #endif
+            }
+        } else {
+            #if DEBUG
+            traceViewport("root.before", container: container)
+            #endif
+            let input = ReaderSwitchCandidatePresentationInput(configuration)
+            presentationInput = input
+            let root = ReaderSwitchCandidateList(state: state, currentBookID: currentBookID,
+                input: input, select: { [weak self] candidate, renderedAttachmentID in
+                    self?.select(candidate, renderedAttachmentID: renderedAttachmentID)
+                })
+            let child = ReaderSwitchCandidateHostingController(rootView: root)
+            child.viewportOwner = self
+            // The outer sheet already applied safe-area/keyboard geometry.
+            child.safeAreaRegions = []
+            child.view.backgroundColor = .clear
+            hosting = child
+            #if DEBUG
+            viewportRootAssignments += 1
+            traceViewport("root.after", container: container)
+            #endif
+        }
+        invalidateChangedViewportDisplay()
+        mountIfSized(container)
+    }
+    /// The same gate is consumed by the real row action and the finite
+    /// platform-lifecycle method. A render token never adopts a later mount.
+    func isCurrentRenderedAttachment(_ renderedAttachmentID: UUID) -> Bool {
+        guard let container = attachment, isAttached(container),
+              container.attachmentID == renderedAttachmentID,
+              rootConfiguration?.attachmentID == renderedAttachmentID,
+              rootConfiguration?.disabled == false,
+              container.bookID == currentBookID, container.viewIfLoaded?.window != nil,
+              state.isCurrentDiscoveryPresentation(container.presentationID) else { return false }
+        return true
+    }
+    private func select(_ candidate: ReaderOnlineCandidate, renderedAttachmentID: UUID) {
+        guard isCurrentRenderedAttachment(renderedAttachmentID), let container = attachment,
+              container.acceptsCurrentReaderInput,
+              let current = state.results.first(where: { $0.id == candidate.id }),
+              current.id != currentBookID else { return }
+        container.select(current)
+    }
+    func mountIfSized(_ container: ReaderSwitchCandidateViewportController) {
+        guard isAttached(container), let hosting,
+              container.isViewLoaded, container.view.bounds.width > 0,
+              container.view.bounds.height > 0 else { return }
+        container.mount(hosting)
+    }
+    func detach(_ container: ReaderSwitchCandidateViewportController) {
+        // An obsolete dismantle must never remove a newly attached child.
+        #if DEBUG
+        traceViewport("detach.before", container: container)
+        #endif
+        captureViewport(container)
+        container.retireInput()
+        container.removeHostedChild()
+        if attachment === container {
+            viewportRestore = nil; stopViewportInteraction()
+            attachment = nil
+            presentationInput?.disable(attachmentID: container.attachmentID)
+        }
+        #if DEBUG
+        traceViewport("detach.after", container: container)
+        #endif
+    }
+    func endPresentation(_ identity: UUID) {
+        guard let attachment, attachment.presentationID == identity else { return }
+        detach(attachment)
+    }
+    func retire() {
+        retired = true
+        discardViewport("retire")
+        if let attachment { detach(attachment) }
+        hosting = nil; presentationInput = nil
+    }
+    private func viewportDisplay() -> ViewportDisplay {
+        let rows = state.results.filter { $0.id != currentBookID }
+        return ViewportDisplay(query: state.query, candidates: rows,
+            sourceNames: rows.map { state.sourceName($0.sourceId) },
+            timings: rows.map { state.timings[$0.sourceId] }, currentIDs: state.currentResultIDs,
+            searching: state.searching)
+    }
+    private func invalidateChangedViewportDisplay() {
+        if let snapshot = viewportSnapshot, snapshot.display != viewportDisplay() { discardViewport("display") }
+    }
+    private func discardViewport(_ reason: String) {
+        viewportRestore = nil; viewportSnapshot = nil; stopViewportInteraction()
+        #if DEBUG
+        traceViewport("restore.abort." + reason)
+        #endif
+    }
+    private func stopViewportInteraction() {
+        viewportInteraction?.detach(); viewportInteraction = nil
+    }
+    private func nativeViewport(_ container: ReaderSwitchCandidateViewportController) -> UIScrollView? {
+        guard isAttached(container), let host = hosting, host.parent === container,
+              let root = host.viewIfLoaded, let window = container.viewIfLoaded?.window,
+              root.window === window else { return nil }
+        var pending: [(UIView,Int)] = [(root,0)], visited = Set<ObjectIdentifier>()
+        var found: UIScrollView?
+        while let (view,depth) = pending.popLast() {
+            guard visited.insert(ObjectIdentifier(view)).inserted else { continue }
+            guard visited.count <= 256, depth <= 16 else { return nil }
+            if let scroll = view as? UIScrollView, scroll.window === window, !scroll.isHidden, scroll.alpha > 0 {
+                guard found == nil else { return nil }; found = scroll
+            }
+            let children = view.subviews
+            guard children.count <= 256 - visited.count - pending.count else { return nil }
+            for child in children.reversed() { pending.append((child,depth + 1)) }
+        }
+        return found
+    }
+    fileprivate func captureViewport(_ container: ReaderSwitchCandidateViewportController) {
+        guard isAttached(container) else { return }
+        invalidateChangedViewportDisplay()
+        // An interrupted reopen must retain the previous real snapshot, never
+        // replace it with the new subtree's not-yet-restored default zero.
+        guard viewportRestore?.attachmentID != container.attachmentID else { return }
+        guard let configuration = rootConfiguration, configuration.attachmentID == container.attachmentID,
+              !viewportDisplay().candidates.isEmpty else { discardViewport("captureUnavailable"); return }
+        guard let scroll = nativeViewport(container) else {
+            // willDisappear can capture while the native window is still
+            // attached. Its later detach must not erase those known bytes
+            // merely because UIKit has already removed this same window.
+            if let captured = viewportSnapshot,
+               captured.sourceAttachmentID == container.attachmentID,
+               captured.display == viewportDisplay() { return }
+            discardViewport("captureUnavailable"); return
+        }
+        guard !scroll.isTracking, !scroll.isDragging, !scroll.isDecelerating else { discardViewport("captureMoving"); return }
+        let geometry = ViewportGeometry(scroll), epsilon = 1 / max(scroll.window?.screen.scale ?? 1, 1)
+        guard geometry.bounds.width > 0, geometry.bounds.height > 0, geometry.content.height > 0,
+              geometry.accepts(scroll.contentOffset, epsilon: epsilon) else { discardViewport("captureGeometry"); return }
+        viewportSnapshot = ViewportSnapshot(sourceAttachmentID: container.attachmentID,
+            display: viewportDisplay(), environment: configuration.environment,
+            geometry: geometry, offset: scroll.contentOffset)
+        #if DEBUG
+        traceViewport("restore.capture", container: container)
+        #endif
+    }
+    fileprivate func viewportHostingLayout(_ controller: UIViewController, container: ReaderSwitchCandidateViewportController) {
+        guard hosting === controller, controller.parent === container, isAttached(container) else { return }
+        #if DEBUG
+        traceViewport("hosting.layout", container: container)
+        #endif
+        restoreViewport(container)
+    }
+    fileprivate func viewportHostingAppeared(_ controller: UIViewController, container: ReaderSwitchCandidateViewportController) {
+        guard hosting === controller, controller.parent === container, isAttached(container),
+              controller.viewIfLoaded?.window === container.viewIfLoaded?.window,
+              container.viewIfLoaded?.window != nil,
+              viewportRestore?.attachmentID == container.attachmentID else { return }
+        viewportRestore?.hostAppeared = true
+        restoreViewport(container)
+    }
+    fileprivate func viewportContainerAppeared(_ container: ReaderSwitchCandidateViewportController) {
+        guard isAttached(container), viewportRestore?.attachmentID == container.attachmentID else { return }
+        viewportRestore?.containerAppeared = true
+        restoreViewport(container)
+    }
+    fileprivate func viewportUserInteracted(_ observer: ReaderSwitchViewportInteraction) {
+        guard viewportInteraction === observer, let container = attachment, isAttached(container),
+              viewportRestore?.attachmentID == container.attachmentID else { return }
+        discardViewport("user")
+    }
+    private func restoreViewport(_ container: ReaderSwitchCandidateViewportController) {
+        guard !applyingViewportOffset, isAttached(container), let snapshot = viewportSnapshot,
+              var restore = viewportRestore, restore.snapshotID == snapshot.id,
+              restore.attachmentID == container.attachmentID,
+              rootConfiguration?.attachmentID == container.attachmentID else { return }
+        guard snapshot.display == viewportDisplay() else { discardViewport("display"); return }
+        guard let scroll = nativeViewport(container) else {
+            if restore.hostAppeared && restore.containerAppeared { discardViewport("missingNative") }
+            return
+        }
+        guard !scroll.isTracking, !scroll.isDragging, !scroll.isDecelerating else { discardViewport("user"); return }
+        if viewportInteraction?.recognizer !== scroll.panGestureRecognizer {
+            stopViewportInteraction()
+            viewportInteraction = ReaderSwitchViewportInteraction(owner: self, recognizer: scroll.panGestureRecognizer)
+        }
+        let geometry = ViewportGeometry(scroll), epsilon = 1 / max(scroll.window?.screen.scale ?? 1, 1)
+        let appeared = restore.hostAppeared && restore.containerAppeared
+        // A zero/unfinished content layout is not yet a compatible viewport.
+        // Wait only for the next public layout/appear callback, never a timer.
+        guard geometry.finite, geometry.bounds.width > 0, geometry.bounds.height > 0, geometry.content.height > 0 else {
+            if appeared { discardViewport("unreadyAtAppear") }; return
+        }
+        // Reopen's initial zero/default environment is not its final mounted
+        // geometry. Only public callbacks can advance readiness; appear ends
+        // this bounded attempt if final values are still incompatible.
+        guard rootConfiguration?.environment == snapshot.environment,
+              geometry.sameViewport(as: snapshot.geometry, epsilon: epsilon) else {
+            if appeared { discardViewport("geometryAtAppear") }; return
+        }
+        guard geometry.sameContent(as: snapshot.geometry, epsilon: epsilon) else {
+            if appeared { discardViewport("contentAtAppear") }; return
+        }
+        guard geometry.accepts(scroll.contentOffset, epsilon: epsilon), geometry.accepts(snapshot.offset, epsilon: epsilon) else {
+            discardViewport("bounce"); return
+        }
+        let nativeID = ObjectIdentifier(scroll)
+        if abs(scroll.contentOffset.x - snapshot.offset.x) > epsilon || abs(scroll.contentOffset.y - snapshot.offset.y) > epsilon {
+            // Never repeatedly fight a native view that moved after this one
+            // correction. A replacement subtree may receive its own one write.
+            guard !restore.appliedNativeIDs.contains(nativeID) else { discardViewport("movedAfterRestore"); return }
+            restore.appliedNativeIDs.insert(nativeID); viewportRestore = restore
+            applyingViewportOffset = true
+            scroll.setContentOffset(snapshot.offset, animated: false)
+            applyingViewportOffset = false
+            #if DEBUG
+            traceViewport("restore.applied", container: container)
+            #endif
+        }
+        // Early old-native40 does not consume pending restoration. Both real
+        // appearances must have occurred with the current native view matching.
+        if appeared, abs(scroll.contentOffset.x - snapshot.offset.x) <= epsilon,
+           abs(scroll.contentOffset.y - snapshot.offset.y) <= epsilon {
+            viewportRestore = nil; stopViewportInteraction()
+            #if DEBUG
+            traceViewport("restore.confirmed", container: container)
+            #endif
+        }
+    }
+
+}
+
+/// Platform presentation input only: no application, session, action owner,
+/// callback or native view is retained here. The hosting root observes one
+/// instance for its whole cached lifetime.
+@MainActor final class ReaderSwitchCandidatePresentationInput: ObservableObject {
+    struct Configuration: Equatable {
+        let attachmentID: UUID
+        let disabled: Bool
+        let environment: ReaderSwitchCandidateEnvironment
+    }
+    @Published private(set) var configuration: Configuration
+    init(_ configuration: Configuration) { self.configuration = configuration }
+    func update(_ configuration: Configuration) {
+        if self.configuration != configuration { self.configuration = configuration }
+    }
+    func disable(attachmentID: UUID) {
+        guard configuration.attachmentID == attachmentID, !configuration.disabled else { return }
+        configuration = Configuration(attachmentID: attachmentID, disabled: true,
+            environment: configuration.environment)
+    }
+}
+
+struct ReaderSwitchCandidateEnvironment: Equatable {
+    let scheme: ColorScheme
+    let dynamicTypeSize: DynamicTypeSize
+    let locale: Locale
+    let direction: LayoutDirection
+    let reduceMotion: Bool
+    let legibilityWeight: LegibilityWeight?
+}
+
+struct ReaderSwitchCandidateViewport: UIViewControllerRepresentable {
+    let owner: ReaderSwitchCandidateHost
+    let state: ReaderOnlineWorkspaceModel
+    @ObservedObject var actions: ReaderLibraryActionOwner
+    let model: ReaderApplicationModel
+    let sessionID: UUID
+    let bookID: String
+    let presentationID: UUID
+    let clearQueryFocus: () -> Void
+    let dismissPanel: () -> Void
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.locale) private var locale
+    @Environment(\.layoutDirection) private var direction
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    func makeUIViewController(context: Context) -> ReaderSwitchCandidateViewportController {
+        let controller = ReaderSwitchCandidateViewportController(owner: owner, state: state,
+            sessionID: sessionID, bookID: bookID, presentationID: presentationID)
+        owner.beginAttachment(controller)
+        updateUIViewController(controller, context: context)
+        return controller
+    }
+    func updateUIViewController(_ controller: ReaderSwitchCandidateViewportController, context: Context) {
+        guard owner.isAttached(controller) else { return }
+        controller.updateInput(model: model, clearQueryFocus: clearQueryFocus, dismissPanel: dismissPanel)
+        owner.update(controller, disabled: actions.hasPending, environment: ReaderSwitchCandidateEnvironment(
+            scheme: scheme, dynamicTypeSize: dynamicTypeSize, locale: locale,
+            direction: direction, reduceMotion: reduceMotion, legibilityWeight: legibilityWeight))
+    }
+    static func dismantleUIViewController(_ controller: ReaderSwitchCandidateViewportController, coordinator: ()) {
+        controller.owner.detach(controller)
+    }
+}
+
+@MainActor final class ReaderSwitchCandidateViewportController: UIViewController {
+    let owner: ReaderSwitchCandidateHost
+    let attachmentID = UUID()
+    private let state: ReaderOnlineWorkspaceModel
+    let sessionID: UUID
+    let bookID: String
+    let presentationID: UUID
+    private weak var model: ReaderApplicationModel?
+    private var clearQueryFocus: (() -> Void)?
+    private var dismissPanel: (() -> Void)?
+    private weak var hostedChild: UIViewController?
+    private var childConstraints: [NSLayoutConstraint] = []
+    init(owner: ReaderSwitchCandidateHost, state: ReaderOnlineWorkspaceModel,
+         sessionID: UUID, bookID: String, presentationID: UUID) {
+        self.owner = owner; self.state = state; self.sessionID = sessionID
+        self.bookID = bookID; self.presentationID = presentationID
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func loadView() { view = UIView(); view.backgroundColor = .clear }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        #if DEBUG
+        owner.traceViewport("willAppear", container: self)
+        #endif
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        owner.viewportContainerAppeared(self)
+        #if DEBUG
+        owner.traceViewport("didAppear", container: self)
+        #endif
+    }
+    override func viewWillDisappear(_ animated: Bool) {
+        owner.captureViewport(self)
+        super.viewWillDisappear(animated)
+        #if DEBUG
+        owner.traceViewport("willDisappear", container: self)
+        #endif
+    }
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        #if DEBUG
+        owner.traceViewport("didDisappear", container: self)
+        #endif
+    }
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // Retain the last real child size while detached; never size the cached
+        // ScrollView to a new container's initial zero rectangle.
+        owner.mountIfSized(self)
+        #if DEBUG
+        owner.traceViewport("layout", container: self)
+        #endif
+    }
+    func updateInput(model: ReaderApplicationModel, clearQueryFocus: @escaping () -> Void,
+                     dismissPanel: @escaping () -> Void) {
+        self.model = model; self.clearQueryFocus = clearQueryFocus; self.dismissPanel = dismissPanel
+    }
+    func retireInput() { model = nil; clearQueryFocus = nil; dismissPanel = nil }
+    func mount(_ child: UIViewController) {
+        guard hostedChild !== child, child.parent == nil else { return }
+        #if DEBUG
+        owner.traceViewport("mount.before", container: self)
+        #endif
+        addChild(child)
+        child.view.translatesAutoresizingMaskIntoConstraints = false
+        child.view.frame = view.bounds
+        #if DEBUG
+        owner.traceViewport("mount.after-frame", container: self)
+        #endif
+        view.addSubview(child.view)
+        childConstraints = [child.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            child.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            child.view.topAnchor.constraint(equalTo: view.topAnchor),
+            child.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)]
+        NSLayoutConstraint.activate(childConstraints)
+        hostedChild = child
+        child.didMove(toParent: self)
+        #if DEBUG
+        owner.traceViewport("mount.after", container: self)
+        #endif
+    }
+    func removeHostedChild() {
+        guard let child = hostedChild, child.parent === self else { return }
+        #if DEBUG
+        owner.traceViewport("remove.before", container: self)
+        #endif
+        child.willMove(toParent: nil)
+        NSLayoutConstraint.deactivate(childConstraints); childConstraints = []
+        child.view.removeFromSuperview()
+        child.removeFromParent()
+        hostedChild = nil
+        #if DEBUG
+        owner.traceViewport("remove.after", container: self)
+        #endif
+    }
+    fileprivate var acceptsCurrentReaderInput: Bool {
+        guard let model else { return false }
+        return model.reader?.id == sessionID && model.reader?.book.id == bookID && !model.actions.hasPending
+    }
+    func select(_ candidate: ReaderOnlineCandidate) {
+        guard owner.isAttached(self), viewIfLoaded?.window != nil,
+              state.isCurrentDiscoveryPresentation(presentationID), let model,
+              model.reader?.id == sessionID, model.reader?.book.id == bookID,
+              !model.actions.hasPending else { return }
+        clearQueryFocus?()
+        let originalSessionID = sessionID, originalBookID = bookID
+        Task { [weak self, model] in
+            guard self?.selectionIsCurrent == true, model.reader?.id == originalSessionID,
+                  model.reader?.book.id == originalBookID else { return }
+            // Acceptance is still owned by the original model/ActionOwner. A
+            // sheet dismissal or cache eviction must not cancel/replay it.
+            let completed = await model.actions.perform("切换书源", scope: originalBookID) { [model] id in
+                try await model.switchOnlineSource(candidate, operationID: id)
+            }
+            if completed { self?.dismissIfCurrent() }
+        }
+    }
+    private var selectionIsCurrent: Bool {
+        owner.isAttached(self) && viewIfLoaded?.window != nil &&
+            state.isCurrentDiscoveryPresentation(presentationID)
+    }
+    private func dismissIfCurrent() {
+        guard selectionIsCurrent, viewIfLoaded?.window != nil else { return }
+        dismissPanel?()
+    }
+}
+
+@MainActor final class ReaderSwitchCandidateHostingController: UIHostingController<ReaderSwitchCandidateList> {
+    weak var viewportOwner: ReaderSwitchCandidateHost?
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if let container = parent as? ReaderSwitchCandidateViewportController {
+            viewportOwner?.viewportHostingLayout(self, container: container)
+        }
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if let container = parent as? ReaderSwitchCandidateViewportController {
+            viewportOwner?.viewportHostingAppeared(self, container: container)
+        }
+    }
+}
+
+@MainActor fileprivate final class ReaderSwitchViewportInteraction: NSObject {
+    private weak var owner: ReaderSwitchCandidateHost?
+    fileprivate weak var recognizer: UIPanGestureRecognizer?
+    init(owner: ReaderSwitchCandidateHost, recognizer: UIPanGestureRecognizer) {
+        self.owner = owner; self.recognizer = recognizer
+        super.init(); recognizer.addTarget(self, action: #selector(changed(_:)))
+    }
+    func detach() { recognizer?.removeTarget(self, action: #selector(changed(_:))); recognizer = nil }
+    @objc private func changed(_ recognizer: UIPanGestureRecognizer) {
+        guard self.recognizer === recognizer else { return }
+        if recognizer.state == .began || recognizer.state == .changed { owner?.viewportUserInteracted(self) }
+    }
+}
+
+struct ReaderSwitchCandidateList: View {
+    @ObservedObject var state: ReaderOnlineWorkspaceModel
+    let currentBookID: String
+    @ObservedObject var input: ReaderSwitchCandidatePresentationInput
+    let select: (ReaderOnlineCandidate, UUID) -> Void
+    private var candidates: [ReaderOnlineCandidate] { state.results.filter { $0.id != currentBookID } }
+    var body: some View {
+        // Value snapshot for this render. In particular, the action must not
+        // read input.configuration at tap time and adopt a new attachment.
+        let configuration = input.configuration
+        let appearance = configuration.environment
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(candidates) { candidate in
+                    Button { select(candidate, configuration.attachmentID) } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(candidate.title).font(ReaderTypography.font(.controlHeader))
+                                Text(candidate.author).font(ReaderTypography.font(.caption))
+                                Text(state.sourceName(candidate.sourceId) + (state.timings[candidate.sourceId].map { " · \($0) ms" } ?? "")).font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(appearance.scheme).muted)
+                                if !state.currentResultIDs.contains(candidate.id) { Text(state.searching ? "上次候选 · 本次搜索中" : "上次候选 · 本次未确认").font(ReaderTypography.font(.caption)) }
+                            }
+                            Spacer(); ReaderIcon(.chevronRight)
+                        }.padding(18).contentShape(Rectangle())
+                    }.buttonStyle(ReaderPressFeedback()).disabled(configuration.disabled)
+                        .id(candidate.id)
+                        .accessibilityIdentifier("online-switch-candidate:" + candidate.id)
+                    Divider()
+                }
+            }.scrollTargetLayout()
+        }
+            .environment(\.colorScheme, appearance.scheme)
+            .environment(\.dynamicTypeSize, appearance.dynamicTypeSize)
+            .environment(\.locale, appearance.locale)
+            .environment(\.layoutDirection, appearance.direction)
+            // Reduce Motion is a read-only system environment value. The native
+            // hosting child receives it through UIKit/SwiftUI accessibility.
+            .environment(\.legibilityWeight, appearance.legibilityWeight)
+    }
+}
+
 struct ReaderOnlineDownloadPanel: View {
     @ObservedObject var model: ReaderApplicationModel
     let session: ReaderActiveSession
-    @StateObject private var downloadActions = ReaderDownloadControlOwner()
+    @StateObject private var downloadActions: ReaderDownloadControlOwner
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @State private var status: ReaderDownloadStatus?
     @State private var storage: ReaderStorageSummary?
@@ -128,6 +864,18 @@ struct ReaderOnlineDownloadPanel: View {
     @State private var catalogTask: Task<Void, Never>?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
+
+    init(model: ReaderApplicationModel, session: ReaderActiveSession) {
+        self.model = model
+        self.session = session
+        _downloadActions = StateObject(wrappedValue: ReaderDownloadControlOwner(
+            pendingChecker: { [weak actions = model.actions] id in
+                guard let checker = actions?.pendingChecker else { return nil }
+                return await checker(id)
+            }
+        ))
+    }
+
     private var service: (any ReaderDownloadServing)? { model.libraryService as? any ReaderDownloadServing }
     var body: some View {
         VStack(spacing: 14) {

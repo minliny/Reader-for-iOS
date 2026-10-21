@@ -10,8 +10,12 @@ final class ReaderDownloadControlOwner: ObservableObject {
     let objectWillChange = ObservableObjectPublisher()
     private var observations = Set<AnyCancellable>()
 
-    init() {
+    init(pendingChecker: ((String) async -> Bool?)? = nil) {
+        // A missing/failed original-operation query is unknown, never proof
+        // that an accepted write failed. Each child retains its exact UUID.
+        let originalPending: (String) async -> Bool? = pendingChecker ?? { _ in nil }
         for owner in [resumeActions, controlActions] {
+            owner.pendingChecker = originalPending
             owner.objectWillChange.sink { [weak self] _ in
                 self?.objectWillChange.send()
             }.store(in: &observations)

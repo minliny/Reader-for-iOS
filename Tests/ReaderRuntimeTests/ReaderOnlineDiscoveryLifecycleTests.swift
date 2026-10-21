@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import XCTest
+import UIKit
 @testable import Reader
 
 /// Controlled protocol continuations test only the Host's discovery lifetime.
@@ -144,6 +145,140 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
             XCTAssertTrue(recreated !== created && recreated.query == "new initial query",
                           "Only a new state after the unchanged eight-entry eviction is initialized again")
         }
+        // Empty platform structure only: no candidate, book/source DTO,
+        // service request or offset is manufactured. Reuse the actual visible
+        // foreground window and production representable container type.
+        let foreground = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive })
+        let window = try XCTUnwrap(foreground.windows.first {
+            $0.isKeyWindow && !$0.isHidden && $0.windowLevel == .normal
+        }, "The structural check requires an existing real foreground App window")
+        var visibleParent = try XCTUnwrap(window.rootViewController)
+        while let presented = visibleParent.presentedViewController { visibleParent = presented }
+        let stage = UIViewController()
+        visibleParent.addChild(stage)
+        stage.view.frame = visibleParent.view.bounds
+        stage.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        visibleParent.view.addSubview(stage.view)
+        stage.didMove(toParent: visibleParent)
+        defer {
+            stage.willMove(toParent: nil); stage.view.removeFromSuperview(); stage.removeFromParent()
+        }
+        stage.view.layoutIfNeeded()
+        XCTAssertTrue(stage.view.window === window)
+        XCTAssertGreaterThan(stage.view.bounds.width, 0); XCTAssertGreaterThan(stage.view.bounds.height, 0)
+        func scrollView(in view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            for child in view.subviews { if let scroll = scrollView(in: child) { return scroll } }
+            return nil
+        }
+        func mountContainer(_ container: ReaderSwitchCandidateViewportController) {
+            stage.addChild(container)
+            container.view.frame = stage.view.bounds
+            container.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            stage.view.addSubview(container.view)
+            container.didMove(toParent: stage)
+            container.view.setNeedsLayout(); container.view.layoutIfNeeded()
+        }
+        func removeContainer(_ container: ReaderSwitchCandidateViewportController) {
+            guard container.parent === stage else { return }
+            container.willMove(toParent: nil); container.view.removeFromSuperview(); container.removeFromParent()
+        }
+        weak var weakHosting: UIViewController?
+        weak var weakScroll: UIScrollView?
+        do {
+            let cache = ReaderSwitchPresentationCache()
+            let identity = UUID().uuidString // A cache presentation identity, never a Core book.
+            let emptyState = cache.state(for: identity, initialQuery: "")
+            let nativeOwner = cache.candidateHost(for: identity, initialQuery: "")
+            XCTAssertTrue(emptyState.results.isEmpty && emptyState.sources.isEmpty && emptyState.service == nil)
+            let environment = ReaderSwitchCandidateEnvironment(scheme: .light, dynamicTypeSize: .large,
+                locale: .current, direction: .leftToRight, reduceMotion: false, legibilityWeight: nil)
+            let firstID = UUID(), nextID = UUID(), originalSession = UUID()
+            emptyState.activateDiscoveryPresentation(firstID)
+            let first = ReaderSwitchCandidateViewportController(owner: nativeOwner, state: emptyState,
+                sessionID: originalSession, bookID: identity, presentationID: firstID)
+            defer { nativeOwner.detach(first); removeContainer(first) }
+            nativeOwner.beginAttachment(first)
+            nativeOwner.update(first, disabled: false, environment: environment)
+            mountContainer(first)
+            let nativeScrollAppeared = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                first.children.first.map { scrollView(in: $0.view) != nil } ?? false
+            }, object: nil)
+            await fulfillment(of: [nativeScrollAppeared], timeout: 3)
+            let hosting = try XCTUnwrap(first.children.first)
+            XCTAssertTrue(hosting is ReaderSwitchCandidateHostingController,
+                          "The retained child must be the production UIHostingController subclass")
+            let originalScroll = try XCTUnwrap(scrollView(in: hosting.view))
+            weakHosting = hosting; weakScroll = originalScroll
+            XCTAssertTrue(hosting.parent === first && originalScroll.window === window)
+            let oldRenderedAttachmentID = first.attachmentID
+            XCTAssertTrue(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID))
+            #if DEBUG
+            XCTAssertEqual(nativeOwner.viewportRootAssignments, 1, "The cached hosting root is initialized exactly once")
+            #endif
+            let changedEnvironment = ReaderSwitchCandidateEnvironment(scheme: .dark, dynamicTypeSize: .xLarge,
+                locale: Locale(identifier: "en_US"), direction: .rightToLeft, reduceMotion: true, legibilityWeight: .bold)
+            nativeOwner.update(first, disabled: true, environment: changedEnvironment)
+            XCTAssertFalse(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID),
+                           "An action rendered before disabled changed must not be accepted")
+            nativeOwner.update(first, disabled: false, environment: environment)
+            XCTAssertTrue(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID))
+            #if DEBUG
+            XCTAssertEqual(nativeOwner.viewportRootAssignments, 1, "Disabled/environment updates publish input instead of assigning rootView")
+            #endif
+
+            nativeOwner.endPresentation(firstID)
+            XCTAssertFalse(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID))
+            emptyState.retireDiscoveryPresentation(firstID)
+            removeContainer(first)
+            XCTAssertTrue(first.children.isEmpty); XCTAssertNil(hosting.parent)
+            XCTAssertNil(originalScroll.window)
+            emptyState.activateDiscoveryPresentation(nextID)
+            let second = ReaderSwitchCandidateViewportController(owner: nativeOwner, state: emptyState,
+                sessionID: originalSession, bookID: identity, presentationID: nextID)
+            defer { nativeOwner.detach(second); removeContainer(second) }
+            XCTAssertTrue(first !== second && first.attachmentID != second.attachmentID)
+            nativeOwner.beginAttachment(second)
+            nativeOwner.update(second, disabled: false, environment: environment)
+            mountContainer(second)
+            XCTAssertTrue(second.children.first === hosting && hosting.parent === second)
+            XCTAssertTrue(scrollView(in: hosting.view) === originalScroll && originalScroll.window === window,
+                          "Controller retention must preserve the actual native ScrollView, not just a row ID")
+            XCTAssertFalse(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID),
+                           "A closure from the first render cannot adopt the reopened attachment")
+            XCTAssertTrue(nativeOwner.isCurrentRenderedAttachment(second.attachmentID))
+            #if DEBUG
+            XCTAssertEqual(nativeOwner.viewportRootAssignments, 1, "Reopening reuses the original root and observed input")
+            #endif
+            // These immediate getters protect only empty structural identity;
+            // deferred SwiftUI commits/populated2pt remain the realUI method's job.
+            // An unchanged representable update must not replace the native graph.
+            nativeOwner.update(second, disabled: false, environment: environment)
+            second.view.layoutIfNeeded()
+            XCTAssertTrue(second.children.first === hosting && scrollView(in: hosting.view) === originalScroll)
+            ReaderSwitchCandidateViewport.dismantleUIViewController(first, coordinator: ())
+            XCTAssertTrue(nativeOwner.isAttached(second) && hosting.parent === second)
+            XCTAssertTrue(nativeOwner.isCurrentRenderedAttachment(second.attachmentID),
+                           "An obsolete dismantle cannot disable the reopened input")
+            XCTAssertFalse(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID))
+            XCTAssertTrue(scrollView(in: hosting.view) === originalScroll && originalScroll.window === window)
+            nativeOwner.endPresentation(firstID)
+            XCTAssertTrue(nativeOwner.isAttached(second), "An obsolete presentation end cannot retire the reopened attachment")
+            for index in 0..<8 { _ = cache.state(for: "native-host-eviction-\(index)", initialQuery: "") }
+            XCTAssertFalse(emptyState.isCurrentDiscoveryPresentation(nextID))
+            XCTAssertFalse(nativeOwner.isAttached(second))
+            XCTAssertFalse(nativeOwner.isCurrentRenderedAttachment(second.attachmentID))
+            XCTAssertTrue(second.children.isEmpty); XCTAssertNil(hosting.parent); XCTAssertNil(originalScroll.window)
+            XCTAssertTrue(emptyState.results.isEmpty && emptyState.sources.isEmpty && emptyState.service == nil)
+        }
+        let nativeGraphReleased = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            weakHosting == nil && weakScroll == nil
+        }, object: nil)
+        await fulfillment(of: [nativeGraphReleased], timeout: 3)
+        XCTAssertNil(weakHosting); XCTAssertNil(weakScroll)
+        // This is no pixel-offset or real-candidate viewport assertion. The
+        // separate real online close/reopen journey still owns its strict 2pt contract.
         let service = DiscoveryControlledService()
         var state: ReaderOnlineWorkspaceModel? = ReaderOnlineWorkspaceModel()
         weak var weakState = state
