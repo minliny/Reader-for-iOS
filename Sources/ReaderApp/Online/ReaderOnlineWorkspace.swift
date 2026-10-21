@@ -14,6 +14,9 @@ import WebKit
     @Published var searched = false
     @Published var currentResultIDs = Set<String>()
     @Published var sourceLoading = false
+    @Published var sourceReadFailure: String?
+    @Published private(set) var sourceReadFailureID: UUID?
+    @Published var scrollAnchor: String?
     @Published var error: String?
     @Published var detail: ReaderOnlineDetail?
     @Published var detailLoading = false
@@ -27,22 +30,31 @@ import WebKit
     private var detailTask: Task<Void, Never>?
     private var sourcesID = UUID()
     private var lastKeyword = ""
+    private var announcedSourceFailure: UUID?
     deinit { searchTask?.cancel(); detailTask?.cancel() }
     func loadSources() async {
         guard let service else { return }
         let generation = UUID(); sourcesID = generation
         sourceLoading = true; defer { if sourcesID == generation { sourceLoading = false } }
-        do { let result = try await service.onlineSources(); guard sourcesID == generation else { return }; sources = result; error = nil }
-        catch { guard sourcesID == generation else { return }; self.error = error.localizedDescription }
+        do { let result = try await service.onlineSources(); guard sourcesID == generation else { return }; sources = result; sourceReadFailure = nil; sourceReadFailureID = nil }
+        catch { guard sourcesID == generation else { return }; sourceReadFailure = error.localizedDescription; sourceReadFailureID = UUID() }
+    }
+    func consumeSourceRefreshNotice() -> String? {
+        guard !sources.isEmpty, let id = sourceReadFailureID, announcedSourceFailure != id else { return nil }
+        announcedSourceFailure = id
+        return "书源刷新未完成，已有书源仍可使用。"
     }
     func stop() { stopped = searching; searchTask?.cancel(); searchID = UUID(); searching = false }
     func search() { startSearch(retainCandidates: false) }
     func researchCandidates() { startSearch(retainCandidates: true) }
     private func startSearch(retainCandidates: Bool) {
         guard let service, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        stop(); let generation = UUID(); searchID = generation
-        let keyword = query; let enabled = sources.filter(\.enabled)
-        if !retainCandidates || keyword != lastKeyword { results = [] }
+        stop()
+        let enabled = sources.filter(\.enabled)
+        guard !enabled.isEmpty else { return }
+        let generation = UUID(); searchID = generation
+        let keyword = query
+        if !retainCandidates || keyword != lastKeyword { results = []; scrollAnchor = nil }
         lastKeyword = keyword; currentResultIDs = []
         timings = [:]; failures = [:]; searched = true; stopped = false; searching = true; error = nil
         searchTask = Task {
@@ -95,7 +107,6 @@ struct ReaderOnlineWorkspace: View {
     @StateObject private var state = ReaderOnlineWorkspaceModel()
     @State private var managing = false
     @State private var subscriptions = false
-    @State private var scrollAnchor: String?
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         VStack(spacing: 0) {
@@ -114,6 +125,7 @@ struct ReaderOnlineWorkspace: View {
             } else {
                 searchPage
             }
+            ReaderOnlineSourceRefreshNotice(state: state)
             ReaderOperationStatus(owner: state.actions, scope: "online")
         }.foregroundStyle(ReaderPalette(scheme).ink).background(ReaderPalette(scheme).paper)
             .task { state.service = model.libraryService as? any ReaderOnlineServing; await state.loadSources() }
@@ -127,7 +139,10 @@ struct ReaderOnlineWorkspace: View {
                 else { Button("搜索", action: state.search).accessibilityIdentifier("online-search-submit") }
             }.padding(.horizontal, 20)
             if state.sources.filter(\.enabled).isEmpty {
-                ReaderPageState(title: state.sourceLoading ? "正在加载书源" : "还没有启用的书源", detail: state.error ?? "导入书源后即可搜索。", loading: state.sourceLoading, actionTitle: "管理书源") { managing = true }
+                ReaderPageState(title: state.sourceLoading ? "正在加载书源" : state.sourceReadFailure == nil ? "还没有启用的书源" : "书源加载失败", detail: state.sourceReadFailure ?? "导入书源后即可搜索。", loading: state.sourceLoading, actionTitle: state.sourceReadFailure == nil ? "管理书源" : "重试") {
+                    if state.sourceReadFailure != nil { Task { await state.loadSources() } }
+                    else { managing = true }
+                }
             } else {
                 HStack {
                     TextField("筛选来源或书名", text: $state.sourceFilter).readerField()
@@ -136,11 +151,13 @@ struct ReaderOnlineWorkspace: View {
                 if state.searching { ProgressView("正在搜索 · 已返回 \(state.timings.count + state.failures.count)/\(state.sources.filter(\.enabled).count) 个书源").font(ReaderTypography.font(.caption)) }
                 if !state.failures.isEmpty { Text("\(state.failures.count) 个书源未完成，可保留已有结果并重新搜索").font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted) }
                 if state.results.isEmpty, state.searched, !state.searching {
-                    ReaderPageState(title: state.stopped ? "搜索已停止" : state.timings.isEmpty ? "搜索未完成" : "没有找到相关书籍", detail: state.stopped ? "可重新搜索，已有书架和阅读位置保留。" : state.timings.isEmpty ? "所有书源均未返回有效结果，请检查书源或网络。" : "可更换关键词或书源。", actionTitle: "重新搜索", action: state.search)
+                    ReaderPageState(title: state.stopped ? "搜索已停止" : state.timings.isEmpty ? "搜索未完成" : !state.failures.isEmpty ? "部分书源未完成" : "没有找到相关书籍", detail: state.stopped ? "可重新搜索，已有书架和阅读位置保留。" : state.timings.isEmpty ? "所有书源均未返回有效结果，请检查书源或网络。" : !state.failures.isEmpty ? "已返回的书源中没有匹配项，可重新搜索未完成的书源。" : "可更换关键词或书源。", actionTitle: "重新搜索", action: state.search)
+                } else if !state.results.isEmpty, filteredResults.isEmpty {
+                    ReaderPageState(title: "没有符合筛选的书籍", detail: "清除筛选可查看已有搜索结果。", actionTitle: "清除筛选") { state.sourceFilter = "" }
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(state.results.filter { state.sourceFilter.isEmpty || $0.title.localizedCaseInsensitiveContains(state.sourceFilter) || state.sourceName($0.sourceId).localizedCaseInsensitiveContains(state.sourceFilter) }) { book in
+                            ForEach(filteredResults) { book in
                                 Button { state.showDetail(book) } label: {
                                     HStack(spacing: 14) {
                                         ReaderBookCover(book: ReaderBook(sourceId: book.sourceId, bookId: book.bookId, title: book.title, coverUrl: book.coverUrl), imageService: state.service as? any ReaderRemoteImageServing).frame(width: 54, height: 76)
@@ -156,10 +173,15 @@ struct ReaderOnlineWorkspace: View {
                                 Divider().padding(.horizontal, 20)
                             }
                         }.scrollTargetLayout()
-                    }.scrollPosition(id: $scrollAnchor)
+                    }.scrollPosition(id: Binding(get: { state.scrollAnchor }, set: { id in
+                        if let id, state.results.contains(where: { $0.id == id }) { state.scrollAnchor = id }
+                    }))
                 }
             }
         }
+    }
+    private var filteredResults: [ReaderOnlineCandidate] {
+        state.results.filter { state.sourceFilter.isEmpty || $0.title.localizedCaseInsensitiveContains(state.sourceFilter) || state.sourceName($0.sourceId).localizedCaseInsensitiveContains(state.sourceFilter) }
     }
     @ViewBuilder private func detail(_ candidate: ReaderOnlineCandidate) -> some View {
         VStack(spacing: 12) {
@@ -204,6 +226,31 @@ struct ReaderOnlineWorkspace: View {
     }
 }
 
+/// A failed refresh keeps the original source snapshot. This projection owns
+/// only its two-second display and consumes each original failure once.
+struct ReaderOnlineSourceRefreshNotice: View {
+    @ObservedObject var state: ReaderOnlineWorkspaceModel
+    @State private var message: String?
+    @State private var displayID: UUID?
+    @Environment(\.scenePhase) private var phase
+    var body: some View {
+        Group {
+            if let message { ReaderTransientFeedback(message: message).allowsHitTesting(false) }
+        }
+        .task(id: state.sourceReadFailureID) {
+            let id = state.sourceReadFailureID
+            displayID = id
+            message = state.consumeSourceRefreshNotice()
+            guard phase == .active else { displayID = nil; message = nil; return }
+            guard message != nil else { return }
+            defer { if displayID == id { message = nil } }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        .onDisappear { displayID = nil; message = nil }
+        .onChange(of: phase) { _, value in if value != .active { displayID = nil; message = nil } }
+    }
+}
+
 private struct ReaderSourceManagement: View {
     @ObservedObject var state: ReaderOnlineWorkspaceModel
     @StateObject private var confirmation = ReaderNativeAlertOwner()
@@ -237,7 +284,9 @@ private struct ReaderSourceManagement: View {
                 TextField("名称或分组", text: $filter).readerField()
                 if let error = state.error { ReaderPageState(title: "书源操作未完成", detail: error) }
                 ForEach(importResults) { item in Text(item.name + " · " + item.message).font(ReaderTypography.font(.caption)) }
-                if state.sources.isEmpty { ReaderPageState(title: state.sourceLoading ? "正在加载书源" : "暂无书源", loading: state.sourceLoading) }
+                if state.sources.isEmpty {
+                    ReaderPageState(title: state.sourceLoading ? "正在加载书源" : state.sourceReadFailure == nil ? "暂无书源" : "书源加载失败", detail: state.sourceReadFailure ?? "", loading: state.sourceLoading, actionTitle: state.sourceReadFailure == nil ? nil : "重试") { Task { await state.loadSources() } }
+                }
                 ForEach(state.sources.filter { filter.isEmpty || $0.name.localizedCaseInsensitiveContains(filter) || $0.group.localizedCaseInsensitiveContains(filter) }) { source in
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {

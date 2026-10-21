@@ -39,7 +39,7 @@ struct ReaderOnlineSwitchPanel: View {
             if state.searching { ProgressView("正在查找其他来源") }
             if !state.failures.isEmpty { Text("\(state.failures.count) 个来源未完成").font(ReaderTypography.font(.caption)) }
             if candidates.isEmpty, !state.searching {
-                ReaderPageState(title: "没有其他来源", detail: "已有正文和阅读位置保留，可重新搜索。")
+                emptyCandidates
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -61,12 +61,16 @@ struct ReaderOnlineSwitchPanel: View {
                                     Spacer(); ReaderIcon(.chevronRight)
                                 }.padding(18).contentShape(Rectangle())
                             }.buttonStyle(ReaderPressFeedback()).disabled(model.actions.hasPending)
+                                .id(candidate.id)
                                 .accessibilityIdentifier("online-switch-candidate:" + candidate.id)
                             Divider()
                         }
-                    }
-                }
+                    }.scrollTargetLayout()
+                }.scrollPosition(id: Binding(get: { state.scrollAnchor }, set: { id in
+                    if let id, candidates.contains(where: { $0.id == id }) { state.scrollAnchor = id }
+                }))
             }
+            ReaderOnlineSourceRefreshNotice(state: state)
             ReaderOperationStatus(owner: model.actions, scope: session.book.id)
                 .accessibilityIdentifier("online-switch-outcome")
         }.padding(.vertical, 20).background(ReaderPalette(scheme).paper)
@@ -74,8 +78,28 @@ struct ReaderOnlineSwitchPanel: View {
                 state.service = model.libraryService as? any ReaderOnlineServing
                 if state.query.isEmpty { state.query = session.book.title }
                 await state.loadSources()
-                if !state.searched { state.search() }
+                if !state.searched, state.sourceReadFailure == nil { state.search() }
             }
+    }
+    @ViewBuilder private var emptyCandidates: some View {
+        if state.sourceLoading {
+            ReaderPageState(title: "正在加载书源", loading: true)
+        } else if state.sources.allSatisfy({ !$0.enabled }) {
+            ReaderPageState(title: state.sourceReadFailure == nil ? "还没有启用的书源" : "书源加载失败", detail: state.sourceReadFailure ?? "可在书源管理中启用书源，已有正文和阅读位置保留。", actionTitle: state.sourceReadFailure == nil ? nil : "重试") {
+                Task {
+                    await state.loadSources()
+                    if !state.searched, state.sourceReadFailure == nil { state.search() }
+                }
+            }
+        } else if state.stopped {
+            ReaderPageState(title: "查找已停止", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重新搜索", action: state.researchCandidates)
+        } else if !state.failures.isEmpty {
+            ReaderPageState(title: state.timings.isEmpty ? "查找来源失败" : "部分来源未完成", detail: "尚不能确认没有其他来源，已有正文和阅读位置保留。", actionTitle: "重新搜索", action: state.researchCandidates)
+        } else if !state.searched || state.timings.isEmpty {
+            ReaderPageState(title: "尚未取得来源结果", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重新搜索", action: state.researchCandidates)
+        } else {
+            ReaderPageState(title: "没有其他来源", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重新搜索", action: state.researchCandidates)
+        }
     }
     private var candidates: [ReaderOnlineCandidate] { state.results.filter { $0.id != session.book.id } }
 }
