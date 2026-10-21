@@ -9,18 +9,31 @@ final class ReaderLibraryActionOwner: ObservableObject {
     @Published private(set) var recovery: String?
     @Published private(set) var feedback: String?
     @Published private(set) var scope: String?
-    private var pending: (id: String, label: String, action: (String) async throws -> Void)?
+    private var pending: (id: String, label: String, action: (String) async throws -> Void, ended: ((String, Bool) -> Void)?)?
     private var feedbackGeneration = UUID()
     var pendingChecker: ((String) async -> Bool?)?
     var hasPending: Bool { pending != nil }
     var pendingOperationID: String? { pending?.id }
 
     @discardableResult
-    func perform(_ label: String, scope: String, action: @escaping (String) async throws -> Void) async -> Bool {
+    func perform(_ label: String, scope: String, ended: ((String, Bool) -> Void)? = nil,
+                 action: @escaping (String) async throws -> Void) async -> Bool {
         guard pending == nil, !busy else { return false }
         self.scope = scope
-        pending = (UUID().uuidString.lowercased(), label, action)
+        pending = (UUID().uuidString.lowercased(), label, action, ended)
         return await resumeOriginal()
+    }
+
+    /// Reattaches a caller's persisted accepted intent without executing it or
+    /// allocating another UUID. The caller must first verify its frozen input.
+    @discardableResult
+    func restoreAccepted(id: String, label: String, scope: String, ended: ((String, Bool) -> Void)? = nil,
+                         action: @escaping (String) async throws -> Void) -> Bool {
+        guard pending == nil, !busy, !id.isEmpty else { return false }
+        self.scope = scope
+        pending = (id, label, action, ended)
+        recovery = "\(label)结果尚待确认，请核对原操作"
+        return true
     }
 
     @discardableResult
@@ -32,10 +45,12 @@ final class ReaderLibraryActionOwner: ObservableObject {
             try await intent.action(intent.id)
             pending = nil
             recovery = nil
+            intent.ended?(intent.id, true)
             return true
         } catch ReaderLibraryError.operationPending(let originalID) {
             if originalID != intent.id, let pendingChecker, await pendingChecker(intent.id) == false {
                 pending = nil; recovery = nil
+                intent.ended?(intent.id, false)
                 publishFeedback("前一项原操作尚未确认，本次操作未提交")
             } else { recovery = "\(intent.label)结果尚待确认，请核对原操作" }
         } catch {
@@ -45,6 +60,7 @@ final class ReaderLibraryActionOwner: ObservableObject {
             }
             pending = nil
             recovery = nil
+            intent.ended?(intent.id, false)
             publishFeedback(error.localizedDescription)
         }
         return false

@@ -30,6 +30,17 @@ final class ReaderPlatformJourneyTests: XCTestCase {
             ? originalOrientation : .portrait
         let app = XCUIApplication()
         let initialAppFrame = app.state == .runningForeground ? app.frame : .zero
+        var completedJourney = false
+        #if DEBUG
+        app.launchEnvironment["READER_DEBUG_ORIENTATION_SAMPLES"] = "1"
+        #endif
+        app.launch()
+        // Registered first so this runs after the original direction/window
+        // cleanup, including when a fail-fast assertion aborts the method.
+        // Only this App instance was launched with the diagnostic opt-in.
+        addTeardownBlock {
+            if !completedJourney && app.state != .notRunning { app.terminate() }
+        }
         // XCTest runs teardown blocks even when a fail-fast assertion aborts
         // the test body. A sensor setter alone is not window restoration.
         addTeardownBlock {
@@ -37,7 +48,6 @@ final class ReaderPlatformJourneyTests: XCTestCase {
             self.establishOrientationInput(app, desired: cleanupOrientation, stage: "cleanup")
         }
 
-        app.launch()
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
         // Request only after the new App scene is active. Requesting against
         // the previous reading process immediately before launch terminates it
@@ -75,6 +85,8 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         assertReadingWithinWindow(app)
         assertDirectoryWithinWindow(app, name: "ipad-portrait-directory")
 
+        let input = XCTAttachment(string: "stage=reading-landscape-before-input; uptime=\(ProcessInfo.processInfo.systemUptime); actualSensorOrientation=\(device.orientation.rawValue); appState=\(app.state.rawValue); actualAppFrame=\(app.frame); \(fullScreenOrientationEvidence(stage: "reading-landscape-before-input"))")
+        input.name = "ipad-orientation-reading-landscape-before-input"; input.lifetime = .keepAlways; add(input)
         device.orientation = .landscapeLeft
         waitForOrientation(app, landscape: true, stage: "reading-landscape")
         try assertVisible(anchor, app: app, name: "ipad-landscape-original-TXT-anchor")
@@ -90,6 +102,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         let leave = app.buttons["leave-reader"]
         XCTAssertTrue(leave.waitForExistence(timeout: 5)); leave.tap()
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+        completedJourney = true
     }
 
     /// The delivery owner sets/restores the actual simulator content size and
@@ -365,13 +378,21 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         }, object: nil)
         let result = XCTWaiter.wait(for: [expected], timeout: 15)
         let screenshot = app.screenshot().image
-        let facts = "stage=\(stage); requestedWindowClass=\(landscape ? "landscape" : "portrait"); result=\(result.rawValue); actualSensorOrientation=\(XCUIDevice.shared.orientation.rawValue); appState=\(app.state.rawValue); actualAppFrame=\(app.frame); screenshotOrientation=\(screenshot.imageOrientation.rawValue); screenshotPixels=\(screenshot.cgImage?.width ?? 0)x\(screenshot.cgImage?.height ?? 0); readerDirectionPreferenceUnchanged=true"
+        let facts = "stage=\(stage); requestedWindowClass=\(landscape ? "landscape" : "portrait"); result=\(result.rawValue); uptime=\(ProcessInfo.processInfo.systemUptime); actualSensorOrientation=\(XCUIDevice.shared.orientation.rawValue); appState=\(app.state.rawValue); actualAppFrame=\(app.frame); screenshotOrientation=\(screenshot.imageOrientation.rawValue); screenshotPixels=\(screenshot.cgImage?.width ?? 0)x\(screenshot.cgImage?.height ?? 0); \(fullScreenOrientationEvidence(stage: stage)); readerDirectionPreferenceUnchanged=true"
         let audit = XCTAttachment(string: facts)
         audit.name = "ipad-actual-orientation-\(stage)"; audit.lifetime = .keepAlways; add(audit)
         if result != .completed {
             evidence(app, name: "ipad-orientation-\(stage)-failure")
         }
         XCTAssertEqual(result, .completed, "The actual app window must rotate; a requested orientation alone is insufficient")
+    }
+
+    private func fullScreenOrientationEvidence(stage: String) -> String {
+        let screenshot = XCUIScreen.main.screenshot()
+        let image = screenshot.image
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "ipad-orientation-\(stage)-actual-full-screen"; attachment.lifetime = .keepAlways; add(attachment)
+        return "fullScreenOrientation=\(image.imageOrientation.rawValue); fullScreenPixels=\(image.cgImage?.width ?? 0)x\(image.cgImage?.height ?? 0)"
     }
 
     /// A repeated identical XCTest sensor value may emit no new event. Only
@@ -386,7 +407,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         let windowMatches = validWindow && (desired.isLandscape
             ? beforeFrame.width > beforeFrame.height : beforeFrame.height > beforeFrame.width)
         let requiresFreshEvent = beforeSensor == desired && validWindow && !windowMatches
-        let before = XCTAttachment(string: "stage=\(stage); desiredSensor=\(desired.rawValue); beforeSensor=\(beforeSensor.rawValue); beforeWindow=\(beforeFrame); singleAwayBackRequired=\(requiresFreshEvent); maximumAwayBackCycles=1; readerDirectionPreferenceUnchanged=true")
+        let before = XCTAttachment(string: "stage=\(stage); uptime=\(ProcessInfo.processInfo.systemUptime); desiredSensor=\(desired.rawValue); beforeSensor=\(beforeSensor.rawValue); beforeWindow=\(beforeFrame); singleAwayBackRequired=\(requiresFreshEvent); maximumAwayBackCycles=1; readerDirectionPreferenceUnchanged=true")
         before.name = "ipad-orientation-input-\(stage)-before"; before.lifetime = .keepAlways; add(before)
         if requiresFreshEvent {
             let away: UIDeviceOrientation = desired.isLandscape ? .portrait : .landscapeLeft
@@ -408,7 +429,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         }
         device.orientation = desired
         waitForOrientation(app, landscape: desired.isLandscape, stage: stage)
-        let after = XCTAttachment(string: "stage=\(stage); requestedSensor=\(desired.rawValue); actualSensor=\(device.orientation.rawValue); actualWindow=\(app.frame); awayBackCycles=\(requiresFreshEvent ? 1 : 0); readerDirectionPreferenceUnchanged=true")
+        let after = XCTAttachment(string: "stage=\(stage); uptime=\(ProcessInfo.processInfo.systemUptime); requestedSensor=\(desired.rawValue); actualSensor=\(device.orientation.rawValue); actualWindow=\(app.frame); awayBackCycles=\(requiresFreshEvent ? 1 : 0); readerDirectionPreferenceUnchanged=true")
         after.name = "ipad-orientation-input-\(stage)-after"; after.lifetime = .keepAlways; add(after)
         XCTAssertEqual(device.orientation, desired, "The observed sensor must match the requested baseline as well as the actual window")
     }

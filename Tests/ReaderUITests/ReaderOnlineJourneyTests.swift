@@ -1,8 +1,108 @@
 import XCTest
 import UIKit
+import CryptoKit
 
 final class ReaderOnlineJourneyTests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    /// The Runner binds an existing, real source-file draft before this method.
+    /// This cancels replacement and reselects those same real file bytes. It
+    /// never edits the draft or submits a Core source import/save.
+    func testExistingRealSourceDraftCancelledReplacementAndColdReopenPreserveExactInput() throws {
+        let environment = ProcessInfo.processInfo.environment
+        let expectedSHA = try XCTUnwrap(environment["READER_SOURCE_DRAFT_EXPECTED_SHA256"])
+        let expectedBytes = try XCTUnwrap(Int(environment["READER_SOURCE_DRAFT_EXPECTED_BYTES"] ?? ""))
+        XCTAssertEqual(expectedSHA.count, 64)
+        XCTAssertGreaterThan(expectedBytes, 0)
+        let app = XCUIApplication()
+        app.launch()
+        openExistingSourceManagement(app)
+        assertPreservedSourceDraft(app, sha: expectedSHA, bytes: expectedBytes)
+        closePreservedSourceDraft(app)
+
+        let edits = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-source-edit:"))
+        XCTAssertGreaterThan(edits.count, 0, "An actual already saved source is required; no source is generated or imported here.")
+        let edit = edits.element(boundBy: 0)
+        let sourceIdentity = edit.identifier
+        XCTAssertTrue(edit.isHittable, app.debugDescription)
+        edit.tap()
+        let alert = app.alerts["替换当前书源草稿？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 10), "Editing a different saved source must protect the existing unsaved real-file draft.\n" + app.debugDescription)
+        let identity = XCTAttachment(string: "incomingSavedSource=\(sourceIdentity)\noriginalDraftSHA256=\(expectedSHA)\noriginalDraftUTF8Bytes=\(expectedBytes)\nNo save, text edit, confirmation acceptance or Core mutation is requested.")
+        identity.name = "real-source-draft-cancelled-replacement-identity"
+        identity.lifetime = .keepAlways
+        add(identity)
+        keepScreenshot(app, name: "real-source-draft-replacement-requires-confirmation")
+        let cancel = alert.buttons["取消"]
+        XCTAssertTrue(cancel.isHittable)
+        cancel.tap()
+        waitFor(alert, timeout: 5, message: "Cancellation must dismiss only the replacement confirmation") { !$0.exists }
+        assertPreservedSourceDraft(app, sha: expectedSHA, bytes: expectedBytes)
+        closePreservedSourceDraft(app)
+        leaveExistingSourceManagement(app)
+
+        // Cold startup follows the normal parent return, with no accepted save.
+        app.terminate()
+        app.launch()
+        openExistingSourceManagement(app)
+        assertPreservedSourceDraft(app, sha: expectedSHA, bytes: expectedBytes)
+        keepScreenshot(app, name: "real-source-draft-cold-reopened-exact-input")
+        closePreservedSourceDraft(app)
+        let file = app.buttons["online-source-file"]
+        XCTAssertTrue(file.isHittable)
+        file.tap()
+        selectProvisionedSourcePackage(in: app)
+        assertSourceDraftValue(app, sha: expectedSHA, bytes: expectedBytes)
+        keepScreenshot(app, name: "real-source-draft-same-original-file-read-without-save")
+        closePreservedSourceDraft(app)
+        leaveExistingSourceManagement(app)
+    }
+
+    private func openExistingSourceManagement(_ app: XCUIApplication) {
+        let shelfMenu = app.buttons["更多书架操作"]
+        XCTAssertTrue(shelfMenu.waitForExistence(timeout: 20), app.debugDescription)
+        shelfMenu.tap()
+        let online = app.buttons["搜索与书源"]
+        XCTAssertTrue(online.waitForExistence(timeout: 5), app.debugDescription)
+        online.tap()
+        let sources = app.buttons["online-open-sources"]
+        XCTAssertTrue(sources.waitForExistence(timeout: 10), app.debugDescription)
+        sources.tap()
+        XCTAssertTrue(app.buttons["online-source-file"].waitForExistence(timeout: 10), app.debugDescription)
+    }
+
+    private func assertPreservedSourceDraft(_ app: XCUIApplication, sha: String, bytes: Int) {
+        let resume = app.buttons["导入 JSON"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 5), app.debugDescription)
+        resume.tap()
+        assertSourceDraftValue(app, sha: sha, bytes: bytes)
+    }
+
+    private func assertSourceDraftValue(_ app: XCUIApplication, sha: String, bytes: Int) {
+        let draft = app.textViews["online-source-draft"]
+        XCTAssertTrue(draft.waitForExistence(timeout: 10), app.debugDescription)
+        let value = draft.value as? String ?? ""
+        XCTAssertEqual(value.utf8.count, bytes, "The entire real source draft must remain available, not only its first visible lines.")
+        XCTAssertEqual(SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined(), sha,
+                       "Closing, cancelling and cold startup must preserve the exact original UTF-8 draft.")
+    }
+
+    private func closePreservedSourceDraft(_ app: XCUIApplication) {
+        let close = app.buttons["保留草稿并关闭"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5), app.debugDescription)
+        close.tap()
+        waitFor(app.textViews["online-source-draft"], timeout: 5, message: "Normal close must leave source management") { !$0.exists }
+    }
+
+    private func leaveExistingSourceManagement(_ app: XCUIApplication) {
+        let search = app.buttons["online-close-sources"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5), app.debugDescription)
+        search.tap()
+        let close = app.buttons["online-close-workspace"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5), app.debugDescription)
+        close.tap()
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 10), app.debugDescription)
+    }
 
     /// Requires the byte-bound, real Reader-real-sources.json package already
     /// provisioned in this App's Documents. All candidates and body text come

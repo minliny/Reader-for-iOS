@@ -140,6 +140,10 @@ final class ReaderDisplaySessionOwner: NSObject, ObservableObject {
     #if DEBUG
     private weak var diagnosticWindow: UIWindow?
     private var diagnosticLayout: String?
+    private var diagnosticSamples: Task<Void, Never>?
+    private var diagnosticSampleGeneration = UUID()
+    private var diagnosticSampleDeadline: TimeInterval?
+    private var diagnosticSampleCount = 0
     #endif
 
     override init() {
@@ -152,9 +156,22 @@ final class ReaderDisplaySessionOwner: NSObject, ObservableObject {
         center.addObserver(self, selector: #selector(sensorChanged(_:)), name: UIDevice.orientationDidChangeNotification, object: nil)
         #endif
     }
-    deinit { awakeTimer?.cancel(); NotificationCenter.default.removeObserver(self) }
+    deinit {
+        awakeTimer?.cancel()
+        #if DEBUG
+        diagnosticSamples?.cancel()
+        #endif
+        NotificationCenter.default.removeObserver(self)
+    }
 
     func enterReader() {
+        #if DEBUG
+        if !readerPresent {
+            stopOrientationSamples()
+            diagnosticSampleDeadline = nil
+            diagnosticSampleCount = 0
+        }
+        #endif
         readerPresent = true; acquireIfPossible()
         #if DEBUG
         traceOrientation("reader.enter")
@@ -246,6 +263,9 @@ final class ReaderDisplaySessionOwner: NSObject, ObservableObject {
         }
         applyIntent()
         publishActive(true)
+        #if DEBUG
+        startOrientationSamplesIfNeeded()
+        #endif
     }
 
     private func applyIntent() {
@@ -306,6 +326,9 @@ final class ReaderDisplaySessionOwner: NSObject, ObservableObject {
     }
 
     private func releaseClaim(restoreOrientation: Bool) {
+        #if DEBUG
+        stopOrientationSamples()
+        #endif
         awakeGeneration = UUID(); awakeTimer?.cancel(); awakeTimer = nil; awakeLease = false
         let idle = baselineIdle
         let priorOrientation = baselineOrientation
@@ -372,6 +395,43 @@ final class ReaderDisplaySessionOwner: NSObject, ObservableObject {
         releaseClaim(restoreOrientation: false)
     }
     #if DEBUG
+    /// Only the exact orientation UITest opts in. Observation never requests
+    /// geometry, changes device orientation, or re-arms the session's budget.
+    private func startOrientationSamplesIfNeeded() {
+        guard ProcessInfo.processInfo.environment["READER_DEBUG_ORIENTATION_SAMPLES"] == "1",
+              diagnosticSamples == nil, readerPresent, foreground,
+              let scene, let window = diagnosticWindow, window.windowScene === scene else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if diagnosticSampleDeadline == nil { diagnosticSampleDeadline = now + 120 }
+        guard diagnosticSampleCount < 120, let deadline = diagnosticSampleDeadline, now < deadline else { return }
+        let expected = UUID()
+        diagnosticSampleGeneration = expected
+        diagnosticSamples = Task { @MainActor [weak self, weak scene, weak window] in
+            for _ in 0..<120 {
+                guard self?.recordOrientationSample(generation: expected, scene: scene, window: window) == true else { break }
+                do { try await Task.sleep(nanoseconds: 1_000_000_000) }
+                catch { return }
+            }
+            guard let self, self.diagnosticSampleGeneration == expected else { return }
+            self.diagnosticSamples = nil
+        }
+    }
+    private func recordOrientationSample(generation: UUID, scene expectedScene: UIWindowScene?, window: UIWindow?) -> Bool {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard diagnosticSampleGeneration == generation, !Task.isCancelled,
+              readerPresent, foreground, let expectedScene, scene === expectedScene,
+              let window, diagnosticWindow === window, window.windowScene === expectedScene,
+              diagnosticSampleCount < 120, let deadline = diagnosticSampleDeadline, now < deadline else { return false }
+        diagnosticSampleCount += 1
+        ReaderOrientationDiagnostics.record(event: "passive.sample", window: window, scene: expectedScene,
+            context: "\(diagnosticContext) sample=\(diagnosticSampleCount) uptime=\(now)")
+        return true
+    }
+    private func stopOrientationSamples() {
+        diagnosticSampleGeneration = UUID()
+        diagnosticSamples?.cancel()
+        diagnosticSamples = nil
+    }
     fileprivate func recordGeometry(window: UIWindow?, event: String, changedOnly: Bool = false) {
         diagnosticWindow = window
         let previous = changedOnly ? diagnosticLayout : nil

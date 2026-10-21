@@ -207,10 +207,10 @@ struct ReaderOnlineWorkspace: View {
 private struct ReaderSourceManagement: View {
     @ObservedObject var state: ReaderOnlineWorkspaceModel
     @StateObject private var confirmation = ReaderNativeAlertOwner()
-    @State private var editor = false
-    @AppStorage("reader.source-editor.draft") private var draft = ""
+    @StateObject private var draftOwner: ReaderSourceEditorDraftOwner
     @State private var link = ""
     @State private var importFile = false
+    @State private var fileRead: ReaderSourceEditorDraftOwner.ReadRequest?
     @State private var exportFile = false
     @State private var exportData = ReaderSourceJSONDocument(data: Data())
     @State private var importResults: [ReaderSourceImportItem] = []
@@ -218,19 +218,22 @@ private struct ReaderSourceManagement: View {
     @State private var login: ReaderOnlineSource?
     @State private var diagnostic = ""
     @State private var subscriptionPage = false
-    @State private var editorGeneration = UUID()
-    @State private var fetchGeneration = UUID()
     @State private var diagnosticGeneration = UUID()
     @State private var debugSource: ReaderOnlineSource?
     @State private var validating = false
     @Environment(\.colorScheme) private var scheme
+    init(state: ReaderOnlineWorkspaceModel) {
+        self.state = state
+        _draftOwner = StateObject(wrappedValue: ReaderSourceEditorDraftOwner(actions: state.actions))
+    }
     var body: some View {
+        let fileRequest = fileRead
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                HStack { Button("导入 JSON") { openEditor() }; Button("选择文件") { importFile = true }.accessibilityIdentifier("online-source-file"); Button("导出") { exportSources() } }
+                HStack { Button("导入 JSON") { openEditor() }; Button("选择文件", action: chooseSourceFile).disabled(!draftOwner.canReplace).accessibilityIdentifier("online-source-file"); Button("导出") { exportSources() } }
                 Button("书源规则订阅") { subscriptionPage = true }
                     .accessibilityIdentifier("online-rule-subscriptions")
-                HStack { TextField("书源包链接", text: $link).textInputAutocapitalization(.never).keyboardType(.URL).readerField(); Button("读取") { fetch() } }
+                HStack { TextField("书源包链接", text: $link).textInputAutocapitalization(.never).keyboardType(.URL).readerField(); Button("读取") { fetch() }.disabled(!draftOwner.canReplace) }
                 TextField("名称或分组", text: $filter).readerField()
                 if let error = state.error { ReaderPageState(title: "书源操作未完成", detail: error) }
                 ForEach(importResults) { item in Text(item.name + " · " + item.message).font(ReaderTypography.font(.caption)) }
@@ -245,7 +248,11 @@ private struct ReaderSourceManagement: View {
                         }
                         Text(source.group.isEmpty ? source.baseURL : source.group).font(ReaderTypography.font(.caption)).lineLimit(1)
                         HStack {
-                            Button("编辑") { openEditor(String(decoding: source.definition, as: UTF8.self)) }
+                            Button("编辑") {
+                                receive(draftOwner.offer(.savedSource(source.id, version: source.version, name: source.name,
+                                                                      text: String(decoding: source.definition, as: UTF8.self))))
+                            }.disabled(!draftOwner.canReplace)
+                                .accessibilityIdentifier("online-source-edit:" + source.id)
                             Button("检测") { diagnose(source) }
                             Button("调试") { debugSource = source }
                             Button("网页登录") { login = source }
@@ -259,15 +266,30 @@ private struct ReaderSourceManagement: View {
         }.accessibilityIdentifier("online-source-scroll")
             .readerConfirmation(confirmation)
             .disabled(state.actions.busy)
-            .sheet(isPresented: $editor) {
+            .onAppear { draftOwner.activate(); restoreSaveIfNeeded() }
+            .onDisappear {
+                draftOwner.retire(); confirmation.request = nil; fileRead = nil
+                diagnosticGeneration = UUID(); validating = false
+            }
+            .onChange(of: link) { _, _ in draftOwner.cancelRead() }
+            .onChange(of: state.sourceLoading) { _, loading in if !loading { restoreSaveIfNeeded() } }
+            .onChange(of: draftOwner.editorGeneration) { _, _ in validating = false }
+            .onChange(of: confirmation.request?.id) { _, id in if id == nil { draftOwner.dismissConfirmation() } }
+            .onChange(of: state.actions.hasPending) { _, pending in
+                if pending { confirmation.request = nil; draftOwner.dismissConfirmation(); draftOwner.cancelRead() }
+                else { restoreSaveIfNeeded() }
+            }
+            .onChange(of: state.actions.busy) { _, busy in if !busy { draftOwner.refreshPersistedDraft() } }
+            .sheet(isPresented: Binding(get: { draftOwner.presented }, set: { if !$0 { draftOwner.close() } })) {
                 VStack(spacing: 14) {
-                    HStack { Button("保留草稿并关闭") { editor = false }; Spacer(); Button("校验") { validate() }.disabled(validating); Button("保存") { save() }.disabled(state.actions.hasPending || validating).accessibilityIdentifier("online-source-save") }
-                    TextEditor(text: $draft).font(.system(.body, design: .monospaced)).accessibilityLabel("书源 JSON 草稿")
+                    HStack { Button("保留草稿并关闭") { draftOwner.close() }; Spacer(); Button("校验") { validate() }.disabled(validating || !draftOwner.canReplace); Button("保存") { save() }.disabled(!draftOwner.canReplace || validating).accessibilityIdentifier("online-source-save") }
+                    TextEditor(text: Binding(get: { draftOwner.draft }, set: draftOwner.updateDraft))
+                        .disabled(!draftOwner.canReplace).font(.system(.body, design: .monospaced)).accessibilityLabel("书源 JSON 草稿")
                         .accessibilityIdentifier("online-source-draft")
                     if validating { ProgressView("正在校验") }
                     ForEach(importResults) { item in Text(item.name + " · " + item.message).font(ReaderTypography.font(.caption)) }
-                    ReaderOperationStatus(owner: state.actions, scope: "online")
-                }.padding(20)
+                    ReaderOperationStatus(owner: state.actions, scope: "online", completed: { Task { await state.loadSources(); draftOwner.refreshPersistedDraft() } })
+                }.padding(20).onAppear { restoreSaveIfNeeded() }
             }
             .sheet(item: $login) { source in ReaderSourceLogin(source: source, service: state.service) }
             .sheet(item: $debugSource) { source in if let service = state.service { ReaderSourceDebugPanel(source: source, service: service) } }
@@ -275,8 +297,14 @@ private struct ReaderSourceManagement: View {
                 if let service = state.service as? any ReaderRuleSubscriptionServing { ReaderRuleSubscriptionPanel(service: service) }
             }
             .fileImporter(isPresented: $importFile, allowedContentTypes: [.json, .plainText]) { result in
-                do { let url = try result.get(); let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }; openEditor(String(decoding: try Data(contentsOf: url), as: UTF8.self)) }
-                catch { state.error = error.localizedDescription }
+                guard let fileRequest, draftOwner.accepts(fileRequest) else { return }
+                defer { if fileRead == fileRequest { fileRead = nil } }
+                do {
+                    let url = try result.get(); let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    let text = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+                    receive(draftOwner.finishRead(fileRequest, target: .imported(text, label: "导入文件“\(url.lastPathComponent)”")))
+                } catch { draftOwner.cancelRead(); state.error = error.localizedDescription }
             }
             .fileExporter(isPresented: $exportFile, document: exportData, contentType: .json, defaultFilename: "Reader-书源") { result in if case .failure(let error) = result { state.error = error.localizedDescription } }
     }
@@ -284,34 +312,66 @@ private struct ReaderSourceManagement: View {
         Task { if await state.actions.perform(label, scope: "online", action: action) { await state.loadSources() } }
     }
     private func save() {
-        guard let service = state.service else { return }
-        let bytes = Data(draft.utf8), generation = editorGeneration
-        mutate("保存书源") { id in
-            let result = try await service.importSources(bytes, operationID: id)
-            guard generation == editorGeneration else { return }
-            importResults = result
-            if result.allSatisfy(\.succeeded), Data(draft.utf8) == bytes { editor = false }
+        guard state.service != nil, draftOwner.canReplace, draftOwner.presented else { return }
+        Task {
+            let confirmed = await draftOwner.save(using: saveOriginal)
+            if confirmed { await state.loadSources() }
         }
     }
-    private func openEditor(_ text: String? = nil) {
-        editorGeneration = UUID(); fetchGeneration = UUID(); validating = false
-        if let text { draft = text }
-        importResults = []; editor = true
+    private func saveOriginal(_ id: String, input: ReaderSourceEditorDraftOwner.SaveInput) async throws -> Bool {
+        guard let service = state.service else { throw ReaderLibraryError.operationPending(id) }
+        let result = try await service.importSources(input.bytes, operationID: id)
+        if draftOwner.isCurrentEditor(input) { importResults = result }
+        return result.allSatisfy(\.succeeded)
+    }
+    private func restoreSaveIfNeeded() {
+        guard let features = state.service as? any ReaderLibraryFeatures else { return }
+        state.actions.pendingChecker = { id in
+            do { return try await features.pendingFeatureOperations().contains { $0.id == id || $0.id.hasPrefix(id + ":") } }
+            catch { return nil }
+        }
+        _ = draftOwner.restoreSave(using: saveOriginal)
+    }
+    private func openEditor() {
+        confirmation.request = nil; draftOwner.resumeDraft(); importResults = []; validating = false
+    }
+    private func receive(_ result: ReaderSourceEditorDraftOwner.OpenResult) {
+        switch result {
+        case .ignored: break
+        case .opened:
+            confirmation.request = nil; importResults = []; validating = false
+        case .confirmation(let intent):
+            confirmation.request = nil
+            confirmation.confirm("替换当前书源草稿？", message: "\(intent.target.label)将覆盖当前未保存的内容。取消可保留原草稿。",
+                                 actionTitle: "替换草稿", destructive: true) {
+                guard draftOwner.confirm(intent) else { return }
+                importResults = []; validating = false
+            }
+        }
+    }
+    private func chooseSourceFile() {
+        guard let request = draftOwner.beginRead() else { return }
+        confirmation.request = nil; fileRead = request; importFile = true
     }
     private func validate() {
-        guard let service = state.service, !validating else { return }
-        let bytes = Data(draft.utf8), generation = editorGeneration
+        guard let service = state.service, draftOwner.canReplace, !validating else { return }
+        let bytes = Data(draftOwner.draft.utf8), generation = draftOwner.editorGeneration
         validating = true
         Task {
-            do { let result = try await service.validateSources(bytes); if generation == editorGeneration, Data(draft.utf8) == bytes { importResults = result } }
-            catch { if generation == editorGeneration { state.error = error.localizedDescription } }
-            if generation == editorGeneration { validating = false }
+            do { let result = try await service.validateSources(bytes); if generation == draftOwner.editorGeneration, Data(draftOwner.draft.utf8) == bytes { importResults = result } }
+            catch { if generation == draftOwner.editorGeneration { state.error = error.localizedDescription } }
+            if generation == draftOwner.editorGeneration { validating = false }
         }
     }
     private func fetch() {
-        guard let url = URL(string: link), let service = state.service else { return }
-        let generation = UUID(); fetchGeneration = generation
-        Task { do { let result = try await service.onlineFetch(url); guard fetchGeneration == generation else { return }; openEditor(String(decoding: result, as: UTF8.self)) } catch { if fetchGeneration == generation { state.error = error.localizedDescription } } }
+        guard let url = URL(string: link), let service = state.service, let request = draftOwner.beginRead() else { return }
+        confirmation.request = nil
+        Task {
+            do {
+                let result = try await service.onlineFetch(url)
+                receive(draftOwner.finishRead(request, target: .imported(String(decoding: result, as: UTF8.self), label: "导入链接中的书源")))
+            } catch { if draftOwner.accepts(request) { draftOwner.cancelRead(); state.error = error.localizedDescription } }
+        }
     }
     private func exportSources() {
         guard let service = state.service else { return }
