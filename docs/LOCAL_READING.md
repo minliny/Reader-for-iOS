@@ -70,4 +70,5 @@ Core/Host 方法测试、App 编译、模拟器安装启动、原生交互录像
 物理 iOS 设备、iOS 17 运行时、iPad 分屏和无障碍组合均需各自的原生证据；
 工程的最低版本或设备族声明不代替这些验证。
 
-开发状态只在工作区 `DEVELOPMENT_BACKLOG.md` 的 `IOS-LOCAL-*` 条目维护，本文不另建待办。
+开发状态只在工作区 `DEVELOPMENT_BACKLOG.md` 的 `IOS-LOCAL-*` 与 `IOS-V2-*` 至 `IOS-V8-*` 条目维护。
+后续范围和验收见 [iOS V2–V8 版本要求](../../DEVELOPMENT_BACKLOG.md#ios-version-requirements)，本文描述首版已接入边界，不另建版本待办。

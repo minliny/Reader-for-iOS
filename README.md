@@ -5,6 +5,8 @@ Reader 的 iOS SwiftUI 客户端，最低系统版本 iOS 17。App 包标识为 
 持久化目录、界面和用户意图。Core Swift wrapper 与 App 编入同一个 `Reader` 模块，
 底层 C 模块 `ReaderCore` 来自静态 XCFramework。
 首版本地阅读能力与恢复边界见 [本地阅读说明](docs/LOCAL_READING.md)。
+后续版本目标、必做范围与验收要求统一见
+[iOS V2–V8 版本要求](../DEVELOPMENT_BACKLOG.md#ios-version-requirements)；规划状态不代表能力已接入。
 
 ## 工程与依赖
 
