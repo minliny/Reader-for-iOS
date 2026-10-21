@@ -131,8 +131,7 @@ struct ReaderReadingPreferencesPanel: View {
             Picker("正文字体", selection: Binding(
                 get: { fontLibrary.selectedChoiceID(named: preferences.fontPostScriptName, preferred: preferences.fontSlotID) },
                 set: { id in
-                    guard let choice = fontLibrary.selectableChoices.first(where: { $0.id == id && $0.available }) else { return }
-                    preferences.fontPostScriptName = choice.postScriptName; preferences.fontSlotID = choice.id
+                    fontLibrary.selectChoice(id, preferences: preferences)
                 })) {
                 ForEach(fontLibrary.selectableChoices) { choice in
                     Text(choice.displayName + (choice.available ? "" : "（不可用）"))

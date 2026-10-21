@@ -78,7 +78,16 @@ final class ReaderFontLibrary: ObservableObject {
 
     func selectedChoiceID(named name: String?, preferred: String?) -> String {
         if let preferred, selectableChoices.contains(where: { $0.id == preferred && $0.postScriptName == name }) { return preferred }
+        if name == nil, preferred == nil, selectableChoices.contains(where: { $0.id == "serif" && $0.available }) {
+            return "serif"
+        }
         return selectableChoices.first(where: { $0.available && $0.postScriptName == name })?.id ?? "retained-selection"
+    }
+
+    func selectChoice(_ id: String, preferences: ReaderPreferences) {
+        guard let choice = selectableChoices.first(where: { $0.id == id && $0.available }) else { return }
+        preferences.fontPostScriptName = choice.postScriptName
+        preferences.fontSlotID = choice.id == "serif" ? nil : choice.id
     }
 
     func moveChoices(fromOffsets source: IndexSet, toOffset destination: Int) {

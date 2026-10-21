@@ -59,10 +59,6 @@ struct ReaderEbookSurface: UIViewRepresentable {
             owner.install(in: container)
         } else if let webView = container.webView {
             owner.configure(webView)
-            if owner.restorationID != restorationID {
-                owner.restorationID = restorationID
-                owner.restore(webView)
-            }
             owner.updatePageRequest(webView)
         }
     }
@@ -77,10 +73,12 @@ struct ReaderEbookSurface: UIViewRepresentable {
         var parent: ReaderEbookSurface
         var documentIdentity: String?
         var restorationID: UUID?
+        private var pendingRestorationID: UUID?
         private var session = ""
         private var bridge: ReaderEbookResourceBridge?
         private var activeView: WKWebView?
         private var appearance = ""
+        private var appliedAppearance = ""
         private var layoutAppearance = ""
         private var layoutToken = UUID().uuidString
         private var retired = false
@@ -90,6 +88,7 @@ struct ReaderEbookSurface: UIViewRepresentable {
         private var fontReady = false
         private var fontTask: Task<Void, Never>?
         private var layoutIsReady = false
+        private var entryScriptIsReady = false
         private var lastPageTurn: UUID?
         private var activePageTurn: UUID?
         private var manualPage = false
@@ -141,11 +140,13 @@ struct ReaderEbookSurface: UIViewRepresentable {
             retired = false
             initialNavigationAdmitted = false
             layoutIsReady = false
+            entryScriptIsReady = false
             lastPageTurn = nil
             fontName = ""
             fontURL = ""
             fontReady = false
             appearance = ""
+            appliedAppearance = ""
             layoutAppearance = ""
             layoutToken = UUID().uuidString
             pageStyle = ""
@@ -269,13 +270,13 @@ struct ReaderEbookSurface: UIViewRepresentable {
             webView.scrollView.isPagingEnabled = false
             webView.scrollView.isScrollEnabled = !parent.paged
             webView.scrollView.decelerationRate = .normal
-            // The original HTML is transparent by Host policy. Give the actual
-            // WK viewport its paper before snapshotting; no extra bitmap copy
-            // is needed to flatten a transparent snapshot against a fake white.
+            // The document root consumes this same frozen paper via metrics.
+            // Keep the native backing consistent during loading and snapshots;
+            // opaque WK content must not rely on this backing to colour HTML.
             webView.isOpaque = true
             webView.backgroundColor = UIColor(parent.paper.paper)
             webView.scrollView.backgroundColor = UIColor(parent.paper.paper)
-            pagePan?.isEnabled = parent.paged && !hasSelection
+            pagePan?.isEnabled = parent.paged && !hasSelection && pendingRestorationID == nil && restorationID == parent.restorationID
             if !usesNativeCurl { retireCurl(webView) }
             if !parent.longPressSelectText && hasSelection {
                 hasSelection = false
@@ -301,12 +302,35 @@ struct ReaderEbookSurface: UIViewRepresentable {
                 layoutIsReady = false
                 curlPreparationSuspended = false
             }
-            if layoutIsReady, usesNativeCurl { prepareCurl(webView) }
             guard let data = try? JSONSerialization.data(withJSONObject: options, options: [.sortedKeys]),
-                  let signature = String(data: data, encoding: .utf8), signature != appearance else { return }
-            appearance = signature
-            webView.callAsyncJavaScript("window.__readerEbook?.configure(options)", arguments: ["options": options],
-                in: nil, in: .defaultClient, completionHandler: nil)
+                  let signature = String(data: data, encoding: .utf8) else { return }
+            // Native settings and font registration can precede navigation.
+            // Only the authenticated entry ready event admits JS options.
+            guard entryScriptIsReady else { return }
+            if signature != appearance {
+                appearance = signature
+                appliedAppearance = ""
+                let expectedSession = session
+                webView.callAsyncJavaScript("window.__readerEbook?.configure(options)", arguments: ["options": options],
+                    in: nil, in: .defaultClient) { [weak self, weak webView] result in
+                        guard let self, let webView, !self.retired, self.activeView === webView,
+                              self.session == expectedSession, self.appearance == signature else { return }
+                        guard case .success = result else { self.fail(.positionMismatch); return }
+                        self.appliedAppearance = signature
+                        self.configure(webView)
+                        self.updatePageRequest(webView)
+                    }
+                return
+            }
+            // All synchronous style/font/layout cancellation has finished.
+            // A current options callback AND the matching real layout-ready
+            // event are required before restoring against that DOM geometry.
+            guard appliedAppearance == signature, fontReady, layoutIsReady else { return }
+            if restorationID != parent.restorationID {
+                if pendingRestorationID != parent.restorationID { restore(webView) }
+                return
+            }
+            if pendingRestorationID == nil, usesNativeCurl { prepareCurl(webView) }
         }
 
         private func updateFont(_ webView: WKWebView) {
@@ -346,6 +370,8 @@ struct ReaderEbookSurface: UIViewRepresentable {
         }
 
         func updatePageRequest(_ webView: WKWebView) {
+            guard pendingRestorationID == nil, restorationID == parent.restorationID,
+                  appliedAppearance == appearance else { return }
             if !parent.automaticPageEnabled {
                 if activePageTurn != nil { cancelPage(webView) }
                 return
@@ -410,6 +436,8 @@ struct ReaderEbookSurface: UIViewRepresentable {
 
         private func prepareCurl(_ webView: WKWebView) {
             guard usesNativeCurl, layoutIsReady, !retired, activeView === webView, !hasSelection,
+                  pendingRestorationID == nil, restorationID == parent.restorationID,
+                  appliedAppearance == appearance,
                   !curlPreparationSuspended,
                   activePageTurn == nil, !manualPage, snapshotTask == nil, nativeSnapshotRequest == nil,
                   !pageJavaScript.hasPendingCall(for: webView),
@@ -487,6 +515,7 @@ struct ReaderEbookSurface: UIViewRepresentable {
         private func validCurl(_ webView: WKWebView, pager: ReaderEbookCurlPager, generation: UUID, key: String, session: String) -> Bool {
             !retired && activeView === webView && curlPager === pager && pageGeneration == generation
                 && self.session == session && usesNativeCurl && key == curlKey && !hasSelection
+                && pendingRestorationID == nil && restorationID == parent.restorationID && appliedAppearance == appearance
         }
 
         private func requestCurl(_ webView: WKWebView, direction: Int, request: UUID?) {
@@ -612,6 +641,10 @@ struct ReaderEbookSurface: UIViewRepresentable {
         }
 
         private func advancePage(_ webView: WKWebView, direction: Int, request: UUID?, interactive: Bool = false) {
+            guard pendingRestorationID == nil, restorationID == parent.restorationID,
+                  appliedAppearance == appearance else {
+                if let request { parent.pageCommitted(request, .cancelled) }; return
+            }
             if usesNativeCurl {
                 requestCurl(webView, direction: direction < 0 ? -1 : 1, request: request)
                 return
@@ -779,6 +812,7 @@ struct ReaderEbookSurface: UIViewRepresentable {
         }
 
         private func cancelPage(_ webView: WKWebView) {
+            pendingRestorationID = nil
             if curlPager?.isTurning == true || curlTurnIdentity != nil { traceCurl("cancel-before", webView: webView) }
             let previous = activePageTurn
             let wasManual = manualPage
@@ -912,11 +946,36 @@ struct ReaderEbookSurface: UIViewRepresentable {
         }
 
         func restore(_ webView: WKWebView) {
-            guard !retired else { return }
+            guard !retired, activeView === webView else { return }
+            let requested = parent.restorationID
+            guard pendingRestorationID != requested else { return }
             cancelPage(webView)
-            webView.callAsyncJavaScript("window.__readerEbook?.restore(offset)",
-                arguments: ["offset": min(parent.scalarOffset, parent.content.scalarCount)],
-                in: nil, in: .defaultClient, completionHandler: nil)
+            let generation = pageGeneration, expectedSession = session
+            pendingRestorationID = requested
+            webView.callAsyncJavaScript("""
+                const api=window.__readerEbook;
+                if(!api||typeof api.restore!=='function')return null;
+                api.restore(offset);return scrollY;
+                """, arguments: ["offset": min(parent.scalarOffset, parent.content.scalarCount)],
+                in: nil, in: .defaultClient) { [weak self, weak webView] result in
+                    guard let self, let webView, !self.retired, self.activeView === webView,
+                          self.session == expectedSession, self.pageGeneration == generation,
+                          self.pendingRestorationID == requested, self.parent.restorationID == requested else { return }
+                    self.pendingRestorationID = nil
+                    guard case let .success(value) = result else { self.fail(.positionMismatch); return }
+                    // An entry may not have installed its script yet. Its
+                    // actual ready callback will consume the same restoration.
+                    if value == nil || value is NSNull { return }
+                    guard let y = value as? NSNumber, y.doubleValue.isFinite, y.doubleValue >= 0 else {
+                        self.fail(.positionMismatch); return
+                    }
+                    // JS scrollTo alone can leave UIKit at the old offset.
+                    // Synchronize its original DOM target before any snapshot
+                    // preparation captures and later restores a native origin.
+                    webView.scrollView.setContentOffset(CGPoint(x: 0, y: CGFloat(y.doubleValue)), animated: false)
+                    self.restorationID = requested
+                    self.configure(webView)
+                }
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -925,6 +984,7 @@ struct ReaderEbookSurface: UIViewRepresentable {
                   let kind = body["kind"] as? String else { return }
             switch kind {
             case "ready":
+                entryScriptIsReady = true
                 guard fontReady else { return }
                 // Font preparation may finish before the original entry runs
                 // its initial user script. Require that entry's actual layout
@@ -969,7 +1029,8 @@ struct ReaderEbookSurface: UIViewRepresentable {
                     }
                 }
             case "position":
-                guard curlPreparationOffset == nil, curlTurnIdentity == nil else { return }
+                guard pendingRestorationID == nil, restorationID == parent.restorationID,
+                      appliedAppearance == appearance, curlPreparationOffset == nil, curlTurnIdentity == nil else { return }
                 guard let number = body["value"] as? NSNumber, number.doubleValue.isFinite,
                       number.doubleValue >= 0, number.uint64Value <= parent.content.scalarCount else { return }
                 parent.positionChanged(number.uint64Value)
@@ -1049,6 +1110,7 @@ struct ReaderEbookSurface: UIViewRepresentable {
             if let activeView { cancelPage(activeView) }
             if let activeView { retireCurl(activeView) }
             retired = true
+            entryScriptIsReady = false
             fontTask?.cancel(); fontTask = nil
             activePageTurn = nil; manualPage = false; hasSelection = false
             if let pagePan { pagePan.view?.removeGestureRecognizer(pagePan) }
@@ -1098,6 +1160,7 @@ struct ReaderEbookSurface: UIViewRepresentable {
              "longPressSelectText": parent.longPressSelectText,
              "highlights": ranges, "automaticHighlightProgress": parent.automaticHighlightProgress as Any? ?? NSNull(),
              "bottomInset": parent.bottomInset, "dark": parent.paper.theme.isDark,
+             "paper": Self.cssColor(UIColor(parent.paper.paper)),
              "ink": Self.hex(UIColor(parent.paper.ink)), "meta": Self.hex(UIColor(parent.paper.meta)),
              "selection": Self.cssColor(UIColor(parent.paper.selection)), "reduceMotion": parent.reduceMotion || parent.reducePageMotion]
         }

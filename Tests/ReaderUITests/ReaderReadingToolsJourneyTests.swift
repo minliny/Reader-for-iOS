@@ -20,6 +20,221 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     private var displayRestored = false
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// Only the existing registered bundled faces and existing real TXT.
+    /// Root independently binds raw preferences, original scope and products;
+    /// this zero-environment method records actual public UI observations.
+    func testExistingRealTXTRegisteredFontSelectionOrderAndColdAnchorWithOriginalPreferencesRestored() throws {
+        guard !realEpubJourney,
+              bookID == "book-local:aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5" else {
+            XCTFail("Only the existing original TXT identity is allowed; never import or substitute a book")
+            throw JourneyError.prerequisite
+        }
+        let app = XCUIApplication()
+        guard app.state == .notRunning else {
+            XCTFail("Root must establish the fresh no-App premise; do not terminate a live reading session to create it")
+            throw JourneyError.prerequisite
+        }
+        let labels = ["系统（iOS）", "宋体", "黑体", "楷体", "仿宋", "等宽", "思源宋体", "霞鹜文楷"]
+        let systemLabel = "系统（iOS）", serifLabel = "宋体"
+        var fontMayHaveChanged = false, orderMayHaveChanged = false
+        var returnedNormally = false
+        var originalAnchor = ""
+        var originalChapterIdentifier: String?
+        var originalBookIdentifier: String?
+        var fontObservations: [String: String] = [:]
+        var visibleOrderObservations: [String: Bool] = [:]
+        func existingBook() throws {
+            try openExistingRuleRoundtripBook(app) // Existing exact-identity/no-filter-mutation harness.
+            XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "reading-ebook-body").firstMatch.exists)
+            openModule("home", app: app)
+            let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+            guard chapter.count == 1,
+                  UInt32(chapter.element.identifier.dropFirst("reading-chapter:".count)) != nil else {
+                XCTFail("Read one actual canonical chapter identity from the current original reader")
+                throw JourneyError.prerequisite
+            }
+            let currentChapter = chapter.element.identifier
+            if let originalChapterIdentifier {
+                XCTAssertEqual(currentChapter, originalChapterIdentifier, "Every normal/cold reopen must retain the first actual UI chapter; never seek to manufacture it")
+            } else { originalChapterIdentifier = currentChapter }
+            let identity = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:local|" + String(bookID.dropFirst(5))))
+            XCTAssertEqual(identity.count, 1); XCTAssertEqual(identity.element.label, title)
+            originalBookIdentifier = identity.element.identifier
+            hideControls(app)
+        }
+        func fontPicker() throws -> XCUIElement {
+            openModule("appearance", app: app)
+            let query = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "正文字体"))
+            XCTAssertTrue(query.firstMatch.waitForExistence(timeout: 5)); XCTAssertEqual(query.count, 1)
+            let picker = query.element
+            reveal(picker, towardBottom: false, app: app)
+            guard picker.isHittable && picker.isEnabled else { throw JourneyError.prerequisite }
+            return picker
+        }
+        func selectedFont(_ picker: XCUIElement) throws -> String {
+            let values = [picker.value as? String, picker.label].compactMap { $0 }
+            // The longer same-face alias must not be mistaken for 宋体.
+            let found = labels.sorted { $0.count > $1.count }.first { label in
+                values.contains { $0 == label || $0.hasSuffix(", " + label) || $0.hasSuffix("," + label) || $0.hasSuffix("，" + label) || $0.hasSuffix("、" + label) }
+            }
+            guard let found else {
+                XCTFail("Read the actual native font Picker value before any change: " + picker.debugDescription)
+                throw JourneyError.prerequisite
+            }
+            return found
+        }
+        func editor(_ editing: Bool) throws {
+            let name = editing ? "编辑" : "完成"
+            let english = editing ? "Edit" : "Done"
+            let candidates = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", name, english))
+            if candidates.count == 1, !candidates.element.isHittable {
+                reveal(candidates.element, towardBottom: true, app: app)
+            }
+            let controls = candidates.allElementsBoundByIndex.filter(\.isHittable)
+            if controls.isEmpty {
+                let currentName = editing ? "完成" : "编辑"
+                let currentEnglish = editing ? "Done" : "Edit"
+                let current = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", currentName, currentEnglish))
+                    .allElementsBoundByIndex.filter(\.isHittable)
+                if current.count == 1 { return } // Already at the requested actual native state.
+            }
+            guard controls.count == 1, let button = controls.first, button.isEnabled else {
+                XCTFail("One real native font Edit/Done control is required; do not inject edit mode")
+                throw JourneyError.prerequisite
+            }
+            button.tap()
+        }
+        func reorderPair() throws -> (system: XCUIElement, serif: XCUIElement, handle: XCUIElement) {
+            let systems = app.cells.containing(.staticText, identifier: systemLabel)
+            let serifs = app.cells.containing(.staticText, identifier: serifLabel)
+            if systems.count == 1, serifs.count == 1, !serifs.element.isHittable {
+                reveal(serifs.element, towardBottom: true, app: app)
+            }
+            guard systems.count == 1, serifs.count == 1, systems.element.isHittable, serifs.element.isHittable else {
+                XCTFail("The existing first two font rows must be simultaneously visible inside the actual List; no blind drag or new accessibility hook")
+                throw JourneyError.prerequisite
+            }
+            let handles = systems.element.buttons.matching(NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "重新排序", "Reorder"))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            guard handles.count == 1, let handle = handles.first, handle.isEnabled else {
+                XCTFail("The public native onMove handle is not exposed; preserve the prerequisite instead of dragging an invented coordinate")
+                throw JourneyError.prerequisite
+            }
+            return (systems.element, serifs.element, handle)
+        }
+        func orderSystemBeforeSerif() throws -> Bool {
+            let pair = try reorderPair()
+            guard pair.system.frame.intersects(app.frame), pair.serif.frame.intersects(app.frame),
+                  !pair.system.frame.intersects(pair.serif.frame) else { throw JourneyError.prerequisite }
+            return pair.system.frame.midY < pair.serif.frame.midY
+        }
+        func moveSystem(beforeSerif: Bool) throws {
+            let pair = try reorderPair()
+            let dy: CGFloat = beforeSerif ? 0.15 : 0.85
+            pair.handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.6,
+                thenDragTo: pair.serif.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: dy)),
+                withVelocity: .slow, thenHoldForDuration: 0.2)
+            waitUntil("The one actual onMove reaches the expected row order", timeout: 5) {
+                (try? orderSystemBeforeSerif()) == beforeSerif
+            }
+            XCTAssertEqual(try orderSystemBeforeSerif(), beforeSerif)
+        }
+        func bodyPixels(_ capture: Screen) throws -> String {
+            let crop = try XCTUnwrap(capture.image.cropping(to: capture.pixelCrop))
+            return SHA256.hash(data: Data(try rgba(crop))).map { String(format: "%02x", $0) }.joined()
+        }
+        func restoreOwnedFontChanges() throws {
+            if app.state == .notRunning { app.launch(); try existingBook() }
+            let picker = try fontPicker()
+            if fontMayHaveChanged {
+                if try selectedFont(picker) != serifLabel { choose(serifLabel, picker: picker, app: app) }
+                let restored = try selectedFont(picker)
+                XCTAssertEqual(restored, serifLabel); fontObservations["normal-restored"] = restored
+                fontMayHaveChanged = false // Root independently checks the product setter restored both raw keys absent.
+            }
+            if orderMayHaveChanged {
+                try editor(true)
+                if try !orderSystemBeforeSerif() { try moveSystem(beforeSerif: true) }
+                let restoredOrder = try orderSystemBeforeSerif()
+                XCTAssertTrue(restoredOrder); visibleOrderObservations["normal-restored-system-before-serif"] = restoredOrder
+                try editor(false); orderMayHaveChanged = false
+            }
+            hideControls(app)
+        }
+        addTeardownBlock {
+            if fontMayHaveChanged || orderMayHaveChanged {
+                // Recover only these actual UI choices. Never clear defaults,
+                // select another book, repeat import, or reset all settings.
+                try restoreOwnedFontChanges()
+            }
+            if !returnedNormally { self.evidence(app, "real-font-failed-original-state-and-recovery-boundary") }
+        }
+        app.launch(); try existingBook()
+        originalAnchor = try anchor(app, name: "real-font-original-txt-visible-anchor")
+        let before = try screen(app)
+        let originalPixels = try bodyPixels(before)
+        var picker = try fontPicker()
+        let initialFont = try selectedFont(picker)
+        XCTAssertEqual(initialFont, serifLabel); fontObservations["initial"] = initialFont
+        // Reachability is checked before the first persisted choice. Edit mode
+        // itself is transient; an absent handle leaves this method unexecuted.
+        try editor(true)
+        let initialOrder = try orderSystemBeforeSerif()
+        XCTAssertTrue(initialOrder); visibleOrderObservations["initial-system-before-serif"] = initialOrder
+        try editor(false)
+        picker = try fontPicker()
+        picker.tap()
+        let sans = app.buttons.matching(NSPredicate(format: "label == %@", "黑体"))
+        guard sans.count == 1, sans.element.isHittable, sans.element.isEnabled else {
+            XCTFail("Require the actually available registered bundled 黑体 menu item; never import or substitute a font")
+            throw JourneyError.prerequisite
+        }
+        fontMayHaveChanged = true; sans.element.tap()
+        XCTAssertEqual(try selectedFont(picker), "黑体")
+        try editor(true)
+        orderMayHaveChanged = true; try moveSystem(beforeSerif: false)
+        try editor(false)
+        let changedFont = try selectedFont(picker)
+        XCTAssertEqual(changedFont, "黑体"); fontObservations["after-selection-and-move"] = changedFont
+        evidence(app, "real-font-actual-sans-choice-and-one-normal-onMove")
+        hideControls(app)
+        try assertVisible(originalAnchor, app: app, name: "real-font-registered-sans-keeps-original-passage")
+        let after = try screen(app)
+        XCTAssertEqual(after.viewport, before.viewport)
+        let bodyPixelsDiffer = try bodyPixels(after) != originalPixels
+        XCTAssertTrue(bodyPixelsDiffer,
+            "The same actual paper viewport must render differently after only the real font choice; no exact line-wrap or 2pt paragraph equality is required")
+        leaveReader(app); app.terminate(); app.launch(); try existingBook()
+        try assertVisible(originalAnchor, app: app, name: "real-font-cold-sans-keeps-original-passage")
+        picker = try fontPicker()
+        let coldChangedFont = try selectedFont(picker)
+        XCTAssertEqual(coldChangedFont, "黑体"); fontObservations["first-cold"] = coldChangedFont
+        try editor(true)
+        let coldChangedOrder = try orderSystemBeforeSerif()
+        XCTAssertFalse(coldChangedOrder); visibleOrderObservations["first-cold-system-before-serif"] = coldChangedOrder
+        try editor(false)
+        try restoreOwnedFontChanges()
+        try assertVisible(originalAnchor, app: app, name: "real-font-normal-ui-restored-default-keeps-original-passage")
+        leaveReader(app); app.terminate(); app.launch(); try existingBook()
+        try assertVisible(originalAnchor, app: app, name: "real-font-second-cold-original-default-anchor")
+        picker = try fontPicker()
+        let coldRestoredFont = try selectedFont(picker)
+        XCTAssertEqual(coldRestoredFont, serifLabel); fontObservations["second-cold-restored"] = coldRestoredFont
+        try editor(true)
+        let coldRestoredOrder = try orderSystemBeforeSerif()
+        XCTAssertTrue(coldRestoredOrder); visibleOrderObservations["second-cold-restored-system-before-serif"] = coldRestoredOrder
+        try editor(false)
+        hideControls(app); leaveReader(app); returnedNormally = true
+        let facts: [String: Any] = ["bookAXID":try XCTUnwrap(originalBookIdentifier),
+            "chapterAXID":try XCTUnwrap(originalChapterIdentifier),"originalVisibleAnchor":originalAnchor,
+            "observedFontPickerValues":fontObservations,"observedSystemBeforeSerif":visibleOrderObservations,
+            "sameViewportBodyPixelsDifferAfterFontChoice":bodyPixelsDiffer,"normalReturnToShelfObserved":returnedNormally,
+            "boundary":"Only actual public UI observations are recorded here. Root independently binds the current original TXT/Core scope, initial absent font keys, exact full order, complete raw preferences, original assets and source/products; those are not observable as UI facts. Body pixel inequality is bounded to the same visible viewport after the font-only choice; it does not identify a physical font table or establish full typography/motion acceptance."]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+        attachment.name = "real-font-original-txt-selection-order-cold-and-restoration-facts.json"
+        attachment.lifetime = .keepAlways; add(attachment)
+    }
+
     /// Existing untouched Downloads EPUB only; no import or generated book.
     /// Root binds fresh Large book/source/chapter20/scalar233/version facts and
     /// all old notes/drafts before selecting this single native method.
@@ -64,7 +279,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                       "夜间":[43,40,35], "暖夜":[65,48,32], "靛夜":[38,49,63], "林夜纹":[36,56,44]]
         let expectedPaper = try XCTUnwrap(papers[originalDisplay.paper])
         let originalAnchor = try anchor(app, name: "epub-note-original-existing-chapter20-passage")
-        let native = try unpaintedNativeSelection(app)
+        let native = try unpaintedNativeEpubSelection(app)
         let selectionText = native.text
         XCTAssertEqual(app.staticTexts["annotation-selected-text"].label, selectionText)
         let note = textInput("annotation-note", app: app)
@@ -179,6 +394,124 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             "boundary":"Same uniquely mapped original OCR word before selection vs cold WK with no live selection. No threshold change to TXT; no paper or display write."]
         let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
         attachment.name = "epub-original-paper-alpha-pixel-measurement.json"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    /// Continue only the preserved native63 note-jump tail. Copy/Paste, save
+    /// and cold alpha painting already passed and must never be replayed here.
+    func testExistingOwnedEpubNoteJumpTailWithoutCopyOrAnnotationMutation() throws {
+        realEpubJourney = true
+        let ownedNote = "EPUB原生选文-7866D199-304A-41C5-8000-9748A1977313"
+        let annotationID = "annotation-1"
+        let originalContext = "到珠翠楼耍下次再有这种事派我去吧我林子旁"
+        let app = XCUIApplication(); app.launch()
+        if app.buttons["书架"].waitForExistence(timeout: 10) { app.buttons["书架"].tap() }
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+        XCTAssertFalse(app.textFields["shelf-filter"].exists, "Preserve any original shelf filter")
+        XCTAssertTrue(app.buttons["全部分组"].exists, "Preserve any original group selection")
+        openBook(app)
+        waitUntil("The original EPUB WK is visible", timeout: 45) {
+            self.body(app).isHittable && self.body(app).frame.width > 180 && self.body(app).frame.height > 120
+        }
+        XCTAssertFalse(app.textViews["reading-body"].exists)
+        assertChapter(20, app: app) // Observe; never select/reset a chapter.
+        // Native65 already recorded the original cold context. Observe this
+        // fresh session without seeking back to its historical scalar offset.
+        func readOriginalDisplay() throws {
+            openModule("appearance", app: app)
+            let names = ["日间", "暖白", "夜间", "暖夜", "纸纹", "青叶纹", "靛夜", "林夜纹"] as NSArray
+            let papers = app.buttons.matching(NSPredicate(format: "label IN %@", names))
+                .allElementsBoundByIndex.filter(\.isSelected)
+            XCTAssertEqual(papers.count, 1)
+            XCTAssertEqual(try XCTUnwrap(papers.first).label, "日间", "Preserve native63's effective original paper")
+            let mode = app.buttons["reading-page-mode"]
+            reveal(mode, towardBottom: true, app: app)
+            XCTAssertEqual(try menuValue(mode, choices: ["滚动", "分页"]), "分页")
+            let select = app.switches["长按选择文本"]
+            reveal(select, towardBottom: true, app: app)
+            XCTAssertEqual(select.value as? String, "1")
+            hideControls(app)
+        }
+        func findOriginalNote() throws -> XCUIElement {
+            openTool("高亮与笔记", app: app)
+            let note = textInput("annotation-note", app: app)
+            XCTAssertTrue(note.waitForExistence(timeout: 5))
+            XCTAssertTrue(isEmpty(note), "Preserve any existing note draft; do not replace/edit/save it")
+            let query = app.textFields["搜索笔记"]
+            XCTAssertTrue(query.waitForExistence(timeout: 5))
+            let before = try XCTUnwrap(query.value as? String)
+            let alreadyOwned = before == ownedNote
+            guard alreadyOwned || isEmpty(query) else {
+                evidence(app, "epub-original-owned-note-tail-unexpected-query-preserved")
+                XCTFail("Preserve an unknown existing note query instead of replacing or deleting it")
+                throw JourneyError.prerequisite
+            }
+            if !alreadyOwned {
+                XCTAssertTrue(query.isHittable)
+                query.tap()
+                query.typeText(ownedNote + "\n") // One input into an observed empty field; no Delete.
+            } else if app.keyboards.count > 0 {
+                query.tap()
+                query.typeText("\n") // Submit only; never rewrite the retained marker.
+            }
+            waitUntil("The original note query keyboard is dismissed", timeout: 5) { app.keyboards.count == 0 }
+            let after = try XCTUnwrap(query.value as? String)
+            let queryFacts: [String: Any] = ["before":before,"after":after,
+                "reusedExactOwnedQuery":alreadyOwned,"markerInputsRequested":alreadyOwned ? 0 : 1,
+                "deletesRequested":0,"lookupsRequested":1]
+            let queryAttachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: queryFacts,
+                options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
+            queryAttachment.name = "epub-original-owned-note-tail-exact-query.json"
+            queryAttachment.lifetime = .keepAlways; add(queryAttachment)
+            guard after == ownedNote else {
+                XCTFail("The actual full query must equal the original owned marker after normal input")
+                throw JourneyError.prerequisite
+            }
+            let rows = app.buttons.matching(NSPredicate(format:
+                "identifier == %@ AND label CONTAINS %@", annotationID, ownedNote))
+            waitUntil("Read exactly the original existing note", timeout: 25) { rows.count == 1 }
+            XCTAssertTrue(rows.firstMatch.label.contains("第19章 说客"))
+            XCTAssertTrue(rows.firstMatch.label.contains("到"))
+            return rows.firstMatch
+        }
+        try readOriginalDisplay()
+        waitUntil("Actual chapter 20 prose before the read-only tail", timeout: 25) {
+            guard let capture = try? self.screen(app) else { return false }
+            return self.normalized(capture.text).count >= 18
+        }
+        let entry = try screen(app)
+        let entryAtOriginalContext = normalized(entry.text).contains(originalContext)
+        let entryText = XCTAttachment(string: entry.lines.map(\.text).joined(separator: "\n")
+            + "\nENTRY_AT_ORIGINAL_CONTEXT=\(entryAtOriginalContext)")
+        entryText.name = "epub-original-owned-note-tail-fresh-entry-OCR"
+        entryText.lifetime = .keepAlways; add(entryText)
+        evidence(app, "epub-original-owned-note-tail-fresh-entry")
+        if entryAtOriginalContext { try turn(app, awayFrom: originalContext) }
+        waitUntil("Actual readable away passage before the only note lookup", timeout: 25) {
+            guard let capture = try? self.screen(app) else { return false }
+            let text = self.normalized(capture.text)
+            return text.count >= 18 && !text.contains(originalContext)
+        }
+        let away = try screen(app)
+        XCTAssertGreaterThanOrEqual(normalized(away.text).count, 18)
+        XCTAssertFalse(normalized(away.text).contains(originalContext))
+        let awayText = XCTAttachment(string: away.lines.map(\.text).joined(separator: "\n"))
+        awayText.name = "epub-original-owned-note-tail-actual-away-OCR"
+        awayText.lifetime = .keepAlways; add(awayText)
+        evidence(app, "epub-original-owned-note-tail-actual-away-passage")
+        let original = try findOriginalNote()
+        let binding: [String: Any] = ["originalRun":"large-epub-annotation-native63-1",
+            "bookAXID":bookID,"sourceID":"local","chapterIndex":20,"originalRange":[236,237],
+            "annotationAXID":annotationID,"ownedNoteMarker":ownedNote,"selectedText":"到",
+            "originalCreateOperationID":"afab99b5-07e5-4dc8-8607-8f54ad32f5b1",
+            "context":originalContext,"annotationWritesRequested":0,"copyPasteRequested":false,
+            "boundary":"Root must bind fresh preflight to the exact original completed ACK/one SQL mark. Only this original row is tapped once; no save/update/delete, synthesized selection or second note."]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: binding, options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
+        attachment.name = "epub-original-owned-note-readonly-jump-tail-binding.json"; attachment.lifetime = .keepAlways; add(attachment)
+        original.tap(); hideControls(app)
+        try assertVisible(originalContext, app: app, name: "epub-original-owned-note-tail-returned-visible-context")
+        assertChapter(20, app: app)
+        try readOriginalDisplay()
+        leaveReader(app)
     }
 
     /// A new Large-owned rule intent. This does not resume or replace the
@@ -1023,6 +1356,113 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         }
         coordinate(CGPoint(x: finalFrame.midX, y: finalFrame.midY), app: app).tap()
         return finalViewport
+    }
+
+    /// WK Copy preserves the original native selection after dismissing its
+    /// menu. One public blank-paper tap must visibly clear that selection before
+    /// one new long press at the same original point. No business retry or DOM
+    /// injection; the existing TXT helper below remains byte-for-byte unchanged.
+    private func unpaintedNativeEpubSelection(_ app: XCUIApplication) throws -> UnpaintedNativeSelection {
+        let before = try screen(app)
+        let prose = try XCTUnwrap(before.lines.dropFirst().first { $0.text.count >= 14 },
+            "The existing EPUB must expose actual long prose; do not navigate or generate input")
+        let baseline = XCTAttachment(image: UIImage(cgImage: before.image))
+        baseline.name = "epub-WK-exact-original-preselection-baseline"; baseline.lifetime = .keepAlways; add(baseline)
+        let point = before.point(in: prose.box, xFraction: 0.27)
+        let region = CGRect(x: before.pixelCrop.minX + prose.box.minX * before.pixelCrop.width,
+            y: before.pixelCrop.minY + (1 - prose.box.maxY) * before.pixelCrop.height,
+            width: prose.box.width * before.pixelCrop.width, height: prose.box.height * before.pixelCrop.height).integral
+        let original = try XCTUnwrap(before.image.cropping(to: region))
+        let originalPixels = try rgba(original)
+        func selectionDifference(_ image: CGImage) throws -> Double {
+            XCTAssertEqual(image.width, before.image.width); XCTAssertEqual(image.height, before.image.height)
+            let crop = try XCTUnwrap(image.cropping(to: region)), pixels = try rgba(crop)
+            guard pixels.count == originalPixels.count else { throw JourneyError.prerequisite }
+            var changed = 0
+            for offset in stride(from: 0, to: pixels.count, by: 4) {
+                let distance = (0..<3).reduce(0) { $0 + abs(Int(pixels[offset+$1]) - Int(originalPixels[offset+$1])) }
+                if distance >= 12 { changed += 1 }
+            }
+            return Double(changed) / Double(max(1, crop.width * crop.height))
+        }
+        func noNativeMenu() -> Bool {
+            !app.menuItems.allElementsBoundByIndex.contains(where: \.isHittable)
+        }
+        coordinate(point, app: app).press(forDuration: 0.8)
+        let copy = try menuAction(["拷贝", "复制", "Copy"], app: app)
+        // Prove the original selection's Reader actions exist before Copy. This
+        // is the same first native menu observed in the preserved failed run.
+        let noteMenu = app.menuItems["高亮与笔记"]
+        XCTAssertTrue(noteMenu.exists && noteMenu.isHittable, "The first actual WK menu must retain the original note action")
+        evidence(app, "epub-WK-first-native-menu-before-system-copy")
+        copy.tap()
+        waitUntil("System Copy dismisses its native menu", timeout: 5) { noNativeMenu() }
+        let copied = try screen(app), copiedDifference = try selectionDifference(copied.image)
+        evidence(app, "epub-WK-copy-menu-dismissed-original-selection-observation")
+        var clearPoint: CGPoint?
+        if copiedDifference > 0.005 {
+            // Find actual OCR paragraph whitespace in the middle third, then
+            // independently require its screenshot to be blank paper. No edge
+            // tap may accidentally turn a page, and no word/handle is retapped.
+            let paper = try backgroundColour(before.paperMarginImage(near: prose))
+            let rows = before.lines.map { line in
+                CGRect(x: before.viewport.minX + line.box.minX * before.viewport.width,
+                    y: before.viewport.minY + (1 - line.box.maxY) * before.viewport.height,
+                    width: line.box.width * before.viewport.width, height: line.box.height * before.viewport.height)
+            }.sorted { $0.minY < $1.minY }
+            for pair in zip(rows, rows.dropFirst()) where pair.1.minY - pair.0.maxY >= 10 {
+                let proposed = CGPoint(x: before.viewport.midX, y: (pair.0.maxY + pair.1.minY) / 2)
+                let blank = CGRect(x: before.pixelCrop.minX + (proposed.x - before.viewport.minX - 3) * before.pixelCrop.width / before.viewport.width,
+                    y: before.pixelCrop.minY + (proposed.y - before.viewport.minY - 2) * before.pixelCrop.height / before.viewport.height,
+                    width: 6 * before.pixelCrop.width / before.viewport.width,
+                    height: 4 * before.pixelCrop.height / before.viewport.height).integral
+                if let sample = before.image.cropping(to: blank), try backgroundColour(sample) == paper {
+                    clearPoint = proposed; break
+                }
+            }
+            let blankPoint = try XCTUnwrap(clearPoint, "One real blank middle-third paper point is required; preserve the original selection if absent")
+            coordinate(blankPoint, app: app).tap() // Exactly one selection-clear touch.
+            if app.buttons["control-grabber"].isHittable { hideControls(app) }
+        }
+        waitUntil("The same original WK line has no native selection or menu", timeout: 5) {
+            guard noNativeMenu(), !app.buttons["control-grabber"].isHittable,
+                  let image = app.screenshot().image.cgImage,
+                  let difference = try? selectionDifference(image) else { return false }
+            return difference <= 0.005
+        }
+        let cleared = try screen(app), clearedDifference = try selectionDifference(cleared.image)
+        XCTAssertEqual(normalized(cleared.text), normalized(before.text),
+            "Clearing native selection cannot navigate, reflow or replace the original viewport")
+        XCTAssertLessThanOrEqual(clearedDifference, 0.005)
+        let clearFacts: [String: Any] = ["copyMenuExited":noNativeMenu(),"beforeCopyPoint":[point.x,point.y],
+            "copyLinePixelDifference":copiedDifference,"clearedLinePixelDifference":clearedDifference,
+            "clearTouchCount":clearPoint == nil ? 0 : 1,
+            "clearTouchPoint":clearPoint.map { [$0.x,$0.y] } as Any? ?? NSNull(),
+            "secondSelectionTouchCount":1,"boundary":"Native public touches only; no range/selection injection, no save retry, original full viewport OCR unchanged. Pixel return confirms native selection cleared before reselecting the same original point."]
+        let receipt = XCTAttachment(data: try JSONSerialization.data(withJSONObject: clearFacts, options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
+        receipt.name = "epub-WK-copy-clear-selection-before-one-reselection.json"; receipt.lifetime = .keepAlways; add(receipt)
+        evidence(app, "epub-WK-original-selection-cleared-before-one-reselection")
+        coordinate(point, app: app).press(forDuration: 0.8) // One new actual selection only.
+        try menuAction(["高亮与笔记"], app: app).tap()
+        let selected = app.staticTexts["annotation-selected-text"]
+        XCTAssertTrue(selected.waitForExistence(timeout: 10))
+        let text = selected.label, note = textInput("annotation-note", app: app)
+        guard !text.isEmpty, text.count <= 80, prose.text.components(separatedBy: text).count == 2,
+              note.waitForExistence(timeout: 5), isEmpty(note), app.buttons["save-annotation"].label == "高亮并保存笔记" else {
+            XCTFail("Require one uniquely mapped original word and empty new note draft; preserve every existing note/edit")
+            throw JourneyError.prerequisite
+        }
+        let crop = try before.wordImage(text, in: prose)
+        let paper = try backgroundColour(before.paperMarginImage(near: prose)), background = try backgroundColour(crop)
+        XCTAssertEqual(background, paper, "The original word must be unpainted before any note write")
+        for part in 0..<min(4,crop.width) {
+            let count = min(4,crop.width), left = part * crop.width / count, right = (part+1) * crop.width / count
+            let image = try XCTUnwrap(crop.cropping(to: CGRect(x: CGFloat(left),y: 0,width: CGFloat(right-left),height: CGFloat(crop.height))))
+            XCTAssertEqual(try backgroundColour(image), paper, "No pre-existing partial highlight may be used as the baseline")
+        }
+        let word = XCTAttachment(image: UIImage(cgImage: crop))
+        word.name = "epub-WK-original-word-before-first-selection"; word.lifetime = .keepAlways; add(word)
+        return UnpaintedNativeSelection(before: before, line: prose, text: text, crop: crop, background: background)
     }
 
     private struct UnpaintedNativeSelection {

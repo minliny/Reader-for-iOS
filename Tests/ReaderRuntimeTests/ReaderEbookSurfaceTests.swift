@@ -30,6 +30,63 @@ final class ReaderEbookSurfaceTests: XCTestCase {
                 XCTAssertEqual(actual, expected, accuracy: 0.0001, phase, file: file, line: line)
             }
         }
+        func rgb(_ color: UIColor) -> [Int] {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            XCTAssertTrue(color.getRed(&r, green: &g, blue: &b, alpha: &a))
+            XCTAssertEqual(a, 1, "Frozen papers are opaque; selection retains its own 0.2 alpha")
+            return [r, g, b].map { Int(($0 * 255).rounded()) }
+        }
+        func rect(_ value: Any?) throws -> CGRect {
+            let value = try XCTUnwrap(value as? [String: Any])
+            func number(_ key: String) throws -> CGFloat { CGFloat(try XCTUnwrap(value[key] as? NSNumber).doubleValue) }
+            return try CGRect(x: number("x"), y: number("y"), width: number("width"), height: number("height"))
+        }
+        @MainActor func snapshot(_ web: WKWebView) async throws -> UIImage {
+            guard let window = web.window, window.windowScene != nil,
+                  window.isKeyWindow, !window.isHidden else {
+                XCTFail("Actual WK pixels require the visible key window of the test host's foreground scene")
+                throw ReaderEbookError.invalidDocument
+            }
+            let configuration = WKSnapshotConfiguration()
+            configuration.rect = web.bounds; configuration.afterScreenUpdates = true
+            return try await withCheckedThrowingContinuation { continuation in
+                web.takeSnapshot(with: configuration) { image, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else if let image { continuation.resume(returning: image) }
+                    else { continuation.resume(throwing: ReaderEbookError.invalidDocument) }
+                }
+            }
+        }
+        func pixels(_ image: CGImage, rect: CGRect, viewport: CGRect, expected: [Int]) throws -> (modal: [Int], fraction: Double, opaque: Bool) {
+            guard rect.width > 0, rect.height > 0, viewport.contains(rect) else {
+                XCTFail("The actual native WK Range/blank ROI must be fully visible; never clamp an offscreen sample")
+                throw ReaderEbookError.invalidDocument
+            }
+            let region = CGRect(x: rect.minX * CGFloat(image.width) / viewport.width,
+                y: rect.minY * CGFloat(image.height) / viewport.height,
+                width: rect.width * CGFloat(image.width) / viewport.width,
+                height: rect.height * CGFloat(image.height) / viewport.height).integral
+            let crop = try XCTUnwrap(image.cropping(to: region))
+            var data = [UInt8](repeating: 0, count: crop.width * crop.height * 4)
+            try data.withUnsafeMutableBytes { buffer in
+                let space = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+                let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: crop.width, height: crop.height,
+                    bitsPerComponent: 8, bytesPerRow: crop.width * 4, space: space,
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
+            }
+            var bins: [Int: Int] = [:], matched = 0
+            var opaque = true
+            for offset in stride(from: 0, to: data.count, by: 4) {
+                let value = [Int(data[offset]), Int(data[offset + 1]), Int(data[offset + 2])]
+                let key = value[0] << 16 | value[1] << 8 | value[2]; bins[key, default: 0] += 1
+                if zip(value, expected).allSatisfy({ abs($0.0 - $0.1) <= 2 }) { matched += 1 }
+                opaque = opaque && data[offset + 3] == 255
+            }
+            let mode = try XCTUnwrap(bins.max { $0.value < $1.value }?.key)
+            return ([mode >> 16 & 255, mode >> 8 & 255, mode & 255],
+                    Double(matched) / Double(crop.width * crop.height), opaque)
+        }
         for fallback in [false, true] {
             var ready: XCTestExpectation?
             var selected: XCTestExpectation?
@@ -43,6 +100,11 @@ final class ReaderEbookSurfaceTests: XCTestCase {
             }
             let configuration = WKWebViewConfiguration()
             configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+            // Match the production native-point viewport; snapshots and JS
+            // Range rectangles must use the same coordinate space.
+            configuration.userContentController.addUserScript(WKUserScript(
+                source: ReaderEbookScript.viewport, injectionTime: .atDocumentStart,
+                forMainFrameOnly: true, in: .defaultClient))
             configuration.userContentController.add(handler, contentWorld: .defaultClient, name: "readerEbook")
             if fallback {
                 // This one private browser document models the API availability
@@ -56,6 +118,7 @@ final class ReaderEbookSurfaceTests: XCTestCase {
                 return ["session":"alpha-browser-\(fallback)","canonical":"甲😀乙","start":0,"end":3,
                     "content":"甲😀乙","edits":[],"offset":0,"fontSize":26,"lineHeight":1.8,
                     "horizontalInset":20,"leftInset":20,"rightInset":20,"topInset":8,"bottomInset":24,
+                    "paper":ReaderEbookSurface.Coordinator.cssColor(UIColor(paper.paper)),
                     "dark":theme.isDark,"ink":ReaderEbookSurface.Coordinator.cssColor(UIColor(paper.ink)),
                     "meta":ReaderEbookSurface.Coordinator.cssColor(UIColor(paper.meta)),
                     "selection":ReaderEbookSurface.Coordinator.cssColor(UIColor(paper.selection)),
@@ -68,11 +131,23 @@ final class ReaderEbookSurfaceTests: XCTestCase {
                 source: try ReaderEbookScript.bootstrap(configuration: initial),
                 injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
             let web = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 600), configuration: configuration)
-            let window = UIWindow(frame: web.bounds), controller = UIViewController()
-            controller.view = web; window.rootViewController = controller; window.isHidden = false
+            // Reuse the real-format probe's already exercised scene/key-window
+            // lifecycle. A detached UIWindow can execute JS yet snapshot RGBA0.
+            web.scrollView.contentInsetAdjustmentBehavior = .never
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            let scene = try XCTUnwrap(scenes.first { $0.activationState == .foregroundActive }
+                ?? scenes.first { $0.activationState == .foregroundInactive },
+                "Native WK pixels require the test host's foreground UIWindowScene")
+            let oldKey = scene.windows.first { $0.isKeyWindow }
+            let window = UIWindow(windowScene: scene)
+            window.frame = web.bounds
+            let controller = UIViewController(); controller.view = web
+            window.rootViewController = controller; window.makeKeyAndVisible()
+            controller.view.frame = window.bounds; controller.view.layoutIfNeeded()
             defer {
-                ready = nil; selected = nil; window.isHidden = true; web.stopLoading()
+                ready = nil; selected = nil; web.stopLoading()
                 configuration.userContentController.removeScriptMessageHandler(forName: "readerEbook", contentWorld: .defaultClient)
+                window.isHidden = true; window.rootViewController = nil; oldKey?.makeKey()
             }
             let first = expectation(description: "initial actual browser alpha branch=\(fallback)")
             ready = first
@@ -86,9 +161,16 @@ final class ReaderEbookSurfaceTests: XCTestCase {
                     arguments: ["options": options(theme)], in: nil, contentWorld: .defaultClient)
                 await fulfillment(of: [next], timeout: 5)
                 let observed = try await web.callAsyncJavaScript("""
+                    getSelection().removeAllRanges();
+                    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
                     const p=document.getElementById('one'),marks=[...document.querySelectorAll('[data-reader-overlay] span')];
                     const native=!!(window.CSS&&CSS.highlights&&typeof Highlight==='function');
-                    return {native,selection:getComputedStyle(p,'::selection').backgroundColor,
+                    const probe=document.createRange();probe.setStart(p.firstChild,0);probe.setEnd(p.firstChild,1);
+                    const glyph=probe.getBoundingClientRect();
+                    const box=rect=>({x:rect.x,y:rect.y,width:rect.width,height:rect.height});
+                    return {native,paper:getComputedStyle(document.documentElement).backgroundColor,
+                      blank:{x:innerWidth/4,y:innerHeight/2,width:innerWidth/2,height:innerHeight/4},
+                      glyph:box(glyph),selection:getComputedStyle(p,'::selection').backgroundColor,
                       cssRanges:native?CSS.highlights.get('reader-notes').size:0,
                       cssText:native?[...CSS.highlights.get('reader-notes')][0].toString():'',
                       marks:marks.map(mark=>({background:getComputedStyle(mark).backgroundColor,
@@ -117,6 +199,43 @@ final class ReaderEbookSurfaceTests: XCTestCase {
                     XCTAssertEqual(rule?.count, 1, phase)
                     try assertSelectionRGBA(rule?.first, phase: phase + "/native-highlight-rule")
                 }
+                // CSS declarations alone missed the real opaque WK canvas.
+                // Sample actual blank paper and the same highlighted scalar,
+                // not a drawn/mocked bitmap or a recoloured screenshot.
+                let paperRGB = rgb(UIColor(ReaderPaperPalette(theme: theme).paper))
+                let rootCSS = try XCTUnwrap(observed?["paper"] as? String)
+                let channels = rootCSS.components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted).compactMap(Double.init)
+                XCTAssertTrue(channels.count == 3 || channels.count == 4, phase + "/root-paper")
+                for (actual, expected) in zip(channels.prefix(3), paperRGB) {
+                    XCTAssertEqual(actual, Double(expected), accuracy: 0.0001, phase + "/root-paper")
+                }
+                if channels.count == 4 { XCTAssertEqual(channels[3], 1, accuracy: 0.0001, phase + "/opaque-root") }
+                let image = try await snapshot(web)
+                let cg = try XCTUnwrap(image.cgImage)
+                let blank = try pixels(cg, rect: try rect(observed?["blank"]), viewport: web.bounds, expected: paperRGB)
+                let composite = zip([89, 70, 50], paperRGB).map { Int((Double($0.0) * 0.2 + Double($0.1) * 0.8).rounded()) }
+                let mark = try pixels(cg, rect: try rect(observed?["glyph"]), viewport: web.bounds, expected: composite)
+                for (actual, expected) in zip(blank.modal, paperRGB) {
+                    XCTAssertEqual(Double(actual), Double(expected), accuracy: 2, phase + "/native-blank-paper")
+                }
+                for (actual, expected) in zip(mark.modal, composite) {
+                    XCTAssertEqual(Double(actual), Double(expected), accuracy: 2, phase + "/native-alpha-composite")
+                }
+                XCTAssertTrue(blank.opaque && mark.opaque, phase + "/actual-opaque-canvas")
+                XCTAssertGreaterThan(blank.fraction, 0.99, phase + "/blank-is-frozen-paper-not-default-white")
+                XCTAssertGreaterThan(mark.fraction, 0.30, phase + "/native-highlight-background-visible")
+                let actual: [String: Any] = ["phase":phase,"paperCSS":rootCSS,"expectedPaper":paperRGB,
+                    "sceneAttached":web.window?.windowScene === scene,"isActualKeyWindow":web.window === window && window.isKeyWindow,
+                    "nativeViewport":NSCoder.string(for: web.bounds),"adjustedContentInset":["top":web.scrollView.adjustedContentInset.top,"left":web.scrollView.adjustedContentInset.left,
+                        "bottom":web.scrollView.adjustedContentInset.bottom,"right":web.scrollView.adjustedContentInset.right],
+                    "blankModal":blank.modal,"blankMatchingFraction":blank.fraction,
+                    "expectedComposite":composite,"highlightModal":mark.modal,"highlightMatchingFraction":mark.fraction,
+                    "blankRect":NSCoder.string(for: try rect(observed?["blank"])),
+                    "highlightRect":NSCoder.string(for: try rect(observed?["glyph"]))]
+                let facts = XCTAttachment(data: try JSONSerialization.data(withJSONObject: actual, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+                facts.name = phase + "/actual-native-paper-pixels"; facts.lifetime = .keepAlways; add(facts)
+                let painted = XCTAttachment(image: image)
+                painted.name = phase + "/actual-native-WK-snapshot"; painted.lifetime = .keepAlways; add(painted)
                 let selectionReady = expectation(description: phase + " actual scalar selection")
                 selected = selectionReady; selection = nil
                 _ = try await web.callAsyncJavaScript("""

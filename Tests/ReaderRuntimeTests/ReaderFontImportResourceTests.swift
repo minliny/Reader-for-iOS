@@ -11,6 +11,80 @@ import XCTest
 /// mutated file/defaults suite belongs to a newly allocated test fixture only.
 @MainActor
 final class ReaderFontImportResourceTests: XCTestCase {
+    func testDefaultSerifSelectionSurvivesOrderAndNormalChoiceRestoresAbsentKeysWithoutChangingAliases() throws {
+        let suite = "ReaderFontDefaultSelectionTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        defaults.set("keep-original-paper", forKey: "test.unrelated")
+        let library = ReaderFontLibrary(directory: root, defaults: defaults)
+        let preferences = ReaderPreferences(defaults: defaults)
+        for id in ["serif", "sourceHanSerif", "sans"] {
+            XCTAssertTrue(try XCTUnwrap(library.selectableChoices.first(where: { $0.id == id })).available,
+                "Require the real registered bundled choices; do not import a replacement or bypass an unavailable face")
+        }
+        let originalKeys = try XCTUnwrap(defaults.persistentDomain(forName: suite))
+        let fontKeys: Set<String> = ["appearance.fontPostScriptName", "appearance.fontSlotID"]
+        func selected(_ owner: ReaderPreferences) -> String {
+            library.selectedChoiceID(named: owner.fontPostScriptName, preferred: owner.fontSlotID)
+        }
+        func assertOtherKeys() throws {
+            let current = try XCTUnwrap(defaults.persistentDomain(forName: suite))
+                .filter { !fontKeys.contains($0.key) && $0.key != "reader.fontLibrary.order.v2" }
+            let original = originalKeys.filter { !fontKeys.contains($0.key) && $0.key != "reader.fontLibrary.order.v2" }
+            XCTAssertTrue(NSDictionary(dictionary: current).isEqual(to: original), "Normal font selection must not reset another preference")
+        }
+        XCTAssertNil(defaults.object(forKey: "appearance.fontPostScriptName"))
+        XCTAssertNil(defaults.object(forKey: "appearance.fontSlotID"))
+        XCTAssertEqual(selected(preferences), "serif")
+        let originalFace = try XCTUnwrap(library.resolvedFont(named: preferences.fontPostScriptName, size: 18))
+        let aliasIndex = try XCTUnwrap(library.choiceOrder.firstIndex(of: "sourceHanSerif"))
+        library.moveChoices(fromOffsets: IndexSet(integer: aliasIndex), toOffset: 0)
+        XCTAssertEqual(library.choiceOrder.first, "sourceHanSerif")
+        XCTAssertEqual(selected(preferences), "serif", "Reordering a physical-font alias cannot change the default product slot")
+        XCTAssertEqual(library.resolvedFont(named: preferences.fontPostScriptName, size: 18)?.fontName, originalFace.fontName)
+        XCTAssertNil(defaults.object(forKey: "appearance.fontSlotID"))
+
+        library.selectChoice("sourceHanSerif", preferences: preferences)
+        XCTAssertNil(preferences.fontPostScriptName)
+        XCTAssertEqual(preferences.fontSlotID, "sourceHanSerif", "An explicit same-face alias retains its product identity")
+        XCTAssertEqual(selected(preferences), "sourceHanSerif")
+        let serifIndex = try XCTUnwrap(library.choiceOrder.firstIndex(of: "serif"))
+        library.moveChoices(fromOffsets: IndexSet(integer: serifIndex), toOffset: 0)
+        XCTAssertEqual(selected(preferences), "sourceHanSerif")
+        let coldAlias = ReaderPreferences(defaults: defaults)
+        let coldLibrary = ReaderFontLibrary(directory: root, defaults: defaults)
+        XCTAssertEqual(coldLibrary.choiceOrder, library.choiceOrder)
+        XCTAssertEqual(coldLibrary.selectedChoiceID(named: coldAlias.fontPostScriptName, preferred: coldAlias.fontSlotID), "sourceHanSerif")
+
+        // Preserve the legacy explicit default until the user normally chooses.
+        defaults.set("serif", forKey: "appearance.fontSlotID")
+        let legacy = ReaderPreferences(defaults: defaults)
+        XCTAssertNil(legacy.fontPostScriptName); XCTAssertEqual(selected(legacy), "serif")
+        XCTAssertEqual(defaults.string(forKey: "appearance.fontSlotID"), "serif")
+        library.selectChoice("sans", preferences: legacy)
+        XCTAssertEqual(legacy.fontSlotID, "sans")
+        let sans = try XCTUnwrap(library.selectableChoices.first(where: { $0.id == "sans" }))
+        XCTAssertEqual(legacy.fontPostScriptName, sans.postScriptName)
+        XCTAssertNotEqual(library.resolvedFont(named: legacy.fontPostScriptName, size: 18)?.fontName, originalFace.fontName)
+        let selectedKeys = try XCTUnwrap(defaults.persistentDomain(forName: suite))
+        library.selectChoice("import", preferences: legacy)
+        library.selectChoice("missing-original-slot", preferences: legacy)
+        XCTAssertTrue(NSDictionary(dictionary: try XCTUnwrap(defaults.persistentDomain(forName: suite))).isEqual(to: selectedKeys))
+        library.selectChoice("serif", preferences: legacy)
+        XCTAssertNil(legacy.fontPostScriptName); XCTAssertNil(legacy.fontSlotID)
+        XCTAssertNil(defaults.object(forKey: "appearance.fontPostScriptName"))
+        XCTAssertNil(defaults.object(forKey: "appearance.fontSlotID"))
+        let coldDefault = ReaderPreferences(defaults: defaults)
+        XCTAssertEqual(coldLibrary.selectedChoiceID(named: coldDefault.fontPostScriptName, preferred: coldDefault.fontSlotID), "serif")
+        XCTAssertEqual(library.selectedChoiceID(named: "unavailable-original-face", preferred: nil), "retained-selection")
+        try assertOtherKeys()
+    }
+
     func testRealOFLFontPostRegistrationFailureRollsBackOnlyNewAsset() async throws {
         let input = try FontOriginal.ofl()
         let events = FontImportEvents(failFirstRegistration: true)
