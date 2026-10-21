@@ -1,0 +1,16 @@
+Reader contains libmobi 0.12.
+Copyright (c) 2014-2022 Bartek Fabiszewski and contributors.
+Upstream: https://github.com/bfabiszewski/libmobi/tree/v0.12
+License: GNU Lesser General Public License, version 3 or later.
+The original LGPL and incorporated GPL texts accompany this notice as COPYING
+and COPYING.GPL in this directory.
+
+Reader's fixed Core revision: 1411965a65a0f3098c02679be5ef979ae9462867.
+Library source within that revision: third_party/libmobi-0.12.
+Reader adapter: crates/reader-local-book/src/mobi_bridge.c.
+The unchanged upstream archive identity is in UPSTREAM.json; no upstream Git
+commit is asserted by that registration. Encryption and DRM are not enabled.
+
+See READER_INTEGRATION.md for the iOS build/relink path, the local source
+materials used, and the source/distribution verification still required. The
+upstream URL is not a promise of public availability of this Reader revision.

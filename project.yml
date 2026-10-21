@@ -27,6 +27,12 @@ targets:
       - path: Vendor/ReaderCoreClient/ReaderCoreClient.swift
       - path: Resources
         buildPhase: resources
+        excludes:
+          - Licenses/ReaderEbookNotices.bundle
+      # Preserve upstream license filenames and directory boundaries.
+      - path: Resources/Licenses/ReaderEbookNotices.bundle
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.reader.minliny

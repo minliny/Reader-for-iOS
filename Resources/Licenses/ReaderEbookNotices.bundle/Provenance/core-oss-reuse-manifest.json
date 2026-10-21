@@ -1,0 +1,468 @@
+[
+  {
+    "name": "aes",
+    "version": "0.8.4",
+    "newPackage": false,
+    "repository": "https://github.com/RustCrypto/block-ciphers",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "b169f7a6d4742236a0a00c541b845991d0ac43e546831af1249753ab4c3aa3a0",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/aes-0.8.4/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/aes-0.8.4/LICENSE-MIT",
+        "sha256": "f7e8ab639afef15573680c97f796166835cbeb3865175882fea41c60d106b733"
+      }
+    ]
+  },
+  {
+    "name": "base64",
+    "version": "0.22.1",
+    "newPackage": false,
+    "repository": "https://github.com/marshallpierce/rust-base64",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/base64-0.22.1/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/base64-0.22.1/LICENSE-MIT",
+        "sha256": "0dd882e53de11566d50f8e8e2d5a651bcf3fabee4987d70f306233cf39094ba7"
+      }
+    ]
+  },
+  {
+    "name": "cbc",
+    "version": "0.1.2",
+    "newPackage": true,
+    "repository": "https://github.com/RustCrypto/block-modes",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "26b52a9543ae338f279b96b0b9fed9c8093744685043739079ce85cd58f289a6",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/cbc-0.1.2/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/cbc-0.1.2/LICENSE-MIT",
+        "sha256": "63af4bea227c94d021e99427f6ca3a4b8efddadcca93ab6130f708cf6138cf68"
+      }
+    ]
+  },
+  {
+    "name": "des",
+    "version": "0.8.1",
+    "newPackage": true,
+    "repository": "https://github.com/RustCrypto/block-ciphers",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "ffdd80ce8ce993de27e9f063a444a4d53ce8e8db4c1f00cc03af5ad5a9867a1e",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/des-0.8.1/LICENSE-APACHE",
+        "sha256": "15b3f2c71c37b46995aaa90362fe18bff234e6bb3037746319013aaf4174ec5c"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/des-0.8.1/LICENSE-MIT",
+        "sha256": "f0b2a49442d6a8d61245111da5c21ba50c1b7dc2a0b75053c8358162ddcc3453"
+      }
+    ]
+  },
+  {
+    "name": "ecb",
+    "version": "0.1.2",
+    "newPackage": false,
+    "repository": "https://github.com/magic-akari/ecb",
+    "license": "MIT",
+    "registryChecksum": "1a8bfa975b1aec2145850fcaa1c6fe269a16578c44705a532ae3edc92b8881c7",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/ecb-0.1.2/LICENSE",
+        "sha256": "305f0f8f4db8470887a8819b2dd0779371b960de48067f4a4ace0bb311ba71da"
+      }
+    ]
+  },
+  {
+    "name": "hashlink",
+    "version": "0.9.1",
+    "newPackage": false,
+    "repository": "https://github.com/kyren/hashlink",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/hashlink-0.9.1/LICENSE-APACHE",
+        "sha256": "c144680885b29e4719e2a51f0aab5439a1e02d980692b5aaf086cae12727f28b"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/hashlink-0.9.1/LICENSE-MIT",
+        "sha256": "e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c"
+      }
+    ]
+  },
+  {
+    "name": "hmac",
+    "version": "0.12.1",
+    "newPackage": true,
+    "repository": "https://github.com/RustCrypto/MACs",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/hmac-0.12.1/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/hmac-0.12.1/LICENSE-MIT",
+        "sha256": "9e0dfd2dd4173a530e238cb6adb37aa78c34c6bc7444e0e10c1ab5d8881f63ba"
+      }
+    ]
+  },
+  {
+    "name": "html5ever",
+    "version": "0.39.0",
+    "newPackage": false,
+    "repository": "https://github.com/servo/html5ever",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "46a1761807faccc9a19e86944bbf40610014066306f96edcdedc2fb714bcb7b8",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/html5ever-0.39.0/LICENSE-MIT",
+        "sha256": "86dd7f026f916daf7511e39951ad8ea8cf55a8db67ae64060dacf829761c18f3"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/html5ever-0.39.0/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      }
+    ]
+  },
+  {
+    "name": "libsqlite3-sys",
+    "version": "0.28.0",
+    "newPackage": false,
+    "repository": "https://github.com/rusqlite/rusqlite",
+    "license": "MIT",
+    "registryChecksum": "0c10584274047cb335c23d3e61bcef8e323adae7c5c8c760540f73610177fc3f",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/libsqlite3-sys-0.28.0/LICENSE",
+        "sha256": "f59ba65550f2a5adff98ec6478d783402c8e0a3eb515025c0b3438f3d30dc39e"
+      }
+    ]
+  },
+  {
+    "name": "md-5",
+    "version": "0.10.6",
+    "newPackage": true,
+    "repository": "https://github.com/RustCrypto/hashes",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/md-5-0.10.6/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/md-5-0.10.6/LICENSE-MIT",
+        "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1"
+      }
+    ]
+  },
+  {
+    "name": "rusqlite",
+    "version": "0.31.0",
+    "newPackage": false,
+    "repository": "https://github.com/rusqlite/rusqlite",
+    "license": "MIT",
+    "registryChecksum": "b838eba278d213a8beaf485bd313fd580ca4505a00d5871caeb1457c55322cae",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/rusqlite-0.31.0/LICENSE",
+        "sha256": "f59ba65550f2a5adff98ec6478d783402c8e0a3eb515025c0b3438f3d30dc39e"
+      }
+    ]
+  },
+  {
+    "name": "ryu-js",
+    "version": "1.0.3",
+    "newPackage": true,
+    "repository": "https://github.com/boa-dev/ryu-js",
+    "license": "Apache-2.0 OR BSL-1.0",
+    "registryChecksum": "04d056b875a9d2e6cb9a61d127afee9ac5999b9f87bcb32079d1318e505be714",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/ryu-js-1.0.3/LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/ryu-js-1.0.3/LICENSE-BOOST",
+        "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+      }
+    ]
+  },
+  {
+    "name": "scraper",
+    "version": "0.26.0",
+    "newPackage": false,
+    "repository": "https://github.com/rust-scraper/scraper",
+    "license": "ISC",
+    "registryChecksum": "f0f5297102b8b62b4454ee8561601b2d551b4913148feb4241ca9d1a04bf4526",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/scraper-0.26.0/LICENSE",
+        "sha256": "1f485f0d6125658861351e3d6084ea90fefe78f89450be9915044b7c56d5a75a"
+      }
+    ]
+  },
+  {
+    "name": "serde_json_canonicalizer",
+    "version": "0.3.2",
+    "newPackage": true,
+    "repository": "https://github.com/evik42/serde-json-canonicalizer",
+    "license": "MIT",
+    "registryChecksum": "fe52319a927259afbfa5180c5157cd8167edfd3e8c254f9558c7fef44c5649f2",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/serde_json_canonicalizer-0.3.2/LICENSE",
+        "sha256": "b68d86a60d3619bfd55b89a322e8464d3f9ca1c7e2409cc6035ea290435831e0"
+      }
+    ]
+  },
+  {
+    "name": "sha1",
+    "version": "0.10.6",
+    "newPackage": true,
+    "repository": "https://github.com/RustCrypto/hashes",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/sha1-0.10.6/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/sha1-0.10.6/LICENSE-MIT",
+        "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1"
+      }
+    ]
+  },
+  {
+    "name": "sha2",
+    "version": "0.10.9",
+    "newPackage": false,
+    "repository": "https://github.com/RustCrypto/hashes",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/sha2-0.10.9/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/sha2-0.10.9/LICENSE-MIT",
+        "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1"
+      }
+    ]
+  },
+  {
+    "name": "sm3",
+    "version": "0.4.2",
+    "newPackage": true,
+    "repository": "https://github.com/RustCrypto/hashes",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "ebb9a3b702d0a7e33bc4d85a14456633d2b165c2ad839c5fd9a8417c1ab15860",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/sm3-0.4.2/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/sm3-0.4.2/LICENSE-MIT",
+        "sha256": "90c503b61dee04e1449c323ec34c229dfb68d7adcb96c7e140ee55f70fce2d8e"
+      }
+    ]
+  },
+  {
+    "name": "sm4",
+    "version": "0.5.1",
+    "newPackage": true,
+    "repository": "https://github.com/RustCrypto/block-ciphers",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "2d7abf5135ffd68fb4b438e1fb246923b80d25eda386d8b798bb4ad3ed00f75f",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/sm4-0.5.1/LICENSE-APACHE",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/sm4-0.5.1/LICENSE-MIT",
+        "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1"
+      }
+    ]
+  },
+  {
+    "name": "sxd-document",
+    "version": "0.3.2",
+    "newPackage": false,
+    "repository": "https://github.com/shepmaster/sxd-document",
+    "license": "MIT",
+    "registryChecksum": "94d82f37be9faf1b10a82c4bd492b74f698e40082f0f40de38ab275f31d42078",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/sxd-document-0.3.2/LICENSE.txt",
+        "sha256": "8cdabd0ac8ec4987310522f33f103b760329392c2223670e29d365b53e7a89e7"
+      }
+    ]
+  },
+  {
+    "name": "cssparser",
+    "version": "0.36.0",
+    "newPackage": false,
+    "repository": "https://github.com/servo/rust-cssparser",
+    "license": "MPL-2.0",
+    "registryChecksum": "dae61cf9c0abb83bd659dab65b7e4e38d8236824c85f0f804f173567bda257d2",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/cssparser-0.36.0/LICENSE",
+        "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+      }
+    ]
+  },
+  {
+    "name": "selectors",
+    "version": "0.36.1",
+    "newPackage": false,
+    "repository": "https://github.com/servo/stylo",
+    "license": "MPL-2.0",
+    "registryChecksum": "c5d9c0c92a92d33f08817311cf3f2c29a3538a8240e94a6a3c622ce652d7e00c",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/selectors-0.36.1/LICENSE-MPL-2.0",
+        "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+      }
+    ]
+  },
+  {
+    "name": "png",
+    "version": "0.18.1",
+    "newPackage": true,
+    "repository": "https://github.com/image-rs/image-png",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/png-0.18.1/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/png-0.18.1/LICENSE-MIT",
+        "sha256": "eaf40297c75da471f7cda1f3458e8d91b4b2ec866e609527a13acfa93b638652"
+      }
+    ]
+  },
+  {
+    "name": "fdeflate",
+    "version": "0.3.7",
+    "newPackage": true,
+    "repository": "https://github.com/image-rs/fdeflate",
+    "license": "MIT OR Apache-2.0",
+    "registryChecksum": "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/fdeflate-0.3.7/LICENSE-APACHE",
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      {
+        "file": "third_party/oss-reuse-licenses/fdeflate-0.3.7/LICENSE-MIT",
+        "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
+      }
+    ]
+  },
+  {
+    "name": "cssparser-macros",
+    "version": "0.6.1",
+    "newPackage": false,
+    "repository": "https://github.com/servo/rust-cssparser",
+    "license": "MPL-2.0",
+    "registryChecksum": "13b588ba4ac1a99f7f2964d24b3d896ddc6bf847ee3855dbd4366f058cfcd331",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/cssparser-macros-0.6.1/LICENSE",
+        "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+      }
+    ]
+  },
+  {
+    "name": "dtoa-short",
+    "version": "0.3.5",
+    "newPackage": false,
+    "repository": "https://github.com/upsuper/dtoa-short",
+    "license": "MPL-2.0",
+    "registryChecksum": "cd1511a7b6a56299bd043a9c167a6d2bfb37bf84a6dfceaba651168adfb43c87",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/dtoa-short-0.3.5/LICENSE",
+        "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+      }
+    ]
+  },
+  {
+    "name": "webpki-roots",
+    "version": "1.0.8",
+    "newPackage": false,
+    "repository": "https://github.com/rustls/webpki-roots",
+    "license": "CDLA-Permissive-2.0",
+    "registryChecksum": "bf85cb06032201fa7c6f829d7db5a7e5aa45bcc0655327713065f6f0576731bf",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/webpki-roots-1.0.8/LICENSE",
+        "sha256": "e271993808fec50ab29350b39539cdec611a9103f827e0aa26d61da70e2d33f8"
+      }
+    ]
+  },
+  {
+    "name": "ego-tree",
+    "version": "0.11.0",
+    "newPackage": false,
+    "repository": "https://github.com/rust-scraper/ego-tree",
+    "license": "ISC",
+    "registryChecksum": "b04dc5a38e4f151a79d9f2451ae6037fb6eaf5cba34771f44781f80e508498e3",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/ego-tree-0.11.0/LICENSE",
+        "sha256": "ddea4e94a1c35ed9826e54e13a5b50b8f81b21665a00ca07c8861f1859e56b6b"
+      }
+    ]
+  },
+  {
+    "name": "kamadak-exif",
+    "version": "0.6.1",
+    "newPackage": true,
+    "repository": "https://github.com/kamadak/exif-rs",
+    "license": "BSD-2-Clause",
+    "registryChecksum": "1130d80c7374efad55a117d715a3af9368f0fa7a2c54573afc15a188cd984837",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/kamadak-exif-0.6.1/LICENSE",
+        "sha256": "17c496a77909a1f26006427d27e58a1d1514baa6a332240aa5fc543e3fa7295d"
+      }
+    ]
+  },
+  {
+    "name": "mutate_once",
+    "version": "0.1.2",
+    "newPackage": true,
+    "repository": "https://github.com/kamadak/mutate_once-rs",
+    "license": "BSD-2-Clause",
+    "registryChecksum": "13d2233c9842d08cfe13f9eac96e207ca6a2ea10b80259ebe8ad0268be27d2af",
+    "licenses": [
+      {
+        "file": "third_party/oss-reuse-licenses/mutate_once-0.1.2/LICENSE",
+        "sha256": "0c1b89e5705ae3a3f7275120e175c8ce7b1f82b1752594f8c513ae467f9e6b22"
+      }
+    ]
+  }
+]

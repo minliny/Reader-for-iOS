@@ -1,0 +1,40 @@
+[
+  {
+    "name": "zip",
+    "version": "2.4.2",
+    "repository": "https://github.com/zip-rs/zip2.git",
+    "license": "MIT",
+    "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
+    "registryChecksum": "fabe6324e908f85a1c52063ce7aa26b68dcb7eb6dbc83a2d148403c9bc3eba50",
+    "licenses": [
+      {
+        "file": "packages/zip-2.4.2/LICENSE",
+        "sha256": "04dc52136d82400b11df5f474949863a70a5d05d2278dec45b99c479494450a6"
+      }
+    ],
+    "provenance": "License bytes copied from the already present local crate archive after matching its SHA-256 to Core141 Cargo.lock; no download was performed."
+  },
+  {
+    "name": "encoding_rs",
+    "version": "0.8.35",
+    "repository": "https://github.com/hsivonen/encoding_rs",
+    "license": "(Apache-2.0 OR MIT) AND BSD-3-Clause",
+    "registrySource": "registry+https://github.com/rust-lang/crates.io-index",
+    "registryChecksum": "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3",
+    "licenses": [
+      {
+        "file": "packages/encoding_rs-0.8.35/LICENSE-APACHE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "file": "packages/encoding_rs-0.8.35/LICENSE-MIT",
+        "sha256": "3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c"
+      },
+      {
+        "file": "packages/encoding_rs-0.8.35/LICENSE-WHATWG",
+        "sha256": "838118388fe5c2e7f1dbbaeed13e1c7f3ebf88be91319c7c1d77c18e987d1a50"
+      }
+    ],
+    "provenance": "License bytes copied from the already present local crate archive after matching its SHA-256 to Core141 Cargo.lock; no download was performed."
+  }
+]
