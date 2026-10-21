@@ -20,9 +20,9 @@ UI `95366cd93775ea0ad3ecbc0f60e8882717f93169`、
 本轮 V2–V4 扩展增加了目录/电子书展示、规则订阅、下载及换源恢复等配套合同；
 旧 Framework 不会因为 Host 源码出现新入口就获得这些能力。
 最终升级须明确协议/schema、位置和历史未决操作的边界，保留原书与原 journal，
-重新构建并绑定准确产物。当前运行 pin 为 `1411965a65a0f3098c02679be5ef979ae9462867`，Swift binding SHA-256 为
+重新构建并绑定准确产物。当前运行 pin 为 `e978bf20c67a3842697dd454ad826e0b25dd1755`，Swift binding SHA-256 为
 `e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0`。
-配套模拟器 Framework 已通过实际构建（`core-txt-legacy-framework-build.log` 与源码/字节回执）；C ABI 和 Swift binding 未变。新增 `txt-toc-rule.preview` 为真实原书的只读草稿识别快照，复用既有解析器；`8766e780` 的三个准确原书方法已通过。当前 pin 补齐缺少 `localBookFormat` 的 V1 TXT 旧元数据识别，仍检查原书 SHA 与无扩展名提示的字节格式；对应两个准确方法通过后提交，Framework 来自该干净提交，Host 原生消费者另验。
+此前 Core141 的模拟器 Framework 已通过实际构建（`core-txt-legacy-framework-build.log` 与源码/字节回执）；本次 e978 只读调试升级的 Framework 已实际重建并绑定准确源码/字节回执（`source-debug-core-e978-framework-build-exit.json`）；393个对象的最低版本核验符合17声明，C ABI 和 Swift binding 未变。新增 `txt-toc-rule.preview` 为真实原书的只读草稿识别快照，复用既有解析器；`8766e780` 的三个准确原书方法已通过。当前 pin 补齐缺少 `localBookFormat` 的 V1 TXT 旧元数据识别，仍检查原书 SHA 与无扩展名提示的字节格式；对应两个准确方法通过后提交，Framework 来自该干净提交，Host 原生消费者另验。
 最终 App、安装与交互结果仍须分别绑定实际回执，Framework 通过不替代 App 交付。
 从参考 Core `2a301653` 升级到当前 pin，protocol/C ABI/runtime-config 仍为 1，
 SQLite `user_version` 仍为 38，存储快照 `schemaVersion` 仍为 16，本次未引入 DDL 迁移。
@@ -230,3 +230,4 @@ TTS 和漫画尚无已开放业务入口，不能把其他阅读入口的证据�
 公共文档不复制真实书籍、凭据或设备私有标识。
 构建、所选测试和保数据覆盖安装的稳定入口见本仓 [README](../README.md)。
 本文不新增第二份待办，也不因上述失败自动触发全量门禁。
+| 书源规则调试的身份、生命周期与只读回放 | Core `e978bf20` 只修改 runtime 和对应精确测试，沿用现有解析能力完成 L1–L5；C ABI、协议、Swift binding、SQLite38/snapshot16 与位置/原操作合同不变。最终六个准确方法各执行一次通过，方法合计4.010秒；真实得间《剑来》四层原HTTP回放提取4本/1本/1279目录条目/3031 Unicode标量，64个持久表含metadata前后指纹完全相同且无Host请求。旧字节PASS和中间上下文方法FAIL保留，不转算最终结果。iOS已补缺省sourceId绑定、显式冲突拒绝、输入代次与独立弹层owner；native54已编译/签名并封存466输入/134产物（构建执行方法0），三个受控方法各执行一次通过、合计0.020秒，安装后和运行后三个目标33组保护完全保持，源码/产物未漂移；真实界面与草稿回程验证中。本次Framework已构建/核验，普通App46仍为已安装历史交付；不据此称V4整版完成。 |

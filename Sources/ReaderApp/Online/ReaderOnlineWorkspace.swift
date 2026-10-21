@@ -397,7 +397,7 @@ private struct ReaderSourceManagement: View {
     @State private var diagnostic = ""
     @State private var subscriptionPage = false
     @State private var diagnosticGeneration = UUID()
-    @State private var debugSource: ReaderOnlineSource?
+    @State private var debugSource: ReaderSourceDebugPresentation?
     @State private var validating = false
     @Environment(\.colorScheme) private var scheme
     init(state: ReaderOnlineWorkspaceModel) {
@@ -434,7 +434,10 @@ private struct ReaderSourceManagement: View {
                             }.disabled(!draftOwner.canReplace)
                                 .accessibilityIdentifier("online-source-edit:" + source.id)
                             Button("检测") { diagnose(source) }
-                            Button("调试") { debugSource = source }
+                            Button("调试") {
+                                debugSource?.owner.retire()
+                                debugSource = ReaderSourceDebugPresentation(source: source)
+                            }
                             Button("网页登录") { login = ReaderSourceLoginPresentation(source: source) }
                             Spacer()
                             Button("删除", role: .destructive) { confirmation.confirm("删除书源？", message: "已有书籍与缓存保留，后续联网将需要重新导入此书源。", actionTitle: "删除", destructive: true) { mutate("删除书源") { id in try await state.service?.deleteSource(source.id, operationID: id) } } }
@@ -489,7 +492,14 @@ private struct ReaderSourceManagement: View {
                     request.lifetime.retire(); login = nil
                 }.id(request.id)
             }
-            .sheet(item: $debugSource) { source in if let service = state.service { ReaderSourceDebugPanel(source: source, service: service) } }
+            .sheet(item: $debugSource) { request in
+                if let service = state.service {
+                    ReaderSourceDebugPanel(source: request.source, service: service, owner: request.owner) {
+                        guard debugSource?.id == request.id else { return }
+                        request.owner.retire(); debugSource = nil
+                    }.id(request.id)
+                }
+            }
             .sheet(isPresented: $subscriptionPage, onDismiss: { Task { await state.loadSources() } }) {
                 if let service = state.service as? any ReaderRuleSubscriptionServing { ReaderRuleSubscriptionPanel(service: service) }
             }
