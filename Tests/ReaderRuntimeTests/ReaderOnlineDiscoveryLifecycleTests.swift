@@ -128,6 +128,22 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
     }
 
     func testOldPresentationCannotRetireReopenedOwnerAndEvictionReleasesReadLifetime() async throws {
+        // Exercise the production cache with an independent owner. These are
+        // presentation identities only: no books, sources or requests are made,
+        // and the shared App cache/its accepted owners are never replaced.
+        do {
+            let cache = ReaderSwitchPresentationCache()
+            let created = cache.state(for: "owned-query", initialQuery: "initial query")
+            XCTAssertEqual(created.query, "initial query", "A newly created state receives the initial book-title query once")
+            created.query = ""
+            let reopened = cache.state(for: "owned-query", initialQuery: "must not replace the empty query")
+            XCTAssertTrue(reopened === created && reopened.query.isEmpty,
+                          "Reopening the same cached state retains an intentionally empty query")
+            for index in 0..<8 { _ = cache.state(for: "owned-eviction-\(index)", initialQuery: "") }
+            let recreated = cache.state(for: "owned-query", initialQuery: "new initial query")
+            XCTAssertTrue(recreated !== created && recreated.query == "new initial query",
+                          "Only a new state after the unchanged eight-entry eviction is initialized again")
+        }
         let service = DiscoveryControlledService()
         var state: ReaderOnlineWorkspaceModel? = ReaderOnlineWorkspaceModel()
         weak var weakState = state

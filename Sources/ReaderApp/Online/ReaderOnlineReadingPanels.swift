@@ -2,12 +2,14 @@ import SwiftUI
 
 /// Bounded presentation cache: candidates/query/timing survive closing the
 /// switch sheet. Core remains the owner of books, catalogs and transactions.
-@MainActor private enum ReaderSwitchPresentationCache {
-    static var states: [String: ReaderOnlineWorkspaceModel] = [:]
-    static var order: [String] = []
-    static func state(for identity: String) -> ReaderOnlineWorkspaceModel {
+@MainActor final class ReaderSwitchPresentationCache {
+    static let shared = ReaderSwitchPresentationCache()
+    private var states: [String: ReaderOnlineWorkspaceModel] = [:]
+    private var order: [String] = []
+    func state(for identity: String, initialQuery: String) -> ReaderOnlineWorkspaceModel {
         if let state = states[identity] { return state }
-        let state = ReaderOnlineWorkspaceModel(); states[identity] = state; order.append(identity)
+        let state = ReaderOnlineWorkspaceModel(); state.query = initialQuery
+        states[identity] = state; order.append(identity)
         while order.count > 8 {
             let evicted = order.removeFirst()
             states.removeValue(forKey: evicted)?.retireCachedDiscovery()
@@ -26,7 +28,7 @@ struct ReaderOnlineSwitchPanel: View {
     @Environment(\.colorScheme) private var scheme
     init(model: ReaderApplicationModel, preferences: ReaderPreferences, session: ReaderActiveSession) {
         self.model = model; self.preferences = preferences; self.session = session
-        _state = StateObject(wrappedValue: ReaderSwitchPresentationCache.state(for: session.book.id))
+        _state = StateObject(wrappedValue: ReaderSwitchPresentationCache.shared.state(for: session.book.id, initialQuery: session.book.title))
     }
     var body: some View {
         let presentationID = discoveryPresentationID
@@ -83,7 +85,6 @@ struct ReaderOnlineSwitchPanel: View {
                 guard !Task.isCancelled else { return }
                 state.activateDiscoveryPresentation(presentationID)
                 state.service = model.libraryService as? any ReaderOnlineServing
-                if state.query.isEmpty { state.query = session.book.title }
                 await state.refreshDiscoverySources(presentationID: presentationID)
             }
             .onDisappear { state.retireDiscoveryPresentation(presentationID) }
