@@ -589,6 +589,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         try quickAutomaticPage(app)
         let oldSpeed = try XCTUnwrap(observedQuickAutomaticSpeed(app))
         try fullAutomaticPage(app)
+        try assertFullAutomaticSpeed(oldSpeed, app: app)
         let restoration = AutomaticPageRestoration(minute: oldMinute, second: oldSecond, speed: oldSpeed)
         // XCTest tears these stages down in reverse order: stop only this
         // method's run, then restore speed/seconds/minutes independently. Each
@@ -859,8 +860,27 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             XCTFail("The native Full slider must be visible before its value confirms the actual speed")
             throw JourneyError.prerequisite
         }
+        let rawValue = control.value
+        let rawType = rawValue.map { String(reflecting: type(of: $0)) } ?? "nil"
+        let observation = XCTAttachment(string: "rawValue=\(String(describing: rawValue))\nrawType=\(rawType)\nexpectedSeconds=\(seconds)\ncontrolLabel=\(control.label)\nendpoint=\(app.buttons["control-grabber"].label)")
+        observation.name = "auto-speed-actual-full-native-value-and-unit"; observation.lifetime = .keepAlways; add(observation)
+        let text = try XCTUnwrap(rawValue as? String).trimmingCharacters(in: .whitespacesAndNewlines)
         XCTAssertTrue(app.staticTexts["\(seconds) 秒"].exists, "Read the actual selected UI speed before testing its consumer")
-        XCTAssertEqual(try sliderFraction(control), CGFloat(seconds - 2) / 18, accuracy: 0.015)
+        if text.hasSuffix("%") {
+            let percent = try XCTUnwrap(Double(String(text.dropLast()).trimmingCharacters(in: .whitespaces)))
+            guard percent.isFinite, (0...100).contains(percent) else {
+                XCTFail("Preserve an invalid native percentage instead of guessing its unit")
+                throw JourneyError.prerequisite
+            }
+            XCTAssertEqual(CGFloat(percent / 100), CGFloat(seconds - 2) / 18, accuracy: 0.015)
+        } else {
+            guard text.range(of: #"^[0-9]+(?:\.[0-9]+)?$"#, options: .regularExpression) != nil,
+                  let actualSeconds = Double(text), (2...20).contains(actualSeconds) else {
+                XCTFail("A non-percent native value must be an actual 2...20 second value; unknown units are preserved")
+                throw JourneyError.prerequisite
+            }
+            XCTAssertEqual(actualSeconds, Double(seconds), "The native seconds value must exactly match the observed Full speed")
+        }
     }
     private func restoreAutomaticSpeed(_ owner: AutomaticSpeedRestoration, app: XCUIApplication) throws {
         guard owner.requested, !owner.restored else { return }
