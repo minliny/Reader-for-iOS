@@ -574,6 +574,9 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     private enum AutomaticPagePreference: Equatable { case minute, second, speed }
     private func automaticPageConsumers(_ app: XCUIApplication, verifyBackgroundPause: Bool = false) throws {
         let baseline = try anchor(app, name: "tools-before-actual-auto-consumer")
+        // The real footer exists only while the reading controls are hidden.
+        // Capture the same visible passage's progress before opening Full.
+        let initialProgress = app.staticTexts["reading-progress"].label
         openTool("自动翻页", app: app)
         let stop = app.buttons["auto-page-stop"]
         let toggle = app.buttons["auto-page-toggle"]
@@ -612,18 +615,21 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         try fullAutomaticPage(app)
         try assertFullAutomaticSpeed(3, app: app)
         reveal(toggle, towardBottom: false, app: app)
-        let initialProgress = app.staticTexts["reading-progress"].label
         XCTAssertEqual(toggle.label, "开始自动翻页")
         restoration.runRequested = true; toggle.tap()
         waitUntil("First actual automatic page must change visible text", timeout: 18) {
-            guard let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
-            return !self.normalized(capture.text).contains(baseline) && app.staticTexts["reading-progress"].label != initialProgress
+            let progress = app.staticTexts["reading-progress"]
+            guard self.body(app).exists, progress.exists,
+                  let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
+            return !self.normalized(capture.text).contains(baseline) && progress.label != initialProgress
         }
         let first = try anchor(app, name: "tools-first-real-auto-native-commit")
         let firstProgress = app.staticTexts["reading-progress"].label
         waitUntil("A second actual page requires the first native ACK to be consumed", timeout: 18) {
-            guard let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
-            return !self.normalized(capture.text).contains(first) && app.staticTexts["reading-progress"].label != firstProgress
+            let progress = app.staticTexts["reading-progress"]
+            guard self.body(app).exists, progress.exists,
+                  let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
+            return !self.normalized(capture.text).contains(first) && progress.label != firstProgress
         }
         let secondPassage = try anchor(app, name: "tools-second-real-auto-native-commit")
         if verifyBackgroundPause {
@@ -642,8 +648,10 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             XCTAssertEqual(toggle.label, "继续自动翻页", "Background pause retains this owner's resumable session")
             toggle.tap()
             waitUntil("Normal Continue after background must consume a new native page", timeout: 18) {
-                guard let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
-                return !self.normalized(capture.text).contains(secondPassage) && app.staticTexts["reading-progress"].label != secondProgress
+                let progress = app.staticTexts["reading-progress"]
+                guard self.body(app).exists, progress.exists,
+                      let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
+                return !self.normalized(capture.text).contains(secondPassage) && progress.label != secondProgress
             }
             _ = try anchor(app, name: "tools-auto-background-normal-resume-native-commit")
         }
