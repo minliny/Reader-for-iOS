@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import XCTest
 import UIKit
+import SwiftUI
 @testable import Reader
 
 /// Controlled protocol continuations test only the Host's discovery lifetime.
@@ -478,6 +479,170 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         XCTAssertTrue(service.searchCalls.isEmpty)
         XCTAssertTrue(service.writeCalls.isEmpty)
     }
+
+    func testSubscriptionOpportunityRefreshesProductionWorkspaceAndNextSearchWithoutWriteReplay() async throws {
+        let service = DiscoveryControlledService()
+        let gate = DiscoverySubscriptionOpportunityGate()
+        let scheduler = ReaderRuleSubscriptionScheduler(checkDue: { try await gate.check() })
+        let state = ReaderOnlineWorkspaceModel()
+        state.query = "retained search query"; state.sourceFilter = "retained filter"
+        let originalID = UUID().uuidString
+        var writeExecutions = 0
+        XCTAssertTrue(state.actions.restoreAccepted(id: originalID, label: "原操作", scope: "online") { _ in
+            writeExecutions += 1
+            XCTFail("An opportunity refresh must never resume an accepted write")
+            throw DiscoveryControlledService.Failure.unsupported
+        })
+        let initial = expectation(description: "Production Workspace initial source read")
+        let refreshed = expectation(description: "Production completion publisher starts exactly one source refresh")
+        service.onSourcesEntered = { index in
+            if index == 0 { initial.fulfill() }
+            else if index == 1 { refreshed.fulfill() }
+            else { XCTFail("Unexpected duplicate source-list read") }
+        }
+        let mount = try mountSubscriptionWorkspace(state: state, service: service, scheduler: scheduler)
+        defer { mount.unmount(); state.retireCachedDiscovery(); service.releaseAll(); gate.release() }
+        await fulfillment(of: [initial], timeout: 3)
+        try service.completeSources(0, with: .success(DiscoveryControlledService.sources(1)))
+        let initiallyPublished = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in state.sources.count == 1 }, object: nil)
+        await fulfillment(of: [initiallyPublished], timeout: 3)
+        // Nonempty contract DTOs exercise Host snapshot retention only. They
+        // are not Core books, imported product data, or an HTTP/read acceptance.
+        let retained = ReaderOnlineCandidate(sourceId: try XCTUnwrap(state.sources.first?.sourceId),
+            bookId: "host-retained-candidate", title: "Retained Host candidate DTO")
+        state.results = [retained]; state.timings = [retained.sourceId: 37]
+        state.currentResultIDs = [retained.id]; state.scrollAnchor = retained.id
+        let before = DiscoverySnapshot(state)
+        var revisions = 0
+        let observation = scheduler.$completedOpportunityRevision.dropFirst().sink { _ in revisions += 1 }
+        defer { observation.cancel() }
+
+        let entered = expectation(description: "Finite production opportunity reached its check boundary")
+        gate.onEntered = { entered.fulfill() }
+        let opportunity = Task { await scheduler.foregroundOpportunity() }
+        defer { opportunity.cancel() }
+        await fulfillment(of: [entered], timeout: 2)
+        await scheduler.foregroundOpportunity() // Existing mutual exclusion owns the second request.
+        XCTAssertEqual(gate.checks, 1); XCTAssertEqual(revisions, 0)
+        XCTAssertEqual(service.sourceReadCount, 1, "Entering an opportunity must not refresh before completion")
+        gate.complete(failures: ["Controlled partial failure at the finite Host check boundary"])
+        await opportunity.value
+        await fulfillment(of: [refreshed], timeout: 3)
+        XCTAssertEqual(revisions, 1)
+        try service.completeSources(1, with: .success(DiscoveryControlledService.sources(2)))
+        let published = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in state.sources.count == 2 }, object: nil)
+        await fulfillment(of: [published], timeout: 3)
+        XCTAssertEqual(service.sourceReadCount, 2)
+        XCTAssertEqual(state.query, before.query); XCTAssertEqual(state.sourceFilter, before.filter)
+        XCTAssertEqual(state.results, before.results); XCTAssertEqual(state.timings, before.timings)
+        XCTAssertEqual(state.currentResultIDs, before.currentResultIDs)
+        XCTAssertEqual(state.scrollAnchor, before.scrollAnchor)
+        XCTAssertEqual(state.actions.pendingOperationID, originalID)
+        XCTAssertTrue(state.actions.hasPending); XCTAssertEqual(writeExecutions, 0)
+        XCTAssertTrue(service.writeCalls.isEmpty)
+
+        let dispatched = expectation(description: "Next user search includes the newly listed source")
+        dispatched.expectedFulfillmentCount = 2
+        service.onSearchEntered = { _ in dispatched.fulfill() }
+        state.search()
+        await fulfillment(of: [dispatched], timeout: 2)
+        XCTAssertEqual(Set(service.searchCalls.map(\.sourceID)), Set(state.sources.map(\.sourceId)))
+        XCTAssertTrue(state.results.isEmpty, "No generated book or successful product HTTP response is provided")
+        XCTAssertEqual(writeExecutions, 0); XCTAssertTrue(service.writeCalls.isEmpty)
+        // The controlled boundary returns no HTTP and no Book. Teardown rejects
+        // these pending read continuations; this is Host wiring evidence only.
+    }
+
+    func testRetiredProductionWorkspaceIgnoresOpportunityAndDrainsLateSourceRefresh() async throws {
+        let service = DiscoveryControlledService()
+        let gate = DiscoverySubscriptionOpportunityGate()
+        let scheduler = ReaderRuleSubscriptionScheduler(checkDue: { try await gate.check() })
+        let state = ReaderOnlineWorkspaceModel()
+        state.query = "retained query"; state.sourceFilter = "retained filter"
+        let initial = expectation(description: "Production Workspace initial read")
+        let refresh = expectation(description: "Opportunity started the production read owner")
+        service.onSourcesEntered = { index in
+            if index == 0 { initial.fulfill() }
+            else if index == 1 { refresh.fulfill() }
+            else { XCTFail("A retired Workspace must not issue another source read") }
+        }
+        let mount = try mountSubscriptionWorkspace(state: state, service: service, scheduler: scheduler)
+        defer { mount.unmount(); state.retireCachedDiscovery(); service.releaseAll(); gate.release() }
+        await fulfillment(of: [initial], timeout: 3)
+        try service.completeSources(0, with: .success(DiscoveryControlledService.sources(1)))
+        let initialValue = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in state.sources.count == 1 }, object: nil)
+        await fulfillment(of: [initialValue], timeout: 3)
+        let before = DiscoverySnapshot(state)
+        var revisions = 0
+        let opportunityObservation = scheduler.$completedOpportunityRevision.dropFirst().sink { _ in revisions += 1 }
+        defer { opportunityObservation.cancel() }
+        let entered = expectation(description: "First finite opportunity entered")
+        gate.onEntered = { entered.fulfill() }
+        let opportunity = Task { await scheduler.foregroundOpportunity() }
+        defer { opportunity.cancel() }
+        await fulfillment(of: [entered], timeout: 2)
+        // Cancellation after entry cannot imply that no ACK was committed.
+        // This gate returns no ACK; it exercises only completion invalidation.
+        opportunity.cancel()
+        gate.complete(); await opportunity.value
+        await fulfillment(of: [refresh], timeout: 3)
+        XCTAssertEqual(revisions, 1, "A finite check returning after cancellation still invalidates the source projection")
+
+        let cancelled = expectation(description: "Production disappearance cancelled the original refresh read")
+        service.onSourcesCancelled = { index in if index == 1 { cancelled.fulfill() } }
+        let unexpectedPublication = expectation(description: "Retired list cannot publish a late value")
+        unexpectedPublication.isInverted = true
+        let observation = state.$sources.dropFirst().sink { _ in unexpectedPublication.fulfill() }
+        defer { observation.cancel() }
+        mount.unmount()
+        await fulfillment(of: [cancelled], timeout: 3)
+        try service.completeSources(1, with: .success(DiscoveryControlledService.sources(2)))
+        let enteredAgain = expectation(description: "A later opportunity is independent of the retired UI")
+        gate.onEntered = { enteredAgain.fulfill() }
+        let later = Task { await scheduler.foregroundOpportunity() }
+        defer { later.cancel() }
+        await fulfillment(of: [enteredAgain], timeout: 2)
+        gate.complete(); await later.value
+        XCTAssertEqual(revisions, 2)
+        await fulfillment(of: [unexpectedPublication], timeout: 0.3)
+        XCTAssertEqual(DiscoverySnapshot(state), before)
+        XCTAssertEqual(service.sourceReadCount, 2)
+        XCTAssertEqual(service.cancelledSources, [1])
+        XCTAssertTrue(service.searchCalls.isEmpty); XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
+    private func mountSubscriptionWorkspace(state: ReaderOnlineWorkspaceModel,
+                                             service: DiscoveryControlledService,
+                                             scheduler: ReaderRuleSubscriptionScheduler) throws
+        -> (unmount: @MainActor () -> Void, host: UIHostingController<ReaderOnlineWorkspace>) {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window = try XCTUnwrap(scenes.flatMap(\.windows).first {
+            $0.isKeyWindow && !$0.isHidden && $0.windowLevel == .normal
+        }, "This Host wiring method requires the real foreground test App window")
+        var parent = try XCTUnwrap(window.rootViewController)
+        while let presented = parent.presentedViewController { parent = presented }
+        let domain = "ReaderSubscriptionRefresh-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        let model = ReaderApplicationModel(service: service)
+        let preferences = ReaderPreferences(defaults: defaults)
+        let host = UIHostingController(rootView: ReaderOnlineWorkspace(model: model, preferences: preferences,
+            close: {}, state: state, subscriptionScheduler: scheduler))
+        parent.addChild(host)
+        host.view.frame = parent.view.bounds; host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        host.beginAppearanceTransition(true, animated: false)
+        parent.view.addSubview(host.view); host.didMove(toParent: parent)
+        host.endAppearanceTransition(); host.view.layoutIfNeeded()
+        XCTAssertTrue(host.view.window === window)
+        let unmount: @MainActor () -> Void = {
+            guard host.parent != nil else { return }
+            host.beginAppearanceTransition(false, animated: false)
+            host.willMove(toParent: nil); host.view.removeFromSuperview(); host.removeFromParent()
+            host.endAppearanceTransition()
+            defaults.removePersistentDomain(forName: domain)
+        }
+        return (unmount, host)
+    }
+
 }
 
 private struct DiscoverySnapshot: Equatable {
@@ -637,4 +802,28 @@ private final class DiscoveryControlledService: ReaderOnlineServing {
     func onlineDiagnostic(_ sourceID: String, keyword: String) async throws -> Data { try unexpectedRead("onlineDiagnostic") }
     func onlineFetch(_ url: URL) async throws -> Data { try unexpectedRead("onlineFetch") }
     func prepareLogin(_ sourceID: String) async throws -> [HTTPCookie] { try unexpectedRead("prepareLogin") }
+}
+
+
+/// Controls only the finite OS/foreground opportunity boundary. It does not
+/// emulate a package, HTTP response, subscription ACK, source parser or Book.
+@MainActor
+private final class DiscoverySubscriptionOpportunityGate {
+    private(set) var checks = 0
+    var onEntered: (() -> Void)?
+    private var continuation: CheckedContinuation<[String], Error>?
+    func check() async throws -> [String] {
+        checks += 1
+        return try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation; onEntered?()
+        }
+    }
+    func complete(failures: [String] = []) {
+        let current = continuation; continuation = nil; current?.resume(returning: failures)
+    }
+    func release() {
+        onEntered = nil
+        let current = continuation; continuation = nil
+        current?.resume(throwing: DiscoveryControlledService.Failure.teardown)
+    }
 }

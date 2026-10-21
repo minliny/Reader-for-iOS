@@ -210,7 +210,8 @@ struct ReaderOnlineWorkspace: View {
     @ObservedObject var model: ReaderApplicationModel
     @ObservedObject var preferences: ReaderPreferences
     let close: () -> Void
-    @StateObject private var state = ReaderOnlineWorkspaceModel()
+    @StateObject private var state: ReaderOnlineWorkspaceModel
+    @ObservedObject private var subscriptionScheduler: ReaderRuleSubscriptionScheduler
     @State private var managing = false
     @State private var subscriptions = false
     @State private var workspacePresentationID = UUID()
@@ -218,6 +219,19 @@ struct ReaderOnlineWorkspace: View {
     @FocusState private var focusedSearchField: SearchField?
     @Environment(\.colorScheme) private var scheme
     private var searchVisible: Bool { !managing && state.selected == nil }
+
+    @MainActor init(model: ReaderApplicationModel, preferences: ReaderPreferences, close: @escaping () -> Void) {
+        self.init(model: model, preferences: preferences, close: close,
+            state: ReaderOnlineWorkspaceModel(), subscriptionScheduler: .shared)
+    }
+
+    @MainActor init(model: ReaderApplicationModel, preferences: ReaderPreferences, close: @escaping () -> Void,
+                    state: ReaderOnlineWorkspaceModel, subscriptionScheduler: ReaderRuleSubscriptionScheduler) {
+        self.model = model; self.preferences = preferences; self.close = close
+        _state = StateObject(wrappedValue: state)
+        _subscriptionScheduler = ObservedObject(wrappedValue: subscriptionScheduler)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -248,7 +262,10 @@ struct ReaderOnlineWorkspace: View {
             ReaderOnlineSourceRefreshNotice(state: state)
             ReaderOperationStatus(owner: state.actions, scope: "online")
         }.foregroundStyle(ReaderPalette(scheme).ink).background(ReaderPalette(scheme).paper)
-            .task {
+            // The same finite task owns initial load and opportunity refresh.
+            // loadSources keeps the current presentation/generation checks and
+            // preserves candidates, draft/write owners and the old list on failure.
+            .task(id: subscriptionScheduler.completedOpportunityRevision) {
                 guard !Task.isCancelled else { return }
                 state.activateDiscoveryPresentation(workspacePresentationID)
                 state.service = model.libraryService as? any ReaderOnlineServing
