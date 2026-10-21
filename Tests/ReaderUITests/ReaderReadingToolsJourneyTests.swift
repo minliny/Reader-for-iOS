@@ -572,11 +572,43 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         }
     }
     private enum AutomaticPagePreference: Equatable { case minute, second, speed }
+    private struct AutomaticPageObservation {
+        let capture: Screen
+        let anchor: String
+        let progress: String
+    }
+    private func automaticPageObservation(_ app: XCUIApplication) throws -> AutomaticPageObservation? {
+        let footer = app.staticTexts["reading-progress"]
+        guard body(app).exists, footer.exists else { return nil }
+        let before = footer.label
+        let capture = try screen(app)
+        guard body(app).exists, footer.exists, footer.label == before,
+              !before.isEmpty, capture.lines.count >= 4 else { return nil }
+        // Actual pages can begin with ellipses and a two-character dialogue.
+        // Accumulate the same consecutive visible OCR lines; neither a fixed
+        // two-line assumption nor a later screenshot owns this observation.
+        let quote = String(normalized(capture.lines.dropFirst().map(\.text).joined()).prefix(24))
+        guard quote.count >= 18 else { return nil }
+        return AutomaticPageObservation(capture: capture, anchor: quote, progress: before)
+    }
+    @discardableResult
+    private func recordAutomaticPage(_ observation: AutomaticPageObservation, name: String) -> String {
+        XCTAssertGreaterThanOrEqual(observation.capture.lines.count, 4)
+        XCTAssertGreaterThanOrEqual(observation.anchor.count, 18)
+        let text = XCTAttachment(string: observation.capture.lines.map(\.text).joined(separator: "\n")
+            + "\nANCHOR=" + observation.anchor + "\nPROGRESS=" + observation.progress
+            + "\nprogressUnchangedAcrossScreenshot=true")
+        text.name = name + "-actual-viewport-OCR"; text.lifetime = .keepAlways; add(text)
+        let screenshot = XCTAttachment(image: UIImage(cgImage: observation.capture.image))
+        screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
+        return observation.anchor
+    }
     private func automaticPageConsumers(_ app: XCUIApplication, verifyBackgroundPause: Bool = false) throws {
-        let baseline = try anchor(app, name: "tools-before-actual-auto-consumer")
+        let originalPage = try XCTUnwrap(try automaticPageObservation(app), "Require a stable actual page with at least four OCR lines and eighteen anchor characters")
+        let baseline = recordAutomaticPage(originalPage, name: "tools-before-actual-auto-consumer")
         // The real footer exists only while the reading controls are hidden.
         // Capture the same visible passage's progress before opening Full.
-        let initialProgress = app.staticTexts["reading-progress"].label
+        let initialProgress = originalPage.progress
         openTool("自动翻页", app: app)
         let stop = app.buttons["auto-page-stop"]
         let toggle = app.buttons["auto-page-toggle"]
@@ -617,23 +649,27 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         reveal(toggle, towardBottom: false, app: app)
         XCTAssertEqual(toggle.label, "开始自动翻页")
         restoration.runRequested = true; toggle.tap()
+        var firstObservation: AutomaticPageObservation?
         waitUntil("First actual automatic page must change visible text", timeout: 18) {
-            let progress = app.staticTexts["reading-progress"]
-            guard self.body(app).exists, progress.exists,
-                  let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
-            return !self.normalized(capture.text).contains(baseline) && progress.label != initialProgress
+            guard let observed = try? self.automaticPageObservation(app),
+                  !self.normalized(observed.capture.text).contains(baseline), observed.progress != initialProgress else { return false }
+            firstObservation = observed
+            return true
         }
-        let first = try anchor(app, name: "tools-first-real-auto-native-commit")
-        let firstProgress = app.staticTexts["reading-progress"].label
+        let firstPage = try XCTUnwrap(firstObservation)
+        let first = recordAutomaticPage(firstPage, name: "tools-first-real-auto-native-commit")
+        let firstProgress = firstPage.progress
+        var secondObservation: AutomaticPageObservation?
         waitUntil("A second actual page requires the first native ACK to be consumed", timeout: 18) {
-            let progress = app.staticTexts["reading-progress"]
-            guard self.body(app).exists, progress.exists,
-                  let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
-            return !self.normalized(capture.text).contains(first) && progress.label != firstProgress
+            guard let observed = try? self.automaticPageObservation(app),
+                  !self.normalized(observed.capture.text).contains(first), observed.progress != firstProgress else { return false }
+            secondObservation = observed
+            return true
         }
-        let secondPassage = try anchor(app, name: "tools-second-real-auto-native-commit")
+        let secondPage = try XCTUnwrap(secondObservation)
+        let secondPassage = recordAutomaticPage(secondPage, name: "tools-second-real-auto-native-commit")
         if verifyBackgroundPause {
-            let secondProgress = app.staticTexts["reading-progress"].label
+            let secondProgress = secondPage.progress
             XCUIDevice.shared.press(.home)
             waitUntil("The real App must enter the background without termination", timeout: 5) {
                 app.state == .runningBackground || app.state == .runningBackgroundSuspended
@@ -647,25 +683,26 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             reveal(toggle, towardBottom: false, app: app)
             XCTAssertEqual(toggle.label, "继续自动翻页", "Background pause retains this owner's resumable session")
             toggle.tap()
+            var resumedObservation: AutomaticPageObservation?
             waitUntil("Normal Continue after background must consume a new native page", timeout: 18) {
-                let progress = app.staticTexts["reading-progress"]
-                guard self.body(app).exists, progress.exists,
-                      let capture = try? self.screen(app), capture.lines.count >= 4 else { return false }
-                return !self.normalized(capture.text).contains(secondPassage) && progress.label != secondProgress
+                guard let observed = try? self.automaticPageObservation(app),
+                      !self.normalized(observed.capture.text).contains(secondPassage), observed.progress != secondProgress else { return false }
+                resumedObservation = observed
+                return true
             }
-            _ = try anchor(app, name: "tools-auto-background-normal-resume-native-commit")
+            recordAutomaticPage(try XCTUnwrap(resumedObservation), name: "tools-auto-background-normal-resume-native-commit")
         }
         // Real centre tap pauses the owner. No Runtime phase is injected.
         body(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
         if app.buttons["control-grabber"].isHittable { hideControls(app) }
-        let paused = try anchor(app, name: "tools-manually-paused-visible-passage")
+        let paused = recordAutomaticPage(try XCTUnwrap(try automaticPageObservation(app)), name: "tools-manually-paused-visible-passage")
         try assertStable(paused, interval: 4.5, app: app, name: "tools-pause-consumed-beyond-selected-speed")
         openTool("自动翻页", app: app)
         XCTAssertEqual(toggle.label, "继续自动翻页")
         stop.tap()
         waitUntil("The real stop action must reset the auto owner", timeout: 5) { toggle.label == "开始自动翻页" }
         hideControls(app)
-        let stopped = try anchor(app, name: "tools-stopped-visible-passage")
+        let stopped = recordAutomaticPage(try XCTUnwrap(try automaticPageObservation(app)), name: "tools-stopped-visible-passage")
         try assertStable(stopped, interval: 4.5, app: app, name: "tools-stop-rejects-future-page-consumer")
         try stopOwnedAutomaticPage(restoration, app: app)
         try restoreAutomaticPreference(.speed, owner: restoration, app: app)
