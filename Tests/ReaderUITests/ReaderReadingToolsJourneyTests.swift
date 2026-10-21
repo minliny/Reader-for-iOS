@@ -584,6 +584,14 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     }
 
     private struct Display { let mode: String; let transition: String; let selectable: String; let paper: String }
+    private final class DisplaySetupRestoration {
+        let paper: String
+        let mode: String
+        var modeChangeRequested = false
+        var anyChangeRequested = false
+        var handedOff = false
+        init(paper: String, mode: String) { self.paper = paper; self.mode = mode }
+    }
     private func configureDisplay(_ app: XCUIApplication) throws -> Display {
         openModule("appearance", app: app)
         let papers = ["日间", "暖白", "夜间", "暖夜", "纸纹", "青叶纹", "靛夜", "林夜纹"] as NSArray
@@ -594,17 +602,92 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let mode = app.buttons["reading-page-mode"]
         reveal(mode, towardBottom: true, app: app)
         let oldMode = try menuValue(mode, choices: ["滚动", "分页"])
-        choose("分页", picker: mode, app: app)
+        let setup = DisplaySetupRestoration(paper: oldPaper, mode: oldMode)
+        // Register mode first so XCTest restores it last, even when another
+        // stage's teardown fails. Successful setup hands every stage off to
+        // the caller's existing complete Display owner.
+        addTeardownBlock {
+            guard !setup.handedOff, setup.anyChangeRequested else { return }
+            if app.state != .runningForeground { app.activate() }
+            self.openModule("appearance", app: app)
+            let picker = app.buttons["reading-page-mode"]
+            self.reveal(picker, towardBottom: true, app: app)
+            if setup.modeChangeRequested {
+                try self.restoreSetupChoice(setup.mode, changedTo: "分页", picker: picker,
+                    choices: ["滚动", "分页"], app: app)
+            } else {
+                XCTAssertEqual(try self.menuValue(picker, choices: ["滚动", "分页"]), setup.mode,
+                               "Setup never owned a change to the original mode")
+            }
+            self.evidence(app, "tools-setup-captured-display-changes-restored")
+            self.hideControls(app)
+        }
+        if oldMode != "分页" {
+            setup.modeChangeRequested = true; setup.anyChangeRequested = true
+            choose("分页", picker: mode, app: app)
+        }
         let transition = app.buttons["reading-page-transition"]
         reveal(transition, towardBottom: true, app: app)
         let oldTransition = try menuValue(transition, choices: ["仿真", "覆盖", "滑动", "无动画"])
-        choose("滑动", picker: transition, app: app)
+        if oldTransition != "滑动" {
+            setup.anyChangeRequested = true
+            addTeardownBlock {
+                guard !setup.handedOff else { return }
+                if app.state != .runningForeground { app.activate() }
+                self.openModule("appearance", app: app)
+                let mode = app.buttons["reading-page-mode"]
+                self.reveal(mode, towardBottom: true, app: app)
+                guard try self.menuValue(mode, choices: ["滚动", "分页"]) == "分页" else {
+                    XCTFail("Preserve an unexpected mode; do not guess a hidden transition value")
+                    throw JourneyError.prerequisite
+                }
+                let picker = app.buttons["reading-page-transition"]
+                self.reveal(picker, towardBottom: true, app: app)
+                try self.restoreSetupChoice(oldTransition, changedTo: "滑动", picker: picker,
+                    choices: ["仿真", "覆盖", "滑动", "无动画"], app: app)
+            }
+            choose("滑动", picker: transition, app: app)
+        }
         let selectable = app.switches["长按选择文本"]
         reveal(selectable, towardBottom: true, app: app)
         let oldSelectable = try XCTUnwrap(selectable.value as? String)
-        setSwitch(selectable, to: "1")
+        if oldSelectable != "1" {
+            guard oldSelectable == "0" else {
+                XCTFail("Preserve an unrecognized original text-selection choice")
+                throw JourneyError.prerequisite
+            }
+            setup.anyChangeRequested = true
+            addTeardownBlock {
+                guard !setup.handedOff else { return }
+                if app.state != .runningForeground { app.activate() }
+                self.openModule("appearance", app: app)
+                let row = app.switches["长按选择文本"]
+                self.reveal(row, towardBottom: true, app: app)
+                let actual = try XCTUnwrap(row.value as? String)
+                guard actual == oldSelectable || actual == "1" else {
+                    XCTFail("Preserve a selection setting not attributable to this setup")
+                    throw JourneyError.prerequisite
+                }
+                if actual != oldSelectable { self.setSwitch(row, to: oldSelectable) }
+            }
+            setSwitch(selectable, to: "1")
+        }
         hideControls(app)
-        return Display(mode: oldMode, transition: oldTransition, selectable: oldSelectable, paper: oldPaper)
+        let original = Display(mode: setup.mode, transition: oldTransition, selectable: oldSelectable, paper: setup.paper)
+        setup.handedOff = true
+        return original
+    }
+    private func restoreSetupChoice(_ original: String, changedTo target: String, picker: XCUIElement,
+                                    choices: [String], app: XCUIApplication) throws {
+        // Arming before a tap is not proof of a change. Restore only when the
+        // current normal UI confirms this setup's requested value; an already
+        // original value needs no write, and another value is preserved.
+        let actual = try menuValue(picker, choices: choices)
+        guard actual == original || actual == target else {
+            XCTFail("Preserve a display choice not attributable to this setup")
+            throw JourneyError.prerequisite
+        }
+        if actual != original { choose(original, picker: picker, app: app) }
     }
     private func selectDayPaperForPaint(_ app: XCUIApplication) {
         // The frozen night selection composites to RGB(52,46,38) over paper
@@ -843,14 +926,43 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                     XCTFail("No actual ScrollView contains the requested control: " + target.debugDescription); return
                 }
                 viewport = actual
-                if let frame = observedTargetFrame(target) {
-                    if frame.maxY <= viewport.minY || frame.midY < viewport.minY { down = false }
-                    else if frame.minY >= viewport.maxY || frame.midY > viewport.maxY { down = true }
-                }
             }
             let inset = min(36, viewport.height * 0.15)
             let top = viewport.minY + inset, bottom = viewport.maxY - inset
             XCTAssertGreaterThan(bottom, top + 30)
+            if chapterIndex == nil {
+                guard let frame = observedTargetFrame(target) else {
+                    XCTFail("No public geometry locates the requested control: " + target.debugDescription); return
+                }
+                let distance: CGFloat
+                if frame.height > bottom - top {
+                    // Long Core preview text may exceed one viewport. Bring
+                    // its real centre into view without inventing a smaller
+                    // text frame or treating clipped text as a hit target.
+                    if frame.midY < top { down = false; distance = (top + bottom) / 2 - frame.midY }
+                    else if frame.midY > bottom { down = true; distance = frame.midY - (top + bottom) / 2 }
+                    else {
+                        XCTFail("The control's centre is already inside its actual ScrollView but is not hittable: " + target.debugDescription); return
+                    }
+                } else if frame.minY < top {
+                    down = false; distance = top - frame.minY
+                } else if frame.maxY > bottom {
+                    down = true; distance = frame.maxY - bottom
+                } else {
+                    XCTFail("The control is already inside its safe ScrollView viewport but is not hittable: " + target.debugDescription); return
+                }
+                // The old full-span gesture oscillated a control between the
+                // two clipped edges. Move only its observed missing distance;
+                // the short end hold releases a stationary finger, avoiding
+                // an inertial fling past the opposite edge.
+                let travel = min(max(distance, 24), (bottom - top) * 0.6)
+                let startY = down ? bottom : top
+                let endY = down ? startY - travel : startY + travel
+                let start = coordinate(CGPoint(x: viewport.midX, y: startY), app: app)
+                let end = coordinate(CGPoint(x: viewport.midX, y: endY), app: app)
+                start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.15)
+                continue
+            }
             let high = coordinate(CGPoint(x: viewport.midX, y: top), app: app)
             let low = coordinate(CGPoint(x: viewport.midX, y: bottom), app: app)
             if down { low.press(forDuration: 0.05, thenDragTo: high) }
@@ -894,10 +1006,16 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 let keyboard = app.keyboards.firstMatch.frame
                 if viewport.intersects(keyboard) { viewport.size.height = max(0, keyboard.minY - 8 - viewport.minY) }
             }
-            let modules = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'control-module-'"))
-                .allElementsBoundByIndex.filter(\.isHittable)
-            for module in modules where viewport.intersects(module.frame) && module.frame.minY > viewport.minY {
-                viewport.size.height = min(viewport.maxY, module.frame.minY) - viewport.minY
+            // At the actual Full endpoint, the Quick module bar is hidden.
+            // Its retained AX frames cannot clip the real Full ScrollView.
+            let grabber = app.buttons["control-grabber"]
+            let full = grabber.exists && grabber.label.hasPrefix("完整控制栏")
+            if !full {
+                let modules = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'control-module-'"))
+                    .allElementsBoundByIndex.filter(\.isHittable)
+                for module in modules where viewport.intersects(module.frame) && module.frame.minY > viewport.minY {
+                    viewport.size.height = min(viewport.maxY, module.frame.minY) - viewport.minY
+                }
             }
             guard viewport.height > 80 else { continue }
             if let previous = selected, viewport.height >= previous.height { continue }

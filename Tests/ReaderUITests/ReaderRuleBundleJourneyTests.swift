@@ -246,33 +246,22 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
     private func replaceNativeFilename(_ field: XCUIElement, with filename: String, app: XCUIApplication) throws {
         try require(field.isHittable && field.isEnabled, "The native exported filename must be editable")
         let originalValue = try XCTUnwrap(field.value as? String)
+        try require(originalValue.count > 1, "The original filename must contain more than one character to verify one native Delete")
         field.tap()
         try settleNativeFilenameKeyboard(field, app: app)
         try require(field.value as? String == originalValue, "Keyboard setup must preserve the original exported filename")
-        field.press(forDuration: 0.8)
-        var selectAll: XCUIElement?
-        for _ in 0..<3 {
-            var all: [XCUIElement] = [], more: [XCUIElement] = []
-            let menu = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                all = (app.menuItems.matching(NSPredicate(format: "label == '全选' OR label == 'Select All'")).allElementsBoundByIndex
-                    + app.buttons.matching(NSPredicate(format: "label == '全选' OR label == 'Select All'")).allElementsBoundByIndex)
-                    .filter { $0.isHittable && $0.isEnabled }
-                more = app.buttons.matching(NSPredicate(format: "label IN %@", ["前进", "显示更多项目", "Show more items", "More"]))
-                    .allElementsBoundByIndex.filter { $0.isHittable && $0.isEnabled }
-                return !all.isEmpty || more.count == 1
-            }, object: nil)
-            if XCTWaiter.wait(for: [menu], timeout: 5) != .completed {
-                evidence(app, "rule-roundtrip-native-filename-menu-missing")
-                try require(false, "The native filename edit menu must present Select All or its actual next page")
-            }
-            if let button = all.first { selectAll = button; break }
-            let button = try XCTUnwrap(more.only, "Use only the actual unique native edit-menu next-page control")
-            button.tap()
+        // One native Delete must remove the entire known multi-character
+        // name. A caret-only deletion must fail before typing or saving.
+        field.typeText(XCUIKeyboardKey.delete.rawValue)
+        let empty = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            field.exists && (field.value as? String) == ""
+        }, object: nil)
+        guard XCTWaiter.wait(for: [empty], timeout: 3) == .completed else {
+            evidence(app, "rule-roundtrip-native-filename-not-empty-after-one-delete")
+            try require(false, "One native Delete must leave the same filename field strictly empty before entering the UUID")
+            return
         }
-        if selectAll == nil { evidence(app, "rule-roundtrip-native-filename-select-all-missing") }
-        let selectedAll = try XCTUnwrap(selectAll,
-            "Use the native Select All control; do not assume caret placement in a system filename")
-        selectedAll.tap(); field.typeText(filename)
+        field.typeText(filename)
         try require((field.value as? String) == filename || (field.value as? String) == filename + ".json",
                     "The actual system filename must contain only the new UUID-owned name")
     }
@@ -329,7 +318,7 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         }, object: nil)
         if XCTWaiter.wait(for: [settled], timeout: 10) != .completed {
             evidence(app, "rule-roundtrip-native-filename-keyboard-not-settled")
-            try require(false, "QuickPath must dismiss and the same filename/keyboard must settle before long press")
+            try require(false, "QuickPath must dismiss and the same filename/keyboard must settle before editing")
         }
     }
     private func draftValues(_ app: XCUIApplication) -> [String: String] {
