@@ -357,15 +357,22 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         }
         XCTAssertTrue(originalProcessed.contains(literal), "The real displayed copied text must be in the bounded actual chapter preview")
         let create = app.buttons["新建"]
-        reveal(create, towardBottom: false, app: app); create.tap()
-        let existingDraft = app.alerts["替换当前草稿？"]
-        if existingDraft.waitForExistence(timeout: 1) {
-            existingDraft.buttons["取消"].tap()
-            XCTFail("An existing unowned rule draft is preserved; a clean owned test draft is required")
-            throw JourneyError.prerequisite
-        }
+        try beginEmptyReplacementDraft(app)
         let ownedName = "原生预览-" + UUID().uuidString
         let replacement = "ReaderPreview" + String(UUID().uuidString.prefix(8))
+        let draftIdentity = XCTAttachment(string: "phase=before-any-form-fill\nownedDraftName=\(ownedName)\nbook=\(bookID)\nscopeBookName=\(title)\nliteral=\(literal)\nreplacement=\(replacement)\nNo rule save has been requested. This complete UUID identifies only this method's draft, not a Core receipt.")
+        draftIdentity.name = "tools-owned-unsaved-draft-identity-before-fill"; draftIdentity.lifetime = .keepAlways; add(draftIdentity)
+        var saveRequested = false
+        var ownedDraftCleared = false
+        addTeardownBlock {
+            guard !ownedDraftCleared else { return }
+            guard !saveRequested else {
+                let preserved = XCTAttachment(string: "ownedDraftName=\(ownedName)\nSave was requested. Do not infer an absent receipt or discard a possibly committed/pending write from its draft alone.")
+                preserved.name = "tools-owned-draft-preserved-after-save-request"; preserved.lifetime = .keepAlways; self.add(preserved)
+                return
+            }
+            try self.discardExactUnsavedReplacementDraft(ownedName, app: app)
+        }
         try fill("规则名称", ownedName, towardBottom: false, app: app)
         try fill("匹配内容", literal, app: app)
         try fill("替换为", replacement, app: app)
@@ -375,7 +382,8 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         setToggle("作用于标题", value: "0", app: app)
         setToggle("作用于书源", value: "0", app: app)
         setToggle("启用此规则", value: "1", app: app)
-        let save = app.buttons["保存规则"]; reveal(save, towardBottom: true, app: app); save.tap()
+        let save = app.buttons["保存规则"]; reveal(save, towardBottom: true, app: app)
+        XCTAssertTrue(save.isEnabled); saveRequested = true; save.tap()
         let owned = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'replace-rule-' AND label == %@", ownedName)).firstMatch
         reveal(owned, towardBottom: false, app: app)
         XCTAssertTrue(owned.waitForExistence(timeout: 25), app.debugDescription)
@@ -413,7 +421,100 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         if discardOwned.waitForExistence(timeout: 1) { discardOwned.buttons["替换"].tap() }
         reveal(name, towardBottom: false, app: app)
         XCTAssertTrue(isEmpty(name), "The owned rule draft must also be cleared after cleanup")
+        ownedDraftCleared = true
         hideControls(app)
+    }
+
+    private func beginEmptyReplacementDraft(_ app: XCUIApplication) throws {
+        let prior = ProcessInfo.processInfo.environment["READER_TOOLS_PRIOR_OWNED_DRAFT_NAME"]
+        if let prior {
+            // Root's Runner-only gate binds Source24's failed native input,
+            // complete archived name, raw draft SHA, and absence of a save.
+            guard prior == "原生预览-721ED1D3-4DC1-4F6C-9349-9A08DE1B465F" else {
+                XCTFail("No ownership proof authorizes discarding another prior draft")
+                throw JourneyError.prerequisite
+            }
+            let name = textInput("规则名称", app: app)
+            reveal(name, towardBottom: false, app: app)
+            guard name.value as? String == prior,
+                  app.staticTexts["新替换规则"].exists, !app.staticTexts["编辑替换规则"].exists,
+                  app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'replace-rule-' AND label == %@", prior)).count == 0 else {
+                XCTFail("The prior name or new-unsaved-draft identity changed; preserve it")
+                throw JourneyError.prerequisite
+            }
+            for placeholder in ["匹配内容", "替换为", "规则分组", "排除范围", "作用范围，留空为全部"] {
+                let field = textInput(placeholder, app: app)
+                guard field.exists, field.value is String, isEmpty(field) else {
+                    XCTFail("The proven prior draft acquired content in " + placeholder + "; preserve it")
+                    throw JourneyError.prerequisite
+                }
+            }
+            let order = textInput("执行顺序", app: app).value as? String
+            let timeout = (textInput("匹配超时（毫秒）", app: app).value as? String)?.replacingOccurrences(of: ",", with: "")
+            guard order == "0", timeout == "3000",
+                  app.switches["正则表达式"].value as? String == "1",
+                  app.switches["作用于正文"].value as? String == "1",
+                  app.switches["作用于标题"].value as? String == "0",
+                  app.switches["作用于书源"].value as? String == "0",
+                  app.switches["启用此规则"].value as? String == "1" else {
+                XCTFail("The prior draft's observed default configuration changed; preserve it")
+                throw JourneyError.prerequisite
+            }
+            let identity = XCTAttachment(string: "priorOwnedDraftName=\(prior)\nactualNameExactlyMatches=true\notherTextFieldsEmpty=true\nnewUnsavedDraft=true\ndefaultConfigurationMatches=true\nRecovery uses only normal New and its native confirmation; no saved rule is deleted.")
+            identity.name = "tools-prior-source24-owned-draft-ui-preconditions"; identity.lifetime = .keepAlways; add(identity)
+        }
+        let create = app.buttons["新建"]
+        reveal(create, towardBottom: false, app: app)
+        if let prior {
+            guard textInput("规则名称", app: app).value as? String == prior else {
+                XCTFail("Preserve a prior draft whose name changed before normal New")
+                throw JourneyError.prerequisite
+            }
+        }
+        XCTAssertTrue(create.isEnabled); create.tap()
+        let alert = app.alerts["替换当前草稿？"]
+        if prior != nil {
+            guard alert.waitForExistence(timeout: 3) else {
+                XCTFail("The exact prior owned draft must require its normal discard confirmation")
+                throw JourneyError.prerequisite
+            }
+            // Identity was checked immediately before New. Do not query the
+            // obscured form through a modal native alert's accessibility tree.
+            alert.buttons["替换"].tap()
+        } else if alert.waitForExistence(timeout: 1) {
+            alert.buttons["取消"].tap()
+            XCTFail("An existing unowned rule draft is preserved; a clean owned test draft is required")
+            throw JourneyError.prerequisite
+        }
+        let name = textInput("规则名称", app: app)
+        reveal(name, towardBottom: false, app: app)
+        XCTAssertTrue(isEmpty(name), "Normal New must establish the empty draft before any owned input")
+    }
+
+    private func discardExactUnsavedReplacementDraft(_ name: String, app: XCUIApplication) throws {
+        // This cleanup is armed before filling, and retired before any save.
+        // Never navigate through an unknown alert or infer a write outcome.
+        guard app.state == .runningForeground, app.alerts.count == 0 else { return }
+        let field = textInput("规则名称", app: app)
+        guard field.exists, field.value as? String == name,
+              app.staticTexts["新替换规则"].exists, !app.staticTexts["编辑替换规则"].exists,
+              app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'replace-rule-' AND label == %@", name)).count == 0 else { return }
+        dismissKeyboardByScrolling(app, field: field)
+        reveal(field, towardBottom: false, app: app)
+        guard field.value as? String == name else { return }
+        let create = app.buttons["新建"]
+        reveal(create, towardBottom: true, app: app)
+        guard create.isEnabled, field.value as? String == name else { return }
+        create.tap()
+        let alert = app.alerts["替换当前草稿？"]
+        guard alert.waitForExistence(timeout: 3) else {
+            XCTFail("The exact owned unsaved draft was not confirmed for cleanup")
+            throw JourneyError.prerequisite
+        }
+        alert.buttons["替换"].tap()
+        reveal(field, towardBottom: false, app: app)
+        XCTAssertTrue(isEmpty(field), "Only this method's exact unsaved draft is cleared")
+        evidence(app, "tools-exact-owned-unsaved-draft-cleared-through-native-new")
     }
 
     private func removeOwnedRule(_ id: String, name: String, app: XCUIApplication) {
@@ -654,14 +755,20 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let value = field.value as? String ?? ""; return value.isEmpty || value == field.placeholderValue
     }
     private func fill(_ placeholder: String, _ text: String, towardBottom: Bool = true, app: XCUIApplication) throws {
+        // Keyboard dismissal and long preview text can leave a zero-frame AX
+        // field thousands of points above the viewport. Re-establish the real
+        // form's name row before each input instead of guessing its direction.
+        let anchor = textInput("规则名称", app: app)
+        reveal(anchor, towardBottom: false, app: app)
+        XCTAssertTrue(anchor.isHittable)
         let field = textInput(placeholder, app: app); reveal(field, towardBottom: towardBottom, app: app)
-        XCTAssertTrue(field.exists); field.tap()
+        XCTAssertTrue(field.exists && field.isHittable); field.tap()
         if !isEmpty(field) { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: (field.value as? String ?? "").count)) }
         // Axis.vertical text fields treat Return as content. Do not silently
         // append a newline to the real literal/replacement/scope definitions.
         field.typeText(text)
         XCTAssertEqual(field.value as? String, text)
-        dismissKeyboardByScrolling(app)
+        dismissKeyboardByScrolling(app, field: field)
     }
     private func textInput(_ identifier: String, app: XCUIApplication) -> XCUIElement {
         // SwiftUI axis.vertical can expose a native text view on iOS. Restrict
@@ -670,17 +777,20 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             format: "elementType == %d OR elementType == %d", Int(XCUIElement.ElementType.textField.rawValue),
             Int(XCUIElement.ElementType.textView.rawValue))).firstMatch
     }
-    private func dismissKeyboardByScrolling(_ app: XCUIApplication) {
+    private func dismissKeyboardByScrolling(_ app: XCUIApplication, field: XCUIElement) {
         guard app.keyboards.firstMatch.exists else { return }
         let hide = app.buttons.matching(NSPredicate(format: "label == '隐藏键盘' OR label == 'Hide keyboard' OR label == 'Dismiss keyboard'")).firstMatch
         if hide.exists && hide.isHittable { hide.tap(); return }
         // Native SwiftUI ScrollView keyboard dismissal, in the actual panel
         // viewport above the keyboard; no responder or App-state injection.
-        let highY = app.buttons["control-grabber"].frame.maxY + 65
-        let lowY = min(app.keyboards.firstMatch.frame.minY - 25, highY + 180)
+        guard let viewport = containingScrollViewport(field, app: app) else {
+            XCTFail("The real editable field has no observed ScrollView viewport above the keyboard"); return
+        }
+        let inset = min(28, viewport.height * 0.15)
+        let highY = viewport.minY + inset, lowY = viewport.maxY - inset
         XCTAssertGreaterThan(lowY, highY + 20, "The real panel must have room to dismiss its keyboard")
-        coordinate(CGPoint(x: app.frame.midX, y: lowY), app: app).press(forDuration: 0.05,
-            thenDragTo: coordinate(CGPoint(x: app.frame.midX, y: highY), app: app))
+        coordinate(CGPoint(x: viewport.midX, y: lowY), app: app).press(forDuration: 0.05,
+            thenDragTo: coordinate(CGPoint(x: viewport.midX, y: highY), app: app))
         waitUntil("Native keyboard dismissed by real panel scroll", timeout: 5) { !app.keyboards.firstMatch.exists }
     }
     private func choose(_ value: String, picker: XCUIElement, app: XCUIApplication) {
@@ -727,11 +837,16 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 }
                 viewport = actual
             } else {
-                let top = app.buttons["control-grabber"].frame.maxY + 70
-                viewport = CGRect(x: app.frame.minX, y: top, width: app.frame.width,
-                    height: min(app.frame.maxY - 45, top + 240) - top)
+                guard let actual = containingScrollViewport(target, app: app) else {
+                    XCTFail("No actual ScrollView contains the requested control: " + target.debugDescription); return
+                }
+                viewport = actual
+                if let frame = observedTargetFrame(target) {
+                    if frame.maxY <= viewport.minY || frame.midY < viewport.minY { down = false }
+                    else if frame.minY >= viewport.maxY || frame.midY > viewport.maxY { down = true }
+                }
             }
-            let inset = chapterIndex == nil ? CGFloat.zero : min(36, viewport.height * 0.15)
+            let inset = min(36, viewport.height * 0.15)
             let top = viewport.minY + inset, bottom = viewport.maxY - inset
             XCTAssertGreaterThan(bottom, top + 30)
             let high = coordinate(CGPoint(x: viewport.midX, y: top), app: app)
@@ -740,6 +855,53 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             else { high.press(forDuration: 0.05, thenDragTo: low) }
         }
         XCTFail("Actual control did not become hittable: " + target.debugDescription)
+    }
+    private func observedTargetFrame(_ target: XCUIElement) -> CGRect? {
+        func usable(_ rect: CGRect) -> Bool {
+            rect.minX.isFinite && rect.minY.isFinite && rect.width.isFinite && rect.height.isFinite
+                && rect.width > 0 && rect.height > 0
+        }
+        let frame = target.frame
+        if usable(frame) { return frame }
+        // Empty axis.vertical fields may expose a zero outer AX frame while
+        // their public descendant geometry still locates the real input row.
+        // This determines scroll direction only; tapping still requires the
+        // original editable control to become natively hittable.
+        for child in target.descendants(matching: .any).allElementsBoundByIndex.prefix(16) {
+            let frame = child.frame
+            if usable(frame) { return frame }
+        }
+        return nil
+    }
+    private func containingScrollViewport(_ target: XCUIElement, app: XCUIApplication) -> CGRect? {
+        guard target.exists else { return nil }
+        let identifier = target.identifier, label = target.label
+        let placeholder = target.placeholderValue ?? ""
+        var selected: CGRect?
+        for scroll in app.scrollViews.allElementsBoundByIndex {
+            var viewport = scroll.frame.intersection(app.frame)
+            guard !viewport.isNull, viewport.width > 80, viewport.height > 80 else { continue }
+            let children = scroll.descendants(matching: target.elementType)
+            let containsTarget: Bool
+            if !identifier.isEmpty { containsTarget = children.matching(identifier: identifier).count > 0 }
+            else if !placeholder.isEmpty { containsTarget = children.matching(NSPredicate(format: "placeholderValue == %@", placeholder)).count > 0 }
+            else if !label.isEmpty { containsTarget = children.matching(NSPredicate(format: "label == %@", label)).count > 0 }
+            else { containsTarget = children.count > 0 }
+            guard containsTarget else { continue }
+            if app.keyboards.firstMatch.exists {
+                let keyboard = app.keyboards.firstMatch.frame
+                if viewport.intersects(keyboard) { viewport.size.height = max(0, keyboard.minY - 8 - viewport.minY) }
+            }
+            let modules = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'control-module-'"))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            for module in modules where viewport.intersects(module.frame) && module.frame.minY > viewport.minY {
+                viewport.size.height = min(viewport.maxY, module.frame.minY) - viewport.minY
+            }
+            guard viewport.height > 80 else { continue }
+            if let previous = selected, viewport.height >= previous.height { continue }
+            selected = viewport
+        }
+        return selected
     }
     private func directoryViewport(chapterIndex: Int, app: XCUIApplication) -> CGRect? {
         let ancestors = app.scrollViews.containing(.button, identifier: "chapter-\(chapterIndex)").allElementsBoundByIndex

@@ -145,6 +145,7 @@ struct ReaderPagedTextSurface: UIViewControllerRepresentable {
 
         @objc private func observedGesture(_ recognizer: UIGestureRecognizer) {
             traceGesture("recognizer.action", recognizer: recognizer)
+            (readingTap as? ReaderPaperTapRecognizer)?.recordNativeAction(recognizer)
         }
 #endif
 
@@ -169,7 +170,16 @@ struct ReaderPagedTextSurface: UIViewControllerRepresentable {
                     self.scheduleLayout()
                 }
             }
+#if DEBUG
+            let tap = ReaderPaperTapRecognizer(target: self, action: #selector(tapped(_:)))
+            tap.diagnosticContext = { [weak self] in
+                guard let self else { return "ownerGone=true" }
+                let textID = self.currentPage.map { String(describing: ObjectIdentifier($0.textView)) } ?? "none"
+                return "currentTextView=\(textID) liveGeneration=\(self.generation.uuidString) retired=\(self.retired) restoring=\(self.restoring) navigating=\(self.navigating) selectionLength=\(self.currentPage?.textView.selectedRange.length ?? -1)"
+            }
+#else
             let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+#endif
             tap.numberOfTapsRequired = 1
             tap.cancelsTouchesInView = false; tap.delegate = self
             host.view.addGestureRecognizer(tap); readingTap = tap
@@ -487,8 +497,18 @@ struct ReaderPagedTextSurface: UIViewControllerRepresentable {
                 if let controller = reference.value { residents[index] = controller }
             }
             for (index, controller) in residents {
+#if DEBUG
+                if controller === currentPage { (readingTap as? ReaderPaperTapRecognizer)?.recordCheckpoint("accessibility.pre") }
+#endif
                 controller.setCommittedAccessibility(index == logicalIndex)
+#if DEBUG
+                if controller === currentPage { (readingTap as? ReaderPaperTapRecognizer)?.recordCheckpoint("accessibility.post") }
+                if controller === currentPage { (readingTap as? ReaderPaperTapRecognizer)?.recordCheckpoint("selectable.pre", detail: "value=\(controller.textView.isSelectable)") }
+#endif
                 controller.textView.isSelectable = parent.longPressSelectText
+#if DEBUG
+                if controller === currentPage { (readingTap as? ReaderPaperTapRecognizer)?.recordCheckpoint("selectable.post", detail: "value=\(controller.textView.isSelectable)") }
+#endif
             }
         }
 
@@ -518,6 +538,7 @@ struct ReaderPagedTextSurface: UIViewControllerRepresentable {
         @objc private func tapped(_ gesture: UITapGestureRecognizer) {
 #if DEBUG
             traceGesture("tapped.enter", recognizer: gesture)
+            (gesture as? ReaderPaperTapRecognizer)?.recordOwnAction()
 #endif
             guard gesture === readingTap, gesture.state == .ended, !retired, !restoring, !navigating,
                   let text = currentPage?.textView else {
@@ -615,6 +636,9 @@ struct ReaderPagedTextSurface: UIViewControllerRepresentable {
             }
 #if DEBUG
             traceGesture("shouldReceive", recognizer: gestureRecognizer, accepted: accepted)
+            if accepted, gestureRecognizer === readingTap {
+                (readingTap as? ReaderPaperTapRecognizer)?.recordAcceptedTouch(touch, generation: generation)
+            }
 #endif
             return accepted
         }
@@ -654,6 +678,7 @@ struct ReaderPagedTextSurface: UIViewControllerRepresentable {
                 currentTextTap(otherGestureRecognizer).map { $0.numberOfTapsRequired > 1 } == true
 #if DEBUG
             traceGesture("require.current-text.multitap", recognizer: otherGestureRecognizer, accepted: required)
+            if required { (readingTap as? ReaderPaperTapRecognizer)?.recordRequiredRecognizer(otherGestureRecognizer) }
 #endif
             return required
         }
@@ -766,6 +791,11 @@ struct ReaderPagedTextSurface: UIViewControllerRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+#if DEBUG
+            let callbackDetail = "callbackView=\(ObjectIdentifier(textView)) current=\(textView === currentPage?.textView) selectedLength=\(textView.selectedRange.length)"
+            (readingTap as? ReaderPaperTapRecognizer)?.recordCheckpoint("selection.callback.pre", detail: callbackDetail)
+            defer { (readingTap as? ReaderPaperTapRecognizer)?.recordCheckpoint("selection.callback.post", detail: callbackDetail) }
+#endif
             guard !restoring, !retired, parent.longPressSelectText, textView === currentPage?.textView, let document else { return }
             let selected = textView.selectedRange
             guard selected.location != NSNotFound, selected.length > 0, NSMaxRange(selected) > document.prefixUTF16 else {
@@ -1002,3 +1032,132 @@ private final class ReaderNativeCoverTurn {
         self.direction = direction; self.animator = animator; self.generation = generation
     }
 }
+
+#if DEBUG
+/// Passive instrumentation of our own recognizer only. Every UIKit override
+/// calls super exactly once and preserves its result and recognition policy.
+@MainActor
+private final class ReaderPaperTapRecognizer: UITapGestureRecognizer {
+    private final class Attempt {
+        let sequence: UInt64
+        let touchID: ObjectIdentifier
+        let generation: UUID
+        let required = NSHashTable<UIGestureRecognizer>.weakObjects()
+        var movedLogged = false
+        var afterEventQueued = false
+        var preventionLogs = 0
+        var checkpointLogs = 0
+        var checkpointTruncated = false
+        var requiredTruncated = false
+        init(sequence: UInt64, touch: UITouch, generation: UUID) {
+            self.sequence = sequence; touchID = ObjectIdentifier(touch); self.generation = generation
+        }
+    }
+    private static let log = Logger(subsystem: "io.reader.minliny", category: "reader-gestures")
+    private var sequence: UInt64 = 0
+    private var attempt: Attempt?
+    var diagnosticContext: (() -> String)?
+
+    func recordAcceptedTouch(_ touch: UITouch, generation: UUID) {
+        if attempt == nil { sequence &+= 1; attempt = Attempt(sequence: sequence, touch: touch, generation: generation) }
+        emit("accepted", attempt, detail: "receivedTouch=\(ObjectIdentifier(touch)) phase=\(touch.phase.rawValue)")
+        queueAfterEvent(attempt)
+    }
+    func recordRequiredRecognizer(_ recognizer: UIGestureRecognizer) {
+        guard let attempt, !attempt.required.contains(recognizer) else { return }
+        // Bound diagnostic references, never the original failure decision.
+        guard attempt.required.allObjects.count < 8 else {
+            if !attempt.requiredTruncated { attempt.requiredTruncated = true; emit("required.truncated", attempt) }
+            return
+        }
+        attempt.required.add(recognizer)
+        emit("required.registered", attempt, detail: describe(recognizer))
+    }
+    func recordNativeAction(_ recognizer: UIGestureRecognizer) {
+        guard let attempt, attempt.required.contains(recognizer) else { return }
+        emit("required.action", attempt, detail: describe(recognizer))
+    }
+    func recordOwnAction() { emit("own.action", attempt) }
+    func recordCheckpoint(_ event: String, detail: String = "") {
+        guard let current = attempt else { return }
+        guard current.checkpointLogs < 24 else {
+            if !current.checkpointTruncated { current.checkpointTruncated = true; emit("checkpoint.truncated", current) }
+            return
+        }
+        current.checkpointLogs += 1
+        emit(event, current, detail: detail)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        let current = attempt
+        emit("began.pre", current, detail: touchSummary(touches))
+        super.touchesBegan(touches, with: event)
+        emit("began.post", current)
+    }
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        let current = attempt, shouldLog = attempt?.movedLogged == false
+        if shouldLog { current?.movedLogged = true; emit("moved.first.pre", current, detail: touchSummary(touches)) }
+        super.touchesMoved(touches, with: event)
+        if shouldLog { emit("moved.first.post", current) }
+    }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        let current = attempt
+        emit("ended.pre", current, detail: touchSummary(touches))
+        super.touchesEnded(touches, with: event)
+        emit("ended.post", current); queueAfterEvent(current)
+    }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        let current = attempt
+        emit("cancelled.pre", current, detail: touchSummary(touches))
+        super.touchesCancelled(touches, with: event)
+        emit("cancelled.post", current); queueAfterEvent(current)
+    }
+    override func reset() {
+        let current = attempt
+        emit("reset.pre", current)
+        super.reset()
+        emit("reset.post", current); queueAfterEvent(current)
+        attempt = nil
+    }
+    override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool {
+        let current = attempt
+        let result = super.canPrevent(preventedGestureRecognizer)
+        recordPrevention("canPrevent", current, peer: preventedGestureRecognizer, result: result)
+        return result
+    }
+    override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
+        let current = attempt
+        let result = super.canBePrevented(by: preventingGestureRecognizer)
+        recordPrevention("canBePrevented", current, peer: preventingGestureRecognizer, result: result)
+        return result
+    }
+    private func recordPrevention(_ event: String, _ current: Attempt?, peer: UIGestureRecognizer, result: Bool) {
+        guard let current, current.preventionLogs < 12 else { return }
+        current.preventionLogs += 1
+        emit(event, current, detail: "superResult=\(result) \(describe(peer))")
+    }
+    private func queueAfterEvent(_ current: Attempt?) {
+        guard let current, !current.afterEventQueued else { return }
+        current.afterEventQueued = true
+        // One 0.7s observation after acceptance also covers a missing end/reset.
+        // The same attempt is never requeued. Native references remain weak.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self, current] in
+            self?.emit("after-event", current, detail: "sameAttempt=\(self?.attempt === current)")
+        }
+    }
+    private func describe(_ recognizer: UIGestureRecognizer) -> String {
+        let tap = recognizer as? UITapGestureRecognizer
+        return "id=\(ObjectIdentifier(recognizer)) state=\(recognizer.state.rawValue) enabled=\(recognizer.isEnabled) attached=\(recognizer.view != nil) taps=\(tap?.numberOfTapsRequired ?? -1) touches=\(tap?.numberOfTouchesRequired ?? -1)"
+    }
+    private func touchSummary(_ touches: Set<UITouch>) -> String {
+        let values = touches.prefix(2).map { "id=\(ObjectIdentifier($0)) phase=\($0.phase.rawValue)" }.joined(separator: ";")
+        return "touchCount=\(touches.count) touchSamples=[\(values)]"
+    }
+    private func emit(_ event: String, _ current: Attempt?, detail: String = "") {
+        guard let current else { return }
+        let required = current.required.allObjects.map(describe).sorted().joined(separator: ";")
+        let own = describe(self), context = diagnosticContext?() ?? "ownerContext=unavailable"
+        Self.log.notice("paper-tap event=\(event, privacy: .public) attempt=\(current.sequence, privacy: .public) touch=\(String(describing: current.touchID), privacy: .public) generation=\(current.generation.uuidString, privacy: .public) own=[\(own, privacy: .public)] required=[\(required, privacy: .public)] context=\(context, privacy: .public) detail=\(detail, privacy: .public)")
+    }
+}
+#endif
