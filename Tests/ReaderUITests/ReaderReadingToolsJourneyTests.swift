@@ -13,6 +13,295 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     private var displayRestored = false
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// A new Large-owned rule intent. This does not resume or replace the
+    /// Compact rejected draft. Root's final fresh clone gate is required first.
+    func testRealTXTNewSavedRuleExplicitReprocessDisableReprocessAndDeleteRestoresVisibleOriginal() throws {
+        let proof = try realRuleRoundtripProof()
+        let app = XCUIApplication()
+        var requestedStage = "none"
+        var normalExit = false
+        defer {
+            if !normalExit {
+                let retained = XCTAttachment(string: "lastRequestedStage=\(requestedStage)\nStop here. Preserve the original action UUID, frozen parameters, Host command/reprocess journal, owned rule and draft. No automatic cleanup, re-dispatch or replacement UUID is authorized. UI rows alone never establish the original ACK.\n" + app.debugDescription)
+                retained.name = "real-rule-roundtrip-failure-preserve-original-intent"
+                retained.lifetime = .keepAlways; add(retained)
+                evidence(app, "real-rule-roundtrip-failed-current-interface")
+            }
+        }
+        app.launch()
+        try openExistingRuleRoundtripBook(app)
+        try recordRuleRoundtripHeader(app, stage: "initial", expectedChapter: proof.chapterIndex)
+        hideControls(app)
+        try captureRuleRoundtripPaper(app, present: proof.pattern, absent: proof.replacement,
+                                      stage: "original-before-any-draft-edit")
+        openTool("替换、字典与目录规则", app: app)
+        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '规则类型'"))
+        guard picker.count == 1, picker.element.isHittable else { throw JourneyError.prerequisite }
+        picker.element.tap()
+        let kind = app.buttons["替换"]
+        guard kind.waitForExistence(timeout: 5), kind.isHittable else { throw JourneyError.prerequisite }
+        kind.tap()
+        waitUntil("Actual saved-rule reads finish before inspecting the clean draft", timeout: 30) {
+            !app.staticTexts["正在读取规则"].exists
+        }
+        try requireEmptyRuleRoundtripDraft(app)
+        guard app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'replace-rule-' ")).count == 0 else {
+            XCTFail("Root's fresh clean-scope prerequisite changed; preserve all saved rules")
+            throw JourneyError.prerequisite
+        }
+        let ownedName = "真实原文规则-" + UUID().uuidString.lowercased()
+        let input = XCTAttachment(string: "intent=new-owned-rule-not-replay\nownedName=\(ownedName)\npattern=\(proof.pattern)\nreplacement=\(proof.replacement)\nincludeScope=\(proof.includeScope)\nexcludeScope=\(proof.excludeScope)\nplain=true\nscopeContent=true\nscopeTitle=false\nscopeSource=false\nenabled=true\nproofSHA256=\(ProcessInfo.processInfo.environment["READER_RULE_SLICE_PROOF_SHA256"] ?? "")\nThis name is not a Core operation UUID. Every original action is resolved separately from the actual retained journal.")
+        input.name = "real-rule-roundtrip-owned-input-before-save"
+        input.lifetime = .keepAlways; add(input)
+        try fill("规则名称", ownedName, towardBottom: false, app: app)
+        try fill("匹配内容", proof.pattern, app: app)
+        try fill("替换为", proof.replacement, app: app)
+        try fill("作用范围，留空为全部", proof.includeScope, app: app)
+        setToggle("正则表达式", value: "0", app: app)
+        setToggle("作用于正文", value: "1", app: app)
+        setToggle("作用于标题", value: "0", app: app)
+        setToggle("作用于书源", value: "0", app: app)
+        setToggle("启用此规则", value: "1", app: app)
+        guard isEmpty(textInput("排除范围", app: app)), isEmpty(textInput("规则分组", app: app)) else {
+            throw JourneyError.prerequisite
+        }
+        let save = app.buttons["保存规则"]
+        reveal(save, towardBottom: true, app: app)
+        guard save.isHittable, save.isEnabled else { throw JourneyError.prerequisite }
+        requestedStage = "create"
+        recordRuleRoundtripIntent("create", name: ownedName, ruleID: nil, app: app)
+        save.tap() // Exactly one new save; no retry or alternative literal.
+        let owned = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'replace-rule-' AND label == %@", ownedName))
+        waitUntil("The actual owned saved rule is projected only after the original owner ends", timeout: 30) {
+            owned.count == 1 && app.buttons["保存规则"].isEnabled && app.staticTexts["编辑替换规则"].exists
+        }
+        guard owned.count == 1, app.buttons["保存规则"].isEnabled else {
+            XCTFail("Save is rejected, unknown or not projected. Preserve its original intent")
+            throw JourneyError.missingOwnedRule
+        }
+        let ruleID = String(owned.element.identifier.dropFirst("replace-rule-".count))
+        guard Int64(ruleID) != nil else { throw JourneyError.missingOwnedRule }
+        recordRuleRoundtripIntent("create-ui-projection-await-external-original-ack-audit", name: ownedName, ruleID: ruleID, app: app)
+        requestedStage = "enabled-reprocess"
+        try explicitRuleRoundtripReprocess(app, stage: requestedStage, name: ownedName, ruleID: ruleID)
+        // Save is not body adoption. The existing explicit reprocess must finish
+        // and the new actual reader must consume the changed text first.
+        try captureRuleRoundtripPaper(app, present: proof.replacement, absent: proof.pattern, stage: "enabled-reprocessed-body")
+        try recordRuleRoundtripHeader(app, stage: "enabled-adopted")
+        hideControls(app)
+        openTool("替换、字典与目录规则", app: app)
+        let enabled = app.switches.matching(NSPredicate(format: "identifier == %@", "enable-replace-rule-" + ruleID))
+        guard enabled.count == 1 else { throw JourneyError.missingOwnedRule }
+        reveal(enabled.element, towardBottom: false, app: app)
+        guard enabled.element.value as? String == "1", enabled.element.label.contains(ownedName) else {
+            throw JourneyError.prerequisite
+        }
+        requestedStage = "disable"
+        recordRuleRoundtripIntent(requestedStage, name: ownedName, ruleID: ruleID, app: app)
+        setSwitch(enabled.element, to: "0") // Existing one-touch native switch driver.
+        waitUntil("The original disable owner ends with the same saved rule disabled", timeout: 30) {
+            enabled.count == 1 && enabled.element.value as? String == "0" && app.buttons["保存规则"].isEnabled
+        }
+        guard enabled.element.value as? String == "0", app.buttons["保存规则"].isEnabled else {
+            throw JourneyError.prerequisite
+        }
+        requestedStage = "disabled-reprocess"
+        try explicitRuleRoundtripReprocess(app, stage: requestedStage, name: ownedName, ruleID: ruleID)
+        try captureRuleRoundtripPaper(app, present: proof.pattern, absent: proof.replacement, stage: "disabled-reprocessed-original-body")
+        try recordRuleRoundtripHeader(app, stage: "disabled-adopted")
+        hideControls(app)
+        openTool("替换、字典与目录规则", app: app)
+        let disabled = app.switches.matching(NSPredicate(format: "identifier == %@", "enable-replace-rule-" + ruleID))
+        guard disabled.count == 1 else { throw JourneyError.missingOwnedRule }
+        reveal(disabled.element, towardBottom: false, app: app)
+        guard disabled.element.value as? String == "0", disabled.element.label.contains(ownedName), app.buttons["保存规则"].isEnabled else {
+            throw JourneyError.prerequisite
+        }
+        requestedStage = "delete"
+        recordRuleRoundtripIntent(requestedStage, name: ownedName, ruleID: ruleID, app: app)
+        removeOwnedRule(ruleID, name: ownedName, app: app) // Exact ID + named native confirmation, once.
+        waitUntil("The original delete owner ends, with only the same owned rule removed", timeout: 30) {
+            !app.buttons.matching(NSPredicate(format: "identifier == %@", "replace-rule-" + ruleID)).firstMatch.exists && app.buttons["保存规则"].isEnabled
+        }
+        guard !app.buttons.matching(NSPredicate(format: "identifier == %@", "replace-rule-" + ruleID)).firstMatch.exists,
+              app.buttons["保存规则"].isEnabled else { throw JourneyError.prerequisite }
+        // Only the exact completed/deleted owned draft can now be reset through
+        // the existing normal confirmation. An unknown write never reaches here.
+        let nameField = textInput("规则名称", app: app)
+        reveal(nameField, towardBottom: false, app: app)
+        guard nameField.value as? String == ownedName,
+              textInput("匹配内容", app: app).value as? String == proof.pattern,
+              textInput("替换为", app: app).value as? String == proof.replacement,
+              textInput("作用范围，留空为全部", app: app).value as? String == proof.includeScope,
+              isEmpty(textInput("排除范围", app: app)), isEmpty(textInput("规则分组", app: app)) else {
+            XCTFail("Do not clear a draft whose exact owned input changed")
+            throw JourneyError.prerequisite
+        }
+        let create = app.buttons["新建"]; reveal(create, towardBottom: false, app: app)
+        guard create.isEnabled, create.isHittable else { throw JourneyError.prerequisite }
+        create.tap()
+        let discard = app.alerts["替换当前草稿？"]
+        guard discard.waitForExistence(timeout: 5), discard.buttons["替换"].isHittable else { throw JourneyError.prerequisite }
+        discard.buttons["替换"].tap()
+        try requireEmptyRuleRoundtripDraft(app)
+        requestedStage = "all-five-original-intents-ui-complete-external-ack-audit-required"
+        hideControls(app)
+        try captureRuleRoundtripPaper(app, present: proof.pattern, absent: proof.replacement, stage: "deleted-original-body")
+        leaveReader(app)
+        app.terminate(); app.launch()
+        try openExistingRuleRoundtripBook(app)
+        try recordRuleRoundtripHeader(app, stage: "cold-restored")
+        hideControls(app)
+        try captureRuleRoundtripPaper(app, present: proof.pattern, absent: proof.replacement, stage: "cold-original-body")
+        leaveReader(app)
+        XCUIDevice.shared.press(.home); app.terminate()
+        normalExit = true
+        // Core may migrate complete protected positions. Root verifies each
+        // original mutation/reprocess ACK and all resulting position/version
+        // facts, not pixel equality, guessed scalar mapping or one wholeDB hash.
+    }
+
+    private func openExistingRuleRoundtripBook(_ app: XCUIApplication) throws {
+        guard app.buttons["更多书架操作"].waitForExistence(timeout: 20) else { throw JourneyError.prerequisite }
+        let book = app.buttons.matching(NSPredicate(format: "identifier == %@", bookID))
+        guard book.count == 1, book.element.isEnabled, book.element.isHittable else {
+            XCTFail("The existing exact book must already be visible; do not change filters, import, seek or reset to construct the premise")
+            throw JourneyError.prerequisite
+        }
+        book.element.tap()
+        guard body(app).waitForExistence(timeout: 30) else { throw JourneyError.prerequisite }
+    }
+    private func requireEmptyRuleRoundtripDraft(_ app: XCUIApplication) throws {
+        for semantic in ["规则名称", "匹配内容", "替换为", "规则分组", "排除范围", "作用范围，留空为全部"] {
+            let field = textInput(semantic, app: app); reveal(field, towardBottom: true, app: app)
+            guard field.exists, isEmpty(field) else {
+                XCTFail("An existing nonempty draft is preserved; no save, new-draft replacement or replay is authorized")
+                throw JourneyError.prerequisite
+            }
+        }
+        let first = textInput("规则名称", app: app); reveal(first, towardBottom: false, app: app)
+        guard app.staticTexts["新替换规则"].exists, !app.staticTexts["编辑替换规则"].exists,
+              textInput("执行顺序", app: app).value as? String == "0",
+              (textInput("匹配超时（毫秒）", app: app).value as? String)?.replacingOccurrences(of: ",", with: "") == "3000" else {
+            throw JourneyError.prerequisite
+        }
+        for (name, value) in [("正则表达式", "1"), ("作用于正文", "1"), ("作用于标题", "0"), ("作用于书源", "0"), ("启用此规则", "1")] {
+            let control = app.switches[name]; reveal(control, towardBottom: true, app: app)
+            guard control.value as? String == value else { throw JourneyError.prerequisite }
+        }
+    }
+    private func recordRuleRoundtripIntent(_ stage: String, name: String, ruleID: String?, app: XCUIApplication) {
+        let value = XCTAttachment(string: "stage=\(stage)\nat=\(Date().timeIntervalSince1970)\nownedName=\(name)\nactualCoreRuleID=\(ruleID ?? "not-yet-returned")\nbookAX=\(bookID)\nExternal original ACK/journal audit is mandatory. This stage/name is not an operation UUID. No fresh list or enabled button proves an original write terminal.")
+        value.name = "real-rule-roundtrip-intent-" + stage; value.lifetime = .keepAlways; add(value)
+        evidence(app, "real-rule-roundtrip-" + stage)
+    }
+    private func explicitRuleRoundtripReprocess(_ app: XCUIApplication, stage: String, name: String, ruleID: String) throws {
+        let action = app.buttons["按已保存规则重新处理本书"]
+        reveal(action, towardBottom: false, app: app)
+        guard action.isEnabled, action.isHittable else { throw JourneyError.prerequisite }
+        recordRuleRoundtripIntent(stage, name: name, ruleID: ruleID, app: app)
+        action.tap()
+        let alert = app.alerts["按已保存规则重新处理？"]
+        guard alert.waitForExistence(timeout: 5), alert.buttons["重新处理"].isHittable else { throw JourneyError.prerequisite }
+        alert.buttons["重新处理"].tap() // One original action; no retry.
+        waitUntil("Explicit reprocess must replace the old reader controls through its completed new-session adoption", timeout: 180) {
+            self.body(app).exists && !app.buttons["control-grabber"].exists && !alert.exists
+        }
+        guard body(app).exists, !app.buttons["control-grabber"].exists, !alert.exists else {
+            XCTFail("Reprocess did not complete; preserve the original UUID and journal")
+            throw JourneyError.prerequisite
+        }
+    }
+    private func recordRuleRoundtripHeader(_ app: XCUIApplication, stage: String, expectedChapter: UInt32? = nil) throws {
+        // A fresh query after every successful reprocess; never reuse an old
+        // session's XCUIElement, chapter index, body/version or footer assertion.
+        openModule("home", app: app)
+        let header = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:local|" + String(bookID.dropFirst("book-".count))))
+        let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+        guard header.count == 1, header.element.label == title, chapter.count == 1,
+              let actualIndex = UInt32(chapter.element.identifier.dropFirst("reading-chapter:".count)) else {
+            throw JourneyError.prerequisite
+        }
+        if let expectedChapter { guard actualIndex == expectedChapter else { throw JourneyError.prerequisite } }
+        let value = XCTAttachment(string: "stage=\(stage)\nbookAX=\(header.element.identifier)\nchapterAX=\(chapter.element.identifier)\nchapterLabel=\(chapter.element.label)\nActual public identity only; Root binds the resulting Core progress/body/processing scope and original terminal separately.")
+        value.name = "real-rule-roundtrip-actual-session-" + stage; value.lifetime = .keepAlways; add(value)
+        evidence(app, "real-rule-roundtrip-actual-session-" + stage)
+    }
+    private func captureRuleRoundtripPaper(_ app: XCUIApplication, present: String, absent: String, stage: String) throws {
+        var accepted: Screen?
+        var observedFooter: String?
+        waitUntil("The actual current paper consumes the exact original/changed literal: " + stage, timeout: 30) {
+            let paper = app.textViews.matching(NSPredicate(format: "identifier == 'reading-body'"))
+            let footer = app.staticTexts.matching(NSPredicate(format: "identifier == 'reading-progress'"))
+            guard paper.count == 1, paper.element.isHittable, footer.count == 1 else { return false }
+            let before = footer.element.label
+            guard let capture = try? self.screen(app), footer.element.label == before else { return false }
+            let text = self.normalized(capture.text)
+            guard text.contains(self.normalized(present)), !text.contains(self.normalized(absent)) else { return false }
+            accepted = capture; observedFooter = before
+            return true
+        }
+        let capture = try XCTUnwrap(accepted)
+        let text = normalized(capture.text)
+        XCTAssertTrue(text.contains(normalized(present))); XCTAssertFalse(text.contains(normalized(absent)))
+        let image = XCTAttachment(image: UIImage(cgImage: capture.image))
+        image.name = "real-rule-roundtrip-paper-" + stage; image.lifetime = .keepAlways; add(image)
+        let lines = XCTAttachment(string: "stage=\(stage)\nactualStableFooter=\(observedFooter ?? "missing")\n" + capture.lines.map(\.text).joined(separator: "\n"))
+        lines.name = "real-rule-roundtrip-OCR-" + stage; lines.lifetime = .keepAlways; add(lines)
+    }
+    private struct RealRuleRoundtripProof: Decodable {
+        let version: Int; let purpose: String; let targetUDID: String
+        let bookId: String; let chapterIndex: UInt32; let retainedOriginalSHA256: String
+        let hostLibraryIdentitySHA256: String; let draftSHA256: String
+        let editingReplaceID: Int64?; let cleanReplacementDraftConfirmed: Bool
+        let pattern: String; let replacement: String; let includeScope: String; let excludeScope: String
+        let isRegex: Bool; let enabled: Bool
+        let scopeContent: Bool; let scopeTitle: Bool; let scopeSource: Bool
+        let allScopeOccurrencesAudited: Bool; let allAffectedProtectedBodiesAudited: Bool
+        let matchedBookIdentities: [String]
+        let eligibilityAuditSHA256: String; let coreCloneAuditSHA256: String
+        let visibleCaptureOCRSHA256: String; let visibleCaptureImageSHA256: String
+        let rootFinalSaveAdmissionConfirmed: Bool
+    }
+    private func realRuleRoundtripProof() throws -> RealRuleRoundtripProof {
+        let env = ProcessInfo.processInfo.environment
+        guard let raw = env["READER_RULE_SLICE_PROOF_JSON"], raw.utf8.count <= 32 * 1024,
+              let expected = env["READER_RULE_SLICE_PROOF_SHA256"],
+              expected.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil,
+              ruleRoundtripSHA(Data(raw.utf8)) == expected else {
+            XCTFail("Root must first review the fresh full-scope clone and protected-position gate, then bind the exact approved new intent in the Runner only")
+            throw JourneyError.prerequisite
+        }
+        let proof = try JSONDecoder().decode(RealRuleRoundtripProof.self, from: Data(raw.utf8))
+        guard proof.version == 3, proof.purpose == "root-reviewed-new-real-txt-rule-roundtrip",
+              proof.targetUDID == "EEA74BB1-5DFA-479A-ACAA-460503AD0F6B",
+              env["SIMULATOR_UDID"] == proof.targetUDID,
+              env["READER_TOOLS_PRIOR_OWNED_DRAFT_NAME"] == nil,
+              proof.bookId == String(bookID.dropFirst("book-".count)),
+              proof.retainedOriginalSHA256 == "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5",
+              proof.pattern == "斟酌用词", proof.replacement == "推敲用词",
+              proof.pattern.unicodeScalars.count == 4, proof.replacement.unicodeScalars.count == 4,
+              proof.includeScope == title, proof.excludeScope.isEmpty, !proof.isRegex, proof.enabled,
+              proof.scopeContent, !proof.scopeTitle, !proof.scopeSource,
+              proof.editingReplaceID == nil, proof.cleanReplacementDraftConfirmed,
+              proof.allScopeOccurrencesAudited, proof.allAffectedProtectedBodiesAudited,
+              proof.rootFinalSaveAdmissionConfirmed,
+              proof.matchedBookIdentities == ["local|" + proof.bookId],
+              [proof.hostLibraryIdentitySHA256, proof.draftSHA256, proof.eligibilityAuditSHA256,
+               proof.coreCloneAuditSHA256, proof.visibleCaptureOCRSHA256, proof.visibleCaptureImageSHA256]
+                .allSatisfy({ $0.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil }) else {
+            throw JourneyError.prerequisite
+        }
+        let binding = XCTAttachment(string: raw + "\nPROOF_SHA256=" + expected)
+        binding.name = "real-rule-roundtrip-root-final-admission-not-original-write-ack"
+        binding.lifetime = .keepAlways; add(binding)
+        return proof
+    }
+    private func ruleRoundtripSHA(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+
     /// Current native paper only. No import, rule/draft form, seek, chapter
     /// action, display preference, Core injection or reprocess is requested.
     func testExistingRealTXTVisibleLiteralCaptureAndNormalExitWithoutRuleMutation() throws {
