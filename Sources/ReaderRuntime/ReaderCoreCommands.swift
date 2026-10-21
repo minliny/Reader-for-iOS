@@ -506,6 +506,35 @@ extension ReaderLibraryService {
         return try JSONSerialization.data(withJSONObject: payload)
     }
 
+    /// Only the exact locally retained, completed original Rejected receipt can
+    /// invalidate a subscription preview. No fresh read or redispatch is made.
+    func confirmedRuleSubscriptionRejection(operationID: String, planID: String,
+                                            sourceIDs: [String]) throws -> ReaderLibraryError? {
+        guard let record = try commandRecord(operationID), record.id == operationID,
+              record.method == "rules.mutation.apply", record.scope == "rules-mutation", record.completed,
+              let result = record.result else { return nil }
+        let original = try object(record.parameters)
+        let expected: [String: Any] = ["method": "rule-sub.update.apply.v1",
+            "params": ["planId": planID, "sourceIds": sourceIDs]]
+        guard let mutation = original["mutation"],
+              try JSONSerialization.data(withJSONObject: mutation, options: [.sortedKeys]) ==
+                JSONSerialization.data(withJSONObject: expected, options: [.sortedKeys]) else { return nil }
+        let receipt = try object(result)
+        guard receipt["method"] as? String == "rule-sub.update.apply.v1",
+              receipt["outcome"] as? String == "rejected",
+              let binding = receipt["binding"] as? [String: Any],
+              let originalID = original["operationId"] as? String,
+              binding["operationId"] as? String == originalID,
+              let sequence = original["sequence"] as? NSNumber,
+              binding["sequence"] as? NSNumber == sequence,
+              let payload = receipt["data"] as? [String: Any],
+              let failure = payload["error"] as? [String: Any],
+              let code = failure["code"] as? String,
+              let message = failure["message"] as? String else { return nil }
+        return .core(code: code, message: message, retryable: false,
+            reason: (failure["details"] as? [String: Any])?["reason"] as? String)
+    }
+
     func bookmarkMutation(_ method: String, _ parameters: [String: Any], operationID: String) async throws -> Data {
         var params = parameters
         if let record = try commandRecord(operationID) {

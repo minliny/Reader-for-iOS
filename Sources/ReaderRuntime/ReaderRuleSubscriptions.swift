@@ -21,6 +21,15 @@ public struct ReaderSubscriptionApplied: Codable, Hashable, Sendable {
     public let skippedSourceIds: [String]
     public let updatedAt: Int64
 }
+/// A preview may be retired only after its own frozen apply has an exact
+/// completed Rejected receipt. Unknown results retain their original owner.
+public struct ReaderSubscriptionPreviewRejected: Error, Sendable, LocalizedError {
+    public let operationID: String
+    public let planID: String
+    public let originalError: ReaderLibraryError
+    public var errorDescription: String? { originalError.errorDescription }
+}
+
 public protocol ReaderRuleSubscriptionServing: ReaderOnlineServing {
     func ruleSubscriptions() async throws -> [ReaderSourceSubscription]
     func saveRuleSubscription(_ subscription: ReaderSourceSubscription, operationID: String) async throws -> ReaderSourceSubscription
@@ -58,11 +67,20 @@ extension ReaderLibraryService: ReaderRuleSubscriptionServing {
     public func applyRuleSubscription(_ plan: ReaderSubscriptionPlan, sourceIDs: [String], operationID: String) async throws -> ReaderSubscriptionApplied {
         let safe = Set(plan.changes.filter(\.safeToApply).map(\.sourceId))
         guard Set(sourceIDs).isSubset(of: safe), Set(sourceIDs).count == sourceIDs.count else { throw ReaderLibraryError.invalidResponse("unsafe subscription selection") }
-        let result = try decode(ReaderSubscriptionApplied.self, await rulesMutation("rule-sub.update.apply.v1", ["planId": plan.planId, "sourceIds": sourceIDs], operationID: operationID))
-        guard result.subscriptionId == plan.subscriptionId, result.remoteDigest == plan.remoteDigest,
-              Set(result.appliedSourceIds).isSubset(of: Set(sourceIDs)) else { throw ReaderLibraryError.operationPending(operationID) }
-        try await finishCoreOperation(operationID)
-        return result
+        do {
+            let result = try decode(ReaderSubscriptionApplied.self, await rulesMutation("rule-sub.update.apply.v1", ["planId": plan.planId, "sourceIds": sourceIDs], operationID: operationID))
+            guard result.subscriptionId == plan.subscriptionId, result.remoteDigest == plan.remoteDigest,
+                  Set(result.appliedSourceIds).isSubset(of: Set(sourceIDs)) else { throw ReaderLibraryError.operationPending(operationID) }
+            try await finishCoreOperation(operationID)
+            return result
+        } catch {
+            if let original = try? confirmedRuleSubscriptionRejection(operationID: operationID,
+                planID: plan.planId, sourceIDs: sourceIDs) {
+                throw ReaderSubscriptionPreviewRejected(operationID: operationID, planID: plan.planId,
+                    originalError: original)
+            }
+            throw error
+        }
     }
     /// Called only in an actual foreground or OS-granted background window.
     /// No keep-alive timer; all safe decisions and local-conflict CAS are Core-owned.

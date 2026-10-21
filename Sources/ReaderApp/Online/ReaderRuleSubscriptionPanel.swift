@@ -2,7 +2,7 @@ import SwiftUI
 import Foundation
 import Combine
 
-private struct ReaderSubscriptionDraft: Codable, Equatable {
+struct ReaderSubscriptionDraft: Codable, Equatable {
     var isPresent = false
     var id: Int64 = 0
     var name = ""
@@ -37,7 +37,7 @@ private struct ReaderSubscriptionDraft: Codable, Equatable {
     }
 }
 
-private enum ReaderSubscriptionMutation: Codable {
+enum ReaderSubscriptionMutation: Codable {
     case save(ReaderSourceSubscription)
     case delete(ReaderSourceSubscription)
     case apply(ReaderSubscriptionPlan, [String])
@@ -50,7 +50,7 @@ private enum ReaderSubscriptionMutation: Codable {
     }
 }
 
-private struct ReaderSubscriptionIntent: Codable {
+struct ReaderSubscriptionIntent: Codable {
     let operationID: String
     let label: String
     let mutation: ReaderSubscriptionMutation
@@ -71,7 +71,7 @@ private enum ReaderSubscriptionPanelError: LocalizedError {
 /// generation. Accepted writes belong to immutable subscription/plan identities;
 /// closing the host cancels reads, never the write or its original operation ID.
 @MainActor
-private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
+final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     @Published private(set) var subscriptions: [ReaderSourceSubscription] = []
     @Published private(set) var loading = false
     @Published private(set) var listFailure: String?
@@ -80,6 +80,8 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     @Published private(set) var checkedID: Int64?
     @Published private(set) var checkFailure: String?
     @Published private(set) var plan: ReaderSubscriptionPlan?
+    @Published private(set) var previewInvalidation: String?
+    @Published private var foreground = true
     @Published var selectedSourceIDs = Set<String>()
     @Published private(set) var applied: ReaderSubscriptionApplied?
     @Published private(set) var appliedPlan: ReaderSubscriptionPlan?
@@ -109,6 +111,8 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     private var ownerOperationID: String?
 
     var canMutate: Bool { !actions.hasPending && !actions.busy && pendingIntent == nil && journalFailure == nil }
+    var canCheckPreview: Bool { active && foreground && canMutate }
+    var canApplyPreview: Bool { canCheckPreview && previewInvalidation == nil }
     var statusScope: String { actions.scope ?? "rule-subscriptions" }
     var safeChanges: [ReaderSubscriptionChange] { plan?.changes.filter(\.safeToApply) ?? [] }
     var planExpired: Bool { plan.map { $0.expiresAt <= Self.now } ?? false }
@@ -131,8 +135,9 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
         }
     }
 
-    func activate() {
+    func activate(foreground: Bool = true) {
         active = true
+        setForeground(foreground)
         refresh()
         if let intent = pendingIntent, !actions.hasPending, !actions.busy {
             Task { await resumeAccepted(intent) }
@@ -141,10 +146,25 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
 
     func retire() {
         active = false
+        invalidatePreview("页面已关闭，原检查结果需要重新核对。")
         readGeneration = UUID(); checkGeneration = UUID()
         readTask?.cancel(); checkTask?.cancel()
         loading = false; checkingID = nil
         actions.clearFeedback()
+    }
+
+    func setForeground(_ value: Bool) {
+        guard foreground != value else { return }
+        foreground = value
+        if !value { invalidatePreview("页面已离开前台，原检查结果需要重新核对。") }
+    }
+
+    /// Only the read/check presentation is retired. Frozen accepted writes and
+    /// their UUID/parameters, selection, draft and original recovery stay intact.
+    func invalidatePreview(_ detail: String) {
+        let hadPreview = plan != nil || checkingID != nil
+        stopCheck()
+        if hadPreview { previewInvalidation = detail }
     }
 
     func refresh() {
@@ -198,11 +218,12 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     func delete(_ subscription: ReaderSourceSubscription) { begin("删除订阅", mutation: .delete(subscription)) }
 
     func check(_ subscription: ReaderSourceSubscription) {
-        guard canMutate else { return }
+        guard canCheckPreview else { return }
         stopCheck()
         let generation = UUID(); checkGeneration = generation
         checkedID = subscription.id; checkingID = subscription.id
-        checkFailure = nil; plan = nil; applied = nil; appliedPlan = nil; selectedSourceIDs = []
+        checkFailure = nil; previewInvalidation = nil
+        plan = nil; applied = nil; appliedPlan = nil; selectedSourceIDs = []
         checkTask = Task {
             do {
                 let value = try await service.checkRuleSubscription(subscription)
@@ -222,7 +243,7 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     }
 
     func applySelection() {
-        guard canMutate, let plan else { return }
+        guard canApplyPreview, let plan else { return }
         guard !planExpired else { checkFailure = "更新计划已过期，请重新检查订阅"; return }
         let selection = plan.changes.filter { $0.safeToApply && selectedSourceIDs.contains($0.sourceId) }.map(\.sourceId)
         guard !selection.isEmpty else { return }
@@ -282,15 +303,24 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
                 draft = ReaderSubscriptionDraft()
                 if active { editorPresented = false }
             }
-            if plan?.subscriptionId == saved.id { plan = nil; selectedSourceIDs = [] }
+            if plan?.subscriptionId == saved.id { plan = nil; selectedSourceIDs = []; previewInvalidation = nil }
         case .delete(let subscription):
             try await service.deleteRuleSubscription(subscription, operationID: accepted.operationID)
-            if checkedID == subscription.id { checkedID = nil; plan = nil; checkFailure = nil; selectedSourceIDs = [] }
+            if checkedID == subscription.id { checkedID = nil; plan = nil; checkFailure = nil; selectedSourceIDs = []; previewInvalidation = nil }
             if let current = try? draft.subscription(), current == subscription { draft = ReaderSubscriptionDraft() }
         case .apply(let capturedPlan, let identities):
-            let receipt = try await service.applyRuleSubscription(capturedPlan, sourceIDs: identities, operationID: accepted.operationID)
-            if active { applied = receipt; appliedPlan = capturedPlan; checkedID = capturedPlan.subscriptionId }
-            if plan?.planId == capturedPlan.planId { plan = nil; selectedSourceIDs = [] }
+            do {
+                let receipt = try await service.applyRuleSubscription(capturedPlan, sourceIDs: identities, operationID: accepted.operationID)
+                if active { applied = receipt; appliedPlan = capturedPlan; checkedID = capturedPlan.subscriptionId }
+                if plan?.planId == capturedPlan.planId { plan = nil; selectedSourceIDs = []; previewInvalidation = nil }
+            } catch let rejection as ReaderSubscriptionPreviewRejected {
+                if rejection.operationID == accepted.operationID, rejection.planID == capturedPlan.planId,
+                   plan?.planId == capturedPlan.planId {
+                    invalidatePreview("本次更新未应用，请重新检查差异。")
+                }
+                // The original action owner alone settles its exact rejection.
+                throw rejection.originalError
+            }
         }
         // Only the typed Runtime ACK clears the accepted write. A list refresh
         // lives outside this action and cannot turn an ACK into another write.
@@ -328,15 +358,22 @@ private final class ReaderRuleSubscriptionPanelModel: ObservableObject {
 
 struct ReaderRuleSubscriptionPanel: View {
     @StateObject private var state: ReaderRuleSubscriptionPanelModel
+    @ObservedObject private var subscriptionScheduler: ReaderRuleSubscriptionScheduler
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @StateObject private var editorConfirmation = ReaderNativeAlertOwner()
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var phase
     @Environment(\.colorScheme) private var scheme
     private var palette: ReaderPalette { ReaderPalette(scheme) }
     private let kinds = ["added", "update", "unchanged", "localOnly", "conflict", "removedRemote"]
 
-    init(service: any ReaderRuleSubscriptionServing) {
-        _state = StateObject(wrappedValue: ReaderRuleSubscriptionPanelModel(service: service))
+    @MainActor init(service: any ReaderRuleSubscriptionServing) {
+        self.init(state: ReaderRuleSubscriptionPanelModel(service: service), subscriptionScheduler: .shared)
+    }
+
+    @MainActor init(state: ReaderRuleSubscriptionPanelModel, subscriptionScheduler: ReaderRuleSubscriptionScheduler) {
+        _state = StateObject(wrappedValue: state)
+        _subscriptionScheduler = ObservedObject(wrappedValue: subscriptionScheduler)
     }
 
     var body: some View {
@@ -367,7 +404,11 @@ struct ReaderRuleSubscriptionPanel: View {
                 }.padding(20)
             }.accessibilityIdentifier("subscription-scroll")
         }.foregroundStyle(palette.ink).background(palette.paper)
-            .onAppear(perform: state.activate).onDisappear(perform: state.retire)
+            .onAppear { state.activate(foreground: phase == .active) }.onDisappear(perform: state.retire)
+            .onChange(of: phase) { _, value in state.setForeground(value == .active) }
+            .onChange(of: subscriptionScheduler.completedOpportunityRevision) { _, _ in
+                state.invalidatePreview("订阅检查状态已变化，请重新检查差异。")
+            }
             .readerConfirmation(confirmation)
             .sheet(isPresented: $state.editorPresented) { editor }
     }
@@ -396,7 +437,7 @@ struct ReaderRuleSubscriptionPanel: View {
             }
             HStack(spacing: 18) {
                 Button("编辑") { edit(subscription) }.disabled(!state.canMutate)
-                Button("检查更新") { state.check(subscription) }.disabled(!state.canMutate)
+                Button("检查更新") { state.check(subscription) }.disabled(!state.canCheckPreview)
                     .accessibilityIdentifier("subscription-check:\(subscription.id)")
                 Spacer(minLength: 0)
                 Button("删除", role: .destructive) {
@@ -407,7 +448,12 @@ struct ReaderRuleSubscriptionPanel: View {
             if state.checkingID == subscription.id {
                 ReaderPageState(title: "正在检查订阅", loading: true, actionTitle: "停止检查", action: state.stopCheck)
             } else if state.checkedID == subscription.id {
-                if let failure = state.checkFailure {
+                if let detail = state.previewInvalidation {
+                    ReaderPageState(title: "差异需要重新检查", detail: detail,
+                        actionTitle: "重新检查") { state.check(subscription) }
+                        .disabled(!state.canCheckPreview)
+                        .accessibilityIdentifier("subscription-preview-invalid:\(subscription.id)")
+                } else if let failure = state.checkFailure {
                     ReaderPageState(title: "订阅检查未完成", detail: failure, actionTitle: "重新检查") { state.check(subscription) }
                 }
                 if let plan = state.plan, plan.subscriptionId == subscription.id { planContent(plan) }
@@ -441,10 +487,10 @@ struct ReaderRuleSubscriptionPanel: View {
                 Button("选中安全项") { state.selectedSourceIDs = Set(state.safeChanges.map(\.sourceId)) }
                 Button("全部不选") { state.selectedSourceIDs = [] }
                     .accessibilityIdentifier("subscription-select-none")
-            }.font(ReaderTypography.font(.caption)).frame(minHeight: 44).disabled(!state.canMutate || state.planExpired)
+            }.font(ReaderTypography.font(.caption)).frame(minHeight: 44).disabled(!state.canApplyPreview || state.planExpired)
             Button("应用所选 \(state.selectedSourceIDs.count) 项", action: state.applySelection)
                 .buttonStyle(ReaderPrimaryButtonStyle())
-                .disabled(!state.canMutate || state.selectedSourceIDs.isEmpty || state.planExpired)
+                .disabled(!state.canApplyPreview || state.selectedSourceIDs.isEmpty || state.planExpired)
                 .accessibilityIdentifier("subscription-apply-selection")
             if plan.changes.isEmpty { ReaderPageState(title: "订阅没有变更") }
             LazyVStack(alignment: .leading, spacing: 12) {
@@ -456,12 +502,12 @@ struct ReaderRuleSubscriptionPanel: View {
     @ViewBuilder private func changeRow(_ change: ReaderSubscriptionChange, subscriptionID: Int64) -> some View {
         if change.safeToApply {
             Toggle(isOn: Binding(get: { state.selectedSourceIDs.contains(change.sourceId) }, set: { selected in
-                guard state.canMutate else { return }
+                guard state.canApplyPreview else { return }
                 if selected { state.selectedSourceIDs.insert(change.sourceId) }
                 else { state.selectedSourceIDs.remove(change.sourceId) }
             })) {
                 changeLabel(change, subscriptionID: subscriptionID)
-            }.disabled(!state.canMutate || state.planExpired)
+            }.disabled(!state.canApplyPreview || state.planExpired)
                 .accessibilityIdentifier("subscription-change:\(subscriptionID):\(change.kind):\(change.sourceId)")
         } else {
             HStack {
