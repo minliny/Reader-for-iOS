@@ -104,23 +104,98 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             }
             button.tap()
         }
-        func reorderPair() throws -> (system: XCUIElement, serif: XCUIElement, handle: XCUIElement) {
-            let systems = app.cells.containing(.staticText, identifier: systemLabel)
-            let serifs = app.cells.containing(.staticText, identifier: serifLabel)
-            if systems.count == 1, serifs.count == 1, !serifs.element.isHittable {
-                reveal(serifs.element, towardBottom: true, app: app)
+        func fontSectionOwner() throws -> (scroll: XCUIElement, viewport: CGRect, preview: XCUIElement) {
+            let previewLabel = "天地玄黄，宇宙洪荒。Reader 123"
+            // The List is a nested CollectionView. Bind its real outer owner
+            // by all existing font-section facts, never by an unlabeled Cell.
+            let owners = app.scrollViews.allElementsBoundByIndex.filter { scroll in
+                scroll.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "正文字体")).count == 1
+                    && scroll.staticTexts.matching(NSPredicate(format: "label == %@", previewLabel)).count == 1
+                    && scroll.cells.containing(.staticText, identifier: systemLabel).count == 1
+                    && scroll.cells.containing(.staticText, identifier: serifLabel).count == 1
             }
-            guard systems.count == 1, serifs.count == 1, systems.element.isHittable, serifs.element.isHittable else {
-                XCTFail("The existing first two font rows must be simultaneously visible inside the actual List; no blind drag or new accessibility hook")
+            guard owners.count == 1, let scroll = owners.first,
+                  app.buttons["control-grabber"].label.hasPrefix("完整控制栏"),
+                  app.keyboards.count == 0 else {
+                XCTFail("Require one actual Full font-section ScrollView containing its Picker, preview and both existing List rows")
                 throw JourneyError.prerequisite
             }
-            let handles = systems.element.buttons.matching(NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "重新排序", "Reorder"))
-                .allElementsBoundByIndex.filter(\.isHittable)
-            guard handles.count == 1, let handle = handles.first, handle.isEnabled else {
-                XCTFail("The public native onMove handle is not exposed; preserve the prerequisite instead of dragging an invented coordinate")
-                throw JourneyError.prerequisite
+            // Full has no Quick module-bar overlay. Use the actual owner and
+            // window intersection; no retained Quick-frame or screen guess.
+            let viewport = scroll.frame.intersection(app.frame).insetBy(dx: 10, dy: 10)
+            guard !viewport.isNull, viewport.width > 180, viewport.height > 180,
+                  scroll.isHittable else { throw JourneyError.prerequisite }
+            return (scroll, viewport, scroll.staticTexts.matching(NSPredicate(format: "label == %@", previewLabel)).element)
+        }
+        func reorderPair() throws -> (system: XCUIElement, serif: XCUIElement, handle: XCUIElement, viewport: CGRect) {
+            for step in 0..<6 {
+                let owner = try fontSectionOwner()
+                let systems = owner.scroll.cells.containing(.staticText, identifier: systemLabel)
+                let serifs = owner.scroll.cells.containing(.staticText, identifier: serifLabel)
+                guard systems.count == 1, serifs.count == 1 else { throw JourneyError.prerequisite }
+                let system = systems.element, serif = serifs.element
+                let predicate = NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "重新排序", "Reorder")
+                let systemHandles = system.buttons.matching(predicate), serifHandles = serif.buttons.matching(predicate)
+                guard systemHandles.count == 1, serifHandles.count == 1 else {
+                    XCTFail("Require each real native onMove handle; never invent a reorder touch target")
+                    throw JourneyError.prerequisite
+                }
+                let handle = systemHandles.element, otherHandle = serifHandles.element
+                let systemFrame = system.frame, serifFrame = serif.frame
+                let frames = [systemFrame, serifFrame, handle.frame, otherHandle.frame]
+                guard frames.allSatisfy({ !$0.isNull && $0.width > 0 && $0.height > 0
+                    && $0.minX.isFinite && $0.minY.isFinite && $0.maxX.isFinite && $0.maxY.isFinite }),
+                      !systemFrame.intersects(serifFrame) else { throw JourneyError.prerequisite }
+                let dropX = serifFrame.minX + serifFrame.width * 0.75
+                let dropBefore = CGPoint(x: dropX, y: serifFrame.minY + serifFrame.height * 0.15)
+                let dropAfter = CGPoint(x: dropX, y: serifFrame.minY + serifFrame.height * 0.85)
+                let fullyVisible = frames.allSatisfy { owner.viewport.contains($0) }
+                    && owner.viewport.contains(dropBefore) && owner.viewport.contains(dropAfter)
+                if fullyVisible {
+                    guard system.isHittable, serif.isHittable, handle.isHittable, otherHandle.isHittable,
+                          handle.isEnabled, otherHandle.isEnabled else {
+                        XCTFail("Fully contained native font rows and handles must also be genuinely hittable")
+                        throw JourneyError.prerequisite
+                    }
+                    let facts: [String: Any] = ["step":step,"owner":NSCoder.string(for: owner.scroll.frame),
+                        "safeViewport":NSCoder.string(for: owner.viewport),
+                        "systemRow":NSCoder.string(for: systemFrame),"serifRow":NSCoder.string(for: serifFrame),
+                        "systemHandle":NSCoder.string(for: handle.frame),"serifHandle":NSCoder.string(for: otherHandle.frame),
+                        "beforeDrop":NSCoder.string(for: CGRect(origin: dropBefore, size: .zero)),
+                        "afterDrop":NSCoder.string(for: CGRect(origin: dropAfter, size: .zero)),
+                        "wholeRowsAndHandlesAndBothDropsContained":true]
+                    let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts,
+                        options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+                    attachment.name = "real-font-reorder-actual-owner-and-safe-points"
+                    attachment.lifetime = .keepAlways; add(attachment)
+                    return (system, serif, handle, owner.viewport)
+                }
+                let rows = systemFrame.union(serifFrame)
+                guard rows.height <= owner.viewport.height,
+                      rows.minX >= owner.viewport.minX, rows.maxX <= owner.viewport.maxX else {
+                    XCTFail("The two whole real font rows must fit this active font-section viewport")
+                    throw JourneyError.prerequisite
+                }
+                let towardBottom = rows.maxY > owner.viewport.maxY
+                let missing = towardBottom ? rows.maxY - owner.viewport.maxY : owner.viewport.minY - rows.minY
+                let preview = owner.preview.frame.intersection(owner.viewport)
+                guard missing > 0, owner.preview.isHittable, !preview.isNull,
+                      preview.width > 60, preview.height > 16 else {
+                    XCTFail("Only an actual visible noninteractive font preview may drive the required outer scroll")
+                    throw JourneyError.prerequisite
+                }
+                let start = CGPoint(x: preview.midX, y: preview.midY)
+                let available = towardBottom ? start.y - owner.viewport.minY - 12 : owner.viewport.maxY - start.y - 12
+                let travel = min(max(missing + 12, 36), min(140, available))
+                guard travel >= 24 else { throw JourneyError.prerequisite }
+                let end = CGPoint(x: start.x, y: start.y + (towardBottom ? -travel : travel))
+                guard owner.viewport.contains(start), owner.viewport.contains(end) else { throw JourneyError.prerequisite }
+                coordinate(start, app: app).press(forDuration: 0.05,
+                    thenDragTo: coordinate(end, app: app), withVelocity: .slow, thenHoldForDuration: 0.15)
             }
-            return (systems.element, serifs.element, handle)
+            evidence(app, "real-font-reorder-safe-viewport-prerequisite-failed")
+            XCTFail("Both actual font rows, native handles and drop points must become fully visible before any persistent change")
+            throw JourneyError.prerequisite
         }
         func orderSystemBeforeSerif() throws -> Bool {
             let pair = try reorderPair()
@@ -128,14 +203,40 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                   !pair.system.frame.intersects(pair.serif.frame) else { throw JourneyError.prerequisite }
             return pair.system.frame.midY < pair.serif.frame.midY
         }
+        // Poll only actual row order. Native onMove may temporarily expose
+        // overlapping/missing AX frames; no prerequisite assertion or scroll
+        // is allowed to run inside the post-drop observation predicate.
+        func observedSystemBeforeSerif() -> Bool? {
+            let systems = app.cells.containing(.staticText, identifier: systemLabel)
+            let serifs = app.cells.containing(.staticText, identifier: serifLabel)
+            guard systems.count == 1, serifs.count == 1 else { return nil }
+            let system = systems.element, serif = serifs.element
+            let a = system.frame, b = serif.frame
+            guard [a,b].allSatisfy({ !$0.isNull && $0.width > 0 && $0.height > 0
+                && $0.minX.isFinite && $0.minY.isFinite && $0.maxX.isFinite && $0.maxY.isFinite }),
+                  !a.intersects(b), system.isHittable, serif.isHittable else { return nil }
+            return a.midY < b.midY
+        }
         func moveSystem(beforeSerif: Bool) throws {
             let pair = try reorderPair()
             let dy: CGFloat = beforeSerif ? 0.15 : 0.85
+            let source = CGPoint(x: pair.handle.frame.midX, y: pair.handle.frame.midY)
+            let target = CGPoint(x: pair.serif.frame.minX + pair.serif.frame.width * 0.75,
+                y: pair.serif.frame.minY + pair.serif.frame.height * dy)
+            guard pair.viewport.contains(source), pair.viewport.contains(target) else { throw JourneyError.prerequisite }
             pair.handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.6,
                 thenDragTo: pair.serif.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: dy)),
                 withVelocity: .slow, thenHoldForDuration: 0.2)
-            waitUntil("The one actual onMove reaches the expected row order", timeout: 5) {
-                (try? orderSystemBeforeSerif()) == beforeSerif
+            let settledOrder = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                observedSystemBeforeSerif() == beforeSerif
+            }, object: nil)
+            guard XCTWaiter.wait(for: [settledOrder], timeout: 5) == .completed else {
+                let detail = XCTAttachment(string: app.debugDescription)
+                detail.name = "real-font-postdrop-order-not-observed"
+                detail.lifetime = .keepAlways; add(detail)
+                evidence(app, "real-font-postdrop-order-not-observed")
+                XCTFail("The one actual onMove did not expose the expected settled native row order")
+                throw JourneyError.prerequisite
             }
             XCTAssertEqual(try orderSystemBeforeSerif(), beforeSerif)
         }
@@ -179,7 +280,8 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         // Reachability is checked before the first persisted choice. Edit mode
         // itself is transient; an absent handle leaves this method unexecuted.
         try editor(true)
-        let initialOrder = try orderSystemBeforeSerif()
+        let initialPair = try reorderPair() // Explicit complete owner/rows/handles/drop preflight before the first font write.
+        let initialOrder = initialPair.system.frame.midY < initialPair.serif.frame.midY
         XCTAssertTrue(initialOrder); visibleOrderObservations["initial-system-before-serif"] = initialOrder
         try editor(false)
         picker = try fontPicker()
@@ -232,6 +334,119 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             "boundary":"Only actual public UI observations are recorded here. Root independently binds the current original TXT/Core scope, initial absent font keys, exact full order, complete raw preferences, original assets and source/products; those are not observable as UI facts. Body pixel inequality is bounded to the same visible viewport after the font-only choice; it does not identify a physical font table or establish full typography/motion acceptance."]
         let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
         attachment.name = "real-font-original-txt-selection-order-cold-and-restoration-facts.json"
+        attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    /// Read only the restored outcome after the preserved Font69 failure.
+    /// Root binds its final nil font keys/full order before this fresh launch.
+    func testExistingRestoredFont69ColdReadOnlyTailPreservesOriginalTextAndDefaultOrder() throws {
+        let app = XCUIApplication()
+        guard !realEpubJourney, app.state == .notRunning else {
+            XCTFail("Require the original TXT and Root's actual fresh no-App premise; never terminate a live session")
+            throw JourneyError.prerequisite
+        }
+        let expectedAnchor = "而头颅上那一双和善的双眸正目泛幽光的盯着他"
+        let systemLabel = "系统（iOS）", serifLabel = "宋体"
+        let previewLabel = "天地玄黄，宇宙洪荒。Reader 123"
+        // Exact OCR from Font69's original visible-anchor attachment. This
+        // tail never selects a chapter, seeks or restores a preference.
+        app.launch()
+        try openExistingRuleRoundtripBook(app)
+        openModule("home", app: app)
+        let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+        XCTAssertEqual(chapter.count, 1)
+        XCTAssertEqual(chapter.element.identifier, "reading-chapter:1")
+        let identity = app.staticTexts.matching(NSPredicate(format: "identifier == %@",
+            "reading-book:local|" + String(bookID.dropFirst(5))))
+        XCTAssertEqual(identity.count, 1); XCTAssertEqual(identity.element.label, title)
+        let actualBookID = identity.element.identifier
+        hideControls(app)
+        try assertVisible(expectedAnchor, app: app, name: "font69-restored-cold-readonly-original-anchor")
+        openModule("appearance", app: app)
+        let pickers = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "正文字体"))
+        XCTAssertTrue(pickers.firstMatch.waitForExistence(timeout: 5)); XCTAssertEqual(pickers.count, 1)
+        let picker = pickers.element
+        reveal(picker, towardBottom: false, app: app)
+        let choices = ["系统（iOS）", "宋体", "黑体", "楷体", "仿宋", "等宽", "思源宋体", "霞鹜文楷"]
+        func currentFont() throws -> String {
+            let values = [picker.value as? String, picker.label].compactMap { $0 }
+            let match = choices.sorted { $0.count > $1.count }.first { name in
+                values.contains { $0 == name || $0.hasSuffix(", " + name) || $0.hasSuffix("," + name)
+                    || $0.hasSuffix("，" + name) || $0.hasSuffix("、" + name) }
+            }
+            return try XCTUnwrap(match, "Read the exact actual native font label; do not choose a font")
+        }
+        let actualFont = try currentFont()
+        XCTAssertEqual(actualFont, serifLabel)
+        let edit = app.buttons.matching(NSPredicate(format: "label == '编辑' OR label == 'Edit'"))
+        XCTAssertEqual(edit.count, 1)
+        if !edit.element.isHittable { reveal(edit.element, towardBottom: true, app: app) }
+        XCTAssertTrue(edit.element.isHittable && edit.element.isEnabled); edit.element.tap()
+        var orderFacts: [String: Any]?
+        for step in 0...6 {
+            let owners = app.scrollViews.allElementsBoundByIndex.filter { scroll in
+                scroll.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "正文字体")).count == 1
+                    && scroll.staticTexts.matching(NSPredicate(format: "label == %@", previewLabel)).count == 1
+                    && scroll.cells.containing(.staticText, identifier: systemLabel).count == 1
+                    && scroll.cells.containing(.staticText, identifier: serifLabel).count == 1
+            }
+            guard owners.count == 1, let owner = owners.first,
+                  app.buttons["control-grabber"].label.hasPrefix("完整控制栏"),
+                  app.keyboards.count == 0 else { throw JourneyError.prerequisite }
+            let viewport = owner.frame.intersection(app.frame).insetBy(dx: 10, dy: 10)
+            let system = owner.cells.containing(.staticText, identifier: systemLabel).element
+            let serif = owner.cells.containing(.staticText, identifier: serifLabel).element
+            let systemFrame = system.frame, serifFrame = serif.frame
+            guard !viewport.isNull, viewport.width > 180, viewport.height > 180,
+                  systemFrame.width > 0, systemFrame.height > 0, serifFrame.width > 0, serifFrame.height > 0,
+                  !systemFrame.intersects(serifFrame) else { throw JourneyError.prerequisite }
+            if viewport.contains(systemFrame), viewport.contains(serifFrame) {
+                XCTAssertTrue(system.isHittable && serif.isHittable)
+                XCTAssertLessThan(systemFrame.midY, serifFrame.midY, "Read the actual restored order; never perform onMove")
+                orderFacts = ["safeViewport":NSCoder.string(for: viewport),
+                    "systemRow":NSCoder.string(for: systemFrame),"serifRow":NSCoder.string(for: serifFrame),
+                    "completeRowsVisible":true,"observedSystemBeforeSerif":true]
+                break
+            }
+            guard step < 6 else { break }
+            let rows = systemFrame.union(serifFrame)
+            let preview = owner.staticTexts.matching(NSPredicate(format: "label == %@", previewLabel)).element
+            let visible = preview.frame.intersection(viewport)
+            let towardBottom = rows.maxY > viewport.maxY
+            let missing = towardBottom ? rows.maxY - viewport.maxY : viewport.minY - rows.minY
+            guard rows.height <= viewport.height, rows.minX >= viewport.minX, rows.maxX <= viewport.maxX,
+                  missing > 0, preview.isHittable, !visible.isNull, visible.width > 60, visible.height > 16 else {
+                throw JourneyError.prerequisite
+            }
+            let start = CGPoint(x: visible.midX, y: visible.midY)
+            let available = towardBottom ? start.y - viewport.minY - 12 : viewport.maxY - start.y - 12
+            let travel = min(max(missing + 12, 36), min(140, available))
+            let end = CGPoint(x: start.x, y: start.y + (towardBottom ? -travel : travel))
+            guard travel >= 24, viewport.contains(start), viewport.contains(end) else { throw JourneyError.prerequisite }
+            // A short real scroll on noninteractive preview text only. Native
+            // reorder handles, font menu items and import controls are untouched.
+            coordinate(start, app: app).press(forDuration: 0.05,
+                thenDragTo: coordinate(end, app: app), withVelocity: .slow, thenHoldForDuration: 0.15)
+        }
+        let actualOrder = try XCTUnwrap(orderFacts, "Both original font rows must be completely visible in their real owner")
+        let done = app.buttons.matching(NSPredicate(format: "label == '完成' OR label == 'Done'"))
+        XCTAssertEqual(done.count, 1); XCTAssertTrue(done.element.isHittable && done.element.isEnabled)
+        done.element.tap()
+        XCTAssertEqual(try currentFont(), serifLabel)
+        hideControls(app)
+        try assertVisible(expectedAnchor, app: app, name: "font69-restored-readonly-settings-return-original-anchor")
+        assertChapter(1, app: app)
+        try assertVisible(expectedAnchor, app: app, name: "font69-restored-readonly-final-original-anchor")
+        leaveReader(app)
+        let facts: [String: Any] = ["originalRun":"large-font-selection-order-native69-1",
+            "bookAXID":actualBookID,"chapterAXID":"reading-chapter:1",
+            "originalVisibleAnchor":expectedAnchor,"observedFontPickerValue":actualFont,
+            "observedSystemBeforeSerif":true,"normalReturnToShelfObserved":true,"actualOrderGeometry":actualOrder,
+            "fontChoicesRequested":0,"reorderDragsRequested":0,"annotationWritesRequested":0,
+            "boundary":"This is only a new cold read-only tail. Font69 remains failed. Full raw nine-item order, absent font keys, original user preferences/positions/files and exact timing ACKs require the external account; UI observations do not replace them."]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts,
+            options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
+        attachment.name = "real-font69-restored-cold-readonly-tail-facts.json"
         attachment.lifetime = .keepAlways; add(attachment)
     }
 
