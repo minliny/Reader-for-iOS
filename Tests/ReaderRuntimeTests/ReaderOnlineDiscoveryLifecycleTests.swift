@@ -553,6 +553,41 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         // these pending read continuations; this is Host wiring evidence only.
     }
 
+    func testResearchCandidatesRetainsExistingResultsWhileRealSearchRuns() async throws {
+        let service = DiscoveryControlledService()
+        let state = ReaderOnlineWorkspaceModel()
+        defer { state.retireCachedDiscovery(); service.releaseAll() }
+        state.service = service
+        state.sources = DiscoveryControlledService.sources(2)
+        state.query = "retained search"
+        let retained = ReaderOnlineCandidate(sourceId: "retained-source", bookId: "retained-book", title: "Retained candidate")
+        state.results = [retained]
+        state.currentResultIDs = [retained.id]
+        state.timings = [retained.sourceId: 23]
+        let initialEntered = expectation(description: "Initial search establishes the real keyword generation")
+        initialEntered.expectedFulfillmentCount = 2
+        let entered = expectation(description: "Research dispatches the existing enabled sources")
+        entered.expectedFulfillmentCount = 2
+        service.onSearchEntered = { count in
+            if count <= 2 { initialEntered.fulfill() } else { entered.fulfill() }
+        }
+        state.search()
+        await fulfillment(of: [initialEntered], timeout: 2)
+        state.results = [retained]
+        state.currentResultIDs = [retained.id]
+        state.timings = [retained.sourceId: 23]
+        state.researchCandidates()
+        await fulfillment(of: [entered], timeout: 2)
+        XCTAssertTrue(state.searching)
+        XCTAssertEqual(state.results, [retained], "Research must keep already displayed candidates while requests are in flight")
+
+        try service.completeRemainingSearches()
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !state.searching }, object: nil)
+        await fulfillment(of: [settled], timeout: 2)
+        XCTAssertTrue(state.results.contains(retained), "Research must not discard the previous candidate when new source results arrive")
+        XCTAssertEqual(state.results.count, 3)
+    }
+
     func testRetiredProductionWorkspaceIgnoresOpportunityAndDrainsLateSourceRefresh() async throws {
         let service = DiscoveryControlledService()
         let gate = DiscoverySubscriptionOpportunityGate()

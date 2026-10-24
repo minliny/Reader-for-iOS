@@ -296,9 +296,16 @@ struct ReaderOnlineWorkspace: View {
                     Text("\(state.results.count) 项").font(ReaderTypography.font(.caption))
                 }.padding(.horizontal, 20)
                 if state.searching { ProgressView("正在搜索 · 已返回 \(state.timings.count + state.failures.count)/\(state.sources.filter(\.enabled).count) 个书源").font(ReaderTypography.font(.caption)) }
-                if !state.failures.isEmpty { Text("\(state.failures.count) 个书源未完成，可保留已有结果并重新搜索").font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted) }
+                if !state.searching && !state.results.isEmpty && (state.stopped || !state.failures.isEmpty) {
+                    HStack(spacing: 8) {
+                        Text(state.stopped ? "搜索已停止，可保留已有结果并重新搜索" : "\(state.failures.count) 个书源未完成，可保留已有结果并重新搜索")
+                            .font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
+                        Button("重新搜索", action: state.researchCandidates)
+                            .accessibilityIdentifier("online-research-failed")
+                    }.padding(.horizontal, 20)
+                }
                 if state.results.isEmpty, state.searched, !state.searching {
-                    ReaderPageState(title: state.stopped ? "搜索已停止" : state.timings.isEmpty ? "搜索未完成" : !state.failures.isEmpty ? "部分书源未完成" : "没有找到相关书籍", detail: state.stopped ? "可重新搜索，已有书架和阅读位置保留。" : state.timings.isEmpty ? "所有书源均未返回有效结果，请检查书源或网络。" : !state.failures.isEmpty ? "已返回的书源中没有匹配项，可重新搜索未完成的书源。" : "可更换关键词或书源。", actionTitle: "重新搜索", action: state.search)
+                    ReaderPageState(title: state.stopped ? "搜索已停止" : state.timings.isEmpty ? "搜索未完成" : !state.failures.isEmpty ? "部分书源未完成" : "没有找到相关书籍", detail: state.stopped ? "可重新搜索，已有书架和阅读位置保留。" : state.timings.isEmpty ? "所有书源均未返回有效结果，请检查书源或网络。" : !state.failures.isEmpty ? "已返回的书源中没有匹配项，可重新搜索未完成的书源。" : "可更换关键词或书源。", actionTitle: "重新搜索", action: state.researchCandidates)
                 } else if !state.results.isEmpty, filteredResults.isEmpty {
                     ReaderPageState(title: "没有符合筛选的书籍", detail: "清除筛选可查看已有搜索结果。", actionTitle: "清除筛选") { state.sourceFilter = "" }
                 } else {
