@@ -749,7 +749,11 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         guard event.requestId == requestID else { throw ReaderLibraryError.invalidResponse("reply request identity") }
         if event.type == "error" {
             let error = event.coreError
-            let details = event.error?["details"] as? [String: Any]
+            // Older binding projections expose code/message/retryability but
+            // may omit structured details from the typed error dictionary.
+            // The raw event is the authoritative wire record for stable
+            // categories such as CACHE_MISSING.
+            let details = Self.coreErrorDetails(from: event)
             if details?["originalPending"] as? Bool == true { throw ReaderCoreOriginalOperationPending() }
             // Core uses `category` for stable product-level outcomes such as
             // CACHE_MISSING and NETWORK_ENVIRONMENT. Preserve it when a
@@ -762,6 +766,13 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         }
         guard event.type == "result", let data = event.data else { throw ReaderLibraryError.invalidResponse(method) }
         return try JSONSerialization.data(withJSONObject: data)
+    }
+
+    private static func coreErrorDetails(from event: ReaderCoreEvent) -> [String: Any]? {
+        if let details = event.error?["details"] as? [String: Any] { return details }
+        guard let object = try? JSONSerialization.jsonObject(with: event.rawData) as? [String: Any] else { return nil }
+        if let details = object["details"] as? [String: Any] { return details }
+        return (object["error"] as? [String: Any])?["details"] as? [String: Any]
     }
 
     func progressReceipt(_ data: Data, for book: ReaderBook) throws -> ReaderProgressSnapshot {

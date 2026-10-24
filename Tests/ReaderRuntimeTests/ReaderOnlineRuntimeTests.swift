@@ -143,6 +143,19 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
             XCTAssertFalse(detail.chapters.isEmpty)
             let book = try await service.addOnlineBook(detail, chapterIndex: detail.firstReadableIndex, operationID: UUID().uuidString)
             XCTAssertEqual(book.sourceId, candidate.sourceId); XCTAssertEqual(book.bookId, candidate.bookId)
+            let otherChapter = try XCTUnwrap(detail.chapters.dropFirst(3).first(where: { !$0.url.isEmpty && $0.index != detail.firstReadableIndex && $0.index < UInt32.max }))
+            do {
+                _ = try await service.performCoreCommand(method: "chapter.content", parameters: JSONSerialization.data(withJSONObject: [
+                    "sourceId": book.sourceId, "bookId": book.bookId, "chapterIndex": otherChapter.index,
+                    "chapterTitle": "", "cacheOnly": true
+                ]))
+                XCTFail("A real chapter outside the admission/cache window must not be reported as cached")
+            } catch let error as ReaderLibraryError {
+                guard case .core(let code, let message, _, let reason) = error else {
+                    XCTFail("Expected the Core cache-missing category, received \(error)"); return
+                }
+                XCTAssertEqual(reason, "CACHE_MISSING", "Core cache-only failure category was lost: code=\(code) message=\(message)")
+            }
             let content = try await service.content(for: book, chapterIndex: detail.firstReadableIndex)
             XCTAssertFalse(content.content.isEmpty); XCTAssertNotNil(content.bodyVersion); XCTAssertNotNil(content.processingVersion)
             let cached = try await service.performCoreCommand(method: "chapter.content", parameters: JSONSerialization.data(withJSONObject: ["sourceId": book.sourceId, "bookId": book.bookId, "chapterIndex": detail.firstReadableIndex, "chapterTitle": "", "cacheOnly": true]))
@@ -152,7 +165,6 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
             let progress = try await service.progress(for: book)
             let saved = try await service.saveProgress(for: book, content: content, scalarOffset: min(37, content.scalarCount), expectedRevision: progress.progressRevision)
             XCTAssertEqual(saved.progress?.sourceId, candidate.sourceId)
-            let otherChapter = try XCTUnwrap(detail.chapters.first(where: { !$0.url.isEmpty && $0.index != detail.firstReadableIndex && $0.index < UInt32.max }))
             let downloadID = UUID().uuidString
             let downloaded = try await service.downloadChapters(book, range: otherChapter.index..<(otherChapter.index + 1), operationID: downloadID)
             XCTAssertTrue(downloaded.materializations.contains(where: { $0.chapterIndex == otherChapter.index && !$0.token.isEmpty }))
