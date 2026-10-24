@@ -58,6 +58,126 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         leaveExistingSourceManagement(app)
     }
 
+    /// Uses one source already present in the real saved source library and
+    /// currently disabled by the user. The method temporarily enables that
+    /// exact source through the public management UI, performs one real
+    /// search, observes its failure/empty outcome alongside the two existing
+    /// enabled sources, then restores the disabled state through the same UI.
+    /// No source JSON, URL, network response, delay, or result is fabricated.
+    func testExistingRealDisabledSourceFailureIsolatedFromEnabledSearchResultsAndRestored() throws {
+        let disabledSourceID = "http://199.33.126.51"
+        let enabledSourceIDs = ["https://m.idejian.com", "https://dushu.baidu.com/"]
+        let keyword = "剑来"
+        let app = XCUIApplication()
+        var changed = false
+        var restored = false
+
+        func toggle(_ sourceID: String) -> XCUIElement {
+            app.switches["online-source-enabled:\(sourceID)"]
+        }
+        func toggleValue(_ sourceID: String) -> String? {
+            toggle(sourceID).value as? String
+        }
+        func waitToggle(_ sourceID: String, _ expected: String) throws {
+            try sourceToolsWait("The existing source toggle did not settle to \(expected): \(sourceID)", timeout: 30) {
+                toggleValue(sourceID) == expected
+            }
+        }
+        func closeSourcesKeepWorkspace() throws {
+            let close = app.buttons["online-close-sources"]
+            if close.exists, close.isHittable { close.tap() }
+            try sourceToolsRequire(app.buttons["online-search-submit"].waitForExistence(timeout: 10),
+                "Return to the actual search workspace", app: app)
+        }
+        func restoreDisabledSource() {
+            guard changed, app.state != .notRunning else { return }
+            if !toggle(disabledSourceID).exists {
+                if app.buttons["online-open-sources"].exists, app.buttons["online-open-sources"].isHittable {
+                    app.buttons["online-open-sources"].tap()
+                    _ = app.buttons["online-source-file"].waitForExistence(timeout: 10)
+                }
+            }
+            let sourceToggle = toggle(disabledSourceID)
+            if sourceToggle.exists, (sourceToggle.value as? String) == "1" {
+                sourceToggle.tap()
+                try? sourceToolsWait("Restore the existing disabled source in teardown", timeout: 30) {
+                    (sourceToggle.value as? String) == "0"
+                }
+            }
+            restored = sourceToggle.exists && (sourceToggle.value as? String) == "0"
+            if app.buttons["online-close-sources"].exists, app.buttons["online-close-sources"].isHittable {
+                app.buttons["online-close-sources"].tap()
+            }
+            if app.buttons["online-close-workspace"].exists, app.buttons["online-close-workspace"].isHittable {
+                app.buttons["online-close-workspace"].tap()
+            }
+        }
+        addTeardownBlock { restoreDisabledSource() }
+
+        app.launch()
+        openExistingSourceManagement(app)
+        let sourceRows = try sourceToolsSourceLabels(app)
+        try sourceToolsRequire(sourceRows["online-source:\(disabledSourceID)"] == "👍 同人圈",
+            "Require the existing disabled source identity and name; no substitute source is allowed", app: app)
+        for sourceID in enabledSourceIDs {
+            try sourceToolsRequire(toggleValue(sourceID) == "1",
+                "The two known real sources must remain enabled before this search", app: app)
+        }
+        try sourceToolsRequire(toggleValue(disabledSourceID) == "0",
+            "The historical real source must start disabled", app: app)
+        let before = XCTAttachment(string: "disabledSource=\(disabledSourceID)\nname=👍 同人圈\nenabledSources=\(enabledSourceIDs.joined(separator: ","))\nkeyword=\(keyword)")
+        before.name = "real-disabled-source-before-enable"; before.lifetime = .keepAlways; add(before)
+
+        toggle(disabledSourceID).tap(); changed = true
+        try waitToggle(disabledSourceID, "1")
+        try closeSourcesKeepWorkspace()
+
+        let query = app.textFields["online-search-query"]
+        try sourceToolsRequire(query.waitForExistence(timeout: 10) && (query.value as? String == "书名或作者" || query.value as? String == ""),
+            "The real search query must start empty", app: app)
+        query.tap(); query.typeText(keyword)
+        app.buttons["online-search-submit"].tap()
+        try sourceToolsWait("Wait for this actual mixed-source search to settle", timeout: 180) {
+            !app.buttons["online-search-stop"].exists
+        }
+        let failures = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "个书源未完成"))
+        let candidates = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-result:"))
+            .allElementsBoundByIndex
+        let enabledResults = candidates.filter { button in
+            enabledSourceIDs.contains { button.identifier.contains($0 + "|") }
+        }
+        let resultFacts: [String: Any] = [
+            "disabledSourceID": disabledSourceID,
+            "enabledSourceIDs": enabledSourceIDs,
+            "keyword": keyword,
+            "failureMessageCount": failures.count,
+            "allResultIdentifiers": candidates.map(\.identifier),
+            "enabledResultIdentifiers": enabledResults.map(\.identifier),
+            "restoredAfterTest": false
+        ]
+        let resultAttachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: resultFacts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+        resultAttachment.name = "real-disabled-source-failure-isolation-outcome"; resultAttachment.lifetime = .keepAlways; add(resultAttachment)
+        try sourceToolsRequire(failures.count == 1,
+            "The actual disabled-source request must surface one public failure indicator; no synthetic failure is accepted", app: app)
+        try sourceToolsRequire(!enabledResults.isEmpty,
+            "At least one existing enabled source must retain real results while the disabled-source failure is shown", app: app)
+
+        try closeSourcesKeepWorkspace()
+        app.buttons["online-close-workspace"].tap()
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 10))
+        app.buttons["更多书架操作"].tap(); app.buttons["搜索与书源"].tap(); app.buttons["online-open-sources"].tap()
+        XCTAssertTrue(toggle(disabledSourceID).waitForExistence(timeout: 10))
+        if (toggleValue(disabledSourceID) == "1") { toggle(disabledSourceID).tap() }
+        try waitToggle(disabledSourceID, "0")
+        restored = true
+        try sourceToolsRequire(try sourceToolsSourceLabels(app)["online-source:\(disabledSourceID)"] == "👍 同人圈",
+            "Restoring the real source must preserve its original identity and definition", app: app)
+        let after = XCTAttachment(string: "disabledSource=\(disabledSourceID)\nenabled=\(toggleValue(disabledSourceID) ?? "unknown")\nrestored=true")
+        after.name = "real-disabled-source-restored-disabled"; after.lifetime = .keepAlways; add(after)
+        try closeSourcesKeepWorkspace(); app.buttons["online-close-workspace"].tap()
+        XCTAssertTrue(restored)
+    }
+
     private func openExistingSourceManagement(_ app: XCUIApplication) {
         let shelfMenu = app.buttons["更多书架操作"]
         XCTAssertTrue(shelfMenu.waitForExistence(timeout: 20), app.debugDescription)
