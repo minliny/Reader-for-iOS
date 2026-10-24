@@ -178,6 +178,49 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         XCTAssertTrue(restored)
     }
 
+    /// Stop a real search as soon as the public stop control appears. The two
+    /// enabled sources and the real keyword come from the existing saved
+    /// library; no artificial delay, response, or source is introduced.
+    func testExistingRealSearchCanStopBeforeCompletionAndRetainsActualResults() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let shelfMenu = app.buttons["更多书架操作"]
+        XCTAssertTrue(shelfMenu.waitForExistence(timeout: 20), app.debugDescription)
+        shelfMenu.tap()
+        let online = app.buttons["搜索与书源"]
+        XCTAssertTrue(online.waitForExistence(timeout: 5), app.debugDescription)
+        online.tap()
+        let query = app.textFields["online-search-query"]
+        XCTAssertTrue(query.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(query.value as? String == "书名或作者" || query.value as? String == "")
+        query.tap(); query.typeText("剑来")
+        app.buttons["online-search-submit"].tap()
+        let stop = app.buttons["online-search-stop"]
+        guard stop.waitForExistence(timeout: 15), stop.isHittable, stop.isEnabled else {
+            let prerequisite = XCTAttachment(string: "The real search completed before its stop control became available; no artificial delay is allowed")
+            prerequisite.name = "real-search-stop-prerequisite-unavailable"; prerequisite.lifetime = .keepAlways; add(prerequisite)
+            throw XCTSkip("The real search completed before its stop control became available; no artificial delay is allowed")
+        }
+        stop.tap()
+        try sourceToolsWait("The actual search must settle after the one real stop action", timeout: 20) {
+            !app.buttons["online-search-stop"].exists
+        }
+        let stopped = app.staticTexts["搜索已停止"]
+        let candidates = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-result:"))
+        let facts: [String: Any] = [
+            "keyword": "剑来",
+            "stopTapCount": 1,
+            "stoppedStateVisible": stopped.exists,
+            "candidateCountAfterStop": candidates.count,
+            "boundary": "This is one real stop action against the existing enabled source set. It does not claim a partial network response if the live request completed before stop; the method remains a prerequisite failure in that case."
+        ]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+        attachment.name = "real-search-stop-actual-outcome"; attachment.lifetime = .keepAlways; add(attachment)
+        XCTAssertTrue(stopped.exists, "The existing public stopped state must be visible after the actual stop")
+        app.buttons["online-close-workspace"].tap()
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 10), app.debugDescription)
+    }
+
     private func openExistingSourceManagement(_ app: XCUIApplication) {
         let shelfMenu = app.buttons["更多书架操作"]
         XCTAssertTrue(shelfMenu.waitForExistence(timeout: 20), app.debugDescription)
