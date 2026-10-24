@@ -588,6 +588,41 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         XCTAssertEqual(state.results.count, 3)
     }
 
+    func testUserStopRetainsReturnedCandidatesAndDrainsLateSearches() async throws {
+        let service = DiscoveryControlledService()
+        let state = ReaderOnlineWorkspaceModel()
+        defer { state.retireCachedDiscovery(); service.releaseAll() }
+        state.service = service
+        state.sources = DiscoveryControlledService.sources(2)
+        state.query = "stop contract"
+
+        let entered = expectation(description: "User stop search dispatches the enabled sources")
+        entered.expectedFulfillmentCount = 2
+        service.onSearchEntered = { _ in entered.fulfill() }
+        state.search()
+        await fulfillment(of: [entered], timeout: 2)
+        try service.completeSearch(0)
+        let returned = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in state.results.count == 1 }, object: nil)
+        await fulfillment(of: [returned], timeout: 2)
+
+        let cancelled = expectation(description: "User stop cancels every in-flight source read")
+        // Source zero has already returned its real candidate; only the
+        // remaining source is still in flight when the user stops.
+        cancelled.expectedFulfillmentCount = 1
+        service.onSearchCancelled = { _ in cancelled.fulfill() }
+        state.stop()
+        await fulfillment(of: [cancelled], timeout: 2)
+        XCTAssertTrue(state.stopped)
+        XCTAssertFalse(state.searching)
+        XCTAssertEqual(state.results.count, 1, "Stopping must retain the candidate already returned by the real search generation")
+
+        // Return the non-cooperative source response after the stop. The
+        // invalidated generation must drain it without publishing a late row.
+        try service.completeSearch(1)
+        for _ in 0..<4 { await Task.yield() }
+        XCTAssertEqual(state.results.count, 1, "A late response from the stopped generation must not alter visible results")
+    }
+
     func testRetiredProductionWorkspaceIgnoresOpportunityAndDrainsLateSourceRefresh() async throws {
         let service = DiscoveryControlledService()
         let gate = DiscoverySubscriptionOpportunityGate()
