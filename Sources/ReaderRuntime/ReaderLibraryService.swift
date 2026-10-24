@@ -751,8 +751,14 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             let error = event.coreError
             let details = event.error?["details"] as? [String: Any]
             if details?["originalPending"] as? Bool == true { throw ReaderCoreOriginalOperationPending() }
+            // Core uses `category` for stable product-level outcomes such as
+            // CACHE_MISSING and NETWORK_ENVIRONMENT. Preserve it when a
+            // lower-level reason is absent so Host/UI can distinguish a
+            // missing offline body from a retryable network failure without
+            // parsing localized error messages.
+            let reason = details?["reason"] as? String ?? details?["category"] as? String
             throw ReaderLibraryError.core(code: error?.code ?? "INTERNAL", message: error?.message ?? "",
-                                          retryable: error?.retryable ?? false, reason: details?["reason"] as? String)
+                                          retryable: error?.retryable ?? false, reason: reason)
         }
         guard event.type == "result", let data = event.data else { throw ReaderLibraryError.invalidResponse(method) }
         return try JSONSerialization.data(withJSONObject: data)

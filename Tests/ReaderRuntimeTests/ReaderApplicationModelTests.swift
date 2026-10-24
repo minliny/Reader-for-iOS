@@ -8,6 +8,24 @@ import XCTest
 final class ReaderApplicationModelTests: XCTestCase {
     private let book = ApplicationModelServiceFake.sampleBook
 
+    func testOnlineReadingFailureMessagesKeepCacheAndNetworkOutcomesDistinct() {
+        XCTAssertEqual(
+            ReaderApplicationModel.readingFailureMessage(
+                ReaderLibraryError.core(code: "INVALID_PARAMS", message: "cache", retryable: false, reason: "CACHE_MISSING"),
+                opening: true),
+            "本章尚未缓存，请联网后重试")
+        XCTAssertEqual(
+            ReaderApplicationModel.readingFailureMessage(
+                ReaderLibraryError.core(code: "INTERNAL", message: "network", retryable: true, reason: "NETWORK_ENVIRONMENT"),
+                opening: false),
+            "网络未完成，已保留当前正文")
+        XCTAssertEqual(
+            ReaderApplicationModel.readingFailureMessage(
+                ReaderLibraryError.core(code: "INTERNAL", message: "retry", retryable: true, reason: nil),
+                opening: true),
+            "网络请求未完成，请联网后重试")
+    }
+
     private func openedModel(_ service: ApplicationModelServiceFake,
                              backgroundTasks: (any ReaderBackgroundTaskManaging)? = nil) async throws -> ReaderApplicationModel {
         let model = ReaderApplicationModel(service: service, backgroundTasks: backgroundTasks)

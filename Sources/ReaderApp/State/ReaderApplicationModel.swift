@@ -337,9 +337,30 @@ final class ReaderApplicationModel: ObservableObject {
             } catch {
                 guard generation == navigationGeneration else { return }
                 openingBookID = nil
-                showFeedback("暂时无法打开这本书，请重试")
+                showFeedback(Self.readingFailureMessage(error, opening: true))
             }
         }
+    }
+
+    /// Translate stable Core outcomes into the smallest user-facing fact.
+    /// Localized Core text remains a fallback; category/retryability carries
+    /// the contract needed to distinguish an uncached body from a network
+    /// request that can be retried.
+    static func readingFailureMessage(_ error: Error, opening: Bool) -> String {
+        guard let libraryError = error as? ReaderLibraryError else {
+            return opening ? "暂时无法打开这本书，请重试" : "章节加载失败，已保留当前正文"
+        }
+        if case .core(_, _, let retryable, let reason) = libraryError {
+            switch reason?.uppercased() {
+            case "CACHE_MISSING", "CHAPTER_CACHE_MISSING":
+                return opening ? "本章尚未缓存，请联网后重试" : "本章尚未缓存，已保留当前正文"
+            case "NETWORK", "NETWORK_ENVIRONMENT", "HOST_NETWORK", "NETWORK_UNAVAILABLE":
+                return opening ? "网络未完成，请联网后重试" : "网络未完成，已保留当前正文"
+            default:
+                if retryable { return opening ? "网络请求未完成，请联网后重试" : "网络请求未完成，已保留当前正文" }
+            }
+        }
+        return opening ? "暂时无法打开这本书，请重试" : "章节加载失败，已保留当前正文"
     }
 
     /// Installs only the current Core catalog projection. A catalog read never
@@ -399,7 +420,7 @@ final class ReaderApplicationModel: ObservableObject {
         } catch {
             guard reader?.id == current.id, chapterGeneration == generation else { return }
             chapterLoading = false
-            showFeedback("章节加载失败，已保留当前正文")
+            showFeedback(Self.readingFailureMessage(error, opening: false))
         }
     }
 
