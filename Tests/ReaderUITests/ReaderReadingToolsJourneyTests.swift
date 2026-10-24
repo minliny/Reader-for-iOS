@@ -450,6 +450,214 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         attachment.lifetime = .keepAlways; add(attachment)
     }
 
+    /// Probe only the existing real Files item. An unavailable or ambiguous
+    /// Reader activity remains an observed prerequisite failure, never a fake
+    /// external-open success or an App picker/URL-injection substitute.
+    func testExistingRealTXTExternalFilesReaderActivityRecognizesDuplicateWithoutLibraryMutation() throws {
+        let app = XCUIApplication()
+        let files = XCUIApplication(bundleIdentifier: "com.apple.DocumentsApp")
+        let filename = "仙子请听我解释.txt"
+        guard !realEpubJourney, app.state == .notRunning else {
+            XCTFail("Require Root's actual original TXT/no-Reader premise; never stop a live session")
+            throw JourneyError.prerequisite
+        }
+        var readerActivityTaps = 0
+        func systemEvidence(_ name: String) {
+            let ax = XCTAttachment(string: files.debugDescription)
+            ax.name = name + "-actual-Files-AX"; ax.lifetime = .keepAlways; add(ax)
+            let image = XCTAttachment(screenshot: files.screenshot())
+            image.name = name + "-actual-Files"; image.lifetime = .keepAlways; add(image)
+        }
+        func unavailable(_ detail: String, name: String) throws -> Never {
+            systemEvidence(name)
+            XCTFail(detail + ". Preserve this actual prerequisite failure; no alternate route or new file is authorized.")
+            throw JourneyError.prerequisite
+        }
+        if files.state == .notRunning { files.launch() } else { files.activate() }
+        let localNames = ["我的 iPhone", "我的iPhone", "On My iPhone"]
+        let browseNames = ["浏览", "Browse"]
+        var visited = Set<String>()
+        var enteredLocal = false, enteredReader = false
+        for _ in 0..<6 {
+            let local = files.cells.containing(NSPredicate(format: "label IN %@", localNames))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            if local.count == 1, let cell = local.first, visited.insert("local:" + cell.label).inserted {
+                cell.tap(); enteredLocal = true; continue
+            }
+            if enteredLocal {
+                let folders = files.cells.matching(NSPredicate(format:
+                    "identifier == 'Reader, Container' OR label == 'Reader' OR label BEGINSWITH 'Reader,'"))
+                    .allElementsBoundByIndex.filter(\.isHittable)
+                if folders.count == 1, let cell = folders.first {
+                    cell.tap(); enteredReader = true; break
+                }
+            }
+            let navigation = files.navigationBars.buttons.matching(NSPredicate(format: "label IN %@", browseNames))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            if navigation.count == 1, let button = navigation.first,
+               visited.insert("navigation-browse:" + button.identifier + button.label).inserted {
+                button.tap(); continue
+            }
+            let tabs = files.tabBars.buttons.matching(NSPredicate(format: "label IN %@", browseNames))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            if tabs.count == 1, let button = tabs.first,
+               visited.insert("tab-browse:" + button.identifier + button.label).inserted {
+                button.tap(); continue
+            }
+            let back = files.navigationBars.buttons.matching(NSPredicate(format: "label IN %@", localNames))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            if back.count == 1, let button = back.first, visited.insert("back-local:" + button.label).inserted {
+                button.tap(); enteredLocal = true; continue
+            }
+            break
+        }
+        guard enteredLocal && enteredReader else {
+            try unavailable("The real Files Browse → On My iPhone → Reader path was not uniquely exposed",
+                name: "external-TXT-native-Files-location-unavailable")
+        }
+        let names = [filename, title]
+        let originals = files.cells.containing(NSPredicate(format: "label IN %@", names))
+        guard originals.firstMatch.waitForExistence(timeout: 10) else {
+            try unavailable("The original exact TXT item is not present in this actual Reader folder",
+                name: "external-TXT-original-item-unavailable")
+        }
+        let visible = originals.allElementsBoundByIndex.filter(\.isHittable)
+        guard visible.count == 1, let original = visible.first,
+              original.staticTexts.matching(NSPredicate(format: "label IN %@", names)).count == 1 else {
+            try unavailable("Require one exact original filename cell; no default file tap or blind scrolling",
+                name: "external-TXT-original-item-ambiguous")
+        }
+        let originalCellLabel = original.label
+        systemEvidence("external-TXT-original-Files-item-before-long-press")
+        original.press(forDuration: 1.0)
+        systemEvidence("external-TXT-original-native-context-menu")
+        let activityNames = ["Reader", "Open in Reader", "Copy to Reader",
+            "在 Reader 中打开", "在Reader中打开", "拷贝到 Reader", "拷贝到Reader"]
+        var actualShareCaption: String?
+        var actualShareMetadata: String?
+        func actualReaderActivities() throws -> [XCUIElement] {
+            let owners = files.otherElements.matching(identifier: "ActivityListView")
+            if owners.count > 0 {
+                guard owners.count == 1 else {
+                    try unavailable("The actual native sharing owner must be unique",
+                        name: "external-TXT-native-share-owner-ambiguous")
+                }
+                let owner = owners.element
+                let bars = owner.navigationBars.matching(identifier: "UIActivityContentView")
+                guard bars.firstMatch.waitForExistence(timeout: 5), bars.count == 1 else {
+                    try unavailable("The actual native share owner must expose its content caption bar",
+                        name: "external-TXT-native-share-caption-bar-unavailable")
+                }
+                // These are the original Files71 native Other captions, not
+                // StaticText or the dimmed filename cell behind the sheet.
+                let tops = bars.element.otherElements.matching(identifier: "LP.CaptionBar.TopCaption")
+                let bottoms = bars.element.otherElements.matching(identifier: "LP.CaptionBar.BottomCaption")
+                guard tops.firstMatch.waitForExistence(timeout: 5), bottoms.firstMatch.waitForExistence(timeout: 5),
+                      tops.count == 1, bottoms.count == 1,
+                      tops.element.label == title,
+                      bottoms.element.label == "文本文稿 · 8.9 MB" else {
+                    try unavailable("The real share captions must identify this exact original TXT title, kind and observed size",
+                        name: "external-TXT-native-share-file-identity-unconfirmed")
+                }
+                let viewport = owner.frame.intersection(files.frame)
+                guard !viewport.isNull, viewport.width > 100, viewport.height > 100,
+                      tops.element.frame.width > 0, tops.element.frame.height > 0,
+                      bottoms.element.frame.width > 0, bottoms.element.frame.height > 0,
+                      viewport.contains(tops.element.frame), viewport.contains(bottoms.element.frame) else {
+                    try unavailable("Both exact native share captions must be visibly inside this same actual owner",
+                        name: "external-TXT-native-share-captions-not-visible")
+                }
+                actualShareCaption = tops.element.label
+                actualShareMetadata = bottoms.element.label
+                let collections = owner.collectionViews.matching(identifier: "activityCollectionView")
+                guard collections.count == 1 else {
+                    try unavailable("Require this owner's actual native activity collection",
+                        name: "external-TXT-native-share-collection-unavailable")
+                }
+                let readers = collections.element.cells.matching(NSPredicate(format:
+                    "identifier == 'shareCell' AND label == 'Reader'"))
+                guard readers.firstMatch.waitForExistence(timeout: 5), readers.count == 1 else {
+                    try unavailable("Require one explicitly named Reader shareCell in this exact native sharing owner",
+                        name: "external-TXT-native-Reader-shareCell-ambiguous-or-absent")
+                }
+                return readers.allElementsBoundByIndex.filter {
+                    $0.isHittable && $0.isEnabled && $0.frame.width > 0 && $0.frame.height > 0
+                        && viewport.contains($0.frame)
+                }
+            }
+            // Preserve the original direct context-menu path if the real
+            // system exposes an explicit Reader menu item instead of a sheet.
+            let bars = files.navigationBars.allElementsBoundByIndex.map(\.frame)
+            let predicate = NSPredicate(format: "label IN %@", activityNames)
+            let menuItems = files.menuItems.matching(predicate).allElementsBoundByIndex.filter(\.isHittable)
+            let candidates = menuItems.isEmpty ? files.buttons.matching(predicate).allElementsBoundByIndex.filter(\.isHittable) : menuItems
+            return candidates.filter { item in
+                item.isEnabled && item.frame.intersects(files.frame)
+                    && !bars.contains(where: { $0.contains(CGPoint(x: item.frame.midX, y: item.frame.midY)) })
+            }
+        }
+        var activities = try actualReaderActivities()
+        var shareTapped = false
+        if activities.isEmpty {
+            let shares = files.menuItems.matching(NSPredicate(format: "label IN %@", ["共享", "分享", "Share"]))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            let buttons = files.buttons.matching(NSPredicate(format: "label IN %@", ["共享", "分享", "Share"]))
+                .allElementsBoundByIndex.filter(\.isHittable)
+            let actual = shares.isEmpty ? buttons : shares
+            guard actual.count == 1, let share = actual.first, share.isEnabled else {
+                try unavailable("The actual original-file menu has neither a unique explicit Reader activity nor one native Share action",
+                    name: "external-TXT-Reader-activity-unavailable")
+            }
+            share.tap(); shareTapped = true
+            let owner = files.otherElements.matching(identifier: "ActivityListView")
+            guard owner.firstMatch.waitForExistence(timeout: 5), owner.count == 1 else {
+                try unavailable("The normal Share action must produce one actual native ActivityListView",
+                    name: "external-TXT-native-share-owner-unavailable")
+            }
+            systemEvidence("external-TXT-original-native-share-candidates")
+            activities = try actualReaderActivities()
+        }
+        guard activities.count == 1, let activity = activities.first else {
+            try unavailable("Reader is not a unique explicitly named activity in this actual original-file menu",
+                name: "external-TXT-native-Reader-activity-ambiguous-or-absent")
+        }
+        let actualActivityLabel = activity.label
+        activity.tap(); readerActivityTaps += 1 // Exactly one normal system handoff; never activate/launch Reader here.
+        waitUntil("The one actual Files Reader activity foregrounds Reader", timeout: 30) {
+            app.state == .runningForeground
+        }
+        XCTAssertEqual(readerActivityTaps, 1)
+        let close = app.buttons["关闭导入结果"]
+        XCTAssertTrue(close.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["本地导入"].exists)
+        XCTAssertGreaterThan(app.staticTexts.matching(NSPredicate(format: "label == %@", filename)).count, 0,
+            "The actual import owner must identify the original filename; its header and item may both expose that same text")
+        let duplicate = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "这本书已在书架中")).firstMatch
+        XCTAssertTrue(duplicate.waitForExistence(timeout: 120),
+            "Require the real existing-SHA duplicate result; pending/error/new import cannot pass")
+        evidence(app, "external-TXT-actual-existing-SHA-duplicate-result")
+        close.tap()
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+        XCTAssertFalse(app.textFields["shelf-filter"].exists, "Preserve any original shelf filter")
+        XCTAssertTrue(app.buttons["全部分组"].exists, "Preserve the original group selection")
+        let existingBook = app.buttons.matching(NSPredicate(format: "identifier == %@", bookID))
+        XCTAssertEqual(existingBook.count, 1)
+        XCTAssertTrue(existingBook.element.isHittable && existingBook.element.isEnabled)
+        evidence(app, "external-TXT-duplicate-dismissed-original-bookshelf")
+        let facts: [String: Any] = ["fileName":filename,"originalFilesCellLabel":originalCellLabel,
+            "enteredActualLocalReaderFolder":enteredLocal && enteredReader,"shareActionTapped":shareTapped,
+            "actualReaderActivityLabel":actualActivityLabel,"readerActivityTaps":readerActivityTaps,
+            "actualShareCaption":actualShareCaption.map { $0 as Any } ?? NSNull(),
+            "actualShareMetadata":actualShareMetadata.map { $0 as Any } ?? NSNull(),
+            "duplicateResultObserved":true,"bookAXID":bookID,"normalReturnToShelfObserved":true,
+            "AppLaunchesRequested":0,"URLInjectionsRequested":0,"fileWritesRequested":0,"bookOpensRequested":0,
+            "boundary":"Root must bind actual Documents original8871723B/aac01d… and preserve all64tables/cache/heads/history/read_records/ledger/oldcommands/files/prefs plus complete .staging manifest. UI batch UUIDs are not Core ACKs; existing-SHA created:false returns before import.parse/persist. Only actual cold bootstrap and an exact new OS Inbox copy, if present, are separately reviewed. No reading session is opened."]
+        let result = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts,
+            options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
+        result.name = "external-real-TXT-Files-Reader-duplicate-and-shelf-facts.json"
+        result.lifetime = .keepAlways; add(result)
+    }
+
     /// Existing untouched Downloads EPUB only; no import or generated book.
     /// Root binds fresh Large book/source/chapter20/scalar233/version facts and
     /// all old notes/drafts before selecting this single native method.
