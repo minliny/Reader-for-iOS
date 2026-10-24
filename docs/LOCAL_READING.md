@@ -265,6 +265,7 @@ TTS 和漫画尚无已开放业务入口，不能把其他阅读入口的证据�
 | native V4-01 真实 HTTP 回归 | 使用现有真实来源包，`ReaderOnlineRuntimeTests/testNativeHTTPReachesTheRealSourceOriginOrItsRedirect` 实际 PASS0.446秒，确认 Host 原生 HTTP 到达真实源站或其真实重定向；不替代网页登录、Keychain 持久化、网络失败和整版 V4-01。 |
 | native V4-01 Cookie 隔离回归 | `ReaderOnlineRuntimeTests/testNativeCookieJarsAreSourceIsolatedAndRestoreOnlyWithinTheSameLibrary` 实际 PASS0.013秒：不同书源 jar 隔离，同一库 Keychain 恢复，另一个库不读取原 Cookie，且并发 WebKit/native 合并不丢 Cookie。该方法不替代真实网页登录和设备 Keychain 验收。 |
 | iPhone 真机编译前置 | 已确认真实 iPhone 14 Pro Max（iOS 27.0.1、开发者模式开启、USB 配对）可连接；已按当前 Core `b6a5bb92` 重建双 slice XCFramework（`ios-arm64` 与 `ios-arm64-simulator`），隔离 device build 在 `CODE_SIGNING_ALLOWED=NO` 下实际 `BUILD SUCCEEDED`。本机证书身份 `D97L774LKT` 存在，但临时 Team 绑定的正常签名构建实际失败于无 Xcode Account 和无 `io.reader.minliny` App Development provisioning profile。未安装、未卸载、未改真机数据，物理设备验收保持 OPEN。 |
+| 当前提交设备复核与并行 WIP 边界 | 从提交 `09afb32` 的干净快照复跑 generic iOS device 无签名构建，实际 `BUILD SUCCEEDED`；没有启动模拟器或执行设备写入。当前工作树的 UI agent WIP 含多个 `* 2.swift` 重复源并已写入 `project.pbxproj`，直接构建实际产生 Swift 重复声明；WIP 未清理，单独记为工作树边界，不归因于提交版本生产源码。 |
 | 真实 AZW/AZW3/KF8 原书 | 用户明确暂跳过，DEFERRED / OPEN；不改名补证，不改写格式要求 |
 | 物理 iOS 设备、iOS 17 运行时、iPad/分屏、无障碍组合和用户验收 | OPEN；最低系统/设备族声明、模拟器或方法测试不能替代 |
 
