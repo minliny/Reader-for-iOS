@@ -116,6 +116,19 @@ final class ReaderPendingHostPumpTests: XCTestCase {
             XCTAssertEqual(after.chapters.first { $0.chapterIndex == chapter.index }?.state, .completed)
             let cached = try await service.cachedDownloadBody(book, chapter: chapter.index)
             XCTAssertFalse(cached.content.isEmpty, "A fresh body is a final projection, never the old write ACK")
+            // The real completed chapter also covers a delayed Continue tap:
+            // Core must ACK the exact intent without starting a new prefetch.
+            let staleResumeID = UUID().uuidString
+            let staleResume = try await service.resumeDownload(book, chapterIndex: chapter.index, operationID: staleResumeID)
+            XCTAssertEqual(staleResume.status, ReaderDownloadChapterState.completed.rawValue)
+            let staleAcquisition = try await service.existingCoreParameters(operationID: staleResumeID + ":acquire", method: "cache.book.prefetch")
+            XCTAssertNil(staleAcquisition)
+            let stillCompleted = try await service.readerDownloadStatus(book)
+            XCTAssertEqual(stillCompleted.chapters.first { $0.chapterIndex == chapter.index }?.state, .completed)
+            XCTAssertEqual(stillCompleted.chapters.first { $0.chapterIndex == chapter.index }?.attempts,
+                           after.chapters.first { $0.chapterIndex == chapter.index }?.attempts)
+            let retainedBody = try await service.cachedDownloadBody(book, chapter: chapter.index)
+            XCTAssertEqual(retainedBody.content, cached.content)
             XCTAssertEqual(try Data(contentsOf: packageURL), package)
             try await service.close()
             try manager.removeItem(at: root)

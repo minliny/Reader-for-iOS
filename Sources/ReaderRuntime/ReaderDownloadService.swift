@@ -192,6 +192,13 @@ extension ReaderLibraryService: ReaderDownloadServing {
         // lineage. Release that acknowledged Core slot while retaining this
         // Host parent until its original acquisition child has completed.
         try await settleDownloadCommand(method: "cache.download.resume", parameters: original, operationID: operationID)
+        // A stale presentation can offer Continue after the chapter naturally
+        // completed. Core's no-op ACK is authoritative: an ordinary prefetch
+        // would otherwise re-admit its already completed queue row.
+        if result.status == ReaderDownloadChapterState.completed.rawValue {
+            try await finishCoreOperation(operationID)
+            return result
+        }
         // Resume changes the original task to queued; prefetch drives that
         // same task. Each phase retains its own original terminal payload.
         _ = try await downloadChapters(book, range: chapterIndex..<(chapterIndex + 1), operationID: operationID + ":acquire")
