@@ -129,6 +129,7 @@
 		A131CCADF85C549E0C0F3DB0 /* ReaderLibraryFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = C035AA666F71E712DDB641B2 /* ReaderLibraryFeatures.swift */; };
 		A30658F32592ED332FA1BC60 /* ReaderOnlineReadingPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE81F097CEAC24152807F66 /* ReaderOnlineReadingPanels.swift */; };
 		A4E3232AE99E801F58FD0125 /* ReaderOnlineJourneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F28C52346E75EEB8EA1CF9A3 /* ReaderOnlineJourneyTests.swift */; };
+		B7F9A21C3D4E5F60718293A4 /* source-debug-real-response.json in Resources */ = {isa = PBXBuildFile; fileRef = C7D8E9F0A1B2C3D4E5F60718 /* source-debug-real-response.json */; };
 		A72BEE445965E2EEB9C655F0 /* ReaderRealBookParagraphProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813558F2B517DB3BDAA8A2A4 /* ReaderRealBookParagraphProjectionTests.swift */; };
 		A8B2F897E19ED63F26468226 /* ReaderChapterImageProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 819D92FB6DAFEBA1E2895A38 /* ReaderChapterImageProjectionTests.swift */; };
 		A913AB896A36C6F1C74A3241 /* ReaderTextToolsPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C25EC5CCBED2F8468CBA3D7 /* ReaderTextToolsPanels.swift */; };
@@ -388,6 +389,7 @@
 		C1D8D1E0872220F61E1D6626 /* ReaderSourcePackageInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderSourcePackageInputTests.swift; sourceTree = "<group>"; };
 		C3444841FA805BFE926D0BDF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C3EEC101B8E35E3CCF73A447 /* ReaderEbookDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderEbookDocument.swift; sourceTree = "<group>"; };
+		C7D8E9F0A1B2C3D4E5F60718 /* source-debug-real-response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = source-debug-real-response.json; sourceTree = "<group>"; };
 		C592414797BD423062C796CC /* Lucide-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Lucide-LICENSE.txt"; sourceTree = "<group>"; };
 		CA2AB2596FC7008C29F04971 /* rc_chevron_right_theme_night.svg */ = {isa = PBXFileReference; path = rc_chevron_right_theme_night.svg; sourceTree = "<group>"; };
 		CA71A173047975BF22F27FD2 /* ReaderHostLibraryIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHostLibraryIdentity.swift; sourceTree = "<group>"; };
@@ -806,6 +808,14 @@
 			path = SVG;
 			sourceTree = "<group>";
 		};
+		D7E8F9A0B1C2D3E4F5061728 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				C7D8E9F0A1B2C3D4E5F60718 /* source-debug-real-response.json */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
 		EECE7ECB288A86A65A425467 /* ReaderUITests */ = {
 			isa = PBXGroup;
 			children = (
@@ -820,6 +830,7 @@
 				79EC30DC6DD0F8F8A972415B /* ReaderRuleBundleJourneyTests.swift */,
 				925FAEBDD0F722343D6ED0B3 /* ReaderRuleSubscriptionJourneyTests.swift */,
 				719A57BA1B7A28A48FEF7E1C /* ReaderTXTTOCPreviewJourneyTests.swift */,
+				D7E8F9A0B1C2D3E4F5061728 /* Fixtures */,
 			);
 			path = ReaderUITests;
 			sourceTree = "<group>";
@@ -862,6 +873,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 93B99C3DE2509D0DD2EF157D /* Build configuration list for PBXNativeTarget "ReaderUITests" */;
 			buildPhases = (
+				E7F8A9B0C1D2E3F405162738 /* Resources */,
 				E6F628D6834F3C2A745AC8D8 /* Sources */,
 			);
 			buildRules = (
@@ -1038,6 +1050,14 @@
 				79CA82E570B626E350968DCC /* reading_paper_tablet_shade.svg in Resources */,
 				D5D7FA48A8926A2453C0A36D /* source-font-provenance.json in Resources */,
 				CEA4650C03ED644A0F7DF912 /* theme-registry.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E7F8A9B0C1D2E3F405162738 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B7F9A21C3D4E5F60718293A4 /* source-debug-real-response.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

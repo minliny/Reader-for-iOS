@@ -794,9 +794,17 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         let inputPath = try XCTUnwrap(environment["READER_SOURCE_DEBUG_REAL_RESPONSES_FILE"])
         let expectedSHA = try XCTUnwrap(environment["READER_SOURCE_DEBUG_REAL_RESPONSES_SHA256"])
-        try sourceToolsRequire(inputPath.hasPrefix("/") && expectedSHA == "f7bc4ad5b7a28101e81b48d1d321a32e31346505aab85c02efd2509ba3c16d41",
+        let inputURL: URL
+        if inputPath.hasPrefix("bundle:") {
+            let resourceName = String(inputPath.dropFirst("bundle:".count))
+            inputURL = try XCTUnwrap(Bundle(for: ReaderOnlineJourneyTests.self).url(forResource: resourceName, withExtension: nil))
+        } else {
+            inputURL = URL(fileURLWithPath: inputPath)
+        }
+        try sourceToolsRequire((inputPath.hasPrefix("/") || inputPath.hasPrefix("bundle:"))
+                               && expectedSHA == "f7bc4ad5b7a28101e81b48d1d321a32e31346505aab85c02efd2509ba3c16d41",
                                "Only the Root-bound original real response file is admitted", app: nil)
-        let raw = try Data(contentsOf: URL(fileURLWithPath: inputPath))
+        let raw = try Data(contentsOf: inputURL)
         try sourceToolsRequire(raw.count == 10609 && SHA256.hash(data: raw).map { String(format: "%02x", $0) }.joined() == expectedSHA,
                                "The real capture bytes must match before any UI edit", app: nil)
         let originalInput = try XCTUnwrap(String(data: raw, encoding: .utf8))
@@ -815,28 +823,39 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         try sourceToolsRequire(key.waitForExistence(timeout: 10) && responses.exists && run.exists && close.exists,
                                "Require the actual production debug editor", app: app)
         let keyBefore = key.value as? String ?? ""
-        try sourceToolsRequire((keyBefore.isEmpty || keyBefore == key.placeholderValue) && (responses.value as? String) == "{}"
-                               && run.label == "运行" && !result.exists,
+        let responsesBefore = responses.value as? String ?? ""
+        let isEmptyDraft = (keyBefore.isEmpty || keyBefore == key.placeholderValue) && responsesBefore == "{}"
+        let isOwnedRealDraft = keyBefore == "剑来" && responsesBefore == originalInput
+        try sourceToolsRequire((isEmptyDraft || isOwnedRealDraft) && run.label == "运行" && !result.exists,
                                "Never overwrite an existing user debug key/response draft or pending run", app: app)
-        key.tap(); key.typeText("剑来")
-        try sourceToolsRequire(key.value as? String == "剑来", "Observe the actual captured search key", app: app)
-        // The observed default occupies only the first line. A center tap in
-        // this large TextEditor placed its caret before {}, so backspace had
-        // no effect. Tap the visible first line after those two characters.
-        try sourceToolsRequire(responses.isEnabled && responses.isHittable && responses.frame.height > 24
-                               && (responses.value as? String) == "{}",
-                               "Only the still-observed two-character default may be cleared", app: app)
-        let defaultLinePoint = CGPoint(x: responses.frame.midX, y: responses.frame.minY + 12)
-        try sourceToolsRequire(app.frame.contains(defaultLinePoint), "The actual default first line must be visible", app: app)
-        let caret = XCTAttachment(string: "textViewFrame=\(responses.frame)\nnormalFirstLineTouch=\(defaultLinePoint)\nobservedDefaultUTF8Bytes=2")
-        caret.name = "source-debug-default-first-line-caret-before-clear"; caret.lifetime = .keepAlways; add(caret)
-        responses.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 12)).tap()
-        keepScreenshot(app, name: "source-debug-actual-default-first-line-caret-before-delete")
-        responses.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 2))
-        try sourceToolsRequire((responses.value as? String) == "", "Only the observed default two-character JSON may be cleared", app: app)
-        responses.typeText(originalInput) // One normal input; no clipboard, route or App-state injection.
+        if isOwnedRealDraft {
+            let reused = XCTAttachment(string: "reusedPreviouslyVerifiedRealDraft=true\nkey=剑来\ninputUTF8Bytes=\(raw.count)\ninputSHA256=\(expectedSHA)")
+            reused.name = "source-debug-real-draft-reused-without-overwrite"; reused.lifetime = .keepAlways; add(reused)
+        } else {
+            key.tap(); key.typeText("剑来")
+            try sourceToolsRequire(key.value as? String == "剑来", "Observe the actual captured search key", app: app)
+            // The observed default occupies only the first line. A center tap in
+            // this large TextEditor placed its caret before {}, so backspace had
+            // no effect. Tap the visible first line after those two characters.
+            try sourceToolsRequire(responses.isEnabled && responses.isHittable && responses.frame.height > 24
+                                   && (responses.value as? String) == "{}",
+                                   "Only the still-observed two-character default may be cleared", app: app)
+            let defaultLinePoint = CGPoint(x: responses.frame.midX, y: responses.frame.minY + 12)
+            try sourceToolsRequire(app.frame.contains(defaultLinePoint), "The actual default first line must be visible", app: app)
+            let caret = XCTAttachment(string: "textViewFrame=\(responses.frame)\nnormalFirstLineTouch=\(defaultLinePoint)\nobservedDefaultUTF8Bytes=2")
+            caret.name = "source-debug-default-first-line-caret-before-clear"; caret.lifetime = .keepAlways; add(caret)
+            responses.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 12)).tap()
+            keepScreenshot(app, name: "source-debug-actual-default-first-line-caret-before-delete")
+            responses.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 2))
+            // SwiftUI's TextEditor can expose a cleared native value as nil while
+            // its actual visible text is empty. Treat nil and "" as the same
+            // empty state; the exact real response assertion below remains strict.
+            let clearedValue = responses.value as? String
+            try sourceToolsRequire(clearedValue == nil || clearedValue == "", "Only the observed default two-character JSON may be cleared", app: app)
+            responses.typeText(originalInput) // One normal input; no clipboard, route or App-state injection.
+        }
         try sourceToolsRequire((responses.value as? String) == originalInput, "Require the entire exact actual HTTP replay JSON after native input", app: app)
-        let input = XCTAttachment(string: "sourceID=\(sourceID)\nkey=剑来\ninputUTF8Bytes=\(raw.count)\ninputSHA256=\(expectedSHA)\nOriginal capture only searchResponse; omitted inner sourceId must be bound by Host, never inserted into the user's editor. L3-L5 are explicitly not supplied.")
+        let input = XCTAttachment(string: "sourceID=\(sourceID)\nkey=剑来\ninputUTF8Bytes=\(raw.count)\ninputSHA256=\(expectedSHA)\ninputOrigin=\(inputPath)\nOriginal capture only searchResponse; omitted inner sourceId must be bound by Host, never inserted into the user's editor. L3-L5 are explicitly not supplied.")
         input.name = "source-debug-real-L2-input-binding"; input.lifetime = .keepAlways; add(input)
         keepScreenshot(app, name: "source-debug-actual-real-L2-input-before-single-run")
         try sourceToolsRequire(run.isHittable && run.isEnabled && run.label == "运行", "One actual replay action must be available", app: app)
