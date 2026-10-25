@@ -102,6 +102,95 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         leave(app)
     }
 
+    /// Run only after the user has disabled the physical iPhone's network and
+    /// Root has retained a fresh read-only snapshot of this original library.
+    /// The environment records those observations in the UITest process only;
+    /// it never changes App networking, content, cache, or reading position.
+    /// This observes already cached bodies, not automatic-window acquisition
+    /// or an uncached failure. Exact scalar retention needs the external
+    /// pre/post snapshots; the native UI exposes percentage and visible text.
+    func testExistingRealBaiduOSOfflineColdReopenAndCachedCurrentPlusMinusTwo() throws {
+#if targetEnvironment(simulator)
+        XCTFail("This journey requires the original physical iPhone; simulator results cannot satisfy it")
+        throw Prerequisite.invalid("physical iPhone required")
+#endif
+        guard UIDevice.current.userInterfaceIdiom == .phone else {
+            XCTFail("This journey requires the original physical iPhone")
+            throw Prerequisite.invalid("iPhone required")
+        }
+        let book = try originalBook()
+        let snapshotSHA = try required("READER_ONLINE_OFFLINE_BASELINE_SHA256")
+        let offlineEvidence = try required("READER_ONLINE_OS_OFFLINE_EVIDENCE")
+        let baselineChapter = try required("READER_ONLINE_OFFLINE_BASELINE_CHAPTER")
+        let baselineOffset = try required("READER_ONLINE_OFFLINE_BASELINE_SCALAR_OFFSET")
+        let cachedIndexes = try required("READER_ONLINE_OFFLINE_CACHED_INDEXES")
+        guard try required("READER_ONLINE_OS_OFFLINE_CONFIRMED") == "1",
+              snapshotSHA.count == 64, snapshotSHA.allSatisfy({ "0123456789abcdef".contains($0) }),
+              baselineChapter == "40", baselineOffset == "0", cachedIndexes == "38,39,40,41,42",
+              book.source == "https://dushu.baidu.com/", book.title == "剑来",
+              book.id == "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4305547728&pageNum=1&order=asc&site=" else {
+            XCTFail("Require the user's actual OS-offline confirmation and fresh original Baidu chapter-40/scalar-0 cached-window provenance before launching App; never clear cache or move the position to manufacture it")
+            throw Prerequisite.invalid("actual OS-offline cached-window prerequisites")
+        }
+        let provenance = try JSONSerialization.data(withJSONObject: [
+            "sourceId": book.source, "bookId": book.id, "title": book.title,
+            "readOnlyBaselineSHA256": snapshotSHA, "observedOSOfflineEvidence": offlineEvidence,
+            "observedChapterIndex": baselineChapter, "observedScalarOffset": baselineOffset,
+            "observedCachedIndexes": cachedIndexes,
+            "nativePositionEvidence": "Exact chapter plus unchanged percentage and visible OCR anchor; scalar comparison remains external",
+            "uncachedFailureEvidence": "NOT_RUN: original Baidu 0...49 are cached; no content is removed to create a miss",
+            "automaticWindowAcquisitionEvidence": "NOT_RUN: the five original bodies already exist"
+        ], options: [.prettyPrinted, .sortedKeys])
+        let evidence = XCTAttachment(data: provenance, uniformTypeIdentifier: "public.json")
+        evidence.name = "actual-os-offline-cached-window-prerequisites-and-boundaries"
+        evidence.lifetime = .keepAlways; add(evidence)
+
+        let app = XCUIApplication(); app.launch(); open(book, app: app)
+        guard try currentChapter(book, app: app) == 40 else {
+            XCTFail("The original admitted book must already be at chapter 40; this method cannot prepare or repair the baseline")
+            throw Prerequisite.invalid("original chapter is not 40")
+        }
+        hideControls(app)
+        let footer = app.staticTexts["reading-progress"]
+        XCTAssertTrue(footer.waitForExistence(timeout: 10))
+        let originalProgress = footer.label
+        guard originalProgress == "0%" else {
+            XCTFail("The observed scalar-0 baseline must have its unchanged native 0% footer; do not reset a different original position")
+            throw Prerequisite.invalid("original visible position differs from the retained baseline")
+        }
+        let originalAnchor = try anchor(app, name: "actual-os-offline-original-chapter40-before-cold-reopen")
+        leave(app)
+
+        app.terminate(); app.launch(); open(book, app: app)
+        XCTAssertEqual(try currentChapter(book, app: app), 40)
+        hideControls(app)
+        try visible(originalAnchor, app: app, name: "actual-os-offline-original-body-first-cold-reopen")
+        XCTAssertEqual(footer.label, originalProgress)
+
+        for index in [UInt32(38), 39, 41, 42] {
+            choose(index, app: app)
+            XCTAssertEqual(try currentChapter(book, app: app), index)
+            hideControls(app)
+            _ = try anchor(app, name: "actual-os-offline-cached-window-chapter-\(index)")
+        }
+
+        // Normal chapter navigation lands at scalar zero. The genuine retained
+        // zero baseline above makes this return preserve the original position.
+        choose(40, app: app)
+        XCTAssertEqual(try currentChapter(book, app: app), 40)
+        hideControls(app)
+        try visible(originalAnchor, app: app, name: "actual-os-offline-original-body-after-cached-window")
+        XCTAssertEqual(footer.label, originalProgress)
+        leave(app)
+
+        app.terminate(); app.launch(); open(book, app: app)
+        XCTAssertEqual(try currentChapter(book, app: app), 40)
+        hideControls(app)
+        try visible(originalAnchor, app: app, name: "actual-os-offline-original-body-and-position-final-cold-reopen")
+        XCTAssertEqual(footer.label, originalProgress)
+        leave(app)
+    }
+
     /// Select this method only after an actual alternate candidate has been
     /// observed. Missing candidates or an unexpected outcome FAIL; a bad source
     /// is never manufactured to make the rollback branch run.
