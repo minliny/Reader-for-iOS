@@ -575,17 +575,75 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                 // chapter clear below remains a separate user intent.
                 let completedIdentity = ReaderCachedChapterIdentity(book: book, chapterIndex: otherChapter.index)
                 let currentIdentity = ReaderCachedChapterIdentity(book: book, chapterIndex: detail.firstReadableIndex)
+                // Use another actual catalog chapter outside the current
+                // reading window. A normal content read creates automatic
+                // cache without a download task or a position update.
+                let automaticChapter = try XCTUnwrap(coldDownload.chapters.first(where: {
+                    $0.navigable != false && !$0.url.isEmpty && $0.state == .missing &&
+                    $0.chapterIndex != otherChapter.index &&
+                    UInt64($0.chapterIndex) > UInt64(detail.firstReadableIndex) + 2
+                }), "The original source must supply a separate uncached real chapter; do not manufacture one")
+                let automaticIdentity = ReaderCachedChapterIdentity(book: book, chapterIndex: automaticChapter.chapterIndex)
+                let automaticBody = try await reopened.content(for: book, chapterIndex: automaticChapter.chapterIndex)
+                XCTAssertFalse(automaticBody.content.isEmpty)
+                XCTAssertNotNil(automaticBody.bodyVersion); XCTAssertNotNil(automaticBody.processingVersion)
+                let beforeCleanupStatus = try await reopened.readerDownloadStatus(book)
+                let automaticRow = try XCTUnwrap(beforeCleanupStatus.chapters.first(where: {
+                    $0.chapterIndex == automaticChapter.chapterIndex
+                }))
                 let storage = try await reopened.readerStorageSummary(protected: [currentIdentity])
                 XCTAssertTrue(storage.completedQueueChapters.contains(completedIdentity))
                 XCTAssertGreaterThan(storage.retainedBytes, 0)
+                let cachedRows = beforeCleanupStatus.chapters.filter { $0.cachedBytes > 0 }
+                let cleanableIdentities = cachedRows.map {
+                    ReaderCachedChapterIdentity(book: book, chapterIndex: $0.chapterIndex)
+                }.filter { !storage.protectedChapters.contains($0) }
+                let preconditions: [String: Any] = [
+                    "sourceId": book.sourceId, "bookId": book.bookId,
+                    "automaticChapterIndex": automaticChapter.chapterIndex,
+                    "automaticState": automaticRow.state.rawValue,
+                    "automaticCachedBytes": automaticRow.cachedBytes,
+                    "summaryCleanableBytes": storage.cleanableBytes,
+                    "expectedCleanableChapterIndexes": cleanableIdentities.map(\.chapterIndex),
+                    "currentChapterIndex": detail.firstReadableIndex,
+                    "completedChapterIndex": otherChapter.index,
+                    "boundary": "Only this fresh temporary library is inspected; cleanup must have exactly one real automatic chapter."
+                ]
+                let preconditionAttachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: preconditions,
+                    options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+                preconditionAttachment.name = "Real-source-temporary-automatic-cache-preconditions"
+                preconditionAttachment.lifetime = .keepAlways; add(preconditionAttachment)
+                guard automaticRow.state == .cached, automaticRow.cachedBytes > 0,
+                      automaticBody.bodyVersion != nil, automaticBody.processingVersion != nil,
+                      !storage.completedQueueChapters.contains(automaticIdentity),
+                      !storage.protectedChapters.contains(automaticIdentity),
+                      Set(cleanableIdentities) == Set([automaticIdentity]),
+                      storage.cleanableBytes == automaticRow.cachedBytes,
+                      storage.totalBytes == cachedRows.reduce(UInt64(0), { $0 + $1.cachedBytes }),
+                      !storage.hasMore, !storage.completedQueueHasMore, storage.cleanupError == nil else {
+                    XCTFail("Real automatic-cache identity and complete cleanable inventory must be proven before cleanup")
+                    throw ReaderLibraryError.invalidResponse("real automatic cleanup prerequisite")
+                }
                 let cleanup = try await reopened.cleanupReaderStorage(retained: [], protected: [currentIdentity],
                     operationID: UUID().uuidString)
+                XCTAssertEqual(Set(cleanup.removedChapters), Set([automaticIdentity]))
+                XCTAssertEqual(cleanup.removedContentBytes, automaticRow.cachedBytes)
+                XCTAssertFalse(cleanup.hasMore); XCTAssertNil(cleanup.cleanupError)
                 XCTAssertFalse(cleanup.removedChapters.contains(completedIdentity))
                 let afterCleanupStatus = try await reopened.readerDownloadStatus(book)
+                let removedAutomatic = try XCTUnwrap(afterCleanupStatus.chapters.first(where: {
+                    $0.chapterIndex == automaticChapter.chapterIndex
+                }))
+                XCTAssertEqual(removedAutomatic.state, .missing)
+                XCTAssertEqual(removedAutomatic.cachedBytes, 0)
                 XCTAssertEqual(afterCleanupStatus.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state,
                     .completed)
                 let afterCleanupBody = try await reopened.cachedDownloadBody(book, chapter: otherChapter.index)
                 XCTAssertEqual(afterCleanupBody.content, downloadedBody.content)
+                let afterAutomaticCleanupProgress = try await reopened.progress(for: book)
+                XCTAssertEqual(afterAutomaticCleanupProgress.progress, restored.progress)
+                let protectedCurrentBody = try await reopened.cachedDownloadBody(book, chapter: detail.firstReadableIndex)
+                XCTAssertEqual(protectedCurrentBody.content, content.content)
                 let clearID = UUID().uuidString
                 try await reopened.clearDownloadedChapter(book, chapterIndex: otherChapter.index, operationID: clearID)
                 let cleared = try await reopened.readerDownloadStatus(book)
@@ -605,8 +663,17 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                     "downloadedChapterIndex": otherChapter.index,
                     "downloadedBodySHA256": SHA256.hash(data: Data(downloadedBody.content.utf8))
                         .map { String(format: "%02x", $0) }.joined(),
+                    "automaticChapterIndex": automaticChapter.chapterIndex,
+                    "automaticBodySHA256": SHA256.hash(data: Data(automaticBody.content.utf8))
+                        .map { String(format: "%02x", $0) }.joined(),
+                    "automaticCachedBytesBeforeCleanup": automaticRow.cachedBytes,
+                    "summaryCleanableBytes": storage.cleanableBytes,
                     "summaryRetainedBytes": storage.retainedBytes,
                     "cleanupRemovedChapterIndexes": cleanup.removedChapters.map(\.chapterIndex),
+                    "cleanupRemovedContentBytes": cleanup.removedContentBytes,
+                    "automaticMissingAfterCleanup": removedAutomatic.state == .missing && removedAutomatic.cachedBytes == 0,
+                    "currentBodyAndProgressPreservedAfterAutomaticCleanup":
+                        protectedCurrentBody.content == content.content && afterAutomaticCleanupProgress.progress == restored.progress,
                     "completedStillPresentAfterCleanup": afterCleanupStatus.chapters
                         .first(where: { $0.chapterIndex == otherChapter.index })?.state == .completed,
                     "explicitClearAndOriginalReplayRemainMissing": afterReplay.chapters
