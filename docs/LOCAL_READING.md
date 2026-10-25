@@ -266,6 +266,7 @@ TTS 和漫画尚无已开放业务入口，不能把其他阅读入口的证据�
 | native V4-01 Cookie 隔离回归 | `ReaderOnlineRuntimeTests/testNativeCookieJarsAreSourceIsolatedAndRestoreOnlyWithinTheSameLibrary` 实际 PASS0.013秒：不同书源 jar 隔离，同一库 Keychain 恢复，另一个库不读取原 Cookie，且并发 WebKit/native 合并不丢 Cookie。该方法不替代真实网页登录和设备 Keychain 验收。 |
 | iPhone 真机编译前置 | 已确认真实 iPhone 14 Pro Max（iOS 27.0.1、开发者模式开启、USB 配对）可连接；已按当前 Core `b6a5bb92` 重建双 slice XCFramework（`ios-arm64` 与 `ios-arm64-simulator`），隔离 device build 在 `CODE_SIGNING_ALLOWED=NO` 下实际 `BUILD SUCCEEDED`。Xcode 当前有两个 Personal Team：`42MGMRS9BW`（铄非 王，与本机 Apple Development 证书的组织/OU 对应）和 `KHZ54TY45X`（liny Min）；证书名称中的 `D97L774LKT` 不是 Team ID。当前仍无 `io.reader.minliny` App Development profile，未安装、未卸载、未改真机数据，物理设备验收保持 OPEN。 |
 | 工程副本清理与主工程复核 | 用户授权后保留 `Reader.xcodeproj` 为唯一工程；`Reader 2`–`Reader 9` 及八个 `* 2.swift` 旧快照已移入私有可恢复归档，主工程 32 条重复引用已移除。唯一主工程 generic iOS device 无签名构建实际 `BUILD SUCCEEDED`；没有启动模拟器或执行设备写入。 |
+| 免费 Personal Team 真机启动 | 因原 `io.reader.minliny` 已属于另一 Team，使用 `liny Min / KHZ54TY45X` 自动签名的临时 Bundle ID `io.reader.minliny.free` 构建、保数据安装并在真实 iPhone 14 Pro Max 上启动通过；截图实见书架空态、搜索栏、导入入口和书架/设置导航。该结果不转移到原 Bundle ID、V4 在线旅程或用户验收。 |
 | 真实 AZW/AZW3/KF8 原书 | 用户明确暂跳过，DEFERRED / OPEN；不改名补证，不改写格式要求 |
 | 物理 iOS 设备、iOS 17 运行时、iPad/分屏、无障碍组合和用户验收 | OPEN；最低系统/设备族声明、模拟器或方法测试不能替代 |
 
