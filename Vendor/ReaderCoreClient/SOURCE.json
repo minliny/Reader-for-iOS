@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/minliny/Reader-Core",
-  "commit": "b6a5bb9294279acda508b1492f1ed3592907d427",
+  "commit": "bb3fbd84051c614185b1679974060faae4632050",
   "license": "MIT OR Apache-2.0",
   "minimumDeploymentTarget": "17.0",
   "files": [
@@ -11,12 +11,11 @@
       "sha256": "e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0"
     }
   ],
-  "previousCommit": "e978bf20c67a3842697dd454ad826e0b25dd1755",
+  "previousCommit": "b6a5bb9294279acda508b1492f1ed3592907d427",
   "upgrade": {
     "cABI": "Unchanged C ABI, protocol v1, runtime-config v1, headers and exact e503d27a Swift binding.",
     "storageSchema": "SQLite38 and portable snapshot16 unchanged; no DDL, position, original ACK/journal or migration changes.",
-    "preparedDocumentAdmission": "Retain the already validated same-title normalized document and all parts in the original strict admission transaction. Avoid redundant parent REPLACE and byte-counter overcount; exact retained row identity checked before committing.",
-    "sourceDebugReplay": "Prior e978 read-only pure L1-L5 replay is unchanged; its six precise results and real native L2 consumer remain separately bound to their original input bytes.",
-    "scope": "Only reader-storage reading_preparation.rs and the existing exact reading_documents strict-admission test differ from previous e978. No new parser, global SQLite recursion setting or target DB repair. Historical516B residue remains OPEN."
+    "terminalDownloadCancel": "Completed and Cancelled chapter tasks remain unchanged when a stale or repeated cancel arrives; exact cancel still creates, settles and replays its own receipt without changing a later generation.",
+    "scope": "This device Core pin descends directly from b6a5 and changes only three download cancel paths plus focused storage/runtime regressions in five files. Other local Core commits and dirty compatibility work are excluded. Native iOS download-control interaction remains a separate acceptance gate."
   }
 }
