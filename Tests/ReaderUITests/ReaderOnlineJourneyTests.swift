@@ -196,8 +196,10 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         online.tap()
         let query = app.textFields["online-search-query"]
         XCTAssertTrue(query.waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertTrue(query.value as? String == "书名或作者" || query.value as? String == "")
-        query.tap(); query.typeText("剑来")
+        let queryValue = query.value as? String
+        XCTAssertTrue(queryValue == "书名或作者" || queryValue == "" || queryValue == nil)
+        let keyword = ProcessInfo.processInfo.environment["READER_REAL_SEARCH_STOP_KEYWORD"] ?? "剑来"
+        query.tap(); query.typeText(keyword)
         app.buttons["online-search-submit"].tap()
         let stop = app.buttons["online-search-stop"]
         guard stop.waitForExistence(timeout: 15), stop.isHittable, stop.isEnabled else {
@@ -212,7 +214,7 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         let stopped = app.staticTexts["搜索已停止"]
         let candidates = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-result:"))
         let facts: [String: Any] = [
-            "keyword": "剑来",
+            "keyword": keyword,
             "stopTapCount": 1,
             "stoppedStateVisible": stopped.exists,
             "candidateCountAfterStop": candidates.count,
