@@ -133,7 +133,11 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         try closeSourcesKeepWorkspace()
 
         let query = app.textFields["online-search-query"]
-        try sourceToolsRequire(query.waitForExistence(timeout: 10) && (query.value as? String == "书名或作者" || query.value as? String == ""),
+        // SwiftUI's empty TextField can expose nil through XCTest AX while
+        // its placeholder is rendered as "书名或作者". Accept that native
+        // empty representation without treating it as a retained query.
+        let queryValue = query.value as? String
+        try sourceToolsRequire(query.waitForExistence(timeout: 10) && (queryValue == "书名或作者" || queryValue == "" || queryValue == nil),
             "The real search query must start empty", app: app)
         query.tap(); query.typeText(keyword)
         app.buttons["online-search-submit"].tap()
