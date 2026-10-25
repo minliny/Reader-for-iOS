@@ -53,7 +53,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
 
         downloads(app)
         let stateID = "online-download-state:" + book.identity + ":" + String(downloadIndex)
-        let state = app.staticTexts[stateID]
+        let state = element(stateID, app: app)
         let select = element("online-download-select:" + book.identity + ":" + String(downloadIndex), app: app)
         reveal(select, in: app.scrollViews["online-download-scroll"], app: app)
         XCTAssertTrue(state.exists, "The selected index must belong to the actual installed catalog")
@@ -83,7 +83,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         hideControls(app)
         try visible(downloadedAnchor, app: app, name: "real-online-downloaded-body-cold-reopen-NETWORK-NOT-DISABLED")
         downloads(app)
-        let retainedState = app.staticTexts[stateID]
+        let retainedState = element(stateID, app: app)
         reveal(element("online-download-select:" + book.identity + ":" + String(downloadIndex), app: app),
                in: app.scrollViews["online-download-scroll"], app: app)
         XCTAssertEqual(retainedState.label, "已完成")
