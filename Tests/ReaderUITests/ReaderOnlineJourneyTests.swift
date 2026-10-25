@@ -219,18 +219,42 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         try sourceToolsWait("The actual search must settle after the one real stop action", timeout: 20) {
             !app.buttons["online-search-stop"].exists
         }
-        let stopped = app.staticTexts["搜索已停止"]
         let candidates = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-result:"))
+        func visibleCandidateIDs() -> Set<String> {
+            Set(candidates.allElementsBoundByIndex.map(\.identifier))
+        }
+        let stoppedIDs = visibleCandidateIDs()
+        let emptyStopped = app.staticTexts["搜索已停止"]
+        let partialStopped = app.staticTexts["搜索已停止，可保留已有结果并重新搜索"]
+        let stoppedStateVisible = stoppedIDs.isEmpty ? emptyStopped.exists : partialStopped.exists
+        XCTAssertTrue(stoppedStateVisible, "The actual stopped state must match whether real candidates arrived before cancellation")
+        XCTAssertEqual(query.value as? String, keyword)
+        let retry = stoppedIDs.isEmpty ? app.buttons["重新搜索"] : app.buttons["online-research-failed"]
+        XCTAssertTrue(retry.exists && retry.isEnabled, "Stopped results need a usable re-search action")
         let facts: [String: Any] = [
             "keyword": keyword,
             "stopTapCount": 1,
-            "stoppedStateVisible": stopped.exists,
-            "candidateCountAfterStop": candidates.count,
-            "boundary": "This is one real stop action against the existing enabled source set. It does not claim a partial network response if the live request completed before stop; the method remains a prerequisite failure in that case."
+            "stoppedStateVisible": stoppedStateVisible,
+            "candidateCountAfterStop": stoppedIDs.count,
+            "presentation": stoppedIDs.isEmpty ? "empty" : "partial",
+            "boundary": "This is one real stop action against the existing enabled source set. Candidate identities are visible UI projections, not a fabricated network response or a claim that every late callback was observed."
         ]
         let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
         attachment.name = "real-search-stop-actual-outcome"; attachment.lifetime = .keepAlways; add(attachment)
-        XCTAssertTrue(stopped.exists, "The existing public stopped state must be visible after the actual stop")
+        app.buttons["online-open-sources"].tap()
+        let backToSearch = app.buttons["online-close-sources"]
+        XCTAssertTrue(backToSearch.waitForExistence(timeout: 10))
+        backToSearch.tap()
+        XCTAssertEqual(visibleCandidateIDs(), stoppedIDs, "Source management must preserve the stopped candidate viewport identities")
+        XCTAssertEqual(query.value as? String, keyword)
+        XCTAssertTrue(retry.exists && retry.isEnabled)
+        retry.tap()
+        try sourceToolsWait("The explicit real re-search must settle", timeout: 45) {
+            app.buttons["online-search-submit"].exists && !app.buttons["online-search-stop"].exists
+        }
+        XCTAssertTrue(visibleCandidateIDs().isSuperset(of: stoppedIDs),
+                      "Re-search of the same keyword must retain candidates obtained before Stop")
+        XCTAssertEqual(query.value as? String, keyword)
         app.buttons["online-close-workspace"].tap()
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 10), app.debugDescription)
     }
