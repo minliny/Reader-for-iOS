@@ -408,6 +408,7 @@ struct ReaderRuleSubscriptionPanel: View {
             .onChange(of: phase) { _, value in state.setForeground(value == .active) }
             .onChange(of: subscriptionScheduler.completedOpportunityRevision) { _, _ in
                 state.invalidatePreview("订阅检查状态已变化，请重新检查差异。")
+                state.refresh()
             }
             .readerConfirmation(confirmation)
             .sheet(isPresented: $state.editorPresented) { editor }

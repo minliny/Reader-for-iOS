@@ -28,8 +28,11 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
         await waitUntil("Original preview published", { state.plan == first })
         state.selectedSourceIDs = [first.changes[0].sourceId]
         let originalSelection = state.selectedSourceIDs
+        let readsBeforeOpportunity = service.listReads
         await scheduler.foregroundOpportunity()
-        await waitUntil("Production completion observer invalidated the original preview", { state.previewInvalidation != nil })
+        await waitUntil("Production completion observer invalidated the original preview and refreshed the current subscription projection", {
+            state.previewInvalidation != nil && service.listReads == readsBeforeOpportunity + 1 && !state.loading
+        })
         XCTAssertEqual(state.plan, first); XCTAssertEqual(state.selectedSourceIDs, originalSelection)
         XCTAssertFalse(state.canApplyPreview); XCTAssertEqual(service.checks, 1)
         state.applySelection()
@@ -231,6 +234,7 @@ private final class SubscriptionLifecycleService: ReaderRuleSubscriptionServing 
     let subscription = ReaderSourceSubscription(id: 810, name: "Host lifetime DTO", url: "https://subscription-host-boundary.invalid/package.json",
         type: 0, customOrder: 0, autoUpdate: true, update: 0)
     private(set) var checks = 0
+    private(set) var listReads = 0
     private(set) var writes: [Write] = []
     var rejectApply = false
     private var pending: [Int: CheckedContinuation<ReaderSubscriptionPlan, Error>] = [:]
@@ -240,7 +244,7 @@ private final class SubscriptionLifecycleService: ReaderRuleSubscriptionServing 
             changes: [.init(sourceId: "host-change-a", name: "Host A", kind: "added"),
                       .init(sourceId: "host-change-b", name: "Host B", kind: "update")])
     }
-    func ruleSubscriptions() async throws -> [ReaderSourceSubscription] { [subscription] }
+    func ruleSubscriptions() async throws -> [ReaderSourceSubscription] { listReads += 1; return [subscription] }
     func checkRuleSubscription(_ subscription: ReaderSourceSubscription) async throws -> ReaderSubscriptionPlan {
         let index = checks; checks += 1
         return try await withCheckedThrowingContinuation { pending[index] = $0 }

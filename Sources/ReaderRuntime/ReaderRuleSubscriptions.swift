@@ -29,6 +29,11 @@ public struct ReaderSubscriptionPreviewRejected: Error, Sendable, LocalizedError
     public let originalError: ReaderLibraryError
     public var errorDescription: String? { originalError.errorDescription }
 }
+/// A Host read observed a changed subscription/lineage during its own check.
+/// This is not a Core rejection or a receipt for any accepted mutation.
+public struct ReaderSubscriptionCheckChanged: Error, Sendable, LocalizedError {
+    public var errorDescription: String? { "订阅配置已变化，请重新检查订阅" }
+}
 
 public protocol ReaderRuleSubscriptionServing: ReaderOnlineServing {
     func ruleSubscriptions() async throws -> [ReaderSourceSubscription]
@@ -57,11 +62,35 @@ extension ReaderLibraryService: ReaderRuleSubscriptionServing {
         try await finishCoreOperation(operationID)
     }
     public func checkRuleSubscription(_ subscription: ReaderSourceSubscription) async throws -> ReaderSubscriptionPlan {
+        try await checkRuleSubscription(subscription, fetch: { [self] url in try await onlineFetch(url) })
+    }
+    /// The fetch belongs to the caller's complete subscription snapshot. Core's
+    /// preview snapshots the row only after HTTP returns, so its later apply CAS
+    /// alone cannot identify a provider/configuration change during that fetch.
+    func checkRuleSubscription(_ subscription: ReaderSourceSubscription,
+                               fetch: @Sendable (URL) async throws -> Data) async throws -> ReaderSubscriptionPlan {
+        struct Head: Decodable, Equatable {
+            let operationId: String
+            let sequence: UInt64
+            let payloadFingerprint: String
+        }
+        struct Query: Decodable { let head: Head? }
+        let changed = ReaderSubscriptionCheckChanged()
+        let before = try decode(Query.self, await coreRead("rules.mutation.query", [:])).head
+        guard try await ruleSubscriptions().first(where: { $0.id == subscription.id }) == subscription else { throw changed }
         guard let url = URL(string: subscription.url) else { throw ReaderLibraryError.invalidResponse("subscription URL") }
-        let remote = try await onlineFetch(url)
+        try Task.checkCancellation()
+        let remote = try await fetch(url)
+        try Task.checkCancellation()
         guard let json = String(data: remote, encoding: .utf8) else { throw ReaderLibraryError.invalidResponse("subscription JSON encoding") }
         let plan = try decode(ReaderSubscriptionPlan.self, await coreRead("rule-sub.update.preview.v1", ["subscriptionId": subscription.id, "remoteJson": json]))
         guard plan.subscriptionId == subscription.id else { throw ReaderLibraryError.invalidResponse("subscription plan identity") }
+        guard try await ruleSubscriptions().first(where: { $0.id == subscription.id }) == subscription else { throw changed }
+        // Every production rules mutation advances this Core-owned head in its
+        // data transaction. Comparing it also catches A -> B -> A during the
+        // fetch/preview window; comparing the final DTO alone would miss that.
+        let after = try decode(Query.self, await coreRead("rules.mutation.query", [:])).head
+        guard before == after else { throw changed }
         return plan
     }
     public func applyRuleSubscription(_ plan: ReaderSubscriptionPlan, sourceIDs: [String], operationID: String) async throws -> ReaderSubscriptionApplied {

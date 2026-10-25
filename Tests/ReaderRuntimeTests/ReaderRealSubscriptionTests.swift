@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 #if canImport(ReaderRuntime)
@@ -78,7 +79,9 @@ final class ReaderRealSubscriptionTests: XCTestCase {
             XCTAssertNotEqual(edited.version, firstSource.version)
 
             phase = "second real Host fetch and protected-local diff"
-            let secondPlan = try await service.checkRuleSubscription(saved)
+            let currentSubscriptions = try await service.ruleSubscriptions()
+            let currentSubscription = try XCTUnwrap(currentSubscriptions.first(where: { $0.id == saved.id }))
+            let secondPlan = try await service.checkRuleSubscription(currentSubscription)
             assertOriginalPlan(secondPlan, subscription: saved)
             try attach(secondPlan, name: "Actual-subscription-second-plan")
             facts["secondRemoteDigest"] = secondPlan.remoteDigest
@@ -150,6 +153,80 @@ final class ReaderRealSubscriptionTests: XCTestCase {
             if let active { try? await active.close() }
             // URL, status, encoding, admission and plan failures are failures.
             // Never skip, change URL, or substitute a historical/local response.
+            throw error
+        }
+    }
+
+    /// Uses the existing, complete 2026-10-22 Yiove download selected by its
+    /// actual filesystem path. No HTTP response, source or package is invented.
+    /// Controlled mutation placement proves the local fetch/preview boundary;
+    /// it does not establish a new provider release or OS background execution.
+    func testOriginalProviderPackageCheckRejectsChangedSubscriptionAndABAWithoutSourceWrites() async throws {
+        let path = try XCTUnwrap(ProcessInfo.processInfo.environment["READER_REAL_SUBSCRIPTION_PACKAGE_PATH"],
+            "Select the existing complete Yiove response.body; do not create or replace package input")
+        let inputURL: URL
+        if path.hasPrefix("bundle:") {
+            inputURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: String(path.dropFirst("bundle:".count)), withExtension: nil),
+                                     "Copy the unmodified downloaded response into this signed test bundle")
+        } else {
+            guard path.hasPrefix("/") else {
+                XCTFail("The local runner must provide an absolute original input path")
+                throw ReaderLibraryError.invalidResponse("original subscription corpus path")
+            }
+            inputURL = URL(fileURLWithPath: path)
+        }
+        let package = try Data(contentsOf: inputURL)
+        let digest = SHA256.hash(data: package).map { String(format: "%02x", $0) }.joined()
+        guard package.count == 2_309_841,
+              digest == "3356dc7a114b50076897873758482ed07fc45b7a1f55bdeced870e1db5fdd663" else {
+            XCTFail("The selected input must be the complete unmodified original Yiove download")
+            throw ReaderLibraryError.invalidResponse("original subscription corpus identity")
+        }
+        enum Change: CaseIterable, Equatable, Sendable { case unchanged, staleSnapshot, disableAutoUpdate, providerURL, aba }
+        let alternateURL = "https://shuyuan-api.yiove.com/import/book-source-collection/e61838fa-9a13-4137-b68a-192313eade0c"
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionCheckOwnership-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+        do {
+            for (index, change) in Change.allCases.enumerated() {
+                let original = ReaderSourceSubscription(id: 941007 + Int64(index), name: "真实订阅检查归属",
+                    url: subscriptionURL, type: 0, customOrder: 0, autoUpdate: true, update: 0)
+                let changesProvider = change == .providerURL || change == .aba
+                let changed = ReaderSourceSubscription(id: original.id, name: original.name,
+                    url: changesProvider ? alternateURL : original.url, type: original.type,
+                    customOrder: original.customOrder, autoUpdate: changesProvider, update: original.update)
+                _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString)
+                if change == .staleSnapshot { _ = try await service.saveRuleSubscription(changed, operationID: UUID().uuidString) }
+                do {
+                    let plan = try await service.checkRuleSubscription(original, fetch: { url in
+                        XCTAssertEqual(url.absoluteString, original.url)
+                        XCTAssertNotEqual(change, .staleSnapshot, "A stale caller must be rejected before requesting its provider")
+                        if change != .unchanged {
+                            _ = try await service.saveRuleSubscription(changed, operationID: UUID().uuidString)
+                            if change == .aba { _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString) }
+                        }
+                        return package
+                    })
+                    XCTAssertEqual(change, .unchanged, "An intervening accepted configuration change must not publish a preview")
+                    XCTAssertEqual(plan.subscriptionId, original.id)
+                    XCTAssertFalse(plan.changes.isEmpty)
+                } catch {
+                    guard change != .unchanged else { throw error }
+                    guard error is ReaderSubscriptionCheckChanged else { throw error }
+                }
+                let expected = change == .unchanged || change == .aba ? original : changed
+                let subscriptions = try await service.ruleSubscriptions()
+                let retained = try XCTUnwrap(subscriptions.first(where: { $0.id == original.id }))
+                XCTAssertEqual(retained, expected)
+                let sources = try await service.onlineSources()
+                let pending = try await service.pendingCoreCommands()
+                XCTAssertTrue(sources.isEmpty, "Check rejection cannot import, replace or remove sources")
+                XCTAssertTrue(pending.isEmpty, "A read rejection cannot allocate an apply operation")
+                XCTAssertEqual(retained.update, original.update, "Only an original apply ACK may advance the subscription clock")
+            }
+            try await service.close()
+        } catch {
+            try? await service.close()
             throw error
         }
     }
