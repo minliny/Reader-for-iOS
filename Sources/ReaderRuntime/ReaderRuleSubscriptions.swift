@@ -82,6 +82,11 @@ extension ReaderLibraryService: ReaderRuleSubscriptionServing {
         try Task.checkCancellation()
         let remote = try await fetch(url)
         try Task.checkCancellation()
+        // Preview replaces Core's single plan slot for this subscription. Do
+        // not let a stale fetch evict a newer configuration's current preview.
+        guard try await ruleSubscriptions().first(where: { $0.id == subscription.id }) == subscription else { throw changed }
+        let fetchedHead = try decode(Query.self, await coreRead("rules.mutation.query", [:])).head
+        guard before == fetchedHead else { throw changed }
         guard let json = String(data: remote, encoding: .utf8) else { throw ReaderLibraryError.invalidResponse("subscription JSON encoding") }
         let plan = try decode(ReaderSubscriptionPlan.self, await coreRead("rule-sub.update.preview.v1", ["subscriptionId": subscription.id, "remoteJson": json]))
         guard plan.subscriptionId == subscription.id else { throw ReaderLibraryError.invalidResponse("subscription plan identity") }

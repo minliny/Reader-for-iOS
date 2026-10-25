@@ -162,26 +162,7 @@ final class ReaderRealSubscriptionTests: XCTestCase {
     /// Controlled mutation placement proves the local fetch/preview boundary;
     /// it does not establish a new provider release or OS background execution.
     func testOriginalProviderPackageCheckRejectsChangedSubscriptionAndABAWithoutSourceWrites() async throws {
-        let path = try XCTUnwrap(ProcessInfo.processInfo.environment["READER_REAL_SUBSCRIPTION_PACKAGE_PATH"],
-            "Select the existing complete Yiove response.body; do not create or replace package input")
-        let inputURL: URL
-        if path.hasPrefix("bundle:") {
-            inputURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: String(path.dropFirst("bundle:".count)), withExtension: nil),
-                                     "Copy the unmodified downloaded response into this signed test bundle")
-        } else {
-            guard path.hasPrefix("/") else {
-                XCTFail("The local runner must provide an absolute original input path")
-                throw ReaderLibraryError.invalidResponse("original subscription corpus path")
-            }
-            inputURL = URL(fileURLWithPath: path)
-        }
-        let package = try Data(contentsOf: inputURL)
-        let digest = SHA256.hash(data: package).map { String(format: "%02x", $0) }.joined()
-        guard package.count == 2_309_841,
-              digest == "3356dc7a114b50076897873758482ed07fc45b7a1f55bdeced870e1db5fdd663" else {
-            XCTFail("The selected input must be the complete unmodified original Yiove download")
-            throw ReaderLibraryError.invalidResponse("original subscription corpus identity")
-        }
+        let package = try originalProviderPackage()
         enum Change: CaseIterable, Equatable, Sendable { case unchanged, staleSnapshot, disableAutoUpdate, providerURL, aba }
         let alternateURL = "https://shuyuan-api.yiove.com/import/book-source-collection/e61838fa-9a13-4137-b68a-192313eade0c"
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionCheckOwnership-" + UUID().uuidString)
@@ -229,6 +210,94 @@ final class ReaderRealSubscriptionTests: XCTestCase {
             try? await service.close()
             throw error
         }
+    }
+
+    /// The original complete download exercises Core's real replaceable plan
+    /// slot. The newer configuration keeps the same provider and changes only
+    /// auto-update permission; no HTTP response or source package is invented.
+    func testOriginalProviderPackageStaleFetchCannotReplaceCurrentConfigurationPreview() async throws {
+        actor CapturedPlan {
+            var plan: ReaderSubscriptionPlan?
+            func store(_ plan: ReaderSubscriptionPlan) { self.plan = plan }
+        }
+        let package = try originalProviderPackage()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionCurrentPreview-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+        let original = ReaderSourceSubscription(id: 941012, name: "真实订阅预览槽归属",
+            url: subscriptionURL, type: 0, customOrder: 0, autoUpdate: true, update: 0)
+        let current = ReaderSourceSubscription(id: original.id, name: original.name, url: original.url,
+            type: original.type, customOrder: original.customOrder, autoUpdate: false, update: original.update)
+        let captured = CapturedPlan()
+        do {
+            _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString)
+            do {
+                _ = try await service.checkRuleSubscription(original, fetch: { url in
+                    XCTAssertEqual(url.absoluteString, original.url)
+                    _ = try await service.saveRuleSubscription(current, operationID: UUID().uuidString)
+                    let plan = try await service.checkRuleSubscription(current, fetch: { currentURL in
+                        XCTAssertEqual(currentURL.absoluteString, current.url)
+                        return package
+                    })
+                    await captured.store(plan)
+                    return package
+                })
+                XCTFail("The old fetch must be rejected before replacing the current configuration's preview")
+            } catch is ReaderSubscriptionCheckChanged { }
+
+            let storedPlan = await captured.plan
+            let currentPlan = try XCTUnwrap(storedPlan, "The current configuration must have created its real Core preview")
+            assertOriginalPlan(currentPlan, subscription: current)
+            let beforeApply = try await service.onlineSources()
+            let beforeSubscriptions = try await service.ruleSubscriptions()
+            let beforePending = try await service.pendingCoreCommands()
+            XCTAssertTrue(beforeApply.isEmpty, "Neither check may import the provider's sources")
+            XCTAssertEqual(beforeSubscriptions, [current])
+            XCTAssertTrue(beforePending.isEmpty, "The stale check cannot allocate an apply operation")
+            let selected = try XCTUnwrap(currentPlan.changes.filter { $0.safeToApply && isHTTPSource($0.sourceId) }
+                .sorted { $0.sourceId < $1.sourceId }.first, "Use one actual safe HTTP source from the original complete package")
+            let applied = try await service.applyRuleSubscription(currentPlan, sourceIDs: [selected.sourceId], operationID: UUID().uuidString)
+            assertOriginalApply(applied, plan: currentPlan, selectedID: selected.sourceId)
+            let sources = try await service.onlineSources()
+            XCTAssertEqual(sources.map(\.id), [selected.sourceId], "The newer preview must remain usable after the old fetch is rejected")
+            let source = try XCTUnwrap(sources.first)
+            XCTAssertEqual(source.name, selected.name)
+            try assertDefinitionIdentity(source)
+            let subscriptions = try await service.ruleSubscriptions()
+            let retained = try XCTUnwrap(subscriptions.first)
+            XCTAssertEqual(retained.id, current.id); XCTAssertEqual(retained.url, current.url)
+            XCTAssertFalse(retained.autoUpdate); XCTAssertEqual(retained.update, applied.updatedAt)
+            let pending = try await service.pendingCoreCommands()
+            XCTAssertTrue(pending.isEmpty)
+            try await service.close()
+        } catch {
+            try? await service.close()
+            throw error
+        }
+    }
+
+    private func originalProviderPackage() throws -> Data {
+        let path = try XCTUnwrap(ProcessInfo.processInfo.environment["READER_REAL_SUBSCRIPTION_PACKAGE_PATH"],
+            "Select the existing complete Yiove response.body; do not create or replace package input")
+        let inputURL: URL
+        if path.hasPrefix("bundle:") {
+            inputURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: String(path.dropFirst("bundle:".count)), withExtension: nil),
+                                     "Copy the unmodified downloaded response into this signed test bundle")
+        } else {
+            guard path.hasPrefix("/") else {
+                XCTFail("The local runner must provide an absolute original input path")
+                throw ReaderLibraryError.invalidResponse("original subscription corpus path")
+            }
+            inputURL = URL(fileURLWithPath: path)
+        }
+        let package = try Data(contentsOf: inputURL)
+        let digest = SHA256.hash(data: package).map { String(format: "%02x", $0) }.joined()
+        guard package.count == 2_309_841,
+              digest == "3356dc7a114b50076897873758482ed07fc45b7a1f55bdeced870e1db5fdd663" else {
+            XCTFail("The selected input must be the complete unmodified original Yiove download")
+            throw ReaderLibraryError.invalidResponse("original subscription corpus identity")
+        }
+        return package
     }
 
     private func isHTTPSource(_ identity: String) -> Bool {
