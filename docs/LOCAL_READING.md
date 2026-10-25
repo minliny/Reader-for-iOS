@@ -269,6 +269,7 @@ TTS 和漫画尚无已开放业务入口，不能把其他阅读入口的证据�
 | 免费 Personal Team 真机启动 | 因原 `io.reader.minliny` 已属于另一 Team，使用 `liny Min / KHZ54TY45X` 自动签名的临时 Bundle ID `io.reader.minliny.free` 构建、保数据安装并在真实 iPhone 14 Pro Max 上启动通过；截图实见书架空态、搜索栏、导入入口和书架/设置导航。该结果不转移到原 Bundle ID、V4 在线旅程或用户验收。 |
 | 免费 Personal Team 原生 UI 重跑 | `ReaderNativeJourneyTests/testOrdinaryPageNavigationAndAppAppearance` 在真实 iPhone 14 Pro Max 上成功进入 automation mode 并通过：书架/设置切换、系统跟随开关、夜间模式开关、返回书架和重开均完成，1 个测试、0 失败、25.127 秒；附件 `large-v4-iphone-free-native-smoke-5-bookshelf-native.png` 已导出。前一次 automation mode 超时仍保留为历史失败，正式工程仍保持 `io.reader.minliny`，未清理设备数据。 |
 | 正式 Bundle 签名边界 | 本机 profile `42MGMRS9BW.io.reader.minliny` 仍存在，但本地对应 `iOS Development` 私钥已删除；无 provisioning 更新的正式构建明确报缺证书，允许更新时 Apple 又报该团队已有现行/待处理 Development certificate，仍无法取得私钥。正式 `io.reader.minliny` 当前保持未签名；免费 `io.reader.minliny.free` 的证书不能跨团队使用。 |
+| 免费包真机 V4 真实书源旅程 | 使用真实两源包 `source-package.json`（5606 bytes，SHA-256 `f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322`）经系统“文件”导入到物理 iPhone 的临时 `io.reader.minliny.free`，真实搜索“剑来”返回得间/百度候选，打开同一 source/book 详情与 1,279 章目录，真实入架并读取正文；离开后候选/详情身份恢复，关闭并冷重开书架后再次打开同一正文。`testRealSourceFileSearchAdmissionReadingReturnAndColdShelfReopen` 实际 PASS153.686秒/0失败；日志、xcresult、首读/回程/冷重开 PNG 和附件 manifest 已封存为 `large-v4-iphone-free-real-source-3.*`。由于长目录下 XCTest AX 将屏幕可见的启用按钮报告为 `isHittable=false`，测试以同一屏幕坐标完成真实触控并单独保留该边界；不转移到正式包、不关闭 V4 全部网络/离线/任务/订阅证据。 |
 | 真实 AZW/AZW3/KF8 原书 | 用户明确暂跳过，DEFERRED / OPEN；不改名补证，不改写格式要求 |
 | 物理 iOS 设备、iOS 17 运行时、iPad/分屏、无障碍组合和用户验收 | OPEN；最低系统/设备族声明、模拟器或方法测试不能替代 |
 
