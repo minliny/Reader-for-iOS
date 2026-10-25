@@ -300,9 +300,8 @@ extension ReaderLibraryService: ReaderDownloadServing {
     }
 
     public func readerStorageSummary(protected: [ReaderCachedChapterIdentity] = []) async throws -> ReaderStorageSummary {
-        let retained = try await completedDownloadProtection()
         return try decode(ReaderStorageSummary.self, await coreRead("cache.storage.summary", [
-            "contentScope": "text", "retainedChapters": try chapterObjects(retained), "protectedChapters": try chapterObjects(protected)
+            "contentScope": "text", "retainCompletedQueue": true, "protectedChapters": try chapterObjects(protected)
         ]))
     }
 
@@ -310,35 +309,18 @@ extension ReaderLibraryService: ReaderDownloadServing {
                                      operationID: String) async throws -> ReaderStorageSummary {
         let parameters: [String: Any]
         if let original = try existingCoreParameters(operationID: operationID, method: "cache.storage.cleanup") {
-            // Preserve the original cleanup snapshot. Newly opened consumers
-            // must not cause a retry to dispatch a different delete payload.
+            // Preserve the original cleanup intent. A retry must not dispatch
+            // a different payload under the same operation identity.
             parameters = original
         } else {
-            let completed = try await completedDownloadProtection()
-            let keep = Array(Set(retained + completed)).sorted(by: chapterIdentityOrder)
-            parameters = ["contentScope": "text", "reason": "clear", "retainedChapters": try chapterObjects(keep),
+            parameters = ["contentScope": "text", "reason": "clear", "retainCompletedQueue": true,
+                "retainedChapters": try chapterObjects(retained.sorted(by: chapterIdentityOrder)),
                 "protectedChapters": try chapterObjects(protected.sorted(by: chapterIdentityOrder))]
         }
         let result = try decode(ReaderStorageSummary.self, await coreMutation("cache.storage.cleanup", parameters,
             operationID: operationID, scope: "cache-storage"))
         try await finishCoreOperation(operationID)
         return result
-    }
-
-    private func completedDownloadProtection() async throws -> [ReaderCachedChapterIdentity] {
-        var after: ReaderCachedChapterIdentity?, found = Set<ReaderCachedChapterIdentity>()
-        repeat {
-            var parameters: [String: Any] = ["contentScope": "text"]
-            if let after { parameters["completedQueueAfter"] = try chapterObjects([after]).first! }
-            let page = try decode(ReaderStorageSummary.self, await coreRead("cache.storage.summary", parameters))
-            for identity in page.completedQueueChapters { found.insert(identity) }
-            guard page.completedQueueHasMore else { return found.sorted(by: chapterIdentityOrder) }
-            guard let last = page.completedQueueChapters.last,
-                  after.map({ chapterIdentityOrder($0, last) }) ?? true else {
-                throw ReaderLibraryError.invalidResponse("cache completed queue cursor")
-            }
-            after = last
-        } while true
     }
 
     private func chapterObjects(_ values: [ReaderCachedChapterIdentity]) throws -> [[String: Any]] {

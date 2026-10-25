@@ -526,7 +526,12 @@ final class ReaderApplicationModel: ObservableObject {
             await reloadHighlights()
         } catch {
             guard reader?.id == current.id, chapterGeneration == generation else { return }
-            showFeedback(error.localizedDescription)
+            if current.book.sourceId != "local", let failure = error as? ReaderLibraryError,
+               case .core = failure {
+                showFeedback(Self.readingFailureMessage(failure, opening: false))
+            } else {
+                showFeedback(error.localizedDescription)
+            }
         }
     }
 

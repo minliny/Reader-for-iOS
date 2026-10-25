@@ -12,6 +12,135 @@ import ReaderCoreClient
 #endif
 
 final class ReaderOnlineRuntimeTests: XCTestCase {
+    /// Anonymous live response only: no account, submitted form, fabricated
+    /// Cookie, source import, or production library is used by this method.
+    /// The URL/source identity are the original Baidu entry in the captured
+    /// book_sources_20261024/book_sources_dedup.json (SHA256 1b681349...50e902c).
+    @MainActor
+    func testRealBaiduWebKitResponseCookiesSurviveLoginSaveAndKeychainReopen() async throws {
+        let sourceID = "https://dushu.baidu.com/"
+        let otherSourceID = "https://m.idejian.com"
+        let loginURL = "https://wappass.baidu.com/password_login"
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealLoginCookie-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceURL = root.appendingPathComponent("Sources")
+        let storageURL = root.appendingPathComponent("Core")
+        let namespace = try ReaderHostLibraryIdentity.loadOrCreate(in: sourceURL.appendingPathComponent(".operations"))
+        func hash(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "io.reader.minliny.source-cookies." + hash(namespace),
+            kSecAttrAccount as String: hash(sourceID)]
+        var readQuery = query; readQuery[kSecReturnData as String] = true
+        var originalItem: CFTypeRef?
+        let initialStatus = SecItemCopyMatching(readQuery as CFDictionary, &originalItem)
+        guard initialStatus == errSecItemNotFound else {
+            XCTFail("A fresh temporary library must have no existing credential item; no existing item was modified")
+            throw ReaderLibraryError.invalidResponse("temporary login namespace was not empty")
+        }
+        // Installed-user credentials have a different preserved library UUID.
+        // Delete only this admitted, previously absent service/account pair.
+        defer {
+            let status = SecItemDelete(query as CFDictionary)
+            XCTAssertTrue(status == errSecSuccess || status == errSecItemNotFound,
+                          "The exact temporary credential item must be removed")
+            var remaining: CFTypeRef?
+            XCTAssertEqual(SecItemCopyMatching(readQuery as CFDictionary, &remaining), errSecItemNotFound)
+        }
+
+        // Native attributes and private value hashes can be compared on failure
+        // without exposing Cookie values in XCTest logs or attachments.
+        func fingerprints(_ cookies: [HTTPCookie]) -> [String: String] {
+            Dictionary(cookies.map { cookie in
+                let identity = [cookie.domain, cookie.path, cookie.name].joined(separator: "\u{0}")
+                let facts = [hash(cookie.value), String(cookie.isSecure), String(cookie.isHTTPOnly),
+                    String(cookie.isSessionOnly), cookie.expiresDate.map { String($0.timeIntervalSince1970) } ?? "session",
+                    cookie.properties?[HTTPCookiePropertyKey("SameSite")] as? String ?? ""]
+                return (identity, facts.joined(separator: "\u{0}"))
+            }, uniquingKeysWith: { _, last in last })
+        }
+        weak var originalService: ReaderLibraryService?
+        weak var originalTransport: ReaderIOSHostTransport?
+        var observedCookieNames: [String] = []
+        var observedFinalPage = ""
+        @MainActor
+        func saveActualWebKitResponse() async throws -> [String: String] {
+            let service = try ReaderLibraryService(storageURL: storageURL, sourceURL: sourceURL)
+            originalService = service; originalTransport = await service.hostTransport
+            do {
+                let baseline = try await service.prepareLogin(sourceID)
+                XCTAssertTrue(baseline.isEmpty)
+                var receivedSnapshot: [HTTPCookie]?
+                let result = try await ReaderSourceWebBridge.shared.evaluate([
+                    "document": ["kind": "url", "url": loginURL],
+                    "javaScript": "JSON.stringify({origin:location.origin,path:location.pathname})",
+                    "timeoutMillis": 20000
+                ], ownerID: UUID(), requestID: 1, cookies: baseline, cookieSink: { receivedSnapshot = $0 })
+                let actual = try XCTUnwrap(receivedSnapshot, "The production WebKit allCookies callback must run")
+                let baiduCookies = actual.filter { cookie in
+                    let domain = cookie.domain.lowercased()
+                    return domain == "baidu.com" || domain.hasSuffix(".baidu.com")
+                }
+                guard baiduCookies.contains(where: { $0.name == "BAIDUID" && !$0.value.isEmpty }) else {
+                    XCTFail("The real page did not supply the observed anonymous BAIDUID prerequisite; no Cookie was injected")
+                    throw ReaderLibraryError.invalidResponse("real upstream Cookie prerequisite not met")
+                }
+                let finalURL = try XCTUnwrap((result["finalUrl"] as? String).flatMap(URL.init(string:)))
+                let finalHost = finalURL.host?.lowercased() ?? ""
+                XCTAssertEqual(finalURL.scheme?.lowercased(), "https")
+                XCTAssertTrue(finalHost == "baidu.com" || finalHost.hasSuffix(".baidu.com"),
+                              "A different final origin cannot stand in for the original Baidu login page")
+                // Query/fragment values and page content are never attached.
+                observedFinalPage = (finalURL.scheme ?? "") + "://" + (finalURL.host ?? "") + finalURL.path
+                observedCookieNames = Array(Set(actual.map(\.name))).sorted()
+                let expected = fingerprints(actual)
+                try await service.completeLogin(sourceID, cookies: actual, originalCookies: baseline)
+                let published = try await service.prepareLogin(sourceID)
+                XCTAssertEqual(fingerprints(published), expected)
+                let isolated = try await service.prepareLogin(otherSourceID)
+                XCTAssertTrue(isolated.isEmpty, "Another original source cannot read the saved Baidu Cookie jar")
+                var stored: CFTypeRef?
+                XCTAssertEqual(SecItemCopyMatching(readQuery as CFDictionary, &stored), errSecSuccess)
+                XCTAssertFalse(try XCTUnwrap(stored as? Data).isEmpty, "Production completeLogin must create its durable Keychain item")
+                try await service.close()
+                return expected
+            } catch { try? await service.close(); throw error }
+        }
+        let expected = try await saveActualWebKitResponse()
+        // close() alone is insufficient: a live transport would retain the
+        // weak-registry Cookie store and could hide a failed Keychain restore.
+        XCTAssertNil(originalService)
+        XCTAssertNil(originalTransport)
+        guard originalService == nil, originalTransport == nil else {
+            throw ReaderLibraryError.invalidResponse("original Cookie owner did not release")
+        }
+        @MainActor
+        func reopenExactLibrary() async throws {
+            let reopened = try ReaderLibraryService(storageURL: storageURL, sourceURL: sourceURL)
+            do {
+                let restored = try await reopened.prepareLogin(sourceID)
+                XCTAssertEqual(fingerprints(restored), expected, "The released temporary library must restore the actual native Cookie snapshot from Keychain")
+                let isolated = try await reopened.prepareLogin(otherSourceID)
+                XCTAssertTrue(isolated.isEmpty)
+                try await reopened.close()
+            } catch { try? await reopened.close(); throw error }
+        }
+        try await reopenExactLibrary()
+        let otherRoot = root.appendingPathComponent("OtherLibrary")
+        let otherLibrary = try ReaderLibraryService(storageURL: otherRoot.appendingPathComponent("Core"), sourceURL: otherRoot.appendingPathComponent("Sources"))
+        do {
+            let isolated = try await otherLibrary.prepareLogin(sourceID)
+            XCTAssertTrue(isolated.isEmpty, "A different preserved library identity cannot read the temporary Cookie item")
+            try await otherLibrary.close()
+        } catch { try? await otherLibrary.close(); throw error }
+        let facts = try JSONSerialization.data(withJSONObject: [
+            "sourceId": sourceID, "declaredLoginURL": loginURL, "actualFinalPage": observedFinalPage,
+            "actualCookieNames": observedCookieNames, "cookieCount": expected.count,
+            "scope": "anonymous real WebKit response -> production completeLogin -> released-owner Keychain reopen; no authenticated login or login sheet UI"
+        ], options: [.sortedKeys])
+        let attachment = XCTAttachment(data: facts, uniformTypeIdentifier: "public.json")
+        attachment.name = "Actual-anonymous-WebKit-Cookie-Keychain-boundary"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
     func testCancelledQueuedReadCannotReenterRetiredTransportWhileMutationAdmissionRemainsAvailable() async {
         let transport = ReaderIOSHostTransport(namespace: "read-admission:" + UUID().uuidString)
         // These are transport request identities, not synthetic sources or
@@ -429,31 +558,67 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                 "A prefetch terminal alone cannot complete a download; its original resource lease must be reported")
             try await service.close()
             let reopened = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
-            let restored = try await reopened.progress(for: book)
-            XCTAssertEqual(restored.progress?.chapterOffset, saved.progress?.chapterOffset)
-            let toc = try await reopened.chapters(for: book)
-            XCTAssertFalse(toc.isEmpty)
-            let offline = try await reopened.performCoreCommand(method: "chapter.content", parameters: JSONSerialization.data(withJSONObject: ["sourceId": book.sourceId, "bookId": book.bookId, "chapterIndex": detail.firstReadableIndex, "chapterTitle": "", "cacheOnly": true]))
-            XCTAssertEqual((try JSONSerialization.jsonObject(with: offline) as? [String: Any])?["content"] as? String, content.content)
-            let coldDownload = try await reopened.readerDownloadStatus(book)
-            XCTAssertEqual(coldDownload.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state, .completed)
-            let downloadedBody = try await reopened.cachedDownloadBody(book, chapter: otherChapter.index)
-            XCTAssertFalse(downloadedBody.content.isEmpty)
-            let clearID = UUID().uuidString
-            try await reopened.clearDownloadedChapter(book, chapterIndex: otherChapter.index, operationID: clearID)
-            let cleared = try await reopened.readerDownloadStatus(book)
-            XCTAssertEqual(cleared.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state, .missing)
-            let afterClear = try await reopened.progress(for: book)
-            XCTAssertEqual(afterClear.progress, restored.progress)
-            let retainedBody = try await reopened.cachedDownloadBody(book, chapter: detail.firstReadableIndex)
-            XCTAssertEqual(retainedBody.content, content.content)
-            // Reopening the exact completed owner must not enqueue again after
-            // an explicit later clear, or reinterpret fresh state as its ACK.
-            _ = try await reopened.downloadChapters(book, range: otherChapter.index..<(otherChapter.index + 1), operationID: downloadID)
-            try await reopened.clearDownloadedChapter(book, chapterIndex: otherChapter.index, operationID: clearID)
-            let afterReplay = try await reopened.readerDownloadStatus(book)
-            XCTAssertEqual(afterReplay.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state, .missing)
-            try await reopened.close()
+            do {
+                let restored = try await reopened.progress(for: book)
+                XCTAssertEqual(restored.progress?.chapterOffset, saved.progress?.chapterOffset)
+                let toc = try await reopened.chapters(for: book)
+                XCTAssertFalse(toc.isEmpty)
+                let offline = try await reopened.performCoreCommand(method: "chapter.content", parameters: JSONSerialization.data(withJSONObject: ["sourceId": book.sourceId, "bookId": book.bookId, "chapterIndex": detail.firstReadableIndex, "chapterTitle": "", "cacheOnly": true]))
+                XCTAssertEqual((try JSONSerialization.jsonObject(with: offline) as? [String: Any])?["content"] as? String, content.content)
+                let coldDownload = try await reopened.readerDownloadStatus(book)
+                XCTAssertEqual(coldDownload.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state, .completed)
+                let downloadedBody = try await reopened.cachedDownloadBody(book, chapter: otherChapter.index)
+                XCTAssertFalse(downloadedBody.content.isEmpty)
+                // This temporary library uses the original source package and a
+                // genuinely downloaded chapter. Automatic cleanup must honor the
+                // completed task under Core's current inventory, while explicit
+                // chapter clear below remains a separate user intent.
+                let completedIdentity = ReaderCachedChapterIdentity(book: book, chapterIndex: otherChapter.index)
+                let currentIdentity = ReaderCachedChapterIdentity(book: book, chapterIndex: detail.firstReadableIndex)
+                let storage = try await reopened.readerStorageSummary(protected: [currentIdentity])
+                XCTAssertTrue(storage.completedQueueChapters.contains(completedIdentity))
+                XCTAssertGreaterThan(storage.retainedBytes, 0)
+                let cleanup = try await reopened.cleanupReaderStorage(retained: [], protected: [currentIdentity],
+                    operationID: UUID().uuidString)
+                XCTAssertFalse(cleanup.removedChapters.contains(completedIdentity))
+                let afterCleanupStatus = try await reopened.readerDownloadStatus(book)
+                XCTAssertEqual(afterCleanupStatus.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state,
+                    .completed)
+                let afterCleanupBody = try await reopened.cachedDownloadBody(book, chapter: otherChapter.index)
+                XCTAssertEqual(afterCleanupBody.content, downloadedBody.content)
+                let clearID = UUID().uuidString
+                try await reopened.clearDownloadedChapter(book, chapterIndex: otherChapter.index, operationID: clearID)
+                let cleared = try await reopened.readerDownloadStatus(book)
+                XCTAssertEqual(cleared.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state, .missing)
+                let afterClear = try await reopened.progress(for: book)
+                XCTAssertEqual(afterClear.progress, restored.progress)
+                let retainedBody = try await reopened.cachedDownloadBody(book, chapter: detail.firstReadableIndex)
+                XCTAssertEqual(retainedBody.content, content.content)
+                // Reopening the exact completed owner must not enqueue again after
+                // an explicit later clear, or reinterpret fresh state as its ACK.
+                _ = try await reopened.downloadChapters(book, range: otherChapter.index..<(otherChapter.index + 1), operationID: downloadID)
+                try await reopened.clearDownloadedChapter(book, chapterIndex: otherChapter.index, operationID: clearID)
+                let afterReplay = try await reopened.readerDownloadStatus(book)
+                XCTAssertEqual(afterReplay.chapters.first(where: { $0.chapterIndex == otherChapter.index })?.state, .missing)
+                let facts: [String: Any] = [
+                    "sourceId": book.sourceId, "bookId": book.bookId,
+                    "downloadedChapterIndex": otherChapter.index,
+                    "downloadedBodySHA256": SHA256.hash(data: Data(downloadedBody.content.utf8))
+                        .map { String(format: "%02x", $0) }.joined(),
+                    "summaryRetainedBytes": storage.retainedBytes,
+                    "cleanupRemovedChapterIndexes": cleanup.removedChapters.map(\.chapterIndex),
+                    "completedStillPresentAfterCleanup": afterCleanupStatus.chapters
+                        .first(where: { $0.chapterIndex == otherChapter.index })?.state == .completed,
+                    "explicitClearAndOriginalReplayRemainMissing": afterReplay.chapters
+                        .first(where: { $0.chapterIndex == otherChapter.index })?.state == .missing,
+                    "boundary": "Original saved source package and real downloaded chapter in an isolated temporary library; no installed user download is cleared."
+                ]
+                let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]),
+                    uniformTypeIdentifier: "public.json")
+                attachment.name = "Real-source-temporary-download-cleanup-boundary"
+                attachment.lifetime = .keepAlways; add(attachment)
+                try await reopened.close()
+            } catch { try? await reopened.close(); throw error }
         } catch { try? await service.close(); throw error }
     }
 }
