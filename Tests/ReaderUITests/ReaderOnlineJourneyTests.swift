@@ -482,9 +482,17 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         let binding = XCTAttachment(data: try JSONSerialization.data(withJSONObject: fileFacts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
         binding.name = "source-tools-owned-export-file-and-original-source-binding"; binding.lifetime = .keepAlways; add(binding)
         let export = app.buttons.matching(NSPredicate(format: "label == %@", "导出"))
-        try sourceToolsRequire(export.count == 1 && export.element.isHittable && export.element.isEnabled,
+        let exportButton = export.element
+        try sourceToolsRequire(export.count == 1 && exportButton.isEnabled && exportButton.frame.width > 0
+                               && exportButton.frame.height > 0 && app.frame.intersects(exportButton.frame),
                                "Use one actual source export action; no background file creation", app: app)
-        export.element.tap()
+        if exportButton.isHittable {
+            exportButton.tap()
+        } else {
+            // SwiftUI can report this visible toolbar control as non-hittable
+            // while its native screen coordinate remains actionable.
+            exportButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
         let names = app.textFields.matching(identifier: "DOCPicker.filenameTextField")
         let saveLabels = ["导出", "存储", "保存", "移动", "Export", "Save", "Move"]
         try sourceToolsWait("Wait for actual native export presentation before Files navigation", timeout: 30) {
@@ -503,13 +511,24 @@ final class ReaderOnlineJourneyTests: XCTestCase {
                                "Require the entire UUID-owned name before the one native save", app: app)
         keepScreenshot(app, name: "source-tools-actual-owned-filename-before-only-files-save")
         saves[0].tap()
+        let sourceFileButton = app.buttons["online-source-file"]
         try sourceToolsWait("Return from actual native export without replacing a file", timeout: 30) {
-            (names.count == 0 && app.buttons["online-source-file"].isHittable) || app.alerts.firstMatch.exists
+            let frame = sourceFileButton.frame
+            let visible = sourceFileButton.exists && sourceFileButton.isEnabled && frame.width > 0
+                && frame.height > 0 && app.frame.intersects(frame)
+            return (names.count == 0 && visible) || app.alerts.firstMatch.exists
         }
-        try sourceToolsRequire(!app.alerts.firstMatch.exists && app.buttons["online-source-file"].isHittable,
+        let sourceFileFrame = sourceFileButton.frame
+        try sourceToolsRequire(!app.alerts.firstMatch.exists && sourceFileButton.exists && sourceFileButton.isEnabled
+                               && sourceFileFrame.width > 0 && sourceFileFrame.height > 0
+                               && app.frame.intersects(sourceFileFrame),
                                "Never accept a file-overwrite or unexpected save confirmation", app: app)
         try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalSources, "Export must not change source facts", app: app)
-        app.buttons["online-source-file"].tap()
+        if sourceFileButton.isHittable {
+            sourceFileButton.tap()
+        } else {
+            sourceFileButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
         try sourceToolsEnterReaderDocuments(app)
         let files = app.cells.containing(NSPredicate(format: "label == %@ OR label == %@", fileBase, fileBase + ".json"))
         try sourceToolsWait("Select only the same actual App-exported file", timeout: 15) { files.count == 1 && files.element.isHittable }
