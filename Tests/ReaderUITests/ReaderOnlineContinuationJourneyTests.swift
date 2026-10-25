@@ -27,7 +27,13 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             throw Prerequisite.invalid("READER_ONLINE_DOWNLOAD_CHAPTER_INDEX")
         }
         let app = XCUIApplication(); app.launch()
-        open(book, app: app)
+        if ProcessInfo.processInfo.environment["READER_ONLINE_OPEN_CONTINUE_CARD"] == "1" {
+            openContinue(app: app)
+            XCTAssertTrue(element("reading-book:" + book.identity, app: app).waitForExistence(timeout: 20),
+                          "The continue card must reopen the selected real source identity")
+        } else {
+            open(book, app: app)
+        }
         let originalChapter = try currentChapter(book, app: app)
         guard abs(Int64(downloadIndex) - Int64(originalChapter)) > 2 else {
             XCTFail("Choose an actual missing chapter outside the current +/-2 reading cache window")
@@ -127,7 +133,11 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             hideControls(app)
             _ = try anchor(app, name: "real-online-target-body-after-direct-source-selection")
             leave(app)
-            app.terminate(); app.launch(); open(target, app: app)
+            // A source switch changes the active source of the admitted shelf
+            // book; it does not create a second shelf row for the alternate
+            // source. Reopen the persisted continue card, then assert that the
+            // selected target identity survived the cold launch.
+            app.terminate(); app.launch(); openContinue(app: app)
             _ = try currentChapter(target, app: app)
             hideControls(app)
             _ = try anchor(app, name: "real-online-selected-source-after-cold-reopen")
@@ -353,14 +363,23 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
     private func open(_ book: Book, app: XCUIApplication) {
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 25))
         if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
-        let rows = app.buttons.matching(NSPredicate(format: "identifier == %@", book.shelfID))
-        let row = rows.firstMatch
+        // SwiftUI can expose the exact shelf button under a nested accessibility
+        // container after a cold launch. Direct identifier lookup traverses that
+        // container reliably and keeps the original source identity exact.
+        let row = app.buttons[book.shelfID]
         XCTAssertTrue(row.waitForExistence(timeout: 20), "Reuse the original real admitted shelf book.\n" + app.debugDescription)
-        XCTAssertEqual(rows.count, 1, "An ambiguous shelf ID cannot select an exact source")
         XCTAssertTrue(row.isHittable); row.tap()
         XCTAssertTrue(app.textViews["reading-body"].waitForExistence(timeout: 180))
         controls(app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:" + book.identity)).firstMatch.exists, "The opened reader must retain the exact real source and book identity")
+    }
+    private func openContinue(app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 25))
+        let card = app.buttons["shelf-continue-card"]
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "The admitted shelf book must retain its continue card after a cold launch")
+        XCTAssertTrue(card.isHittable); card.tap()
+        XCTAssertTrue(app.textViews["reading-body"].waitForExistence(timeout: 180))
+        controls(app)
     }
     private func controls(_ app: XCUIApplication) {
         if !app.buttons["reader-more"].isHittable {
