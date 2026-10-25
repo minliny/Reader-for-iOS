@@ -200,12 +200,10 @@ extension ReaderLibraryService: ReaderOnlineServing {
     }
     public func prepareLogin(_ sourceID: String) async throws -> [HTTPCookie] {
         guard let hostTransport else { throw ReaderLibraryError.invalidResponse("login transport") }
-        return hostTransport.cookieJar(sourceID: sourceID).cookies ?? []
+        return try hostTransport.cookies(sourceID: sourceID)
     }
     public func completeLogin(_ sourceID: String, cookies: [HTTPCookie], originalCookies: [HTTPCookie]) async throws {
         guard let hostTransport else { throw ReaderLibraryError.invalidResponse("login transport") }
-        let jar = hostTransport.cookieJar(sourceID: sourceID)
-        ReaderIOSHostTransport.mergeCookieChanges(original: originalCookies, updated: cookies, into: jar)
-        try hostTransport.persistCookies(sourceID: sourceID)
+        try hostTransport.commitCookieChanges(sourceID: sourceID, originalCookies: originalCookies, updatedCookies: cookies)
     }
 }

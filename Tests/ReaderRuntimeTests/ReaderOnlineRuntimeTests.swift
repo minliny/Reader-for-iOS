@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Security
 import XCTest
 #if canImport(ReaderCoreClient)
 import ReaderCoreClient
@@ -60,33 +61,221 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
 
     func testNativeCookieJarsAreSourceIsolatedAndRestoreOnlyWithinTheSameLibrary() throws {
         let namespace = "transport-test:" + UUID().uuidString
-        let first = ReaderIOSHostTransport(namespace: namespace)
         let url = try XCTUnwrap(URL(string: "https://reader-cookie.invalid/"))
         let cookie = try XCTUnwrap(HTTPCookie(properties: [.domain: "reader-cookie.invalid", .path: "/", .name: "session", .value: "method-fixture", .secure: "TRUE"]))
-        first.cookieJar(sourceID: "source-a").setCookie(cookie)
-        XCTAssertFalse(first.cookieJar(sourceID: "source-a") === first.cookieJar(sourceID: "source-b"))
-        XCTAssertEqual(first.cookieJar(sourceID: "source-a").cookies(for: url)?.count, 1)
-        XCTAssertTrue(first.cookieJar(sourceID: "source-b").cookies(for: url)?.isEmpty ?? true)
-        try first.persistCookies(sourceID: "source-a")
-        let reopened = ReaderIOSHostTransport(namespace: namespace)
-        XCTAssertEqual(reopened.cookieJar(sourceID: "source-a").cookies(for: url)?.count, 1)
-        let jar = reopened.cookieJar(sourceID: "source-a")
-        let baseline = jar.cookies ?? []
-        let concurrent = try XCTUnwrap(HTTPCookie(properties: [.domain: "reader-cookie.invalid", .path: "/", .name: "concurrent-http", .value: "new-session", .secure: "TRUE"]))
-        jar.setCookie(concurrent)
-        ReaderIOSHostTransport.mergeCookieChanges(original: baseline, updated: baseline, into: jar)
-        XCTAssertTrue(jar.cookies?.contains(where: { $0.name == concurrent.name && $0.value == concurrent.value }) ?? false,
-            "An unchanged WebKit snapshot cannot erase a concurrent native HTTP cookie")
-        let nativeParsed = try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": "server=native-response; Path=/; Secure; HttpOnly"], for: url).first)
-        jar.setCookie(nativeParsed)
-        try reopened.persistCookies(sourceID: "source-a")
+        // Only this random test identity is removed. Production source entries
+        // and the App's container data are outside this test's write scope.
+        let hashedNamespace = SHA256.hash(data: Data(namespace.utf8)).map { String(format: "%02x", $0) }.joined()
+        let hashedSource = SHA256.hash(data: Data("source-a".utf8)).map { String(format: "%02x", $0) }.joined()
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "io.reader.minliny.source-cookies." + hashedNamespace,
+            kSecAttrAccount as String: hashedSource]
+        func keychainData() throws -> Data {
+            var read = query; read[kSecReturnData as String] = true
+            var value: CFTypeRef?
+            let status = SecItemCopyMatching(read as CFDictionary, &value)
+            XCTAssertEqual(status, errSecSuccess)
+            return try XCTUnwrap(value as? Data)
+        }
+        defer {
+            let status = SecItemDelete(query as CFDictionary)
+            XCTAssertTrue(status == errSecSuccess || status == errSecItemNotFound, "Random test namespace cleanup must complete")
+        }
+        // Release each transport/store before reopening. The namespace registry
+        // is weak, so restoration must actually read Keychain, not live memory.
+        weak var prior: ReaderIOSHostTransport?
+        weak var priorPeer: ReaderIOSHostTransport?
+        weak var priorCancelled: ReaderIOSHostTransport?
+        do {
+            let first = ReaderIOSHostTransport(namespace: namespace)
+            prior = first
+            let peer = ReaderIOSHostTransport(namespace: namespace)
+            priorPeer = peer
+            XCTAssertTrue(try peer.cookies(sourceID: "source-a").isEmpty)
+            try first.commitCookieChanges(sourceID: "source-a", originalCookies: [], updatedCookies: [cookie])
+            XCTAssertEqual(try first.cookies(sourceID: "source-a").count, 1)
+            XCTAssertEqual(try peer.cookies(sourceID: "source-a").first?.value, cookie.value,
+                "A peer that already loaded this namespace must observe the same commit owner")
+            XCTAssertTrue(try first.cookies(sourceID: "source-b").isEmpty)
+            let originalData = try keychainData()
+            let baseline = try first.cookies(sourceID: "source-a")
+            try first.commitCookieChanges(sourceID: "source-a", originalCookies: baseline, updatedCookies: baseline)
+            XCTAssertEqual(try keychainData(), originalData, "A no-op must preserve the exact Keychain blob")
+
+            weak var cancellingOwner: ReaderIOSHostTransport?
+            let cancelled = ReaderIOSHostTransport(namespace: namespace, httpRunner: { _, jar, _ in
+                jar.setCookie(try XCTUnwrap(HTTPCookie(properties: [.domain: cookie.domain, .path: "/", .name: cookie.name, .value: "cancelled-private-candidate", .secure: "TRUE"])))
+                cancellingOwner?.cancel(requestID: 0)
+                return ["status": 200, "body": ""]
+            })
+            cancellingOwner = cancelled
+            priorCancelled = cancelled
+            XCTAssertThrowsError(try cancelled.perform(ReaderCoreHostRequest(operationId: 1, capability: "http.execute",
+                rawParams: ["url": url.absoluteString, "sessionId": "source-a"]))) { error in
+                XCTAssertEqual((error as? URLError)?.code, .cancelled)
+            }
+            cancelled.finish(requestID: 0)
+            XCTAssertEqual(try keychainData(), originalData, "A cancelled private candidate must leave Keychain bytes unchanged")
+            XCTAssertEqual(try peer.cookies(sourceID: "source-a").first?.value, cookie.value)
+        }
+        XCTAssertNil(prior, "The first transport must release before testing Keychain restoration")
+        XCTAssertNil(priorPeer)
+        XCTAssertNil(priorCancelled)
+        do {
+            let reopened = ReaderIOSHostTransport(namespace: namespace)
+            prior = reopened
+            let baseline = try reopened.cookies(sourceID: "source-a")
+            XCTAssertEqual(baseline.count, 1)
+            let concurrent = try XCTUnwrap(HTTPCookie(properties: [.domain: "reader-cookie.invalid", .path: "/", .name: "concurrent-http", .value: "new-session", .secure: "TRUE"]))
+            try reopened.commitCookieChanges(sourceID: "source-a", originalCookies: baseline, updatedCookies: baseline + [concurrent])
+            try reopened.commitCookieChanges(sourceID: "source-a", originalCookies: baseline, updatedCookies: baseline)
+            XCTAssertTrue(try reopened.cookies(sourceID: "source-a").contains(where: { $0.name == concurrent.name && $0.value == concurrent.value }),
+                "An unchanged WebKit snapshot cannot erase a concurrent native HTTP cookie")
+            let nativeParsed = try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": "server=native-response; Path=/; Secure; HttpOnly"], for: url).first)
+            let original = try reopened.cookies(sourceID: "source-a")
+            try reopened.commitCookieChanges(sourceID: "source-a", originalCookies: original, updatedCookies: original + [nativeParsed])
+        }
+        XCTAssertNil(prior, "The live shared store must release before the second Keychain restoration")
         let restoredAgain = ReaderIOSHostTransport(namespace: namespace)
-        XCTAssertTrue(restoredAgain.cookieJar(sourceID: "source-a").cookies?.contains(where: { $0.name == "server" && $0.isHTTPOnly }) ?? false)
+        XCTAssertTrue(try restoredAgain.cookies(sourceID: "source-a").contains(where: { $0.name == "server" && $0.isHTTPOnly }))
         let anotherLibrary = ReaderIOSHostTransport(namespace: namespace + ":other")
-        XCTAssertTrue(anotherLibrary.cookieJar(sourceID: "source-a").cookies(for: url)?.isEmpty ?? true)
-        // Remove method credentials using the same public native jar boundary.
-        for cookie in reopened.cookieJar(sourceID: "source-a").cookies ?? [] { reopened.cookieJar(sourceID: "source-a").deleteCookie(cookie) }
-        try reopened.persistCookies(sourceID: "source-a")
+        XCTAssertTrue(try anotherLibrary.cookies(sourceID: "source-a").isEmpty)
+    }
+
+    func testHTTPAndExplicitCookieWritesUseTheSameDurablePublicationBoundary() throws {
+        let sourceID = "cookie-transport:" + UUID().uuidString
+        let namespace = "cookie-transport-method:" + UUID().uuidString
+        let url = try XCTUnwrap(URL(string: "https://reader-cookie.invalid/"))
+        var durable: [HTTPCookie] = []
+        var failSave = false
+        var saveAttemptCount = 0
+        let store = ReaderSourceCookieStore(load: { _ in durable }, save: { _, cookies in
+            saveAttemptCount += 1
+            if failSave { throw URLError(.cannotWriteToFile) }
+            durable = cookies
+        })
+        let transport = ReaderIOSHostTransport(namespace: namespace, cookieStore: store, httpRunner: { params, jar, _ in
+            let value = params["method"] as? String == "HEAD" ? "response-401" : "received-before-timeout"
+            let cookie = try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields:
+                ["Set-Cookie": "session=\(value); Path=/; Secure; HttpOnly"], for: url).first)
+            jar.setCookie(cookie)
+            XCTAssertFalse(try store.snapshot(sourceID: sourceID).contains(where: { $0.value == value }),
+                "The actual HTTP execution seam must receive a private jar")
+            if params["method"] as? String != "HEAD" { throw URLError(.timedOut) }
+            return ["status": 401, "body": "", "finalUrl": url.absoluteString]
+        })
+        // Method evidence only: this runner replaces network I/O; actual Host
+        // staging/finalization and Foundation parsing still execute unchanged.
+        let request: (String) -> ReaderCoreHostRequest = { method in
+            ReaderCoreHostRequest(operationId: 1, capability: "http.execute",
+                rawParams: ["url": url.absoluteString, "sessionId": sourceID, "method": method])
+        }
+        XCTAssertThrowsError(try transport.perform(request("GET"))) { error in
+            XCTAssertEqual((error as? URLError)?.code, .timedOut)
+        }
+        XCTAssertEqual(try transport.cookies(sourceID: sourceID).first?.value, "received-before-timeout")
+        XCTAssertEqual(durable.first?.value, "received-before-timeout")
+        XCTAssertEqual(try transport.perform(request("HEAD")).status, 401)
+        XCTAssertEqual(durable.first?.value, "response-401")
+
+        _ = try transport.perform(ReaderCoreHostRequest(operationId: 2, capability: "cookie.set",
+            rawParams: ["url": url.absoluteString, "sessionId": sourceID,
+                        "cookie": ["name": "session", "value": "explicit-accepted", "secure": true]]))
+        XCTAssertEqual(try transport.cookies(sourceID: sourceID).first?.value, "explicit-accepted")
+        XCTAssertEqual(durable.first?.value, "explicit-accepted")
+
+        failSave = true
+        let attemptsBeforeFailure = saveAttemptCount
+        XCTAssertThrowsError(try transport.perform(ReaderCoreHostRequest(operationId: 2, capability: "cookie.set",
+            rawParams: ["url": url.absoluteString, "sessionId": sourceID,
+                        "cookie": ["name": "session", "value": "not-persisted", "secure": true]]))) { error in
+            XCTAssertEqual((error as? URLError)?.code, .cannotWriteToFile)
+        }
+        XCTAssertEqual(saveAttemptCount, attemptsBeforeFailure + 1)
+        let original = try transport.cookies(sourceID: sourceID)
+        XCTAssertThrowsError(try transport.commitCookieChanges(sourceID: sourceID, originalCookies: original, updatedCookies: [])) { error in
+            XCTAssertEqual((error as? URLError)?.code, .cannotWriteToFile)
+        }
+        XCTAssertEqual(saveAttemptCount, attemptsBeforeFailure + 2)
+        XCTAssertEqual(try transport.cookies(sourceID: sourceID).first?.value, "explicit-accepted")
+        XCTAssertEqual(durable.first?.value, "explicit-accepted")
+    }
+
+    func testConcurrentHTTPTransportCancellationRespectsCookieCommitAdmission() throws {
+        final class Outcome: @unchecked Sendable {
+            private let lock = NSLock()
+            private var result: Result<ReaderCoreHostResponse, Error>?
+            func set(_ value: Result<ReaderCoreHostResponse, Error>) { lock.withLock { result = value } }
+            func get() -> Result<ReaderCoreHostResponse, Error>? { lock.withLock { result } }
+        }
+        let url = try XCTUnwrap(URL(string: "https://reader-cookie.invalid/"))
+        // Each run has an independent random identity and in-memory persistence.
+        // The first pauses during I/O; the second pauses after commit admission.
+        for cancelBeforeAdmission in [true, false] {
+            let sourceID = "cookie-concurrency:" + UUID().uuidString
+            let staged = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+            let outcome = Outcome()
+            var durable: [HTTPCookie] = []
+            let store = ReaderSourceCookieStore(load: { _ in [] }, save: { _, cookies in
+                if !cancelBeforeAdmission {
+                    staged.signal()
+                    guard release.wait(timeout: .now() + 5) == .success else { throw URLError(.timedOut) }
+                }
+                durable = cookies
+            })
+            let transport = ReaderIOSHostTransport(namespace: UUID().uuidString, cookieStore: store, httpRunner: { _, jar, _ in
+                jar.setCookie(try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields:
+                    ["Set-Cookie": "session=accepted; Path=/; Secure"], for: url).first))
+                if cancelBeforeAdmission {
+                    staged.signal()
+                    guard release.wait(timeout: .now() + 5) == .success else { throw URLError(.timedOut) }
+                }
+                return ["status": 200, "body": "", "finalUrl": url.absoluteString]
+            })
+            let finished = expectation(description: "HTTP cookie operation finished")
+            DispatchQueue.global(qos: .userInitiated).async {
+                outcome.set(Result { try transport.perform(ReaderCoreHostRequest(operationId: 1, capability: "http.execute",
+                    rawParams: ["url": url.absoluteString, "sessionId": sourceID])) })
+                finished.fulfill()
+            }
+            XCTAssertEqual(staged.wait(timeout: .now() + 5), .success)
+            // This must return while save is blocked: cancel cannot take the
+            // store lock or hold transport.lock while waiting on an operation.
+            transport.cancel(requestID: 0)
+            release.signal()
+            wait(for: [finished], timeout: 5)
+            let result = try XCTUnwrap(outcome.get())
+            if cancelBeforeAdmission {
+                XCTAssertThrowsError(try result.get()) { error in XCTAssertEqual((error as? URLError)?.code, .cancelled) }
+                XCTAssertTrue(try transport.cookies(sourceID: sourceID).isEmpty)
+                XCTAssertTrue(durable.isEmpty)
+            } else {
+                XCTAssertEqual(try result.get().status, 200)
+                XCTAssertEqual(try transport.cookies(sourceID: sourceID).first?.value, "accepted")
+                XCTAssertEqual(durable.first?.value, "accepted")
+            }
+            transport.finish(requestID: 0)
+        }
+    }
+
+    func testImageHTTPFailureKeepsReceivedCookiesBeforeImageBusinessValidation() async throws {
+        let sourceID = "cookie-image:" + UUID().uuidString
+        let url = try XCTUnwrap(URL(string: "https://reader-cookie.invalid/cover"))
+        var durable: [HTTPCookie] = []
+        let store = ReaderSourceCookieStore(load: { _ in [] }, save: { _, cookies in durable = cookies })
+        let transport = ReaderIOSHostTransport(namespace: UUID().uuidString, cookieStore: store, httpRunner: { _, jar, binary in
+            XCTAssertTrue(binary)
+            jar.setCookie(try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields:
+                ["Set-Cookie": "challenge=received; Path=/; Secure"], for: url).first))
+            return ["status": 403, "bodyBytes": Data(), "finalUrl": url.absoluteString]
+        })
+        do {
+            _ = try await transport.fetchImage(parameters: ["url": url.absoluteString], sourceID: sourceID)
+            XCTFail("An HTTP rejection cannot become image bytes")
+        } catch {
+            XCTAssertEqual(try transport.cookies(sourceID: sourceID).first?.name, "challenge")
+            XCTAssertEqual(durable.first?.name, "challenge")
+        }
     }
 
     /// Real original source bytes exercise the Host DTO/finite receipt boundary.

@@ -10,17 +10,25 @@ import ReaderCoreClient
 /// Platform sockets, TLS and cookie storage. Core remains the request/rule owner.
 /// Each source has a private native cookie jar; credentials never enter Core DB.
 final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable {
+    typealias HTTPRunner = ([String: Any], HTTPCookieStorage, Bool) throws -> [String: Any]
     private let lock = NSLock()
-    private let cookiePersistenceLock = NSLock()
-    private let namespace: String
+    private let cookieStore: ReaderSourceCookieStore
+    private let httpRunner: HTTPRunner?
+    private let webOwnerID = UUID()
     private var bindings: [UInt64: String] = [:]
-    private var jars: [String: HTTPCookieStorage] = [:]
     private var jobs: [UInt64: [UUID: ReaderHTTPJob]] = [:]
+    private var cookieOperations: [UInt64: [UUID: ReaderSourceCookieOperation]] = [:]
     private var cancelled = Set<UInt64>()
     private var retiring = Set<UInt64>()
     private var activeHandlers: [UInt64: Int] = [:]
     private var packageSequence: UInt64 = 0
-    init(namespace: String = "reader") { self.namespace = Self.hash(namespace) }
+    init(namespace: String = "reader", cookieStore: ReaderSourceCookieStore? = nil, httpRunner: HTTPRunner? = nil) {
+        let namespace = Self.hash(namespace)
+        self.cookieStore = cookieStore ?? ReaderSourceCookieStore.shared(namespace: namespace,
+            load: { try Self.loadCookies(namespace: namespace, sourceID: $0) },
+            save: { try Self.saveCookies(namespace: namespace, sourceID: $0, cookies: $1) })
+        self.httpRunner = httpRunner
+    }
     func configure(_ client: ReaderCoreClient) {
         for capability in ["http.execute", "cookie.get", "cookie.set", "time.now"] {
             client.capabilityRouter.register(capability) { [weak self] request in
@@ -41,7 +49,7 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
         lock.withLock { clearRetiredIfIdle(requestID) }
     }
     private func clear(_ id: UInt64) {
-        bindings[id] = nil; cancelled.remove(id); jobs[id] = nil
+        bindings[id] = nil; cancelled.remove(id); jobs[id] = nil; cookieOperations[id] = nil
         retiring.remove(id); activeHandlers[id] = nil
     }
     private func clearRetiredIfIdle(_ id: UInt64) {
@@ -72,25 +80,30 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
         let id = reservePackageRequest()
         bind(requestID: id, sourceID: sourceID)
         defer { finish(requestID: id) }
-        let job = try ReaderHTTPJob(params: parameters, jar: cookieJar(sourceID: sourceID), binary: true)
-        let identity = UUID()
-        lock.withLock { jobs[id, default: [:]][identity] = job }
-        defer { lock.withLock { jobs[id]?[identity] = nil } }
         let result: [String: Any] = try await withTaskCancellationHandler(operation: {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                DispatchQueue.global(qos: .utility).async { continuation.resume(with: Result { try job.run() }) }
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(with: Result { try self.executeHTTP(parameters: parameters, sourceID: sourceID, requestID: id, binary: true) })
+                }
             }
-        }, onCancel: { job.cancel() })
+        }, onCancel: { self.cancel(requestID: id) })
         try Task.checkCancellation()
         guard let status = result["status"] as? Int, (200..<300).contains(status), let bytes = result["bodyBytes"] as? Data else { throw ReaderHostFailure("INTERNAL", "封面暂时无法加载") }
-        try persistCookies(sourceID: sourceID)
         return bytes
     }
     func cancel(requestID: UInt64) {
-        lock.lock(); cancelled.insert(requestID); let active = Array(jobs[requestID]?.values ?? [:].values); lock.unlock()
+        lock.lock()
+        cancelled.insert(requestID)
+        let active = Array(jobs[requestID]?.values ?? [:].values)
+        let operations = Array(cookieOperations[requestID]?.values ?? [:].values)
+        lock.unlock()
+        // Never hold transport.lock while taking an operation lock. Commit uses
+        // store -> operation -> transport, with cancellation checked at admission.
+        operations.forEach { $0.cancel() }
         active.forEach { $0.cancel() }
-        Task { @MainActor in ReaderSourceWebBridge.shared.cancel(requestID: requestID) }
+        let ownerID = webOwnerID
+        Task { @MainActor in ReaderSourceWebBridge.shared.cancel(ownerID: ownerID, requestID: requestID) }
     }
     private func wasCancelled(_ requestID: UInt64) -> Bool { lock.withLock { cancelled.contains(requestID) } }
     private static func hash(_ value: String) -> String {
@@ -102,30 +115,33 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             ?? params["sessionId"] as? String ?? params["profileId"] as? String
             ?? (URL(string: params["url"] as? String ?? "")?.host ?? "unbound")
     }
-    func cookieJar(sourceID: String) -> HTTPCookieStorage {
-        lock.lock(); defer { lock.unlock() }
-        if let jar = jars[sourceID] { return jar }
-        // Ephemeral configurations allocate an independent in-memory cookie store.
-        let jar = URLSessionConfiguration.ephemeral.httpCookieStorage!
+    func cookies(sourceID: String) throws -> [HTTPCookie] { try cookieStore.snapshot(sourceID: sourceID) }
+    func commitCookieChanges(sourceID: String, originalCookies: [HTTPCookie], updatedCookies: [HTTPCookie]) throws {
+        let operation = try cookieStore.begin(sourceID: sourceID, originalCookies: originalCookies)
+        operation.replaceCookies(updatedCookies)
+        // The login owner authorizes this original source write before calling.
+        try cookieStore.complete(operation, result: .success(()))
+    }
+    private static func loadCookies(namespace: String, sourceID: String) throws -> [HTTPCookie] {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "io.reader.minliny.source-cookies." + namespace,
             kSecAttrAccount as String: Self.hash(sourceID), kSecReturnData as String: true]
         var result: CFTypeRef?
-        if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-           let data = result as? Data,
-           let records = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [[String: Any]] {
-            for record in records {
-                let properties = Dictionary(uniqueKeysWithValues: record.map { (HTTPCookiePropertyKey($0.key), $0.value) })
-                if let cookie = HTTPCookie(properties: properties) { jar.setCookie(cookie) }
-            }
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return [] }
+        guard status == errSecSuccess, let data = result as? Data,
+              let records = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [[String: Any]] else {
+            throw ReaderHostFailure("INTERNAL", "无法读取来源登录状态")
         }
-        jars[sourceID] = jar
-        return jar
+        return try records.map { record in
+            let properties = Dictionary(uniqueKeysWithValues: record.map { (HTTPCookiePropertyKey($0.key), $0.value) })
+            guard let cookie = HTTPCookie(properties: properties) else { throw ReaderHostFailure("INTERNAL", "来源登录状态无法读取") }
+            return cookie
+        }
     }
-    func persistCookies(sourceID: String) throws {
-        cookiePersistenceLock.lock(); defer { cookiePersistenceLock.unlock() }
-        let records = (cookieJar(sourceID: sourceID).cookies ?? []).compactMap { cookie -> [String: Any]? in
-            guard let props = cookie.properties else { return nil }
+    private static func saveCookies(namespace: String, sourceID: String, cookies: [HTTPCookie]) throws {
+        let records = try cookies.map { cookie -> [String: Any] in
+            guard let props = cookie.properties else { throw ReaderHostFailure("INTERNAL", "无法保存来源登录状态") }
             return Dictionary(uniqueKeysWithValues: props.map { key, value in
                 (key.rawValue, (value as? URL).map { $0.absoluteString as Any } ?? value)
             })
@@ -140,6 +156,38 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             guard SecItemAdd(insert as CFDictionary, nil) == errSecSuccess else { throw ReaderHostFailure("INTERNAL", "无法保存来源登录状态") }
         } else if status != errSecSuccess { throw ReaderHostFailure("INTERNAL", "无法保存来源登录状态") }
+    }
+    private func beginCookieOperation(sourceID: String, requestID: UInt64) throws -> (UUID, ReaderSourceCookieOperation) {
+        let operation = try cookieStore.begin(sourceID: sourceID)
+        let identity = UUID()
+        let stopped = lock.withLock {
+            cookieOperations[requestID, default: [:]][identity] = operation
+            return cancelled.contains(requestID) || retiring.contains(requestID)
+        }
+        if stopped { operation.cancel() }
+        return (identity, operation)
+    }
+    private func completeCookieOperation<T>(_ operation: ReaderSourceCookieOperation, requestID: UInt64,
+                                            result: Result<T, Error>) throws -> T {
+        try cookieStore.complete(operation, result: result) {
+            self.lock.withLock { !self.cancelled.contains(requestID) && !self.retiring.contains(requestID) }
+        }
+    }
+    private func executeHTTP(parameters: [String: Any], sourceID: String, requestID: UInt64, binary: Bool = false) throws -> [String: Any] {
+        let (identity, operation) = try beginCookieOperation(sourceID: sourceID, requestID: requestID)
+        defer { lock.withLock { cookieOperations[requestID]?[identity] = nil; jobs[requestID]?[identity] = nil } }
+        let job = try ReaderHTTPJob(params: parameters, jar: operation.jar, binary: binary)
+        let stopped = lock.withLock {
+            jobs[requestID, default: [:]][identity] = job
+            return cancelled.contains(requestID) || retiring.contains(requestID)
+        }
+        let result: Result<[String: Any], Error> = Result {
+            if stopped { throw URLError(.cancelled) }
+            return try httpRunner?(parameters, operation.jar, binary) ?? job.run()
+        }
+        // Finalize on non-cancel failures too: a received Set-Cookie is valid
+        // independently of body decoding or a later transport failure.
+        return try completeCookieOperation(operation, requestID: requestID, result: result)
     }
     func perform(_ request: ReaderCoreHostRequest) throws -> ReaderCoreHostResponse {
         let object = try performObject(request, requestID: 0)
@@ -182,12 +230,21 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             if capability == "webview.evaluateJavaScript" {
                 guard !wasCancelled(requestID) else { throw URLError(.cancelled) }
                 let source = key(request.rawParams, requestID: requestID)
-                let jar = cookieJar(sourceID: source)
-                let originalCookies = jar.cookies ?? []
-                result = try await ReaderSourceWebBridge.shared.evaluate(request.rawParams, requestID: requestID, operationID: operationID, cookies: originalCookies, shouldCancel: { self.wasCancelled(requestID) }) { cookies in
-                    Self.mergeCookieChanges(original: originalCookies, updated: cookies, into: jar)
+                let (identity, operation) = try beginCookieOperation(sourceID: source, requestID: requestID)
+                defer { lock.withLock { cookieOperations[requestID]?[identity] = nil } }
+                let evaluated: Result<[String: Any], Error>
+                do {
+                    let value = try await ReaderSourceWebBridge.shared.evaluate(request.rawParams, ownerID: webOwnerID,
+                        requestID: requestID, operationID: operationID, cookies: operation.originalCookies,
+                        shouldCancel: { self.wasCancelled(requestID) }) { cookies in operation.replaceCookies(cookies) }
+                    evaluated = .success(value)
+                } catch {
+                    evaluated = .failure(error)
                 }
-                try persistCookies(sourceID: source)
+                // Recheck the request owner after allCookies() returns. WebKit
+                // removes its run before that await, but the transport retains
+                // this operation so cancellation in that window still wins.
+                result = try completeCookieOperation(operation, requestID: requestID, result: evaluated)
             } else {
                 let box = ReaderHostRequestBox(request: request)
                 result = try await withCheckedThrowingContinuation { continuation in
@@ -206,31 +263,13 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
                 message: failure?.message ?? (urlError == nil ? "来源请求未完成" : "网络请求未完成"), retryable: failure == nil && policy.retryable)
         }
     }
-    static func mergeCookieChanges(original: [HTTPCookie], updated: [HTTPCookie], into jar: HTTPCookieStorage) {
-        func identity(_ cookie: HTTPCookie) -> String { cookie.domain + "\u{0}" + cookie.path + "\u{0}" + cookie.name }
-        let before = Dictionary(original.map { (identity($0), $0) }, uniquingKeysWith: { _, last in last })
-        let after = Dictionary(updated.map { (identity($0), $0) }, uniquingKeysWith: { _, last in last })
-        for (key, cookie) in before where after[key] == nil { jar.deleteCookie(cookie) }
-        for (key, cookie) in after {
-            if let old = before[key], NSDictionary(dictionary: old.properties ?? [:]).isEqual(to: cookie.properties ?? [:]) { continue }
-            jar.setCookie(cookie)
-        }
-    }
     private func performObject(_ request: ReaderCoreHostRequest, requestID: UInt64) throws -> [String: Any] {
         let params = request.rawParams, source = key(request.rawParams, requestID: requestID)
-        let jar = cookieJar(sourceID: source)
         switch request.capability {
         case "http.execute":
-            let job = try ReaderHTTPJob(params: params, jar: jar)
-            let identity = UUID()
-            lock.lock(); let stopped = cancelled.contains(requestID); jobs[requestID, default: [:]][identity] = job; lock.unlock()
-            defer { lock.lock(); jobs[requestID]?[identity] = nil; lock.unlock() }
-            if stopped { throw URLError(.cancelled) }
-            let result = try job.run()
-            try persistCookies(sourceID: source)
-            return result
+            return try executeHTTP(parameters: params, sourceID: source, requestID: requestID)
         case "cookie.get":
-            let cookies = (params["url"] as? String).flatMap(URL.init(string:)).map { jar.cookies(for: $0) ?? [] } ?? jar.cookies ?? []
+            let cookies = try cookieStore.cookies(sourceID: source, for: (params["url"] as? String).flatMap(URL.init(string:)))
             return ["cookies": cookies.filter { cookie in
                 (params["name"] as? String).map { $0 == cookie.name } ?? true
             }.filter { cookie in (params["domain"] as? String).map { $0 == cookie.domain } ?? true }.map(Self.cookieRecord)]
@@ -250,7 +289,10 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             }
             if let sameSite = record["sameSite"] as? String { properties[HTTPCookiePropertyKey("SameSite")] = sameSite }
             guard let cookie = HTTPCookie(properties: properties) else { throw ReaderHostFailure("INVALID_PARAMS", "Cookie 格式无效") }
-            jar.setCookie(cookie); try persistCookies(sourceID: source)
+            let (identity, operation) = try beginCookieOperation(sourceID: source, requestID: requestID)
+            defer { lock.withLock { cookieOperations[requestID]?[identity] = nil } }
+            operation.jar.setCookie(cookie)
+            try completeCookieOperation(operation, requestID: requestID, result: .success(()))
             return ["stored": true]
         case "time.now": return ["unixMillis": Int64(Date().timeIntervalSince1970 * 1000), "iso8601": ISO8601DateFormatter().string(from: Date()), "timezone": TimeZone.current.identifier]
         default: throw ReaderHostFailure("UNKNOWN_METHOD", "此来源需要尚未支持的平台能力")
@@ -428,6 +470,7 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
 /// WebKit owns JavaScript and page navigation; no Host HTML/rule interpreter.
 @MainActor final class ReaderSourceWebBridge: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     static let shared = ReaderSourceWebBridge()
+    private struct RunKey: Hashable { let ownerID: UUID; let operationID: UInt64 }
     private struct Run {
         let parentID: UInt64
         let view: WKWebView
@@ -438,10 +481,14 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
         var navigationGeneration: UInt64 = 0
         var evaluation: Task<Void, Never>?
     }
-    private var runs: [UInt64: Run] = [:]
-    func cancel(requestID: UInt64) { for id in runs.filter({ $0.value.parentID == requestID }).map(\.key) { finish(id, .failure(URLError(.cancelled))) } }
-    func evaluate(_ params: [String: Any], requestID: UInt64, operationID: UInt64? = nil, cookies: [HTTPCookie], shouldCancel: @escaping () -> Bool = { Task.isCancelled }, cookieSink: @escaping ([HTTPCookie]) -> Void = { _ in }) async throws -> [String: Any] {
-        let id = operationID ?? requestID
+    private var runs: [RunKey: Run] = [:]
+    func cancel(ownerID: UUID, requestID: UInt64) {
+        for id in runs.filter({ $0.key.ownerID == ownerID && $0.value.parentID == requestID }).map(\.key) {
+            finish(id, .failure(URLError(.cancelled)))
+        }
+    }
+    func evaluate(_ params: [String: Any], ownerID: UUID, requestID: UInt64, operationID: UInt64? = nil, cookies: [HTTPCookie], shouldCancel: @escaping () -> Bool = { Task.isCancelled }, cookieSink: @escaping ([HTTPCookie]) -> Void = { _ in }) async throws -> [String: Any] {
+        let id = RunKey(ownerID: ownerID, operationID: operationID ?? requestID)
         guard !shouldCancel() else { throw URLError(.cancelled) }
         guard runs[id] == nil else { throw ReaderHostFailure("BUSY", "网页来源操作正在进行") }
         let config = WKWebViewConfiguration(); config.websiteDataStore = .nonPersistent()
@@ -526,7 +573,7 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
         if let title = run.view.title, !title.isEmpty { result["title"] = title }
         finish(id, .success(result))
     }
-    private func finish(_ id: UInt64, _ result: Result<[String: Any], Error>) {
+    private func finish(_ id: RunKey, _ result: Result<[String: Any], Error>) {
         guard let run = runs.removeValue(forKey: id) else { return }
         run.timer.cancel(); run.evaluation?.cancel(); run.view.navigationDelegate = nil; run.view.stopLoading()
         run.view.configuration.userContentController.removeScriptMessageHandler(forName: "readerSourceResource", contentWorld: .defaultClient)
@@ -540,7 +587,6 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
 
     nonisolated static func shouldCommitCookies(for result: Result<[String: Any], Error>) -> Bool {
         guard case .failure(let error) = result else { return true }
-        if error is CancellationError { return false }
-        return (error as? URLError)?.code != .cancelled
+        return !ReaderSourceCookieStore.isCancellation(error)
     }
 }
