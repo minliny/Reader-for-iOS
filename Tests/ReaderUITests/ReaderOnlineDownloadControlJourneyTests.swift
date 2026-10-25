@@ -37,7 +37,7 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
             throw Prerequisite.invalid("completed protection prerequisite")
         }
 
-        let app = XCUIApplication(); app.launch(); open(book, app: app)
+        let app = XCUIApplication(); app.launch(); openEntry(book, app: app)
         let originalChapter = try currentChapter(book, app: app)
         for index in chosenRange {
             XCTAssertGreaterThan(abs(Int64(index) - Int64(originalChapter)), 2,
@@ -148,7 +148,7 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
         try visible(originalAnchor, app: app, name: "actual-download-controls-preserved-visible-body")
         XCTAssertEqual(app.staticTexts["reading-progress"].label, originalProgress)
         leave(app)
-        app.terminate(); app.launch(); open(book, app: app)
+        app.terminate(); app.launch(); openEntry(book, app: app)
         XCTAssertEqual(try currentChapter(book, app: app), originalChapter)
         hideControls(app)
         try visible(originalAnchor, app: app, name: "actual-download-controls-cold-body-and-position")
@@ -188,7 +188,7 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
             XCTFail("Use Root's fresh exact current Baidu 50-readable-chapter snapshot and two distinct genuinely missing control targets; preserve every original completed task")
             throw Prerequisite.invalid("actual whole-book selection")
         }
-        let app = XCUIApplication(); app.launch(); open(book, app: app)
+        let app = XCUIApplication(); app.launch(); openEntry(book, app: app)
         let originalChapter = try currentChapter(book, app: app)
         for index in [pauseIndex, cancelIndex] {
             XCTAssertGreaterThan(abs(Int64(index) - Int64(originalChapter)), 2,
@@ -247,7 +247,7 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
         hideControls(app)
         try visible(originalAnchor, app: app, name: "actual-whole-parent-preserved-original-body")
         XCTAssertEqual(app.staticTexts["reading-progress"].label, originalProgress)
-        leave(app); app.terminate(); app.launch(); open(book, app: app)
+        leave(app); app.terminate(); app.launch(); openEntry(book, app: app)
         XCTAssertEqual(try currentChapter(book, app: app), originalChapter)
         hideControls(app)
         try visible(originalAnchor, app: app, name: "actual-whole-parent-cold-original-body")
@@ -627,6 +627,20 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
         controls(app)
         let title = exact("reading-book:" + book.identity, type: .staticText, app: app)
         XCTAssertTrue(title.exists); XCTAssertEqual(title.label, book.title)
+    }
+    private func openEntry(_ book: Book, app: XCUIApplication) {
+        if ProcessInfo.processInfo.environment["READER_ONLINE_OPEN_CONTINUE_CARD"] == "1" {
+            XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 25))
+            let card = app.buttons["shelf-continue-card"]
+            XCTAssertTrue(card.waitForExistence(timeout: 20), "The admitted shelf book must retain its continue card")
+            XCTAssertTrue(card.isHittable); card.tap()
+            XCTAssertTrue(app.textViews["reading-body"].waitForExistence(timeout: 180))
+            controls(app)
+            let title = exact("reading-book:" + book.identity, type: .staticText, app: app)
+            XCTAssertTrue(title.exists); XCTAssertEqual(title.label, book.title)
+        } else {
+            open(book, app: app)
+        }
     }
     private func currentChapter(_ book: Book, app: XCUIApplication) throws -> UInt32 {
         controls(app)
