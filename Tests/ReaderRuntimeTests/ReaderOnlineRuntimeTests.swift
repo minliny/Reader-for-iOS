@@ -51,7 +51,19 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
         var address = try XCTUnwrap(URLComponents(string: try XCTUnwrap(definitions.first?["bookSourceUrl"] as? String)))
         address.scheme = "http"
         let url = try XCTUnwrap(address.url)
-        let transport = ReaderIOSHostTransport(namespace: "real-http-policy:" + UUID().uuidString)
+        let namespace = "real-http-policy:" + UUID().uuidString
+        let sourceID = "source-package:" + (url.host ?? "")
+        let hashedNamespace = SHA256.hash(data: Data(namespace.utf8)).map { String(format: "%02x", $0) }.joined()
+        let hashedSource = SHA256.hash(data: Data(sourceID.utf8)).map { String(format: "%02x", $0) }.joined()
+        defer {
+            // A real origin may set Cookies. Remove only this test's random
+            // Keychain identity; never touch the user's source credentials.
+            let status = SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "io.reader.minliny.source-cookies." + hashedNamespace,
+                kSecAttrAccount as String: hashedSource] as CFDictionary)
+            XCTAssertTrue(status == errSecSuccess || status == errSecItemNotFound)
+        }
+        let transport = ReaderIOSHostTransport(namespace: namespace)
         let response = try await transport.fetchPackage(at: url)
         XCTAssertTrue((100..<600).contains(response.status), "A real HTTP response, including a source rejection, proves transport reached the source; a fabricated successful body cannot substitute")
         let facts = try JSONSerialization.data(withJSONObject: ["requestURL": url.absoluteString, "status": response.status, "finalURL": response.finalUrl ?? ""], options: [.sortedKeys])
