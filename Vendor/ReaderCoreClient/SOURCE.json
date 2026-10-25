@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/minliny/Reader-Core",
-  "commit": "17fdab3f080106f8fef9f0c38e068a716a7656c0",
+  "commit": "8acdf7bbc04359a929c3c42f3e25b7d971b2cd55",
   "license": "MIT OR Apache-2.0",
   "minimumDeploymentTarget": "17.0",
   "files": [
@@ -11,13 +11,14 @@
       "sha256": "e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0"
     }
   ],
-  "previousCommit": "ccd6349d4a2fde305d71c2584f2994de4d434396",
+  "previousCommit": "17fdab3f080106f8fef9f0c38e068a716a7656c0",
   "upgrade": {
     "cABI": "Unchanged C ABI, protocol v1, runtime-config v1, headers and exact e503d27a Swift binding.",
     "storageSchema": "SQLite38 and portable snapshot16 unchanged; no DDL, position, original ACK/journal or migration changes.",
     "terminalDownloadCancel": "Completed and Cancelled chapter tasks remain unchanged when a stale or repeated cancel arrives; exact cancel still creates, settles and replays its own receipt without changing a later generation.",
-    "scope": "This device Core pin descends directly from bb3fbd84 through ccd6349d and changes only the opt-in completed-download cleanup contract/policy plus duplicate source-book upsert and focused regressions. Current Core main and unrelated dirty work are excluded. Native cleanup and complete V4 journeys remain separate acceptance gates.",
+    "scope": "This device Core pin extends exact 17fdab3f only with atomic subscription preview admission, its optional contract/schema field and focused regression. Current Core main and unrelated dirty work are excluded. Device subscription conflict and complete V4 journeys remain separate gates.",
     "storageCleanupCompletedRetention": "iOS storage summary and cleanup explicitly request retainCompletedQueue; Core inventories current body-complete tasks within the publication guard. Omission retains generic Core cleanup semantics; explicit chapter clear remains destructive.",
-    "sourceBookDiscovery": "Unchanged source-book JSON now skips duplicate SQLite writes; metadata changes use UPDATE, and title changes keep the existing derived-document invalidation trigger. Search acquisition still publishes its own timing/discovery facts."
+    "sourceBookDiscovery": "Unchanged source-book JSON now skips duplicate SQLite writes; metadata changes use UPDATE, and title changes keep the existing derived-document invalidation trigger. Search acquisition still publishes its own timing/discovery facts.",
+    "subscriptionPreviewAdmission": "iOS sends the complete subscription snapshot and rules mutation head; Core checks both inside the publication guard before replacing the single preview plan. Older callers may omit expected and retain existing Core semantics."
   }
 }

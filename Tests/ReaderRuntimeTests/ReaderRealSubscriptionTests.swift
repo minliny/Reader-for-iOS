@@ -276,6 +276,61 @@ final class ReaderRealSubscriptionTests: XCTestCase {
         }
     }
 
+    /// Places a configuration change after the old caller's final head read,
+    /// immediately before preview admission. Uses the unchanged downloaded
+    /// package and Core's real single plan slot, without network or delays.
+    func testOriginalProviderPackageAtomicPreviewAdmissionRetainsCurrentPlanAfterFinalHeadReadAndABA() async throws {
+        let package = try originalProviderPackage()
+        let remoteJSON = try XCTUnwrap(String(data: package, encoding: .utf8))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionAtomicAdmission-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for aba in [false, true] {
+            let directory = root.appendingPathComponent(aba ? "aba" : "changed")
+            let service = try ReaderLibraryService(storageURL: directory.appendingPathComponent("Core"), sourceURL: directory.appendingPathComponent("Sources"))
+            do {
+                let original = ReaderSourceSubscription(id: 941013, name: "真实订阅原子预览准入",
+                    url: subscriptionURL, type: 0, customOrder: 0, autoUpdate: true, update: 0)
+                let changed = ReaderSourceSubscription(id: original.id, name: original.name, url: original.url,
+                    type: original.type, customOrder: original.customOrder, autoUpdate: false, update: original.update)
+                _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString)
+                let query = try await service.coreRead("rules.mutation.query", [:])
+                let originalHead = try XCTUnwrap(JSONSerialization.jsonObject(with: query) as? [String: Any])["head"] ?? NSNull()
+                let snapshot = try JSONSerialization.jsonObject(with: JSONEncoder().encode(original))
+                let expected: [String: Any] = ["subscription": snapshot, "rulesHead": originalHead]
+
+                _ = try await service.saveRuleSubscription(changed, operationID: UUID().uuidString)
+                if aba { _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString) }
+                let current = aba ? original : changed
+                let currentPlan = try await service.checkRuleSubscription(current, fetch: { url in
+                    XCTAssertEqual(url.absoluteString, current.url)
+                    return package
+                })
+                do {
+                    _ = try await service.coreRead("rule-sub.update.preview.v1", [
+                        "subscriptionId": original.id, "remoteJson": remoteJSON, "expected": expected
+                    ])
+                    XCTFail("A changed fetch owner must be rejected before it replaces the newer plan")
+                } catch ReaderLibraryError.core(let code, _, _, let reason) {
+                    XCTAssertEqual(code, "INVALID_PARAMS")
+                    XCTAssertEqual(reason, "SUBSCRIPTION_CHECK_CHANGED")
+                }
+                let beforeApply = try await service.onlineSources()
+                let beforeSubscriptions = try await service.ruleSubscriptions()
+                let pending = try await service.pendingCoreCommands()
+                XCTAssertTrue(beforeApply.isEmpty)
+                XCTAssertEqual(beforeSubscriptions, [current])
+                XCTAssertTrue(pending.isEmpty, "A stale preview rejection cannot allocate a mutation")
+                let selected = try XCTUnwrap(currentPlan.changes.filter { $0.safeToApply && isHTTPSource($0.sourceId) }
+                    .sorted { $0.sourceId < $1.sourceId }.first)
+                let applied = try await service.applyRuleSubscription(currentPlan, sourceIDs: [selected.sourceId], operationID: UUID().uuidString)
+                assertOriginalApply(applied, plan: currentPlan, selectedID: selected.sourceId)
+                let sources = try await service.onlineSources()
+                XCTAssertEqual(sources.map(\.id), [selected.sourceId], "The exact newer plan must remain usable")
+                try await service.close()
+            } catch { try? await service.close(); throw error }
+        }
+    }
+
     private func originalProviderPackage() throws -> Data {
         let path = try XCTUnwrap(ProcessInfo.processInfo.environment["READER_REAL_SUBSCRIPTION_PACKAGE_PATH"],
             "Select the existing complete Yiove response.body; do not create or replace package input")

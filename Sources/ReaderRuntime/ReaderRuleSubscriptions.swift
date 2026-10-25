@@ -69,7 +69,7 @@ extension ReaderLibraryService: ReaderRuleSubscriptionServing {
     /// alone cannot identify a provider/configuration change during that fetch.
     func checkRuleSubscription(_ subscription: ReaderSourceSubscription,
                                fetch: @Sendable (URL) async throws -> Data) async throws -> ReaderSubscriptionPlan {
-        struct Head: Decodable, Equatable {
+        struct Head: Codable, Equatable {
             let operationId: String
             let sequence: UInt64
             let payloadFingerprint: String
@@ -88,7 +88,21 @@ extension ReaderLibraryService: ReaderRuleSubscriptionServing {
         let fetchedHead = try decode(Query.self, await coreRead("rules.mutation.query", [:])).head
         guard before == fetchedHead else { throw changed }
         guard let json = String(data: remote, encoding: .utf8) else { throw ReaderLibraryError.invalidResponse("subscription JSON encoding") }
-        let plan = try decode(ReaderSubscriptionPlan.self, await coreRead("rule-sub.update.preview.v1", ["subscriptionId": subscription.id, "remoteJson": json]))
+        let rulesHead: Any
+        if let before { rulesHead = try object(JSONEncoder().encode(before)) }
+        else { rulesHead = NSNull() }
+        // The final check and preview publication must share Core's guard:
+        // another rules write can arrive after our last awaited head read.
+        let expected: [String: Any] = ["subscription": try object(JSONEncoder().encode(subscription)),
+            "rulesHead": rulesHead]
+        let plan: ReaderSubscriptionPlan
+        do {
+            plan = try decode(ReaderSubscriptionPlan.self, await coreRead("rule-sub.update.preview.v1", [
+                "subscriptionId": subscription.id, "remoteJson": json, "expected": expected
+            ]))
+        } catch ReaderLibraryError.core(_, _, _, let reason) where reason == "SUBSCRIPTION_CHECK_CHANGED" {
+            throw changed
+        }
         guard plan.subscriptionId == subscription.id else { throw ReaderLibraryError.invalidResponse("subscription plan identity") }
         guard try await ruleSubscriptions().first(where: { $0.id == subscription.id }) == subscription else { throw changed }
         // Every production rules mutation advances this Core-owned head in its
