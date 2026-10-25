@@ -7,6 +7,10 @@ import Vision
 /// observed identities; it is never sent to the App or used to inject data.
 final class ReaderOnlineContinuationJourneyTests: XCTestCase {
     private enum Prerequisite: Error { case missing(String), invalid(String) }
+    // On the physical iPhone one complete public AX viewport observation took
+    // about eight seconds. Stability requires two full observations plus the
+    // polling interval; the old 10/15-second budgets expired mid-second read.
+    private let settledGeometryTimeout: TimeInterval = 20
     private struct Book {
         let source: String
         let id: String
@@ -178,12 +182,12 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
 
         var scrolled: SwitchSnapshot?
         for attempt in 0..<6 {
-            let current = try stableSwitchSnapshot(app, timeout: 10, name: "before-owned-drag-\(attempt)")
+            let current = try stableSwitchSnapshot(app, timeout: settledGeometryTimeout, name: "before-owned-drag-\(attempt)")
             let distance = min(CGFloat(120), max(CGFloat(50), current.rows[0].frame.height * 0.45))
             let from = switchCoordinate(CGPoint(x: current.frame.midX, y: current.frame.minY + current.frame.height * 0.72), app: app)
             let to = switchCoordinate(CGPoint(x: current.frame.midX, y: current.frame.minY + current.frame.height * 0.72 - distance), app: app)
             from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.2)
-            let now = try stableSwitchSnapshot(app, timeout: 10, name: "after-owned-drag-\(attempt)")
+            let now = try stableSwitchSnapshot(app, timeout: settledGeometryTimeout, name: "after-owned-drag-\(attempt)")
             try keepSwitchGeometry(now, app: app, name: "after-owned-drag-\(attempt)")
             let hasMoved = initial.rows.contains { old in
                 guard let current = now.rows.first(where: { $0.id == old.id }) else { return true }
@@ -307,17 +311,18 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             return false
         }, object: nil)
         let outcome = XCTWaiter.wait(for: [condition], timeout: timeout)
-        if let actual = observedSwitchSnapshot(app) { try keepSwitchGeometry(actual, app: app, name: name+"-actual") }
-        guard outcome == .completed, let result = captured else {
-            keep(app, name: name+"-prerequisite-failure")
-            let evidence = XCTAttachment(string: app.debugDescription); evidence.name=name+"-actual-AX"; evidence.lifetime = .keepAlways; add(evidence)
-            XCTFail("Require settled real search, >=2 actual candidates with real timings, no keyboard and stable public geometry: "+name)
-            throw Prerequisite.invalid("real switch viewport prerequisite")
+        if outcome == .completed, let result = captured {
+            try keepSwitchGeometry(result, app: app, name: name+"-actual")
+            return result
         }
-        return result
+        if let actual = observedSwitchSnapshot(app) { try keepSwitchGeometry(actual, app: app, name: name+"-actual") }
+        keep(app, name: name+"-prerequisite-failure")
+        let evidence = XCTAttachment(string: app.debugDescription); evidence.name=name+"-actual-AX"; evidence.lifetime = .keepAlways; add(evidence)
+        XCTFail("Require settled real search, >=2 actual candidates with real timings, no keyboard and stable public geometry: "+name)
+        throw Prerequisite.invalid("real switch viewport prerequisite")
     }
     private func assertSwitchRestored(_ original: SwitchSnapshot, query: String, app: XCUIApplication, name: String) throws {
-        let actual = try stableSwitchSnapshot(app, timeout: 15, name: name)
+        let actual = try stableSwitchSnapshot(app, timeout: settledGeometryTimeout, name: name)
         try keepSwitchGeometry(original, app: app, name: name+"-original-reference", includeScreenshot: false)
         try keepSwitchGeometry(actual, app: app, name: name+"-reopened-actual")
         XCTAssertEqual(actual.query, query, "Preserve the exact visible query intent without starting a new search")
