@@ -81,7 +81,10 @@ final class ReaderSourceEditorDraftOwner: ObservableObject {
     private var accepted: AcceptedSave?
 
     var canReplace: Bool { active && accepted == nil && !actions.busy && !actions.hasPending }
-    var hasUnsavedInput: Bool { !draft.isEmpty && baseline?.sha256 != Self.sha(draft) }
+    var hasUnsavedInput: Bool {
+        guard let baseline else { return !draft.isEmpty }
+        return baseline.sha256 != Self.sha(draft)
+    }
     var acceptedOperationID: String? { accepted?.operationID }
 
     init(actions: ReaderLibraryActionOwner, defaults: UserDefaults = .standard,

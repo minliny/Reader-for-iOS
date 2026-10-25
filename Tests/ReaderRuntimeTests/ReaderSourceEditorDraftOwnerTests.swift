@@ -50,6 +50,21 @@ final class ReaderSourceEditorDraftOwnerTests: XCTestCase {
         XCTAssertFalse(String(decoding: metadata, as: UTF8.self).contains(imported.text), "Baseline metadata stores digests, not another full JSON copy")
     }
 
+    func testClearingSavedSourceDraftRequiresReplacementConfirmation() async throws {
+        let (defaults, suite) = try isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let owner = ReaderSourceEditorDraftOwner(actions: ReaderLibraryActionOwner(), defaults: defaults)
+        owner.activate(); owner.resumeDraft()
+        let source = ReaderSourceEditorDraftOwner.Target.savedSource(
+            "source-a", version: "v1", name: "A", text: "{\"bookSourceUrl\":\"https://example.com\"}")
+        guard case .opened = owner.offer(source) else { return XCTFail("A known source definition should open as clean input") }
+        owner.updateDraft("")
+        XCTAssertTrue(owner.hasUnsavedInput, "Clearing a saved definition is a real unsaved edit")
+        guard case .confirmation = owner.offer(.imported("replacement", label: "文件")) else {
+            return XCTFail("A replacement must not discard a cleared saved draft without confirmation")
+        }
+    }
+
     func testCancelledStaleAndDuplicateReplacementsCannotOverwriteDraft() async throws {
         let (defaults, suite) = try isolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
