@@ -327,6 +327,12 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
             let environment = ReaderSwitchCandidateEnvironment(scheme: .light, dynamicTypeSize: .large,
                 locale: .current, direction: .leftToRight, reduceMotion: false, legibilityWeight: nil)
             let firstID = UUID(), nextID = UUID(), originalSession = UUID()
+            func settlePresentationCommit() async {
+                // The production Host defers @Published platform input until
+                // the next main-actor turn so UIViewRepresentable updates do
+                // not publish during SwiftUI reconciliation.
+                for _ in 0..<3 { await Task.yield() }
+            }
             emptyState.activateDiscoveryPresentation(firstID)
             let first = ReaderSwitchCandidateViewportController(owner: nativeOwner, state: emptyState,
                 sessionID: originalSession, bookID: identity, presentationID: firstID)
@@ -355,6 +361,7 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
             XCTAssertFalse(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID),
                            "An action rendered before disabled changed must not be accepted")
             nativeOwner.update(first, disabled: false, environment: environment)
+            await settlePresentationCommit()
             XCTAssertTrue(nativeOwner.isCurrentRenderedAttachment(oldRenderedAttachmentID))
             #if DEBUG
             XCTAssertEqual(nativeOwner.viewportRootAssignments, 1, "Disabled/environment updates publish input instead of assigning rootView")
@@ -374,6 +381,7 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
             nativeOwner.beginAttachment(second)
             nativeOwner.update(second, disabled: false, environment: environment)
             mountContainer(second)
+            await settlePresentationCommit()
             XCTAssertTrue(second.children.first === hosting && hosting.parent === second)
             XCTAssertTrue(scrollView(in: hosting.view) === originalScroll && originalScroll.window === window,
                           "Controller retention must preserve the actual native ScrollView, not just a row ID")

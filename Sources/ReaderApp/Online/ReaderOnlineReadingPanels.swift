@@ -122,6 +122,13 @@ struct ReaderOnlineSwitchPanel: View {
     private let currentBookID: String
     private var hosting: ReaderSwitchCandidateHostingController?
     private var presentationInput: ReaderSwitchCandidatePresentationInput?
+    // SwiftUI may call UIViewControllerRepresentable.update while it is
+    // reconciling the view tree. Keep the requested platform state
+    // synchronously for the action gate, but publish it to the hosted SwiftUI
+    // root on the next main-actor turn.
+    private var requestedConfiguration: ReaderSwitchCandidatePresentationInput.Configuration?
+    private var configurationCommit: Task<Void, Never>?
+    private var configurationGeneration = UUID()
     private var rootConfiguration: ReaderSwitchCandidatePresentationInput.Configuration? {
         presentationInput?.configuration
     }
@@ -350,7 +357,7 @@ struct ReaderOnlineSwitchPanel: View {
                 #if DEBUG
                 traceViewport("input.before", container: container)
                 #endif
-                presentationInput.update(configuration)
+                scheduleConfiguration(configuration, on: presentationInput)
                 #if DEBUG
                 traceViewport("input.after", container: container)
                 #endif
@@ -371,6 +378,7 @@ struct ReaderOnlineSwitchPanel: View {
             child.safeAreaRegions = []
             child.view.backgroundColor = .clear
             hosting = child
+            requestedConfiguration = configuration
             #if DEBUG
             viewportRootAssignments += 1
             traceViewport("root.after", container: container)
@@ -385,6 +393,7 @@ struct ReaderOnlineSwitchPanel: View {
         guard let container = attachment, isAttached(container),
               container.attachmentID == renderedAttachmentID,
               rootConfiguration?.attachmentID == renderedAttachmentID,
+              requestedConfiguration == rootConfiguration,
               rootConfiguration?.disabled == false,
               container.bookID == currentBookID, container.viewIfLoaded?.window != nil,
               state.isCurrentDiscoveryPresentation(container.presentationID) else { return false }
@@ -413,8 +422,15 @@ struct ReaderOnlineSwitchPanel: View {
         container.removeHostedChild()
         if attachment === container {
             viewportRestore = nil; stopViewportInteraction()
+            if let current = rootConfiguration, current.attachmentID == container.attachmentID {
+                // Disable the action gate immediately. Do not publish from
+                // UIKit dismantling; the next attachment will submit its own
+                // configuration through scheduleConfiguration.
+                requestedConfiguration = .init(attachmentID: container.attachmentID,
+                    disabled: true, environment: current.environment)
+            }
+            cancelConfigurationCommit()
             attachment = nil
-            presentationInput?.disable(attachmentID: container.attachmentID)
         }
         #if DEBUG
         traceViewport("detach.after", container: container)
@@ -426,9 +442,38 @@ struct ReaderOnlineSwitchPanel: View {
     }
     func retire() {
         retired = true
+        cancelConfigurationCommit()
+        requestedConfiguration = nil
         discardViewport("retire")
         if let attachment { detach(attachment) }
         hosting = nil; presentationInput = nil
+    }
+    private func cancelConfigurationCommit() {
+        configurationGeneration = UUID()
+        configurationCommit?.cancel()
+        configurationCommit = nil
+    }
+    private func scheduleConfiguration(
+        _ configuration: ReaderSwitchCandidatePresentationInput.Configuration,
+        on input: ReaderSwitchCandidatePresentationInput
+    ) {
+        requestedConfiguration = configuration
+        configurationCommit?.cancel()
+        guard input.configuration != configuration else {
+            configurationCommit = nil
+            return
+        }
+        let generation = UUID()
+        configurationGeneration = generation
+        configurationCommit = Task { @MainActor [weak self, weak input] in
+            await Task.yield()
+            guard !Task.isCancelled, let self, let input,
+                  !self.retired, self.configurationGeneration == generation,
+                  self.presentationInput === input,
+                  self.requestedConfiguration == configuration else { return }
+            input.update(configuration)
+            if self.configurationGeneration == generation { self.configurationCommit = nil }
+        }
     }
     private func viewportDisplay() -> ViewportDisplay {
         let rows = state.results.filter { $0.id != currentBookID }

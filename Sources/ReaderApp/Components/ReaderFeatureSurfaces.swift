@@ -18,13 +18,25 @@ final class ReaderNativeAlertOwner: ObservableObject {
         guard request == nil else { return }
         request = Request(title: title, message: message, actionTitle: actionTitle, destructive: destructive, action: action)
     }
+
+    /// SwiftUI calls the alert binding setter while reconciling the alert
+    /// presentation. Defer the published mutation to the next main-actor
+    /// turn so dismissing the native alert cannot publish from inside a view
+    /// update.
+    func dismissFromPresentation() {
+        guard request != nil else { return }
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.request = nil
+        }
+    }
 }
 
 private struct ReaderConfirmationHost: ViewModifier {
     @ObservedObject var owner: ReaderNativeAlertOwner
     func body(content: Content) -> some View {
         content.alert(owner.request?.title ?? "", isPresented: Binding(
-            get: { owner.request != nil }, set: { if !$0 { owner.request = nil } }), presenting: owner.request) { request in
+            get: { owner.request != nil }, set: { if !$0 { owner.dismissFromPresentation() } }), presenting: owner.request) { request in
             Button(request.actionTitle, role: request.destructive ? .destructive : nil) { request.action() }
             Button("取消", role: .cancel) {}
         } message: { Text($0.message) }
