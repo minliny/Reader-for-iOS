@@ -291,7 +291,9 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             guard let cookie = HTTPCookie(properties: properties) else { throw ReaderHostFailure("INVALID_PARAMS", "Cookie 格式无效") }
             let (identity, operation) = try beginCookieOperation(sourceID: source, requestID: requestID)
             defer { lock.withLock { cookieOperations[requestID]?[identity] = nil } }
-            operation.jar.setCookie(cookie)
+            guard operation.storeCookie(cookie, preservingHTTPOnly: (record["httpOnly"] as? Bool) == nil) else {
+                throw ReaderHostFailure("PERMISSION_DENIED", "来源 Cookie 未被系统接受")
+            }
             try completeCookieOperation(operation, requestID: requestID, result: .success(()))
             return ["stored": true]
         case "time.now": return ["unixMillis": Int64(Date().timeIntervalSince1970 * 1000), "iso8601": ISO8601DateFormatter().string(from: Date()), "timezone": TimeZone.current.identifier]
@@ -305,7 +307,7 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
     }
 }
 
-private struct ReaderHostFailure: Error { let code: String; let message: String; init(_ code: String, _ message: String) { self.code = code; self.message = message } }
+struct ReaderHostFailure: Error { let code: String; let message: String; init(_ code: String, _ message: String) { self.code = code; self.message = message } }
 private struct ReaderHostRequestBox: @unchecked Sendable { let request: ReaderCoreHostRequest }
 
 private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked Sendable {

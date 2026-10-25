@@ -146,10 +146,18 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
             let nativeParsed = try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": "server=native-response; Path=/; Secure; HttpOnly"], for: url).first)
             let original = try reopened.cookies(sourceID: "source-a")
             try reopened.commitCookieChanges(sourceID: "source-a", originalCookies: original, updatedCookies: original + [nativeParsed])
+            _ = try reopened.perform(ReaderCoreHostRequest(operationId: 2, capability: "cookie.set",
+                rawParams: ["url": url.absoluteString, "sessionId": "source-a",
+                            "cookie": ["name": "server", "value": "explicit-keychain-updated", "secure": true]]))
+            let updated = try XCTUnwrap(reopened.cookies(sourceID: "source-a").first(where: { $0.name == "server" }))
+            XCTAssertEqual(updated.value, "explicit-keychain-updated")
+            XCTAssertTrue(updated.isHTTPOnly)
         }
         XCTAssertNil(prior, "The live shared store must release before the second Keychain restoration")
         let restoredAgain = ReaderIOSHostTransport(namespace: namespace)
-        XCTAssertTrue(try restoredAgain.cookies(sourceID: "source-a").contains(where: { $0.name == "server" && $0.isHTTPOnly }))
+        let restoredServer = try XCTUnwrap(restoredAgain.cookies(sourceID: "source-a").first(where: { $0.name == "server" }))
+        XCTAssertEqual(restoredServer.value, "explicit-keychain-updated")
+        XCTAssertTrue(restoredServer.isHTTPOnly)
         let anotherLibrary = ReaderIOSHostTransport(namespace: namespace + ":other")
         XCTAssertTrue(try anotherLibrary.cookies(sourceID: "source-a").isEmpty)
     }
@@ -194,6 +202,20 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
             rawParams: ["url": url.absoluteString, "sessionId": sourceID,
                         "cookie": ["name": "session", "value": "explicit-accepted", "secure": true]]))
         XCTAssertEqual(try transport.cookies(sourceID: sourceID).first?.value, "explicit-accepted")
+        XCTAssertEqual(durable.first?.value, "explicit-accepted")
+        XCTAssertTrue(try transport.cookies(sourceID: sourceID).first?.isHTTPOnly == true,
+            "An omitted optional HttpOnly field must not downgrade the existing session")
+        XCTAssertEqual(try transport.cookies(sourceID: sourceID).count, 1)
+
+        let attemptsBeforeRejectedDowngrade = saveAttemptCount
+        XCTAssertThrowsError(try transport.perform(ReaderCoreHostRequest(operationId: 3, capability: "cookie.set",
+            rawParams: ["url": url.absoluteString, "sessionId": sourceID,
+                        "cookie": ["name": "session", "value": "rejected-downgrade", "secure": true, "httpOnly": false]]))) { error in
+            XCTAssertEqual((error as? ReaderHostFailure)?.code, "PERMISSION_DENIED")
+        }
+        XCTAssertEqual(saveAttemptCount, attemptsBeforeRejectedDowngrade)
+        XCTAssertEqual(try transport.cookies(sourceID: sourceID).first?.value, "explicit-accepted")
+        XCTAssertTrue(try transport.cookies(sourceID: sourceID).first?.isHTTPOnly == true)
         XCTAssertEqual(durable.first?.value, "explicit-accepted")
 
         failSave = true

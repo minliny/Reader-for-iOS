@@ -21,6 +21,28 @@ final class ReaderSourceCookieOperation: @unchecked Sendable {
         for cookie in cookies { jar.setCookie(cookie) }
     }
 
+    /// `cookie.set` omits HttpOnly when it only intends to change a value.
+    /// Keep an existing protection unless the record explicitly supplies it.
+    /// Foundation can silently reject a non-HTTP overwrite of an HttpOnly
+    /// cookie, so only acknowledge the write after observing the native result.
+    func storeCookie(_ requested: HTTPCookie, preservingHTTPOnly: Bool) -> Bool {
+        var cookie = requested
+        let existing = (jar.cookies ?? []).first { ReaderSourceCookieStore.identity($0) == ReaderSourceCookieStore.identity(cookie) }
+        if preservingHTTPOnly, existing?.isHTTPOnly == true, !cookie.isHTTPOnly {
+            guard var properties = cookie.properties else { return false }
+            properties[HTTPCookiePropertyKey("HttpOnly")] = "TRUE"
+            guard let protected = HTTPCookie(properties: properties) else { return false }
+            cookie = protected
+        }
+        jar.setCookie(cookie)
+        let stored = (jar.cookies ?? []).first { ReaderSourceCookieStore.identity($0) == ReaderSourceCookieStore.identity(cookie) }
+        if let expiry = cookie.expiresDate, expiry <= Date() { return stored == nil }
+        guard let stored else { return false }
+        return stored.value == cookie.value && stored.isSecure == cookie.isSecure && stored.isHTTPOnly == cookie.isHTTPOnly
+            && stored.expiresDate == cookie.expiresDate
+            && (stored.properties?[HTTPCookiePropertyKey("SameSite")] as? String) == (cookie.properties?[HTTPCookiePropertyKey("SameSite")] as? String)
+    }
+
     func cancel() { lock.withLock { if state == .pending { state = .cancelled } } }
 
     /// Called under the source store's commit lock and the transport owner lock.
@@ -131,7 +153,7 @@ final class ReaderSourceCookieStore: @unchecked Sendable {
         return platform.domain == NSURLErrorDomain && platform.code == URLError.cancelled.rawValue
     }
 
-    private static func identity(_ cookie: HTTPCookie) -> String {
+    fileprivate static func identity(_ cookie: HTTPCookie) -> String {
         cookie.domain + "\u{0}" + cookie.path + "\u{0}" + cookie.name
     }
     private static func records(_ cookies: [HTTPCookie]) -> [String: HTTPCookie] {
@@ -145,11 +167,18 @@ final class ReaderSourceCookieStore: @unchecked Sendable {
     }
     static func mergeCookieChanges(original: [HTTPCookie], updated: [HTTPCookie], into jar: HTTPCookieStorage) {
         let before = records(original), after = records(updated)
+        let current = records(jar.cookies ?? [])
         // Unchanged snapshot entries do not erase concurrent operation changes.
         // For the same identity, the last admitted durable commit wins.
-        for (key, cookie) in before where after[key] == nil { jar.deleteCookie(cookie) }
+        for key in before.keys where after[key] == nil {
+            if let cookie = current[key] { jar.deleteCookie(cookie) }
+        }
         for (key, cookie) in after {
             if let old = before[key], NSDictionary(dictionary: old.properties ?? [:]).isEqual(to: cookie.properties ?? [:]) { continue }
+            // This private candidate replays a snapshot already accepted by the
+            // operation's native jar/WebKit. setCookie alone would reapply the
+            // non-HTTP HttpOnly overwrite restriction and silently lose it.
+            if let old = current[key] { jar.deleteCookie(old) }
             jar.setCookie(cookie)
         }
     }

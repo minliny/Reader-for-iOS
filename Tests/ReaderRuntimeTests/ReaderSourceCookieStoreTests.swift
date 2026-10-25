@@ -36,14 +36,53 @@ final class ReaderSourceCookieStoreTests: XCTestCase {
 
     private enum ProbeError: Error { case load, save }
 
-    private func cookie(_ name: String, _ value: String) throws -> HTTPCookie {
+    private func cookie(_ name: String, _ value: String, httpOnly: Bool = true) throws -> HTTPCookie {
         let url = try XCTUnwrap(URL(string: "https://reader-cookie.invalid/"))
         return try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields:
-            ["Set-Cookie": "\(name)=\(value); Path=/; Secure; HttpOnly"], for: url).first)
+            ["Set-Cookie": "\(name)=\(value); Path=/; Secure" + (httpOnly ? "; HttpOnly" : "")], for: url).first)
     }
 
     private func values(_ cookies: [HTTPCookie]) -> [String: String] {
         Dictionary(cookies.map { ($0.name, $0.value) }, uniquingKeysWith: { _, latest in latest })
+    }
+
+    func testExplicitCookieValueUpdatePreservesHTTPOnlyAndReportsNativeDowngradeRejection() throws {
+        let persistence = Persistence()
+        let sourceID = "cookie-source:" + UUID().uuidString
+        persistence.records[sourceID] = [try cookie("session", "protected")]
+        let store = persistence.makeStore(namespace: "cookie-method:" + UUID().uuidString)
+        let valueUpdate = try store.begin(sourceID: sourceID)
+        XCTAssertTrue(valueUpdate.storeCookie(try cookie("session", "explicit-accepted", httpOnly: false), preservingHTTPOnly: true))
+        XCTAssertEqual(valueUpdate.jar.cookies?.first?.value, "explicit-accepted")
+        XCTAssertTrue(valueUpdate.jar.cookies?.first?.isHTTPOnly == true)
+        _ = try store.complete(valueUpdate, result: .success(()))
+        XCTAssertEqual(values(persistence.records[sourceID] ?? []), ["session": "explicit-accepted"])
+
+        let explicitDowngrade = try store.begin(sourceID: sourceID)
+        XCTAssertFalse(explicitDowngrade.storeCookie(try cookie("session", "rejected", httpOnly: false), preservingHTTPOnly: false),
+            "A native setCookie rejection cannot become a stored=true acknowledgement")
+        XCTAssertEqual(explicitDowngrade.jar.cookies?.first?.value, "explicit-accepted")
+        XCTAssertTrue(explicitDowngrade.jar.cookies?.first?.isHTTPOnly == true)
+        XCTAssertEqual(values(try store.snapshot(sourceID: sourceID)), ["session": "explicit-accepted"])
+        XCTAssertEqual(values(persistence.records[sourceID] ?? []), ["session": "explicit-accepted"])
+    }
+
+    func testAcceptedCookieSnapshotCanReplaceHTTPOnlyDuringPrivateDeltaReplay() throws {
+        let persistence = Persistence()
+        let sourceID = "cookie-source:" + UUID().uuidString
+        persistence.records[sourceID] = [try cookie("session", "protected")]
+        let store = persistence.makeStore(namespace: "cookie-method:" + UUID().uuidString)
+        let accepted = try store.begin(sourceID: sourceID)
+        // A final native/WebKit snapshot already reflects platform acceptance.
+        // Replaying it must not reapply setCookie's non-HTTP overwrite guard.
+        accepted.replaceCookies([try cookie("session", "accepted-without-http-only", httpOnly: false)])
+        XCTAssertEqual(accepted.jar.cookies?.first?.value, "accepted-without-http-only")
+        XCTAssertTrue(try store.snapshot(sourceID: sourceID).first?.isHTTPOnly == true)
+        _ = try store.complete(accepted, result: .success(()))
+        XCTAssertEqual(values(try store.snapshot(sourceID: sourceID)), ["session": "accepted-without-http-only"])
+        XCTAssertFalse(try XCTUnwrap(store.snapshot(sourceID: sourceID).first).isHTTPOnly)
+        XCTAssertEqual(values(persistence.records[sourceID] ?? []), ["session": "accepted-without-http-only"])
+        XCTAssertFalse(try XCTUnwrap(persistence.records[sourceID]?.first).isHTTPOnly)
     }
 
     func testResponseCookiesCommitForHTTPErrorStatusAndBeforeNonCancellationFailureEscapes() throws {
@@ -153,6 +192,20 @@ final class ReaderSourceCookieStoreTests: XCTestCase {
             "Unchanged stale Cookies cannot undo another commit's additions or deletions")
         XCTAssertEqual(values(persistence.records[sourceID] ?? []), expected)
         XCTAssertTrue(try second.snapshot(sourceID: otherSourceID).isEmpty)
+
+        let deleteFromOldSnapshot = try first.begin(sourceID: sourceID)
+        let updateBeforeDeletion = try second.begin(sourceID: sourceID)
+        updateBeforeDeletion.jar.setCookie(try cookie("session", "updated-before-delete"))
+        _ = try second.complete(updateBeforeDeletion, result: .success(200))
+        XCTAssertEqual(values(try first.snapshot(sourceID: sourceID))["session"], "updated-before-delete")
+        for cookie in deleteFromOldSnapshot.jar.cookies ?? [] where cookie.name == "session" {
+            deleteFromOldSnapshot.jar.deleteCookie(cookie)
+        }
+        _ = try first.complete(deleteFromOldSnapshot, result: .success(200))
+        let afterDeletion = ["from-a": "one", "from-b": "two"]
+        XCTAssertEqual(values(try first.snapshot(sourceID: sourceID)), afterDeletion,
+            "A later admitted deletion removes the current same-identity value while preserving other commits")
+        XCTAssertEqual(values(persistence.records[sourceID] ?? []), afterDeletion)
 
         let otherPersistence = Persistence()
         let otherNamespace = ReaderSourceCookieStore.shared(namespace: "cookie-method:" + UUID().uuidString, load: otherPersistence.load, save: otherPersistence.save)
