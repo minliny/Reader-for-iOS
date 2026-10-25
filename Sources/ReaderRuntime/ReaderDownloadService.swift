@@ -183,8 +183,8 @@ extension ReaderLibraryService: ReaderDownloadServing {
     }
 
     public func resumeDownload(_ book: ReaderBook, chapterIndex: UInt32, operationID: String) async throws -> ReaderDownloadTaskReceipt {
-        let result = try await downloadTaskCommand("cache.download.resume", book: book, chapterIndex: chapterIndex, operationID: operationID)
         guard chapterIndex < UInt32.max else { throw ReaderLibraryError.invalidPosition }
+        let result = try await downloadTaskCommand("cache.download.resume", book: book, chapterIndex: chapterIndex, operationID: operationID)
         guard let original = try existingCoreParameters(operationID: operationID, method: "cache.download.resume") else {
             throw ReaderLibraryError.operationPending(operationID)
         }

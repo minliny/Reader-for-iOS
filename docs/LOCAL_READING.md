@@ -292,6 +292,9 @@ TTS 和漫画尚无已开放业务入口，不能把其他阅读入口的证据�
 | V4-01 调试回放测试输入前置 | 真实响应未通过宿主绝对路径或应用容器路径注入；精确原文件复制为 UI 测试 bundle 资源并在运行前核对 10609 字节和 `f7bc4ad5…`。SwiftUI TextEditor 清空 `{}` 后的 nil AX 值仅按测试前置接受 nil/空字符串，随后仍严格要求完整真实 JSON；均为测试侧变更，不改变生产行为。 |
 | V4-03/V4-05 真实有限下载控制前置 | 使用真机已有百度真实书源和当前免费包，选择实际未缓存的第 11–19 章；首批任务在暂停点击前自然完成，`testActualFiniteDownloadPauseResumeCancelAndColdRetention` 按合同 FAIL129.475 秒，未把自然完成改写为暂停/取消通过。结果见 `/tmp/reader-ios-v4-final-real-download-controls-20261025-r1.xcresult` 与 `.log`；设备数据未清理。 |
 | V4-03/V4-05 真实整本下载与冷保留 | 同一真实百度目录当前可读 50 项。设备已有完成项 `3,10,11,12,13,14,40`，测试按该只读事实保护后发起一次整本下载；50 项最终均 `completed`、attempts=1，正文/位置/进度和冷启动逐项保留。暂停与取消未捕获到自然 live 可操作时刻，测试按合同 FAIL627.092 秒，附件记录两次 prerequisite-not-met；最终只读队列快照 `/tmp/reader-core-physical-20261026-after-whole.sqlite3`（SHA-256 `9da1f843…`）。证据见 `/tmp/reader-ios-v4-final-real-whole-controls-20261026-r3.xcresult` 与 `.log`。暂停/继续/取消/清理仍 OPEN。 |
+| V4-01 登录宿主未绑定保护 | 代码侧修复 `ReaderOnlineWorkspace`：登录页准备阶段不再把缺失的 service 静默当作空 Cookie 成功；“完成登录”在 service 未准备时禁用并显示明确失败。实体 iPhone 定向 `ReaderSourceLoginLifetimeTests` 2/2 PASS（本次免费签名包）；这仍未冒充真实登录凭据、Cookie/Keychain 或上游认证验收。 |
+| V4-05 非法恢复索引保护 | `ReaderDownloadService.resumeDownload` 先拒绝保留索引 `UInt32.max`，再进入 Core mutation；新增真实 Core 回归确认抛出 `.invalidPosition`、无 pending operation、无 journal。实体 iPhone 定向测试 1/1 PASS。 |
+| V4-06 自动订阅取消边界 | `checkDueRuleSubscriptions` 在真实 provider 检查返回后、`applyRuleSubscription` 前再次检查取消，避免窗口过期后继续自动写入；实体 iPhone 订阅生命周期 3/3 PASS，源码 guard 已验证。真实上游冲突/失败及系统后台机会仍 OPEN。 |
 | 真实 AZW/AZW3/KF8 原书 | 用户明确暂跳过，DEFERRED / OPEN；不改名补证，不改写格式要求 |
 | 物理 iOS 设备、iOS 17 运行时、iPad/分屏、无障碍组合和用户验收 | OPEN；最低系统/设备族声明、模拟器或方法测试不能替代 |
 

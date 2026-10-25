@@ -11,6 +11,28 @@ import ReaderCoreClient
 
 @MainActor
 final class ReaderDownloadReceiptTests: XCTestCase {
+    func testInvalidResumeChapterIsRejectedBeforeCoreMutation() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderInvalidResume-" + UUID().uuidString)
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+                                               sourceURL: root.appendingPathComponent("Sources"))
+        defer { try? FileManager.default.removeItem(at: root) }
+        let book = ReaderBook(sourceId: "real-source", bookId: "real-book", title: "真实书目")
+        let operationID = UUID().uuidString
+        do {
+            _ = try await service.resumeDownload(book, chapterIndex: UInt32.max, operationID: operationID)
+            XCTFail("The reserved chapter index must be rejected before dispatch")
+        } catch ReaderLibraryError.invalidPosition {
+            // Expected deterministic validation boundary.
+        }
+        let pending = try await service.pendingCoreCommands()
+        XCTAssertTrue(pending.isEmpty,
+                      "An invalid resume must not create a Core operation or journal entry")
+        let commandDirectory = root.appendingPathComponent("Sources/.operations/commands")
+        let files = try? FileManager.default.contentsOfDirectory(at: commandDirectory, includingPropertiesForKeys: nil)
+        XCTAssertTrue(files?.isEmpty ?? true, "No resume journal should be written for invalid input")
+        try await service.close()
+    }
+
     func testOriginalPendingTerminalPreservesTheCommandAndConsumesExactReceiptWithoutRedispatch() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderOriginalPending-" + UUID().uuidString)
         let storage = root.appendingPathComponent("Core")

@@ -94,6 +94,7 @@ extension ReaderLibraryService: ReaderRuleSubscriptionServing {
                 do {
                     try Task.checkCancellation()
                     let plan = try await checkRuleSubscription(subscription)
+                    try Task.checkCancellation()
                     _ = try await applyRuleSubscription(plan, sourceIDs: plan.changes.filter(\.safeToApply).map(\.sourceId), operationID: UUID().uuidString.lowercased())
                     if plan.changes.contains(where: { $0.kind == "conflict" }) { failures.append(subscription.name + "：本机修改已保留，存在待处理差异") }
                 } catch is CancellationError { break }

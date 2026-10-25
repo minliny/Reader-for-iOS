@@ -730,14 +730,18 @@ private struct ReaderSourceLogin: View {
     @State private var saving = false
     var body: some View {
         VStack {
-            HStack { Button("关闭") { close() }; Spacer(); Text(source.name); Spacer(); Button("完成登录") { save() }.disabled(webView == nil || saving || !lifetime.canSave) }.padding()
+            HStack { Button("关闭") { close() }; Spacer(); Text(source.name); Spacer(); Button("完成登录") { save() }.disabled(service == nil || webView == nil || saving || !lifetime.canSave) }.padding()
             if let failure { ReaderPageState(title: "网页登录未完成", detail: failure) }
             else if let cookies { ReaderSourceLoginWebView(url: loginURL, cookies: cookies, lifetime: lifetime, webView: $webView) }
             else { ReaderPageState(title: "正在准备来源登录", loading: true) }
         }.task {
             guard let token = lifetime.beginPreparation() else { return }
+            guard let service else {
+                failure = "来源登录服务尚未准备"
+                return
+            }
             do {
-                let original = try await service?.prepareLogin(token.sourceID) ?? []
+                let original = try await service.prepareLogin(token.sourceID)
                 guard !Task.isCancelled, lifetime.finishPreparation(token) else { return }
                 cookies = original
             } catch {
@@ -754,7 +758,12 @@ private struct ReaderSourceLogin: View {
         lifetime.retire(); closePresentation()
     }
     private func save() {
-        guard let webView, let service, !saving, let token = lifetime.beginSave() else { return }
+        guard let webView else { return }
+        guard let service else {
+            failure = "来源登录服务尚未准备"
+            return
+        }
+        guard !saving, let token = lifetime.beginSave() else { return }
         saving = true
         let originalCookies = cookies ?? []
         Task {
