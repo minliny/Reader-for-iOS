@@ -709,6 +709,17 @@ final class ReaderSourceLoginLifetime {
     }
 }
 
+enum ReaderSourceLoginURL {
+    static func resolve(definition: Data, baseURL: String) -> URL? {
+        guard let raw = (try? JSONSerialization.jsonObject(with: definition)) as? [String: Any] else { return nil }
+        let declared = (raw["loginUrl"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let address = declared.isEmpty ? baseURL.trimmingCharacters(in: .whitespacesAndNewlines) : declared
+        guard let url = URL(string: address), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host, !host.isEmpty else { return nil }
+        return url
+    }
+}
+
 private struct ReaderSourceLoginPresentation: Identifiable {
     let id: UUID
     let source: ReaderOnlineSource
@@ -732,12 +743,16 @@ private struct ReaderSourceLogin: View {
         VStack {
             HStack { Button("关闭") { close() }; Spacer(); Text(source.name); Spacer(); Button("完成登录") { save() }.disabled(service == nil || webView == nil || saving || !lifetime.canSave) }.padding()
             if let failure { ReaderPageState(title: "网页登录未完成", detail: failure) }
-            else if let cookies { ReaderSourceLoginWebView(url: loginURL, cookies: cookies, lifetime: lifetime, webView: $webView) }
+            else if let cookies, let loginURL { ReaderSourceLoginWebView(url: loginURL, cookies: cookies, lifetime: lifetime, webView: $webView) }
             else { ReaderPageState(title: "正在准备来源登录", loading: true) }
         }.task {
             guard let token = lifetime.beginPreparation() else { return }
             guard let service else {
                 failure = "来源登录服务尚未准备"
+                return
+            }
+            guard loginURL != nil else {
+                failure = "此书源没有可用的 HTTP/HTTPS 网页登录地址"
                 return
             }
             do {
@@ -751,8 +766,7 @@ private struct ReaderSourceLogin: View {
         }.onDisappear { lifetime.retire() }
     }
     private var loginURL: URL? {
-        let raw = (try? JSONSerialization.jsonObject(with: source.definition)) as? [String: Any]
-        return URL(string: raw?["loginUrl"] as? String ?? source.baseURL)
+        ReaderSourceLoginURL.resolve(definition: source.definition, baseURL: source.baseURL)
     }
     private func close() {
         lifetime.retire(); closePresentation()
@@ -783,7 +797,7 @@ private struct ReaderSourceLogin: View {
     }
 }
 private struct ReaderSourceLoginWebView: UIViewRepresentable {
-    let url: URL?
+    let url: URL
     let cookies: [HTTPCookie]
     let lifetime: ReaderSourceLoginLifetime
     @Binding var webView: WKWebView?
@@ -805,7 +819,7 @@ private struct ReaderSourceLoginWebView: UIViewRepresentable {
             guard coordinator.active, !Task.isCancelled, lifetime.finishCookieSeed(token) else { return }
             // Savable publication happens only after every original native seed.
             webView = view
-            if let url, ["http", "https"].contains(url.scheme ?? "") { view.load(URLRequest(url: url)) }
+            view.load(URLRequest(url: url))
         }
         return view
     }

@@ -1,8 +1,28 @@
 import XCTest
+#if canImport(ReaderSourceLoginContract)
+@testable import ReaderSourceLoginContract
+#else
 @testable import Reader
+#endif
 
 @MainActor
 final class ReaderSourceLoginLifetimeTests: XCTestCase {
+    /// Exact field projections from book_sources_20261024/book_sources_dedup.json.
+    /// These address checks make no HTTP, authentication or Cookie success claim.
+    func testCapturedLoginAddressesUseBlankFallbackAndRejectNonWebDeclaration() async throws {
+        let blank = Data(#"{"bookSourceName":"速读谷","bookSourceUrl":"https://www.sudugu.co","loginUrl":""}"#.utf8)
+        XCTAssertEqual(ReaderSourceLoginURL.resolve(definition: blank, baseURL: "https://www.sudugu.co")?.absoluteString,
+                       "https://www.sudugu.co")
+        let declared = Data(#"{"bookSourceName":"起点中文","bookSourceUrl":"https://www.qidian.com","loginUrl":"https://www.qidian.com/all/"}"#.utf8)
+        XCTAssertEqual(ReaderSourceLoginURL.resolve(definition: declared, baseURL: "https://www.qidian.com")?.absoluteString,
+                       "https://www.qidian.com/all/")
+        let absent = Data(#"{"bookSourceName":"酷我小说","bookSourceUrl":"http://appi.kuwo.cn"}"#.utf8)
+        XCTAssertEqual(ReaderSourceLoginURL.resolve(definition: absent, baseURL: "http://appi.kuwo.cn")?.absoluteString,
+                       "http://appi.kuwo.cn")
+        let nonWeb = Data(#"{"bookSourceName":"排行","bookSourceUrl":"http://fanyi.so.com","loginUrl":"❀"}"#.utf8)
+        XCTAssertNil(ReaderSourceLoginURL.resolve(definition: nonWeb, baseURL: "http://fanyi.so.com"))
+    }
+
     @MainActor
     private final class HeldStep {
         let entered = XCTestExpectation(description: "Original lifecycle step suspended")
