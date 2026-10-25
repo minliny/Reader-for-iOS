@@ -147,26 +147,35 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             headers: object["headers"] as? [String: String] ?? [:], body: object["body"] as? String ?? "",
             finalUrl: object["finalUrl"] as? String)
     }
-    func handle(_ event: ReaderCoreEvent, client: ReaderCoreClient) async throws {
-        guard let operationID = event.operationId, let capability = event.capability else {
-            throw ReaderHostFailure("INVALID_PARAMS", "Host 请求缺少身份")
-        }
-        let requestID = event.requestId ?? 0
+    func beginHostRequest(requestID: UInt64, cancellableRead: Bool = false) -> Bool {
         // Reserve before dispatching platform work. A read may be cancelled
         // while its queued closure has not yet registered an HTTP task.
-        let accepted = lock.withLock { () -> Bool in
+        lock.withLock {
+            // Retirement may already have cleared this read's idle transport
+            // state before its queued Task starts. Its own cancellation still
+            // forbids admission. Accepted mutation Host work keeps its original
+            // lifetime even when the observing Task has been cancelled.
+            guard !cancellableRead || !Task.isCancelled else { return false }
             guard !retiring.contains(requestID), !cancelled.contains(requestID) else { return false }
             activeHandlers[requestID, default: 0] += 1
             return true
         }
-        guard accepted else { throw URLError(.cancelled) }
-        defer {
-            lock.withLock {
-                activeHandlers[requestID, default: 1] -= 1
-                if activeHandlers[requestID] == 0 { activeHandlers[requestID] = nil }
-                clearRetiredIfIdle(requestID)
-            }
+    }
+    func endHostRequest(requestID: UInt64) {
+        lock.withLock {
+            activeHandlers[requestID, default: 1] -= 1
+            if activeHandlers[requestID] == 0 { activeHandlers[requestID] = nil }
+            clearRetiredIfIdle(requestID)
         }
+    }
+    func handle(_ event: ReaderCoreEvent, client: ReaderCoreClient, cancellableRead: Bool) async throws {
+        guard let operationID = event.operationId, let capability = event.capability else {
+            throw ReaderHostFailure("INVALID_PARAMS", "Host 请求缺少身份")
+        }
+        let requestID = event.requestId ?? 0
+        let accepted = beginHostRequest(requestID: requestID, cancellableRead: cancellableRead)
+        guard accepted else { throw URLError(.cancelled) }
+        defer { endHostRequest(requestID: requestID) }
         let request = ReaderCoreHostRequest(operationId: operationID, capability: capability, rawParams: event.hostRequestParams ?? [:])
         do {
             let result: [String: Any]

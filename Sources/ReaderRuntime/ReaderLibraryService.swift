@@ -685,7 +685,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         let event = pending.queuedHostRequests.removeFirst()
         pending.executingHostRequest = event
         unresolvedWrites[requestID] = pending
-        do { try await transport.handle(event, client: native) }
+        do { try await transport.handle(event, client: native, cancellableRead: false) }
         catch {
             if var current = unresolvedWrites[requestID] {
                 current.executingHostRequest = nil
@@ -1171,7 +1171,7 @@ private func awaitReadHostRequest(event: ReaderCoreEvent, requestID: UInt64,
                 gate.install(continuation)
                 let hostTask = Task {
                     do {
-                        try await transport.handle(event, client: client)
+                        try await transport.handle(event, client: client, cancellableRead: true)
                         gate.hostFinished(.success(()))
                     } catch {
                         gate.hostFinished(.failure(error))

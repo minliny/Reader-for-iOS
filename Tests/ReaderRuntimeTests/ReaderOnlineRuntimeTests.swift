@@ -11,6 +11,32 @@ import ReaderCoreClient
 #endif
 
 final class ReaderOnlineRuntimeTests: XCTestCase {
+    func testCancelledQueuedReadCannotReenterRetiredTransportWhileMutationAdmissionRemainsAvailable() async {
+        let transport = ReaderIOSHostTransport(namespace: "read-admission:" + UUID().uuidString)
+        // These are transport request identities, not synthetic sources or
+        // fabricated Core Host envelopes. No network or Core reply is sent.
+        transport.bind(requestID: 401, sourceID: nil)
+        // No handler/job has entered yet: retireRead clears its idle state.
+        transport.retireRead(requestID: 401)
+
+        let queuedWorker = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            XCTAssertTrue(Task.isCancelled)
+            XCTAssertFalse(transport.beginHostRequest(requestID: 401, cancellableRead: true),
+                "A cancelled queued read must not restart Host work after retirement clears its state")
+
+            // Mutation observers can end while their accepted Core/Host job
+            // still owns its original work. The default admission preserves it.
+            XCTAssertTrue(transport.beginHostRequest(requestID: 402),
+                "An ended observer must not reject accepted mutation Host work")
+            transport.endHostRequest(requestID: 402)
+        }
+        await queuedWorker.value
+        // The old read cancellation does not reject an independent live read.
+        XCTAssertTrue(transport.beginHostRequest(requestID: 403, cancellableRead: true))
+        transport.endHostRequest(requestID: 403)
+    }
+
     func testCancelledWebViewResultDoesNotCommitCookieChanges() throws {
         XCTAssertTrue(ReaderSourceWebBridge.shouldCommitCookies(for: .success([:])))
         XCTAssertTrue(ReaderSourceWebBridge.shouldCommitCookies(for: .failure(URLError(.timedOut))))
