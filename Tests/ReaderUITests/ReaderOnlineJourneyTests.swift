@@ -938,14 +938,22 @@ final class ReaderOnlineJourneyTests: XCTestCase {
     }
 
 
-    /// Uses the exact existing Large subscription captured in R33. Root binds
-    /// its fresh absent-intent precondition before execution. This method never
+    /// Uses the exact existing subscription bound from a fresh, read-only
+    /// device snapshot through the UI test runner. This method never
     /// creates/edits/deletes a subscription, changes a toggle or applies sources.
     /// Real HTTP/admission failures stay FAIL; an empty diff is not a new release.
     func testExistingRealSubscriptionPreviewForegroundInvalidationAndExplicitRecheckPreserveOriginalState() throws {
-        let subscriptionID = "1792571258468"
-        let expectedName = "原生订阅-15781c89-a11c-4ad0-854e-64b66a9db637"
-        let expectedURL = "https://shuyuan-api.yiove.com/import/book-source-collection/3d9f811b-0831-4203-9fcb-3e8020f8aa2d"
+        let environment = ProcessInfo.processInfo.environment
+        let subscriptionID = try XCTUnwrap(environment["READER_SUBSCRIPTION_OWNED_ID"],
+                                            "Bind the current real Core subscription ID before running")
+        let expectedName = try XCTUnwrap(environment["READER_SUBSCRIPTION_OWNED_NAME"],
+                                         "Bind the current real Core subscription name before running")
+        let expectedURL = try XCTUnwrap(environment["READER_REAL_SUBSCRIPTION_URL"],
+                                        "Bind the current real saved URL before running")
+        XCTAssertNotNil(Int64(subscriptionID), "The bound subscription ID must be a Core integer identity")
+        XCTAssertTrue(expectedName.hasPrefix("原生订阅-"), "Use the existing owned subscription")
+        XCTAssertEqual(expectedURL, "https://shuyuan-api.yiove.com/import/book-source-collection/3d9f811b-0831-4203-9fcb-3e8020f8aa2d",
+                       "Use the original real provider URL, not a replacement package")
         let app = XCUIApplication(); app.launch()
         addTeardownBlock { self.subscriptionPreviewCloseOnlyKnownReadHosts(app) }
         openExistingSourceManagement(app)
