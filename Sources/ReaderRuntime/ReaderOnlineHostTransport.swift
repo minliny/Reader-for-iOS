@@ -521,9 +521,17 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
         guard let run = runs.removeValue(forKey: id) else { return }
         run.timer.cancel(); run.evaluation?.cancel(); run.view.navigationDelegate = nil; run.view.stopLoading()
         run.view.configuration.userContentController.removeScriptMessageHandler(forName: "readerSourceResource", contentWorld: .defaultClient)
+        let commitCookies = Self.shouldCommitCookies(for: result)
         Task { @MainActor in
             let cookies = await run.view.configuration.websiteDataStore.httpCookieStore.allCookies()
-            run.cookieSink(cookies); run.continuation.resume(with: result)
+            if commitCookies { run.cookieSink(cookies) }
+            run.continuation.resume(with: result)
         }
+    }
+
+    nonisolated static func shouldCommitCookies(for result: Result<[String: Any], Error>) -> Bool {
+        guard case .failure(let error) = result else { return true }
+        if error is CancellationError { return false }
+        return (error as? URLError)?.code != .cancelled
     }
 }

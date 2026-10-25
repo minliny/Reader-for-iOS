@@ -11,6 +11,13 @@ import ReaderCoreClient
 #endif
 
 final class ReaderOnlineRuntimeTests: XCTestCase {
+    func testCancelledWebViewResultDoesNotCommitCookieChanges() throws {
+        XCTAssertTrue(ReaderSourceWebBridge.shouldCommitCookies(for: .success([:])))
+        XCTAssertTrue(ReaderSourceWebBridge.shouldCommitCookies(for: .failure(URLError(.timedOut))))
+        XCTAssertFalse(ReaderSourceWebBridge.shouldCommitCookies(for: .failure(URLError(.cancelled))))
+        XCTAssertFalse(ReaderSourceWebBridge.shouldCommitCookies(for: .failure(CancellationError())))
+    }
+
     func testNativeHTTPReachesTheRealSourceOriginOrItsRedirect() async throws {
         let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
         let definitions = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: documents.appendingPathComponent("Reader-real-sources.json"))) as? [[String: Any]])
