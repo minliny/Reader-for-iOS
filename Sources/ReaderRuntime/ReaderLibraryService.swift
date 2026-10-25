@@ -605,9 +605,24 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                         guard let transport = hostTransport, let native = client as? ReaderCoreClient else {
                             throw ReaderLibraryError.invalidResponse("Host capability is not configured")
                         }
-                        try await withTaskCancellationHandler(operation: {
-                            try await transport.handle(event, client: native)
-                        }, onCancel: { transport.cancel(requestID: id) })
+                        do {
+                            // Host work is an awaited continuation. A structured
+                            // task group would wait for an uncooperative Host
+                            // child while leaving its scope, so the expired
+                            // read must be released through an unstructured
+                            // continuation and cancel the child independently.
+                            try await awaitReadHostRequest(event: event, requestID: id,
+                                                           deadline: deadline, transport: transport,
+                                                           client: native, timing: timing)
+                        } catch is ReaderRequestDeadlineExceeded {
+                            // Reads are cancellable observations. Stop the
+                            // in-flight Host request and Core read together;
+                            // unlike a mutation this cannot discard an
+                            // unknown durable write.
+                            try? client.cancel(requestId: id)
+                            hostTransport?.cancel(requestID: id)
+                            throw ReaderLibraryError.invalidResponse("timeout: " + method)
+                        }
                     }
                     continue
                 }
@@ -1081,6 +1096,102 @@ struct PendingMutation {
     var executingHostRequest: ReaderCoreEvent?
     var uncertainHostRequests: [ReaderCoreEvent] = []
     var lateHostHandledCount: Int = 0
+}
+private struct ReaderRequestDeadlineExceeded: Error {}
+
+private final class ReaderReadHostDeadlineGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var finished = false
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var hostTask: Task<Void, Never>?
+    private var timerTask: Task<Void, Never>?
+    private let cancelHostAction: @Sendable () -> Void
+
+    init(cancelHost: @escaping @Sendable () -> Void) { self.cancelHostAction = cancelHost }
+
+    func install(_ continuation: CheckedContinuation<Void, Error>) {
+        let cancelled: Bool
+        lock.lock()
+        cancelled = finished
+        if !cancelled { self.continuation = continuation }
+        lock.unlock()
+        if cancelled { continuation.resume(throwing: CancellationError()) }
+    }
+
+    func install(hostTask: Task<Void, Never>, timerTask: Task<Void, Never>) {
+        let cancel: Bool
+        lock.lock()
+        cancel = finished
+        if !cancel {
+            self.hostTask = hostTask
+            self.timerTask = timerTask
+        }
+        lock.unlock()
+        if cancel {
+            hostTask.cancel()
+            timerTask.cancel()
+        }
+    }
+
+    func hostFinished(_ result: Result<Void, Error>) { finish(result, cancelHost: false) }
+    func timedOut() { finish(.failure(ReaderRequestDeadlineExceeded()), cancelHost: true) }
+    func cancelled() { finish(.failure(CancellationError()), cancelHost: true) }
+
+    private func finish(_ result: Result<Void, Error>, cancelHost: Bool) {
+        let continuation: CheckedContinuation<Void, Error>?
+        let hostTask: Task<Void, Never>?
+        let timerTask: Task<Void, Never>?
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        finished = true
+        continuation = self.continuation
+        hostTask = self.hostTask
+        timerTask = self.timerTask
+        self.continuation = nil
+        self.hostTask = nil
+        self.timerTask = nil
+        lock.unlock()
+
+        if cancelHost {
+            cancelHostAction()
+            hostTask?.cancel()
+        }
+        timerTask?.cancel()
+        continuation?.resume(with: result)
+    }
+}
+
+private func awaitReadHostRequest(event: ReaderCoreEvent, requestID: UInt64,
+                                 deadline: TimeInterval, transport: ReaderIOSHostTransport,
+                                 client: ReaderCoreClient, timing: ReaderRequestTiming) async throws {
+    let gate = ReaderReadHostDeadlineGate { transport.cancel(requestID: requestID) }
+    do {
+        try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                gate.install(continuation)
+                let hostTask = Task {
+                    do {
+                        try await transport.handle(event, client: client)
+                        gate.hostFinished(.success(()))
+                    } catch {
+                        gate.hostFinished(.failure(error))
+                    }
+                }
+                let timerTask = Task {
+                    while !Task.isCancelled && timing.now() < deadline { await timing.suspend() }
+                    guard !Task.isCancelled else { return }
+                    gate.timedOut()
+                }
+                gate.install(hostTask: hostTask, timerTask: timerTask)
+            }
+        }, onCancel: { gate.cancelled() })
+    } catch is CancellationError {
+        // The cancellation handler releases the Host worker, but the Core
+        // read also needs its own cancellation receipt before this observer
+        // leaves. Deadline handling already performs this in its caller.
+        try? client.cancel(requestId: requestID)
+        throw CancellationError()
+    }
 }
 private struct StoredImportRejection: Codable {
     let code: String
