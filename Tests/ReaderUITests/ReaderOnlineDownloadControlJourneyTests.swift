@@ -21,6 +21,340 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// Root binds a fresh stopped physical App snapshot before selecting this
+    /// method, then independently compares the retained ledger after it. The
+    /// runner reads the summary and first/middle/last task rows only; all 50
+    /// task rows remain an external ledger comparison, never a UI-count claim.
+    /// It never opens a reader session.
+    func testPhysicalRetainedWholeDownloadSummaryAndSecondColdLaunchWithoutRedispatch() throws {
+        struct Position: Decodable {
+            let chapterIndex: UInt32
+            let chapterOffset: UInt64
+            let chapterProgress: Double
+            let locationRevision: String?
+        }
+        struct Counts: Decodable {
+            let completed: UInt32
+            let cached: UInt32
+            let failed: UInt32
+            let paused: UInt32
+        }
+        struct Task: Decodable {
+            let chapterIndex: UInt32
+            let state: String
+            let attempts: UInt32
+            let maxAttempts: UInt32
+        }
+        struct Preproof: Decodable {
+            let schemaVersion: Int
+            let policy: String
+            let capturedAtUTC: String
+            let targetUDID: String
+            let bundleID: String
+            let sourceId: String
+            let bookId: String
+            let title: String
+            let ledgerSHA256: String
+            let progressSHA256: String
+            let currentPosition: Position
+            let chapterCount: UInt32
+            let summaryCounts: Counts
+            let tasks: [Task]
+            let taskProjectionSHA256: String
+            let physicalBodyCount: UInt32
+            let pendingOperationCount: Int
+            let otherBookFailedTaskCount: Int
+        }
+        #if targetEnvironment(simulator)
+        XCTFail("This selector requires the original physical iPhone library")
+        throw Prerequisite.invalid("physical download-summary target")
+        #endif
+        let raw = try required("READER_PHYSICAL_DOWNLOAD_SUMMARY_PREPROOF_JSON")
+        let expectedSHA = try required("READER_PHYSICAL_DOWNLOAD_SUMMARY_PREPROOF_SHA256")
+        let target = try required("READER_PHYSICAL_TARGET_UDID")
+        let ledgerSHA = try required("READER_PHYSICAL_DOWNLOAD_LEDGER_SHA256")
+        let progressSHA = try required("READER_PHYSICAL_DOWNLOAD_PROGRESS_SHA256")
+        let book = Book(source: try required("READER_ONLINE_SOURCE_ID"), id: try required("READER_ONLINE_BOOK_ID"),
+                        title: try required("READER_ONLINE_BOOK_TITLE"))
+        let bytes = Data(raw.utf8)
+        func digest(_ bytes: Data) -> String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }
+        func isSHA(_ value: String) -> Bool { value.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil }
+        guard bytes.count <= 32 * 1024, isSHA(expectedSHA), digest(bytes) == expectedSHA else {
+            XCTFail("Bind the exact external physical snapshot preproof bytes before any App launch")
+            throw Prerequisite.invalid("physical download-summary proof digest")
+        }
+        let proof = try JSONDecoder().decode(Preproof.self, from: bytes)
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let captured = timestamp.date(from: proof.capturedAtUTC) ?? ISO8601DateFormatter().date(from: proof.capturedAtUTC)
+        let age = captured.map { Date().timeIntervalSince($0) }
+        let counts = proof.summaryCounts
+        guard proof.schemaVersion == 1, proof.policy == "physical-shelf-download-summary-readonly-v1",
+              let age, (0...1800).contains(age),
+              target.range(of: #"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$"#, options: .regularExpression) != nil,
+              proof.targetUDID == target, proof.bundleID == "io.reader.minliny.free",
+              ProcessInfo.processInfo.environment["SIMULATOR_UDID"] == nil,
+              proof.sourceId == "https://dushu.baidu.com/", proof.sourceId == book.source,
+              proof.bookId == book.id, proof.title == book.title,
+              isSHA(ledgerSHA), proof.ledgerSHA256 == ledgerSHA,
+              isSHA(progressSHA), proof.progressSHA256 == progressSHA,
+              proof.currentPosition.chapterIndex < proof.chapterCount,
+              proof.currentPosition.chapterProgress.isFinite,
+              (0...1).contains(proof.currentPosition.chapterProgress),
+              proof.chapterCount == 50, counts.completed == 50, counts.cached == 0,
+              counts.failed == 0, counts.paused == 0,
+              proof.tasks.map(\.chapterIndex) == Array(UInt32(0)..<UInt32(50)),
+              proof.tasks.allSatisfy({ $0.state == "completed" && $0.attempts > 0 && $0.maxAttempts > 0 }),
+              proof.physicalBodyCount >= counts.completed, proof.pendingOperationCount == 0,
+              proof.otherBookFailedTaskCount > 0, isSHA(proof.taskProjectionSHA256) else {
+            XCTFail("Require this fresh physical free-bundle library's exact Baidu completion, current progress and settled ledger; another book's failed task must remain separate")
+            throw Prerequisite.invalid("physical download-summary snapshot identity")
+        }
+        let projection: [[String: Any]] = proof.tasks.map {
+            ["chapterIndex": $0.chapterIndex, "state": $0.state, "attempts": $0.attempts, "maxAttempts": $0.maxAttempts]
+        }
+        guard digest(try JSONSerialization.data(withJSONObject: projection, options: [.sortedKeys])) == proof.taskProjectionSHA256 else {
+            XCTFail("Every expected row must belong to the externally bound current task projection")
+            throw Prerequisite.invalid("physical download-summary task projection")
+        }
+        facts(["preproofSHA256": expectedSHA, "capturedAtUTC": proof.capturedAtUTC, "targetUDID": target,
+               "bundleID": proof.bundleID, "bookIdentity": book.identity,
+               "ledgerSHA256": ledgerSHA, "progressSHA256": progressSHA,
+               "currentChapter": String(proof.currentPosition.chapterIndex),
+               "currentScalarOffset": String(proof.currentPosition.chapterOffset),
+               "currentChapterProgress": String(proof.currentPosition.chapterProgress),
+               "currentLocationRevision": proof.currentPosition.locationRevision ?? "null",
+               "otherBookFailedTaskCount": String(proof.otherBookFailedTaskCount),
+               "boundary": "These are external prelaunch facts; UI reading never substitutes for postlaunch ledger/progress comparison"],
+              name: "physical-retained-download-summary-preproof")
+
+        let app = XCUIApplication(bundleIdentifier: proof.bundleID)
+        guard app.state == .notRunning else {
+            XCTFail("Root must stop the original App before its fresh snapshot and this first cold launch")
+            throw Prerequisite.invalid("physical download-summary cold prerequisite")
+        }
+        let summaryID = "online-download-summary:" + book.identity
+        let expectedSummary = "已完成 50 · 缓存 0 · 失败 0 · 暂停 0"
+        let sampledIndexes: [UInt32] = [0, 24, 49]
+        func assertNoReaderOrDownloadControls() {
+            XCTAssertFalse(app.textViews["reading-body"].exists, "Shelf status must never open the original reading session")
+            let ids = ["reader-more", "online-download-selected", "online-update-catalog", "online-download-close"]
+            let labels = ["整本下载", "下载所选", "清理自动缓存", "清除此章下载"]
+            XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier IN %@ OR label IN %@", ids, labels)).count, 0,
+                           "Only the read-only shelf status is permitted")
+        }
+        func reveal(_ element: XCUIElement, in scroll: XCUIElement, towardTop: Bool = false) throws {
+            func finiteVisibleFrame(_ frame: CGRect) -> Bool {
+                !frame.isNull && !frame.isInfinite && frame.minX.isFinite && frame.minY.isFinite
+                    && frame.width.isFinite && frame.height.isFinite && frame.width > 0 && frame.height > 0
+            }
+            guard scroll.exists else {
+                XCTFail("The exact read-only summary scroll must be visible before scrolling")
+                throw Prerequisite.invalid("physical download-summary viewport")
+            }
+            let viewport = scroll.frame.intersection(app.frame)
+            guard finiteVisibleFrame(viewport) else {
+                XCTFail("The exact summary scroll must intersect the visible App window with finite bounds")
+                throw Prerequisite.invalid("physical download-summary visible viewport")
+            }
+            for _ in 0..<60 {
+                if element.exists {
+                    let frame = element.frame
+                    if finiteVisibleFrame(frame), viewport.contains(frame),
+                       finiteVisibleFrame(frame.intersection(viewport)) { return }
+                }
+                if towardTop { scroll.swipeDown() } else { scroll.swipeUp() }
+            }
+            XCTFail("The exact original summary row was not reachable through its native scroll view")
+            throw Prerequisite.invalid("physical download-summary row")
+        }
+        for launch in 1...2 {
+            app.launch()
+            guard app.buttons["更多书架操作"].waitForExistence(timeout: 25) else {
+                XCTFail("Cold launch must return directly to the original shelf without opening a reader")
+                throw Prerequisite.invalid("physical download-summary shelf")
+            }
+            assertNoReaderOrDownloadControls()
+            // Production shelf AX uses raw ReaderBook.bookId; the test's
+            // Book.id is that raw value, while Book.identity is source|bookId.
+            // Duplicate raw IDs fail here rather than choosing an ambiguous
+            // row. The menu entry must then prove the exact source identity.
+            // Do not tap the book or use a coordinate fallback.
+            let rows = app.descendants(matching: .button).matching(NSPredicate(format: "identifier == %@", "book-" + book.id))
+            guard rows.firstMatch.waitForExistence(timeout: 15), rows.count == 1, rows.firstMatch.isHittable else {
+                XCTFail("The exact original shelf book must already be uniquely visible")
+                throw Prerequisite.invalid("physical download-summary original shelf row")
+            }
+            rows.firstMatch.press(forDuration: 1)
+            let entry = exact("shelf-download-status:" + book.identity, type: .button, app: app)
+            guard entry.waitForExistence(timeout: 10), entry.label == "下载状态", entry.isEnabled, entry.isHittable else {
+                XCTFail("Require the native read-only entry for this exact source/book; never fall back to opening its body")
+                throw Prerequisite.invalid("physical download-summary native entry")
+            }
+            entry.tap()
+            let summary = exact(summaryID, type: .staticText, app: app)
+            guard summary.waitForExistence(timeout: 30) else {
+                XCTFail("The source-qualified summary must load from the retained real library")
+                throw Prerequisite.invalid("physical download-summary response")
+            }
+            XCTAssertEqual(summary.label, expectedSummary, "Do not merge the other book's retained failed task into this book")
+            XCTAssertEqual(exact("online-download-summary-title:" + book.identity, type: .staticText, app: app).label, book.title)
+            XCTAssertTrue(exact("online-download-summary-source:" + book.identity, type: .staticText, app: app).exists)
+            assertNoReaderOrDownloadControls()
+            let scroll = app.scrollViews["online-download-summary-scroll"]
+            var observed: [String: String] = [:]
+            for index in sampledIndexes {
+                let expected = proof.tasks[Int(index)]
+                let suffix = book.identity + ":" + String(expected.chapterIndex)
+                let row = exact("online-download-summary-chapter:" + suffix, app: app)
+                try reveal(row, in: scroll)
+                let state = exact("online-download-summary-state:" + suffix, type: .staticText, app: app)
+                let observedState = state.label
+                XCTAssertEqual(observedState, "已完成")
+                let attempts = exact("online-download-summary-attempts:" + suffix, type: .staticText, app: app)
+                let expectedAttempts = "尝试 \(expected.attempts) / \(expected.maxAttempts)"
+                XCTAssertEqual(attempts.label, expectedAttempts, "Keep the externally observed original task counter")
+                observed[String(expected.chapterIndex)] = observedState + ":" + attempts.label
+            }
+            try reveal(summary, in: scroll, towardTop: true)
+            XCTAssertEqual(summary.label, expectedSummary)
+            assertNoReaderOrDownloadControls()
+            facts(observed, name: "physical-retained-download-summary-launch-" + String(launch) + "-sampled-rows")
+            keep(app, name: "physical-retained-download-summary-launch-" + String(launch))
+            let close = exact("online-download-summary-close", type: .button, app: app)
+            guard close.exists, close.isEnabled, close.isHittable else {
+                XCTFail("Close only this read-only summary through its native header")
+                throw Prerequisite.invalid("physical download-summary close")
+            }
+            close.tap()
+            wait("Return to the same shelf without a reader save barrier", timeout: 10) {
+                !summary.exists && app.buttons["更多书架操作"].isHittable
+            }
+            assertNoReaderOrDownloadControls()
+            if launch == 1 {
+                app.terminate()
+                XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "The second launch must start a new App process")
+            }
+        }
+        facts(["summary": expectedSummary, "sampledTaskRowsObservedOnEachLaunch": String(sampledIndexes.count),
+               "sampledChapterIndexes": sampledIndexes.map(String.init).joined(separator: ","),
+               "downloadOrControlIntentRequested": "false", "readerSessionOpened": "false",
+               "externalPostproofRequired": "All 50 original full queue rows, bodies, progress, raw files and ledger must remain exact after both cold launches; UI rows are samples only",
+               "openBoundaries": "Pause, continue, cancel and OS offline are not exercised or accepted"],
+              name: "physical-retained-download-summary-evidence-boundary")
+    }
+
+    /// Opens the production native cleanup confirmation, then cancels it.
+    /// Root must bind a fresh original-library preproof and compare every
+    /// protected cache/body/task/source/progress row after the App stops.
+    /// This method never confirms the global cleanup against that library.
+    func testPhysicalOriginalLibraryNativeCleanupConfirmationCancelWithoutDispatch() throws {
+        struct Preproof: Decodable {
+            let schemaVersion: Int
+            let policy: String
+            let capturedAtUTC: String
+            let targetUDID: String
+            let bundleID: String
+            let sourceId: String
+            let bookId: String
+            let title: String
+            let ledgerSHA256: String
+            let progressSHA256: String
+            let completedTaskCount: Int
+            let failedTaskCount: Int
+            let physicalBodyCount: Int
+            let oldHostCommandCount: Int
+            let pendingOperationCount: Int
+            let originalChapterIndex: UInt32
+        }
+        #if targetEnvironment(simulator)
+        XCTFail("This selector requires the original physical iPhone library")
+        throw Prerequisite.invalid("physical cleanup confirmation target")
+        #endif
+        let raw = try required("READER_PHYSICAL_CLEANUP_CANCEL_PREPROOF_JSON")
+        let expectedSHA = try required("READER_PHYSICAL_CLEANUP_CANCEL_PREPROOF_SHA256")
+        let target = try required("READER_PHYSICAL_TARGET_UDID")
+        let book = Book(source: try required("READER_ONLINE_SOURCE_ID"), id: try required("READER_ONLINE_BOOK_ID"),
+                        title: try required("READER_ONLINE_BOOK_TITLE"))
+        let bytes = Data(raw.utf8)
+        func digest(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+        func isSHA(_ value: String) -> Bool { value.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil }
+        guard bytes.count <= 16 * 1024, isSHA(expectedSHA), digest(bytes) == expectedSHA else {
+            XCTFail("Bind the exact fresh external original-library preproof bytes before any App launch")
+            throw Prerequisite.invalid("physical cleanup preproof digest")
+        }
+        let proof = try JSONDecoder().decode(Preproof.self, from: bytes)
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let captured = timestamp.date(from: proof.capturedAtUTC) ?? ISO8601DateFormatter().date(from: proof.capturedAtUTC)
+        let age = captured.map { Date().timeIntervalSince($0) }
+        guard proof.schemaVersion == 1, proof.policy == "physical-original-cleanup-confirmation-cancel-v1",
+              let age, (0...1800).contains(age),
+              target.range(of: #"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$"#, options: .regularExpression) != nil,
+              proof.targetUDID == target, proof.bundleID == "io.reader.minliny.free",
+              ProcessInfo.processInfo.environment["SIMULATOR_UDID"] == nil,
+              proof.sourceId == "https://dushu.baidu.com/", proof.sourceId == book.source,
+              proof.bookId == book.id, proof.title == book.title,
+              isSHA(proof.ledgerSHA256), isSHA(proof.progressSHA256),
+              proof.completedTaskCount == 50, proof.failedTaskCount == 1,
+              proof.physicalBodyCount == 57, proof.oldHostCommandCount == 569,
+              proof.pendingOperationCount == 0, proof.originalChapterIndex == 40 else {
+            XCTFail("Require the fresh exact original physical free-bundle library and settled protected inventory")
+            throw Prerequisite.invalid("physical cleanup original-library identity")
+        }
+        facts(["preproofSHA256": expectedSHA, "targetUDID": target, "bundleID": proof.bundleID,
+               "bookIdentity": book.identity, "ledgerSHA256": proof.ledgerSHA256,
+               "progressSHA256": proof.progressSHA256,
+               "protectedCompletedTasks": String(proof.completedTaskCount),
+               "protectedFailedTasks": String(proof.failedTaskCount),
+               "protectedPhysicalBodies": String(proof.physicalBodyCount),
+               "protectedOldHostCommands": String(proof.oldHostCommandCount),
+               "boundary": "The native confirmation will be cancelled; Root compares the original data and absence of a new cache.storage.cleanup command externally"],
+              name: "physical-original-cleanup-cancel-preproof")
+
+        let app = XCUIApplication(bundleIdentifier: proof.bundleID)
+        guard app.state == .notRunning else {
+            XCTFail("Root must stop the original App before its fresh snapshot and this cold launch")
+            throw Prerequisite.invalid("physical cleanup cold prerequisite")
+        }
+        app.launch()
+        openEntry(book, app: app)
+        XCTAssertEqual(try currentChapter(book, app: app), proof.originalChapterIndex)
+        downloads(app)
+        let expectedSummary = "已完成 50 · 缓存 0 · 失败 0 · 暂停 0"
+        let cleanup = app.buttons["清理自动缓存"]
+        revealTop(cleanup, app: app)
+        guard app.staticTexts[expectedSummary].exists, cleanup.isEnabled, cleanup.isHittable,
+              !exact("online-cache-cleanup-result", app: app).exists else {
+            XCTFail("The retained real download status must be settled with no prior cleanup result")
+            throw Prerequisite.invalid("physical cleanup native inventory")
+        }
+        cleanup.tap()
+        let alert = app.alerts["清理自动缓存？"]
+        guard alert.waitForExistence(timeout: 10), app.alerts.count == 1,
+              alert.staticTexts["保留当前章和已完成下载；书架、阅读位置及原书不变。"].exists,
+              alert.buttons["清理"].exists, alert.buttons["取消"].isHittable else {
+            XCTFail("Require the exact native cleanup confirmation and its non-destructive cancel action")
+            throw Prerequisite.invalid("physical cleanup native confirmation")
+        }
+        keep(app, name: "physical-original-cleanup-native-confirmation-before-cancel")
+        alert.buttons["取消"].tap()
+        wait("Cancel the exact native cleanup confirmation without dispatch", timeout: 10) { !alert.exists }
+        XCTAssertFalse(exact("online-cache-cleanup-result", app: app).exists)
+        XCTAssertTrue(app.staticTexts[expectedSummary].exists)
+        keep(app, name: "physical-original-cleanup-native-confirmation-cancelled")
+        app.buttons["online-download-close"].tap()
+        XCTAssertEqual(try currentChapter(book, app: app), proof.originalChapterIndex)
+        leave(app)
+        app.terminate()
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 10))
+        facts(["confirmationOpened": "true", "nativeCancelTapped": "true", "cleanupConfirmTapped": "false",
+               "cleanupResultShown": "false", "originalChapterAfterCancel": String(proof.originalChapterIndex),
+               "externalPostproofRequired": "No new cache.storage.cleanup original Host command; all 57 original physical bodies, 50+1 task rows, source JSON bytes, old 569 commands and progress must remain exact",
+               "openBoundary": "The production native confirmation execution and result are not exercised on the original library"],
+              name: "physical-original-cleanup-cancel-evidence-boundary")
+    }
+
     func testActualFiniteDownloadPauseResumeCancelAndColdRetention() throws {
         let book = Book(source: try required("READER_ONLINE_SOURCE_ID"), id: try required("READER_ONLINE_BOOK_ID"),
                         title: try required("READER_ONLINE_BOOK_TITLE"))

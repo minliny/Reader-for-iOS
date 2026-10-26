@@ -631,6 +631,82 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         XCTAssertEqual(state.results.count, 1, "A late response from the stopped generation must not alter visible results")
     }
 
+    func testResearchCandidateTimingRequiresExactCurrentIdentityAcrossReturns() async throws {
+        let service = DiscoveryControlledService()
+        let state = ReaderOnlineWorkspaceModel()
+        defer { state.retireCachedDiscovery(); service.releaseAll() }
+        state.service = service
+        state.sources = DiscoveryControlledService.sources(2)
+        state.query = "candidate timing ownership"
+        let presentation = UUID(); state.activateDiscoveryPresentation(presentation)
+        let firstSource = state.sources[0].id, secondSource = state.sources[1].id
+        let old = ReaderOnlineCandidate(sourceId: firstSource, bookId: "shared-book", title: "Original candidate")
+        let other = ReaderOnlineCandidate(sourceId: secondSource, bookId: old.bookId, title: old.title)
+        let replacement = ReaderOnlineCandidate(sourceId: firstSource, bookId: "replacement-book", title: old.title)
+
+        func waitForSearches(_ count: Int) async {
+            let entered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in service.searchCalls.count == count }, object: nil)
+            await fulfillment(of: [entered], timeout: 2)
+        }
+        func complete(_ sourceID: String, from start: Int, books: [ReaderOnlineCandidate], elapsed: Int) throws {
+            let index = try XCTUnwrap(service.searchCalls.indices.dropFirst(start).first { service.searchCalls[$0].sourceID == sourceID })
+            try service.completeSearch(index, books: books, elapsedMilliseconds: elapsed)
+        }
+        func waitForSettlement() async {
+            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !state.searching }, object: nil)
+            await fulfillment(of: [settled], timeout: 2)
+        }
+
+        state.search(); await waitForSearches(2)
+        try complete(firstSource, from: 0, books: [old], elapsed: 17)
+        try complete(secondSource, from: 0, books: [other], elapsed: 23)
+        await waitForSettlement()
+        XCTAssertEqual(state.candidateElapsedMilliseconds(old), 17)
+        XCTAssertEqual(state.candidateElapsedMilliseconds(other), 23)
+        XCTAssertNil(state.candidateSearchStatus(old))
+        state.scrollAnchor = old.id
+
+        state.researchCandidates(); await waitForSearches(4)
+        XCTAssertTrue(state.results.contains(old))
+        XCTAssertEqual(state.scrollAnchor, old.id)
+        XCTAssertNil(state.candidateElapsedMilliseconds(old))
+        XCTAssertEqual(state.candidateSearchStatus(old), "上次候选 · 本次搜索中")
+        try complete(firstSource, from: 2, books: [replacement], elapsed: 91)
+        try complete(secondSource, from: 2, books: [other], elapsed: 92)
+        await waitForSettlement()
+        XCTAssertEqual(state.timings[firstSource], 91, "The source really completed this generation")
+        XCTAssertNil(state.candidateElapsedMilliseconds(old), "An absent retained candidate cannot inherit its source's newer request timing")
+        XCTAssertEqual(state.candidateSearchStatus(old), "上次候选 · 本次未确认")
+        XCTAssertEqual(state.candidateElapsedMilliseconds(replacement), 91)
+        XCTAssertNil(state.candidateSearchStatus(replacement))
+        XCTAssertEqual(state.candidateElapsedMilliseconds(other), 92, "The same book ID from another source is a different candidate")
+
+        let beforeReturn = DiscoverySnapshot(state)
+        state.showDetail(old)
+        XCTAssertEqual(state.selected?.id, old.id)
+        state.closeDetail()
+        XCTAssertEqual(DiscoverySnapshot(state), beforeReturn)
+        state.retireDiscoveryPresentation(presentation)
+        state.activateDiscoveryPresentation(UUID())
+        XCTAssertEqual(DiscoverySnapshot(state), beforeReturn)
+        XCTAssertNil(state.candidateElapsedMilliseconds(old))
+        XCTAssertEqual(state.candidateElapsedMilliseconds(replacement), 91)
+
+        state.researchCandidates(); await waitForSearches(6)
+        try complete(firstSource, from: 4, books: [], elapsed: 101)
+        try complete(secondSource, from: 4, books: [], elapsed: 102)
+        await waitForSettlement()
+        XCTAssertTrue(state.currentResultIDs.isEmpty)
+        XCTAssertEqual(state.results, beforeReturn.results, "A confirmed empty retry retains the earlier candidates with explicit ownership")
+        for candidate in state.results {
+            XCTAssertNil(state.candidateElapsedMilliseconds(candidate))
+            XCTAssertEqual(state.candidateSearchStatus(candidate), "上次候选 · 本次未确认")
+        }
+        XCTAssertEqual(state.query, beforeReturn.query)
+        XCTAssertEqual(state.scrollAnchor, beforeReturn.scrollAnchor)
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
     func testRetiredProductionWorkspaceIgnoresOpportunityAndDrainsLateSourceRefresh() async throws {
         let service = DiscoveryControlledService()
         let gate = DiscoverySubscriptionOpportunityGate()
@@ -808,14 +884,14 @@ private final class DiscoveryControlledService: ReaderOnlineServing {
         }
         continuation.resume(with: result)
     }
-    func completeSearch(_ index: Int) throws {
+    func completeSearch(_ index: Int, books: [ReaderOnlineCandidate]? = nil, elapsedMilliseconds: Int? = nil) throws {
         guard let continuation = searches.removeValue(forKey: index) else {
             XCTFail("The exact search read has not entered"); throw Failure.missingContinuation
         }
         let call = searchCalls[index]
         continuation.resume(returning: .init(sourceId: call.sourceID,
-            books: [.init(sourceId: call.sourceID, bookId: "candidate-\(index)", title: "Candidate identity \(index)")],
-            elapsedMilliseconds: 10 + index, timing: nil))
+            books: books ?? [.init(sourceId: call.sourceID, bookId: "candidate-\(index)", title: "Candidate identity \(index)")],
+            elapsedMilliseconds: elapsedMilliseconds ?? 10 + index, timing: nil))
     }
     func completeRemainingSearches() throws { for index in searches.keys.sorted() { try completeSearch(index) } }
     func failDetail(_ index: Int) throws {

@@ -501,16 +501,119 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
     func testRealStoredSourcesSearchDetailShelfAndCachedBody() async throws {
         let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
         let package = try Data(contentsOf: documents.appendingPathComponent("Reader-real-sources.json"))
-        XCTAssertEqual(SHA256.hash(data: package).map { String(format: "%02x", $0) }.joined(), "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322")
+        func hash(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
+        let packageSHA256 = SHA256.hash(data: package).map { String(format: "%02x", $0) }.joined()
+        let expectedPackageSHA256 = "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322"
+        XCTAssertEqual(packageSHA256, expectedPackageSHA256)
+        guard packageSHA256 == expectedPackageSHA256 else {
+            throw ReaderLibraryError.invalidResponse("original real source package identity changed")
+        }
+        let manager = FileManager.default
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealOnline-" + UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+        let sourceURL = root.appendingPathComponent("Sources")
+        let operationsURL = sourceURL.appendingPathComponent(".operations")
+        var runtimes: [ReaderLibraryService] = []
+        var namespace: String?
+        var identityBytes: Data?
+        var admittedCookiePairs: [(sourceID: String, query: [String: Any])] = []
+        var keychainAdmissionFailed = false
+        func cleanupFailure(_ detail: String) -> ReaderLibraryError {
+            let attachment = XCTAttachment(string: "temporaryRoot=\(root.path)\nnamespace=\(namespace ?? "uncreated")\n\(detail)")
+            attachment.name = "Real-source-temporary-cleanup-failure"
+            attachment.lifetime = .keepAlways; add(attachment)
+            XCTFail("Temporary library cleanup failed; preserve its directory and identity at \(root.path): \(detail)")
+            return .invalidResponse("real-source temporary cleanup failed")
+        }
+        func cleanupTemporaryLibrary() async throws {
+            let runtimeCount = runtimes.count
+            var closeFailures: [String] = []
+            for (index, runtime) in runtimes.enumerated() {
+                do { try await runtime.close() }
+                catch { closeFailures.append("runtime[\(index)] close: \(error)") }
+            }
+            guard closeFailures.isEmpty else { throw cleanupFailure(closeFailures.joined(separator: "\n")) }
+            runtimes.removeAll()
+            guard !keychainAdmissionFailed else {
+                throw cleanupFailure("An exact temporary credential pair was not admitted as originally absent; no credential or directory was deleted")
+            }
+            if namespace != nil {
+                let currentIdentity: Data
+                do {
+                    currentIdentity = try Data(contentsOf: operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName))
+                } catch {
+                    throw cleanupFailure("The temporary library identity could not be verified: \(error)")
+                }
+                guard let identityBytes, currentIdentity == identityBytes else {
+                    throw cleanupFailure("The temporary library identity changed before cleanup")
+                }
+            }
+            var cookieFailures: [String] = []
+            for pair in admittedCookiePairs {
+                // Only pairs proven absent before this method's first network
+                // call are owned here. Never delete a whole Keychain service.
+                let deleted = SecItemDelete(pair.query as CFDictionary)
+                var readQuery = pair.query; readQuery[kSecReturnData as String] = true
+                var remaining: CFTypeRef?
+                let read = SecItemCopyMatching(readQuery as CFDictionary, &remaining)
+                if (deleted != errSecSuccess && deleted != errSecItemNotFound) || read != errSecItemNotFound {
+                    cookieFailures.append("source=\(pair.sourceID) deleteStatus=\(deleted) postreadStatus=\(read)")
+                }
+            }
+            guard cookieFailures.isEmpty else { throw cleanupFailure(cookieFailures.joined(separator: "\n")) }
+            do {
+                if manager.fileExists(atPath: root.path) { try manager.removeItem(at: root) }
+                guard !manager.fileExists(atPath: root.path) else {
+                    throw ReaderLibraryError.invalidResponse("temporary library still exists after removal")
+                }
+            } catch {
+                let removalError = error
+                // Recursive removal can fail after deleting some children.
+                // Restore only this UUID root's exact original identity so a
+                // retained partial directory is still attributable to this run.
+                if let identityBytes {
+                    do {
+                        try manager.createDirectory(at: operationsURL, withIntermediateDirectories: true)
+                        let identityURL = operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName)
+                        if manager.fileExists(atPath: identityURL.path) {
+                            guard try Data(contentsOf: identityURL) == identityBytes else {
+                                throw ReaderLibraryError.invalidResponse("retained temporary identity differs; it was not overwritten")
+                            }
+                        } else { try identityBytes.write(to: identityURL, options: .withoutOverwriting) }
+                    } catch {
+                        throw cleanupFailure("Directory removal failed: \(removalError); exact temporary identity restoration also failed: \(error)")
+                    }
+                }
+                throw cleanupFailure("Directory removal did not complete; temporary identity retained: \(removalError)")
+            }
+            let attachment = XCTAttachment(string: "closedRuntimes=\(runtimeCount)\nexactCredentialPairsAbsent=\(admittedCookiePairs.count)\ntemporaryRootRemoved=true")
+            attachment.name = "Real-source-temporary-cleanup-complete"
+            attachment.lifetime = .keepAlways; add(attachment)
+        }
+        var scenarioFailure: Error?
         do {
+            namespace = try ReaderHostLibraryIdentity.loadOrCreate(in: operationsURL)
+            identityBytes = try Data(contentsOf: operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName))
+            let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: sourceURL)
+            runtimes.append(service)
             let imported = try await service.importSources(package, operationID: UUID().uuidString)
             XCTAssertEqual(imported.count, 2)
             XCTAssertTrue(imported.allSatisfy(\.succeeded), "Real source import must preserve the original terminal facts")
             let sources = try await service.onlineSources().filter(\.enabled)
             XCTAssertEqual(sources.count, 2)
+            let credentialService = "io.reader.minliny.source-cookies." + hash(try XCTUnwrap(namespace))
+            for sourceID in Set(sources.map(\.id)).sorted() {
+                let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                    kSecAttrService as String: credentialService, kSecAttrAccount as String: hash(sourceID)]
+                var readQuery = query; readQuery[kSecReturnData as String] = true
+                var originalItem: CFTypeRef?
+                let initialStatus = SecItemCopyMatching(readQuery as CFDictionary, &originalItem)
+                guard initialStatus == errSecItemNotFound else {
+                    keychainAdmissionFailed = true
+                    XCTFail("An exact fresh temporary credential pair must be absent before networking; status=\(initialStatus)")
+                    throw ReaderLibraryError.invalidResponse("temporary source credential pair was not empty")
+                }
+                admittedCookiePairs.append((sourceID, query))
+            }
             var successful: ReaderOnlineCandidate?
             var outcomes: [[String: Any]] = []
             for source in sources {
@@ -537,7 +640,7 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                 XCTFail("A real chapter outside the admission/cache window must not be reported as cached")
             } catch let error as ReaderLibraryError {
                 guard case .core(let code, let message, _, let reason) = error else {
-                    XCTFail("Expected the Core cache-missing category, received \(error)"); return
+                    XCTFail("Expected the Core cache-missing category, received \(error)"); throw error
                 }
                 XCTAssertEqual(reason, "CACHE_MISSING", "Core cache-only failure category was lost: code=\(code) message=\(message)")
             }
@@ -558,6 +661,7 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                 "A prefetch terminal alone cannot complete a download; its original resource lease must be reported")
             try await service.close()
             let reopened = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+            runtimes.append(reopened)
             do {
                 let restored = try await reopened.progress(for: book)
                 XCTAssertEqual(restored.progress?.chapterOffset, saved.progress?.chapterOffset)
@@ -684,8 +788,13 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                     uniformTypeIdentifier: "public.json")
                 attachment.name = "Real-source-temporary-download-cleanup-boundary"
                 attachment.lifetime = .keepAlways; add(attachment)
-                try await reopened.close()
-            } catch { try? await reopened.close(); throw error }
-        } catch { try? await service.close(); throw error }
+            }
+        } catch { scenarioFailure = error }
+        do { try await cleanupTemporaryLibrary() }
+        catch {
+            if let scenarioFailure { XCTFail("The real-source scenario also failed before teardown: \(scenarioFailure)") }
+            throw error
+        }
+        if let scenarioFailure { throw scenarioFailure }
     }
 }

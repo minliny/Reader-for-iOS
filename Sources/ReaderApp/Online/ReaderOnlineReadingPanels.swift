@@ -479,7 +479,7 @@ struct ReaderOnlineSwitchPanel: View {
         let rows = state.results.filter { $0.id != currentBookID }
         return ViewportDisplay(query: state.query, candidates: rows,
             sourceNames: rows.map { state.sourceName($0.sourceId) },
-            timings: rows.map { state.timings[$0.sourceId] }, currentIDs: state.currentResultIDs,
+            timings: rows.map { state.candidateElapsedMilliseconds($0) }, currentIDs: state.currentResultIDs,
             searching: state.searching)
     }
     private func invalidateChangedViewportDisplay() {
@@ -869,8 +869,8 @@ struct ReaderSwitchCandidateList: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(candidate.title).font(ReaderTypography.font(.controlHeader))
                                 Text(candidate.author).font(ReaderTypography.font(.caption))
-                                Text(state.sourceName(candidate.sourceId) + (state.timings[candidate.sourceId].map { " · \($0) ms" } ?? "")).font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(appearance.scheme).muted)
-                                if !state.currentResultIDs.contains(candidate.id) { Text(state.searching ? "上次候选 · 本次搜索中" : "上次候选 · 本次未确认").font(ReaderTypography.font(.caption)) }
+                                Text(state.sourceName(candidate.sourceId) + (state.candidateElapsedMilliseconds(candidate).map { " · \($0) ms" } ?? "")).font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(appearance.scheme).muted)
+                                if let status = state.candidateSearchStatus(candidate) { Text(status).font(ReaderTypography.font(.caption)) }
                             }
                             Spacer(); ReaderIcon(.chevronRight)
                         }.padding(18).contentShape(Rectangle())
@@ -888,6 +888,146 @@ struct ReaderSwitchCandidateList: View {
             // Reduce Motion is a read-only system environment value. The native
             // hosting child receives it through UIKit/SwiftUI accessibility.
             .environment(\.legibilityWeight, appearance.legibilityWeight)
+    }
+}
+
+private enum ReaderDownloadStatusText {
+    static func summary(_ status: ReaderDownloadStatus) -> String {
+        "已完成 \(status.completedCount) · 缓存 \(status.cachedCount) · 失败 \(status.failedCount) · 暂停 \(status.pausedCount)"
+    }
+
+    static func state(_ state: ReaderDownloadChapterState) -> String {
+        switch state {
+        case .missing: return "未下载"; case .queued: return "排队中"; case .paused: return "已暂停"; case .inProgress: return "下载中"
+        case .cached: return "阅读缓存"; case .completed: return "已完成"; case .failed: return "失败"; case .cancelled: return "已取消"
+        }
+    }
+}
+
+/// A cancellable projection of one book's retained status. Core/Runtime remain
+/// the owners of every download task; this presentation never admits a write.
+@MainActor
+final class ReaderDownloadSummaryPresentation: ObservableObject {
+    @Published private(set) var bookIdentity: String?
+    @Published private(set) var status: ReaderDownloadStatus?
+    @Published private(set) var failure: String?
+    @Published private(set) var loading = false
+    private var generation = UUID()
+    private var requestTask: Task<Void, Never>?
+
+    deinit { requestTask?.cancel() }
+
+    func refresh(book: ReaderBook, service: any ReaderDownloadServing) {
+        cancel()
+        if bookIdentity != book.id { status = nil }
+        bookIdentity = book.id
+        failure = nil
+        loading = true
+        let current = generation
+        requestTask = Task { [weak self] in
+            do {
+                let value = try await service.readerDownloadStatus(book)
+                try Task.checkCancellation()
+                guard let self, generation == current, bookIdentity == book.id else { return }
+                guard value.sourceId == book.sourceId, value.bookId == book.bookId else {
+                    throw ReaderLibraryError.invalidResponse("download status identity")
+                }
+                status = value
+                failure = nil
+            } catch is CancellationError { } catch {
+                guard !Task.isCancelled, let self, generation == current, bookIdentity == book.id else { return }
+                failure = error.localizedDescription
+            }
+            guard let self, generation == current, bookIdentity == book.id else { return }
+            loading = false
+            requestTask = nil
+        }
+    }
+
+    func cancel() {
+        generation = UUID()
+        requestTask?.cancel()
+        requestTask = nil
+        loading = false
+    }
+}
+
+/// Shelf access does not create a reading session or request chapter content.
+struct ReaderOnlineDownloadSummaryPanel: View {
+    let book: ReaderBook
+    let service: any ReaderDownloadServing
+    @StateObject private var presentation = ReaderDownloadSummaryPresentation()
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var phase
+
+    private var status: ReaderDownloadStatus? {
+        presentation.bookIdentity == book.id ? presentation.status : nil
+    }
+    private var failure: String? {
+        presentation.bookIdentity == book.id ? presentation.failure : nil
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Button("关闭") { presentation.cancel(); dismiss() }
+                    .accessibilityIdentifier("online-download-summary-close")
+                Spacer()
+                Text("下载状态").font(ReaderTypography.font(.controlHeader))
+                Spacer()
+                Button(presentation.loading ? "正在刷新" : "刷新") { refresh() }
+                    .disabled(presentation.loading || phase != .active)
+                    .accessibilityIdentifier("online-download-summary-refresh")
+            }.padding(.horizontal, 20)
+            if let failure {
+                ReaderPageState(title: status == nil ? "下载状态不可用" : "下载状态刷新未完成",
+                                detail: failure, actionTitle: "重试") { refresh() }
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let status {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        Text(book.title).font(ReaderTypography.font(.controlHeader))
+                            .accessibilityIdentifier("online-download-summary-title:" + book.id)
+                        Text("书源：" + (book.sourceName ?? book.sourceId)).font(ReaderTypography.font(.caption))
+                            .accessibilityIdentifier("online-download-summary-source:" + book.id)
+                        Text(ReaderDownloadStatusText.summary(status)).font(ReaderTypography.font(.caption))
+                            .accessibilityIdentifier("online-download-summary:" + book.id)
+                        ForEach(status.chapters) { chapter in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(chapter.title)
+                                    Spacer()
+                                    Text(ReaderDownloadStatusText.state(chapter.state))
+                                        .accessibilityIdentifier("online-download-summary-state:" + book.id + ":" + String(chapter.chapterIndex))
+                                }
+                                Text("尝试 \(chapter.attempts) / \(chapter.maxAttempts)")
+                                    .accessibilityIdentifier("online-download-summary-attempts:" + book.id + ":" + String(chapter.chapterIndex))
+                                if let error = chapter.lastError { Text(error) }
+                            }.font(ReaderTypography.font(.caption)).padding(.vertical, 8)
+                                .accessibilityElement(children: .contain)
+                                .accessibilityIdentifier("online-download-summary-chapter:" + book.id + ":" + String(chapter.chapterIndex))
+                            Divider()
+                        }
+                    }.padding(20)
+                }.accessibilityIdentifier("online-download-summary-scroll")
+            } else if failure == nil {
+                ReaderPageState(title: "正在加载下载状态", loading: true)
+            }
+        }.padding(.vertical, 20)
+            .task(id: book.id) {
+                guard !Task.isCancelled, phase == .active else { return }
+                refresh()
+            }
+            .onChange(of: phase) { _, value in
+                if value == .active { refresh() } else { presentation.cancel() }
+            }
+            .onDisappear { presentation.cancel() }
+    }
+
+    private func refresh() {
+        guard phase == .active else { return }
+        presentation.refresh(book: book, service: service)
     }
 }
 
@@ -931,7 +1071,7 @@ struct ReaderOnlineDownloadPanel: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         Text(session.book.title).font(ReaderTypography.font(.controlHeader))
-                        Text("已完成 \(status.completedCount) · 缓存 \(status.cachedCount) · 失败 \(status.failedCount) · 暂停 \(status.pausedCount)").font(ReaderTypography.font(.caption))
+                        Text(ReaderDownloadStatusText.summary(status)).font(ReaderTypography.font(.caption))
                         HStack { TextField("起章", text: $start).keyboardType(.numberPad).readerField(); Text("至"); TextField("末章", text: $end).keyboardType(.numberPad).readerField(); Button("下载") { downloadRange() } }
                         HStack { Button("整本下载") { download(0..<status.chapterCount) }; Spacer(); Button("下载所选") { downloadSelected() }.disabled(selected.isEmpty).accessibilityIdentifier("online-download-selected") }.disabled(model.actions.hasPending)
                         if let batchFeedback { Text(batchFeedback).font(ReaderTypography.font(.caption)) }
@@ -949,7 +1089,7 @@ struct ReaderOnlineDownloadPanel: View {
                                 HStack {
                                     Toggle(isOn: Binding(get: { selected.contains(chapter.chapterIndex) }, set: { value in if value { selected.insert(chapter.chapterIndex) } else { selected.remove(chapter.chapterIndex) } })) { Text(chapter.title) }.toggleStyle(.button)
                                         .accessibilityIdentifier("online-download-select:" + session.book.id + ":" + String(chapter.chapterIndex))
-                                    Spacer(); Text(label(chapter.state)).font(ReaderTypography.font(.caption))
+                                    Spacer(); Text(ReaderDownloadStatusText.state(chapter.state)).font(ReaderTypography.font(.caption))
                                         .accessibilityIdentifier("online-download-state:" + session.book.id + ":" + String(chapter.chapterIndex))
                                 }
                                 if let error = chapter.lastError { Text(error).font(ReaderTypography.font(.caption)) }
@@ -1096,12 +1236,6 @@ struct ReaderOnlineDownloadPanel: View {
                 try await service.clearDownloadedChapter(session.book, chapterIndex: chapter.chapterIndex, operationID: id)
             }
             await refresh()
-        }
-    }
-    private func label(_ state: ReaderDownloadChapterState) -> String {
-        switch state {
-        case .missing: return "未下载"; case .queued: return "排队中"; case .paused: return "已暂停"; case .inProgress: return "下载中"
-        case .cached: return "阅读缓存"; case .completed: return "已完成"; case .failed: return "失败"; case .cancelled: return "已取消"
         }
     }
 }

@@ -23,6 +23,24 @@ final class ReaderSourceLoginLifetimeTests: XCTestCase {
         XCTAssertNil(ReaderSourceLoginURL.resolve(definition: nonWeb, baseURL: "http://fanyi.so.com"))
     }
 
+    /// Original fields from /Users/minliny/Documents/Reader/book_sources_20261024/book_sources_dedup.json,
+    /// SHA-256 1b681349d1b122aca286810bbda75d6933c73109f43ca0084a574554250e902c.
+    /// Resolving these declarations proves no origin reachability or login state.
+    func testCapturedRelativeLoginAddressesResolveAgainstTheirOriginalSourceBase() async throws {
+        let declarations: [(definition: Data, baseURL: String, expected: String)] = [
+            (Data(#"{"bookSourceName":"四月天","bookSourceUrl":"https://www.4yt.net/","loginUrl":"/passport"}"#.utf8),
+             "https://www.4yt.net/", "https://www.4yt.net/passport"),
+            (Data(#"{"bookSourceName":"一曲书屋","bookSourceUrl":"https://m.yiqushuku.com","loginUrl":"/login.php"}"#.utf8),
+             "https://m.yiqushuku.com", "https://m.yiqushuku.com/login.php"),
+            (Data(#"{"bookSourceName":"PO18文学","bookSourceUrl":"https://wap.po18cx.com","loginUrl":"/login.php"}"#.utf8),
+             "https://wap.po18cx.com", "https://wap.po18cx.com/login.php")
+        ]
+        for declaration in declarations {
+            XCTAssertEqual(ReaderSourceLoginURL.resolve(definition: declaration.definition, baseURL: declaration.baseURL)?.absoluteString,
+                           declaration.expected)
+        }
+    }
+
     @MainActor
     private final class HeldStep {
         let entered = XCTestExpectation(description: "Original lifecycle step suspended")

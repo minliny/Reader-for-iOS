@@ -1,4 +1,5 @@
 import Combine
+import BackgroundTasks
 import CryptoKit
 import Foundation
 import SwiftUI
@@ -224,6 +225,179 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
             host.beginAppearanceTransition(false, animated: false)
             host.willMove(toParent: nil); host.view.removeFromSuperview(); host.removeFromParent(); host.endAppearanceTransition()
         })
+    }
+}
+
+/// Controlled pending-request copies exercise scheduling policy only. These
+/// methods never register with BGTaskScheduler or launch a background task.
+@MainActor
+final class ReaderRuleSubscriptionSchedulingTests: XCTestCase {
+    func testExistingEarlierOrUndelayedRequestSurvivesRepeatedForegroundScheduling() async throws {
+        let origin = Date(timeIntervalSince1970: 1_000_000)
+        for date in [nil, origin.addingTimeInterval(-1), origin.addingTimeInterval(12 * 60 * 60),
+                     origin.addingTimeInterval(24 * 60 * 60)] as [Date?] {
+            let queue = SubscriptionSchedulingQueue()
+            let original = BGAppRefreshTaskRequest(identifier: ReaderRuleSubscriptionScheduler.identifier)
+            original.earliestBeginDate = date
+            queue.pending = [original]
+            var current = origin
+            let scheduler = ReaderRuleSubscriptionScheduler(checkDue: {
+                XCTFail("Scheduling must not check or apply subscriptions"); return []
+            }, scheduling: queue, now: { current })
+            scheduler.register()
+            let revision = scheduler.completedOpportunityRevision
+            let first = try XCTUnwrap(scheduler.requestNextOpportunity())
+            await first.value
+            current = origin.addingTimeInterval(6 * 60 * 60)
+            let second = try XCTUnwrap(scheduler.requestNextOpportunity())
+            await second.value
+            XCTAssertEqual(queue.lookups, 2)
+            XCTAssertTrue(queue.submitted.isEmpty, "A later foreground visit cannot postpone the existing request")
+            XCTAssertEqual(queue.pending.first?.earliestBeginDate, date)
+            XCTAssertEqual(scheduler.completedOpportunityRevision, revision)
+        }
+    }
+
+    func testMissingOrLaterMatchingRequestGetsOneEarlierRefreshRequest() async throws {
+        let origin = Date(timeIntervalSince1970: 1_000_000)
+        let later = BGAppRefreshTaskRequest(identifier: ReaderRuleSubscriptionScheduler.identifier)
+        later.earliestBeginDate = origin.addingTimeInterval(48 * 60 * 60)
+        let unrelated = BGAppRefreshTaskRequest(identifier: "other-owner")
+        let wrongType = BGProcessingTaskRequest(identifier: ReaderRuleSubscriptionScheduler.identifier)
+        for pending in [[], [later], [unrelated], [wrongType]] as [[BGTaskRequest]] {
+            let queue = SubscriptionSchedulingQueue()
+            queue.pending = pending
+            let scheduler = ReaderRuleSubscriptionScheduler(checkDue: {
+                XCTFail("Scheduling must not check or apply subscriptions"); return []
+            }, scheduling: queue, now: { origin })
+            scheduler.register()
+            let flight = try XCTUnwrap(scheduler.requestNextOpportunity())
+            await flight.value
+            XCTAssertEqual(queue.submitted.count, 1)
+            let submitted = try XCTUnwrap(queue.submitted.first)
+            XCTAssertEqual(submitted.identifier, ReaderRuleSubscriptionScheduler.identifier)
+            XCTAssertEqual(submitted.earliestBeginDate, origin.addingTimeInterval(24 * 60 * 60))
+            if pending.contains(where: { $0.identifier == unrelated.identifier }) {
+                XCTAssertTrue(queue.pending.contains(where: { $0.identifier == unrelated.identifier }))
+            }
+        }
+    }
+
+    func testOverlappingRequestsShareLookupAndSubmissionThenKeepOriginalDate() async throws {
+        let origin = Date(timeIntervalSince1970: 1_000_000)
+        var current = origin
+        let queue = SubscriptionSchedulingQueue()
+        queue.suspendLookup = true
+        queue.suspendSubmission = true
+        let entered = expectation(description: "Pending lookup suspended before submission")
+        let submitting = expectation(description: "Submission suspended until its completion")
+        queue.onLookup = { entered.fulfill() }
+        queue.onSubmission = { submitting.fulfill() }
+        let scheduler = ReaderRuleSubscriptionScheduler(checkDue: {
+            XCTFail("Scheduling must not check or apply subscriptions"); return []
+        }, scheduling: queue, now: { current })
+        scheduler.register()
+        let first = try XCTUnwrap(scheduler.requestNextOpportunity())
+        await fulfillment(of: [entered], timeout: 2)
+        current = origin.addingTimeInterval(6 * 60 * 60)
+        let joined = try XCTUnwrap(scheduler.requestNextOpportunity())
+        XCTAssertEqual(queue.lookups, 1)
+        XCTAssertTrue(queue.submitted.isEmpty)
+        queue.onLookup = nil
+        queue.releaseLookup()
+        await fulfillment(of: [submitting], timeout: 2)
+        let joinedDuringSubmit = try XCTUnwrap(scheduler.requestNextOpportunity())
+        XCTAssertEqual(queue.lookups, 1, "A pending submission remains part of the same scheduling flight")
+        XCTAssertEqual(queue.submitted.count, 1)
+        queue.onSubmission = nil
+        queue.releaseSubmission()
+        await first.value
+        await joined.value
+        await joinedDuringSubmit.value
+        XCTAssertEqual(queue.submitted.count, 1, "Overlapping callers cannot both replace the pending request")
+        XCTAssertEqual(queue.submitted.first?.earliestBeginDate, origin.addingTimeInterval(24 * 60 * 60))
+        let later = try XCTUnwrap(scheduler.requestNextOpportunity())
+        await later.value
+        XCTAssertEqual(queue.lookups, 2)
+        XCTAssertEqual(queue.submitted.count, 1)
+    }
+
+    func testRejectedSubmissionReleasesSchedulingFlightWithoutAutomaticRetry() async throws {
+        let queue = SubscriptionSchedulingQueue()
+        let scheduler = ReaderRuleSubscriptionScheduler(checkDue: {
+            XCTFail("Scheduling must not check or apply subscriptions"); return []
+        }, scheduling: queue)
+        XCTAssertNil(scheduler.requestNextOpportunity(), "Unregistered schedulers cannot submit requests")
+        XCTAssertEqual(queue.lookups, 0)
+        scheduler.register()
+        let revision = scheduler.completedOpportunityRevision
+        queue.rejectSubmission = true
+        let first = try XCTUnwrap(scheduler.requestNextOpportunity())
+        await first.value
+        XCTAssertEqual(queue.submitted.count, 1)
+        XCTAssertTrue(queue.pending.isEmpty)
+        XCTAssertEqual(scheduler.completedOpportunityRevision, revision)
+        queue.rejectSubmission = false
+        let explicitLaterRequest = try XCTUnwrap(scheduler.requestNextOpportunity())
+        await explicitLaterRequest.value
+        XCTAssertEqual(queue.lookups, 2)
+        XCTAssertEqual(queue.submitted.count, 2)
+        XCTAssertEqual(queue.pending.count, 1)
+        XCTAssertEqual(scheduler.completedOpportunityRevision, revision)
+    }
+}
+
+@MainActor
+private final class SubscriptionSchedulingQueue: ReaderRuleSubscriptionScheduling {
+    enum Failure: Error { case submissionRejected }
+    var pending: [BGTaskRequest] = []
+    var suspendLookup = false
+    var suspendSubmission = false
+    var rejectSubmission = false
+    var onLookup: (() -> Void)?
+    var onSubmission: (() -> Void)?
+    private(set) var lookups = 0
+    private(set) var submitted: [BGAppRefreshTaskRequest] = []
+    private var continuation: CheckedContinuation<[BGTaskRequest], Never>?
+    private var submissionContinuation: CheckedContinuation<Void, Never>?
+
+    func register(identifier: String, launchHandler: @escaping (BGTask) -> Void) -> Bool {
+        XCTAssertEqual(identifier, ReaderRuleSubscriptionScheduler.identifier)
+        // The launch handler is deliberately never invoked by these methods.
+        return true
+    }
+    func pendingRequests() async -> [BGTaskRequest] {
+        lookups += 1
+        if suspendLookup {
+            return await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                onLookup?()
+            }
+        }
+        onLookup?()
+        return pending
+    }
+    func releaseLookup() {
+        suspendLookup = false
+        let waiting = continuation; continuation = nil
+        waiting?.resume(returning: pending)
+    }
+    func releaseSubmission() {
+        suspendSubmission = false
+        let waiting = submissionContinuation; submissionContinuation = nil
+        waiting?.resume()
+    }
+    func submit(_ request: BGAppRefreshTaskRequest) async throws {
+        submitted.append(request)
+        if suspendSubmission {
+            await withCheckedContinuation { continuation in
+                submissionContinuation = continuation
+                onSubmission?()
+            }
+        } else { onSubmission?() }
+        if rejectSubmission { throw Failure.submissionRejected }
+        pending.removeAll { $0.identifier == request.identifier }
+        pending.append(request)
     }
 }
 

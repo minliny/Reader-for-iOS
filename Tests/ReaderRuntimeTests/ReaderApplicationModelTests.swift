@@ -26,13 +26,216 @@ final class ReaderApplicationModelTests: XCTestCase {
             "网络请求未完成，请联网后重试")
     }
 
+    func testScopedOnlineJumpClassifiesCoreFailuresAndPreservesBodyAndPosition() async throws {
+        // These protocol replies exercise the production model only. They do
+        // not establish real source, transport, or OS-offline behavior.
+        let onlineBook = ReaderBook(sourceId: "online-model-test", bookId: "model-book", title: "Model jump", chapterCount: 2)
+        let failures: [(ReaderLibraryError, String)] = [
+            (.core(code: "INVALID_PARAMS", message: "cache unavailable", retryable: false, reason: "CACHE_MISSING"),
+             "本章尚未缓存，已保留当前正文"),
+            (.core(code: "INTERNAL", message: "request failed", retryable: true, reason: "NETWORK_ENVIRONMENT"),
+             "网络未完成，已保留当前正文")
+        ]
+        for selectedBook in [onlineBook, book] {
+            let service = ApplicationModelServiceFake()
+            service.openingProgress = ReaderProgressSnapshot(found: true, progressRevision: "original-position", progress:
+                ReaderProgress(sourceId: selectedBook.sourceId, bookId: selectedBook.bookId, chapterIndex: 0,
+                               chapterOffset: 37, chapterProgress: 0.37, bodyVersion: "body-0", processingVersion: "processing-1"))
+            let model = try await openedModel(service, book: selectedBook)
+            let original = try XCTUnwrap(model.reader)
+            let scope = ReaderContentPositionScope(sourceId: selectedBook.sourceId, bookId: selectedBook.bookId,
+                chapterIndex: 1, bodyVersion: "body-1", processingVersion: "processing-1")
+            for (failure, onlineMessage) in failures {
+                service.contentError = failure
+                await model.jump(scope: scope, scalarOffset: 12)
+                XCTAssertEqual(model.feedback, selectedBook.sourceId == "local" ? failure.localizedDescription : onlineMessage)
+                XCTAssertEqual(model.reader?.id, original.id)
+                XCTAssertEqual(model.reader?.book, original.book)
+                XCTAssertEqual(model.reader?.content, original.content)
+                XCTAssertEqual(model.reader?.scalarOffset, 37)
+                XCTAssertEqual(model.reader?.progressRevision, original.progressRevision)
+                XCTAssertEqual(model.reader?.restorationID, original.restorationID)
+                XCTAssertFalse(model.chapterLoading)
+                XCTAssertTrue(service.saves.isEmpty)
+                XCTAssertEqual(service.flushCount, 0, "A failed body read must not flush or publish the target position")
+            }
+            service.contentError = nil
+            let staleScope = ReaderContentPositionScope(sourceId: selectedBook.sourceId, bookId: selectedBook.bookId,
+                chapterIndex: 1, bodyVersion: "stale-body", processingVersion: "processing-1")
+            await model.jump(scope: staleScope, scalarOffset: 12)
+            XCTAssertEqual(model.feedback, ReaderLibraryError.invalidPosition.localizedDescription)
+            XCTAssertEqual(model.reader?.content, original.content)
+            XCTAssertEqual(model.reader?.scalarOffset, 37)
+            XCTAssertEqual(model.reader?.restorationID, original.restorationID)
+            let readsBeforeInvalidIdentity = service.contentReadCount
+            let foreignScope = ReaderContentPositionScope(sourceId: "another-model-source", bookId: selectedBook.bookId,
+                chapterIndex: 1, bodyVersion: "body-1", processingVersion: "processing-1")
+            await model.jump(scope: foreignScope, scalarOffset: 12)
+            XCTAssertEqual(service.contentReadCount, readsBeforeInvalidIdentity)
+            XCTAssertEqual(model.feedback, ReaderLibraryError.invalidPosition.localizedDescription)
+            XCTAssertEqual(model.reader?.content, original.content)
+            XCTAssertEqual(model.reader?.scalarOffset, 37)
+            XCTAssertEqual(model.reader?.restorationID, original.restorationID)
+            XCTAssertFalse(model.chapterLoading)
+            XCTAssertTrue(service.saves.isEmpty)
+            XCTAssertEqual(service.flushCount, 0)
+        }
+    }
+
+    func testReadingWindowPartialFailureReportsOncePerSessionAndPreservesCurrentBodyAndPosition() async throws {
+        // Controlled protocol results prove model ownership only, not genuine
+        // source acquisition, transport failure, or OS-offline acceptance.
+        let service = ApplicationModelServiceFake()
+        service.holdCacheWindows = true
+        defer { service.releasePendingRequests() }
+        let onlineBook = ReaderBook(sourceId: "online-model-test", bookId: "window-model", title: "Model window", chapterCount: 2)
+        service.openingProgress = ReaderProgressSnapshot(found: true, progressRevision: "original-window-position", progress:
+            ReaderProgress(sourceId: onlineBook.sourceId, bookId: onlineBook.bookId, chapterIndex: 0,
+                           chapterOffset: 37, chapterProgress: 0.37, bodyVersion: "body-0", processingVersion: "processing-1"))
+        let firstRequest = expectation(description: "The original online window is awaiting its result")
+        service.onCacheWindow = { count in if count == 1 { firstRequest.fulfill() } }
+        let model = try await openedModel(service, book: onlineBook)
+        await fulfillment(of: [firstRequest], timeout: 2)
+        let original = try XCTUnwrap(model.reader)
+        var messages: [String] = []
+        let firstFeedback = expectation(description: "One confirmed adjacent failure is presented")
+        let reopenedFeedback = expectation(description: "A later reader session may report its own failure")
+        let observation = model.$feedback.compactMap { $0 }.sink { message in
+            messages.append(message)
+            if messages.count == 1 { firstFeedback.fulfill() }
+            if messages.count == 2 { reopenedFeedback.fulfill() }
+        }
+        defer { observation.cancel() }
+        let partial = ReaderReadingCacheWindow(requestedIndexes: [1], cachedIndexes: [], failedIndexes: [1])
+        service.completeCacheWindow(0, result: .success(partial))
+        await fulfillment(of: [firstFeedback], timeout: 2)
+        XCTAssertEqual(messages, ["相邻章节缓存未完成"])
+        XCTAssertEqual(model.reader?.id, original.id)
+        XCTAssertEqual(model.reader?.book, original.book)
+        XCTAssertEqual(model.reader?.content, original.content)
+        XCTAssertEqual(model.reader?.scalarOffset, original.scalarOffset)
+        XCTAssertEqual(model.reader?.progressRevision, original.progressRevision)
+        XCTAssertEqual(model.reader?.restorationID, original.restorationID)
+        XCTAssertNil(model.recoveryMessage)
+        XCTAssertTrue(service.saves.isEmpty)
+        XCTAssertEqual(service.flushCount, 0)
+
+        let nextRequest = expectation(description: "Changing chapter schedules a fresh window in the same session")
+        service.onCacheWindow = { count in if count == 2 { nextRequest.fulfill() } }
+        await model.changeChapter(to: 1)
+        await fulfillment(of: [nextRequest], timeout: 2)
+        XCTAssertNil(model.feedback, "Retiring a window clears only its own displayed feedback")
+        service.completeCacheWindow(1, result: .success(.init(requestedIndexes: [0], cachedIndexes: [], failedIndexes: [0])))
+        await service.waitForCacheWindowReturn(1)
+        XCTAssertNil(model.feedback)
+        XCTAssertEqual(messages.count, 1, "Repeated adjacent failures must not notify again in this reading session")
+
+        await model.closeReader()
+        let reopenedRequest = expectation(description: "A newly opened reader owns a distinct cache window")
+        service.onCacheWindow = { count in if count == 3 { reopenedRequest.fulfill() } }
+        model.open(onlineBook)
+        await fulfillment(of: [reopenedRequest], timeout: 2)
+        XCTAssertNotEqual(model.reader?.id, original.id)
+        service.completeCacheWindow(2, result: .success(partial))
+        await fulfillment(of: [reopenedFeedback], timeout: 2)
+        XCTAssertEqual(messages, ["相邻章节缓存未完成", "相邻章节缓存未完成"])
+    }
+
+    func testReadingWindowFeedbackDoesNotReplaceOrClearAnotherOperationFeedback() async throws {
+        let service = ApplicationModelServiceFake()
+        service.holdCacheWindows = true
+        defer { service.releasePendingRequests() }
+        let onlineBook = ReaderBook(sourceId: "online-model-test", bookId: "window-priority", title: "Model priority", chapterCount: 2)
+        let firstRequest = expectation(description: "The online window has started")
+        service.onCacheWindow = { count in if count == 1 { firstRequest.fulfill() } }
+        let model = try await openedModel(service, book: onlineBook)
+        await fulfillment(of: [firstRequest], timeout: 2)
+        let partial = ReaderReadingCacheWindow(requestedIndexes: [1], cachedIndexes: [], failedIndexes: [1])
+        model.showFeedback("书签已保存")
+        service.completeCacheWindow(0, result: .success(partial))
+        await service.waitForCacheWindowReturn(0)
+        XCTAssertEqual(model.feedback, "书签已保存", "Opportunistic caching cannot replace an operation's feedback")
+
+        model.setForeground(false)
+        let secondRequest = expectation(description: "Foreground admission retries the same reader window owner")
+        service.onCacheWindow = { count in if count == 2 { secondRequest.fulfill() } }
+        model.setForeground(true)
+        await fulfillment(of: [secondRequest], timeout: 2)
+        let feedback = expectation(description: "Skipping a higher-priority message did not consume the session notification")
+        let observation = model.$feedback.first(where: { $0 == "相邻章节缓存未完成" }).sink { _ in feedback.fulfill() }
+        defer { observation.cancel() }
+        service.completeCacheWindow(1, result: .success(partial))
+        await fulfillment(of: [feedback], timeout: 2)
+        model.showFeedback("其他操作已完成")
+        let nextRequest = expectation(description: "A chapter change retires the cache-owned feedback token")
+        service.onCacheWindow = { count in if count == 3 { nextRequest.fulfill() } }
+        await model.changeChapter(to: 1)
+        await fulfillment(of: [nextRequest], timeout: 2)
+        XCTAssertEqual(model.feedback, "其他操作已完成", "Retiring the old cache token cannot clear its replacement")
+        service.completeCacheWindow(2, result: .success(.init(requestedIndexes: [0], cachedIndexes: [0], failedIndexes: [])))
+        await service.waitForCacheWindowReturn(2)
+        XCTAssertEqual(model.feedback, "其他操作已完成")
+    }
+
+    func testReadingWindowUnconfirmedErrorsAndRetiredResultsStaySilent() async throws {
+        let service = ApplicationModelServiceFake()
+        service.holdCacheWindows = true
+        defer { service.releasePendingRequests() }
+        let onlineBook = ReaderBook(sourceId: "online-model-test", bookId: "window-retired", title: "Model retired window", chapterCount: 2)
+        let firstRequest = expectation(description: "The first window is awaiting a result")
+        service.onCacheWindow = { count in if count == 1 { firstRequest.fulfill() } }
+        let model = try await openedModel(service, book: onlineBook)
+        await fulfillment(of: [firstRequest], timeout: 2)
+        var messages: [String] = []
+        let observation = model.$feedback.compactMap { $0 }.sink { messages.append($0) }
+        defer { observation.cancel() }
+        let unconfirmedErrors: [Error] = [CancellationError(), ReaderLibraryError.busy,
+            ReaderLibraryError.invalidResponse("window status unavailable")]
+        for (index, error) in unconfirmedErrors.enumerated() {
+            service.completeCacheWindow(index, result: .failure(error))
+            await service.waitForCacheWindowReturn(index)
+            XCTAssertNil(model.feedback)
+            model.setForeground(false)
+            let requested = expectation(description: "The next active window is admitted after an unconfirmed result")
+            service.onCacheWindow = { count in if count == index + 2 { requested.fulfill() } }
+            model.setForeground(true)
+            await fulfillment(of: [requested], timeout: 2)
+        }
+        let partial = ReaderReadingCacheWindow(requestedIndexes: [1], cachedIndexes: [], failedIndexes: [1])
+        model.setForeground(false)
+        service.completeCacheWindow(3, result: .success(partial))
+        await service.waitForCacheWindowReturn(3)
+        XCTAssertNil(model.feedback, "An inactive window cannot publish even when it later returns confirmed chapter failures")
+
+        let oldRequest = expectation(description: "An active window is held while the chapter changes")
+        service.onCacheWindow = { count in if count == 5 { oldRequest.fulfill() } }
+        model.setForeground(true)
+        await fulfillment(of: [oldRequest], timeout: 2)
+        let currentRequest = expectation(description: "The new chapter owns a later window")
+        service.onCacheWindow = { count in if count == 6 { currentRequest.fulfill() } }
+        await model.changeChapter(to: 1)
+        await fulfillment(of: [currentRequest], timeout: 2)
+        let current = try XCTUnwrap(model.reader)
+        service.completeCacheWindow(4, result: .success(partial))
+        await service.waitForCacheWindowReturn(4)
+        XCTAssertNil(model.feedback, "The prior chapter's callback has lost its window and content identity")
+        service.completeCacheWindow(5, result: .success(.init(requestedIndexes: [0], cachedIndexes: [0], failedIndexes: [])))
+        await service.waitForCacheWindowReturn(5)
+        XCTAssertTrue(messages.isEmpty)
+        XCTAssertEqual(model.reader?.content, current.content)
+        XCTAssertEqual(model.reader?.scalarOffset, current.scalarOffset)
+        XCTAssertEqual(model.reader?.restorationID, current.restorationID)
+        XCTAssertNil(model.recoveryMessage)
+    }
+
     private func openedModel(_ service: ApplicationModelServiceFake,
+                             book selectedBook: ReaderBook? = nil,
                              backgroundTasks: (any ReaderBackgroundTaskManaging)? = nil) async throws -> ReaderApplicationModel {
         let model = ReaderApplicationModel(service: service, backgroundTasks: backgroundTasks)
         let opened = expectation(description: "Core content was projected into a reader session")
         let observation = model.$reader.compactMap { $0 }.first().sink { _ in opened.fulfill() }
         defer { observation.cancel() }
-        model.open(book)
+        model.open(selectedBook ?? book)
         await fulfillment(of: [opened], timeout: 2)
         _ = try XCTUnwrap(model.reader)
         return model
@@ -618,7 +821,7 @@ private final class ApplicationModelBackgroundTasksFake: ReaderBackgroundTaskMan
 /// A controllable protocol fake: replies are released by the test, so race
 /// assertions do not depend on scheduler sleeps or a copied state-machine model.
 @MainActor
-private final class ApplicationModelServiceFake: ReaderLibraryServing {
+private final class ApplicationModelServiceFake: ReaderDownloadServing {
     static let sampleBook = ReaderBook(bookId: "local:sample", title: "Sample", chapterCount: 2)
     struct SaveCall {
         let content: ReaderChapterContent
@@ -632,12 +835,14 @@ private final class ApplicationModelServiceFake: ReaderLibraryServing {
     var holdSaves = false
     var holdFlushes = false
     var holdProgressReconciliations = false
+    var holdCacheWindows = false
     var rejectSaves = false
     var flushFailuresRemaining = 0
     var pending: [ReaderPendingImport] = []
     var openingProgress: ReaderProgressSnapshot?
     var progressReconciliationResult: ReaderProgressSnapshot?
     var progressReconciliationError: Error?
+    var contentError: Error?
     var importResult = ReaderImportResult(book: ApplicationModelServiceFake.sampleBook, created: true)
     private(set) var listCount = 0
     private(set) var importCount = 0
@@ -645,12 +850,15 @@ private final class ApplicationModelServiceFake: ReaderLibraryServing {
     private(set) var recoverCount = 0
     private(set) var progressReadCount = 0
     private(set) var progressReconciliationCount = 0
+    private(set) var contentReadCount = 0
+    private(set) var cacheWindowCount = 0
     private(set) var saves: [SaveCall] = []
     var onList: ((Int) -> Void)?
     var onImport: ((Int) -> Void)?
     var onSave: ((Int) -> Void)?
     var onFlush: ((Int) -> Void)?
     var onProgressReconciliation: ((Int) -> Void)?
+    var onCacheWindow: ((Int) -> Void)?
     private var listContinuations: [Int: CheckedContinuation<[ReaderBook], Error>] = [:]
     private var importContinuation: CheckedContinuation<ReaderImportResult, Error>?
     private var saveContinuations: [Int: CheckedContinuation<ReaderProgressSnapshot, Error>] = [:]
@@ -658,6 +866,9 @@ private final class ApplicationModelServiceFake: ReaderLibraryServing {
     private var progressReconciliationContinuations: [Int: CheckedContinuation<ReaderProgressSnapshot?, Error>] = [:]
     private var returnedFlushes: Set<Int> = []
     private var flushReturnWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var cacheWindowContinuations: [Int: CheckedContinuation<ReaderReadingCacheWindow, Error>] = [:]
+    private var returnedCacheWindows: Set<Int> = []
+    private var cacheWindowReturnWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     func listBooks() async throws -> [ReaderBook] {
         let index = listCount
@@ -683,8 +894,11 @@ private final class ApplicationModelServiceFake: ReaderLibraryServing {
     }
 
     func content(for book: ReaderBook, chapterIndex: UInt32) async throws -> ReaderChapterContent {
-        ReaderChapterContent(bookId: book.bookId, chapterIndex: chapterIndex, chapterTitle: "Chapter \(chapterIndex)",
-                             content: String(repeating: "文", count: 100), bodyVersion: "body-\(chapterIndex)", processingVersion: "processing-1")
+        contentReadCount += 1
+        if let contentError { throw contentError }
+        return ReaderChapterContent(sourceId: book.sourceId, bookId: book.bookId, chapterIndex: chapterIndex,
+                                    chapterTitle: "Chapter \(chapterIndex)", content: String(repeating: "文", count: 100),
+                                    bodyVersion: "body-\(chapterIndex)", processingVersion: "processing-1")
     }
 
     func progress(for book: ReaderBook) async throws -> ReaderProgressSnapshot {
@@ -741,6 +955,44 @@ private final class ApplicationModelServiceFake: ReaderLibraryServing {
     func pendingImports() async throws -> [ReaderPendingImport] { pending }
     func recoverPendingImports() async throws -> [ReaderPendingImport] { recoverCount += 1; return pending }
 
+    func cacheReadingWindow(_ book: ReaderBook, around chapterIndex: UInt32) async throws -> ReaderReadingCacheWindow {
+        let index = cacheWindowCount
+        cacheWindowCount += 1
+        defer {
+            returnedCacheWindows.insert(index)
+            cacheWindowReturnWaiters.removeValue(forKey: index)?.forEach { $0.resume() }
+        }
+        if !holdCacheWindows {
+            onCacheWindow?(cacheWindowCount)
+            return .init(requestedIndexes: [], cachedIndexes: [], failedIndexes: [])
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            cacheWindowContinuations[index] = continuation
+            onCacheWindow?(cacheWindowCount)
+        }
+    }
+
+    // These tests exercise automatic cache reads, never explicit queue or
+    // cleanup commands. An unexpected use fails instead of inventing an ACK.
+    func readerDownloadStatus(_ book: ReaderBook) async throws -> ReaderDownloadStatus { throw Failure.rejected }
+    func downloadChapters(_ book: ReaderBook, range: Range<UInt32>, operationID: String) async throws -> ReaderDownloadReceipt { throw Failure.rejected }
+    func pauseDownload(_ book: ReaderBook, chapterIndex: UInt32, operationID: String) async throws -> ReaderDownloadTaskReceipt { throw Failure.rejected }
+    func resumeDownload(_ book: ReaderBook, chapterIndex: UInt32, operationID: String) async throws -> ReaderDownloadTaskReceipt { throw Failure.rejected }
+    func cancelDownload(_ book: ReaderBook, chapterIndex: UInt32, operationID: String) async throws -> ReaderDownloadTaskReceipt { throw Failure.rejected }
+    func readerStorageSummary(protected: [ReaderCachedChapterIdentity]) async throws -> ReaderStorageSummary { throw Failure.rejected }
+    func cleanupReaderStorage(retained: [ReaderCachedChapterIdentity], protected: [ReaderCachedChapterIdentity], operationID: String) async throws -> ReaderStorageSummary { throw Failure.rejected }
+
+    func completeCacheWindow(_ index: Int, result: Result<ReaderReadingCacheWindow, Error>) {
+        cacheWindowContinuations.removeValue(forKey: index)?.resume(with: result)
+    }
+    func waitForCacheWindowReturn(_ index: Int) async {
+        guard index < cacheWindowCount else { return }
+        if returnedCacheWindows.contains(index) { return }
+        await withCheckedContinuation { continuation in
+            cacheWindowReturnWaiters[index, default: []].append(continuation)
+        }
+    }
+
     func completeList(_ index: Int, books: [ReaderBook]) { listContinuations.removeValue(forKey: index)?.resume(returning: books) }
     func completeImport(_ result: Result<ReaderImportResult, Error>) {
         let continuation = importContinuation
@@ -784,6 +1036,9 @@ private final class ApplicationModelServiceFake: ReaderLibraryServing {
         let reconciliations = Array(progressReconciliationContinuations.values)
         progressReconciliationContinuations.removeAll()
         reconciliations.forEach { $0.resume(throwing: Failure.releasedAtTeardown) }
+        let windows = Array(cacheWindowContinuations.values)
+        cacheWindowContinuations.removeAll()
+        windows.forEach { $0.resume(throwing: Failure.releasedAtTeardown) }
         completeImport(.failure(Failure.releasedAtTeardown))
     }
 }

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Security
 import XCTest
 #if canImport(ReaderRuntime)
 @testable import ReaderRuntime
@@ -8,13 +9,213 @@ import XCTest
 #endif
 
 final class ReaderRealSubscriptionTests: XCTestCase {
-    /// This is the only remote input. The frozen repository records a real
+    /// The successful subscription journey uses this remote input. The repository records a real
     /// 2026-05-01 HTTP 200 response, 2,455,074 bytes, for this 424-source collection:
     /// Reader-Core/legacy/swift/samples/booksources/remote_yiove/
     /// collection_3d9f811b/fetch_log.json and analysis/parser_gap_report.md.
     /// The larger e618 collection historically exceeded Core's 8 MiB admission
     /// limit. Do not trim either package or change URLs after a failed request.
     private let subscriptionURL = "https://shuyuan-api.yiove.com/import/book-source-collection/3d9f811b-0831-4203-9fcb-3e8020f8aa2d"
+
+    /// A second, original Yiove collection is fetched through the production
+    /// Host once. Its live UTF-8 Core input must still exceed the 8 MiB admission
+    /// boundary; no local response, trimmed package or fabricated error is used.
+    /// The rejected preview must leave both original phone source definitions and
+    /// the accepted subscription record intact in this isolated library.
+    func testRealOversizedProviderCheckRejectsWithoutChangingOriginalSourceOrSubscription() async throws {
+        actor CapturedInput {
+            private var started = false
+            private var data: Data?
+            func begin() throws {
+                guard !started else { throw ReaderLibraryError.invalidResponse("only one provider fetch is allowed") }
+                started = true
+            }
+            func record(_ data: Data) { self.data = data }
+            func snapshot() -> Data? { data }
+        }
+        func require(_ condition: Bool, _ message: String) throws {
+            guard condition else {
+                XCTFail(message)
+                throw ReaderLibraryError.invalidResponse(message)
+            }
+        }
+        func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+        let manager = FileManager.default
+        let documents = try XCTUnwrap(manager.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let originalURL = documents.appendingPathComponent("Reader-real-sources.json")
+        let original = try Data(contentsOf: originalURL)
+        let originalDigest = hash(original)
+        try require(original.count == 5_606 && originalDigest == "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322",
+                    "Provision the unchanged original 5606-byte phone source package; no replacement is allowed")
+        let definitions = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [[String: Any]])
+        try require(definitions.count == 2, "The original package must contain both real source definitions")
+        let expectedSourceIDs = try definitions.map {
+            try XCTUnwrap($0["bookSourceUrl"] as? String).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.sorted()
+        let root = manager.temporaryDirectory.appendingPathComponent("ReaderRealOversizedSubscription-" + UUID().uuidString)
+        let sourceURL = root.appendingPathComponent("Sources")
+        let operationsURL = sourceURL.appendingPathComponent(".operations")
+        let url = "https://shuyuan-api.yiove.com/import/book-source-collection/e61838fa-9a13-4137-b68a-192313eade0c"
+        let expectedURL = try XCTUnwrap(URL(string: url))
+        let capturedInput = CapturedInput()
+        var service: ReaderLibraryService?
+        var namespace: String?
+        var identityBytes: Data?
+        var admittedCookieQuery: [String: Any]?
+        var keychainAdmissionFailed = false
+        var phase = "create isolated library identity"
+        var facts: [String: Any] = ["providerURL": url, "sourcePackageSHA256": originalDigest,
+                                   "sourcePackageBytes": original.count, "sourceIds": expectedSourceIDs]
+        func cleanupFailure(_ detail: String) -> ReaderLibraryError {
+            try? attachFacts(["temporaryRoot": root.path, "namespace": namespace ?? "uncreated", "failure": detail],
+                             name: "real-oversized-provider-cleanup-failure")
+            XCTFail("Temporary cleanup failed; preserve its attributable identity at \(root.path): \(detail)")
+            return .invalidResponse("real oversized-provider temporary cleanup failed")
+        }
+        func retainOriginalIdentity() throws {
+            guard let identityBytes else { throw ReaderLibraryError.invalidResponse("original temporary identity was not captured") }
+            try manager.createDirectory(at: operationsURL, withIntermediateDirectories: true)
+            let identityURL = operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName)
+            if manager.fileExists(atPath: identityURL.path) {
+                guard try Data(contentsOf: identityURL) == identityBytes else {
+                    throw ReaderLibraryError.invalidResponse("retained temporary identity differs; it was not overwritten")
+                }
+            } else { try identityBytes.write(to: identityURL, options: .withoutOverwriting) }
+        }
+        func cleanupTemporaryLibrary() async throws {
+            var closedRuntimeCount = 0
+            if let active = service {
+                do { try await active.close() }
+                catch { throw cleanupFailure("Runtime close failed: \(error)") }
+                service = nil
+                closedRuntimeCount = 1
+            }
+            guard !keychainAdmissionFailed else {
+                throw cleanupFailure("The exact temporary credential pair was not originally absent; no credential or directory was deleted")
+            }
+            guard manager.fileExists(atPath: root.path) else {
+                if namespace != nil {
+                    do { try retainOriginalIdentity() }
+                    catch { throw cleanupFailure("Temporary root disappeared; original identity restoration failed: \(error)") }
+                    throw cleanupFailure("Temporary root disappeared before identity verification; original identity restored and credentials retained")
+                }
+                return
+            }
+            let identityURL = operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName)
+            do {
+                guard let identityBytes, try Data(contentsOf: identityURL) == identityBytes else {
+                    throw ReaderLibraryError.invalidResponse("temporary identity is missing or changed")
+                }
+            } catch { throw cleanupFailure("Temporary library identity could not be verified: \(error)") }
+            if let query = admittedCookieQuery {
+                let deleted = SecItemDelete(query as CFDictionary)
+                var readQuery = query; readQuery[kSecReturnData as String] = true
+                var remaining: CFTypeRef?
+                let read = SecItemCopyMatching(readQuery as CFDictionary, &remaining)
+                guard (deleted == errSecSuccess || deleted == errSecItemNotFound), read == errSecItemNotFound else {
+                    throw cleanupFailure("Exact credential cleanup failed: deleteStatus=\(deleted) postreadStatus=\(read)")
+                }
+            }
+            do {
+                try manager.removeItem(at: root)
+                guard !manager.fileExists(atPath: root.path) else {
+                    throw ReaderLibraryError.invalidResponse("temporary root remains after removal")
+                }
+            } catch {
+                let removalError = error
+                // A partial recursive removal must retain this run's original
+                // identity, never a newly generated namespace or another one.
+                do { try retainOriginalIdentity() }
+                catch { throw cleanupFailure("Directory removal failed: \(removalError); identity restoration failed: \(error)") }
+                throw cleanupFailure("Directory removal failed; original temporary identity retained: \(removalError)")
+            }
+            try attachFacts(["closedRuntimeCount": closedRuntimeCount, "exactCredentialPairAbsent": admittedCookieQuery != nil,
+                             "temporaryRootRemoved": true], name: "real-oversized-provider-cleanup-complete")
+        }
+        var scenarioFailure: Error?
+        do {
+            let identity = try ReaderHostLibraryIdentity.loadOrCreate(in: operationsURL)
+            namespace = identity
+            identityBytes = try Data(contentsOf: operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName))
+            let cookieSourceID = "source-package:" + (try XCTUnwrap(expectedURL.host))
+            let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "io.reader.minliny.source-cookies." + hash(Data(identity.utf8)),
+                kSecAttrAccount as String: hash(Data(cookieSourceID.utf8))]
+            var readQuery = query; readQuery[kSecReturnData as String] = true
+            var originalItem: CFTypeRef?
+            let initialStatus = SecItemCopyMatching(readQuery as CFDictionary, &originalItem)
+            guard initialStatus == errSecItemNotFound else {
+                keychainAdmissionFailed = true
+                throw ReaderLibraryError.invalidResponse("Fresh temporary credential pair must be absent before networking; status=\(initialStatus)")
+            }
+            admittedCookieQuery = query
+            let active = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: sourceURL)
+            service = active
+            phase = "import both original phone sources and save subscription"
+            let imported = try await active.importSources(original, operationID: UUID().uuidString)
+            try require(imported.count == 2 && imported.allSatisfy(\.succeeded), "Both original real sources must be accepted")
+            let subscription = ReaderSourceSubscription(id: 941014, name: "原始 Yiove 大包失败保留",
+                url: url, type: 0, customOrder: 0, autoUpdate: false, update: 0)
+            let saved = try await active.saveRuleSubscription(subscription, operationID: UUID().uuidString)
+            try require(saved == subscription, "The exact original subscription must be saved")
+            let beforeSources = try await active.onlineSources().sorted { $0.id < $1.id }
+            let beforeSubscriptions = try await active.ruleSubscriptions()
+            let beforePending = try await active.pendingCoreCommands()
+            try require(beforeSources.map(\.id) == expectedSourceIDs && beforeSubscriptions == [saved] && beforePending.isEmpty,
+                        "Both original source identities, the accepted subscription and an empty pending journal are required")
+            phase = "one actual production Host fetch inside the subscription check"
+            do {
+                _ = try await active.checkRuleSubscription(saved, fetch: { requested in
+                    guard requested == expectedURL else { throw ReaderLibraryError.invalidResponse("provider URL identity") }
+                    try await capturedInput.begin()
+                    let input = try await active.onlineFetch(requested)
+                    await capturedInput.record(input)
+                    return input
+                })
+                try require(false, "An actual oversized provider response must not produce an applicable preview")
+            } catch let error as ReaderLibraryError {
+                guard case .core(let code, let message, let retryable, let reason) = error,
+                      code == "INVALID_PARAMS", message == "subscription package exceeds 8 MiB" else { throw error }
+                facts["rejectionCode"] = code; facts["rejectionMessage"] = message
+                facts["rejectionRetryable"] = retryable; facts["rejectionReason"] = reason as Any? ?? NSNull()
+            }
+            let captured = await capturedInput.snapshot()
+            let input = try XCTUnwrap(captured, "The original check must fetch its actual provider input")
+            try require(input.count > 8 * 1024 * 1024,
+                        "The current provider's Core UTF-8 input must exceed 8 MiB; a changed provider requires a new plan")
+            facts["coreInputUTF8Bytes"] = input.count
+            facts["coreInputUTF8SHA256"] = hash(input)
+            facts["input"] = "one actual production Host fetch; decoded UTF-8 Core input, no replacement response or wire-byte identity claim"
+            try attachFacts(facts, name: "real-oversized-provider-confirmed-input-and-rejection")
+            phase = "verify original sources, subscription, pending journal and phone file remain unchanged"
+            let afterSources = try await active.onlineSources().sorted { $0.id < $1.id }
+            let afterSubscriptions = try await active.ruleSubscriptions()
+            let afterPending = try await active.pendingCoreCommands()
+            try require(afterSources == beforeSources && afterSubscriptions == beforeSubscriptions && afterPending.isEmpty,
+                        "Rejected preview must preserve both complete source definitions, subscription and pending journal")
+            try require(try Data(contentsOf: originalURL) == original, "The original phone source file must remain byte-for-byte unchanged")
+            facts["sourceCount"] = afterSources.count; facts["pendingCoreCommands"] = afterPending.count
+            facts["result"] = "Core rejected oversized live input; both original sources, subscription and phone source file unchanged"
+            try attachFacts(facts, name: "real-oversized-provider-rejection-retains-original-facts")
+        } catch {
+            scenarioFailure = error
+            facts["failedPhase"] = phase; facts["failure"] = String(reflecting: error)
+            if let input = await capturedInput.snapshot() {
+                facts["observedCoreInputUTF8Bytes"] = input.count
+                facts["observedCoreInputUTF8SHA256"] = hash(input)
+            }
+            try? attachFacts(facts, name: "real-oversized-provider-failure")
+        }
+        do { try await cleanupTemporaryLibrary() }
+        catch {
+            if let scenarioFailure {
+                try? attachFacts(["scenarioFailure": String(reflecting: scenarioFailure), "cleanupFailure": String(reflecting: error)],
+                                 name: "real-oversized-provider-scenario-and-cleanup-failure")
+            }
+            throw error
+        }
+        if let scenarioFailure { throw scenarioFailure }
+    }
 
     func testRealSubscriptionFetchPreviewSafeApplyAndColdReplayPreserveLocalChanges() async throws {
         let manager = FileManager.default

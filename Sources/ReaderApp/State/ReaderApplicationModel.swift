@@ -137,6 +137,8 @@ final class ReaderApplicationModel: ObservableObject {
     private var sourceSwitchFlushing = false
     private var cacheWindowTask: Task<Void, Never>?
     private var cacheWindowGeneration = UUID()
+    private var cacheWindowFailureReportedSessionID: UUID?
+    private var cacheWindowFeedbackGeneration: UUID?
     var sourceSwitchFrozen: Bool { sourceSwitchIntent != nil || localReprocessIntent != nil }
 
 
@@ -500,7 +502,12 @@ final class ReaderApplicationModel: ObservableObject {
             await reloadHighlights()
         } catch {
             guard reader?.id == current.id, chapterGeneration == generation else { return }
-            showFeedback(error.localizedDescription)
+            if current.book.sourceId != "local", let failure = error as? ReaderLibraryError,
+               case .core = failure {
+                showFeedback(Self.readingFailureMessage(failure, opening: false))
+            } else {
+                showFeedback(error.localizedDescription)
+            }
         }
     }
 
@@ -872,6 +879,10 @@ final class ReaderApplicationModel: ObservableObject {
     private func cancelReadingCacheWindow() {
         cacheWindowGeneration = UUID()
         cacheWindowTask?.cancel(); cacheWindowTask = nil
+        if let generation = cacheWindowFeedbackGeneration, generation == feedbackGeneration {
+            resetFeedback()
+        }
+        cacheWindowFeedbackGeneration = nil
     }
 
     /// Opportunistic current/adjacent-body cache, separate from the user's
@@ -882,14 +893,27 @@ final class ReaderApplicationModel: ObservableObject {
               let downloads = service as? any ReaderDownloadServing else { return }
         let generation = cacheWindowGeneration
         cacheWindowTask = Task { [weak self] in
-            do { _ = try await downloads.cacheReadingWindow(current.book, around: current.content.chapterIndex) }
-            catch {
-                guard let self, !Task.isCancelled, generation == cacheWindowGeneration,
-                      reader?.id == current.id, reader?.content.chapterIndex == current.content.chapterIndex else { return }
-                showFeedback("阅读窗口缓存暂未完成，当前正文已保留")
+            defer {
+                if let self, generation == self.cacheWindowGeneration { self.cacheWindowTask = nil }
             }
-            guard let self, generation == cacheWindowGeneration else { return }
-            cacheWindowTask = nil
+            do {
+                let result = try await downloads.cacheReadingWindow(current.book, around: current.content.chapterIndex)
+                guard let self, !Task.isCancelled, foreground, !sourceSwitchFrozen,
+                      generation == cacheWindowGeneration, let active = reader,
+                      active.id == current.id, active.book.id == current.book.id,
+                      active.content.chapterIndex == current.content.chapterIndex,
+                      active.content.bodyVersion == current.content.bodyVersion,
+                      active.content.processingVersion == current.content.processingVersion,
+                      !result.failedIndexes.isEmpty, feedback == nil,
+                      cacheWindowFailureReportedSessionID != current.id else { return }
+                let feedbackToken = UUID()
+                cacheWindowFailureReportedSessionID = current.id
+                cacheWindowFeedbackGeneration = feedbackToken
+                presentFeedback("相邻章节缓存未完成", generation: feedbackToken)
+            } catch {
+                // Cancellation, a draining window's busy slot, and failures
+                // before chapter results do not establish failed neighbours.
+            }
         }
     }
 
@@ -970,8 +994,11 @@ final class ReaderApplicationModel: ObservableObject {
     }
 
     func showFeedback(_ message: String) {
+        presentFeedback(message, generation: UUID())
+    }
+
+    private func presentFeedback(_ message: String, generation: UUID) {
         guard foreground else { return }
-        let generation = UUID()
         feedbackGeneration = generation
         feedback = message
         Task { [weak self] in

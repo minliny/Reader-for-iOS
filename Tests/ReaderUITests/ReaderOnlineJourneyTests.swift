@@ -5,6 +5,77 @@ import CryptoKit
 final class ReaderOnlineJourneyTests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// The Runner records the original phone package's read-only hash/size.
+    /// This opens its existing Baidu source's native sheet and closes it;
+    /// no source import, form submission or credential save is requested.
+    func testExistingRealBaiduLoginSheetOpensAndCancelsWithoutChangingSourceOrShelfIdentities() throws {
+#if targetEnvironment(simulator)
+        XCTFail("This journey requires the original physical iPhone")
+        throw SourceToolsFailure.prerequisite
+#endif
+        let environment = ProcessInfo.processInfo.environment
+        let packageSHA = "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322"
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone
+            && environment["READER_SOURCE_LOGIN_PACKAGE_SHA256"] == packageSHA
+            && environment["READER_SOURCE_LOGIN_PACKAGE_BYTES"] == "5606",
+            "Require a fresh read-only observation of the original phone's 5606-byte package; this method never provisions it", app: nil)
+        let sourceID = "https://dushu.baidu.com/"
+        let app = XCUIApplication()
+        app.launch()
+        try sourceToolsRequire(app.buttons["更多书架操作"].waitForExistence(timeout: 20),
+            "The original shelf must load before entering source management", app: app)
+        func shelfEntries() throws -> [String: String] {
+            let entries = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ OR identifier == %@",
+                "book-", "shelf-continue-card")).allElementsBoundByIndex
+            try sourceToolsRequire(!entries.isEmpty && Set(entries.map(\.identifier)).count == entries.count
+                && entries.contains(where: \.isHittable), "Require existing unambiguous shelf reading entries", app: app)
+            return Dictionary(uniqueKeysWithValues: entries.map { ($0.identifier, $0.label) })
+        }
+        let originalShelf = try shelfEntries()
+        openExistingSourceManagement(app)
+        try sourceToolsRequire(!app.textViews["online-source-draft"].exists,
+            "An existing source draft must remain untouched", app: app)
+        let originalSources = try sourceToolsSourceLabels(app)
+        try sourceToolsRequire(originalSources["online-source:" + sourceID] == "百度小说"
+            && originalSources["online-source:https://m.idejian.com"] == "得间小说",
+            "Require the two original saved package identities; no alternate source may be imported", app: app)
+        let login = app.buttons.matching(identifier: "online-source-login:" + sourceID)
+        try sourceToolsRequire(login.count == 1, "The Baidu login action must have one exact source-bound AX identity", app: app)
+        let scroll = app.scrollViews["online-source-scroll"]
+        for _ in 0..<6 {
+            if login.element.isHittable { break }
+            try sourceToolsRequire(scroll.exists && scroll.isHittable, "The actual source list must remain scrollable", app: app)
+            scroll.swipeUp()
+        }
+        try sourceToolsRequire(login.element.isEnabled && login.element.isHittable,
+            "The exact existing Baidu action must be reachable by normal source-list scrolling", app: app)
+        let close = app.buttons.matching(identifier: "online-source-login-close")
+        addTeardownBlock {
+            if close.count == 1, close.element.isHittable { close.element.tap() }
+        }
+        login.element.tap()
+        try sourceToolsWait("The real source login sheet must expose its native close control and WKWebView", timeout: 20) {
+            close.count == 1 && close.element.isHittable && app.webViews.count >= 1
+        }
+        let title = app.staticTexts.matching(identifier: "online-source-login-title:" + sourceID)
+        try sourceToolsRequire(title.count == 1 && title.element.label == "百度小说",
+            "The sheet's source title must identify the same original Baidu source", app: app)
+        let provenance = XCTAttachment(string: "sourceId=\(sourceID)\noriginalPackageSHA256=\(packageSHA)\noriginalPackageBytes=5606\nroute=existing source -> native WKWebView sheet -> close\nNo Complete Login, password input, source mutation or Cookie save.\nOrigin reachability, anonymous Cookie acquisition, authentication and relative loginUrl remain OPEN.")
+        provenance.name = "existing-real-baidu-native-login-sheet-cancel-boundary"
+        provenance.lifetime = .keepAlways; add(provenance)
+        keepScreenshot(app, name: "existing-real-baidu-native-login-sheet-before-cancel")
+        close.element.tap()
+        try sourceToolsWait("Closing must retire only the sheet and reveal original source management", timeout: 10) {
+            close.count == 0 && app.webViews.count == 0 && app.buttons["online-close-sources"].isHittable
+        }
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalSources && login.count == 1,
+            "Closing without saving must retain every original visible source identity and its Baidu login entry", app: app)
+        leaveExistingSourceManagement(app)
+        try sourceToolsRequire(try shelfEntries() == originalShelf,
+            "Returning must preserve the original shelf and reading-entry identities", app: app)
+        keepScreenshot(app, name: "existing-real-baidu-login-cancel-returned-original-shelf")
+    }
+
     /// The Runner binds an existing, real source-file draft before this method.
     /// This cancels replacement and reselects those same real file bytes. It
     /// never edits the draft or submits a Core source import/save.
@@ -257,6 +328,465 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         XCTAssertEqual(query.value as? String, keyword)
         app.buttons["online-close-workspace"].tap()
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 10), app.debugDescription)
+    }
+
+    /// Uses only the phone's three saved sources. Both enabled sources must
+    /// return real candidates while the temporarily enabled third source is
+    /// still the sole unfinished request; a missed natural window is a skip.
+    func testExistingRealThreeSourcePartialSearchStopRestoresDisabledSourceAndRetainsCandidates() throws {
+#if targetEnvironment(simulator)
+        XCTFail("This journey requires the original physical iPhone")
+        throw SourceToolsFailure.prerequisite
+#endif
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone,
+            "Require the original physical phone and its existing source library", app: nil)
+        let app = XCUIApplication()
+        let disabledSourceID = "http://199.33.126.51"
+        let enabledSourceIDs = ["https://m.idejian.com", "https://dushu.baidu.com/"]
+        let originalLabels = ["online-source:" + disabledSourceID: "👍 同人圈",
+            "online-source:https://m.idejian.com": "得间小说", "online-source:https://dushu.baidu.com/": "百度小说"]
+        let originalValues = [disabledSourceID: "0", "https://m.idejian.com": "1", "https://dushu.baidu.com/": "1"]
+        let keyword = "剑来"
+        var sourceWriteReadRevision: Int?
+        var sourceWriteOperationID: String?
+        var sourceWriteExpectedValue = "1"
+        var reconciledSourceOperationIDs = Set<String>()
+        var disableTapCount = 0
+        var stopTapCount = 0
+        func attach(_ name: String, _ facts: [String: Any]) throws {
+            let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts,
+                options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+            attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        }
+        func exactToggle(_ sourceID: String) throws -> XCUIElement {
+            let matches = app.switches.matching(identifier: "online-source-enabled:" + sourceID)
+            try sourceToolsRequire(matches.count == 1, "Require one exact existing source toggle: \(sourceID)", app: app)
+            return matches.element
+        }
+        func sourceValues() throws -> [String: String] {
+            try sourceToolsSourceValues(app, sourceIDs: Set(originalValues.keys))
+        }
+        func sourceState() -> SourceToolsSourceState? { sourceToolsSourceState(app) }
+        @discardableResult
+        func settleOriginalSourceWrite(_ stage: String) throws -> Int {
+            let previousRead = try XCTUnwrap(sourceWriteReadRevision)
+            var observedOperation = sourceWriteOperationID != nil
+            var changedOperationID: String?
+            func persistedValueMatchesWrite() -> Bool {
+                let source = app.switches.matching(identifier: "online-source-enabled:" + disabledSourceID)
+                return source.count == 1 && source.element.value as? String == sourceWriteExpectedValue
+            }
+            // rulesMutation may take 120 seconds. A stale, idle 0 immediately
+            // after tap cannot finish this wait without a newer persisted read.
+            try sourceToolsWait("\(stage): observe the accepted original write, its terminal result or its recovery entry", timeout: 130) {
+                guard let status = sourceState() else { return false }
+                if !status.operationID.isEmpty {
+                    if let originalID = sourceWriteOperationID, originalID != status.operationID {
+                        changedOperationID = status.operationID; return true
+                    }
+                    sourceWriteOperationID = status.operationID; observedOperation = true
+                }
+                return status.operation == "pending"
+                    || (status.operation == "terminal" && (observedOperation
+                        || (status.revision > previousRead && persistedValueMatchesWrite())))
+            }
+            try sourceToolsRequire(changedOperationID == nil,
+                "\(stage): a different operation must never be recovered or treated as this source write", app: app)
+            let observed = try XCTUnwrap(sourceState())
+            if observed.operation == "pending" {
+                try attach("real-three-source-write-needs-original-recovery", ["stage": stage,
+                    "operationID": observed.operationID, "sourceReadRevision": observed.revision,
+                    "boundary": "An unresolved source write is not restoration; only its existing original recovery action may be used once."])
+                try sourceToolsRequire(!reconciledSourceOperationIDs.contains(observed.operationID),
+                    "\(stage): the original write remains unresolved after its one recovery; stop without another source toggle", app: app)
+                let notice = app.descendants(matching: .any).matching(identifier: "online-original-operation").firstMatch
+                let retry = notice.buttons.matching(identifier: "重试")
+                try sourceToolsRequire(notice.exists && notice.staticTexts["原操作待核对"].exists
+                    && retry.count == 1 && retry.element.isEnabled && retry.element.isHittable
+                    && sourceState()?.operationID == observed.operationID && sourceState()?.operation == "pending",
+                    "\(stage): reconcile only this source owner's original pending operation through its existing recovery UI", app: app)
+                reconciledSourceOperationIDs.insert(observed.operationID)
+                retry.element.tap()
+                try sourceToolsWait("\(stage): the one original recovery must reach terminal status; unresolved means stop", timeout: 130) {
+                    guard let status = sourceState() else { return false }
+                    if !status.operationID.isEmpty && status.operationID != observed.operationID {
+                        changedOperationID = status.operationID; return true
+                    }
+                    return status.operation == "terminal"
+                }
+                try sourceToolsRequire(changedOperationID == nil,
+                    "\(stage): recovery must retain the original operation identity", app: app)
+            }
+            try sourceToolsWait("\(stage): require a successful fresh persisted source read after the terminal original write", timeout: 30) {
+                guard let status = sourceState() else { return false }
+                return status.operation == "terminal" && status.read == "ready" && status.revision > previousRead
+                    && persistedValueMatchesWrite()
+            }
+            let confirmed = try XCTUnwrap(sourceState())
+            try sourceToolsRequire(confirmed.operation == "terminal" && confirmed.operationID.isEmpty
+                && confirmed.read == "ready" && confirmed.revision > previousRead && persistedValueMatchesWrite(),
+                "\(stage): neither busy/pending state nor a cached source value proves completion", app: app)
+            return confirmed.revision
+        }
+        func enterSources() throws {
+            if app.state == .notRunning { app.launch() }
+            else if app.state != .runningForeground { app.activate() }
+            if !app.buttons["online-close-sources"].exists {
+                if !app.buttons["online-open-sources"].exists {
+                    let online = app.buttons["搜索与书源"]
+                    if !online.exists {
+                        let menu = app.buttons["更多书架操作"]
+                        try sourceToolsRequire(menu.waitForExistence(timeout: 20) && menu.isHittable,
+                            "Restore sources only through the existing shelf menu", app: app)
+                        menu.tap()
+                    }
+                    try sourceToolsRequire(online.waitForExistence(timeout: 5) && online.isHittable,
+                        "The original online workspace must remain reachable", app: app)
+                    online.tap()
+                }
+                let sources = app.buttons["online-open-sources"]
+                try sourceToolsRequire(sources.waitForExistence(timeout: 10) && sources.isHittable,
+                    "The original source management entry must remain reachable", app: app)
+                sources.tap()
+            }
+            try sourceToolsRequire(app.buttons["online-close-sources"].waitForExistence(timeout: 10),
+                "Require the actual source management page", app: app)
+            try sourceToolsWait("The original three source toggles must load", timeout: 15) {
+                app.switches.matching(identifier: "online-source-enabled:" + disabledSourceID).count == 1
+            }
+        }
+        func returnToSearch() throws {
+            let close = app.buttons["online-close-sources"]
+            try sourceToolsRequire(close.exists && close.isHittable, "Return through the existing source-page control", app: app)
+            close.tap()
+            try sourceToolsRequire(app.textFields["online-search-query"].waitForExistence(timeout: 10),
+                "Return to the same real search workspace", app: app)
+        }
+        func restoreOriginalSources(returnToShelf: Bool) throws {
+            // No source mutation can precede the captured pre-enable read.
+            // Leave the UI untouched when a prerequisite failed before it.
+            guard sourceWriteReadRevision != nil else { return }
+            try enterSources()
+            let settledRead = try settleOriginalSourceWrite("Before restoration")
+            let bad = try exactToggle(disabledSourceID)
+            let value = bad.value as? String
+            try sourceToolsRequire(value == "0" || value == "1", "The exact temporary source must remain readable for restoration", app: app)
+            if value == "1" {
+                let scroll = app.scrollViews["online-source-scroll"]
+                for _ in 0..<3 {
+                    if sourceToolsVisibleSourceToggle(app, sourceID: disabledSourceID, sourceIDs: Set(originalValues.keys)) != nil { break }
+                    try sourceToolsRequire(scroll.exists && scroll.isHittable, "Use only the real source list to reveal its original toggle", app: app)
+                    scroll.swipeDown()
+                }
+                for _ in 0..<3 {
+                    if sourceToolsVisibleSourceToggle(app, sourceID: disabledSourceID, sourceIDs: Set(originalValues.keys)) != nil { break }
+                    try sourceToolsRequire(scroll.exists && scroll.isHittable, "Use only the real source list to reveal its original toggle", app: app)
+                    scroll.swipeUp()
+                }
+                try sourceToolsRequire(disableTapCount == 0 && sourceState()?.operation == "terminal"
+                    && sourceState()?.revision == settledRead,
+                    "A new disable may follow only the terminal original write and its fresh read; never repeat an unresolved disable", app: app)
+                var enabledValues = originalValues; enabledValues[disabledSourceID] = "1"
+                try sourceToolsDisableExactVisibleSource(app, sourceID: disabledSourceID, labels: originalLabels,
+                    values: enabledValues, readRevision: settledRead, tapCount: &disableTapCount) {
+                    sourceWriteReadRevision = settledRead; sourceWriteOperationID = nil; sourceWriteExpectedValue = "0"
+                }
+            }
+            let restoredRead = try settleOriginalSourceWrite("Confirm disabled restoration")
+            try sourceToolsRequire((bad.value as? String) == "0" && bad.isEnabled,
+                "Only a terminal write and its fresh persisted disabled value confirm this source restoration", app: app)
+            try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalLabels && sourceValues() == originalValues,
+                "Restoration must keep the exact three names/identities, disable only the original bad source and retain both enabled good sources", app: app)
+            try attach("real-three-source-stop-restored-original-source-state", ["sourceValues": try sourceValues(),
+                "returnToShelf": returnToShelf, "scenarioStopTapCount": stopTapCount,
+                "disableTapCount": disableTapCount, "sourceReadRevision": restoredRead,
+                "originalRecoveryOperationIDs": reconciledSourceOperationIDs.sorted(),
+                "boundary": "Only the original disabled source may be toggled, after terminal original-operation status and a newer successful source.list projection. Full source definitions, database integrity and all 50 downloads require the runner's independent persisted snapshots."])
+            try returnToSearch()
+            if returnToShelf {
+                let close = app.buttons["online-close-workspace"]
+                try sourceToolsRequire(close.exists && close.isHittable, "Close the real workspace after exact source restoration", app: app)
+                close.tap()
+                try sourceToolsRequire(app.buttons["更多书架操作"].waitForExistence(timeout: 15),
+                    "Restoration must return to the original shelf", app: app)
+            }
+        }
+        // XCTest executes this throwing teardown on both failure and XCTSkip.
+        // It never treats an unavailable page or failed restore as success.
+        addTeardownBlock {
+            try restoreOriginalSources(returnToShelf: true)
+        }
+
+        app.launch()
+        try enterSources()
+        try sourceToolsWait("Require a successful persisted initial source read with no unresolved source operation", timeout: 15) {
+            guard let status = sourceState() else { return false }
+            return status.revision > 0 && status.read == "ready" && status.operation == "terminal"
+        }
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == originalLabels && sourceValues() == originalValues,
+            "Require the phone's exact original disabled/enabled three-source state before any change", app: app)
+        try sourceToolsRequire(!app.textViews["online-source-draft"].exists,
+            "An existing source draft must remain untouched", app: app)
+        let bad = try exactToggle(disabledSourceID)
+        try sourceToolsRequire(bad.isHittable && bad.isEnabled, "The original disabled source must be reachable without a substitute", app: app)
+        sourceWriteReadRevision = try XCTUnwrap(sourceState()).revision
+        bad.tap()
+        try settleOriginalSourceWrite("Temporarily enable the original disabled source")
+        try sourceToolsRequire((bad.value as? String) == "1" && bad.isEnabled,
+            "The temporary enable must have a terminal original write and a fresh persisted enabled value", app: app)
+        var mixedValues = originalValues; mixedValues[disabledSourceID] = "1"
+        try sourceToolsRequire(try sourceValues() == mixedValues, "Only the existing disabled source may change for this search", app: app)
+        try returnToSearch()
+        let query = app.textFields["online-search-query"]
+        let queryValue = query.value as? String
+        let candidates = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-result:"))
+        func candidateIDs() -> Set<String> { Set(candidates.allElementsBoundByIndex.map(\.identifier)) }
+        func bothGoodSourcesReturned(_ ids: Set<String>) -> Bool {
+            enabledSourceIDs.allSatisfy { sourceID in ids.contains { $0.hasPrefix("online-result:" + sourceID + "|") } }
+        }
+        try sourceToolsRequire((queryValue == nil || queryValue == "" || queryValue == "书名或作者") && candidateIDs().isEmpty,
+            "The one real search must start with an empty query and no retained candidates from another generation", app: app)
+        query.tap(); query.typeText(keyword)
+        let submit = app.buttons["online-search-submit"]
+        try sourceToolsRequire(submit.exists && submit.isHittable && submit.isEnabled, "Submit this one real mixed-source search", app: app)
+        let stop = app.buttons["online-search-stop"]
+        let progressLabel = "正在搜索 · 已返回 2/3 个书源"
+        struct StopSnapshotNode {
+            let element: any XCUIElementSnapshot
+            let path: String
+            let windows: [String]
+        }
+        typealias StopObservation = (ids: Set<String>, ready: Bool, settled: Bool, keyboardAbsent: Bool, facts: [String: Any])
+        func valid(_ rect: CGRect) -> Bool {
+            !rect.isNull && !rect.isInfinite && rect.width > 0 && rect.height > 0
+                && [rect.minX, rect.minY, rect.maxX, rect.maxY].allSatisfy(\.isFinite)
+        }
+        func rectFacts(_ rect: CGRect) -> [String: Any] {
+            var facts: [String: Any] = ["description": String(describing: rect), "valid": valid(rect)]
+            if valid(rect) { facts["x"] = rect.minX; facts["y"] = rect.minY; facts["width"] = rect.width; facts["height"] = rect.height }
+            return facts
+        }
+        func captureStopObservation() throws -> StopObservation {
+            let foreground = app.state == .runningForeground
+            let began = ProcessInfo.processInfo.systemUptime
+            let tree = try app.snapshot()
+            let returned = ProcessInfo.processInfo.systemUptime
+            var nodes = [StopSnapshotNode]()
+            func collect(_ element: any XCUIElementSnapshot, path: String, windows: [String]) {
+                let ancestors = element.elementType == .window ? windows + [path] : windows
+                nodes.append(StopSnapshotNode(element: element, path: path, windows: ancestors))
+                for (index, child) in element.children.enumerated() {
+                    collect(child, path: path + "/" + String(index), windows: ancestors)
+                }
+            }
+            collect(tree, path: "root", windows: [])
+            let stops = nodes.filter { $0.element.elementType == .button && $0.element.identifier == "online-search-stop" }
+            let queries = nodes.filter { $0.element.elementType == .textField && $0.element.identifier == "online-search-query" }
+            let stopNode = stops.count == 1 ? stops.first : nil
+            let queryNode = queries.count == 1 ? queries.first : nil
+            let windows = nodes.filter { $0.element.elementType == .window && queryNode?.windows.contains($0.path) == true }
+            let mainWindow = windows.count == 1 ? windows.first : nil
+            let frame = stopNode?.element.frame ?? .null, queryFrame = queryNode?.element.frame ?? .null
+            let appFrame = tree.frame, windowFrame = mainWindow?.element.frame ?? .null
+            let viewport = appFrame.intersection(windowFrame)
+            let ids = Set(nodes.filter { $0.element.elementType == .button && $0.element.identifier.hasPrefix("online-result:") }.map { $0.element.identifier })
+            var witnesses = [String: String]()
+            for sourceID in enabledSourceIDs {
+                witnesses[sourceID] = ids.sorted().first { $0.hasPrefix("online-result:" + sourceID + "|") }
+            }
+            let keyboardAbsent = !nodes.contains { $0.element.elementType == .keyboard }
+            let conditions: [String: Bool] = [
+                "runningForegroundBeforeSnapshot": foreground,
+                "noAlert": !nodes.contains { $0.element.elementType == .alert },
+                "noSheet": !nodes.contains { $0.element.elementType == .sheet },
+                "keyboardAbsent": keyboardAbsent, "uniqueStop": stops.count == 1, "uniqueQuery": queries.count == 1,
+                "exactStopLabel": stopNode?.element.label == "停止", "uniqueQueryWindow": windows.count == 1,
+                "sameUniqueWindow": mainWindow != nil && stopNode?.windows == queryNode?.windows,
+                "stopEnabled": stopNode?.element.isEnabled == true, "queryEnabled": queryNode?.element.isEnabled == true,
+                "sameKeyword": queryNode?.element.value as? String == keyword,
+                "exactPublicProgressInWindow": mainWindow.map { window in nodes.contains { $0.windows.contains(window.path) && $0.element.label == progressLabel } } ?? false,
+                "bothActualSourceWitnesses": witnesses.count == enabledSourceIDs.count,
+                "finiteFrames": [frame, queryFrame, appFrame, windowFrame, viewport].allSatisfy(valid),
+                "stopFullyVisible": valid(viewport) && viewport.insetBy(dx: 1, dy: 1).contains(frame),
+                "queryFullyVisible": valid(viewport) && viewport.contains(queryFrame),
+                "sameRow": valid(frame) && valid(queryFrame) && abs(frame.midY - queryFrame.midY) <= 2,
+                "stopRightOfQuery": valid(frame) && valid(queryFrame) && frame.minX > queryFrame.maxX
+            ]
+            func identity(_ node: StopSnapshotNode) -> [String: Any] {
+                ["path": node.path, "windowPaths": node.windows, "identifier": node.element.identifier,
+                 "label": node.element.label, "enabled": node.element.isEnabled, "frame": rectFacts(node.element.frame)]
+            }
+            let ready = conditions.values.allSatisfy { $0 }
+            let settled = stops.isEmpty && nodes.contains { $0.element.elementType == .button && $0.element.identifier == "online-search-submit" }
+            return (ids, ready, settled, keyboardAbsent, ["snapshotBeganUptime": began, "snapshotReturnedUptime": returned,
+                "evaluatedUptime": ProcessInfo.processInfo.systemUptime, "conditions": conditions,
+                "candidateIDs": ids.sorted(), "actualSourceWitnesses": witnesses,
+                "stops": stops.map(identity), "queries": queries.map(identity), "queryWindows": windows.map(identity),
+                "queryValue": queryNode?.element.value as? String ?? "<unavailable>",
+                "appFrame": rectFacts(appFrame), "viewport": rectFacts(viewport), "ready": ready, "searchSettled": settled])
+        }
+        var observations = [[String: Any]]()
+        var acceptedObservation: StopObservation?
+        var lastObservedIDs = Set<String>()
+        var observationError: String?
+        var keyboardDismissed = false
+        var observationFinished = false
+        var submitReturnedUptime = 0.0
+        var stopDispatchAttemptUptime: TimeInterval?
+        var stopDispatchReturnedUptime: TimeInterval?
+        var observationAttached = false
+        var observationMode = "immediate"
+        var windowResult: XCTWaiter.Result = .completed
+        func observeStopWindow() -> Bool {
+            if observationFinished { return true }
+            do {
+                let observed = try captureStopObservation()
+                observations.append(observed.facts)
+                lastObservedIDs = observed.ids
+                let elapsed = ProcessInfo.processInfo.systemUptime - submitReturnedUptime
+                keyboardDismissed = keyboardDismissed || (observed.keyboardAbsent && elapsed <= 5)
+                if observed.ready { acceptedObservation = observed }
+                observationFinished = observed.ready || observed.settled
+                    || (!keyboardDismissed && elapsed >= 5)
+            } catch {
+                observationError = String(describing: error); observationFinished = true
+            }
+            return observationFinished
+        }
+        func keepStopObservation(_ name: String) throws {
+            var facts: [String: Any] = ["keyword": keyword, "requiredPublicProgress": progressLabel,
+                "observedCandidateIDs": acceptedObservation?.ids.sorted() ?? lastObservedIDs.sorted(),
+                "stopTapCount": stopTapCount, "observation": String(describing: windowResult),
+                "stopDispatchAttempted": stopDispatchAttemptUptime != nil, "stopTapCallReturned": stopDispatchReturnedUptime != nil,
+                "observationMode": observationMode, "submitReturnedUptime": submitReturnedUptime,
+                "keyboardDismissedWithinFiveSeconds": keyboardDismissed, "observations": observations,
+                "boundary": "One snapshot tree per observation; paths and semantic identifiers are not opaque AX identities. stopTapCount counts returned Stop-relative tap calls; a dispatch attempt or returned call is not Stop acceptance, which requires the separate stopped partial-state message. Public XCTest does not make snapshot and tap atomic; no cached app coordinate, manufactured response, delay, source or retry is used."]
+            if let observationError { facts["snapshotError"] = observationError }
+            if let stopDispatchAttemptUptime { facts["stopDispatchAttemptUptime"] = stopDispatchAttemptUptime }
+            if let stopDispatchReturnedUptime { facts["stopDispatchReturnedUptime"] = stopDispatchReturnedUptime }
+            try attach(name, facts); observationAttached = true
+        }
+        addTeardownBlock {
+            if !observationAttached { try keepStopObservation("real-three-source-partial-stop-snapshot-observation-teardown") }
+        }
+        submit.tap()
+        submitReturnedUptime = ProcessInfo.processInfo.systemUptime
+        if !observeStopWindow() {
+            observationMode = "bounded-wait-after-immediate-observation"
+            let window = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in observeStopWindow() }, object: nil)
+            windowResult = XCTWaiter.wait(for: [window], timeout: 30)
+        }
+        try sourceToolsRequire(windowResult == .completed || windowResult == .timedOut,
+            "The one bounded observation must finish normally; no search retry is allowed", app: app)
+        try sourceToolsRequire(observationError == nil, "A snapshot failure cannot establish the natural Stop window", app: app)
+        try sourceToolsRequire(keyboardDismissed, "Submitting the one real search must dismiss the keyboard within five seconds", app: app)
+        guard let selection = acceptedObservation else {
+            try keepStopObservation("real-three-source-partial-stop-prerequisite-unavailable")
+            throw XCTSkip("The real two-good-source partial-result Stop window was not available; restore the original source state in teardown")
+        }
+        let beforeStopIDs = selection.ids
+        stopDispatchAttemptUptime = ProcessInfo.processInfo.systemUptime
+        // Resolve the exact current Stop at dispatch. If it has disappeared or
+        // is ambiguous, fail closed; never tap its old app-relative position.
+        let liveStop = app.windows.containing(.textField, identifier: "online-search-query").buttons
+            .matching(NSPredicate(format: "identifier == %@ AND label == %@", "online-search-stop", "停止")).element
+        liveStop.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        stopTapCount = 1
+        stopDispatchReturnedUptime = ProcessInfo.processInfo.systemUptime
+        try keepStopObservation("real-three-source-partial-stop-snapshot-observation")
+        try sourceToolsWait("The one real Stop action must settle", timeout: 20) { !stop.exists }
+        let partial = app.staticTexts["搜索已停止，可保留已有结果并重新搜索"]
+        guard partial.exists else {
+            try attach("real-three-source-partial-stop-natural-window-closed", ["stopTapCount": stopTapCount,
+                "candidateIDsBeforeTap": beforeStopIDs.sorted(), "candidateIDsAfterTap": candidateIDs().sorted()])
+            throw XCTSkip("The real search settled before Stop acceptance could be established; no second Stop or search retry is allowed")
+        }
+        let stoppedIDs = candidateIDs()
+        try sourceToolsRequire(bothGoodSourcesReturned(stoppedIDs) && stoppedIDs.isSuperset(of: beforeStopIDs)
+            && query.value as? String == keyword, "A successful partial Stop must retain the actual good-source candidates and keyword", app: app)
+        try restoreOriginalSources(returnToShelf: false)
+        try sourceToolsRequire(candidateIDs() == stoppedIDs && partial.exists && query.value as? String == keyword,
+            "Restoring the source page must preserve the stopped candidates, partial-state message and keyword", app: app)
+        let research = app.buttons["online-research-failed"]
+        try sourceToolsRequire(research.exists && research.isEnabled && research.isHittable,
+            "Explicitly re-search the same keyword after restoring the original two enabled sources", app: app)
+        research.tap()
+        try sourceToolsWait("The explicit real two-source re-search must settle", timeout: 45) {
+            app.buttons["online-search-submit"].exists && !app.buttons["online-search-stop"].exists
+        }
+        let researchedIDs = candidateIDs()
+        try sourceToolsRequire(researchedIDs.isSuperset(of: stoppedIDs) && query.value as? String == keyword,
+            "The explicit two-source re-search must retain every observed stopped candidate and the same keyword", app: app)
+        try attach("real-three-source-partial-stop-and-two-source-research-outcome", ["keyword": keyword,
+            "temporarilyEnabledExistingSourceID": disabledSourceID, "goodSourceIDs": enabledSourceIDs,
+            "publicProgressBeforeStop": progressLabel, "stopTapCount": stopTapCount,
+            "candidateIDsBeforeStop": beforeStopIDs.sorted(), "candidateIDsAfterStop": stoppedIDs.sorted(),
+            "candidateIDsAfterResearch": researchedIDs.sorted(), "originalSourceStateRestoredBeforeResearch": true,
+            "boundary": "One natural three-source partial Stop, exact restoration through source management, then one explicit search of the original two enabled sources. UI identities do not claim raw transport callback or universal source coverage."])
+    }
+
+    /// A separately selected recovery for a sealed failed Stop run. The runner
+    /// binds both SHA values to its immutable failure receipt and fresh persisted
+    /// source proof. This method only disables the exact original source once;
+    /// it performs no search, Stop, import, download or mutating teardown.
+    func testRestoreOriginalRealDisabledSourceAfterSealedStopFailure() throws {
+#if targetEnvironment(simulator)
+        XCTFail("This recovery requires the original physical iPhone")
+        throw SourceToolsFailure.prerequisite
+#endif
+        let environment = ProcessInfo.processInfo.environment
+        let receiptSHA = environment["READER_STOP_RECOVERY_FAILED_RECEIPT_SHA256"] ?? ""
+        let proofSHA = environment["READER_STOP_RECOVERY_SOURCE_PROOF_SHA256"] ?? ""
+        func isSHA256(_ value: String) -> Bool {
+            value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+        }
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone && isSHA256(receiptSHA) && isSHA256(proofSHA),
+            "Require runner-bound sealed Stop failure and fresh persisted source proof SHA256 values", app: nil)
+        let sourceID = "http://199.33.126.51"
+        let labels = ["online-source:" + sourceID: "👍 同人圈", "online-source:https://m.idejian.com": "得间小说",
+            "online-source:https://dushu.baidu.com/": "百度小说"]
+        let enabledValues = [sourceID: "1", "https://m.idejian.com": "1", "https://dushu.baidu.com/": "1"]
+        var restoredValues = enabledValues; restoredValues[sourceID] = "0"
+        let sourceIDs = Set(enabledValues.keys)
+        let app = XCUIApplication()
+        app.launch()
+        openExistingSourceManagement(app)
+        try sourceToolsWait("Recovery requires a successful current source read with no unresolved source operation", timeout: 15) {
+            guard let state = self.sourceToolsSourceState(app) else { return false }
+            return state.revision > 0 && state.read == "ready" && state.operation == "terminal" && state.operationID.isEmpty
+        }
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == labels && sourceToolsSourceValues(app, sourceIDs: sourceIDs) == enabledValues,
+            "Recover only the exact three original sources while all three are enabled", app: app)
+        let initial = try XCTUnwrap(sourceToolsSourceState(app))
+        let provenance = XCTAttachment(string: "failedStopReceiptSHA256=\(receiptSHA)\ncurrentPersistedSourceProofSHA256=\(proofSHA)\nsourceId=\(sourceID)\nsourceReadRevision=\(initial.revision)\nRunner validates the receipt bindings; this recovery never reruns search or Stop and never retries a source toggle.")
+        provenance.name = "sealed-stop-failure-one-time-source-recovery-inputs"; provenance.lifetime = .keepAlways; add(provenance)
+        var disableTapCount = 0
+        try sourceToolsDisableExactVisibleSource(app, sourceID: sourceID, labels: labels, values: enabledValues,
+            readRevision: initial.revision, tapCount: &disableTapCount) {}
+        var operationID: String?
+        var changedOperationID: String?
+        var pending = false
+        try sourceToolsWait("The sole recovery disable must reach terminal status and a newer successful persisted disabled read", timeout: 130) {
+            guard let state = self.sourceToolsSourceState(app) else { return false }
+            if !state.operationID.isEmpty {
+                if let original = operationID, original != state.operationID {
+                    changedOperationID = state.operationID; return true
+                }
+                operationID = state.operationID
+            }
+            if state.operation == "pending" { pending = true; return true }
+            return state.operation == "terminal" && state.operationID.isEmpty && state.read == "ready"
+                && state.revision > initial.revision && self.sourceToolsObservedSourceValues(app, sourceIDs: sourceIDs) == restoredValues
+        }
+        let final = try XCTUnwrap(sourceToolsSourceState(app))
+        try sourceToolsRequire(!pending && changedOperationID == nil && disableTapCount == 1
+            && final.operation == "terminal" && final.operationID.isEmpty && final.read == "ready" && final.revision > initial.revision
+            && sourceToolsSourceLabels(app) == labels && sourceToolsSourceValues(app, sourceIDs: sourceIDs) == restoredValues,
+            "Only the sole source disable and its fresh terminal read confirm recovery; pending or another operation must stop without another mutation", app: app)
+        let result = XCTAttachment(string: "sourceId=\(sourceID)\ndisableTapCount=\(disableTapCount)\nsourceReadRevisionBefore=\(initial.revision)\nsourceReadRevisionAfter=\(final.revision)\nobservedOperationID=\(operationID ?? "not-observed-before-terminal-read")\nUI source values are 0/1/1. Runner must independently compare persisted source definitions, Host operations and protected downloads; the sealed original Stop result remains FAIL.")
+        result.name = "sealed-stop-failure-one-time-source-recovery-terminal-read"; result.lifetime = .keepAlways; add(result)
+        keepScreenshot(app, name: "sealed-stop-failure-original-disabled-source-restored")
+        leaveExistingSourceManagement(app)
     }
 
     private func openExistingSourceManagement(_ app: XCUIApplication) {
@@ -664,6 +1194,115 @@ final class ReaderOnlineJourneyTests: XCTestCase {
     private func sourceToolsWait(_ message: String, timeout: TimeInterval, _ condition: @escaping () -> Bool) throws {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
         try sourceToolsRequire(XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed, message, app: XCUIApplication())
+    }
+    private struct SourceToolsSourceState: Equatable {
+        let revision: Int
+        let read: String
+        let operation: String
+        let operationID: String
+    }
+    private func sourceToolsSourceState(_ app: XCUIApplication) -> SourceToolsSourceState? {
+        // The existing filter projects the persisted-read and original write
+        // owners. A native toggle value by itself cannot prove completion.
+        let prefix = "online-source-state:"
+        let states = app.textFields.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+        guard states.count == 1 else { return nil }
+        let fields = states.element.identifier.dropFirst(prefix.count).split(separator: "|", omittingEmptySubsequences: false)
+        guard fields.count == 4, let revision = Int(fields[0]), revision >= 0,
+              ["loading", "ready", "failed"].contains(String(fields[1])),
+              ["busy", "pending", "terminal"].contains(String(fields[2])),
+              (fields[2] == "terminal") == fields[3].isEmpty else { return nil }
+        return SourceToolsSourceState(revision: revision, read: String(fields[1]), operation: String(fields[2]), operationID: String(fields[3]))
+    }
+    private func sourceToolsObservedSourceValues(_ app: XCUIApplication, sourceIDs: Set<String>) -> [String: String]? {
+        let toggles = app.switches.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-source-enabled:"))
+            .allElementsBoundByIndex
+        let expectedIDs = Set(sourceIDs.map { "online-source-enabled:" + $0 })
+        guard toggles.count == expectedIDs.count && Set(toggles.map(\.identifier)) == expectedIDs else { return nil }
+        var values: [String: String] = [:]
+        for sourceID in sourceIDs {
+            let matches = app.switches.matching(identifier: "online-source-enabled:" + sourceID)
+            guard matches.count == 1, let value = matches.element.value as? String, value == "0" || value == "1" else { return nil }
+            values[sourceID] = value
+        }
+        return values
+    }
+    private func sourceToolsSourceValues(_ app: XCUIApplication, sourceIDs: Set<String>) throws -> [String: String] {
+        let observed = sourceToolsObservedSourceValues(app, sourceIDs: sourceIDs)
+        try sourceToolsRequire(observed != nil, "Require exactly the original unambiguous source toggles and native enabled values", app: app)
+        return try XCTUnwrap(observed)
+    }
+    private struct SourceToolsVisibleSourceToggle {
+        let toggle: XCUIElement
+        let frame: CGRect
+        let viewport: CGRect
+        let rowBand: CGRect
+    }
+    private func sourceToolsVisibleSourceToggle(_ app: XCUIApplication, sourceID: String, sourceIDs: Set<String>) -> SourceToolsVisibleSourceToggle? {
+        guard app.state == .runningForeground, app.alerts.count == 0, app.sheets.count == 0, app.keyboards.count == 0,
+              !app.textViews["online-source-draft"].exists else { return nil }
+        let close = app.buttons.matching(identifier: "online-close-sources")
+        guard close.count == 1, close.element.isEnabled, close.element.isHittable else { return nil }
+        let toggleID = "online-source-enabled:" + sourceID
+        let windows = app.windows.containing(.switch, identifier: toggleID)
+        guard windows.count == 1 else { return nil }
+        let scrolls = windows.element.scrollViews.matching(identifier: "online-source-scroll")
+        guard scrolls.count == 1, scrolls.element.isEnabled else { return nil }
+        let scroll = scrolls.element
+        let toggles = scroll.switches.matching(identifier: toggleID)
+        let headers = scroll.staticTexts.matching(identifier: "online-source:" + sourceID)
+        let edits = scroll.buttons.matching(identifier: "online-source-edit:" + sourceID)
+        guard toggles.count == 1, headers.count == 1, edits.count == 1, toggles.element.isEnabled else { return nil }
+        let frame = toggles.element.frame, header = headers.element.frame, edit = edits.element.frame
+        func valid(_ rect: CGRect) -> Bool {
+            !rect.isNull && !rect.isInfinite && rect.width > 0 && rect.height > 0
+                && [rect.minX, rect.minY, rect.maxX, rect.maxY].allSatisfy(\.isFinite)
+        }
+        let viewport = app.frame.intersection(windows.element.frame).intersection(scroll.frame)
+        guard valid(frame), valid(header), valid(edit), valid(viewport),
+              viewport.insetBy(dx: 1, dy: 1).contains(frame), viewport.contains(header), viewport.contains(edit),
+              abs(frame.midY - header.midY) <= 2, frame.minX > header.maxX, frame.maxY < edit.minY else { return nil }
+        // SwiftUI flattens the source cards in AX. Bind the visible switch to
+        // its exact source header/edit band, never to a generic Other ancestor.
+        let top = min(frame.minY, header.minY)
+        let rowBand = CGRect(x: viewport.minX, y: top, width: viewport.width, height: edit.maxY - top)
+        guard valid(rowBand), rowBand.contains(frame), rowBand.contains(header), rowBand.contains(edit) else { return nil }
+        for otherID in sourceIDs where otherID != sourceID {
+            let otherHeaders = scroll.staticTexts.matching(identifier: "online-source:" + otherID)
+            let otherToggles = scroll.switches.matching(identifier: "online-source-enabled:" + otherID)
+            guard otherHeaders.count == 1, otherToggles.count == 1,
+                  valid(otherHeaders.element.frame), valid(otherToggles.element.frame),
+                  !rowBand.intersects(otherHeaders.element.frame), !rowBand.intersects(otherToggles.element.frame) else { return nil }
+        }
+        return SourceToolsVisibleSourceToggle(toggle: toggles.element, frame: frame, viewport: viewport, rowBand: rowBand)
+    }
+    private func sourceToolsDisableExactVisibleSource(_ app: XCUIApplication, sourceID: String, labels: [String: String],
+        values: [String: String], readRevision: Int, tapCount: inout Int, beforeTap: () -> Void) throws {
+        let sourceIDs = Set(values.keys)
+        let expectedState = SourceToolsSourceState(revision: readRevision, read: "ready", operation: "terminal", operationID: "")
+        try sourceToolsRequire(tapCount == 0 && readRevision > 0 && values[sourceID] == "1"
+            && sourceToolsSourceState(app) == expectedState,
+            "A sole disable requires the exact terminal source owner and its successful current read", app: app)
+        try sourceToolsRequire(try sourceToolsSourceLabels(app) == labels && sourceToolsSourceValues(app, sourceIDs: sourceIDs) == values,
+            "The sole disable must preserve every exact original source identity and enabled value", app: app)
+        try sourceToolsRequire(sourceToolsVisibleSourceToggle(app, sourceID: sourceID, sourceIDs: sourceIDs) != nil,
+            "The exact source toggle must be fully visible in its source-bound row, list and window", app: app)
+        let selection = try XCTUnwrap(sourceToolsVisibleSourceToggle(app, sourceID: sourceID, sourceIDs: sourceIDs))
+        let facts = XCTAttachment(string: "sourceId=\(sourceID)\nsourceReadRevision=\(readRevision)\nnativeHittable=\(selection.toggle.isHittable)\nswitchFrame=\(selection.frame)\nsourceViewport=\(selection.viewport)\nexactHeaderEditBand=\(selection.rowBand)\nOnly this exact switch may receive one tap; a coordinate fallback uses its current native center.")
+        facts.name = "exact-original-source-disable-selection"; facts.lifetime = .keepAlways; add(facts)
+        // Recheck after recording selection, then derive the action from fresh
+        // geometry. Neither an offscreen frame nor a stale read can be tapped.
+        try sourceToolsRequire(sourceToolsSourceState(app) == expectedState
+            && sourceToolsSourceLabels(app) == labels && sourceToolsSourceValues(app, sourceIDs: sourceIDs) == values,
+            "The original source state must remain unchanged immediately before its sole disable", app: app)
+        let current = try XCTUnwrap(sourceToolsVisibleSourceToggle(app, sourceID: sourceID, sourceIDs: sourceIDs))
+        beforeTap(); tapCount += 1
+        if current.toggle.isHittable {
+            current.toggle.tap()
+        } else {
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: current.frame.midX - app.frame.minX,
+                dy: current.frame.midY - app.frame.minY)).tap()
+        }
     }
     private func sourceToolsSourceLabels(_ app: XCUIApplication) throws -> [String: String] {
         let rows = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-source:")).allElementsBoundByIndex

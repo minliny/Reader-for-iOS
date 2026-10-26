@@ -15,6 +15,7 @@ struct ReaderBookshelfView: View {
     @State private var showingMore = false
     @State private var pendingMoreAction: MoreAction?
     @State private var actionBook: ReaderBook?
+    @State private var downloadStatusBook: ReaderBook?
     @State private var showingGroups = false
     @State private var catalogBook: ReaderBook?
     @State private var catalogFailure: String?
@@ -120,6 +121,13 @@ struct ReaderBookshelfView: View {
                 Task { await model.reloadLibrary(); await presentation.reload(model: model, keyword: query) }
             }) { actionBook = nil }
         }
+        .sheet(item: $downloadStatusBook) { book in
+            if let service = model.libraryService as? any ReaderDownloadServing {
+                ReaderOnlineDownloadSummaryPanel(book: book, service: service)
+                    .id(book.id)
+                    .preferredColorScheme(preferences.appDark ? .dark : .light)
+            }
+        }
         .sheet(isPresented: $showingGroups) {
             ReaderGroupManagementView(model: model, name: $presentation.groupDraftName,
                                       editing: $presentation.groupDraftEditing) {
@@ -129,7 +137,7 @@ struct ReaderBookshelfView: View {
         }
         .readerConfirmation(confirmation)
         .onChange(of: model.reader?.id) { _, value in
-            if value != nil { cancelCatalogPresentation() }
+            if value != nil { cancelCatalogPresentation(); downloadStatusBook = nil }
         }
         .onDisappear {
             presentation.traceSearchPresentation("shelf.disappear", searching: searching, key: projectionKey)
@@ -361,6 +369,10 @@ struct ReaderBookshelfView: View {
         Button("书籍信息与分组") { actionBook = book }
         if book.sourceId != "local", model.libraryService is any ReaderOnlineServing {
             Button("更新目录") { refreshCatalog(book) }.disabled(catalogLoading)
+        }
+        if book.sourceId != "local", model.libraryService is any ReaderDownloadServing {
+            Button("下载状态") { downloadStatusBook = book }
+                .accessibilityIdentifier("shelf-download-status:" + book.id)
         }
         Button("多选") { presentation.selecting = true; presentation.toggle(book) }
     }

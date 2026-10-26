@@ -14,6 +14,7 @@ import WebKit
     @Published var searched = false
     @Published var currentResultIDs = Set<String>()
     @Published var sourceLoading = false
+    @Published private(set) var sourceReadRevision = 0
     @Published var sourceReadFailure: String?
     @Published private(set) var sourceReadFailureID: UUID?
     @Published var scrollAnchor: String?
@@ -92,6 +93,7 @@ import WebKit
             guard !Task.isCancelled, sourcesID == generation,
                   isCurrentDiscoveryPresentation(identity) else { return }
             sources = result; sourceReadFailure = nil; sourceReadFailureID = nil
+            sourceReadRevision += 1
             if !searched { search() }
         } catch {
             guard !Task.isCancelled, sourcesID == generation,
@@ -120,6 +122,7 @@ import WebKit
             guard !Task.isCancelled, sourcesID == generation,
                   searchPresentationIsCurrent(presentationID) else { return }
             sources = result; sourceReadFailure = nil; sourceReadFailureID = nil
+            sourceReadRevision += 1
         } catch {
             guard !Task.isCancelled, sourcesID == generation,
                   searchPresentationIsCurrent(presentationID) else { return }
@@ -204,6 +207,14 @@ import WebKit
     }
     func closeDetail() { detailTask?.cancel(); detailTask = nil; detailID = UUID(); selected = nil; detail = nil; detailLoading = false; error = nil }
     func sourceName(_ id: String) -> String { sources.first(where: { $0.id == id })?.name ?? id }
+    func candidateElapsedMilliseconds(_ candidate: ReaderOnlineCandidate) -> Int? {
+        guard currentResultIDs.contains(candidate.id) else { return nil }
+        return timings[candidate.sourceId]
+    }
+    func candidateSearchStatus(_ candidate: ReaderOnlineCandidate) -> String? {
+        guard !currentResultIDs.contains(candidate.id) else { return nil }
+        return searching ? "上次候选 · 本次搜索中" : "上次候选 · 本次未确认"
+    }
 }
 
 struct ReaderOnlineWorkspace: View {
@@ -260,7 +271,8 @@ struct ReaderOnlineWorkspace: View {
                 }
             }
             ReaderOnlineSourceRefreshNotice(state: state)
-            ReaderOperationStatus(owner: state.actions, scope: "online")
+            ReaderOperationStatus(owner: state.actions, scope: "online", completed: { Task { await state.loadSources() } })
+                .accessibilityIdentifier("online-original-operation")
         }.foregroundStyle(ReaderPalette(scheme).ink).background(ReaderPalette(scheme).paper)
             // The same finite task owns initial load and opportunity refresh.
             // loadSources keeps the current presentation/generation checks and
@@ -278,11 +290,13 @@ struct ReaderOnlineWorkspace: View {
     private var searchPage: some View {
         VStack(spacing: 12) {
             HStack {
-                TextField("书名或作者", text: $state.query).submitLabel(.search).onSubmit(state.search).readerField()
+                TextField("书名或作者", text: $state.query).submitLabel(.search).onSubmit(submitSearch).readerField()
                     .focused($focusedSearchField, equals: .query)
                     .accessibilityIdentifier("online-search-query")
-                if state.searching { Button("停止", action: state.stop).accessibilityIdentifier("online-search-stop") }
-                else { Button("搜索", action: state.search).accessibilityIdentifier("online-search-submit") }
+                if state.searching {
+                    Button("停止") { focusedSearchField = nil; state.stop() }
+                        .accessibilityIdentifier("online-search-stop")
+                } else { Button("搜索", action: submitSearch).accessibilityIdentifier("online-search-submit") }
             }.padding(.horizontal, 20)
             if state.sources.filter(\.enabled).isEmpty {
                 ReaderPageState(title: state.sourceLoading ? "正在加载书源" : state.sourceReadFailure == nil ? "还没有启用的书源" : "书源加载失败", detail: state.sourceReadFailure ?? "导入书源后即可搜索。", loading: state.sourceLoading, actionTitle: state.sourceReadFailure == nil ? "管理书源" : "重试") {
@@ -318,7 +332,12 @@ struct ReaderOnlineWorkspace: View {
                                         VStack(alignment: .leading, spacing: 8) {
                                             Text(book.title).font(ReaderTypography.font(.controlHeader)).lineLimit(2)
                                             Text(book.author).font(ReaderTypography.font(.caption))
-                                            Text(state.sourceName(book.sourceId) + (state.timings[book.sourceId].map { " · \($0) ms" } ?? "")).font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
+                                            Text(state.sourceName(book.sourceId)
+                                                 + (state.candidateElapsedMilliseconds(book).map { " · \($0) ms" } ?? "")
+                                                 + (state.candidateSearchStatus(book).map { " · \($0)" } ?? ""))
+                                                .font(ReaderTypography.font(.caption))
+                                                .foregroundStyle(ReaderPalette(scheme).muted)
+                                                .lineLimit(1)
                                         }
                                         Spacer(); ReaderIcon(.chevronRight)
                                     }.padding(20).contentShape(Rectangle())
@@ -333,6 +352,10 @@ struct ReaderOnlineWorkspace: View {
                 }
             }
         }
+    }
+    private func submitSearch() {
+        focusedSearchField = nil
+        state.search()
     }
     private var filteredResults: [ReaderOnlineCandidate] {
         state.results.filter { state.sourceFilter.isEmpty || $0.title.localizedCaseInsensitiveContains(state.sourceFilter) || state.sourceName($0.sourceId).localizedCaseInsensitiveContains(state.sourceFilter) }
@@ -407,6 +430,7 @@ struct ReaderOnlineSourceRefreshNotice: View {
 
 private struct ReaderSourceManagement: View {
     @ObservedObject var state: ReaderOnlineWorkspaceModel
+    @ObservedObject private var actions: ReaderLibraryActionOwner
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @StateObject private var draftOwner: ReaderSourceEditorDraftOwner
     @State private var link = ""
@@ -426,7 +450,16 @@ private struct ReaderSourceManagement: View {
     @Environment(\.colorScheme) private var scheme
     init(state: ReaderOnlineWorkspaceModel) {
         self.state = state
+        _actions = ObservedObject(wrappedValue: state.actions)
         _draftOwner = StateObject(wrappedValue: ReaderSourceEditorDraftOwner(actions: state.actions))
+    }
+    // The source rows are persisted-read projections. Expose their read identity
+    // together with the same write owner, so AX consumers cannot classify a
+    // stale toggle value as a terminal mutation or a successful refresh.
+    private var sourceListState: String {
+        let read = state.sourceLoading ? "loading" : state.sourceReadFailure == nil ? "ready" : "failed"
+        let operation = actions.busy ? "busy" : actions.hasPending ? "pending" : "terminal"
+        return "\(state.sourceReadRevision)|\(read)|\(operation)|\(actions.pendingOperationID ?? "")"
     }
     var body: some View {
         let fileRequest = fileRead
@@ -437,6 +470,7 @@ private struct ReaderSourceManagement: View {
                     .accessibilityIdentifier("online-rule-subscriptions")
                 HStack { TextField("书源包链接", text: $link).textInputAutocapitalization(.never).keyboardType(.URL).readerField(); Button("读取") { fetch() }.disabled(!draftOwner.canReplace) }
                 TextField("名称或分组", text: $filter).readerField()
+                    .accessibilityIdentifier("online-source-state:" + sourceListState)
                 if let error = state.error { ReaderPageState(title: "书源操作未完成", detail: error) }
                 ForEach(importResults) { item in Text(item.name + " · " + item.message).font(ReaderTypography.font(.caption)) }
                 if state.sources.isEmpty {
@@ -463,6 +497,7 @@ private struct ReaderSourceManagement: View {
                                 debugSource = ReaderSourceDebugPresentation(source: source)
                             }
                             Button("网页登录") { login = ReaderSourceLoginPresentation(source: source) }
+                                .accessibilityIdentifier("online-source-login:" + source.id)
                             Spacer()
                             Button("删除", role: .destructive) { confirmation.confirm("删除书源？", message: "已有书籍与缓存保留，后续联网将需要重新导入此书源。", actionTitle: "删除", destructive: true) { mutate("删除书源") { id in try await state.service?.deleteSource(source.id, operationID: id) } } }
                         }.font(ReaderTypography.font(.caption))
@@ -472,7 +507,7 @@ private struct ReaderSourceManagement: View {
             }.padding(20)
         }.accessibilityIdentifier("online-source-scroll")
             .readerConfirmation(confirmation)
-            .disabled(state.actions.busy)
+            .disabled(actions.busy)
             .onAppear { draftOwner.activate(); restoreSaveIfNeeded() }
             .onDisappear {
                 fileReadTask?.cancel(); fileReadTask = nil
@@ -491,14 +526,14 @@ private struct ReaderSourceManagement: View {
                 }
             }
             .onChange(of: confirmation.request?.id) { _, id in if id == nil { draftOwner.dismissConfirmation() } }
-            .onChange(of: state.actions.hasPending) { _, pending in
+            .onChange(of: actions.hasPending) { _, pending in
                 if pending {
                     fileReadTask?.cancel(); fileReadTask = nil; fileRead = nil
                     confirmation.request = nil; draftOwner.dismissConfirmation(); draftOwner.cancelRead()
                 }
                 else { restoreSaveIfNeeded() }
             }
-            .onChange(of: state.actions.busy) { _, busy in if !busy { draftOwner.refreshPersistedDraft() } }
+            .onChange(of: actions.busy) { _, busy in if !busy { draftOwner.refreshPersistedDraft() } }
             .sheet(isPresented: Binding(get: { draftOwner.presented }, set: { if !$0 { draftOwner.close() } })) {
                 VStack(spacing: 14) {
                     HStack { Button("保留草稿并关闭") { draftOwner.close() }; Spacer(); Button("校验") { validate() }.disabled(validating || !draftOwner.canReplace); Button("保存") { save() }.disabled(!draftOwner.canReplace || validating).accessibilityIdentifier("online-source-save") }
@@ -714,7 +749,19 @@ enum ReaderSourceLoginURL {
         guard let raw = (try? JSONSerialization.jsonObject(with: definition)) as? [String: Any] else { return nil }
         let declared = (raw["loginUrl"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let address = declared.isEmpty ? baseURL.trimmingCharacters(in: .whitespacesAndNewlines) : declared
-        guard let url = URL(string: address), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+        let resolved: URL?
+        if let absolute = URL(string: address), absolute.scheme != nil {
+            resolved = absolute
+        } else {
+            guard let base = URL(string: baseURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  ["http", "https"].contains(base.scheme?.lowercased() ?? ""),
+                  let host = base.host, !host.isEmpty,
+                  let relative = URL(string: address, encodingInvalidCharacters: false) else { return nil }
+            // Foundation resolves the original source's relative declaration;
+            // strict parsing keeps non-URL login scripts/text out of this path.
+            resolved = URL(string: relative.relativeString, relativeTo: base)?.absoluteURL
+        }
+        guard let url = resolved, ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
               let host = url.host, !host.isEmpty else { return nil }
         return url
     }
@@ -741,7 +788,13 @@ private struct ReaderSourceLogin: View {
     @State private var saving = false
     var body: some View {
         VStack {
-            HStack { Button("关闭") { close() }; Spacer(); Text(source.name); Spacer(); Button("完成登录") { save() }.disabled(service == nil || webView == nil || saving || !lifetime.canSave) }.padding()
+            HStack {
+                Button("关闭") { close() }.accessibilityIdentifier("online-source-login-close")
+                Spacer()
+                Text(source.name).accessibilityIdentifier("online-source-login-title:" + source.id)
+                Spacer()
+                Button("完成登录") { save() }.disabled(service == nil || webView == nil || saving || !lifetime.canSave)
+            }.padding()
             if let failure { ReaderPageState(title: "网页登录未完成", detail: failure) }
             else if let cookies, let loginURL { ReaderSourceLoginWebView(url: loginURL, cookies: cookies, lifetime: lifetime, webView: $webView) }
             else { ReaderPageState(title: "正在准备来源登录", loading: true) }
