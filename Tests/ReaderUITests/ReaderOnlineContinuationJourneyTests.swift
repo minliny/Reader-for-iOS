@@ -874,12 +874,24 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["online-download-selected"].waitForExistence(timeout: 30))
     }
     private func choose(_ index: UInt32, app: XCUIApplication) throws {
+        var trace: [String] = []
+        func fail(_ reason: String) throws -> Never {
+            keep(app, name: "directory-chapter-\(index)-navigation-failure")
+            let evidence = XCTAttachment(string: reason + "\n" + trace.joined(separator: "\n") + "\n" + app.debugDescription)
+            evidence.name = "directory-chapter-\(index)-navigation-failure-AX"
+            evidence.lifetime = .keepAlways; add(evidence)
+            XCTFail(reason)
+            throw Prerequisite.invalid("exact directory chapter unavailable")
+        }
+        func finite(_ frame: CGRect) -> Bool {
+            !frame.isNull && !frame.isInfinite && frame.width > 0 && frame.height > 0 &&
+                [frame.minX, frame.minY, frame.maxX, frame.maxY].allSatisfy(\.isFinite)
+        }
         controls(app)
         let prefix = "reading-chapter:"
         let readings = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).allElementsBoundByAccessibilityElement
         guard readings.count == 1, let current = UInt32(readings[0].identifier.dropFirst(prefix.count)) else {
-            XCTFail("Require the unique actual current chapter before choosing a directory target")
-            throw Prerequisite.invalid("current directory chapter identity unavailable")
+            try fail("Require the unique actual current chapter before choosing a directory target")
         }
         app.buttons["control-module-directory"].tap()
         let grabber = app.buttons["control-grabber"]
@@ -889,19 +901,89 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertTrue(directory.waitForExistence(timeout: 5)); directory.tap()
         let order = app.buttons.matching(NSPredicate(format: "label IN %@", ["正序", "倒序"] as NSArray)).allElementsBoundByAccessibilityElement
         let currentRowID = "chapter-\(current)"
-        let owners = app.scrollViews.containing(.button, identifier: currentRowID).allElementsBoundByAccessibilityElement
-        guard order.count == 1, owners.count == 1,
-              owners[0].buttons[currentRowID].isSelected else {
-            XCTFail("Require the actual directory order and its unique scroll owner containing the selected current chapter")
-            throw Prerequisite.invalid("directory order or selected-row owner unavailable")
+        let owners = app.scrollViews.allElementsBoundByIndex.enumerated().filter {
+            let selected = $0.element.buttons[currentRowID]
+            return selected.exists && selected.isSelected
+        }
+        guard order.count == 1, owners.count == 1 else {
+            try fail("Require the actual directory order and its unique scroll owner containing the selected current chapter")
         }
         // The action offers the other order: 正序 means the current list is descending.
         let descending = order[0].label == "正序"
-        let scroll = owners[0], row = scroll.buttons["chapter-\(index)"]
-        try reveal(row, in: scroll, app: app, towardTop: descending ? index > current : index < current)
+        // Bind the observed owner by its unfiltered index. A query containing
+        // chapter-current stops resolving when LazyVStack unloads that row.
+        let scroll = app.scrollViews.element(boundBy: owners[0].offset)
+        let ownerFrame = scroll.frame, row = scroll.buttons["chapter-\(index)"]
+        guard finite(ownerFrame) else { try fail("Require finite actual directory owner geometry") }
+        let deadline = ProcessInfo.processInfo.systemUptime + 30
+        var swipes = 0
+        var revealed = false
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            guard directory.isSelected, app.textFields["directory-query"].isHittable,
+                  order[0].label == (descending ? "正序" : "倒序"),
+                  scroll.exists, scroll.isHittable, let snapshot = try? scroll.snapshot() else {
+                try fail("The original full directory and its observed scroll owner must remain available")
+            }
+            let frame = snapshot.frame, viewport = frame.intersection(app.frame)
+            guard finite(frame), finite(viewport),
+                  [abs(frame.minX-ownerFrame.minX), abs(frame.minY-ownerFrame.minY),
+                   abs(frame.width-ownerFrame.width), abs(frame.height-ownerFrame.height)].allSatisfy({ $0 <= 2 }) else {
+                try fail("Stop when the observed directory scroll owner geometry changes")
+            }
+            // One frozen AX tree supplies both identity and geometry for this
+            // step; lazy rows outside the viewport do not determine direction.
+            var pending: [XCUIElementSnapshot] = [snapshot]
+            var rows: [(index: UInt32, frame: CGRect)] = []
+            while let node = pending.popLast() {
+                pending.append(contentsOf: node.children.reversed())
+                if node.elementType == .button, node.identifier.hasPrefix("chapter-"),
+                   let value = UInt32(node.identifier.dropFirst("chapter-".count)), finite(node.frame) {
+                    rows.append((value, node.frame))
+                }
+            }
+            let visible = rows.filter { $0.frame.intersects(viewport) }.sorted { $0.frame.minY < $1.frame.minY }
+            trace.append("step \(swipes): " + visible.map { "\($0.index)@\($0.frame.minY)...\($0.frame.maxY)" }.joined(separator: ", "))
+            guard let first = visible.first, let last = visible.last,
+                  Set(visible.map(\.index)).count == visible.count,
+                  zip(visible, visible.dropFirst()).allSatisfy({ descending ? $0.0.index > $0.1.index : $0.0.index < $0.1.index }) else {
+                try fail("Require actual visible chapter rows in the observed directory order")
+            }
+            let towardTop: Bool
+            var distance: CGFloat
+            if let actual = rows.first(where: { $0.index == index }) {
+                if viewport.contains(actual.frame) {
+                    guard row.isHittable else { try fail("The exact visible chapter is occluded; do not guess another scrolling direction") }
+                    revealed = true
+                    break
+                } else if actual.frame.minY < viewport.minY {
+                    towardTop = true; distance = viewport.minY - actual.frame.minY + actual.frame.height * 0.25
+                } else if actual.frame.maxY > viewport.maxY {
+                    towardTop = false; distance = actual.frame.maxY - viewport.maxY + actual.frame.height * 0.25
+                } else { try fail("The exact chapter geometry supplies no vertical scrolling direction") }
+            } else if descending ? index > first.index : index < first.index {
+                towardTop = true; distance = first.frame.height * 1.25
+            } else if descending ? index < last.index : index > last.index {
+                towardTop = false; distance = last.frame.height * 1.25
+            } else { try fail("The target is absent inside the actual visible chapter range; do not guess a gesture") }
+            guard swipes < 32, ProcessInfo.processInfo.systemUptime < deadline else { break }
+            // A slow, held drag moves at most two observed rows / 40% of this
+            // viewport. Re-observe after each step so overshoot can reverse.
+            distance = min(distance, min(viewport.height * 0.4, max(first.frame.height, last.frame.height) * 2))
+            let startY = towardTop ? viewport.minY + viewport.height * 0.25 : viewport.maxY - viewport.height * 0.25
+            let origin = scroll.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: viewport.midX-frame.minX, dy: startY-frame.minY))
+            let end = origin.withOffset(CGVector(dx: viewport.midX-frame.minX, dy: startY-frame.minY + (towardTop ? distance : -distance)))
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+            swipes += 1
+        }
+        guard revealed, ProcessInfo.processInfo.systemUptime < deadline else {
+            try fail("The exact directory chapter was not fully visible within 30 seconds / 32 steps; stop without tapping or searching again")
+        }
         row.tap()
-        wait("The actual Core directory target must become selected", timeout: 30) { row.isSelected }
-        guard row.isSelected else { throw Prerequisite.invalid("directory target did not become selected") }
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in row.isSelected }, object: nil)
+        guard XCTWaiter.wait(for: [selected], timeout: 30) == .completed, row.isSelected else {
+            try fail("The exact actual Core directory target must become selected after its native tap")
+        }
     }
     private func reveal(_ target: XCUIElement, in scroll: XCUIElement, app: XCUIApplication, towardTop: Bool = false) throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 30
