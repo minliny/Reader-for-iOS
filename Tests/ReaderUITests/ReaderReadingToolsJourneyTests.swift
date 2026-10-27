@@ -1497,10 +1497,11 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             throw JourneyError.prerequisite
         }
         var returnedNormally = false
+        var ownerGeometryTrace: [String] = []
         defer {
             if !returnedNormally {
                 evidence(app, "real-TXT-More-failure-current-screen")
-                let ax = XCTAttachment(string: app.debugDescription)
+                let ax = XCTAttachment(string: app.debugDescription + "\nActual owner geometry samples:\n" + ownerGeometryTrace.joined(separator: "\n"))
                 ax.name = "real-TXT-More-failure-AX"; ax.lifetime = .keepAlways; add(ax)
             }
         }
@@ -1532,9 +1533,19 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let ownerIndex = selected.offset, ownerFrame = selected.element.frame
         func owner() throws -> XCUIElement {
             let current = app.scrollViews.element(boundBy: ownerIndex)
-            guard current.exists, current.frame == ownerFrame, current.isHittable,
-                  !app.keyboards.firstMatch.exists, app.buttons["control-grabber"].label.hasPrefix("完整控制栏"),
-                  [ownerFrame.minX, ownerFrame.minY, ownerFrame.maxX, ownerFrame.maxY].allSatisfy(\.isFinite) else { throw JourneyError.prerequisite }
+            guard current.exists else { throw JourneyError.prerequisite }
+            // AX prints rounded rectangles. Read this sample once and retain
+            // its actual precision while using the existing 2pt UI tolerance.
+            let measured = current.frame
+            let original = [ownerFrame.minX, ownerFrame.minY, ownerFrame.width, ownerFrame.height]
+            let actual = [measured.minX, measured.minY, measured.width, measured.height]
+            let drift = zip(actual, original).map { abs($0 - $1) }
+            ownerGeometryTrace.append("original=" + original.map { String(format: "%.17g", Double($0)) }.joined(separator: ",")
+                + "; actual=" + actual.map { String(format: "%.17g", Double($0)) }.joined(separator: ",")
+                + "; drift=" + drift.map { String(format: "%.17g", Double($0)) }.joined(separator: ","))
+            guard original.allSatisfy(\.isFinite), actual.allSatisfy(\.isFinite),
+                  measured.width > 0, measured.height > 0, drift.allSatisfy({ $0 <= 2 }), current.isHittable,
+                  !app.keyboards.firstMatch.exists, app.buttons["control-grabber"].label.hasPrefix("完整控制栏") else { throw JourneyError.prerequisite }
             return current // Unfiltered index, never a query containing the now-lazy first row.
         }
         func record(_ stage: String) throws -> [String] {
@@ -1582,7 +1593,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         try reach(first.element, downward: false, deadline: ProcessInfo.processInfo.systemUptime + 30)
         XCTAssertEqual(first.count, 1); XCTAssertEqual(first.element.label, firstLabel)
         _ = try record("original-first-hit-retained")
-        let facts = XCTAttachment(string: "firstHitID=\(firstID)\noldTailID=\(oldTailID)\nobservedAppendedID=\(newID)\nMoreTaps=1\nObserved AX order/visible rows only; cursor bytes, exact page counts and all-page unique IDs are NOT_CAPTURED. Root separately audits original inputs, progress, retained files and commands.")
+        let facts = XCTAttachment(string: "firstHitID=\(firstID)\noldTailID=\(oldTailID)\nobservedAppendedID=\(newID)\nMoreTaps=1\nObserved AX order/visible rows only; cursor bytes, exact page counts and all-page unique IDs are NOT_CAPTURED. Root separately audits original inputs, progress, retained files and commands.\nActual owner geometry samples:\n" + ownerGeometryTrace.joined(separator: "\n"))
         facts.name = "real-TXT-More-observed-identity-boundary"; facts.lifetime = .keepAlways; add(facts)
         hideControls(app)
         try assertVisible(originalAnchor, app: app, name: "real-TXT-More-reader-anchor-preserved")
