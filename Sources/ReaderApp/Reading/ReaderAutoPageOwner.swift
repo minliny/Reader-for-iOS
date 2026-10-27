@@ -55,6 +55,9 @@ final class ReaderAutoPageOwner: ObservableObject {
         guard phase == .waitingForPage, turnID == id else { return }
         pendingChapter = index
     }
+    func isWaitingForChapter(_ index: UInt32, turn id: UUID) -> Bool {
+        phase == .waitingForPage && turnID == id && pendingChapter == index
+    }
     func layoutReady(chapterIndex: UInt32) {
         guard phase == .waitingForPage, pendingChapter == chapterIndex else { return }
         pendingChapter = nil

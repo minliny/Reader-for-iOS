@@ -81,6 +81,115 @@ final class ReaderApplicationModelTests: XCTestCase {
             "网络请求未完成，请联网后重试")
     }
 
+    /// Exercises the production dispatch boundary with protocol DTO replies.
+    /// This does not establish real file, source, transport, or device behavior.
+    func testAutomaticChapterDispatchRejectsRetiredAndReboundIntentsAndRequestsValidTurnOnce() async throws {
+        enum Boundary: CaseIterable, Equatable { case paused, stopped, resumed, restored, closed, replaced, backgrounded, selected, valid }
+        var scenarios: [(boundary: Boundary, model: ReaderApplicationModel, service: ApplicationModelServiceFake,
+                         owner: ReaderAutoPageOwner, original: ReaderActiveSession)] = []
+        var observations: [AnyCancellable] = []
+        var ready: [XCTestExpectation] = []
+        defer {
+            observations.forEach { $0.cancel() }
+            scenarios.forEach { $0.owner.stop(); $0.service.releasePendingRequests() }
+        }
+        // Let the real owners reach their minimum deadline together; do not
+        // introduce a second timer/state machine or sleep once per boundary.
+        for boundary in Boundary.allCases {
+            let service = ApplicationModelServiceFake()
+            let model = try await openedModel(service)
+            let owner = ReaderAutoPageOwner()
+            let pending = expectation(description: "Native turn ready for \(boundary)")
+            observations.append(owner.$turnID.compactMap { $0 }.first().sink { _ in pending.fulfill() })
+            ready.append(pending)
+            scenarios.append((boundary, model, service, owner, try XCTUnwrap(model.reader)))
+            owner.start(seconds: 2)
+        }
+        await fulfillment(of: ready, timeout: 4)
+
+        for scenario in scenarios {
+            let (boundary, model, service, owner, original) = scenario
+            let turn = try XCTUnwrap(owner.turnID)
+            let next: UInt32 = 1
+            owner.waitingForChapter(next, turn: turn)
+            XCTAssertTrue(owner.isWaitingForChapter(next, turn: turn))
+            // This is the same frozen tuple captured before the View's Task.
+            // Mutate the live owner/model before that async entry first runs.
+            switch boundary {
+            case .paused: owner.pause()
+            case .stopped: owner.stop()
+            case .resumed: owner.pause(); owner.start(seconds: 2)
+            case .restored: model.seek(toScalar: 17)
+            case .closed: await model.closeReader()
+            case .replaced:
+                await model.closeReader()
+                let reopened = expectation(description: "A new reader owns the model")
+                let observation = model.$reader.compactMap { $0 }.first().sink { _ in reopened.fulfill() }
+                // Reopening the same book must still revoke the old session.
+                model.open(book)
+                await fulfillment(of: [reopened], timeout: 2)
+                observation.cancel()
+                XCTAssertNotEqual(model.reader?.id, original.id)
+            case .backgrounded: model.setForeground(false)
+            case .selected:
+                model.updateSelection(start: 1, end: 3, text: "文文", sessionID: original.id,
+                                      restorationID: original.restorationID)
+            case .valid: break
+            }
+            let readsBeforeDispatch = service.contentReadCount
+            let liveSession = model.reader
+            let phaseBeforeDispatch = owner.phase
+            var flushing: XCTestExpectation?
+            if boundary == .valid {
+                service.holdFlushes = true
+                let pendingFlush = expectation(description: "Valid turn reached its original flush")
+                flushing = pendingFlush
+                service.onFlush = { _ in pendingFlush.fulfill() }
+            }
+            let dispatch = Task {
+                await model.changeChapterAutomatically(to: next, fromChapter: original.content.chapterIndex,
+                    sessionID: original.id, restorationID: original.restorationID, turnID: turn, owner: owner)
+            }
+            if let flushing {
+                await fulfillment(of: [flushing], timeout: 2)
+                guard service.flushCount == 1, model.chapterLoading else {
+                    service.holdFlushes = false
+                    service.releasePendingRequests()
+                    await dispatch.value
+                    XCTFail("The valid intent did not reach its one suspended flush")
+                    continue
+                }
+                XCTAssertTrue(model.chapterLoading)
+                // A duplicate callback while the first request is suspended
+                // cannot issue a second request or retire the pending turn.
+                await model.changeChapterAutomatically(to: next, fromChapter: original.content.chapterIndex,
+                    sessionID: original.id, restorationID: original.restorationID, turnID: turn, owner: owner)
+                XCTAssertTrue(owner.isWaitingForChapter(next, turn: turn))
+                service.completeFlush(0)
+            }
+            await dispatch.value
+            if boundary == .valid {
+                XCTAssertEqual(service.contentReadCount, readsBeforeDispatch + 1)
+                XCTAssertEqual(model.reader?.content.chapterIndex, next)
+                XCTAssertNotEqual(model.reader?.restorationID, original.restorationID)
+                XCTAssertTrue(owner.isWaitingForChapter(next, turn: turn), "Success may replace restorationID without retiring its turn")
+                await model.changeChapterAutomatically(to: next, fromChapter: original.content.chapterIndex,
+                    sessionID: original.id, restorationID: original.restorationID, turnID: turn, owner: owner)
+                XCTAssertEqual(service.contentReadCount, readsBeforeDispatch + 1, "The completed intent cannot request again")
+                owner.layoutReady(chapterIndex: next)
+                XCTAssertEqual(owner.phase, .running)
+                XCTAssertFalse(owner.isWaitingForChapter(next, turn: turn))
+            } else {
+                XCTAssertEqual(service.contentReadCount, readsBeforeDispatch, "Rejected boundary: \(boundary)")
+                XCTAssertEqual(model.reader?.id, liveSession?.id)
+                XCTAssertEqual(model.reader?.content, liveSession?.content)
+                XCTAssertEqual(model.reader?.scalarOffset, liveSession?.scalarOffset)
+                XCTAssertEqual(model.reader?.restorationID, liveSession?.restorationID)
+                XCTAssertEqual(owner.phase, phaseBeforeDispatch, "A retired intent cannot pause the successor owner")
+            }
+        }
+    }
+
     func testScopedOnlineJumpClassifiesCoreFailuresAndPreservesBodyAndPosition() async throws {
         // These protocol replies exercise the production model only. They do
         // not establish real source, transport, or OS-offline behavior.

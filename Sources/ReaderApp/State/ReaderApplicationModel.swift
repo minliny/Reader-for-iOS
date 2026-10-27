@@ -399,6 +399,22 @@ final class ReaderApplicationModel: ObservableObject {
         return detail
     }
 
+    /// A native chapter-end callback can outlive the page turn before its Task
+    /// first runs. Validate its original owner and position before dispatch.
+    func changeChapterAutomatically(to index: UInt32, fromChapter chapterIndex: UInt32,
+                                    sessionID: UUID, restorationID: UUID, turnID: UUID,
+                                    owner: ReaderAutoPageOwner) async {
+        guard owner.isWaitingForChapter(index, turn: turnID),
+              let current = reader, current.id == sessionID, current.restorationID == restorationID,
+              current.content.chapterIndex == chapterIndex, foreground, selection == nil,
+              !chapterLoading, !closingReader, !sourceSwitchFrozen else { return }
+        await changeChapter(to: index)
+        // Success replaces restorationID. Completion still belongs only to
+        // this session's pending turn, never a resumed or replacement turn.
+        guard reader?.id == sessionID, owner.isWaitingForChapter(index, turn: turnID) else { return }
+        if reader?.content.chapterIndex != index { owner.pause() }
+    }
+
     func changeChapter(to index: UInt32, landingAtEnd: Bool = false) async {
         guard let current = reader, !chapterLoading, !closingReader, !sourceSwitchFrozen,
               current.chapters.contains(where: { $0.index == index }), index != current.content.chapterIndex else { return }

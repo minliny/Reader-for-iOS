@@ -870,11 +870,12 @@ struct ReaderReadingView: View {
             guard let position = session.chapters.firstIndex(where: { $0.index == session.content.chapterIndex }),
                   session.chapters.indices.contains(position + 1) else { automaticPage.stop(); return }
             let next = session.chapters[position + 1].index
-            automaticPage.waitingForChapter(next, turn: id)
+            let originalSession = session
+            let owner = automaticPage
+            owner.waitingForChapter(next, turn: id)
             Task {
-                await model.changeChapter(to: next)
-                guard model.reader?.id == session.id, automaticPage.turnID == id else { return }
-                if model.reader?.content.chapterIndex != next { automaticPage.pause() }
+                await model.changeChapterAutomatically(to: next, fromChapter: originalSession.content.chapterIndex,
+                    sessionID: originalSession.id, restorationID: originalSession.restorationID, turnID: id, owner: owner)
             }
         }
     }
@@ -939,7 +940,7 @@ struct ReaderReadingView: View {
         // The driver needs a positive numeric axis even when no drawable lane
         // remains. Rendering hides the dock for a zero-height budget.
         motion.configure(quickHeight: max(1, layout.quickHeight), fullHeight: max(1, layout.fullHeight),
-                         allowsExpansion: module != .home)
+                         allowsExpansion: module != .home, reduceMotion: effectiveReduceMotion)
     }
 
     private func controlViewport(size: CGSize, safe: EdgeInsets) -> ReaderControlViewportLayout {

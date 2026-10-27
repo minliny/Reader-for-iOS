@@ -224,6 +224,7 @@ final class ReaderControlMotionDriverTests: XCTestCase {
         let before = driver.spatialY
         driver.configure(quickHeight: 350, fullHeight: 700)
         XCTAssertEqual(driver.spatialY, before, accuracy: 1e-9)
+        XCTAssertTrue(driver.isAnimating, "Default geometry compensation retains the existing clock")
         time.advance(driver, to: 0.5)
         XCTAssertEqual(driver.spatialY, -700, accuracy: 1e-9)
         XCTAssertEqual(driver.offsetY, 0, accuracy: 1e-9)
@@ -239,6 +240,51 @@ final class ReaderControlMotionDriverTests: XCTestCase {
         XCTAssertEqual(driver.sample, stopped)
         XCTAssertFalse(driver.isDragging)
         XCTAssertFalse(driver.isAnimating)
+
+        for reduceMotion in [true, false] {
+            let (configured, clock) = makeDriver()
+            configured.move(to: .quick, reduceMotion: true)
+            XCTAssertFalse(configured.isAnimating)
+            let originalY = configured.spatialY
+            configured.configure(quickHeight: 350, fullHeight: 700, reduceMotion: reduceMotion)
+            XCTAssertEqual(configured.target, .quick)
+            XCTAssertEqual(configured.expansion, 0, accuracy: 1e-9)
+            XCTAssertFalse(configured.isDragging)
+            XCTAssertEqual(configured.isAnimating, !reduceMotion)
+            XCTAssertEqual(configured.spatialY, reduceMotion ? -350 : originalY, accuracy: 1e-9,
+                           "Reduce Motion settles the new geometry; default motion preserves the starting sample")
+            let settled = configured.sample
+            clock.advance(configured, to: 10)
+            XCTAssertEqual(configured.spatialY, -350, accuracy: 1e-9)
+            XCTAssertEqual(configured.offsetY, 0, accuracy: 1e-9)
+            XCTAssertFalse(configured.isAnimating)
+            if reduceMotion { XCTAssertEqual(configured.sample, settled, "No automatic clock may change the settled reduced-motion sample") }
+
+            configured.move(to: .full, reduceMotion: true)
+            configured.configure(quickHeight: 360, fullHeight: 720, reduceMotion: true)
+            XCTAssertEqual(configured.spatialY, -720, accuracy: 1e-9)
+            XCTAssertEqual(configured.expansion, 1, accuracy: 1e-9)
+            XCTAssertFalse(configured.isAnimating)
+        }
+
+        for reduceMotion in [true, false] {
+            let (held, _) = makeDriver()
+            held.move(to: .quick, reduceMotion: true)
+            held.dragChanged(translationY: -80, time: 0)
+            held.dragChanged(translationY: -120, time: 0.1)
+            let fingerY = held.spatialY
+            held.configure(quickHeight: 350, fullHeight: 700, reduceMotion: reduceMotion)
+            XCTAssertTrue(held.isDragging)
+            XCTAssertFalse(held.isAnimating)
+            XCTAssertEqual(held.spatialY, fingerY, accuracy: 1e-9, "A held pointer must retain its actual sample across geometry changes")
+            held.dragChanged(translationY: -130, time: 0.2)
+            XCTAssertEqual(held.spatialY, fingerY - 10, accuracy: 1e-9, "Rebased geometry still follows the next exact finger displacement")
+            XCTAssertTrue(held.isDragging)
+            XCTAssertFalse(held.isAnimating)
+            held.cancelDrag(reduceMotion: true)
+            XCTAssertFalse(held.isDragging)
+            XCTAssertFalse(held.isAnimating)
+        }
     }
 
     func testTeardownStopDoesNotPublishOrAdvanceAndRevokesTheClock() async {

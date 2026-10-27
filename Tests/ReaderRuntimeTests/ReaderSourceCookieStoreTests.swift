@@ -36,6 +36,22 @@ final class ReaderSourceCookieStoreTests: XCTestCase {
 
     private enum ProbeError: Error { case load, save }
 
+    /// Persistence must use Core's exact key semantics too; a String-keyed
+    /// double would hide or reproduce the production partitioning error.
+    private final class ExactSourcePersistence {
+        var records: [Data: [HTTPCookie]] = [:]
+        var loads: [Data] = []
+        func makeStore() -> ReaderSourceCookieStore {
+            ReaderSourceCookieStore(load: { sourceID in
+                let key = Data(sourceID.utf8)
+                self.loads.append(key)
+                return self.records[key] ?? []
+            }, save: { sourceID, cookies in
+                self.records[Data(sourceID.utf8)] = cookies
+            })
+        }
+    }
+
     private func cookie(_ name: String, _ value: String, httpOnly: Bool = true) throws -> HTTPCookie {
         let url = try XCTUnwrap(URL(string: "https://reader-cookie.invalid/"))
         return try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields:
@@ -44,6 +60,83 @@ final class ReaderSourceCookieStoreTests: XCTestCase {
 
     private func values(_ cookies: [HTTPCookie]) -> [String: String] {
         Dictionary(cookies.map { ($0.name, $0.value) }, uniquingKeysWith: { _, latest in latest })
+    }
+
+    /// Production CookieStore/Foundation operations only: login snapshots,
+    /// private HTTP candidates and response commits, logout deltas and fresh
+    /// in-memory owners. No actual HTTP, Keychain or account login is exercised.
+    func testExactUTF8SourcePartitionsKeepLoginHTTPCommitClearAndColdRestoreIndependent() throws {
+        let sourceA = "cookie-source:caf\u{00e9}"
+        let sourceB = "cookie-source:cafe\u{0301}"
+        let keyA = Data(sourceA.utf8), keyB = Data(sourceB.utf8)
+        XCTAssertEqual(sourceA, sourceB)
+        XCTAssertNotEqual(keyA, keyB, "These are distinct Core/Keychain source identities")
+        let url = try XCTUnwrap(URL(string: "https://reader-cookie.invalid/"))
+        let persistence = ExactSourcePersistence()
+        let store = persistence.makeStore()
+        let originalA = try store.snapshot(sourceID: sourceA)
+        let originalB = try store.snapshot(sourceID: sourceB)
+        XCTAssertTrue(originalA.isEmpty && originalB.isEmpty)
+        XCTAssertEqual(persistence.loads, [keyA, keyB], "Each exact source loads its own durable partition")
+
+        // completeLogin uses this same original snapshot / replacement / commit
+        // chain. Neither login may publish into the other source's native jar.
+        let loginA = try store.begin(sourceID: sourceA, originalCookies: originalA)
+        loginA.replaceCookies([try cookie("session", "a-login")])
+        try store.complete(loginA, result: .success(()))
+        XCTAssertTrue(try store.snapshot(sourceID: sourceB).isEmpty)
+        let loginB = try store.begin(sourceID: sourceB, originalCookies: originalB)
+        loginB.replaceCookies([try cookie("session", "b-login")])
+        try store.complete(loginB, result: .success(()))
+        XCTAssertEqual(values(try store.snapshot(sourceID: sourceA)), ["session": "a-login"])
+        XCTAssertEqual(values(persistence.records[keyA] ?? []), ["session": "a-login"])
+        XCTAssertEqual(values(persistence.records[keyB] ?? []), ["session": "b-login"])
+
+        // Real HTTP begins private candidates this way. Native URL matching
+        // uses the same host/name/path, so only the source owner separates them.
+        let httpA = try store.begin(sourceID: sourceA)
+        let httpB = try store.begin(sourceID: sourceB)
+        XCTAssertFalse(httpA.jar === httpB.jar)
+        XCTAssertEqual(values(httpA.jar.cookies(for: url) ?? []), ["session": "a-login"])
+        XCTAssertEqual(values(httpB.jar.cookies(for: url) ?? []), ["session": "b-login"])
+        httpA.jar.setCookies([try cookie("session", "a-http")], for: url, mainDocumentURL: url)
+        httpB.jar.setCookies([try cookie("session", "b-http")], for: url, mainDocumentURL: url)
+        XCTAssertEqual(try store.complete(httpB, result: .success(200)), 200)
+        XCTAssertEqual(values(try store.snapshot(sourceID: sourceA)), ["session": "a-login"],
+            "B's response commit cannot consume A's still-private candidate")
+        XCTAssertEqual(values(persistence.records[keyA] ?? []), ["session": "a-login"])
+        XCTAssertEqual(try store.complete(httpA, result: .success(200)), 200)
+        XCTAssertEqual(values(try store.snapshot(sourceID: sourceB)), ["session": "b-http"])
+        XCTAssertEqual(values(persistence.records[keyB] ?? []), ["session": "b-http"])
+
+        // A new owner reloads only these persisted exact-source records. It
+        // cannot rely on the first instance's in-memory jars or registry.
+        let cold = persistence.makeStore()
+        XCTAssertEqual(values(try cold.cookies(sourceID: sourceA, for: url)), ["session": "a-http"])
+        XCTAssertEqual(values(try cold.cookies(sourceID: sourceB, for: url)), ["session": "b-http"])
+        let logoutB = try cold.begin(sourceID: sourceB, originalCookies: cold.snapshot(sourceID: sourceB))
+        logoutB.replaceCookies([])
+        try cold.complete(logoutB, result: .success(()))
+        XCTAssertEqual(values(try cold.snapshot(sourceID: sourceA)), ["session": "a-http"])
+        XCTAssertTrue(try cold.snapshot(sourceID: sourceB).isEmpty)
+        XCTAssertEqual(values(persistence.records[keyA] ?? []), ["session": "a-http"])
+        XCTAssertTrue(try XCTUnwrap(persistence.records[keyB]).isEmpty)
+
+        let afterBLogout = persistence.makeStore()
+        XCTAssertEqual(values(try afterBLogout.snapshot(sourceID: sourceA)), ["session": "a-http"])
+        XCTAssertTrue(try afterBLogout.snapshot(sourceID: sourceB).isEmpty)
+        let reloginB = try afterBLogout.begin(sourceID: sourceB)
+        reloginB.replaceCookies([try cookie("session", "b-relogin")])
+        try afterBLogout.complete(reloginB, result: .success(()))
+        let logoutA = try afterBLogout.begin(sourceID: sourceA, originalCookies: afterBLogout.snapshot(sourceID: sourceA))
+        logoutA.replaceCookies([])
+        try afterBLogout.complete(logoutA, result: .success(()))
+        XCTAssertEqual(values(try afterBLogout.snapshot(sourceID: sourceB)), ["session": "b-relogin"])
+        XCTAssertTrue(try afterBLogout.snapshot(sourceID: sourceA).isEmpty)
+        let afterALogout = persistence.makeStore()
+        XCTAssertTrue(try afterALogout.cookies(sourceID: sourceA, for: url).isEmpty)
+        XCTAssertEqual(values(try afterALogout.cookies(sourceID: sourceB, for: url)), ["session": "b-relogin"])
+        XCTAssertEqual(Set(persistence.records.keys), Set([keyA, keyB]))
     }
 
     func testExplicitCookieValueUpdatePreservesHTTPOnlyAndReportsNativeDowngradeRejection() throws {

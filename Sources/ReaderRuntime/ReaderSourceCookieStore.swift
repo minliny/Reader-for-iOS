@@ -67,7 +67,9 @@ final class ReaderSourceCookieStore: @unchecked Sendable {
     private let lock = NSLock()
     private let load: Load
     private let save: Save
-    private var jars: [String: HTTPCookieStorage] = [:]
+    // Core source identity and Keychain accounts preserve original UTF-8.
+    // String keys would merge canonically equivalent, byte-distinct sources.
+    private var jars: [Data: HTTPCookieStorage] = [:]
 
     private final class WeakStore {
         weak var value: ReaderSourceCookieStore?
@@ -96,11 +98,12 @@ final class ReaderSourceCookieStore: @unchecked Sendable {
     }
 
     private func canonicalJar(sourceID: String) throws -> HTTPCookieStorage {
-        if let jar = jars[sourceID] { return jar }
+        let sourceKey = Data(sourceID.utf8)
+        if let jar = jars[sourceKey] { return jar }
         // A failed load must not become a cached empty jar and later overwrite
         // credentials that were merely unavailable while Keychain was locked.
         let jar = Self.makeJar(try load(sourceID))
-        jars[sourceID] = jar
+        jars[sourceKey] = jar
         return jar
     }
 
@@ -142,7 +145,7 @@ final class ReaderSourceCookieStore: @unchecked Sendable {
             try save(operation.sourceID, cookies)
             // Readers and all other writers use this same lock. No canonical
             // mutable reference escapes, and a failed save publishes nothing.
-            jars[operation.sourceID] = candidate
+            jars[Data(operation.sourceID.utf8)] = candidate
         }
         return try result.get()
     }

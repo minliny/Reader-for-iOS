@@ -56,7 +56,8 @@ final class ReaderControlMotionDriver: ObservableObject {
 
     /// Heights are WHOLE dock heights: the regular 330pt composition already
     /// includes module navigation and its gap. Do not add another 80 + 14.
-    func configure(quickHeight: CGFloat, fullHeight: CGFloat, allowsExpansion: Bool = true) {
+    func configure(quickHeight: CGFloat, fullHeight: CGFloat, allowsExpansion: Bool = true,
+                   reduceMotion: Bool = false) {
         guard quickHeight.isFinite, fullHeight.isFinite, quickHeight > 0,
               fullHeight >= quickHeight else { return }
         let geometryChanged = quickHeight != self.quickHeight || fullHeight != self.fullHeight
@@ -69,6 +70,12 @@ final class ReaderControlMotionDriver: ObservableObject {
         guard isPresented else { return }
         var frame = currentFrame
         frame.compensationY += oldY - y(frame)
+        // Geometry compensation is automatic motion too. A held pointer still
+        // takes the existing exact rebase below without jumping endpoints.
+        if reduceMotion, drag == nil {
+            settle(at: target, frame: endpoint(target))
+            return
+        }
         publish(frame)
         if var held = drag {
             // Rebase the finger at the actual sample and erase old-layout
