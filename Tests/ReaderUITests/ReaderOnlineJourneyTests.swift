@@ -3245,25 +3245,41 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         keepScreenshot(app, name: "subscription-review-original-raw-editor-fields")
         let review = try button("subscription-review-draft")
         try reveal(review, in: try editorScroll()); try tap(review)
-        let comparison = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "subscription-draft-comparison"))
+        let editor = try editorScroll()
+        // The comparison VStack's identifier is inherited by its AX children,
+        // including the confirmation button. Bind real labels/types to this editor.
+        let heading = editor.staticTexts.matching(NSPredicate(format: "label == %@", "当前订阅与保留草稿"))
+        let identifierRows = editor.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "订阅编号："))
+        let confirmButtons = editor.buttons.matching(NSPredicate(format: "label == %@", "确认核对，保留草稿"))
         try wait("Render the real local Core subscription/draft comparison without a provider request") {
-            comparison.count > 0 && app.buttons["subscription-confirm-draft-review"].exists
+            heading.count == 1 && identifierRows.count == 1 && confirmButtons.count == 1
         }
-        try require(app.staticTexts["订阅编号：\(original.id)"].exists && !app.staticTexts["未找到原订阅"].exists,
+        let displayedID = String(identifierRows.element.label.dropFirst("订阅编号：".count))
+        let numberFormatter = NumberFormatter()
+        numberFormatter.locale = .current
+        numberFormatter.numberStyle = .decimal
+        numberFormatter.maximumFractionDigits = 0
+        numberFormatter.generatesDecimalNumbers = true
+        numberFormatter.isLenient = false
+        let originalNumber = NSNumber(value: original.id)
+        // Require the entire locale-formatted value as well as its exact integer
+        // meaning; a numeric prefix or another subscription cannot pass.
+        try require(numberFormatter.number(from: displayedID)?.decimalValue == originalNumber.decimalValue
+            && numberFormatter.string(from: originalNumber) == displayedID
+            && !editor.staticTexts["未找到原订阅"].exists,
             "The comparison must belong to the same actual saved subscription")
         let pairs = [(original.name, expected.name), (original.url, expected.url),
             (original.type == 0 ? "书源包" : "现有包类型 \(original.type)", expected.type == 0 ? "书源包" : "现有包类型 \(expected.type)"),
             (String(original.customOrder), expected.order), (original.autoUpdate ? "允许" : "关闭", expected.autoUpdate ? "允许" : "关闭")]
         for pair in pairs {
-            try require(app.staticTexts.matching(NSPredicate(format: "label == %@", "当前：" + pair.0)).count >= 1
-                && app.staticTexts.matching(NSPredicate(format: "label == %@", "草稿：" + pair.1)).count >= 1,
+            try require(editor.staticTexts.matching(NSPredicate(format: "label == %@", "当前：" + pair.0)).count >= 1
+                && editor.staticTexts.matching(NSPredicate(format: "label == %@", "草稿：" + pair.1)).count >= 1,
                 "Every full current/draft field must be shown, without truncating its AX value")
         }
-        let heading = app.staticTexts["当前订阅与保留草稿"]
-        try reveal(heading, in: try editorScroll())
+        try reveal(heading.element, in: editor)
         keepScreenshot(app, name: "subscription-review-actual-current-and-retained-fields")
-        let confirmReview = try button("subscription-confirm-draft-review")
-        try reveal(confirmReview, in: try editorScroll()); try tap(confirmReview)
+        let confirmReview = confirmButtons.element
+        try reveal(confirmReview, in: editor); try tap(confirmReview)
         let alert = app.alerts["使用本次核对的编辑基线？"]
         try wait("The production native baseline confirmation must appear") { alert.exists }
         try require(alert.buttons["确认核对"].exists && alert.buttons["取消"].isHittable
@@ -3273,12 +3289,16 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         let actualAX = XCTAttachment(string: app.debugDescription); actualAX.name = "subscription-review-native-confirmation-actual-AX"
         actualAX.lifetime = .keepAlways; add(actualAX)
         alert.buttons["取消"].tap()
-        try wait("Cancel must return to the same unchanged comparison") { !alert.exists && comparison.count > 0 }
+        try wait("Cancel must return to the same unchanged comparison") {
+            !alert.exists && heading.count == 1 && confirmButtons.count == 1
+        }
         try requireFields()
         try closeEditor(); try requireOriginalRow(); try closeReadHosts()
         app.terminate(); app.launch()
         try openSubscriptions(); try openRetainedDraft()
-        try require(!app.buttons["subscription-confirm-draft-review"].exists,
+        let coldEditor = try editorScroll()
+        try require(coldEditor.staticTexts.matching(NSPredicate(format: "label == %@", "当前订阅与保留草稿")).count == 0
+            && coldEditor.buttons.matching(NSPredicate(format: "label == %@", "确认核对，保留草稿")).count == 0,
             "A cold editor must retain input without reviving the old read comparison")
         keepScreenshot(app, name: "subscription-review-cold-retained-original-fields")
         if createdDraft { try discardOwnedDraft() } else { try closeEditor() }
