@@ -171,7 +171,7 @@ final class ReaderReadCancellationTraceTests: XCTestCase {
             defer { try? FileManager.default.removeItem(at: root) }
             let statusEntered = expectation(description: "Diagnostic status read entered")
             let flushEntered = expectation(description: "Original close flush entered")
-            let busyReturned = expectation(description: "Competing close kept the original flush owner")
+            let busyReturned = concurrent ? expectation(description: "Competing close kept the original flush owner") : nil
             let capture = CancellationTraceCapture()
             let client = SourceExecutionTraceCoreBoundary(holdStatusCount: 1, holdFlush: concurrent,
                 onStatus: { _ in statusEntered.fulfill() }, onFlush: { flushEntered.fulfill() })
@@ -183,11 +183,11 @@ final class ReaderReadCancellationTraceTests: XCTestCase {
             await fulfillment(of: [statusEntered], timeout: 2)
             let first = Task { () -> Bool in
                 do { try await service.close(); return true }
-                catch ReaderLibraryError.busy { if concurrent { busyReturned.fulfill() }; return false }
+                catch ReaderLibraryError.busy { busyReturned?.fulfill(); return false }
                 catch { XCTFail("Unexpected close failure"); return false }
             }
             var second: Task<Bool, Never>?
-            if concurrent {
+            if let busyReturned {
                 second = Task {
                     do { try await service.close(); return true }
                     catch ReaderLibraryError.busy { busyReturned.fulfill(); return false }
@@ -204,6 +204,8 @@ final class ReaderReadCancellationTraceTests: XCTestCase {
                 client.releaseStatusResponses() // A late positive status cannot revive the retired observer.
                 XCTAssertEqual(client.polls, polls)
                 client.releaseFlushResponses()
+            } else {
+                await fulfillment(of: [flushEntered], timeout: 2)
             }
             let firstClosed = await first.value
             if let second {
