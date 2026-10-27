@@ -21,16 +21,17 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
                  "chapterIndex": 0, "chapterOffset": offset, "matchLength": 1, "snippetStart": offset,
                  "chapterTitle": "Ownership boundary", "snippet": "Controlled result \(offset)"]
             }
-            return try JSONDecoder().decode(ReaderContentSearchPage.self,
-                from: JSONSerialization.data(withJSONObject: ["results": rows, "hasMore": hasMore]))
+            var data: [String: Any] = ["results": rows, "hasMore": hasMore]
+            if hasMore { data["nextCursor"] = "controlled-retry-cursor:1" }
+            return try JSONDecoder().decode(ReaderContentSearchPage.self, from: JSONSerialization.data(withJSONObject: data))
         }
         let first = try page([1, 2], hasMore: true), next = try page([3, 4], hasMore: false)
-        var calls: [(bookID: String, keyword: String, limit: UInt32, offset: UInt32)] = []
+        var calls: [(bookID: String, keyword: String, limit: UInt32, cursor: String?)] = []
         var failNext = false
-        let search: ReaderTextToolsState.Search = { book, keyword, limit, offset in
-            calls.append((book.id, keyword, limit, offset))
+        let search: ReaderTextToolsState.Search = { book, keyword, limit, cursor in
+            calls.append((book.id, keyword, limit, cursor))
             if failNext { failNext = false; throw BoundaryError.missingActualResult }
-            return offset == 0 ? first : next
+            return cursor == nil ? first : next
         }
         let state = ReaderTextToolsState()
         defer { state.cancelSearch() }
@@ -44,22 +45,23 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
         failNext = true
         state.startSearch(for: book, more: false, search: search)
         await (try XCTUnwrap(state.searchTask)).value
-        XCTAssertEqual(state.failedSearchRequest?.offset, 0)
+        XCTAssertNil(state.failedSearchRequest?.cursor)
         XCTAssertEqual(state.failedSearchRequest?.append, false)
         XCTAssertEqual(state.results, first.results)
         state.query = "New unsubmitted user input"
         state.retrySearch(for: book, search: search)
         await (try XCTUnwrap(state.searchTask)).value
         XCTAssertEqual(calls.last?.keyword, "Original keyword")
-        XCTAssertEqual(calls.last?.offset, 0); XCTAssertEqual(calls.last?.limit, 100)
+        XCTAssertNil(calls.last?.cursor); XCTAssertEqual(calls.last?.limit, 100)
         XCTAssertEqual(state.results, first.results); XCTAssertNil(state.searchFailure)
         XCTAssertEqual(state.query, "New unsubmitted user input")
 
-        // A failed More request retains its original offset and append intent.
+        // The historical selector is retained; More now owns the original
+        // version-bound cursor rather than recomputing a legacy offset.
         failNext = true
         state.startSearch(for: book, more: true, search: search)
         await (try XCTUnwrap(state.searchTask)).value
-        XCTAssertEqual(state.failedSearchRequest?.offset, 2)
+        XCTAssertEqual(state.failedSearchRequest?.cursor, "controlled-retry-cursor:1")
         XCTAssertEqual(state.failedSearchRequest?.append, true)
         let originalCalls = calls.count
         let other = ReaderBook(bookId: "other-search-owner", title: "Other owner")
@@ -68,10 +70,199 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
         state.retrySearch(for: book, search: search)
         await (try XCTUnwrap(state.searchTask)).value
         XCTAssertEqual(calls.last?.bookID, book.id); XCTAssertEqual(calls.last?.keyword, "Original keyword")
-        XCTAssertEqual(calls.last?.offset, 2)
+        XCTAssertEqual(calls.last?.cursor, "controlled-retry-cursor:1")
         XCTAssertEqual(state.results, first.results + next.results)
         XCTAssertFalse(state.hasMore); XCTAssertNil(state.failedSearchRequest)
         XCTAssertEqual(calls.count, 5)
+    }
+
+    /// Controlled protocol DTOs exercise the production state/service boundary.
+    /// No novel, source definition, body, network or actual-Core stale result is fabricated.
+    func testCursorSearchUsesExactSessionAndRetiresStaleInputAndReaderGenerations() async throws {
+        let book = ReaderBook(sourceId: "caf\u{e9}", bookId: "controlled-scope", title: "Protocol ownership")
+        let other = ReaderBook(sourceId: "cafe\u{301}", bookId: book.bookId, title: book.title)
+        XCTAssertEqual(book.sourceId, other.sourceId, "Swift canonical equivalence is not Core key identity")
+        XCTAssertNotEqual(Data(book.sourceId.utf8), Data(other.sourceId.utf8))
+        let a1 = String(repeating: "a", count: 32) + ":1", a2 = String(repeating: "a", count: 32) + ":2"
+        let b1 = String(repeating: "b", count: 32) + ":1", late = String(repeating: "c", count: 32) + ":1"
+        let d1 = String(repeating: "d", count: 32) + ":1"
+        func data(_ book: ReaderBook, _ offset: UInt64, cursor: String?) -> [String: Any] {
+            var value: [String: Any] = ["results": [["sourceId": book.sourceId, "bookId": book.bookId,
+                "bookName": book.title, "chapterIndex": 0, "chapterOffset": offset, "matchLength": 1,
+                "snippetStart": offset, "chapterTitle": "Protocol DTO", "snippet": "Controlled result",
+                "positionScope": ["sourceId": book.sourceId, "bookId": book.bookId, "chapterIndex": 0,
+                    "bodyVersion": "dto-body", "processingVersion": "dto-processing"]]], "hasMore": cursor != nil]
+            if let cursor { value["nextCursor"] = cursor }
+            return value
+        }
+        let boundary = CursorSearchCoreBoundary()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderCursorOwnership-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"),
+            client: boundary, timing: .init(now: { ProcessInfo.processInfo.systemUptime }, suspend: { await Task.yield() }))
+        let state = ReaderTextToolsState()
+        let latePage = try JSONDecoder().decode(ReaderContentSearchPage.self, from: JSONSerialization.data(withJSONObject: data(book, 99, cursor: late)))
+        var held: CheckedContinuation<ReaderContentSearchPage, Never>?
+        var pending: Task<Void, Never>?
+        defer { boundary.releaseAllCloses(); held?.resume(returning: latePage); pending?.cancel(); state.retireSearch() }
+        do {
+            state.query = "scope-keyword"
+            boundary.enqueue(data(book, 1, cursor: a1))
+            state.startSearch(for: book, using: service, more: false)
+            await (try XCTUnwrap(state.searchTask)).value
+            let first = state.results
+            var call = try XCTUnwrap(boundary.searchCalls.last).parameters()
+            XCTAssertEqual(call["useCursor"] as? Bool, true)
+            XCTAssertNil(call["cursor"]); XCTAssertNil(call["offset"])
+            XCTAssertEqual(state.nextSearchCursor, a1)
+
+            boundary.enqueueFailure(reason: "CONTROLLED_TRANSIENT_FAILURE")
+            state.startSearch(for: book, using: service, more: true)
+            await (try XCTUnwrap(state.searchTask)).value
+            XCTAssertEqual(state.failedSearchRequest?.cursor, a1)
+            XCTAssertEqual(state.results, first)
+            boundary.enqueue(data(book, 2, cursor: a2))
+            state.retrySearch(for: book, using: service)
+            await (try XCTUnwrap(state.searchTask)).value
+            call = try XCTUnwrap(boundary.searchCalls.last).parameters()
+            XCTAssertEqual(call["cursor"] as? String, a1)
+            XCTAssertNil(call["offset"]); XCTAssertNil(call["useCursor"])
+            XCTAssertEqual(state.results.count, 2); XCTAssertEqual(state.nextSearchCursor, a2)
+
+            let confirmed = state.results
+            boundary.enqueueFailure(reason: "CONTENT_SEARCH_STALE")
+            state.startSearch(for: book, using: service, more: true)
+            await (try XCTUnwrap(state.searchTask)).value
+            await state.searchRetirementTask?.value
+            XCTAssertEqual(state.results, confirmed)
+            XCTAssertTrue(state.searchRequiresRestart); XCTAssertFalse(state.hasMore)
+            XCTAssertNil(state.nextSearchCursor); XCTAssertNil(state.failedSearchRequest)
+            XCTAssertTrue(try boundary.closedCalls.contains { try $0.parameters()["cursor"] as? String == a2 })
+            let beforeRetry = boundary.searchCalls.count
+            state.retrySearch(for: book, using: service)
+            XCTAssertEqual(boundary.searchCalls.count, beforeRetry, "a stale cursor is never replayed as More")
+
+            boundary.enqueue(data(book, 10, cursor: b1))
+            state.startSearch(for: book, using: service, more: false)
+            await (try XCTUnwrap(state.searchTask)).value
+            boundary.enqueue(data(book, 11, cursor: nil))
+            state.startSearch(for: book, using: service, more: true)
+            await (try XCTUnwrap(state.searchTask)).value
+            await state.searchRetirementTask?.value
+            XCTAssertFalse(state.hasMore); XCTAssertNil(state.nextSearchCursor)
+            XCTAssertTrue(try boundary.closedCalls.contains { try $0.parameters()["cursor"] as? String == b1 },
+                "terminal continuation closes its input token even when nextCursor is absent")
+
+            let closer: ReaderTextToolsState.CloseSearch = { book, keyword, cursor in
+                try await service.closeContentSearch(for: book, keyword: keyword, cursor: cursor)
+            }
+            state.startSearch(for: book, more: false, close: closer) { _, _, _, _ in
+                await withCheckedContinuation { held = $0 }
+            }
+            pending = try XCTUnwrap(state.searchTask)
+            await waitUntil { held != nil }
+            state.query = "changed input"; state.query = "scope-keyword"
+            // A separate exact UTF-8 source identity becomes the reader owner.
+            boundary.enqueue(data(other, 20, cursor: d1))
+            state.startSearch(for: other, using: service, more: false)
+            await (try XCTUnwrap(state.searchTask)).value
+            let newer = state.results
+            let reply = try XCTUnwrap(held); held = nil; reply.resume(returning: latePage)
+            await pending?.value
+            await state.searchRetirementTask?.value
+            XCTAssertEqual(state.results, newer); XCTAssertEqual(state.nextSearchCursor, d1)
+            XCTAssertFalse(state.searchRequiresRestart)
+            XCTAssertTrue(try boundary.closedCalls.contains { try $0.parameters()["cursor"] as? String == late })
+            XCTAssertFalse(try boundary.closedCalls.contains { try $0.parameters()["cursor"] as? String == d1 },
+                "late old cleanup must not read and close the mutable new token")
+            call = try XCTUnwrap(boundary.searchCalls.last).parameters()
+            XCTAssertEqual(Data((try XCTUnwrap(call["sourceId"] as? String)).utf8), Data(other.sourceId.utf8))
+            state.retireSearch() // Same boundary as the production search panel disappearing.
+            await state.searchRetirementTask?.value
+            XCTAssertEqual(state.results, newer)
+            XCTAssertTrue(try boundary.closedCalls.contains { try $0.parameters()["cursor"] as? String == d1 })
+
+            // Stop can win the actor-hop after a successful initial read has
+            // produced a cursor but before MainActor accepts the page.
+            let e1 = String(repeating: "e", count: 32) + ":1"
+            let stoppedInitial = try JSONDecoder().decode(ReaderContentSearchPage.self,
+                from: JSONSerialization.data(withJSONObject: data(book, 31, cursor: e1)))
+            state.startSearch(for: book, more: false, close: closer) { _, _, _, _ in
+                await withCheckedContinuation { held = $0 }
+            }
+            pending = try XCTUnwrap(state.searchTask)
+            await waitUntil { held != nil }
+            let beforeStop = state.results
+            state.cancelSearch() // Stop does not mark the request lease retired.
+            let initialReply = try XCTUnwrap(held); held = nil; initialReply.resume(returning: stoppedInitial)
+            await pending?.value; await state.searchRetirementTask?.value
+            XCTAssertEqual(state.results, beforeStop); XCTAssertNil(state.nextSearchCursor)
+            XCTAssertTrue(try boundary.closedCalls.contains { try $0.parameters()["cursor"] as? String == e1 },
+                "a now-known unaccepted initial token is closed even after ordinary Stop")
+
+            let f1 = String(repeating: "f", count: 32) + ":1", f2 = String(repeating: "f", count: 32) + ":2"
+            boundary.enqueue(data(book, 40, cursor: f1))
+            state.startSearch(for: book, using: service, more: false)
+            await (try XCTUnwrap(state.searchTask)).value
+            let retainedMore = state.results
+            let stoppedMore = try JSONDecoder().decode(ReaderContentSearchPage.self,
+                from: JSONSerialization.data(withJSONObject: data(book, 41, cursor: f2)))
+            state.startSearch(for: book, more: true, close: closer) { _, _, _, cursor in
+                XCTAssertEqual(cursor, f1)
+                return await withCheckedContinuation { held = $0 }
+            }
+            pending = try XCTUnwrap(state.searchTask)
+            await waitUntil { held != nil }
+            state.cancelSearch()
+            let moreReply = try XCTUnwrap(held); held = nil; moreReply.resume(returning: stoppedMore)
+            await pending?.value; await state.searchRetirementTask?.value
+            XCTAssertEqual(state.results, retainedMore); XCTAssertEqual(state.nextSearchCursor, f1)
+            XCTAssertFalse(try boundary.closedCalls.contains { try [f1, f2].contains($0.parameters()["cursor"] as? String ?? "") },
+                "More Stop preserves that session for its original input-token receipt retry")
+            boundary.enqueue(data(book, 41, cursor: f2))
+            state.startSearch(for: book, using: service, more: true)
+            await (try XCTUnwrap(state.searchTask)).value; await state.searchRetirementTask?.value
+            XCTAssertEqual(try boundary.searchCalls.last?.parameters()["cursor"] as? String, f1)
+            XCTAssertEqual(state.results.count, retainedMore.count + 1)
+            XCTAssertEqual(state.nextSearchCursor, f2, "Exact input-token retry receives its original page once")
+
+            let g1 = String(repeating: "1", count: 32) + ":1", h1 = String(repeating: "2", count: 32) + ":1"
+            boundary.enqueue(data(book, 50, cursor: g1))
+            state.startSearch(for: book, using: service, more: false)
+            await (try XCTUnwrap(state.searchTask)).value
+            boundary.holdClose(g1)
+            let beforeReplacement = boundary.searchCalls.count
+            state.query = "replacement-query"
+            boundary.enqueue(data(book, 60, cursor: h1))
+            state.startSearch(for: book, using: service, more: false)
+            let waitingInitial = try XCTUnwrap(state.searchTask)
+            await waitUntil { (try? boundary.closedCalls.contains { try $0.parameters()["cursor"] as? String == g1 }) == true }
+            XCTAssertEqual(boundary.searchCalls.count, beforeReplacement, "known cleanup is awaited before dispatching another initial search")
+            // Cancel/change the waiting request, then release exactly that old
+            // cleanup. Only the newest query may dispatch after the await.
+            state.query = "replacement-query-2"
+            state.startSearch(for: book, using: service, more: false)
+            let latestInitial = try XCTUnwrap(state.searchTask)
+            boundary.releaseClose(g1)
+            await waitingInitial.value; await latestInitial.value
+            XCTAssertEqual(boundary.searchCalls.count, beforeReplacement + 1)
+            XCTAssertEqual(try boundary.searchCalls.last?.parameters()["keyword"] as? String, "replacement-query-2")
+            XCTAssertEqual(state.nextSearchCursor, h1)
+            state.retireSearch(); await state.searchRetirementTask?.value
+
+            boundary.enqueue(data(other, 30, cursor: nil))
+            do {
+                _ = try await service.searchContent(for: book, keyword: "scope-keyword", limit: 100, cursor: nil)
+                XCTFail("canonically equivalent but byte-distinct result identity must be rejected")
+            } catch { XCTAssertEqual(error as? ReaderLibraryError, .invalidResponse("content search session identity")) }
+            XCTAssertTrue(try boundary.searchCalls.allSatisfy { try $0.parameters()["offset"] == nil })
+            try await service.close()
+        } catch {
+            boundary.releaseAllCloses()
+            state.retireSearch(); await state.searchRetirementTask?.value
+            try? await service.close()
+            throw error
+        }
     }
 
     /// Typed action completion is controlled; these are editor/selection
@@ -161,6 +352,37 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
             XCTAssertEqual(importedB.book.bookId, importedA.book.bookId)
             let beforeA = try await libraryA.progress(for: importedA.book)
             let beforeB = try await libraryB.progress(for: importedB.book)
+            // Reuse this actual original and existing private Core to exercise
+            // real cursor pages/receipt replay, with no extra import or corpus.
+            let cursorKeyword = "许元"
+            let cursorFirst = try await libraryA.searchContent(for: importedA.book,
+                keyword: cursorKeyword, limit: 2, cursor: nil)
+            XCTAssertEqual(cursorFirst.results.count, 2)
+            let originalCursor = try XCTUnwrap(cursorFirst.nextCursor)
+            let cursorSecond = try await libraryA.searchContent(for: importedA.book,
+                keyword: cursorKeyword, limit: 2, cursor: originalCursor)
+            let cursorReplay = try await libraryA.searchContent(for: importedA.book,
+                keyword: cursorKeyword, limit: 2, cursor: originalCursor)
+            XCTAssertEqual(cursorSecond, cursorReplay, "The same input token replays the original Core receipt")
+            let cursorHits = cursorFirst.results + cursorSecond.results
+            XCTAssertEqual(cursorHits.count, 4)
+            XCTAssertEqual(Set(cursorHits.map(\.id)).count, 4, "Two actual cursor pages must not repeat a hit")
+            try await libraryA.closeContentSearch(for: importedA.book, keyword: cursorKeyword,
+                cursor: cursorSecond.nextCursor ?? originalCursor)
+            var actualBodies: [UInt32: ReaderChapterContent] = [:]
+            for hit in cursorHits {
+                let index = try XCTUnwrap(UInt32(exactly: hit.chapterIndex))
+                let body: ReaderChapterContent
+                if let retained = actualBodies[index] { body = retained }
+                else {
+                    body = try await libraryA.content(for: importedA.book, chapterIndex: index)
+                    actualBodies[index] = body
+                }
+                let range = try hit.scalarRange(for: importedA.book, content: body)
+                let lower = ReaderTextCoordinates.utf16Offset(in: body.content, scalarOffset: range.lowerBound)
+                let upper = ReaderTextCoordinates.utf16Offset(in: body.content, scalarOffset: range.upperBound)
+                XCTAssertEqual((body.content as NSString).substring(with: NSRange(location: lower, length: upper - lower)), cursorKeyword)
+            }
             // Both keywords already exist in the actual original. All result
             // values below come from the real Core, never a fabricated page.
             let baselineA = try await libraryA.searchContent(for: importedA.book, keyword: "斟酌用词", limit: 100, offset: 0)
@@ -302,4 +524,63 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
         await fulfillment(of: [observed], timeout: 3)
         XCTAssertTrue(predicate())
     }
+}
+
+/// Scripted wire boundary only; no source/parser/position implementation.
+private final class CursorSearchCoreBoundary: ReaderCoreEventClient, @unchecked Sendable {
+    struct Call {
+        let requestID: UInt64
+        let data: Data
+        func parameters() throws -> [String: Any] { try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any]) }
+    }
+    private enum Reply { case data([String: Any]), error(String) }
+    private let lock = NSLock()
+    private var scripts: [Reply] = []
+    private var replies: [UInt64: ReaderCoreEvent] = [:]
+    private var searches: [Call] = []
+    private var closes: [Call] = []
+    private var heldCloseCursors: Set<String> = []
+    private var closeRequests: [UInt64: String] = [:]
+    var searchCalls: [Call] { lock.lock(); defer { lock.unlock() }; return searches }
+    var closedCalls: [Call] { lock.lock(); defer { lock.unlock() }; return closes }
+    func enqueue(_ data: [String: Any]) { lock.lock(); defer { lock.unlock() }; scripts.append(.data(data)) }
+    func enqueueFailure(reason: String) { lock.lock(); defer { lock.unlock() }; scripts.append(.error(reason)) }
+    func holdClose(_ cursor: String) { lock.lock(); defer { lock.unlock() }; heldCloseCursors.insert(cursor) }
+    func releaseClose(_ cursor: String) { lock.lock(); defer { lock.unlock() }; heldCloseCursors.remove(cursor) }
+    func releaseAllCloses() { lock.lock(); defer { lock.unlock() }; heldCloseCursors.removeAll() }
+    @discardableResult
+    func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
+        lock.lock(); defer { lock.unlock() }
+        var envelope: [String: Any] = ["protocolVersion": ReaderCoreClient.protocolVersion, "requestId": requestId, "type": "result"]
+        switch method {
+        case "search.content":
+            let call = Call(requestID: requestId, data: try JSONSerialization.data(withJSONObject: params))
+            if params["closeCursor"] as? Bool == true {
+                closes.append(call); envelope["data"] = ["results": [], "hasMore": false] as [String: Any]
+                closeRequests[requestId] = params["cursor"] as? String
+            } else {
+                searches.append(call)
+                guard !scripts.isEmpty else { throw ReaderLibraryError.invalidResponse("Unscripted search boundary read") }
+                switch scripts.removeFirst() {
+                case .data(let data): envelope["data"] = data
+                case .error(let reason):
+                    envelope["type"] = "error"
+                    envelope["error"] = ["code": "INVALID_PARAMS", "message": "Controlled boundary failure", "retryable": true,
+                        "details": ["reason": reason]] as [String: Any]
+                }
+            }
+        case "runtime.storage.flush": envelope["data"] = [:] as [String: Any]
+        default: throw ReaderLibraryError.invalidResponse("Unexpected cursor boundary method: " + method)
+        }
+        replies[requestId] = try ReaderCoreEvent(data: JSONSerialization.data(withJSONObject: envelope))
+        return requestId
+    }
+    func pollEvent(requestId: UInt64) -> Result<ReaderCoreEvent, ReaderCoreClientError>? {
+        lock.lock(); defer { lock.unlock() }
+        if let cursor = closeRequests[requestId], heldCloseCursors.contains(cursor) { return nil }
+        closeRequests.removeValue(forKey: requestId)
+        return replies.removeValue(forKey: requestId).map { .success($0) }
+    }
+    func cancel(requestId: UInt64) throws {}
+    func destroy() {}
 }

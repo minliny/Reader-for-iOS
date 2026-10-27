@@ -2,6 +2,9 @@ import CryptoKit
 import Foundation
 import XCTest
 @testable import Reader
+#if canImport(ReaderCoreClient)
+import ReaderCoreClient
+#endif
 #if canImport(ReaderRuntime)
 @testable import ReaderRuntime
 #endif
@@ -13,8 +16,11 @@ final class ReaderShelfProjectionTests: XCTestCase {
     func testShelfGroupOptionsRetainActualLabelsAcrossDefinitionCRUDWithoutInventingGroups() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderShelfGroupOptions-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        let storage = root.appendingPathComponent("Core")
+        try FileManager.default.createDirectory(at: storage, withIntermediateDirectories: true)
+        let boundary = try ShelfProjectionReplyGate(storage: storage)
         let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
-                                               sourceURL: root.appendingPathComponent("Sources"))
+            sourceURL: root.appendingPathComponent("Sources"), client: boundary, timing: .live)
         do {
             func seed(_ id: String, group: String? = nil) async throws -> ReaderBook {
                 let operation = UUID().uuidString
@@ -93,6 +99,116 @@ final class ReaderShelfProjectionTests: XCTestCase {
             XCTAssertEqual(presentation.books(for: presentation.key(model: model, keyword: ""))?.count, 4)
             let finalGroups = try await service.groups()
             XCTAssertEqual(finalGroups, [definedSecond, definedFirst, duplicate, blank])
+
+            // These are distinct legal Core labels even though Swift's String
+            // equality treats them as canonically equivalent.
+            let nfc = "\u{00e9}", nfd = "e\u{0301}"
+            let nfcID = Data(nfc.utf8), nfdID = Data(nfd.utf8)
+            XCTAssertEqual(nfc, nfd)
+            XCTAssertNotEqual(nfcID, nfdID)
+            let nfcGroup = try await service.createGroup(name: nfc, operationID: UUID().uuidString)
+            let nfdGroup = try await service.createGroup(name: nfd, operationID: UUID().uuidString)
+            XCTAssertNotEqual(nfcGroup.groupId, nfdGroup.groupId)
+            XCTAssertEqual(Data(nfcGroup.groupName.utf8), nfcID)
+            XCTAssertEqual(Data(nfdGroup.groupName.utf8), nfdID)
+            let nfcBook = try await seed("unicode-nfc")
+            let nfdBook = try await seed("unicode-nfd")
+            _ = try await service.assignGroup(nfcGroup, to: nfcBook, operationID: UUID().uuidString)
+            _ = try await service.assignGroup(nfdGroup, to: nfdBook, operationID: UUID().uuidString)
+            await refresh()
+            func unicodeOptions() -> [ReaderShelfGroupOption] {
+                presentation.groupOptions(model: model).filter { $0.id == nfcID || $0.id == nfdID }
+            }
+            XCTAssertEqual(unicodeOptions().map(\.id), [nfcID, nfdID])
+            XCTAssertEqual(Set(unicodeOptions().map(\.id)).count, 2, "The actual ForEach IDs must preserve both options")
+            let nfcMembers = try await service.listBooks(query: .init(sourceId: nil, group: nfc))
+            let nfdMembers = try await service.listBooks(query: .init(sourceId: nil, group: nfd))
+            XCTAssertEqual(nfcMembers.map(\.bookId), [nfcBook.bookId])
+            XCTAssertEqual(nfdMembers.map(\.bookId), [nfdBook.bookId])
+            XCTAssertEqual(Set([
+                ReaderShelfQuery(sourceId: nfc, keyword: nfc, group: nfc),
+                ReaderShelfQuery(sourceId: nfd, keyword: nfc, group: nfc),
+                ReaderShelfQuery(sourceId: nfc, keyword: nfd, group: nfc),
+                ReaderShelfQuery(sourceId: nfc, keyword: nfc, group: nfd)
+            ]).count, 4)
+
+            presentation.group = nfc
+            await presentation.reload(model: model, keyword: "")
+            let nfcKey = presentation.key(model: model, keyword: "")
+            presentation.group = nfd
+            let nfdKey = presentation.key(model: model, keyword: "")
+            XCTAssertNotEqual(nfcKey, nfdKey)
+            XCTAssertEqual(Set([nfcKey, nfdKey]).count, 2)
+            XCTAssertNil(presentation.books(for: nfdKey), "Selecting the other legal group must synchronously retire the old subset")
+            await presentation.reload(model: model, keyword: "")
+            XCTAssertEqual(presentation.books(for: nfdKey)?.map(\.bookId), [nfdBook.bookId])
+
+            // The query stays byte-identical, while a real assignment changes
+            // only the group's Unicode representation in the library snapshot.
+            _ = try await service.assignGroup(nfdGroup, to: nfcBook, operationID: UUID().uuidString)
+            await model.reloadLibrary()
+            let movedKey = presentation.key(model: model, keyword: "")
+            XCTAssertEqual(movedKey.query, nfdKey.query)
+            XCTAssertEqual(movedKey.librarySnapshot, nfdKey.librarySnapshot,
+                           "ReaderBook keeps its existing global String equality")
+            XCTAssertNotEqual(movedKey, nfdKey, "The projection must additionally retain exact metadata bytes")
+            XCTAssertNil(presentation.books(for: movedKey))
+
+            // Delay only the original native terminal reply; Core still owns
+            // the query and every row. No result or novel is manufactured.
+            func withHeldRead(_ owner: ReaderShelfPresentation, change: () async throws -> Void) async throws {
+                let held = expectation(description: "original native shelf terminal retained")
+                boundary.holdNext(group: nfc, terminalHeld: { held.fulfill() })
+                let read = Task { await owner.reload(model: model, keyword: "") }
+                await fulfillment(of: [held], timeout: 5)
+                do { try await change() }
+                catch {
+                    boundary.release()
+                    await read.value
+                    throw error
+                }
+                boundary.release()
+                await read.value
+            }
+            _ = try await service.assignGroup(nfcGroup, to: nfcBook, operationID: UUID().uuidString)
+            await model.reloadLibrary()
+            let lateQuery = ReaderShelfPresentation()
+            lateQuery.group = nfc
+            let oldQueryKey = lateQuery.key(model: model, keyword: "")
+            try await withHeldRead(lateQuery) { lateQuery.group = nfd }
+            XCTAssertNil(lateQuery.books(for: oldQueryKey), "An old successful native reply must not publish after the group changes")
+            let lateNFDKey = lateQuery.key(model: model, keyword: "")
+            XCTAssertNotEqual(lateNFDKey, oldQueryKey)
+            XCTAssertNil(lateQuery.books(for: lateNFDKey))
+            await lateQuery.reload(model: model, keyword: "")
+            XCTAssertEqual(lateQuery.books(for: lateNFDKey)?.map(\.bookId), [nfdBook.bookId])
+
+            let lateSnapshot = ReaderShelfPresentation()
+            lateSnapshot.group = nfc
+            let oldSnapshotKey = lateSnapshot.key(model: model, keyword: "")
+            try await withHeldRead(lateSnapshot) {
+                _ = try await service.assignGroup(nfdGroup, to: nfcBook, operationID: UUID().uuidString)
+                await model.reloadLibrary()
+            }
+            let newSnapshotKey = lateSnapshot.key(model: model, keyword: "")
+            XCTAssertEqual(newSnapshotKey.query, oldSnapshotKey.query)
+            XCTAssertNotEqual(newSnapshotKey, oldSnapshotKey)
+            XCTAssertNil(lateSnapshot.books(for: oldSnapshotKey))
+            XCTAssertNil(lateSnapshot.books(for: newSnapshotKey), "A same-query reply cannot publish against changed raw membership")
+
+            _ = try await service.assignGroup(nfcGroup, to: nfcBook, operationID: UUID().uuidString)
+            presentation.group = nfc
+            try await service.deleteGroup(nfcGroup, operationID: UUID().uuidString)
+            await refresh()
+            XCTAssertEqual(Set(unicodeOptions().map(\.id)), [nfcID, nfdID],
+                           "Deleting a definition retains its free label alongside the canonically equivalent definition")
+            let retainedNFCKey = presentation.key(model: model, keyword: "")
+            presentation.group = nfd
+            let retainedNFDKey = presentation.key(model: model, keyword: "")
+            XCTAssertNotEqual(retainedNFCKey, retainedNFDKey)
+            XCTAssertNil(presentation.books(for: retainedNFDKey))
+            await presentation.reload(model: model, keyword: "")
+            XCTAssertEqual(presentation.books(for: retainedNFDKey)?.map(\.bookId), [nfdBook.bookId])
             try await service.close()
         } catch {
             try? await service.close()
@@ -207,5 +323,64 @@ final class ReaderShelfProjectionTests: XCTestCase {
 
     private func sha(_ bytes: Data) -> String {
         SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+/// Holds one exact original Core read terminal, without altering its input or
+/// result. All writes and other reads continue through the same private Core.
+private final class ShelfProjectionReplyGate: ReaderCoreEventClient, @unchecked Sendable {
+    private let native: ReaderCoreClient
+    private let lock = NSLock()
+    private var group: Data?
+    private var heldID: UInt64?
+    private var held: Result<ReaderCoreEvent, ReaderCoreClientError>?
+    private var released: [UInt64: Result<ReaderCoreEvent, ReaderCoreClientError>] = [:]
+    private var terminalHeld: (@Sendable () -> Void)?
+
+    init(storage: URL) throws {
+        native = try ReaderCoreClient(configJSON: JSONSerialization.data(withJSONObject: ["dataDirectory": storage.path]))
+    }
+    func holdNext(group: String, terminalHeld: @escaping @Sendable () -> Void) {
+        lock.lock(); defer { lock.unlock() }
+        self.group = Data(group.utf8)
+        self.terminalHeld = terminalHeld
+    }
+    func release() {
+        lock.lock(); defer { lock.unlock() }
+        if let heldID, let held { released[heldID] = held }
+        group = nil; heldID = nil; held = nil; terminalHeld = nil
+    }
+    @discardableResult
+    func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
+        lock.lock(); defer { lock.unlock() }
+        let result = try native.send(method: method, requestId: requestId, params: params)
+        if method == "bookshelf.list", let requested = params["group"] as? String,
+           group == Data(requested.utf8), heldID == nil { heldID = requestId }
+        return result
+    }
+    func pollEvent(requestId: UInt64) -> Result<ReaderCoreEvent, ReaderCoreClientError>? {
+        lock.lock(); defer { lock.unlock() }
+        if let reply = released.removeValue(forKey: requestId) { return reply }
+        guard requestId == heldID else { return native.pollEvent(requestId: requestId) }
+        if held == nil, let reply = native.pollEvent(requestId: requestId) {
+            if case .success(let event) = reply, ["result", "error"].contains(event.type) {
+                held = reply
+                let callback = terminalHeld; terminalHeld = nil
+                callback?()
+            } else { return reply }
+        }
+        return nil
+    }
+    func cancel(requestId: UInt64) throws {
+        lock.lock(); defer { lock.unlock() }
+        try native.cancel(requestId: requestId)
+    }
+    func retireReadRequest(requestId: UInt64) {
+        lock.lock(); defer { lock.unlock() }
+        native.retireReadRequest(requestId: requestId)
+    }
+    func destroy() {
+        lock.lock(); defer { lock.unlock() }
+        native.destroy()
     }
 }

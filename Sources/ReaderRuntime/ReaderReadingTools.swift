@@ -296,6 +296,8 @@ public struct ReaderDirectoryRulesResult: Codable, Hashable, Sendable {
 /// Separate capability protocol keeps V1-only mocks honest and source compatible.
 public protocol ReaderReadingToolsServing: ReaderLibraryServing {
     func searchContent(for book: ReaderBook, keyword: String, limit: UInt32, offset: UInt32) async throws -> ReaderContentSearchPage
+    func searchContent(for book: ReaderBook, keyword: String, limit: UInt32, cursor: String?) async throws -> ReaderContentSearchPage
+    func closeContentSearch(for book: ReaderBook, keyword: String, cursor: String) async throws
     func highlights(for book: ReaderBook, query: String?) async throws -> [ReaderHighlight]
     func createHighlight(for book: ReaderBook, content: ReaderChapterContent, range: ReaderScalarRange,
                          style: String, note: String, operationID: String) async throws -> ReaderHighlight
@@ -333,11 +335,20 @@ public protocol ReaderReadingToolsServing: ReaderLibraryServing {
     func applyDirectoryRules(for book: ReaderBook, rules: [ReaderDirectoryHierarchyRule], operationID: String) async throws -> ReaderDirectoryRulesResult
 }
 public extension ReaderReadingToolsServing {
+    /// An offset-only adapter cannot claim a version-bound search session.
+    func searchContent(for book: ReaderBook, keyword: String, limit: UInt32, cursor: String?) async throws -> ReaderContentSearchPage {
+        throw ReaderLibraryError.invalidResponse("version-bound content search unavailable")
+    }
+    func closeContentSearch(for book: ReaderBook, keyword: String, cursor: String) async throws {
+        throw ReaderLibraryError.invalidResponse("content search session retirement unavailable")
+    }
     /// Older adapters cannot claim a version-bound preview by silently calling
     /// the legacy chapter-only read.
     func previewReplacement(for book: ReaderBook, content: ReaderChapterContent, expectedRules: [ReaderReplaceRule], maxScalars: UInt32) async throws -> ReaderReplacePreview {
         throw ReaderLibraryError.invalidResponse("version-bound replacement preview unavailable")
     }
+    /// Legacy independent single-page read. UI pagination uses the explicit
+    /// cursor capability and never infers a shared snapshot from offsets.
     func searchContent(for book: ReaderBook, keyword: String) async throws -> ReaderContentSearchPage {
         try await searchContent(for: book, keyword: keyword, limit: 100, offset: 0)
     }
@@ -352,6 +363,31 @@ public extension ReaderReadingToolsServing {
 }
 
 extension ReaderLibraryService: ReaderReadingToolsServing {
+    public func searchContent(for book: ReaderBook, keyword: String, limit: UInt32, cursor: String?) async throws -> ReaderContentSearchPage {
+        var params: [String: Any] = ["sourceId": book.sourceId, "bookId": book.bookId, "keyword": keyword, "maxResults": limit]
+        if let cursor { params["cursor"] = cursor } else { params["useCursor"] = true }
+        let page = try decode(ReaderContentSearchPage.self, await coreRead("search.content", params, timeout: 120))
+        guard page.results.allSatisfy({ hit in
+            guard hit.chapterIndex >= 0, let scope = hit.positionScope else { return false }
+            return hit.sourceId.utf8.elementsEqual(book.sourceId.utf8) && hit.bookId.utf8.elementsEqual(book.bookId.utf8)
+                && scope.sourceId.utf8.elementsEqual(book.sourceId.utf8) && scope.bookId.utf8.elementsEqual(book.bookId.utf8)
+                && scope.chapterIndex == UInt32(hit.chapterIndex) && !scope.bodyVersion.isEmpty && !scope.processingVersion.isEmpty
+        }), page.hasMore == (page.nextCursor != nil),
+        page.nextCursor.map({ !$0.isEmpty && $0.utf8.count <= 64 }) ?? true else {
+            throw ReaderLibraryError.invalidResponse("content search session identity")
+        }
+        return page
+    }
+
+    public func closeContentSearch(for book: ReaderBook, keyword: String, cursor: String) async throws {
+        let page = try decode(ReaderContentSearchPage.self, await coreRead("search.content", [
+            "sourceId": book.sourceId, "bookId": book.bookId, "keyword": keyword, "cursor": cursor, "closeCursor": true
+        ]))
+        guard page.results.isEmpty, !page.hasMore, page.nextCursor == nil else {
+            throw ReaderLibraryError.invalidResponse("content search retirement receipt")
+        }
+    }
+
     /// Search only Core-materialized bodies; no HTTP fetch or Host text scanner.
     public func searchContent(for book: ReaderBook, keyword: String, limit: UInt32, offset: UInt32) async throws -> ReaderContentSearchPage {
         let page = try decode(ReaderContentSearchPage.self, await coreRead("search.content", [

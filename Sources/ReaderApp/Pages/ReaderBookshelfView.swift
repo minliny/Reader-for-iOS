@@ -163,8 +163,8 @@ struct ReaderBookshelfView: View {
             Menu {
                 Button("全部分组") { presentation.group = nil; shelfAnchor = nil }
                 Button("未分组") { presentation.group = ""; shelfAnchor = nil }
-                ForEach(presentation.groupNameOptions(model: model), id: \.self) { name in
-                    Button(name) { presentation.group = name; shelfAnchor = nil }
+                ForEach(presentation.groupOptions(model: model)) { option in
+                    Button(option.name) { presentation.group = option.name; shelfAnchor = nil }
                 }
             } label: { Text(presentation.group.map { $0.isEmpty ? "未分组" : $0 } ?? "全部分组") }
             Spacer(minLength: 0)

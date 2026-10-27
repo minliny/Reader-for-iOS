@@ -7,10 +7,22 @@ final class ReaderTextToolsState: ObservableObject {
         let book: ReaderBook
         let keyword: String
         let limit: UInt32
-        let offset: UInt32
+        let cursor: String?
         let append: Bool
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            SearchIdentity(lhs.book) == SearchIdentity(rhs.book) && lhs.keyword.utf8.elementsEqual(rhs.keyword.utf8)
+                && lhs.limit == rhs.limit && (lhs.cursor.map { Data($0.utf8) }) == (rhs.cursor.map { Data($0.utf8) })
+                && lhs.append == rhs.append
+        }
     }
-    typealias Search = @MainActor (ReaderBook, String, UInt32, UInt32) async throws -> ReaderContentSearchPage
+    private struct SearchIdentity: Equatable {
+        let source: Data
+        let book: Data
+        init(_ book: ReaderBook) { source = Data(book.sourceId.utf8); self.book = Data(book.bookId.utf8) }
+    }
+    private final class SearchLease { var retired = false }
+    typealias Search = @MainActor (ReaderBook, String, UInt32, String?) async throws -> ReaderContentSearchPage
+    typealias CloseSearch = @MainActor (ReaderBook, String, String) async throws -> Void
     struct NoteContext: Equatable {
         let sessionID: UUID
         let restorationID: UUID
@@ -33,12 +45,13 @@ final class ReaderTextToolsState: ObservableObject {
         let note: String
         let editing: ReaderHighlight?
     }
-    @Published var query = ""
+    @Published var query = "" { didSet { if !query.utf8.elementsEqual(oldValue.utf8) { retireSearch() } } }
     @Published var submitted = ""
     @Published var requested = ""
     @Published var results: [ReaderContentSearchHit] = []
     @Published var searchLoading = false
     @Published var searchFailure: String?
+    @Published private(set) var searchRequiresRestart = false
     @Published var hasMore = false
     @Published var notes: [ReaderHighlight] = []
     @Published var noteQuery = ""
@@ -49,6 +62,12 @@ final class ReaderTextToolsState: ObservableObject {
     var searchGeneration = UUID()
     var notesGeneration = UUID()
     var searchTask: Task<Void, Never>?
+    private(set) var searchRetirementTask: Task<Void, Never>?
+    private(set) var nextSearchCursor: String?
+    private var searchIdentity: SearchIdentity?
+    private var confirmedSearch: SearchRequest?
+    private var cursorCloser: CloseSearch?
+    private var activeSearchLease: SearchLease?
     var returnPosition: (ReaderContentPositionScope, UInt64)?
     private(set) var failedSearchRequest: SearchRequest?
     private var noteRevision = UUID()
@@ -66,51 +85,119 @@ final class ReaderTextToolsState: ObservableObject {
         searchLoading = false
     }
 
+    /// Discard the continuation capability, not the confirmed rows/return
+    /// position. A stopped read alone keeps its last confirmed cursor.
+    func retireSearch() {
+        activeSearchLease?.retired = true
+        cancelSearch()
+        let hadContinuation = nextSearchCursor != nil || failedSearchRequest?.cursor != nil
+        closeKnownSearch()
+        if failedSearchRequest?.cursor != nil { failedSearchRequest = nil }
+        if hadContinuation {
+            searchRequiresRestart = true
+            searchFailure = "搜索已结束，原结果已保留，请重新搜索以读取更多结果"
+        }
+    }
+
+    private func closeKnownSearch() {
+        if let cursor = nextSearchCursor, let request = confirmedSearch, let close = cursorCloser {
+            closeSearch(request, cursor: cursor, using: close)
+        }
+        nextSearchCursor = nil; hasMore = false
+    }
+
+    private func closeSearch(_ request: SearchRequest, cursor: String, using close: @escaping CloseSearch) {
+        let previous = searchRetirementTask
+        searchRetirementTask = Task {
+            await previous?.value
+            // Cleanup never converts a failed search into success. Core also
+            // bounds sessions by TTL if this best-effort read cannot finish.
+            try? await close(request.book, request.keyword, cursor)
+        }
+    }
+
     func startSearch(for book: ReaderBook, using service: any ReaderReadingToolsServing, more: Bool) {
-        startSearch(for: book, more: more) { book, keyword, limit, offset in
-            try await service.searchContent(for: book, keyword: keyword, limit: limit, offset: offset)
+        startSearch(for: book, more: more, close: { book, keyword, cursor in
+            try await service.closeContentSearch(for: book, keyword: keyword, cursor: cursor)
+        }) { book, keyword, limit, cursor in
+            try await service.searchContent(for: book, keyword: keyword, limit: limit, cursor: cursor)
         }
     }
 
     func retrySearch(for book: ReaderBook, using service: any ReaderReadingToolsServing) {
-        retrySearch(for: book) { book, keyword, limit, offset in
-            try await service.searchContent(for: book, keyword: keyword, limit: limit, offset: offset)
+        retrySearch(for: book, close: { book, keyword, cursor in
+            try await service.closeContentSearch(for: book, keyword: keyword, cursor: cursor)
+        }) { book, keyword, limit, cursor in
+            try await service.searchContent(for: book, keyword: keyword, limit: limit, cursor: cursor)
         }
     }
 
-    func startSearch(for book: ReaderBook, more: Bool, search: @escaping Search) {
+    func startSearch(for book: ReaderBook, more: Bool, close: CloseSearch? = nil, search: @escaping Search) {
+        let identity = SearchIdentity(book)
+        if let old = searchIdentity, old != identity {
+            retireSearch(); results = []; submitted = ""; requested = ""; returnPosition = nil; failedSearchRequest = nil
+            searchFailure = nil; searchRequiresRestart = false
+        }
+        searchIdentity = identity
         let query = more ? submitted : self.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        guard !more || (hasMore && nextSearchCursor != nil && confirmedSearch.map { SearchIdentity($0.book) == identity } == true) else { return }
         let request = SearchRequest(book: book, keyword: query, limit: 100,
-            offset: more ? UInt32(clamping: results.count) : 0, append: more)
-        beginSearch(request, search: search)
+            cursor: more ? nextSearchCursor : nil, append: more)
+        if !more { retireSearch() }
+        beginSearch(request, close: close, search: search)
     }
 
-    func retrySearch(for book: ReaderBook, search: @escaping Search) {
-        guard let request = failedSearchRequest, request.book.id == book.id else { return }
-        beginSearch(request, search: search)
+    func retrySearch(for book: ReaderBook, close: CloseSearch? = nil, search: @escaping Search) {
+        guard let request = failedSearchRequest, SearchIdentity(request.book) == SearchIdentity(book), !searchRequiresRestart else { return }
+        beginSearch(request, close: close, search: search)
     }
 
-    private func beginSearch(_ request: SearchRequest, search: @escaping Search) {
+    private func beginSearch(_ request: SearchRequest, close: CloseSearch?, search: @escaping Search) {
         cancelSearch()
         let generation = UUID(); searchGeneration = generation
-        requested = request.keyword; searchLoading = true; searchFailure = nil; failedSearchRequest = nil
+        let lease = SearchLease(); activeSearchLease = lease
+        // The previous known session must receive its cleanup result before a
+        // fresh initial request competes for Core's bounded cursor slots. This
+        // does not prove an old in-flight worker has released its reservation.
+        let retirement = request.cursor == nil ? searchRetirementTask : nil
+        requested = request.keyword; searchLoading = true; searchFailure = nil; failedSearchRequest = nil; searchRequiresRestart = false
         // The in-flight Core read owns its book/service. It must not retain the
         // departed presentation state while waiting for an original terminal.
         searchTask = Task { [weak self] in
             do {
-                let page = try await search(request.book, request.keyword, request.limit, request.offset)
-                guard let self, self.searchGeneration == generation, !Task.isCancelled else { return }
+                await retirement?.value
+                guard !Task.isCancelled, self?.searchGeneration == generation else { return }
+                let page = try await search(request.book, request.keyword, request.limit, request.cursor)
+                guard let self, self.searchGeneration == generation, !Task.isCancelled else {
+                    // A stopped initial request has no confirmed cursor to
+                    // retain. A stopped More request keeps its known session
+                    // for exact receipt retry unless the owner was retired.
+                    if lease.retired || request.cursor == nil, let cursor = page.nextCursor, let close {
+                        if let self { self.closeSearch(request, cursor: cursor, using: close) }
+                        else { Task { try? await close(request.book, request.keyword, cursor) } }
+                    }
+                    return
+                }
                 self.submitted = request.keyword
                 self.results = request.append ? self.results + page.results : page.results
                 self.hasMore = page.hasMore
+                self.confirmedSearch = request; self.cursorCloser = close; self.nextSearchCursor = page.nextCursor
+                if !page.hasMore, let cursor = request.cursor, let close { self.closeSearch(request, cursor: cursor, using: close) }
             } catch {
                 guard let self, self.searchGeneration == generation, !Task.isCancelled else { return }
-                self.searchFailure = error.localizedDescription; self.failedSearchRequest = request
+                if case ReaderLibraryError.core(_, _, _, let reason) = error,
+                   reason == "CONTENT_SEARCH_STALE" || reason == "CONTENT_SEARCH_EXPIRED" {
+                    self.searchFailure = reason == "CONTENT_SEARCH_EXPIRED"
+                        ? "本次搜索会话已失效，原结果已保留，请重新搜索"
+                        : "搜索依据已更新，原结果已保留，请重新搜索"
+                    self.searchRequiresRestart = true; self.closeKnownSearch()
+                } else { self.searchFailure = error.localizedDescription; self.failedSearchRequest = request }
             }
             if let self, self.searchGeneration == generation {
                 self.searchLoading = false
                 self.searchTask = nil
+                self.activeSearchLease = nil
             }
         }
     }
@@ -180,8 +267,8 @@ struct ReaderContentSearchPanel: View {
             }
             if let failure = state.searchFailure {
                 ReaderPageState(title: state.results.isEmpty ? "正文搜索尚未完成" : "本次搜索尚未完成，保留原结果",
-                                detail: failure, actionTitle: "重试") {
-                    retry()
+                                detail: failure, actionTitle: state.searchRequiresRestart ? "重新搜索" : "重试") {
+                    if state.searchRequiresRestart { search(more: false) } else { retry() }
                 }
             }
             if state.searchLoading, state.results.isEmpty { ReaderPageState(title: "正在搜索正文", loading: true) }
@@ -224,6 +311,7 @@ struct ReaderContentSearchPanel: View {
                 }.frame(minHeight: 44)
             }
         }.padding(10).font(ReaderTypography.font(.caption))
+            .onDisappear { state.retireSearch() }
     }
     private func stop() { state.cancelSearch() }
     private func search(more: Bool) {

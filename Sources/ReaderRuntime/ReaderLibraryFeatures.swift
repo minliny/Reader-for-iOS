@@ -21,6 +21,24 @@ public struct ReaderShelfQuery: Codable, Hashable, Sendable {
         self.sourceId = sourceId; self.keyword = keyword; self.group = group
         self.sortBy = sortBy; self.descending = descending
     }
+
+    // Core trims these fields at its query boundary, but does not perform
+    // Unicode normalization. Canonically equivalent Swift Strings can select
+    // different persisted rows and must not share a request identity.
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.sourceId.map { Data($0.utf8) } == rhs.sourceId.map { Data($0.utf8) } &&
+        lhs.keyword.map { Data($0.utf8) } == rhs.keyword.map { Data($0.utf8) } &&
+        lhs.group.map { Data($0.utf8) } == rhs.group.map { Data($0.utf8) } &&
+        lhs.sortBy == rhs.sortBy && lhs.descending == rhs.descending
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(sourceId.map { Data($0.utf8) })
+        hasher.combine(keyword.map { Data($0.utf8) })
+        hasher.combine(group.map { Data($0.utf8) })
+        hasher.combine(sortBy)
+        hasher.combine(descending)
+    }
 }
 public struct ReaderBookGroup: Codable, Hashable, Sendable, Identifiable {
     public let groupId: Int64

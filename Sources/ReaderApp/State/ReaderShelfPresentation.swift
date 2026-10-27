@@ -9,10 +9,37 @@ struct ReaderShelfProjectionKey: Hashable {
     let query: ReaderShelfQuery
     let librarySnapshot: [ReaderBook]
 
-    fileprivate var logSummary: String {
-        let group = query.group.map { $0.isEmpty ? "ungrouped" : "named:\($0.hashValue)" } ?? "all"
-        return "keywordLength=\(query.keyword?.count ?? 0),group=\(group),sort=\(query.sortBy.rawValue),descending=\(query.descending),libraryCount=\(librarySnapshot.count),snapshot=\(librarySnapshot.hashValue)"
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.query == rhs.query && lhs.librarySnapshot == rhs.librarySnapshot &&
+        zip(lhs.librarySnapshot, rhs.librarySnapshot).allSatisfy {
+            textIdentity($0.0) == textIdentity($0.1)
+        }
     }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(query)
+        hasher.combine(librarySnapshot)
+        for book in librarySnapshot { hasher.combine(Self.textIdentity(book)) }
+    }
+
+    /// Keep the existing complete Book value for its scalar fields, while
+    /// retaining Core's bytes for every text field in this projection only.
+    private static func textIdentity(_ book: ReaderBook) -> [Data?] {
+        let fields: [String?] = [book.sourceId, book.bookId, book.title, book.author, book.currentChapterTitle,
+                                book.coverUrl, book.intro, book.kind, book.group, book.sourceName]
+        return fields.map { $0.map { Data($0.utf8) } }
+    }
+
+    fileprivate var logSummary: String {
+        let group = query.group.map { $0.isEmpty ? "ungrouped" : "named:\(Data($0.utf8).hashValue)" } ?? "all"
+        return "keywordLength=\(query.keyword?.count ?? 0),group=\(group),sort=\(query.sortBy.rawValue),descending=\(query.descending),libraryCount=\(librarySnapshot.count),projection=\(hashValue)"
+    }
+}
+
+struct ReaderShelfGroupOption: Identifiable {
+    let name: String
+    let id: Data
+    init(name: String) { self.name = name; id = Data(name.utf8) }
 }
 
 /// Retained view projection, not another book store. All membership and group
@@ -70,19 +97,30 @@ final class ReaderShelfPresentation: ObservableObject {
     /// Group records and stored shelf labels have independent Core lifetimes.
     /// A renamed/deleted definition must not hide the books' retained label.
     func groupNameOptions(model: ReaderApplicationModel) -> [String] {
+        groupOptions(model: model).map(\.name)
+    }
+
+    func groupOptions(model: ReaderApplicationModel) -> [ReaderShelfGroupOption] {
         func name(_ value: String?) -> String? {
             guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
             return value
         }
-        var seen = Set<String>()
-        var options: [String] = []
+        var seen = Set<Data>()
+        var options: [ReaderShelfGroupOption] = []
         for definition in groups {
-            if let value = name(definition.groupName), seen.insert(value).inserted { options.append(value) }
+            if let value = name(definition.groupName), seen.insert(Data(value.utf8)).inserted {
+                options.append(ReaderShelfGroupOption(name: value))
+            }
         }
         // Use the complete confirmed library, not this query's visible subset.
-        var labels = Set(model.books.compactMap { name($0.group) })
-        if let selected = name(group) { labels.insert(selected) }
-        for value in labels.sorted() where seen.insert(value).inserted { options.append(value) }
+        var labels: [Data: String] = [:]
+        for book in model.books {
+            if let value = name(book.group) { labels[Data(value.utf8)] = value }
+        }
+        if let selected = name(group) { labels[Data(selected.utf8)] = selected }
+        for id in labels.keys.sorted(by: { $0.lexicographicallyPrecedes($1) }) where seen.insert(id).inserted {
+            if let value = labels[id] { options.append(ReaderShelfGroupOption(name: value)) }
+        }
         return options
     }
 
