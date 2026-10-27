@@ -322,6 +322,52 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
             XCTAssertEqual(state.note, boundary == 0 ? "" : retained)
             XCTAssertNil(state.editingNote)
         }
+
+        // The bookmark editor uses the same accepted-write owner. Retiring or
+        // replacing its editor keeps that original write alive, while its ACK
+        // may clear only the captured draft in the original presentation.
+        let bookmark = try JSONDecoder().decode(ReaderBookmark.self, from: JSONSerialization.data(withJSONObject: [
+            "time": 1, "bookName": book.title, "bookAuthor": "", "chapterIndex": 0,
+            "chapterPos": 0, "chapterName": content.chapterTitle, "bookText": "", "content": "Saved note"
+        ]))
+        for boundary in 0..<7 {
+            let state = ReaderBookmarkState(), owner = ReaderLibraryActionOwner()
+            defer { state.retire() }
+            state.activate(); state.editing = bookmark; state.note = "Original raw bookmark note"
+            let captured = try XCTUnwrap(state.captureNoteDraft(for: bookmark))
+            var reply: CheckedContinuation<Void, Never>?
+            defer { reply?.resume() }
+            let action = Task {
+                let success = await owner.perform("Controlled original bookmark save", scope: book.id) { _ in
+                    await withCheckedContinuation { reply = $0 }
+                }
+                if success { state.finishNoteSave(captured) }
+                return success
+            }
+            await waitUntil { reply != nil }
+            let originalID = try XCTUnwrap(owner.pendingOperationID)
+            switch boundary {
+            case 1: state.note = "New raw bookmark note"
+            case 2:
+                state.note = "Changed in between"; state.note = captured.note
+            case 3: state.editing = nil; state.note = ""
+            case 4:
+                state.editing = nil; state.note = ""
+                state.editing = bookmark; state.note = captured.note
+            case 5: state.retire(); state.activate()
+            case 6: state.retire()
+            default: break
+            }
+            let retainedNote = state.note, retainedEditing = state.editing
+            XCTAssertTrue(owner.hasPending); XCTAssertTrue(owner.busy)
+            XCTAssertEqual(owner.pendingOperationID, originalID, "Closing an editor cannot cancel its accepted save")
+            let completion = try XCTUnwrap(reply); reply = nil; completion.resume()
+            let success = await action.value
+            XCTAssertTrue(success)
+            XCTAssertFalse(owner.hasPending); XCTAssertFalse(owner.busy); XCTAssertNil(owner.recovery)
+            XCTAssertEqual(state.note, boundary == 0 ? "" : retainedNote)
+            XCTAssertEqual(state.editing, boundary == 0 ? nil : retainedEditing)
+        }
     }
 
     func testRealOriginalSearchRetirementCancelsExactReadAndPreservesConfirmedResults() async throws {

@@ -2,20 +2,52 @@ import SwiftUI
 
 @MainActor
 final class ReaderBookmarkState: ObservableObject {
+    struct NoteDraft {
+        let presentation: UUID
+        let revision: UUID
+        let bookmark: ReaderBookmark
+        let note: String
+    }
     @Published var bookmarks: [ReaderBookmark] = []
     @Published var query = ""
     @Published var loading = true
     @Published var failure: String?
-    @Published var note = ""
-    @Published var editing: ReaderBookmark?
+    @Published var note = "" { didSet { noteRevision = UUID() } }
+    @Published var editing: ReaderBookmark? { didSet { noteRevision = UUID() } }
     var generation = UUID()
     @Published var anchor: String?
+    private var noteRevision = UUID()
+    private var presentation = UUID()
+    private var active = false
+
+    func activate() { presentation = UUID(); active = true }
+
+    func retire() {
+        active = false; presentation = UUID()
+        generation = UUID(); loading = false
+    }
+
+    func captureNoteDraft(for bookmark: ReaderBookmark) -> NoteDraft? {
+        guard active, editing == bookmark else { return nil }
+        return NoteDraft(presentation: presentation, revision: noteRevision, bookmark: bookmark, note: note)
+    }
+
+    func acceptsNotePresentation(_ captured: NoteDraft) -> Bool {
+        active && presentation == captured.presentation
+    }
+
+    func finishNoteSave(_ captured: NoteDraft) {
+        guard acceptsNotePresentation(captured), noteRevision == captured.revision,
+              editing == captured.bookmark, note == captured.note else { return }
+        editing = nil; note = ""
+    }
 }
 
 struct ReaderBookmarkPanel: View {
     @ObservedObject var model: ReaderApplicationModel
     @ObservedObject var state: ReaderBookmarkState
     let book: ReaderBook
+    var presentationActive = true
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @Environment(\.colorScheme) private var scheme
     var body: some View {
@@ -71,9 +103,16 @@ struct ReaderBookmarkPanel: View {
         }.font(ReaderTypography.font(.caption)).padding(8)
             .task(id: "\(book.id)|\(state.query)") { await load() }
             .onChange(of: model.actions.hasPending) { old, new in if old && !new { Task { await load() } } }
+            .onAppear { if presentationActive { state.activate() } }
+            .onChange(of: presentationActive) { _, active in
+                if active { state.activate(); Task { await load() } }
+                else { state.retire() }
+            }
+            .onDisappear { state.retire() }
             .readerConfirmation(confirmation)
     }
     private func load() async {
+        guard presentationActive else { return }
         guard let feature = model.libraryService as? any ReaderLibraryFeatures else { state.loading = false; return }
         let expected = state.query
         let generation = UUID(); state.generation = generation
@@ -81,9 +120,9 @@ struct ReaderBookmarkPanel: View {
         defer { if generation == state.generation { state.loading = false } }
         do {
             let result = try await feature.bookmarks(for: book, query: expected)
-            guard generation == state.generation else { return }
+            guard generation == state.generation, !Task.isCancelled else { return }
             state.bookmarks = result; state.failure = nil
-        } catch { if generation == state.generation { state.failure = error.localizedDescription } }
+        } catch { if generation == state.generation, !Task.isCancelled { state.failure = error.localizedDescription } }
     }
     private func remove(_ bookmark: ReaderBookmark) {
         guard let feature = model.libraryService as? any ReaderLibraryFeatures else { return }
@@ -94,13 +133,13 @@ struct ReaderBookmarkPanel: View {
         }
     }
     private func saveNote(_ bookmark: ReaderBookmark) {
-        guard let feature = model.libraryService as? any ReaderLibraryFeatures else { return }
-        let text = state.note
+        guard let feature = model.libraryService as? any ReaderLibraryFeatures,
+              let captured = state.captureNoteDraft(for: bookmark) else { return }
         Task {
             if await model.actions.perform("保存备注", scope: book.id, action: { id in
-                _ = try await feature.updateBookmark(bookmark, note: text, operationID: id)
-            }) {
-                if state.editing?.id == bookmark.id, state.note == text { state.editing = nil; state.note = "" }
+                _ = try await feature.updateBookmark(captured.bookmark, note: captured.note, operationID: id)
+            }), state.acceptsNotePresentation(captured) {
+                state.finishNoteSave(captured)
                 await load()
             }
         }

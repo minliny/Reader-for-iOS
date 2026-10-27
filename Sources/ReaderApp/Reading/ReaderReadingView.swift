@@ -557,7 +557,7 @@ struct ReaderReadingView: View {
                 Button("章首") { model.seek(toScalar: 0) }
                 Button("章尾") { model.seek(toScalar: session.content.scalarCount) }
             }.font(ReaderTypography.font(.caption)).frame(minHeight: 44).padding(.horizontal, 12)
-            if directoryBookmarks { ReaderBookmarkPanel(model: model, state: bookmarks, book: session.book) }
+            if directoryBookmarks { ReaderBookmarkPanel(model: model, state: bookmarks, book: session.book, presentationActive: controlsVisible) }
             else { chapterDirectory }
         }
     }
