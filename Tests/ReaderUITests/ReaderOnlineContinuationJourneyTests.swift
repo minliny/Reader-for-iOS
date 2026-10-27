@@ -265,11 +265,37 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
     private let airplaneLabels = ["飞行模式", "Airplane Mode"]
     private let wifiLabels = ["Wi-Fi", "无线局域网"]
     private var settingsFallbackNavigationUsed = false
+    private struct SettingsSwitchTarget {
+        let owner: XCUIElement
+        let control: XCUIElement
+        let observation: SettingsSwitchObservation
+    }
     private struct SettingsSwitchObservation {
         let label: String
+        let ownerIdentifier: String
+        let controlIdentifier: String
+        let controlLabel: String
+        let windowIdentifier: String
+        let navigationIdentifier: String
+        let navigationLabel: String
+        let ownerFrame: CGRect
+        let controlFrame: CGRect
+        let windowFrame: CGRect
         let value: Int
         let uptime: TimeInterval
-        var json: [String: Any] { ["label": label, "value": value, "observedUptime": uptime] }
+        var identity: [String] {
+            [label, ownerIdentifier, controlIdentifier, controlLabel,
+             windowIdentifier, navigationIdentifier, navigationLabel]
+        }
+        var json: [String: Any] {
+            ["label": label, "ownerIdentifier": ownerIdentifier,
+             "controlIdentifier": controlIdentifier, "controlLabel": controlLabel,
+             "windowIdentifier": windowIdentifier, "navigationIdentifier": navigationIdentifier,
+             "navigationLabel": navigationLabel, "value": value, "observedUptime": uptime,
+             "ownerFrame": ["x": ownerFrame.minX, "y": ownerFrame.minY, "width": ownerFrame.width, "height": ownerFrame.height],
+             "controlFrame": ["x": controlFrame.minX, "y": controlFrame.minY, "width": controlFrame.width, "height": controlFrame.height],
+             "windowFrame": ["x": windowFrame.minX, "y": windowFrame.minY, "width": windowFrame.width, "height": windowFrame.height]]
+        }
     }
     @MainActor
     private func requireSettingsForeground(_ settings: XCUIApplication) throws {
@@ -281,25 +307,90 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         }
     }
     @MainActor
-    private func uniqueSettingsSwitch(_ labels: [String], settings: XCUIApplication) -> XCUIElement? {
-        let matches = settings.switches.matching(NSPredicate(format: "label IN %@", labels as NSArray)).allElementsBoundByIndex
-            .filter { $0.exists && $0.isHittable }
-        return matches.count == 1 ? matches[0] : nil
+    private func uniqueSettingsSwitch(_ labels: [String], settings: XCUIApplication) -> SettingsSwitchTarget? {
+        guard settings.state == .runningForeground,
+              labels == airplaneLabels || labels == wifiLabels,
+              let tree = try? settings.snapshot() else { return nil }
+        func valid(_ frame: CGRect) -> Bool {
+            !frame.isNull && !frame.isInfinite && frame.width > 0 && frame.height > 0
+                && [frame.minX, frame.minY, frame.maxX, frame.maxY].allSatisfy(\.isFinite)
+        }
+        typealias Node = (element: any XCUIElementSnapshot, ancestors: [any XCUIElementSnapshot], path: String, windows: [String])
+        var nodes = [Node]()
+        func collect(_ element: any XCUIElementSnapshot, ancestors: [any XCUIElementSnapshot], path: String, windows: [String]) {
+            let currentWindows = element.elementType == .window ? windows + [path] : windows
+            nodes.append((element, ancestors, path, currentWindows))
+            for (index, child) in element.children.enumerated() {
+                collect(child, ancestors: ancestors + [element], path: path + "/" + String(index), windows: currentWindows)
+            }
+        }
+        collect(tree, ancestors: [], path: "root", windows: [])
+        let ownerID = labels == airplaneLabels ? "com.apple.settings.airplaneMode" : nil
+        let pageLabels = labels == airplaneLabels ? ["设置", "Settings"] : wifiLabels
+        let windows = nodes.filter { $0.element.elementType == .window && valid($0.element.frame) }
+        let owners = nodes.filter {
+            $0.element.elementType == .switch && labels.contains($0.element.label)
+                && (ownerID == nil || $0.element.identifier == ownerID)
+        }
+        guard valid(tree.frame), windows.count == 1, owners.count == 1,
+              let windowNode = windows.first, let row = owners.first,
+              row.windows == [windowNode.path] else { return nil }
+        let window = windowNode.element
+        guard
+              tree.frame.contains(window.frame), valid(row.element.frame),
+              window.frame.contains(row.element.frame), row.element.isEnabled,
+              let cell = row.ancestors.last(where: { $0.elementType == .cell }),
+              valid(cell.frame), cell.frame.contains(row.element.frame) else { return nil }
+        let bars = nodes.filter {
+            $0.element.elementType == .navigationBar
+                && $0.windows == [windowNode.path]
+                && (pageLabels.contains($0.element.identifier) || pageLabels.contains($0.element.label))
+        }
+        var controls = [any XCUIElementSnapshot]()
+        func collectControls(_ element: any XCUIElementSnapshot) {
+            for child in element.children {
+                if child.elementType == .switch { controls.append(child) }
+                collectControls(child)
+            }
+        }
+        collectControls(row.element)
+        guard bars.count == 1, let bar = bars.first?.element,
+              valid(bar.frame), window.frame.contains(bar.frame), controls.count == 1,
+              let control = controls.first, control.isEnabled, valid(control.frame),
+              row.element.frame.contains(control.frame), cell.frame.contains(control.frame),
+              window.frame.contains(control.frame),
+              let value = settingsSwitchValue(row.element.value),
+              settingsSwitchValue(control.value) == value else { return nil }
+        // The real iOS Settings AX exposes a labelled, whole-row switch and
+        // one nested toggle. Resolve the native control through that owner;
+        // geometry validates containment, never chooses a hard-coded size.
+        let predicate = ownerID.map {
+            NSPredicate(format: "identifier == %@ AND label IN %@", $0, labels as NSArray)
+        } ?? NSPredicate(format: "label IN %@", labels as NSArray)
+        let owner = settings.windows.containing(predicate).element.switches.matching(predicate).element
+        let observation = SettingsSwitchObservation(label: row.element.label,
+            ownerIdentifier: row.element.identifier, controlIdentifier: control.identifier,
+            controlLabel: control.label, windowIdentifier: window.identifier,
+            navigationIdentifier: bar.identifier, navigationLabel: bar.label,
+            ownerFrame: row.element.frame, controlFrame: control.frame, windowFrame: window.frame,
+            value: value, uptime: ProcessInfo.processInfo.systemUptime)
+        return SettingsSwitchTarget(owner: owner, control: owner.descendants(matching: .switch).element,
+                                    observation: observation)
     }
-    private func settingsSwitchValue(_ element: XCUIElement) -> Int? {
-        if let text = element.value as? String, text == "0" || text == "1" { return Int(text) }
-        if let number = element.value as? NSNumber, number == 0 || number == 1 { return number.intValue }
+    private func settingsSwitchValue(_ value: Any?) -> Int? {
+        if let text = value as? String, text == "0" || text == "1" { return Int(text) }
+        if let number = value as? NSNumber, number == 0 || number == 1 { return number.intValue }
         return nil
     }
     @MainActor
     private func observeSettingsSwitch(_ labels: [String], settings: XCUIApplication, name: String) throws -> SettingsSwitchObservation {
         try requireSettingsForeground(settings)
-        guard let actual = uniqueSettingsSwitch(labels, settings: settings), let value = settingsSwitchValue(actual) else {
+        guard let actual = uniqueSettingsSwitch(labels, settings: settings) else {
             captureSettings(settings, name: name + "-unresolved-switch")
             XCTFail("Require one actual visible Settings switch with its observed 0/1 value: " + labels.joined(separator: "/"))
             throw Prerequisite.invalid("ambiguous or unreadable OS network switch")
         }
-        let result = SettingsSwitchObservation(label: actual.label, value: value, uptime: ProcessInfo.processInfo.systemUptime)
+        let result = actual.observation
         captureSettings(settings, name: name)
         let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: result.json, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
         attachment.name = name + "-actual-switch-value"; attachment.lifetime = .keepAlways; add(attachment)
@@ -357,15 +448,25 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
     @MainActor
     private func setSettingsSwitch(_ labels: [String], to wanted: Int, settings: XCUIApplication) throws {
         try requireSettingsForeground(settings)
-        guard let actual = uniqueSettingsSwitch(labels, settings: settings), let before = settingsSwitchValue(actual) else {
+        guard let actual = uniqueSettingsSwitch(labels, settings: settings) else {
             captureSettings(settings, name: "settings-switch-not-safe-to-change")
             XCTFail("Do not change a switch whose current identity and value are unknown")
             throw Prerequisite.invalid("OS network switch change not safe")
         }
-        if before != wanted { actual.tap() }
+        if actual.observation.value != wanted {
+            guard let current = uniqueSettingsSwitch(labels, settings: settings),
+                  current.observation.identity == actual.observation.identity,
+                  current.observation.value == actual.observation.value else {
+                captureSettings(settings, name: "settings-switch-owner-changed-before-tap")
+                XCTFail("The exact Settings row/control and value must still match immediately before its one native tap")
+                throw Prerequisite.invalid("OS network switch owner changed")
+            }
+            current.control.tap()
+        }
         let changed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            guard let observed = self.uniqueSettingsSwitch(labels, settings: settings) else { return false }
-            return self.settingsSwitchValue(observed) == wanted
+            guard let observed = self.uniqueSettingsSwitch(labels, settings: settings),
+                  observed.observation.identity == actual.observation.identity else { return false }
+            return observed.observation.value == wanted
         }, object: nil)
         guard XCTWaiter.wait(for: [changed], timeout: 5) == .completed else {
             captureSettings(settings, name: "settings-switch-change-not-observed")
