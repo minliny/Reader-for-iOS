@@ -181,6 +181,8 @@ final class ReaderReadCancellationTraceTests: XCTestCase {
                 timing: .init(now: { 0 }, suspend: { await Task.yield() }))
             _ = try await service.request("book.search", ["sourceId": "method-source"], searchTraceAttempt: scopeTraceAttempt(recording))
             await fulfillment(of: [statusEntered], timeout: 2)
+            let originalStatusID = try XCTUnwrap(client.statusRequests.first?.id)
+            var retiredStatusPolls: [UInt64]?
             let first = Task { () -> Bool in
                 do { try await service.close(); return true }
                 catch ReaderLibraryError.busy { busyReturned?.fulfill(); return false }
@@ -200,9 +202,10 @@ final class ReaderReadCancellationTraceTests: XCTestCase {
                 XCTAssertEqual(client.statusRequests.count, before, "One failed close cannot reopen admission while another close owns its flush")
                 XCTAssertEqual(capture.events.last { $0.stage == .coreExecutionObservationEnded && $0.sourceOrdinal == 2 }?.coreExecutionObservationOutcome,
                                .runtimeClosing)
-                let polls = client.polls
+                // The held flush is still legitimately polling. Only the
+                // exact diagnostic read must stay retired after its late reply.
+                retiredStatusPolls = client.polls.filter { $0 == originalStatusID }
                 client.releaseStatusResponses() // A late positive status cannot revive the retired observer.
-                XCTAssertEqual(client.polls, polls)
                 client.releaseFlushResponses()
             } else {
                 await fulfillment(of: [flushEntered], timeout: 2)
@@ -213,8 +216,15 @@ final class ReaderReadCancellationTraceTests: XCTestCase {
                 XCTAssertNotEqual(firstClosed, secondClosed, "Exactly one close owns the held flush")
             }
             else { XCTAssertTrue(firstClosed, "Diagnostics must not turn an otherwise idle close into BUSY") }
+            if let retiredStatusPolls {
+                XCTAssertEqual(client.polls.filter { $0 == originalStatusID }, retiredStatusPolls,
+                               "The original status read cannot resume while the independent flush completes")
+            }
             let originalEnd = capture.events.first { $0.stage == .coreExecutionObservationEnded && $0.sourceOrdinal == 1 }
             XCTAssertEqual(originalEnd?.coreExecutionObservationOutcome, .runtimeClosing)
+            XCTAssertEqual(capture.events.filter { $0.stage == .coreExecutionObservationEnded && $0.sourceOrdinal == 1 }.count, 1)
+            XCTAssertFalse(capture.events.contains { $0.stage == .coreExecutionSnapshotObserved && $0.sourceOrdinal == 1 },
+                           "The held positive status cannot publish a snapshot after observer retirement")
             XCTAssertEqual(client.statusRequests.count, 1)
             XCTAssertEqual(client.destroyCount, 1)
             do {
