@@ -2,15 +2,152 @@ import XCTest
 import UIKit
 import Vision
 
-/// Select explicitly on a simulator provisioned with the untouched Downloads
-/// originals. All admission, settings, directory and progress operations go
-/// through the real UI. No launch argument, Runtime call or generated book is
-/// used. The delivery owner separately binds provisioned bytes to their SHA.
+/// Run explicitly on a provisioned native target. Import journeys use the
+/// untouched Downloads originals; the existing-book diagnostic also supports
+/// an already provisioned physical device without importing. Operations use
+/// the real UI, without launch arguments, Runtime calls or generated books.
+/// The delivery owner separately binds provisioned bytes to their SHA.
 final class ReaderEbookJourneyTests: XCTestCase {
     private let epubID = "book-local:5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67"
     private let mobiID = "book-local:a25dcde710240f9c2c03d7b7b98aa09277d83392f3dc0da9779f6bc78e7c0cef"
 
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    func testExistingRealEpubChapterAndBackNativeStateObservationWithoutImport() throws {
+        executionTimeAllowance = 120
+        let app = XCUIApplication(), started = ProcessInfo.processInfo.systemUptime
+        let deadline = started + 110
+        // Shelf AX uses book-<bookId>; reading AX uses ReaderBook.id == sourceId|bookId.
+        let readingBookID = "reading-book:local|" + String(epubID.dropFirst("book-".count))
+        let target = app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'chapter-' AND label == %@", "第1章 牢房"))
+        let back = app.buttons.matching(identifier: "leave-reader")
+        let headers = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+        var report: [String: Any] = ["scope": "DIAGNOSTIC_ONLY_NOT_JOURNEY_ACCEPTANCE",
+            "expectedShelfBookAXID": epubID, "expectedReadingBookAXID": readingBookID,
+            "chapterTapRequested": false, "backTapRequested": false,
+            "chapterTapReturned": "NOT_SENT", "backTapReturned": "NOT_SENT",
+            "chapterObservation": "NOT_RUN", "backObservation": "NOT_RUN",
+            "stateSampleStage": "NOT_RUN",
+            "historicalDockInputLogger": "NOT_CAPTURED", "liveModelBusyFlags": "NOT_CAPTURED_UI_INDICATORS_ONLY",
+            "tapReturnMeaning": "XCTEST_API_RETURNED_NOT_PRODUCTION_CLOSURE_PROOF"]
+        func json(_ stage: String) {
+            report["stage"] = stage; report["elapsedSeconds"] = ProcessInfo.processInfo.systemUptime - started
+            let data = (try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys])) ?? Data()
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+            attachment.name = "existing-epub-native-" + stage; attachment.lifetime = .keepAlways; add(attachment)
+        }
+        func fields(_ query: XCUIElementQuery) -> [[String: Any]] {
+            query.allElementsBoundByIndex.map { element in
+                let f = element.frame
+                return ["identifier": element.identifier, "label": element.label,
+                    "frame": [f.minX, f.minY, f.width, f.height], "isEnabled": element.isEnabled,
+                    "isHittable": element.isHittable, "isSelected": element.isSelected]
+            }
+        }
+        func record(_ stage: String) {
+            // Persist the phase before querying AX: XCTest failures need not unwind through defer.
+            json(stage + "-before-snapshot"); evidence(app, name: "existing-epub-native-" + stage)
+            let ax = XCTAttachment(string: app.debugDescription)
+            ax.name = "existing-epub-native-" + stage + "-AX"; ax.lifetime = .keepAlways; add(ax)
+            report["readingBooks"] = fields(app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-book:'")))
+            report["chapterHeaders"] = fields(headers)
+            let candidates = fields(target); report["targetCount"] = candidates.count; report["targetCandidates"] = candidates
+            report["backCandidates"] = fields(back); report["backCount"] = back.count
+            report["activityIndicators"] = fields(app.activityIndicators)
+            report["keyboardCount"] = app.keyboards.count
+            report["fullGrabber"] = fields(app.buttons.matching(identifier: "control-grabber"))
+            report["alerts"] = fields(app.alerts); report["stateSampleStage"] = stage; json(stage)
+        }
+        func wait(_ seconds: TimeInterval, _ condition: @escaping () -> Bool) -> XCTWaiter.Result {
+            let timeout = max(0, min(seconds, deadline - ProcessInfo.processInfo.systemUptime))
+            guard timeout > 0 else { return .timedOut }
+            return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)], timeout: timeout)
+        }
+        func fail(_ reason: String) { report["preconditionFailure"] = reason; record("precondition-failed"); XCTFail(reason) }
+        json("before-normal-launch"); app.launch(); json("launched")
+        let book = app.buttons.matching(identifier: epubID)
+        _ = wait(10) { book.count == 1 }
+        json("before-existing-book-native-tap")
+        guard book.count == 1, book.firstMatch.isEnabled, book.firstMatch.isHittable else {
+            fail("The exact existing real EPUB shelf button is not uniquely actionable"); return
+        }
+        book.firstMatch.tap(); json("existing-book-native-tap-returned-before-body-wait")
+        let body = ebookBody(app)
+        _ = wait(15) { body.exists && body.isHittable && !app.buttons["阅读控制"].exists }
+        json("before-normal-quick-entry")
+        guard body.exists, body.isHittable, !app.buttons["阅读控制"].exists else {
+            fail("The existing EPUB WK body is not ready for the normal controls entry"); return
+        }
+        // Same normal WK touch as openModule; no alternate entry or forced row/Back coordinates.
+        body.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap(); json("normal-quick-touch-returned")
+        let directory = app.buttons["control-module-directory"]
+        _ = wait(5) { directory.exists && directory.isHittable }
+        json("before-quick-directory-native-tap")
+        guard directory.exists, directory.isEnabled, directory.isHittable else {
+            fail("The normal Quick directory control is not actionable"); return
+        }
+        directory.tap(); json("quick-directory-native-tap-returned")
+        let grabber = app.buttons["control-grabber"]
+        _ = wait(5) { grabber.exists && grabber.isHittable }
+        json("before-full-grabber-native-tap")
+        guard grabber.exists, grabber.isEnabled, grabber.isHittable else {
+            fail("The actual directory grabber is not actionable"); return
+        }
+        if !grabber.label.hasPrefix("完整控制栏") {
+            let viewport = app.frame, handle = grabber.frame
+            let start = CGPoint(x: handle.midX, y: handle.midY)
+            let end = CGPoint(x: handle.midX, y: viewport.minY + viewport.height * 0.2)
+            report["fullExpansionGesture"] = ["kind": "ONE_NATIVE_SLOW_HELD_DRAG_NO_RETRY",
+                "appFrame": [viewport.minX, viewport.minY, viewport.width, viewport.height],
+                "grabberFrame": [handle.minX, handle.minY, handle.width, handle.height],
+                "startPoint": [start.x, start.y], "endPoint": [end.x, end.y],
+                "pressSeconds": 0.08, "endHoldSeconds": 0.25]
+            json("before-full-grabber-native-drag")
+            guard viewport.width > 0, viewport.height > 0, viewport.contains(start), viewport.contains(end) else {
+                fail("The actual grabber drag endpoints must lie inside the app frame"); return
+            }
+            let dx = (handle.midX - viewport.minX) / viewport.width
+            grabber.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.08,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.2)),
+                withVelocity: .slow, thenHoldForDuration: 0.25)
+            json("full-grabber-native-drag-returned")
+        }
+        _ = wait(5) { grabber.exists && grabber.label.hasPrefix("完整控制栏") }
+        record("full-directory-native-state")
+        guard grabber.exists, grabber.label.hasPrefix("完整控制栏"),
+              app.staticTexts[readingBookID].exists else {
+            fail("Full directory and the exact real EPUB reading identity are required"); return
+        }
+        for (name, query) in [("chapter", target), ("back", back)] {
+            // Reuse the immediately preceding full state; persist the phase before the live guard.
+            report[name + "PreTapStateSampleStage"] = report["stateSampleStage"]
+            json(name + "-before-native-precondition")
+            guard query.count == 1, query.firstMatch.isEnabled, query.firstMatch.isHittable,
+                  ProcessInfo.processInfo.systemUptime + 15 < deadline else {
+                report[name + "NotSentReason"] = "NOT_UNIQUE_ENABLED_HITTABLE_OR_OBSERVATION_BUDGET_EXHAUSTED"
+                record(name + "-not-sent"); continue
+            }
+            let before = headers.allElementsBoundByIndex.map { $0.identifier + "|" + $0.label }
+            report[name + "TapRequested"] = true; report[name + "TapReturned"] = false; json(name + "-before-native-tap")
+            query.firstMatch.tap(); report[name + "TapReturned"] = true
+            let observationDeadline = min(deadline, ProcessInfo.processInfo.systemUptime + 15)
+            record(name + "-native-tap-returned")
+            var indicatorSeen = false, alertSeen = false
+            let outcome = wait(max(0, observationDeadline - ProcessInfo.processInfo.systemUptime)) {
+                indicatorSeen = indicatorSeen || app.activityIndicators.count > 0
+                alertSeen = alertSeen || app.alerts.count > 0
+                let now = headers.allElementsBoundByIndex.map { $0.identifier + "|" + $0.label }
+                return alertSeen || (name == "back" ? app.buttons["更多书架操作"].exists : !now.isEmpty && now != before)
+            }
+            let after = headers.allElementsBoundByIndex.map { $0.identifier + "|" + $0.label }
+            report[name + "Observation"] = ["waitResult": outcome.rawValue, "headerChanged": after != before,
+                "headerBefore": before, "headerAfter": after, "activityIndicatorSeen": indicatorSeen,
+                "alertSeen": alertSeen, "shelfVisible": app.buttons["更多书架操作"].exists]
+            record(name + "-observed")
+        }
+        json("observations-complete-not-journey-acceptance")
+    }
 
     func testOriginalZhongSongPickerHierarchySimulationReflowAndColdVisibleAnchor() throws {
         let app = XCUIApplication(); app.launch()
