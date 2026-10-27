@@ -20,14 +20,11 @@ python3 "$ios_root/scripts/core-dependency.py" verify-framework
 bash "$ios_root/scripts/generate-project.sh"
 app_run_id="$(python3 "$ios_root/scripts/app-artifact.py" capture --configuration "$configuration")"
 app_derived="$(python3 "$ios_root/scripts/build-paths.py" --kind app-derived)/$app_run_id"
-app_artifacts="$(python3 "$ios_root/scripts/build-paths.py" --kind artifacts)"
 xcodebuild -project "$ios_root/Reader.xcodeproj" -scheme Reader \
   -configuration "$configuration" -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath "$app_derived" \
   ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
-python3 "$ios_root/scripts/verify-simulator-identity.py" \
-  --app "$app_derived/Build/Products/$configuration-iphonesimulator/Reader.app"
 python3 "$ios_root/scripts/core-dependency.py" verify-framework
+# record verifies both the original App and its sealed copy before publishing.
 python3 "$ios_root/scripts/app-artifact.py" record --configuration "$configuration" --run-id "$app_run_id"
-python3 "$ios_root/scripts/verify-simulator-identity.py" --app "$app_artifacts/$app_run_id/Reader.app"

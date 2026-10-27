@@ -1,4 +1,7 @@
 import Foundation
+#if DEBUG
+import CryptoKit
+#endif
 #if canImport(ReaderCoreClient)
 import ReaderCoreClient
 #endif
@@ -81,7 +84,12 @@ extension ReaderLibraryService: ReaderOnlineServing {
     }
     public func searchSource(_ sourceID: String, keyword: String, page: Int = 1) async throws -> ReaderSourceSearchResult {
         let start = ContinuousClock.now
-        let result = try object(await coreRead("book.search", ["sourceId": sourceID, "keyword": keyword, "page": max(1, page)]))
+        let attempt = ReaderSearchTraceContext.attempt
+        let data = try await ReaderSearchTraceContext.$attempt.withValue(nil) {
+            try await request("book.search", ["sourceId": sourceID, "keyword": keyword, "page": max(1, page)],
+                              searchTraceAttempt: attempt)
+        }
+        let result = try object(data)
         guard result["sourceId"] as? String == sourceID else { throw ReaderLibraryError.invalidResponse("search source identity") }
         let books = try (result["books"] as? [[String: Any]] ?? []).map { row -> ReaderOnlineCandidate in
             guard let bookID = row["bookId"] as? String, let title = row["title"] as? String else { throw ReaderLibraryError.invalidResponse("search book identity") }
@@ -205,5 +213,261 @@ extension ReaderLibraryService: ReaderOnlineServing {
     public func completeLogin(_ sourceID: String, cookies: [HTTPCookie], originalCookies: [HTTPCookie]) async throws {
         guard let hostTransport else { throw ReaderLibraryError.invalidResponse("login transport") }
         try hostTransport.commitCookieChanges(sourceID: sourceID, originalCookies: originalCookies, updatedCookies: cookies)
+    }
+}
+
+/// Opt-in observation only. The sink receives fixed enums and scalar values;
+/// source URLs, search text, books, response data and credentials are excluded.
+/// A sink may be called concurrently. It must be nonblocking and must not call
+/// back into the observed owner. No stage asserts origin freshness or acceptance.
+typealias ReaderSearchTraceSink = @Sendable (ReaderSearchTraceEvent) -> Void
+
+struct ReaderSearchTraceEvent: Codable, Sendable {
+    enum Stage: String, Codable, Sendable {
+        case generationStarted, generationStopped, generationFinished
+        case sourceAttemptStarted, sourceAttemptFinished, sourceResultApplied, sourceResultDiscarded
+        case coreSendAttempt, coreSent, coreSendFailed, coreTerminal, coreObservationEnded
+        case coreCancelAttempted, coreCancelReturned, coreReadRetired
+        case coreExecutionObservationStarted, coreExecutionSnapshotObserved, coreExecutionObservationEnded
+        case hostOperationStarted, hostOperationFinished, hostOperationRejected
+        case hostCancellationRequested, hostTransportDrained
+        case httpTaskResumeAttempted, httpTaskCompleted, httpTaskMetricsCollected, httpTaskMetricsUnavailable
+        case httpTaskCancelAttempted, httpTaskCancelReturned, httpSessionInvalidated
+        case webViewRunStarted, webViewNavigationStarted, webViewNavigationFinished, webViewRunCompleted
+        case traceLimitReached
+    }
+    enum Outcome: String, Codable, Sendable {
+        case succeeded, failed, cancelled, timedOut, superseded, presentationRetired
+
+        static func failure(_ error: Error) -> Self {
+            if error is CancellationError { return .cancelled }
+            let value = error as NSError
+            if value.domain == NSURLErrorDomain {
+                if value.code == URLError.cancelled.rawValue { return .cancelled }
+                if value.code == URLError.timedOut.rawValue { return .timedOut }
+            }
+            return .failed
+        }
+    }
+    enum Transport: String, Codable, Sendable { case http, webView, other }
+    struct HTTPFetchSummary: Codable, Sendable {
+        let transactionCount: Int
+        let networkLoadCount: Int
+        let localCacheCount: Int
+        let serverPushCount: Int
+        let unknownCount: Int
+    }
+    /// Registered Host work only. Zero does not prove a Core worker has exited
+    /// or a URLSession has finished delivering its invalidation callback.
+    struct HostWorkSummary: Codable, Sendable {
+        let activeHandlerCount: Int
+        let jobCount: Int
+        let cookieOperationCount: Int
+        var isEmpty: Bool { activeHandlerCount == 0 && jobCount == 0 && cookieOperationCount == 0 }
+    }
+    enum CoreExecutionObservationOutcome: String, Codable, Sendable {
+        case retired, unknown, generationChanged, invalidSnapshot, failed, timedOut, limited, runtimeClosing
+    }
+    /// A Core-owned request generation, not a URLSession or socket state.
+    struct CoreExecutionSummary: Codable, Sendable {
+        let requestId: UInt64
+        let generation: UInt64
+        let queuedWorkItemCount: UInt64
+        let runningWorkItemCount: UInt64
+        let continuationScopeCount: UInt64
+        let callbackScopeCount: UInt64
+        let retainedOwnerCount: UInt64
+        let startedWorkItemCount: UInt64
+        let finishedWorkItemCount: UInt64
+        let discardedWorkItemCount: UInt64
+        let retired: Bool
+
+        var isCoherent: Bool {
+            guard requestId > 0, generation > 0, finishedWorkItemCount <= startedWorkItemCount else { return false }
+            // Core samples these counters under one lock. Compare by safe
+            // subtraction; temporary owner-only scope gaps remain admissible.
+            return runningWorkItemCount == startedWorkItemCount - finishedWorkItemCount
+        }
+        var isStrictlyRetired: Bool {
+            isCoherent && retired && queuedWorkItemCount == 0 && runningWorkItemCount == 0
+                && continuationScopeCount == 0 && callbackScopeCount == 0 && retainedOwnerCount == 0
+                && startedWorkItemCount == finishedWorkItemCount
+        }
+    }
+    /// An anonymous binding of the workspace's source snapshot for one ordinal.
+    /// It does not assert that Core read the same persisted version at dispatch.
+    struct SourceBinding: Codable, Sendable {
+        enum Contract: String, Codable, Sendable {
+            case sourceProjectionSHA256V1 = "reader-search-source-projection-sha256-v1"
+        }
+        let contract: Contract
+        let sha256: String
+
+        /// SHA256 of UTF-8 "io.reader.minliny.search-source-binding.v1" + NUL,
+        /// then three length-prefixed byte fields in this exact order:
+        /// sourceId UTF-8, sourceVersion UTF-8, and source.list bookSource
+        /// projected by JSONSerialization [.prettyPrinted, .sortedKeys].
+        /// Each length is an unsigned 64-bit big-endian byte count. No Unicode
+        /// normalization, trimming or URL rewriting is performed. The definition
+        /// bytes are the existing ReaderOnlineSource projection, not the source
+        /// package's original formatting. External real-source preproofs must
+        /// independently recreate that same Foundation projection and framing.
+        static func observing(_ source: ReaderOnlineSource) -> Self? {
+            #if DEBUG
+            var hash = SHA256()
+            hash.update(data: Data("io.reader.minliny.search-source-binding.v1\0".utf8))
+            for bytes in [Data(source.id.utf8), Data(source.version.utf8), source.definition] {
+                var length = UInt64(bytes.count).bigEndian
+                withUnsafeBytes(of: &length) { hash.update(data: Data($0)) }
+                hash.update(data: bytes)
+            }
+            return Self(contract: .sourceProjectionSHA256V1,
+                        sha256: hash.finalize().map { String(format: "%02x", $0) }.joined())
+            #else
+            return nil
+            #endif
+        }
+    }
+    let searchID: UUID // The workspace's actual generation, never a second identity.
+    let sequence: UInt32
+    let elapsedNanoseconds: UInt64
+    let stage: Stage
+    let sourceOrdinal: UInt32?
+    let coreRequestID: UInt64?
+    let hostOperationID: UInt64?
+    let transport: Transport?
+    let transportAttempt: UInt8?
+    let taskIdentifier: Int?
+    let navigationGeneration: UInt64?
+    let outcome: Outcome?
+    let count: Int? // Source/book count, or received byte count at HTTP completion.
+    let durationMilliseconds: Int?
+    let httpStatus: Int?
+    let httpFetchSummary: HTTPFetchSummary?
+    let hostWorkSummary: HostWorkSummary?
+    let sourceBinding: SourceBinding?
+    let coreExecutionSummary: CoreExecutionSummary?
+    let coreExecutionObservationOutcome: CoreExecutionObservationOutcome?
+}
+
+/// One generation has a hard event budget, including its overflow marker.
+/// There is no global recorder, disk output or retention when the sink is nil.
+final class ReaderSearchTraceRecording: @unchecked Sendable {
+    private let searchID: UUID
+    private let sink: ReaderSearchTraceSink
+    private let origin = DispatchTime.now().uptimeNanoseconds
+    private let lock = NSLock()
+    private var sequence: UInt32 = 0
+    private let limit: UInt32 = 2048
+    private var sourceExecutionSamples = 0
+    private var sourceExecutionObservers = 0
+
+    init(searchID: UUID, sink: @escaping ReaderSearchTraceSink) {
+        self.searchID = searchID; self.sink = sink
+    }
+
+    func admitSourceExecutionObservation() -> Bool {
+        lock.withLock {
+            guard sequence < limit, sourceExecutionSamples < 64, sourceExecutionObservers < 4 else { return false }
+            sourceExecutionObservers += 1
+            return true
+        }
+    }
+    func reserveSourceExecutionSample() -> Bool {
+        lock.withLock {
+            guard sequence < limit, sourceExecutionSamples < 64 else { return false }
+            sourceExecutionSamples += 1
+            return true
+        }
+    }
+    func endSourceExecutionObservation() { lock.withLock { sourceExecutionObservers -= 1 } }
+
+    func emit(_ stage: ReaderSearchTraceEvent.Stage, sourceOrdinal: UInt32? = nil,
+              coreRequestID: UInt64? = nil, hostOperationID: UInt64? = nil,
+              transport: ReaderSearchTraceEvent.Transport? = nil, transportAttempt: UInt8? = nil,
+              taskIdentifier: Int? = nil, navigationGeneration: UInt64? = nil,
+              outcome: ReaderSearchTraceEvent.Outcome? = nil, count: Int? = nil,
+              durationMilliseconds: Int? = nil, httpStatus: Int? = nil,
+              httpFetchSummary: ReaderSearchTraceEvent.HTTPFetchSummary? = nil,
+              hostWorkSummary: ReaderSearchTraceEvent.HostWorkSummary? = nil,
+              sourceBinding: ReaderSearchTraceEvent.SourceBinding? = nil,
+              coreExecutionSummary: ReaderSearchTraceEvent.CoreExecutionSummary? = nil,
+              coreExecutionObservationOutcome: ReaderSearchTraceEvent.CoreExecutionObservationOutcome? = nil) {
+        let stamp: (UInt32, UInt64)? = lock.withLock {
+            guard sequence < limit else { return nil }
+            sequence += 1
+            // A timestamp sampled before this lock can run backwards after
+            // concurrent emitters acquire their sequence numbers in reverse.
+            return (sequence, DispatchTime.now().uptimeNanoseconds - origin)
+        }
+        guard let (next, elapsed) = stamp else { return }
+        sink(.init(searchID: searchID, sequence: next, elapsedNanoseconds: elapsed,
+            stage: next == limit ? .traceLimitReached : stage, sourceOrdinal: sourceOrdinal,
+            coreRequestID: coreRequestID, hostOperationID: hostOperationID, transport: transport,
+            transportAttempt: transportAttempt, taskIdentifier: taskIdentifier,
+            navigationGeneration: navigationGeneration, outcome: outcome, count: count,
+            durationMilliseconds: durationMilliseconds, httpStatus: httpStatus,
+            httpFetchSummary: httpFetchSummary, hostWorkSummary: hostWorkSummary, sourceBinding: sourceBinding,
+            coreExecutionSummary: coreExecutionSummary, coreExecutionObservationOutcome: coreExecutionObservationOutcome))
+    }
+}
+
+/// The raw identity is used only to admit the exact book.search dispatch. It is
+/// deliberately absent from the immutable binding handed to Host work.
+struct ReaderSearchTraceAttempt: Sendable {
+    let recording: ReaderSearchTraceRecording
+    let sourceOrdinal: UInt32
+    let sourceID: String
+    private let sourceBinding: ReaderSearchTraceEvent.SourceBinding?
+
+    init(recording: ReaderSearchTraceRecording, sourceOrdinal: UInt32, source: ReaderOnlineSource) {
+        self.recording = recording; self.sourceOrdinal = sourceOrdinal; sourceID = source.id
+        sourceBinding = .observing(source)
+    }
+
+    func bind(requestID: UInt64, sourceID: String?) -> ReaderSearchTraceBinding? {
+        guard self.sourceID == sourceID else { return nil }
+        return .init(recording: recording, sourceOrdinal: sourceOrdinal, requestID: requestID,
+                     operationID: nil, transport: nil)
+    }
+    func emit(_ stage: ReaderSearchTraceEvent.Stage, outcome: ReaderSearchTraceEvent.Outcome? = nil,
+              count: Int? = nil, durationMilliseconds: Int? = nil) {
+        recording.emit(stage, sourceOrdinal: sourceOrdinal, outcome: outcome,
+                       count: count, durationMilliseconds: durationMilliseconds,
+                       sourceBinding: stage == .sourceAttemptStarted ? sourceBinding : nil)
+    }
+}
+
+enum ReaderSearchTraceContext {
+    // Consumed by searchSource before dispatch. Request allocation and queued
+    // Host work receive explicit immutable values, with this TaskLocal cleared.
+    @TaskLocal static var attempt: ReaderSearchTraceAttempt?
+}
+
+struct ReaderSearchTraceBinding: Sendable {
+    let recording: ReaderSearchTraceRecording
+    let sourceOrdinal: UInt32
+    let requestID: UInt64
+    let operationID: UInt64?
+    let transport: ReaderSearchTraceEvent.Transport?
+
+    func host(operationID: UInt64, capability: String) -> Self {
+        .init(recording: recording, sourceOrdinal: sourceOrdinal, requestID: requestID,
+              operationID: operationID,
+              transport: capability == "http.execute" ? .http : capability == "webview.evaluateJavaScript" ? .webView : .other)
+    }
+    func emit(_ stage: ReaderSearchTraceEvent.Stage, outcome: ReaderSearchTraceEvent.Outcome? = nil,
+              transportAttempt: UInt8? = nil, taskIdentifier: Int? = nil,
+              navigationGeneration: UInt64? = nil, count: Int? = nil, httpStatus: Int? = nil,
+              httpFetchSummary: ReaderSearchTraceEvent.HTTPFetchSummary? = nil,
+              hostWorkSummary: ReaderSearchTraceEvent.HostWorkSummary? = nil,
+              coreExecutionSummary: ReaderSearchTraceEvent.CoreExecutionSummary? = nil,
+              coreExecutionObservationOutcome: ReaderSearchTraceEvent.CoreExecutionObservationOutcome? = nil) {
+        recording.emit(stage, sourceOrdinal: sourceOrdinal, coreRequestID: requestID,
+            hostOperationID: operationID, transport: transport, transportAttempt: transportAttempt,
+            taskIdentifier: taskIdentifier, navigationGeneration: navigationGeneration,
+            outcome: outcome, count: count, httpStatus: httpStatus,
+            httpFetchSummary: httpFetchSummary, hostWorkSummary: hostWorkSummary,
+            coreExecutionSummary: coreExecutionSummary, coreExecutionObservationOutcome: coreExecutionObservationOutcome)
     }
 }

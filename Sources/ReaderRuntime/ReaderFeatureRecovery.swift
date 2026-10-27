@@ -2,7 +2,7 @@ import Foundation
 
 public struct ReaderFeatureRecoveryResult: Hashable, Sendable {
     public enum Status: String, Codable, Hashable, Sendable {
-        case completed, rejected, pending, refreshRequired
+        case completed, continued, rejected, pending, refreshRequired
     }
     public let operationID: String
     public let status: Status

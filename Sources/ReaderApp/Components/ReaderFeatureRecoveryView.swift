@@ -7,7 +7,10 @@ struct ReaderFeatureRecoveryEntry: View {
     @ObservedObject var owner: ReaderFeatureRecoveryOwner
     @State private var presented = false
     var body: some View {
-        Group {
+        ZStack {
+            // Keep the sheet presenter alive after the last pending operation
+            // finishes and its conditional notice leaves the hierarchy.
+            Color.clear.frame(width: 0, height: 0).accessibilityHidden(true).allowsHitTesting(false)
             if model.reader == nil, !owner.operations.isEmpty || owner.failure != nil {
                 ReaderRecoveryNotice(message: owner.failure == nil ? "\(owner.operations.count) 项原操作待核对" : "原操作列表待核对",
                     busy: false, title: "原操作待核对", actionTitle: "查看") { presented = true }
@@ -35,7 +38,7 @@ private struct ReaderFeatureRecoveryList: View {
                 ReaderPageState(title: "列表尚未核对", detail: failure, actionTitle: "重试") { Task { await owner.reload() } }
             } else if owner.loading, owner.operations.isEmpty { ReaderPageState(title: "正在核对原操作", loading: true) }
             else if owner.operations.isEmpty {
-                ReaderPageState(title: owner.lastResult.map { $0.status == .completed ? "原操作结果已确认" : "原操作已明确结束" } ?? "没有待核对的原操作",
+                ReaderPageState(title: emptyStateTitle,
                                 detail: owner.lastResult?.message ?? "")
             }
             else {
@@ -50,6 +53,12 @@ private struct ReaderFeatureRecoveryList: View {
                                     .frame(minHeight: 44).disabled(owner.busyID != nil || model.actions.busy ||
                                         (model.actions.hasPending && model.actions.pendingOperationID != operation.id))
                                     .accessibilityIdentifier("resume-feature-\(operation.id)")
+                                if operation.method == "online.admission" {
+                                    Button("继续完成入库") { continueAdmission(operation.id) }
+                                        .frame(minHeight: 44)
+                                        .disabled(owner.busyID != nil || model.actions.busy || model.actions.hasPending)
+                                        .accessibilityIdentifier("continue-admission-\(operation.id)")
+                                }
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
                                 .background(ReaderPalette(scheme).card, in: RoundedRectangle(cornerRadius: 12))
                         }
@@ -57,6 +66,23 @@ private struct ReaderFeatureRecoveryList: View {
                 }
             }
         }.padding(20).background(ReaderPalette(scheme).paper).task { await owner.reload() }
+    }
+    private var emptyStateTitle: String {
+        guard let result = owner.lastResult else { return "没有待核对的原操作" }
+        switch result.status {
+        case .continued: return "已继续完成入库"
+        case .completed: return "原操作结果已确认"
+        default: return "原操作已明确结束"
+        }
+    }
+    private func continueAdmission(_ id: String) {
+        guard model.reader == nil, !model.actions.hasPending else { return }
+        Task {
+            if let result = await owner.continueAdmission(id), !result.remaining {
+                await model.reloadLibrary()
+                if let message = result.message { model.showFeedback(message) }
+            }
+        }
     }
     private func resume(_ id: String) {
         guard model.reader == nil else { return }

@@ -70,9 +70,9 @@ final class ReaderReadingTimeOwner: ObservableObject {
     private var checkpointTask: Task<Void, Never>?
     private var actionObservation: AnyCancellable?
 
-    init(service: any ReaderLibraryServing) {
+    init(service: any ReaderLibraryServing, storageURL: URL? = nil) {
         self.service = service
-        storageURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        self.storageURL = storageURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Reader/ReadingTime/ledger-v1.json")
         uptime = { ProcessInfo.processInfo.systemUptime }
         wallMilliseconds = { max(0, Int64(Date().timeIntervalSince1970 * 1_000)) }

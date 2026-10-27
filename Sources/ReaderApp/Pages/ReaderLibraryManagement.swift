@@ -1,5 +1,38 @@
 import SwiftUI
 
+/// Unsaved input belongs to the retained shelf, while each save keeps its
+/// original raw fields and revision. A typed ACK cannot clear later edits.
+@MainActor
+final class ReaderGroupDraftOwner: ObservableObject {
+    struct Submission {
+        fileprivate let revision: UUID
+        let rawName: String
+        let editing: ReaderBookGroup?
+        var title: String { rawName.trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
+    @Published var name = "" { didSet { revision = UUID() } }
+    @Published var editing: ReaderBookGroup? { didSet { revision = UUID() } }
+    private var revision = UUID()
+    private var presentationID: UUID?
+
+    func activate(_ id: UUID) {
+        guard presentationID != id else { return }
+        presentationID = id; revision = UUID()
+    }
+    func retire(_ id: UUID) {
+        guard presentationID == id else { return }
+        presentationID = nil; revision = UUID()
+    }
+    func submission() -> Submission { .init(revision: revision, rawName: name, editing: editing) }
+
+    @discardableResult
+    func consumeSaved(_ original: Submission) -> Bool {
+        guard revision == original.revision, name == original.rawName, editing == original.editing else { return false }
+        editing = nil; name = ""
+        return true
+    }
+}
+
 struct ReaderBookManagementView: View {
     @ObservedObject var model: ReaderApplicationModel
     let book: ReaderBook
@@ -81,9 +114,9 @@ struct ReaderBookManagementView: View {
 
 struct ReaderGroupManagementView: View {
     @ObservedObject var model: ReaderApplicationModel
+    @ObservedObject var draft: ReaderGroupDraftOwner
     @State private var groups: [ReaderBookGroup] = []
-    @Binding var name: String
-    @Binding var editing: ReaderBookGroup?
+    @State private var presentationID = UUID()
     let close: () -> Void
     @State private var failure: String?
     @State private var loading = true
@@ -98,21 +131,21 @@ struct ReaderGroupManagementView: View {
                 ReaderIconAction(icon: .close, label: "关闭分组管理", action: close)
             }
             HStack {
-                TextField("分组名称", text: $name).readerField().accessibilityIdentifier("group-name")
-                Button(editing == nil ? "创建" : "保存") { save() }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.actions.hasPending)
+                TextField("分组名称", text: $draft.name).readerField().accessibilityIdentifier("group-name")
+                Button(draft.editing == nil ? "创建" : "保存") { save() }
+                    .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.actions.hasPending)
                     .frame(minWidth: 44, minHeight: 44)
-                if editing != nil { Button("取消") { editing = nil; name = "" } }
+                if draft.editing != nil { Button("取消") { draft.editing = nil; draft.name = "" } }
             }
             if let failure { ReaderPageState(title: failure, actionTitle: "重试") { Task { await load() } } }
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(groups) { group in
                         HStack {
-                            Button(group.groupName) { editing = group; name = group.groupName }
+                            Button(group.groupName) { draft.editing = group; draft.name = group.groupName }
                             Spacer()
                             Button("删除", role: .destructive) {
-                                confirmation.confirm("删除分组", message: "删除“\(group.groupName)”，书籍保留。",
+                                confirmation.confirm("删除分组", message: "删除“\(group.groupName)”，保留书籍和现有分组标签。",
                                     actionTitle: "删除", destructive: true) { remove(group) }
                             }
                         }.frame(minHeight: 44).padding(.horizontal, 12)
@@ -125,6 +158,8 @@ struct ReaderGroupManagementView: View {
             ReaderOperationStatus(owner: model.actions, scope: "shelf", completed: { Task { await load() } })
         }.font(ReaderTypography.font(.body)).padding(20).foregroundStyle(ReaderPalette(scheme).ink)
             .background(ReaderPalette(scheme).paper).task { await load() }
+            .onAppear { draft.activate(presentationID) }
+            .onDisappear { draft.retire(presentationID) }
             .interactiveDismissDisabled(model.actions.busy || model.actions.recovery != nil).readerConfirmation(confirmation)
     }
     private func load() async {
@@ -139,14 +174,17 @@ struct ReaderGroupManagementView: View {
     }
     private func save() {
         guard let service = model.libraryService as? any ReaderLibraryFeatures else { return }
-        let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let target = editing
+        let submitted = draft.submission()
+        let title = submitted.title
+        let target = submitted.editing
         Task {
             if await model.actions.perform("保存分组", scope: "shelf", action: { id in
                 if var group = target { group.groupName = title; _ = try await service.updateGroup(group, operationID: id) }
                 else { _ = try await service.createGroup(name: title, operationID: id) }
+                // Keep this cleanup inside the original action so its exact
+                // retry also checks the first submission, never current input.
+                draft.consumeSaved(submitted)
             }) {
-                if editing?.id == target?.id, name.trimmingCharacters(in: .whitespacesAndNewlines) == title { editing = nil; name = "" }
                 await load(); await model.reloadLibrary()
             }
         }

@@ -12,9 +12,10 @@ struct ReaderBookshelfView: View {
     @ObservedObject var presentation: ReaderShelfPresentation
     var importFile: () -> Void
     var online: () -> Void
+    var downloads: () -> Void = {}
     @State private var showingMore = false
     @State private var pendingMoreAction: MoreAction?
-    @State private var actionBook: ReaderBook?
+    @State private var actionBook: BookManagementPresentation?
     @State private var downloadStatusBook: ReaderBook?
     @State private var showingGroups = false
     @State private var catalogBook: ReaderBook?
@@ -24,7 +25,11 @@ struct ReaderBookshelfView: View {
     @State private var catalogTask: Task<Void, Never>?
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @Environment(\.colorScheme) private var scheme
-    private enum MoreAction { case importFile, layout(Bool), manage, groups, results, online }
+    private enum MoreAction { case importFile, layout(Bool), manage, groups, results, online, downloads }
+    private struct BookManagementPresentation: Identifiable {
+        let id = UUID()
+        let book: ReaderBook
+    }
     /// The two layouts have different target view types. Keep their native
     /// identities distinct while Root continues to retain only book identity.
     private enum ScrollTarget: Hashable {
@@ -116,10 +121,13 @@ struct ReaderBookshelfView: View {
             presentation.traceSearchPresentation("shelf.appear", searching: searching, key: projectionKey)
         }
         .onChange(of: preferences.grid) { _, grid in presentation.recordLayout(key: projectionKey, grid: grid) }
-        .sheet(item: $actionBook) { book in
-            ReaderBookManagementView(model: model, book: book, changed: {
+        .sheet(item: $actionBook) { request in
+            ReaderBookManagementView(model: model, book: request.book, changed: {
                 Task { await model.reloadLibrary(); await presentation.reload(model: model, keyword: query) }
-            }) { actionBook = nil }
+            }) {
+                guard actionBook?.id == request.id else { return }
+                actionBook = nil
+            }.id(request.id)
         }
         .sheet(item: $downloadStatusBook) { book in
             if let service = model.libraryService as? any ReaderDownloadServing {
@@ -129,8 +137,7 @@ struct ReaderBookshelfView: View {
             }
         }
         .sheet(isPresented: $showingGroups) {
-            ReaderGroupManagementView(model: model, name: $presentation.groupDraftName,
-                                      editing: $presentation.groupDraftEditing) {
+            ReaderGroupManagementView(model: model, draft: presentation.groupDraft) {
                 showingGroups = false
                 Task { await presentation.reload(model: model, keyword: query) }
             }
@@ -156,8 +163,8 @@ struct ReaderBookshelfView: View {
             Menu {
                 Button("全部分组") { presentation.group = nil; shelfAnchor = nil }
                 Button("未分组") { presentation.group = ""; shelfAnchor = nil }
-                ForEach(presentation.groups) { group in
-                    Button(group.groupName) { presentation.group = group.groupName; shelfAnchor = nil }
+                ForEach(presentation.groupNameOptions(model: model), id: \.self) { name in
+                    Button(name) { presentation.group = name; shelfAnchor = nil }
                 }
             } label: { Text(presentation.group.map { $0.isEmpty ? "未分组" : $0 } ?? "全部分组") }
             Spacer(minLength: 0)
@@ -257,6 +264,8 @@ struct ReaderBookshelfView: View {
             }
             moreAction("批量管理", icon: .check, action: .manage)
             moreAction("管理分组", icon: .filter, action: .groups)
+            moreAction("下载管理", icon: .directory, action: .downloads)
+                .accessibilityIdentifier("bookshelf-download-management")
             if model.importOperation != nil { moreAction("查看导入结果", icon: .importFile, action: .results) }
             moreAction("搜索与书源", icon: .search, action: .online)
         }.font(ReaderTypography.font(.body)).foregroundStyle(palette.ink)
@@ -280,6 +289,7 @@ struct ReaderBookshelfView: View {
         case .groups: showingGroups = true
         case .results: model.importResultVisible = true
         case .online: online()
+        case .downloads: downloads()
         }
     }
 
@@ -366,7 +376,7 @@ struct ReaderBookshelfView: View {
 
     @ViewBuilder
     private func bookMenu(_ book: ReaderBook) -> some View {
-        Button("书籍信息与分组") { actionBook = book }
+        Button("书籍信息与分组") { actionBook = BookManagementPresentation(book: book) }
         if book.sourceId != "local", model.libraryService is any ReaderOnlineServing {
             Button("更新目录") { refreshCatalog(book) }.disabled(catalogLoading)
         }
@@ -534,6 +544,7 @@ struct ReaderBookCover: View {
 struct ReaderSettingsView: View {
     @ObservedObject var preferences: ReaderPreferences
     var online: () -> Void
+    var downloads: () -> Void = {}
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -549,6 +560,8 @@ struct ReaderSettingsView: View {
                     .font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
             }.padding(18).background(ReaderPalette(scheme).card, in: RoundedRectangle(cornerRadius: 18))
             Button("书源、搜索与下载", action: online).buttonStyle(ReaderPrimaryButtonStyle())
+            Button("下载管理", action: downloads).buttonStyle(ReaderPrimaryButtonStyle())
+                .accessibilityIdentifier("settings-download-management")
             Spacer()
         }.padding(.horizontal, 19).frame(maxWidth: 620).frame(maxWidth: .infinity)
             .foregroundStyle(ReaderPalette(scheme).ink)

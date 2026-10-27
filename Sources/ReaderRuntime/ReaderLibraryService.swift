@@ -12,6 +12,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     let client: any ReaderCoreEventClient
     let hostTransport: ReaderIOSHostTransport?
     private let timing: ReaderRequestTiming
+    private let sourceExecutionPause: @Sendable (TimeInterval) async throws -> Void
     private let importStagingObserver: ReaderImportStagingObserver
     private let importSourceDirectorySync: @Sendable (URL) throws -> Void
     private var liveImportResources: [String: ReaderImportStagingOwner] = [:]
@@ -22,11 +23,21 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     var activeRequests: Set<UInt64> = []
     var unresolvedWrites: [UInt64: PendingMutation] = [:]
     private var pendingHostPumps: [UInt64: Task<Void, Never>] = [:]
+    private struct SourceExecutionObservation {
+        let id: UUID
+        let task: Task<Void, Never>
+    }
+    private var sourceExecutionObservations: [UInt64: SourceExecutionObservation] = [:]
+    // Every concurrent close keeps admission shut until its own attempt ends.
+    private var sourceExecutionCloseOwners: Set<UUID> = []
+    private var downloadStatusObservers: [UUID: (sourceID: String, bookID: String,
+        continuation: AsyncStream<ReaderDownloadStatusInvalidation>.Continuation)] = [:]
     private var isClosed = false
     var importInFlight = false
     var assetMutationInFlight = false
     var sourceSwitchInFlight = false
     var readingCacheWindowInFlight: Set<String> = []
+    var onlineAdmissionContinuationsInFlight: Set<String> = []
     var recovering = false
 
     public init(storageURL: URL, sourceURL: URL) throws {
@@ -45,13 +56,17 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         self.client = native
         self.hostTransport = transport
         self.timing = .live
+        self.sourceExecutionPause = { try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
         self.importStagingObserver = { _, _ in }
         self.importSourceDirectorySync = { try ReaderImportStagingLease.synchronizeDirectory($0) }
     }
 
     init(storageURL: URL, sourceURL: URL, client: any ReaderCoreEventClient, timing: ReaderRequestTiming,
          importStagingObserver: @escaping ReaderImportStagingObserver = { _, _ in },
-         importSourceDirectorySync: @escaping @Sendable (URL) throws -> Void = { try ReaderImportStagingLease.synchronizeDirectory($0) }) throws {
+         importSourceDirectorySync: @escaping @Sendable (URL) throws -> Void = { try ReaderImportStagingLease.synchronizeDirectory($0) },
+         sourceExecutionPause: @escaping @Sendable (TimeInterval) async throws -> Void = {
+             try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000))
+         }) throws {
         let manager = FileManager.default
         try manager.createDirectory(at: storageURL, withIntermediateDirectories: true)
         try manager.createDirectory(at: sourceURL, withIntermediateDirectories: true)
@@ -63,6 +78,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         self.client = client
         self.hostTransport = nil
         self.timing = timing
+        self.sourceExecutionPause = sourceExecutionPause
         self.importStagingObserver = importStagingObserver
         self.importSourceDirectorySync = importSourceDirectorySync
     }
@@ -162,6 +178,13 @@ public actor ReaderLibraryService: ReaderLibraryServing {
 
     public func close() async throws {
         if isClosed { return }
+        let closing = UUID()
+        sourceExecutionCloseOwners.insert(closing)
+        defer { sourceExecutionCloseOwners.remove(closing) }
+        let observations = sourceExecutionObservations.values.map(\.task)
+        for task in observations { task.cancel() }
+        for task in observations { await task.value }
+        if isClosed { return }
         try drainUnresolvedReplies(importsOnly: true)
         // Do not destroy the runtime underneath an in-flight durable import/write.
         guard activeRequests.isEmpty, unresolvedWrites.values.allSatisfy({ $0.owner == .flush }),
@@ -169,7 +192,48 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         try await flush()
         guard activeRequests.isEmpty, unresolvedWrites.isEmpty, !importInFlight, !recovering, !assetMutationInFlight else { throw ReaderLibraryError.busy }
         isClosed = true
+        for observer in downloadStatusObservers.values { observer.continuation.finish() }
+        downloadStatusObservers.removeAll()
         client.destroy()
+    }
+
+    public func downloadStatusInvalidations(for book: ReaderBook) async -> AsyncStream<ReaderDownloadStatusInvalidation> {
+        guard !isClosed else { return AsyncStream { $0.finish() } }
+        let observerID = UUID()
+        // These are coalescible wakeups, never a second queue of task facts.
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            downloadStatusObservers[observerID] = (book.sourceId, book.bookId, continuation)
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.removeDownloadStatusObserver(observerID) }
+            }
+        }
+    }
+
+    private func removeDownloadStatusObserver(_ observerID: UUID) {
+        downloadStatusObservers.removeValue(forKey: observerID)
+    }
+
+    private func downloadStatusIdentity(method: String, parameters: [String: Any],
+                                        owner: PendingMutationOwner?, requestID: UInt64) -> ReaderDownloadStatusInvalidation? {
+        guard method == "cache.book.prefetch", case .command(let operationID)? = owner,
+              let sourceID = parameters["sourceId"] as? String, !sourceID.isEmpty,
+              let bookID = parameters["bookId"] as? String, !bookID.isEmpty,
+              let coreOperationID = parameters["operationId"] as? String, !coreOperationID.isEmpty,
+              let sequence = parameters["sequence"] as? NSNumber,
+              let range = parameters["chapterRange"] as? [UInt32], range.count == 2 else { return nil }
+        return .init(sourceID: sourceID, bookID: bookID, operationID: operationID,
+                     coreOperationID: coreOperationID, sequence: sequence.uint64Value, requestID: requestID,
+                     method: method, chapterRange: range, phase: .submitted)
+    }
+
+    private func invalidateDownloadStatus(_ identity: ReaderDownloadStatusInvalidation?,
+                                          phase: ReaderDownloadStatusInvalidation.Phase) {
+        guard let identity else { return }
+        let event = identity.at(phase)
+        for observer in downloadStatusObservers.values
+        where observer.sourceID == event.sourceID && observer.bookID == event.bookID {
+            observer.continuation.yield(event)
+        }
     }
 
     public func importBook(at url: URL) async throws -> ReaderImportResult {
@@ -545,8 +609,14 @@ public actor ReaderLibraryService: ReaderLibraryServing {
 
     func request(_ method: String, _ params: [String: Any], mutation: Bool = false,
                          timeout: TimeInterval = 30, owner: PendingMutationOwner? = nil,
-                         onSendAttempt: (() -> Void)? = nil) async throws -> Data {
+                         onSendAttempt: (() -> Void)? = nil,
+                         searchTraceAttempt: ReaderSearchTraceAttempt? = nil,
+                         sourceExecutionObservationID: UUID? = nil) async throws -> Data {
         guard !isClosed else { throw ReaderLibraryError.closed }
+        if let observationID = sourceExecutionObservationID {
+            guard sourceExecutionCloseOwners.isEmpty,
+                  sourceExecutionObservations.values.contains(where: { $0.id == observationID }) else { throw CancellationError() }
+        }
         if !mutation { try Task.checkCancellation() }
         if mutation {
             guard let owner else { throw ReaderLibraryError.invalidResponse("missing mutation owner") }
@@ -556,17 +626,26 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         }
         requestID += 1
         let id = requestID
-        hostTransport?.bind(requestID: id, sourceID: params["sourceId"] as? String)
+        let downloadIdentity = mutation
+            ? downloadStatusIdentity(method: method, parameters: params, owner: owner, requestID: id) : nil
+        let searchTrace = !mutation && method == "book.search"
+            ? searchTraceAttempt?.bind(requestID: id, sourceID: params["sourceId"] as? String) : nil
+        hostTransport?.bind(requestID: id, sourceID: params["sourceId"] as? String, searchTrace: searchTrace)
         if mutation, let owner {
             // Reserve the owner before the first suspension, not only after a
             // deadline: actor reentrancy cannot dispatch a competing write.
-            unresolvedWrites[id] = PendingMutation(method: method, owner: owner, terminal: nil)
+            unresolvedWrites[id] = PendingMutation(method: method, owner: owner, terminal: nil,
+                                                   downloadStatusIdentity: downloadIdentity)
         }
         do {
             onSendAttempt?() // Infallible: after reservation, immediately before the actual send attempt.
+            searchTrace?.emit(.coreSendAttempt)
             try client.send(method: method, requestId: id, params: params)
+            searchTrace?.emit(.coreSent)
+            invalidateDownloadStatus(downloadIdentity, phase: .submitted)
         }
         catch {
+            searchTrace?.emit(.coreSendFailed, outcome: .failure(error))
             unresolvedWrites.removeValue(forKey: id)
             hostTransport?.finish(requestID: id)
             throw error
@@ -574,14 +653,19 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         activeRequests.insert(id)
         var terminalSeen = false
         defer {
+            searchTrace?.emit(.coreObservationEnded, outcome: Task.isCancelled ? .cancelled : nil)
             activeRequests.remove(id)
             if !mutation {
-                if !terminalSeen { client.retireReadRequest(requestId: id) }
+                if !terminalSeen {
+                    client.retireReadRequest(requestId: id)
+                    searchTrace?.emit(.coreReadRetired)
+                }
                 // The transport retains cancellation until any queued/running
                 // Host work has actually exited, then releases this read ID.
                 hostTransport?.retireRead(requestID: id)
             } else if terminalSeen { hostTransport?.finish(requestID: id) }
             else { startPendingHostPump(requestID: id) }
+            if let searchTrace { startSourceExecutionObservation(searchTrace) }
         }
         let deadline = timing.now() + timeout
         var cancellationSent = false
@@ -590,11 +674,18 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             // Core job. Check before polling so even timeout:0 has one owner.
             if mutation && timing.now() >= deadline { throw ReaderLibraryError.operationPending(method) }
             if !mutation && Task.isCancelled && !cancellationSent {
-                try client.cancel(requestId: id)
+                try cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
                 hostTransport?.cancel(requestID: id)
                 cancellationSent = true
             }
             if let result = client.pollEvent(requestId: id) {
+                if case .success(let event) = result, event.requestId == id,
+                   ["result", "error"].contains(event.type) {
+                    let outcome: ReaderSearchTraceEvent.Outcome = event.type == "result" ? .succeeded
+                        : event.coreError?.code == "CANCELLED" ? .cancelled : .failed
+                    searchTrace?.emit(.coreTerminal, outcome: outcome)
+                    invalidateDownloadStatus(downloadIdentity, phase: .terminal)
+                }
                 if case .success(let event) = result, ["result", "error"].contains(event.type) { terminalSeen = true }
                 if cancellationSent { throw CancellationError() }
                 if case .success(let event) = result, event.type == "host.request" {
@@ -613,13 +704,13 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                             // continuation and cancel the child independently.
                             try await awaitReadHostRequest(event: event, requestID: id,
                                                            deadline: deadline, transport: transport,
-                                                           client: native, timing: timing)
+                                                           client: native, timing: timing, searchTrace: searchTrace)
                         } catch is ReaderRequestDeadlineExceeded {
                             // Reads are cancellable observations. Stop the
                             // in-flight Host request and Core read together;
                             // unlike a mutation this cannot discard an
                             // unknown durable write.
-                            try? client.cancel(requestId: id)
+                            try? cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
                             hostTransport?.cancel(requestID: id)
                             throw ReaderLibraryError.invalidResponse("timeout: " + method)
                         }
@@ -631,7 +722,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                    event.requestId == id, ["result", "error"].contains(event.type) {
                     // Retain successful ACKs until their business owner has
                     // persisted/applied them, including Host journal I/O errors.
-                    var pending = unresolvedWrites[id] ?? PendingMutation(method: method, owner: owner, terminal: nil)
+                    var pending = unresolvedWrites[id] ?? PendingMutation(method: method, owner: owner, terminal: nil,
+                                                                          downloadStatusIdentity: downloadIdentity)
                     pending.terminal = result
                     unresolvedWrites[id] = pending
                 }
@@ -644,7 +736,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 return data
             }
             if !mutation && Task.isCancelled && !cancellationSent {
-                try client.cancel(requestId: id)
+                try cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
                 hostTransport?.cancel(requestID: id)
                 cancellationSent = true
             }
@@ -652,11 +744,84 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 // A timeout after dispatch is not a write rejection. Do not cancel,
                 // delete assets, or report rollback without an authoritative receipt.
                 if mutation { throw ReaderLibraryError.operationPending(method) }
-                try? client.cancel(requestId: id)
+                try? cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
                 hostTransport?.cancel(requestID: id)
                 throw ReaderLibraryError.invalidResponse("timeout: " + method)
             }
             await timing.suspend()
+        }
+    }
+
+    /// The original read's observer can end before Core's accepted execution
+    /// scopes do. This optional observer owns only fresh runtime.status replies.
+    private func startSourceExecutionObservation(_ trace: ReaderSearchTraceBinding) {
+        guard sourceExecutionObservations[trace.requestID] == nil else { return }
+        trace.emit(.coreExecutionObservationStarted)
+        guard !isClosed, sourceExecutionCloseOwners.isEmpty else {
+            trace.emit(.coreExecutionObservationEnded, coreExecutionObservationOutcome: .runtimeClosing)
+            return
+        }
+        guard sourceExecutionObservations.count < 4, trace.recording.admitSourceExecutionObservation() else {
+            trace.emit(.coreExecutionObservationEnded, coreExecutionObservationOutcome: .limited)
+            return
+        }
+        let id = UUID(), deadline = timing.now() + 2
+        let task = Task(priority: .utility) { [weak self] in
+            guard let self else {
+                trace.recording.endSourceExecutionObservation()
+                trace.emit(.coreExecutionObservationEnded, coreExecutionObservationOutcome: .runtimeClosing)
+                return
+            }
+            await self.observeSourceExecution(trace, id: id, deadline: deadline)
+        }
+        sourceExecutionObservations[trace.requestID] = .init(id: id, task: task)
+    }
+
+    private func observeSourceExecution(_ trace: ReaderSearchTraceBinding, id: UUID, deadline: TimeInterval) async {
+        var outcome: ReaderSearchTraceEvent.CoreExecutionObservationOutcome = .limited
+        var last: ReaderSearchTraceEvent.CoreExecutionSummary?
+        defer {
+            if sourceExecutionObservations[trace.requestID]?.id == id { sourceExecutionObservations[trace.requestID] = nil }
+            trace.recording.endSourceExecutionObservation()
+            trace.emit(.coreExecutionObservationEnded, coreExecutionSummary: last, coreExecutionObservationOutcome: outcome)
+        }
+        for sample in 0..<20 {
+            guard !isClosed, sourceExecutionCloseOwners.isEmpty, !Task.isCancelled else { outcome = .runtimeClosing; return }
+            let remaining = deadline - timing.now()
+            guard remaining > 0 else { outcome = .timedOut; return }
+            guard trace.recording.reserveSourceExecutionSample() else { outcome = .limited; return }
+            let data: Data
+            do {
+                // Neither this request nor its cancellation inherits a search
+                // attempt. Only its own request ID is polled by the normal router.
+                data = try await ReaderSearchTraceContext.$attempt.withValue(nil) {
+                    try await request("runtime.status", ["includeSourceExecution": true],
+                                      timeout: min(0.25, remaining), searchTraceAttempt: nil,
+                                      sourceExecutionObservationID: id)
+                }
+            } catch {
+                if isClosed || !sourceExecutionCloseOwners.isEmpty || Task.isCancelled { outcome = .runtimeClosing }
+                else if timing.now() >= deadline { outcome = .timedOut }
+                else { outcome = .failed }
+                return
+            }
+            guard !isClosed, sourceExecutionCloseOwners.isEmpty, !Task.isCancelled else { outcome = .runtimeClosing; return }
+            guard timing.now() < deadline else { outcome = .timedOut; return }
+            let snapshot: ReaderSourceExecutionStatus
+            do { snapshot = try JSONDecoder().decode(ReaderSourceExecutionStatus.self, from: data) }
+            catch { outcome = .invalidSnapshot; return }
+            guard snapshot.sourceExecution.trackedMethods == ["book.search"] else { outcome = .invalidSnapshot; return }
+            let matches = snapshot.sourceExecution.requests.filter { $0.requestId == trace.requestID }
+            guard matches.count == 1, let current = matches.first else { outcome = .unknown; return }
+            guard current.isCoherent, !current.retired || current.isStrictlyRetired else { outcome = .invalidSnapshot; return }
+            trace.emit(.coreExecutionSnapshotObserved, coreExecutionSummary: current)
+            if let previous = last, previous.generation != current.generation { outcome = .generationChanged; return }
+            last = current
+            if current.isStrictlyRetired { outcome = .retired; return }
+            if sample == 19 { return }
+            let pause = min(0.1, max(0, deadline - timing.now()))
+            do { try await sourceExecutionPause(pause) }
+            catch { outcome = .runtimeClosing; return }
         }
     }
 
@@ -673,6 +838,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
            !pending.seenHostOperations.insert(operationID).inserted { return }
         pending.queuedHostRequests.append(event)
         unresolvedWrites[requestID] = pending
+        invalidateDownloadStatus(pending.downloadStatusIdentity, phase: .hostRequest)
     }
 
     private func handleQueuedMutationHostRequest(requestID: UInt64, late: Bool) async throws -> Bool {
@@ -738,6 +904,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                         if var current = unresolvedWrites[requestID] {
                             current.terminal = reply
                             unresolvedWrites[requestID] = current
+                            invalidateDownloadStatus(current.downloadStatusIdentity, phase: .terminal)
                         }
                         hostTransport?.finish(requestID: requestID)
                         return
@@ -858,6 +1025,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 } else if event.requestId == id, ["result", "error"].contains(event.type) {
                     pending.terminal = reply
                     unresolvedWrites[id] = pending
+                    invalidateDownloadStatus(pending.downloadStatusIdentity, phase: .terminal)
                     hostTransport?.finish(requestID: id)
                 }
             }
@@ -1056,6 +1224,16 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     }
 }
 
+private struct ReaderSourceExecutionStatus: Decodable {
+    struct Snapshot: Decodable {
+        let trackedMethods: [String]
+        let requests: [ReaderSearchTraceEvent.CoreExecutionSummary]
+        let evictedRetiredGenerationCount: UInt64
+        let untrackedGenerationCount: UInt64
+    }
+    let sourceExecution: Snapshot
+}
+
 private struct HostImportRecord: Codable {
     enum Phase: String, Codable { case preparing, persistAwaiting, persisted, shelfAwaiting, finalize, rollback, completed, rejected }
     let id: String
@@ -1091,6 +1269,7 @@ struct PendingMutation {
     let method: String
     let owner: PendingMutationOwner
     var terminal: Result<ReaderCoreEvent, ReaderCoreClientError>?
+    let downloadStatusIdentity: ReaderDownloadStatusInvalidation?
     var queuedHostRequests: [ReaderCoreEvent] = []
     var seenHostOperations: Set<UInt64> = []
     var executingHostRequest: ReaderCoreEvent?
@@ -1098,6 +1277,20 @@ struct PendingMutation {
     var lateHostHandledCount: Int = 0
 }
 private struct ReaderRequestDeadlineExceeded: Error {}
+
+/// Observes the actual Core cancellation call. Returning from this call is
+/// deliberately separate from its terminal event and from worker termination.
+private func cancelObservedRead(client: any ReaderCoreEventClient, requestID: UInt64,
+                                searchTrace: ReaderSearchTraceBinding?) throws {
+    searchTrace?.emit(.coreCancelAttempted)
+    do {
+        try client.cancel(requestId: requestID)
+        searchTrace?.emit(.coreCancelReturned, outcome: .succeeded)
+    } catch {
+        searchTrace?.emit(.coreCancelReturned, outcome: .failure(error))
+        throw error
+    }
+}
 
 private final class ReaderReadHostDeadlineGate: @unchecked Sendable {
     private let lock = NSLock()
@@ -1163,7 +1356,8 @@ private final class ReaderReadHostDeadlineGate: @unchecked Sendable {
 
 private func awaitReadHostRequest(event: ReaderCoreEvent, requestID: UInt64,
                                  deadline: TimeInterval, transport: ReaderIOSHostTransport,
-                                 client: ReaderCoreClient, timing: ReaderRequestTiming) async throws {
+                                 client: ReaderCoreClient, timing: ReaderRequestTiming,
+                                 searchTrace: ReaderSearchTraceBinding? = nil) async throws {
     let gate = ReaderReadHostDeadlineGate { transport.cancel(requestID: requestID) }
     do {
         try await withTaskCancellationHandler(operation: {
@@ -1171,7 +1365,7 @@ private func awaitReadHostRequest(event: ReaderCoreEvent, requestID: UInt64,
                 gate.install(continuation)
                 let hostTask = Task {
                     do {
-                        try await transport.handle(event, client: client, cancellableRead: true)
+                        try await transport.handle(event, client: client, cancellableRead: true, searchTrace: searchTrace)
                         gate.hostFinished(.success(()))
                     } catch {
                         gate.hostFinished(.failure(error))
@@ -1189,7 +1383,7 @@ private func awaitReadHostRequest(event: ReaderCoreEvent, requestID: UInt64,
         // The cancellation handler releases the Host worker, but the Core
         // read also needs its own cancellation receipt before this observer
         // leaves. Deadline handling already performs this in its caller.
-        try? client.cancel(requestId: requestID)
+        try? cancelObservedRead(client: client, requestID: requestID, searchTrace: searchTrace)
         throw CancellationError()
     }
 }

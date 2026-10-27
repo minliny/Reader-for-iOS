@@ -8,6 +8,61 @@ import XCTest
 final class ReaderApplicationModelTests: XCTestCase {
     private let book = ApplicationModelServiceFake.sampleBook
 
+    /// Draft ownership at the production ACK consumer only. This makes no
+    /// Core-write or native sheet lifecycle acceptance claim.
+    func testGroupDraftOriginalSaveACKClearsOnlyItsSubmissionAcrossEditsAndPresentationReopen() {
+        for boundary in 0..<7 {
+            let shelf = ReaderShelfPresentation()
+            let draft = shelf.groupDraft
+            let presentation = UUID()
+            draft.activate(presentation)
+            let original = ReaderBookGroup(groupId: 1, groupName: "First group")
+            let other = ReaderBookGroup(groupId: 2, groupName: "Other group")
+            draft.editing = original
+            draft.name = original.groupName
+            let submitted = draft.submission()
+            var nextSubmission: ReaderGroupDraftOwner.Submission?
+            switch boundary {
+            case 1:
+                draft.name = "  " + original.groupName + "  "
+                XCTAssertEqual(draft.name.trimmingCharacters(in: .whitespacesAndNewlines), submitted.title)
+            case 2:
+                draft.name = "New input"
+                draft.name = original.groupName
+            case 3:
+                draft.editing = other
+            case 4:
+                draft.editing = other
+                draft.editing = original
+            case 5, 6:
+                draft.retire(presentation)
+                let reopened = shelf.groupDraft
+                XCTAssertTrue(reopened === draft, "Closing and reopening must retain the shelf's one draft owner")
+                reopened.activate(UUID())
+                if boundary == 6 { reopened.name = "Input after reopening" }
+                nextSubmission = reopened.submission()
+                draft.retire(presentation) // A late old dismissal cannot retire the new presentation.
+            default: break
+            }
+            let currentSubmission = nextSubmission ?? draft.submission()
+            let retainedName = draft.name, retainedEditing = draft.editing
+            let consumed = draft.consumeSaved(submitted)
+            XCTAssertEqual(consumed, boundary == 0, "boundary \(boundary)")
+            if boundary == 0 {
+                XCTAssertEqual(draft.name, "")
+                XCTAssertNil(draft.editing)
+            } else {
+                XCTAssertEqual(draft.name, retainedName, "boundary \(boundary)")
+                XCTAssertEqual(draft.editing, retainedEditing, "boundary \(boundary)")
+                // A later explicit save can own this still-present input.
+                XCTAssertTrue(draft.consumeSaved(currentSubmission), "boundary \(boundary)")
+            }
+            draft.name = "A later draft"
+            XCTAssertFalse(draft.consumeSaved(submitted), "An old completion cannot clear a later draft")
+            XCTAssertEqual(draft.name, "A later draft")
+        }
+    }
+
     func testOnlineReadingFailureMessagesKeepCacheAndNetworkOutcomesDistinct() {
         XCTAssertEqual(
             ReaderApplicationModel.readingFailureMessage(

@@ -145,9 +145,12 @@ final class ReaderApplicationModel: ObservableObject {
     /// Read-only feature boundary shared by local tools and online adapters.
     var libraryService: any ReaderLibraryServing { service }
 
-    init(service: any ReaderLibraryServing, backgroundTasks: (any ReaderBackgroundTaskManaging)? = nil) {
+    /// An alternate library supplies its own Host ledger as well as Core data;
+    /// the default retains the production App's preserved reading-time lineage.
+    init(service: any ReaderLibraryServing, backgroundTasks: (any ReaderBackgroundTaskManaging)? = nil,
+         readingTimeStorageURL: URL? = nil) {
         self.service = service
-        self.readingTime = ReaderReadingTimeOwner(service: service)
+        self.readingTime = ReaderReadingTimeOwner(service: service, storageURL: readingTimeStorageURL)
         self.featureRecovery = ReaderFeatureRecoveryOwner(service: service)
         self.backgroundTasks = backgroundTasks ?? ReaderSystemBackgroundTasks()
         actionSubscription = actions.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }

@@ -97,6 +97,8 @@ public struct ReaderLocalPresentationKind: Codable, Hashable, Sendable {
 public protocol ReaderLibraryFeatures: ReaderLibraryServing {
     func pendingFeatureOperations() async throws -> [ReaderPendingCoreCommand]
     func resumePendingFeatureOperation(_ operationID: String) async throws -> ReaderFeatureRecoveryResult
+    /// A separate explicit user intent. Ordinary recovery never dispatches it.
+    func continuePendingOnlineAdmission(_ operationID: String) async throws -> ReaderFeatureRecoveryResult
     func directory(for book: ReaderBook, query: String, descending: Bool, collapsedNodeIDs: [String]) async throws -> ReaderDirectorySnapshot
     func resolveDirectoryTarget(_ node: ReaderDirectoryNode, in snapshot: ReaderDirectorySnapshot) async throws -> ReaderDirectoryTarget
     func content(for book: ReaderBook, target: ReaderDirectoryTarget) async throws -> ReaderChapterContent

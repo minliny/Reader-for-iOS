@@ -97,6 +97,13 @@ App 使用 `xcodebuild ... build`，每次在查询所得 App DerivedData 下的
 XCTest 常规失败附件、截图与日志仍保留。
 工程生成和 App 构建不操作模拟器。构建、所选测试、模拟器安装/交互、真机及用户验收分别记录。
 
+当前真机工作只使用已连接的有线 iPhone 和既有免费签名身份。先查工作区待办中的准确场景证据，
+生产 App 未变时复用已安装 App，仅更新变化的 Runner；新业务源码需要的准确方法合并执行，
+不因版本仍 OPEN 重跑旧 PASS。每次设备动作使用同一目标租约、必要的停止态前后副本和一次有界客户端。
+UI Runner 未进入时先查本次 `xcresult/Staging` 的 session/testmanagerd 日志；
+支持的 Xcode 可用 `devicectl device capture screenshot` 直接观察系统认证画面，无需再运行 XCTest。
+手机锁屏密码只由用户在手机输入；认证等待期间继续代码与离线证据工作，不循环构建、安装或重试。
+
 `ReaderNativeJourneyTests/testNativePickerToReadingAndColdReopen` 使用下载目录的真实
 `仙子请听我解释.txt`。运行前将原文件按字节复制到所选模拟器的 Reader Documents，
 核对原件与副本 SHA-256；测试通过系统文件选择器导入，不在 App 内生成或注入小说。
@@ -124,7 +131,7 @@ SQLite 主库使用 Python sqlite3 只读连接的 `iterdump` 语义 SHA，不�
 固定视觉/交互参考与当前运行依赖分开：参考仍使用 `Resources/Reference/manifest.json`
 登记的冻结 Git 对象；当前 Core pin 和 wrapper SHA 以 `scripts/core-dependency.json` 为准。
 V2–V4 的新目录/电子书、规则订阅及原操作恢复合同需要配套 Core 升级，不能仅凭 Swift 接线
-就让旧 Framework 获得新能力。当前 pin 为 `8acdf7bbc04359a929c3c42f3e25b7d971b2cd55`；
+就让旧 Framework 获得新能力。当前 pin 为 `8e242a9371086a1dfc1d72fdbe468b61d52a11aa`；
 此前 `b6a5bb9` 在线入架文档计数修复的模拟器 Framework 构建与 Core141、e978 只读调试结果作为历史证据保留，具体方法及原生结果见 [能力与证据边界](docs/LOCAL_READING.md#已有结果与尚未闭合的证据)。
 最终交付 App 和保数据安装另行绑定，测试宿主不充当交付 App。
 

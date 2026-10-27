@@ -26,8 +26,7 @@ final class ReaderShelfPresentation: ObservableObject {
     @Published var selection = Set<String>()
     /// Unsaved group form belongs to the retained shelf presentation, so
     /// closing its sheet or visiting another Root route does not erase input.
-    @Published var groupDraftName = ""
-    @Published var groupDraftEditing: ReaderBookGroup?
+    let groupDraft = ReaderGroupDraftOwner()
     @Published private(set) var groups: [ReaderBookGroup] = []
     private struct Projection {
         let key: ReaderShelfProjectionKey
@@ -66,6 +65,25 @@ final class ReaderShelfPresentation: ObservableObject {
             keyword: keyword.isEmpty ? nil : keyword,
             group: group?.trimmingCharacters(in: .whitespacesAndNewlines),
             sortBy: sort, descending: descending), librarySnapshot: model.books)
+    }
+
+    /// Group records and stored shelf labels have independent Core lifetimes.
+    /// A renamed/deleted definition must not hide the books' retained label.
+    func groupNameOptions(model: ReaderApplicationModel) -> [String] {
+        func name(_ value: String?) -> String? {
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+            return value
+        }
+        var seen = Set<String>()
+        var options: [String] = []
+        for definition in groups {
+            if let value = name(definition.groupName), seen.insert(value).inserted { options.append(value) }
+        }
+        // Use the complete confirmed library, not this query's visible subset.
+        var labels = Set(model.books.compactMap { name($0.group) })
+        if let selected = name(group) { labels.insert(selected) }
+        for value in labels.sorted() where seen.insert(value).inserted { options.append(value) }
+        return options
     }
 
     func books(for key: ReaderShelfProjectionKey) -> [ReaderBook]? {

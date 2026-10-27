@@ -236,6 +236,9 @@ public struct ReaderReplacePreview: Codable, Hashable, Sendable {
     public let storedRuleCount: UInt64
     public let enabledRuleCount: UInt64
 }
+public struct ReaderReplacementPreviewChanged: Error, Sendable, LocalizedError {
+    public var errorDescription: String? { "当前正文或已保存规则已变化，请重新读取后预览" }
+}
 
 public struct ReaderRuleBundleCounts: Codable, Hashable, Sendable {
     public let replaceRules: UInt32
@@ -308,6 +311,7 @@ public protocol ReaderReadingToolsServing: ReaderLibraryServing {
     func validateReplaceRule(_ draft: ReaderReplaceRuleDraft) async throws -> ReaderReplaceValidation
     func processText(_ text: String, for book: ReaderBook, target: ReaderReplaceTarget) async throws -> ReaderReplaceApplication
     func previewReplacement(for book: ReaderBook, chapterIndex: UInt32, maxScalars: UInt32) async throws -> ReaderReplacePreview
+    func previewReplacement(for book: ReaderBook, content: ReaderChapterContent, expectedRules: [ReaderReplaceRule], maxScalars: UInt32) async throws -> ReaderReplacePreview
     func createReplaceRule(_ draft: ReaderReplaceRuleDraft, operationID: String) async throws -> ReaderReplaceRule
     func updateReplaceRule(id: Int64, draft: ReaderReplaceRuleDraft, operationID: String) async throws -> ReaderReplaceRule
     func deleteReplaceRule(id: Int64, operationID: String) async throws -> Bool
@@ -329,6 +333,11 @@ public protocol ReaderReadingToolsServing: ReaderLibraryServing {
     func applyDirectoryRules(for book: ReaderBook, rules: [ReaderDirectoryHierarchyRule], operationID: String) async throws -> ReaderDirectoryRulesResult
 }
 public extension ReaderReadingToolsServing {
+    /// Older adapters cannot claim a version-bound preview by silently calling
+    /// the legacy chapter-only read.
+    func previewReplacement(for book: ReaderBook, content: ReaderChapterContent, expectedRules: [ReaderReplaceRule], maxScalars: UInt32) async throws -> ReaderReplacePreview {
+        throw ReaderLibraryError.invalidResponse("version-bound replacement preview unavailable")
+    }
     func searchContent(for book: ReaderBook, keyword: String) async throws -> ReaderContentSearchPage {
         try await searchContent(for: book, keyword: keyword, limit: 100, offset: 0)
     }
@@ -483,6 +492,35 @@ extension ReaderLibraryService: ReaderReadingToolsServing {
         guard result.sourceId == book.sourceId, result.bookId == book.bookId, result.chapterIndex == chapterIndex else {
             throw ReaderLibraryError.invalidResponse("replacement preview identity")
         }
+        return result
+    }
+
+    /// Bind the visible input, current Core versions and rules to one unchanged
+    /// rules lineage. The head also rejects A -> B -> A between awaited reads.
+    public func previewReplacement(for book: ReaderBook, content: ReaderChapterContent,
+                                   expectedRules: [ReaderReplaceRule], maxScalars: UInt32) async throws -> ReaderReplacePreview {
+        struct Head: Decodable, Equatable {
+            let operationId: String
+            let sequence: UInt64
+            let payloadFingerprint: String
+        }
+        struct Query: Decodable { let head: Head? }
+        guard content.sourceId == book.sourceId, content.bookId == book.bookId,
+              content.bodyVersion?.isEmpty == false, content.processingVersion?.isEmpty == false else { throw ReaderLibraryError.invalidPosition }
+        let changed = ReaderReplacementPreviewChanged()
+        let before = try decode(Query.self, await coreRead("rules.mutation.query", [:])).head
+        let current = try await self.content(for: book, chapterIndex: content.chapterIndex)
+        guard current.sourceId == content.sourceId, current.bookId == content.bookId,
+              current.chapterIndex == content.chapterIndex, current.bodyVersion == content.bodyVersion,
+              current.processingVersion == content.processingVersion,
+              try await replaceRules() == expectedRules else { throw changed }
+        let result = try await previewReplacement(for: book, chapterIndex: content.chapterIndex, maxScalars: maxScalars)
+        let latest = try await self.content(for: book, chapterIndex: content.chapterIndex)
+        guard latest.sourceId == content.sourceId, latest.bookId == content.bookId,
+              latest.chapterIndex == content.chapterIndex, latest.bodyVersion == content.bodyVersion,
+              latest.processingVersion == content.processingVersion else { throw changed }
+        let after = try decode(Query.self, await coreRead("rules.mutation.query", [:])).head
+        guard before == after else { throw changed }
         return result
     }
 

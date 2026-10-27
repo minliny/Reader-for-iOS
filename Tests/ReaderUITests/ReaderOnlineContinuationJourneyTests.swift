@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import Vision
+import Network
 
 /// Prerequisite: the existing real package/search/admission native journey has
 /// succeeded in this same App library. Process environment selects those exact
@@ -110,6 +111,58 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
     /// or an uncached failure. Exact scalar retention needs the external
     /// pre/post snapshots; the native UI exposes percentage and visible text.
     func testExistingRealBaiduOSOfflineColdReopenAndCachedCurrentPlusMinusTwo() throws {
+        try requirePhysicalOfflinePhone()
+        let baseline = try offlineCachedBaseline(requireFreshStoppedCopy: false)
+        let offlineEvidence = try required("READER_ONLINE_OS_OFFLINE_EVIDENCE")
+        guard try required("READER_ONLINE_OS_OFFLINE_CONFIRMED") == "1" else {
+            XCTFail("The manual entry requires the user's actual OS-offline confirmation")
+            throw Prerequisite.invalid("manual actual OS-offline confirmation")
+        }
+        try runOfflineCachedColdRead(baseline, offlineEvidence: offlineEvidence)
+    }
+
+    /// The human explicitly authorized changing this physical iPhone's network.
+    /// Environment binds that authorization and Root's fresh stopped copy only;
+    /// actual Settings values and Network.framework supply the offline facts.
+    @MainActor
+    func testAuthorizedSettingsOfflineThenExistingRealBaiduCachedWindowColdReopen() throws {
+        try requirePhysicalOfflinePhone()
+        guard try required("READER_ONLINE_OS_NETWORK_CHANGE_AUTHORIZED") == "1" else {
+            XCTFail("Require this run's explicit human authorization before any Settings action")
+            throw Prerequisite.invalid("OS network change not authorized")
+        }
+        let baseline = try offlineCachedBaseline(requireFreshStoppedCopy: true)
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launch()
+        try requireSettingsForeground(settings)
+        let observations = try disableNetworkUsingActualSettings(settings)
+        let path = try observeUnsatisfiedSystemPath(settings: settings)
+        var actual = observations
+        actual["systemPath"] = path
+        actual["baselineBindingContract"] = "protected-state-summary-v1; Root retains the actual stopped copy"
+        if let capturedAt = baseline.capturedAt { actual["baselineCapturedAtUnix"] = capturedAt }
+        actual["authorizationEnvironment"] = "READER_ONLINE_OS_NETWORK_CHANGE_AUTHORIZED=1"
+        actual["restoration"] = "NOT_PERFORMED: retain the authorized offline state; original switch values are recorded"
+        let bytes = try JSONSerialization.data(withJSONObject: actual, options: [.prettyPrinted, .sortedKeys])
+        let evidence = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+        evidence.name = "actual-settings-switches-and-unsatisfied-system-path"
+        evidence.lifetime = .keepAlways; add(evidence)
+        guard let capturedAt = baseline.capturedAt, (0...600).contains(Date().timeIntervalSince1970 - capturedAt) else {
+            XCTFail("The original stopped-copy preproof expired before reading; preserve the current OS state")
+            throw Prerequisite.invalid("offline baseline no longer fresh")
+        }
+        try runOfflineCachedColdRead(baseline, offlineEvidence: String(decoding: bytes, as: UTF8.self))
+    }
+
+    private struct OfflineCachedBaseline {
+        let book: Book
+        let snapshotSHA: String
+        let baselineChapter: String
+        let baselineOffset: String
+        let cachedIndexes: String
+        let capturedAt: TimeInterval?
+    }
+    private func requirePhysicalOfflinePhone() throws {
 #if targetEnvironment(simulator)
         XCTFail("This journey requires the original physical iPhone; simulator results cannot satisfy it")
         throw Prerequisite.invalid("physical iPhone required")
@@ -118,20 +171,38 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             XCTFail("This journey requires the original physical iPhone")
             throw Prerequisite.invalid("iPhone required")
         }
+    }
+    private func offlineCachedBaseline(requireFreshStoppedCopy: Bool) throws -> OfflineCachedBaseline {
         let book = try originalBook()
         let snapshotSHA = try required("READER_ONLINE_OFFLINE_BASELINE_SHA256")
-        let offlineEvidence = try required("READER_ONLINE_OS_OFFLINE_EVIDENCE")
         let baselineChapter = try required("READER_ONLINE_OFFLINE_BASELINE_CHAPTER")
         let baselineOffset = try required("READER_ONLINE_OFFLINE_BASELINE_SCALAR_OFFSET")
         let cachedIndexes = try required("READER_ONLINE_OFFLINE_CACHED_INDEXES")
-        guard try required("READER_ONLINE_OS_OFFLINE_CONFIRMED") == "1",
-              snapshotSHA.count == 64, snapshotSHA.allSatisfy({ "0123456789abcdef".contains($0) }),
+        guard snapshotSHA.count == 64, snapshotSHA.allSatisfy({ "0123456789abcdef".contains($0) }),
               baselineChapter == "40", baselineOffset == "0", cachedIndexes == "38,39,40,41,42",
               book.source == "https://dushu.baidu.com/", book.title == "剑来",
               book.id == "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4305547728&pageNum=1&order=asc&site=" else {
-            XCTFail("Require the user's actual OS-offline confirmation and fresh original Baidu chapter-40/scalar-0 cached-window provenance before launching App; never clear cache or move the position to manufacture it")
+            XCTFail("Require fresh original Baidu chapter-40/scalar-0 cached-window provenance; never clear cache or move the position to manufacture it")
             throw Prerequisite.invalid("actual OS-offline cached-window prerequisites")
         }
+        var capturedAt: TimeInterval?
+        if requireFreshStoppedCopy {
+            let raw = try required("READER_ONLINE_OFFLINE_BASELINE_CAPTURED_AT_UNIX")
+            guard try required("READER_ONLINE_OFFLINE_BASELINE_APP_STOPPED") == "1",
+                  let observed = TimeInterval(raw), observed.isFinite,
+                  (0...600).contains(Date().timeIntervalSince1970 - observed) else {
+                XCTFail("Require Root's actual stopped-copy receipt completed within 600 seconds before Settings; no invented preproof")
+                throw Prerequisite.invalid("fresh stopped-copy offline provenance")
+            }
+            capturedAt = observed
+        }
+        return OfflineCachedBaseline(book: book, snapshotSHA: snapshotSHA, baselineChapter: baselineChapter,
+            baselineOffset: baselineOffset, cachedIndexes: cachedIndexes, capturedAt: capturedAt)
+    }
+    private func runOfflineCachedColdRead(_ baseline: OfflineCachedBaseline, offlineEvidence: String) throws {
+        let book = baseline.book, snapshotSHA = baseline.snapshotSHA
+        let baselineChapter = baseline.baselineChapter, baselineOffset = baseline.baselineOffset
+        let cachedIndexes = baseline.cachedIndexes
         let provenance = try JSONSerialization.data(withJSONObject: [
             "sourceId": book.source, "bookId": book.id, "title": book.title,
             "readOnlyBaselineSHA256": snapshotSHA, "observedOSOfflineEvidence": offlineEvidence,
@@ -189,6 +260,207 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         try visible(originalAnchor, app: app, name: "actual-os-offline-original-body-and-position-final-cold-reopen")
         XCTAssertEqual(footer.label, originalProgress)
         leave(app)
+    }
+
+    private let airplaneLabels = ["飞行模式", "Airplane Mode"]
+    private let wifiLabels = ["Wi-Fi", "无线局域网"]
+    private var settingsFallbackNavigationUsed = false
+    private struct SettingsSwitchObservation {
+        let label: String
+        let value: Int
+        let uptime: TimeInterval
+        var json: [String: Any] { ["label": label, "value": value, "observedUptime": uptime] }
+    }
+    @MainActor
+    private func requireSettingsForeground(_ settings: XCUIApplication) throws {
+        let foreground = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in settings.state == .runningForeground }, object: nil)
+        guard XCTWaiter.wait(for: [foreground], timeout: 5) == .completed, settings.alerts.count == 0 else {
+            captureSettings(settings, name: "settings-not-unobstructed-foreground")
+            XCTFail("Require the actual Settings app foreground without an unknown alert; preserve the current OS state")
+            throw Prerequisite.invalid("actual Settings foreground unavailable")
+        }
+    }
+    @MainActor
+    private func uniqueSettingsSwitch(_ labels: [String], settings: XCUIApplication) -> XCUIElement? {
+        let matches = settings.switches.matching(NSPredicate(format: "label IN %@", labels as NSArray)).allElementsBoundByIndex
+            .filter { $0.exists && $0.isHittable }
+        return matches.count == 1 ? matches[0] : nil
+    }
+    private func settingsSwitchValue(_ element: XCUIElement) -> Int? {
+        if let text = element.value as? String, text == "0" || text == "1" { return Int(text) }
+        if let number = element.value as? NSNumber, number == 0 || number == 1 { return number.intValue }
+        return nil
+    }
+    @MainActor
+    private func observeSettingsSwitch(_ labels: [String], settings: XCUIApplication, name: String) throws -> SettingsSwitchObservation {
+        try requireSettingsForeground(settings)
+        guard let actual = uniqueSettingsSwitch(labels, settings: settings), let value = settingsSwitchValue(actual) else {
+            captureSettings(settings, name: name + "-unresolved-switch")
+            XCTFail("Require one actual visible Settings switch with its observed 0/1 value: " + labels.joined(separator: "/"))
+            throw Prerequisite.invalid("ambiguous or unreadable OS network switch")
+        }
+        let result = SettingsSwitchObservation(label: actual.label, value: value, uptime: ProcessInfo.processInfo.systemUptime)
+        captureSettings(settings, name: name)
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: result.json, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+        attachment.name = name + "-actual-switch-value"; attachment.lifetime = .keepAlways; add(attachment)
+        return result
+    }
+    @MainActor
+    private func requireSettingsRoot(_ settings: XCUIApplication) throws {
+        var backs = 0, rootScrolls = 0
+        for _ in 0..<7 {
+            try requireSettingsForeground(settings)
+            if uniqueSettingsSwitch(airplaneLabels, settings: settings) != nil { return }
+            let back = settings.navigationBars.buttons.matching(NSPredicate(format:
+                "label IN %@ OR identifier == %@", ["设置", "Settings", "返回", "Back"] as NSArray, "BackButton"))
+                .allElementsBoundByIndex.filter { $0.isHittable }
+            if backs < 3, back.count == 1 { back[0].tap(); backs += 1; continue }
+            let rootTitles = settings.navigationBars.matching(NSPredicate(format: "label IN %@", ["设置", "Settings"] as NSArray))
+            let tables = settings.tables.allElementsBoundByIndex.filter(\.isHittable)
+            if rootScrolls < 2, rootTitles.count == 1, tables.count == 1 {
+                tables[0].swipeDown(); rootScrolls += 1; continue
+            }
+            if !settingsFallbackNavigationUsed {
+                settingsFallbackNavigationUsed = true
+                // Test navigation only. The URL has no success assertion;
+                // the actual Settings app and exact switch must still match.
+                let route = try XCTUnwrap(URL(string: "App-prefs:"))
+                XCUIDevice.shared.system.open(route)
+                continue
+            }
+            break
+        }
+        captureSettings(settings, name: "settings-root-bounded-navigation-failure")
+        XCTFail("Cannot safely locate the actual Settings root with a unique Airplane Mode switch; no blind coordinates or retries")
+        throw Prerequisite.invalid("Settings root not safely identifiable")
+    }
+    @MainActor
+    private func openSettingsWiFi(_ settings: XCUIApplication) throws {
+        try requireSettingsRoot(settings)
+        let routes = settings.staticTexts.matching(NSPredicate(format: "label IN %@", wifiLabels as NSArray))
+            .allElementsBoundByIndex.filter { $0.isHittable }
+        guard routes.count == 1 else {
+            captureSettings(settings, name: "settings-wifi-route-not-unique")
+            XCTFail("Require the unique actual Wi-Fi/无线局域网 row in Settings")
+            throw Prerequisite.invalid("actual Wi-Fi route unavailable")
+        }
+        routes[0].tap()
+        let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.uniqueSettingsSwitch(self.wifiLabels, settings: settings) != nil
+        }, object: nil)
+        guard XCTWaiter.wait(for: [visible], timeout: 5) == .completed else {
+            captureSettings(settings, name: "settings-wifi-switch-unavailable")
+            XCTFail("The actual Wi-Fi settings page must expose one readable switch")
+            throw Prerequisite.invalid("actual Wi-Fi switch unavailable")
+        }
+    }
+    @MainActor
+    private func setSettingsSwitch(_ labels: [String], to wanted: Int, settings: XCUIApplication) throws {
+        try requireSettingsForeground(settings)
+        guard let actual = uniqueSettingsSwitch(labels, settings: settings), let before = settingsSwitchValue(actual) else {
+            captureSettings(settings, name: "settings-switch-not-safe-to-change")
+            XCTFail("Do not change a switch whose current identity and value are unknown")
+            throw Prerequisite.invalid("OS network switch change not safe")
+        }
+        if before != wanted { actual.tap() }
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard let observed = self.uniqueSettingsSwitch(labels, settings: settings) else { return false }
+            return self.settingsSwitchValue(observed) == wanted
+        }, object: nil)
+        guard XCTWaiter.wait(for: [changed], timeout: 5) == .completed else {
+            captureSettings(settings, name: "settings-switch-change-not-observed")
+            XCTFail("The actual Settings value did not reach the requested state; preserve the current OS state")
+            throw Prerequisite.invalid("OS network switch outcome unconfirmed")
+        }
+    }
+    @MainActor
+    private func disableNetworkUsingActualSettings(_ settings: XCUIApplication) throws -> [String: Any] {
+        try requireSettingsRoot(settings)
+        let originalAirplane = try observeSettingsSwitch(airplaneLabels, settings: settings, name: "settings-original-airplane")
+        try openSettingsWiFi(settings)
+        let originalWiFi = try observeSettingsSwitch(wifiLabels, settings: settings, name: "settings-original-wifi")
+        try requireSettingsRoot(settings)
+        try setSettingsSwitch(airplaneLabels, to: 1, settings: settings)
+        let enabledAirplane = try observeSettingsSwitch(airplaneLabels, settings: settings, name: "settings-airplane-enabled")
+        try openSettingsWiFi(settings)
+        try setSettingsSwitch(wifiLabels, to: 0, settings: settings)
+        let disabledWiFi = try observeSettingsSwitch(wifiLabels, settings: settings, name: "settings-wifi-disabled")
+        try requireSettingsRoot(settings)
+        let finalAirplane = try observeSettingsSwitch(airplaneLabels, settings: settings, name: "settings-final-airplane-after-wifi")
+        guard enabledAirplane.value == 1, finalAirplane.value == 1, disabledWiFi.value == 0 else {
+            XCTFail("Actual Airplane=1 and Wi-Fi=0 observations are required before checking the system network path")
+            throw Prerequisite.invalid("OS network switches not confirmed")
+        }
+        return ["settingsBundleIdentifier": "com.apple.Preferences",
+            "originalAirplane": originalAirplane.json, "originalWiFi": originalWiFi.json,
+            "airplaneAfterEnable": enabledAirplane.json, "wifiAfterDisable": disabledWiFi.json,
+            "airplaneAfterWiFiObservation": finalAirplane.json,
+            "privateSettingsFallbackNavigationUsed": settingsFallbackNavigationUsed,
+            "observationBoundary": "Exact Settings switch observations at recorded times; these switches alone do not prove system offline"]
+    }
+    @MainActor
+    private func captureSettings(_ settings: XCUIApplication, name: String) {
+        keep(settings, name: name)
+        let ax = XCTAttachment(string: settings.debugDescription)
+        ax.name = name + "-actual-AX"; ax.lifetime = .keepAlways; add(ax)
+    }
+    private final class OfflinePathCapture: @unchecked Sendable {
+        private let lock = NSLock()
+        private var observed: [[String: Any]] = []
+        private var limited = false
+        func receive(_ path: NWPath) -> Bool {
+            func interface(_ type: NWInterface.InterfaceType) -> String {
+                switch type {
+                case .wifi: return "wifi"
+                case .cellular: return "cellular"
+                case .wiredEthernet: return "wiredEthernet"
+                case .loopback: return "loopback"
+                case .other: return "other"
+                @unknown default: return "unknown"
+                }
+            }
+            let status: String
+            switch path.status {
+            case .satisfied: status = "satisfied"
+            case .unsatisfied: status = "unsatisfied"
+            case .requiresConnection: status = "requiresConnection"
+            @unknown default: status = "unknown"
+            }
+            let sample: [String: Any] = ["status": status, "observedUptime": ProcessInfo.processInfo.systemUptime,
+                "availableInterfaceTypes": Array(Set(path.availableInterfaces.map { interface($0.type) })).sorted(),
+                "usedInterfaceTypes": [NWInterface.InterfaceType.wifi, .cellular, .wiredEthernet, .loopback, .other]
+                    .filter { path.usesInterfaceType($0) }.map(interface)]
+            lock.lock()
+            if observed.count < 16 { observed.append(sample) } else { limited = true }
+            lock.unlock()
+            return path.status == .unsatisfied
+        }
+        var samples: [[String: Any]] { lock.lock(); defer { lock.unlock() }; return observed }
+        var limitReached: Bool { lock.lock(); defer { lock.unlock() }; return limited }
+    }
+    @MainActor
+    private func observeUnsatisfiedSystemPath(settings: XCUIApplication) throws -> [String: Any] {
+        let capture = OfflinePathCapture(), received = DispatchSemaphore(value: 0)
+        let queue = DispatchQueue(label: "io.reader.minliny.uitest.offline-path", qos: .utility)
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in if capture.receive(path) { received.signal() } }
+        monitor.start(queue: queue)
+        let outcome = received.wait(timeout: .now() + 5)
+        monitor.cancel()
+        queue.sync {}
+        let samples = capture.samples
+        let result: [String: Any] = ["samples": samples, "waitLimitSeconds": 5,
+            "unsatisfiedObservedWithinLimit": outcome == .success,
+            "sampleLimitReached": capture.limitReached,
+            "boundary": "Network.framework system default path observation only; no URL, IP, SSID, credentials or reachability probe"]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+        attachment.name = "actual-system-network-path-before-offline-reader"; attachment.lifetime = .keepAlways; add(attachment)
+        captureSettings(settings, name: "settings-at-system-path-observation")
+        guard outcome == .success, !capture.limitReached, samples.last?["status"] as? String == "unsatisfied" else {
+            XCTFail("The actual system default path must be unsatisfied before claiming OS-offline cached reading; keep the current OS switches unchanged")
+            throw Prerequisite.invalid("system path not observed unsatisfied")
+        }
+        return result
     }
 
     /// Select this method only after an actual alternate candidate has been

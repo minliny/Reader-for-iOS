@@ -1,7 +1,38 @@
 import SwiftUI
+import Combine
 
 @MainActor
 final class ReaderTextToolsState: ObservableObject {
+    struct SearchRequest: Equatable {
+        let book: ReaderBook
+        let keyword: String
+        let limit: UInt32
+        let offset: UInt32
+        let append: Bool
+    }
+    typealias Search = @MainActor (ReaderBook, String, UInt32, UInt32) async throws -> ReaderContentSearchPage
+    struct NoteContext: Equatable {
+        let sessionID: UUID
+        let restorationID: UUID
+        let bookID: String
+        let chapterIndex: UInt32
+        let bodyVersion: String?
+        let processingVersion: String?
+        let selection: ReaderTextSelection?
+
+        init(session: ReaderActiveSession, selection: ReaderTextSelection?) {
+            sessionID = session.id; restorationID = session.restorationID; bookID = session.book.id
+            chapterIndex = session.content.chapterIndex; bodyVersion = session.content.bodyVersion
+            processingVersion = session.content.processingVersion; self.selection = selection
+        }
+    }
+    struct NoteDraft {
+        let presentation: UUID
+        let revision: UUID
+        let context: NoteContext
+        let note: String
+        let editing: ReaderHighlight?
+    }
     @Published var query = ""
     @Published var submitted = ""
     @Published var requested = ""
@@ -11,14 +42,20 @@ final class ReaderTextToolsState: ObservableObject {
     @Published var hasMore = false
     @Published var notes: [ReaderHighlight] = []
     @Published var noteQuery = ""
-    @Published var note = ""
-    @Published var editingNote: ReaderHighlight?
+    @Published var note = "" { didSet { noteRevision = UUID() } }
+    @Published var editingNote: ReaderHighlight? { didSet { noteRevision = UUID() } }
     @Published var notesFailure: String?
     @Published var notesLoading = false
     var searchGeneration = UUID()
     var notesGeneration = UUID()
     var searchTask: Task<Void, Never>?
     var returnPosition: (ReaderContentPositionScope, UInt64)?
+    private(set) var failedSearchRequest: SearchRequest?
+    private var noteRevision = UUID()
+    private var notePresentation = UUID()
+    private var notesActive = false
+    private var noteContext: NoteContext?
+    private var noteObservation: AnyCancellable?
 
     /// Retire only the current read. Confirmed results and return position stay
     /// available; the Runtime owns cancellation and exact reply retirement.
@@ -30,30 +67,94 @@ final class ReaderTextToolsState: ObservableObject {
     }
 
     func startSearch(for book: ReaderBook, using service: any ReaderReadingToolsServing, more: Bool) {
+        startSearch(for: book, more: more) { book, keyword, limit, offset in
+            try await service.searchContent(for: book, keyword: keyword, limit: limit, offset: offset)
+        }
+    }
+
+    func retrySearch(for book: ReaderBook, using service: any ReaderReadingToolsServing) {
+        retrySearch(for: book) { book, keyword, limit, offset in
+            try await service.searchContent(for: book, keyword: keyword, limit: limit, offset: offset)
+        }
+    }
+
+    func startSearch(for book: ReaderBook, more: Bool, search: @escaping Search) {
         let query = more ? submitted : self.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        let request = SearchRequest(book: book, keyword: query, limit: 100,
+            offset: more ? UInt32(clamping: results.count) : 0, append: more)
+        beginSearch(request, search: search)
+    }
+
+    func retrySearch(for book: ReaderBook, search: @escaping Search) {
+        guard let request = failedSearchRequest, request.book.id == book.id else { return }
+        beginSearch(request, search: search)
+    }
+
+    private func beginSearch(_ request: SearchRequest, search: @escaping Search) {
         cancelSearch()
         let generation = UUID(); searchGeneration = generation
-        let offset = more ? results.count : 0
-        requested = query; searchLoading = true; searchFailure = nil
+        requested = request.keyword; searchLoading = true; searchFailure = nil; failedSearchRequest = nil
         // The in-flight Core read owns its book/service. It must not retain the
         // departed presentation state while waiting for an original terminal.
         searchTask = Task { [weak self] in
             do {
-                let page = try await service.searchContent(for: book, keyword: query, limit: 100, offset: UInt32(clamping: offset))
+                let page = try await search(request.book, request.keyword, request.limit, request.offset)
                 guard let self, self.searchGeneration == generation, !Task.isCancelled else { return }
-                self.submitted = query
-                self.results = more ? self.results + page.results : page.results
+                self.submitted = request.keyword
+                self.results = request.append ? self.results + page.results : page.results
                 self.hasMore = page.hasMore
             } catch {
                 guard let self, self.searchGeneration == generation, !Task.isCancelled else { return }
-                self.searchFailure = error.localizedDescription
+                self.searchFailure = error.localizedDescription; self.failedSearchRequest = request
             }
             if let self, self.searchGeneration == generation {
                 self.searchLoading = false
                 self.searchTask = nil
             }
         }
+    }
+
+    func observeNotes(in model: ReaderApplicationModel) {
+        activateNotes(session: model.reader, selection: model.selection)
+        // Published values arrive synchronously, so selection A -> B -> A
+        // invalidates an old ACK even when SwiftUI coalesces view updates.
+        noteObservation = Publishers.CombineLatest(model.$reader, model.$selection).sink { [weak self] session, selection in
+            self?.updateNoteContext(session: session, selection: selection)
+        }
+    }
+
+    func activateNotes(session: ReaderActiveSession?, selection: ReaderTextSelection?) {
+        noteObservation?.cancel(); noteObservation = nil
+        notePresentation = UUID(); notesActive = true
+        updateNoteContext(session: session, selection: selection)
+    }
+
+    func updateNoteContext(session: ReaderActiveSession?, selection: ReaderTextSelection?) {
+        let context = session.map { NoteContext(session: $0, selection: selection) }
+        if context != noteContext { noteRevision = UUID(); noteContext = context }
+    }
+
+    func retireNotes() {
+        notesActive = false; notePresentation = UUID()
+        noteObservation?.cancel(); noteObservation = nil
+        notesGeneration = UUID(); notesLoading = false
+    }
+
+    func captureNoteDraft(for book: ReaderBook) -> NoteDraft? {
+        guard notesActive, let context = noteContext, context.bookID == book.id else { return nil }
+        return NoteDraft(presentation: notePresentation, revision: noteRevision, context: context, note: note, editing: editingNote)
+    }
+
+    func acceptsNotePresentation(_ captured: NoteDraft) -> Bool {
+        notesActive && notePresentation == captured.presentation && noteContext?.sessionID == captured.context.sessionID
+            && noteContext?.bookID == captured.context.bookID
+    }
+
+    func finishNoteSave(_ captured: NoteDraft) {
+        guard acceptsNotePresentation(captured), noteContext == captured.context, noteRevision == captured.revision,
+              note == captured.note, editingNote == captured.editing else { return }
+        editingNote = nil; note = ""
     }
 }
 
@@ -80,7 +181,7 @@ struct ReaderContentSearchPanel: View {
             if let failure = state.searchFailure {
                 ReaderPageState(title: state.results.isEmpty ? "正文搜索尚未完成" : "本次搜索尚未完成，保留原结果",
                                 detail: failure, actionTitle: "重试") {
-                    search(more: !state.results.isEmpty && state.requested == state.submitted)
+                    retry()
                 }
             }
             if state.searchLoading, state.results.isEmpty { ReaderPageState(title: "正在搜索正文", loading: true) }
@@ -129,12 +230,17 @@ struct ReaderContentSearchPanel: View {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
         state.startSearch(for: book, using: service, more: more)
     }
+    private func retry() {
+        guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
+        state.retrySearch(for: book, using: service)
+    }
 }
 
 struct ReaderAnnotationsPanel: View {
     @ObservedObject var model: ReaderApplicationModel
     @ObservedObject var state: ReaderTextToolsState
     let book: ReaderBook
+    var presentationActive = true
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @Environment(\.colorScheme) private var scheme
     var body: some View {
@@ -192,10 +298,18 @@ struct ReaderAnnotationsPanel: View {
         }.font(ReaderTypography.font(.caption)).padding(10)
             .task(id: "\(book.id)|\(state.noteQuery)") { await load() }
             .onChange(of: model.actions.hasPending) { old, new in if old && !new { Task { await load() } } }
+            .onAppear { if presentationActive { state.observeNotes(in: model) } }
+            .onChange(of: presentationActive) { _, active in
+                if active {
+                    state.observeNotes(in: model)
+                    Task { await load() }
+                } else { state.retireNotes() }
+            }
+            .onDisappear { state.retireNotes() }
             .readerConfirmation(confirmation)
     }
     private func load() async {
-        guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
+        guard presentationActive, let service = model.libraryService as? any ReaderReadingToolsServing else { return }
         let query = state.noteQuery
         let generation = UUID(); state.notesGeneration = generation
         state.notesLoading = true
@@ -207,9 +321,10 @@ struct ReaderAnnotationsPanel: View {
         } catch { if generation == state.notesGeneration, !Task.isCancelled { state.notesFailure = error.localizedDescription } }
     }
     private func save() {
-        guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
-        let note = state.note
-        let editing = state.editingNote
+        guard let service = model.libraryService as? any ReaderReadingToolsServing,
+              let captured = state.captureNoteDraft(for: book) else { return }
+        let note = captured.note
+        let editing = captured.editing
         let selected = model.selection
         let session = model.reader
         Task {
@@ -225,8 +340,8 @@ struct ReaderAnnotationsPanel: View {
                         style: "highlight", note: note, operationID: id)
                 }
             }
-            if success {
-                if state.editingNote?.id == editing?.id, state.note == note { state.editingNote = nil; state.note = "" }
+            if success, state.acceptsNotePresentation(captured) {
+                state.finishNoteSave(captured)
                 await load(); await model.reloadHighlights()
             }
         }

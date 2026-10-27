@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 #if DEBUG
 import OSLog
+import CryptoKit
 #endif
 
 /// Bounded presentation cache: candidates/query/timing survive closing the
@@ -11,6 +12,9 @@ import OSLog
     private struct Entry {
         let state: ReaderOnlineWorkspaceModel
         let candidates: ReaderSwitchCandidateHost
+        #if DEBUG
+        let evidence: ReaderOnlineSearchEvidence
+        #endif
     }
     private var entries: [String: Entry] = [:]
     private var order: [String] = []
@@ -20,10 +24,20 @@ import OSLog
     func candidateHost(for identity: String, initialQuery: String) -> ReaderSwitchCandidateHost {
         entry(for: identity, initialQuery: initialQuery).candidates
     }
+    #if DEBUG
+    func searchEvidence(for identity: String, initialQuery: String) -> ReaderOnlineSearchEvidence {
+        entry(for: identity, initialQuery: initialQuery).evidence
+    }
+    #endif
     private func entry(for identity: String, initialQuery: String) -> Entry {
         if let entry = entries[identity] { return entry }
         let state = ReaderOnlineWorkspaceModel(); state.query = initialQuery
+        #if DEBUG
+        let evidence = ReaderOnlineSearchEvidence(attachingTo: state, expectedMode: ReaderOnlineSearchEvidence.switchMode)
+        let entry = Entry(state: state, candidates: ReaderSwitchCandidateHost(state: state, currentBookID: identity), evidence: evidence)
+        #else
         let entry = Entry(state: state, candidates: ReaderSwitchCandidateHost(state: state, currentBookID: identity))
+        #endif
         entries[identity] = entry; order.append(identity)
         while order.count > 8 {
             let evicted = order.removeFirst()
@@ -36,6 +50,264 @@ import OSLog
     }
 }
 
+#if DEBUG
+/// Only the selected physical search mode observes its existing production
+/// workspace. No source, request, cancellation or persistence owner is changed.
+@MainActor final class ReaderOnlineSearchEvidence: ObservableObject {
+    nonisolated static let switchMode = "physical-v4-04-search-trace-v1"
+    nonisolated static let globalMode = "physical-v4-02-search-trace-v1"
+    nonisolated static let globalHeaderIdentifier = "online-search-trace-owner"
+    private static var attachedWorkspace = false
+    @Published private(set) var proof = ""
+    let enabled: Bool
+    private var publishedVersion = 0
+
+    init(attachingTo state: ReaderOnlineWorkspaceModel, expectedMode: String) {
+        let environment = ProcessInfo.processInfo.environment
+        #if targetEnvironment(simulator)
+        enabled = false
+        #else
+        enabled = [Self.switchMode, Self.globalMode].contains(expectedMode)
+            && environment["READER_V4_SEARCH_TRACE_MODE"] == expectedMode
+            && !Self.attachedWorkspace && state.searchTraceSink == nil
+            && environment["READER_V4_SEARCH_TRACE_RUN_ID"].flatMap(UUID.init(uuidString:)).map {
+                $0.uuidString.lowercased() == environment["READER_V4_SEARCH_TRACE_RUN_ID"]
+            } == true
+            && Bundle.main.bundleIdentifier == "io.reader.minliny.free"
+            && UIDevice.current.userInterfaceIdiom == .phone && environment["SIMULATOR_UDID"] == nil
+        #endif
+        guard enabled, let runID = environment["READER_V4_SEARCH_TRACE_RUN_ID"], state.searchTraceSink == nil else { return }
+        Self.attachedWorkspace = true
+        let collector = ReaderOnlineSearchTraceCollector(mode: expectedMode, runID: runID) { [weak self] value, version in
+            Task { @MainActor [weak self] in
+                guard let self, version > self.publishedVersion else { return }
+                self.publishedVersion = version; self.proof = value
+            }
+        }
+        state.searchTraceSink = { collector.receive($0) }
+    }
+}
+
+/// The sink only admits bounded values under a short memory lock. A single
+/// coalescing writer performs all encoding and I/O off the observed executors.
+/// A captured snapshot proves observed event closure, never network freshness
+/// or worker quiescence. Late Host events revise the same owned snapshot.
+private final class ReaderOnlineSearchTraceCollector: @unchecked Sendable {
+    private struct Buffer {
+        var events: [UInt32: ReaderSearchTraceEvent] = [:]
+        var exportRequested = false
+    }
+    private struct Generation: Encodable {
+        let searchID: UUID
+        let events: [ReaderSearchTraceEvent]
+        let sequenceContiguous: Bool
+        let observerFinished: Bool
+        let observedCallsClosed: Bool
+        let coreExecutionRetirementProven: Bool
+        let sourceBindingsWellFormed: Bool
+        let transportAttempted: Bool
+        let httpNetworkLoadCount: Int
+        let httpLocalCacheCount: Int
+        let incomplete: Bool
+    }
+    private struct Snapshot: Encodable {
+        let schemaVersion = 3
+        let mode: String
+        let runID: String
+        let version: Int
+        let status: String
+        let transportQuiescenceProven = false
+        let collectorLimited: Bool
+        let generations: [Generation]
+    }
+    private struct Proof: Encodable {
+        let r: String; let g: String; let n: Int; let e: Int; let f: Int
+        let c: Int? // Only global mode adds strict Core-retired generation count.
+        let s: String; let h: String; let v: Int
+    }
+    private let mode: String
+    private let runID: String
+    private let publish: @Sendable (String, Int) -> Void
+    private let lock = NSLock()
+    private let writer = DispatchQueue(label: "io.reader.minliny.v4-search-trace", qos: .utility)
+    private var buffers: [UUID: Buffer] = [:]
+    private var order: [UUID] = []
+    private var version = 0
+    private var dirtyVersion = 0
+    private var scheduled = false
+    private var limited = false
+    private var failed = false
+    // Writer-only ownership; no caller supplies a path or accesses business data.
+    private var directory: URL?
+    private var marker: Data?
+
+    init(mode: String, runID: String, publish: @escaping @Sendable (String, Int) -> Void) {
+        self.mode = mode; self.runID = runID; self.publish = publish
+    }
+    func receive(_ event: ReaderSearchTraceEvent) {
+        let enqueue: Bool = lock.withLock {
+            guard !failed else { return false }
+            if buffers[event.searchID] == nil {
+                guard order.count < 2 else {
+                    guard !limited else { return false }
+                    limited = true; version += 1; dirtyVersion = version
+                    if scheduled { return false }; scheduled = true; return true
+                }
+                order.append(event.searchID); buffers[event.searchID] = Buffer()
+            }
+            guard (1...2048).contains(event.sequence), buffers[event.searchID]?.events[event.sequence] == nil else {
+                guard !limited else { return false }
+                limited = true; version += 1; dirtyVersion = version
+                if scheduled { return false }; scheduled = true; return true
+            }
+            buffers[event.searchID]?.events[event.sequence] = event; version += 1
+            if [.generationFinished, .generationStopped, .traceLimitReached].contains(event.stage) {
+                buffers[event.searchID]?.exportRequested = true
+            }
+            guard buffers[event.searchID]?.exportRequested == true else { return false }
+            dirtyVersion = version
+            guard !scheduled else { return false }; scheduled = true; return true
+        }
+        if enqueue { writer.async { self.writeSnapshots() } }
+    }
+    private func writeSnapshots() {
+        while true {
+            let input = lock.withLock { (buffers, order, version, dirtyVersion, limited) }
+            let generations = input.1.compactMap { id in input.0[id].map { generation(id, events: Array($0.events.values)) } }
+            let status = input.4 || generations.contains(where: \.incomplete) ? "incomplete" : "captured"
+            let snapshot = Snapshot(mode: mode, runID: runID, version: input.2, status: status,
+                collectorLimited: input.4, generations: generations)
+            do {
+                let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+                let bytes = try encoder.encode(snapshot)
+                try write(bytes)
+                let sha = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+                let proof = Proof(r: runID, g: input.1.last?.uuidString.lowercased() ?? "", n: generations.count,
+                    e: generations.reduce(0) { $0 + $1.events.count }, f: generations.filter(\.observerFinished).count,
+                    c: mode == ReaderOnlineSearchEvidence.globalMode ? generations.filter(\.coreExecutionRetirementProven).count : nil,
+                    s: status, h: sha, v: input.2)
+                let value = try encoder.encode(proof)
+                guard value.count <= 256 else { throw CocoaError(.fileWriteUnknown) }
+                let settled = lock.withLock { () -> Bool in
+                    guard dirtyVersion == input.3 else { return false }; scheduled = false; return true
+                }
+                if settled { publish(String(decoding: value, as: UTF8.self), input.2); return }
+            } catch {
+                lock.withLock { failed = true; scheduled = false }
+                // Do not expose errors that can contain paths or source URLs.
+                let value = Proof(r: runID, g: "", n: generations.count, e: 0, f: 0,
+                    c: mode == ReaderOnlineSearchEvidence.globalMode ? 0 : nil, s: "write_failed", h: "", v: input.2)
+                if let bytes = try? JSONEncoder().encode(value), bytes.count <= 256 {
+                    publish(String(decoding: bytes, as: UTF8.self), input.2)
+                }
+                return
+            }
+        }
+    }
+    private func generation(_ id: UUID, events input: [ReaderSearchTraceEvent]) -> Generation {
+        let events = input.sorted { $0.sequence < $1.sequence }
+        let contiguous = events.enumerated().allSatisfy { $0.element.sequence == UInt32($0.offset + 1) }
+        let finished = events.filter { $0.stage == .generationFinished }.count == 1
+        func balanced(_ start: ReaderSearchTraceEvent.Stage, _ end: ReaderSearchTraceEvent.Stage,
+                      key: (ReaderSearchTraceEvent) -> String?) -> Bool {
+            let a = events.filter { $0.stage == start }, b = events.filter { $0.stage == end }
+            let x = a.compactMap(key), y = b.compactMap(key)
+            return a.count == x.count && b.count == y.count && x.count == Set(x).count
+                && y.count == Set(y).count && Set(x) == Set(y)
+        }
+        func request(_ e: ReaderSearchTraceEvent) -> String? { e.coreRequestID.map(String.init) }
+        func host(_ e: ReaderSearchTraceEvent) -> String? {
+            guard let r = e.coreRequestID, let h = e.hostOperationID else { return nil }; return "\(r):\(h)"
+        }
+        func http(_ e: ReaderSearchTraceEvent) -> String? {
+            guard let h = host(e), let t = e.taskIdentifier, let a = e.transportAttempt else { return nil }; return "\(h):\(t):\(a)"
+        }
+        let httpStarts = events.filter { $0.stage == .httpTaskResumeAttempted }
+        let httpCompletions = events.filter { $0.stage == .httpTaskCompleted }
+        let httpMetrics = events.filter { $0.stage == .httpTaskMetricsCollected }
+        let completionSequences = Dictionary(httpCompletions.compactMap { e in http(e).map { ($0, e.sequence) } },
+                                             uniquingKeysWith: { first, _ in first })
+        let metricsSequences = Dictionary(httpMetrics.compactMap { e in http(e).map { ($0, e.sequence) } },
+                                          uniquingKeysWith: { first, _ in first })
+        let httpOrdered = httpStarts.allSatisfy { start in
+            guard let key = http(start), let completed = completionSequences[key],
+                  let collected = metricsSequences[key] else { return false }
+            return start.sequence < completed && start.sequence < collected
+        }
+        let metricsValid = httpMetrics.allSatisfy { e in
+            guard let value = e.httpFetchSummary else { return false }
+            let counts = [value.networkLoadCount, value.localCacheCount,
+                          value.serverPushCount, value.unknownCount]
+            return (0...64).contains(value.transactionCount) && counts.allSatisfy { $0 >= 0 }
+                && counts.reduce(0, +) == value.transactionCount
+        }
+        let closed = balanced(.sourceAttemptStarted, .sourceAttemptFinished, key: { $0.sourceOrdinal.map(String.init) })
+            && balanced(.coreSent, .coreObservationEnded, key: request)
+            && balanced(.coreSent, .coreTerminal, key: request)
+            && balanced(.hostOperationStarted, .hostOperationFinished, key: host)
+            && balanced(.httpTaskResumeAttempted, .httpTaskCompleted, key: http)
+            && balanced(.httpTaskResumeAttempted, .httpTaskMetricsCollected, key: http)
+            && balanced(.webViewRunStarted, .webViewRunCompleted, key: host)
+        let executionEnds = events.filter { $0.stage == .coreExecutionObservationEnded }
+        let coreExecutionRetirementProven = events.contains { $0.stage == .coreSent }
+            && balanced(.coreSent, .coreExecutionObservationStarted, key: request)
+            && balanced(.coreExecutionObservationStarted, .coreExecutionObservationEnded, key: request)
+            && executionEnds.allSatisfy { end in
+                guard end.coreExecutionObservationOutcome == .retired,
+                      let summary = end.coreExecutionSummary, summary.requestId == end.coreRequestID,
+                      summary.isStrictlyRetired else { return false }
+                let snapshots = events.filter { $0.stage == .coreExecutionSnapshotObserved && $0.coreRequestID == end.coreRequestID }
+                return !snapshots.isEmpty && snapshots.allSatisfy { $0.coreExecutionSummary?.requestId == summary.requestId
+                    && $0.coreExecutionSummary?.generation == summary.generation }
+            }
+        let starts = events.filter { $0.stage == .generationStarted }
+        let expected = starts.first?.count ?? 0
+        let attempts = events.filter { $0.stage == .sourceAttemptStarted }
+        let allSources = expected > 0 && expected <= 2048 && attempts.count == expected
+            && Set(attempts.compactMap(\.sourceOrdinal)) == Set((1...max(1, min(expected, 2048))).map(UInt32.init))
+        let sourceBindingsWellFormed = attempts.allSatisfy { event in
+            guard let binding = event.sourceBinding,
+                  binding.contract == .sourceProjectionSHA256V1 else { return false }
+            return binding.sha256.utf8.count == 64 && binding.sha256.utf8.allSatisfy {
+                (48...57).contains($0) || (97...102).contains($0)
+            }
+        } && Set(attempts.compactMap { $0.sourceBinding?.sha256 }).count == attempts.count
+        let transportAttempted = !httpStarts.isEmpty || events.contains { $0.stage == .webViewRunStarted }
+        let incomplete = !contiguous || !finished || !closed || !coreExecutionRetirementProven || !httpOrdered || !metricsValid
+            || starts.count != 1 || !allSources || !sourceBindingsWellFormed
+            || events.contains { [.generationStopped, .traceLimitReached, .coreSendFailed,
+                                  .httpTaskMetricsUnavailable].contains($0.stage) }
+        return Generation(searchID: id, events: events, sequenceContiguous: contiguous,
+            observerFinished: finished, observedCallsClosed: closed, coreExecutionRetirementProven: coreExecutionRetirementProven,
+            sourceBindingsWellFormed: sourceBindingsWellFormed, transportAttempted: transportAttempted,
+            httpNetworkLoadCount: httpMetrics.reduce(0) { $0 + ($1.httpFetchSummary?.networkLoadCount ?? 0) },
+            httpLocalCacheCount: httpMetrics.reduce(0) { $0 + ($1.httpFetchSummary?.localCacheCount ?? 0) },
+            incomplete: incomplete)
+    }
+    private func write(_ bytes: Data) throws {
+        let manager = FileManager.default
+        if directory == nil {
+            let root = manager.temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
+                .appendingPathComponent((mode == ReaderOnlineSearchEvidence.switchMode ? "ReaderSwitchSearchTrace-" : "ReaderOnlineSearchTrace-") + runID,
+                                        isDirectory: true)
+            guard !manager.fileExists(atPath: root.path) else { throw CocoaError(.fileWriteFileExists) }
+            try manager.createDirectory(at: root, withIntermediateDirectories: false)
+            let owner = try JSONSerialization.data(withJSONObject: ["mode": mode, "runID": runID], options: [.sortedKeys])
+            try owner.write(to: root.appendingPathComponent("owner.json"), options: .withoutOverwriting)
+            directory = root; marker = owner
+        }
+        guard let directory, let marker else { throw CocoaError(.fileWriteUnknown) }
+        let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true,
+              directory.resolvingSymlinksInPath() == directory,
+              try Data(contentsOf: directory.appendingPathComponent("owner.json")) == marker else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try bytes.write(to: directory.appendingPathComponent("trace.json"), options: [.atomic, .completeFileProtection])
+    }
+}
+#endif
+
 struct ReaderOnlineSwitchPanel: View {
     @ObservedObject var model: ReaderApplicationModel
     @ObservedObject var preferences: ReaderPreferences
@@ -43,6 +315,9 @@ struct ReaderOnlineSwitchPanel: View {
     @StateObject private var state: ReaderOnlineWorkspaceModel
     @State private var discoveryPresentationID = UUID()
     @State private var candidateHost: ReaderSwitchCandidateHost
+    #if DEBUG
+    @ObservedObject private var searchEvidence: ReaderOnlineSearchEvidence
+    #endif
     @FocusState private var queryFocused: Bool
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -51,6 +326,9 @@ struct ReaderOnlineSwitchPanel: View {
         let cache = ReaderSwitchPresentationCache.shared
         _state = StateObject(wrappedValue: cache.state(for: session.book.id, initialQuery: session.book.title))
         _candidateHost = State(initialValue: cache.candidateHost(for: session.book.id, initialQuery: session.book.title))
+        #if DEBUG
+        _searchEvidence = ObservedObject(wrappedValue: cache.searchEvidence(for: session.book.id, initialQuery: session.book.title))
+        #endif
     }
     var body: some View {
         let presentationID = discoveryPresentationID
@@ -60,8 +338,12 @@ struct ReaderOnlineSwitchPanel: View {
             HStack {
                 Button("关闭") { queryFocused = false; dismiss() }.accessibilityIdentifier("online-switch-close")
                 Spacer()
-                Text("切换书源").font(ReaderTypography.font(.controlHeader))
-                    .accessibilityIdentifier("online-switch-owner:\(model.actions.busy ? "busy" : model.actions.hasPending ? "pending" : "settled")")
+                #if DEBUG
+                if searchEvidence.enabled { ownerTitle.accessibilityValue(searchEvidence.proof) }
+                else { ownerTitle }
+                #else
+                ownerTitle
+                #endif
                 Spacer()
                 Button(state.searching ? "停止" : "重新搜索") { if state.searching { state.stop() } else { state.researchCandidates() } }
             }.padding(.horizontal, 20)
@@ -93,6 +375,10 @@ struct ReaderOnlineSwitchPanel: View {
                 candidateHost.endPresentation(presentationID)
                 state.retireDiscoveryPresentation(presentationID)
             }
+    }
+    private var ownerTitle: some View {
+        Text("切换书源").font(ReaderTypography.font(.controlHeader))
+            .accessibilityIdentifier("online-switch-owner:\(model.actions.busy ? "busy" : model.actions.hasPending ? "pending" : "settled")")
     }
     @ViewBuilder private var emptyCandidates: some View {
         if state.sourceLoading {
@@ -904,51 +1190,58 @@ private enum ReaderDownloadStatusText {
     }
 }
 
-/// A cancellable projection of one book's retained status. Core/Runtime remain
-/// the owners of every download task; this presentation never admits a write.
-@MainActor
-final class ReaderDownloadSummaryPresentation: ObservableObject {
-    @Published private(set) var bookIdentity: String?
-    @Published private(set) var status: ReaderDownloadStatus?
-    @Published private(set) var failure: String?
-    @Published private(set) var loading = false
-    private var generation = UUID()
-    private var requestTask: Task<Void, Never>?
+private struct ReaderDownloadReadIdentity: Hashable {
+    let sourceID: String
+    let bookID: String
+    let sessionID: UUID?
+    let chapterIndex: UInt32?
+    let protectedChapters: [ReaderCachedChapterIdentity]
 
-    deinit { requestTask?.cancel() }
-
-    func refresh(book: ReaderBook, service: any ReaderDownloadServing) {
-        cancel()
-        if bookIdentity != book.id { status = nil }
-        bookIdentity = book.id
-        failure = nil
-        loading = true
-        let current = generation
-        requestTask = Task { [weak self] in
-            do {
-                let value = try await service.readerDownloadStatus(book)
-                try Task.checkCancellation()
-                guard let self, generation == current, bookIdentity == book.id else { return }
-                guard value.sourceId == book.sourceId, value.bookId == book.bookId else {
-                    throw ReaderLibraryError.invalidResponse("download status identity")
-                }
-                status = value
-                failure = nil
-            } catch is CancellationError { } catch {
-                guard !Task.isCancelled, let self, generation == current, bookIdentity == book.id else { return }
-                failure = error.localizedDescription
-            }
-            guard let self, generation == current, bookIdentity == book.id else { return }
-            loading = false
-            requestTask = nil
-        }
+    init(book: ReaderBook, sessionID: UUID? = nil, chapterIndex: UInt32? = nil,
+         protectedChapters: [ReaderCachedChapterIdentity]? = nil) {
+        sourceID = book.sourceId; bookID = book.bookId
+        self.sessionID = sessionID; self.chapterIndex = chapterIndex
+        self.protectedChapters = protectedChapters ?? chapterIndex.map { [.init(book: book, chapterIndex: $0)] } ?? []
     }
+}
 
-    func cancel() {
-        generation = UUID()
-        requestTask?.cancel()
-        requestTask = nil
-        loading = false
+private struct ReaderDownloadReadTaskIdentity: Hashable {
+    let entity: ReaderDownloadReadIdentity
+    let foreground: Bool
+}
+
+private struct ReaderDownloadReadSnapshot {
+    let status: ReaderDownloadStatus
+    let storage: ReaderStorageSummary?
+}
+
+private typealias ReaderDownloadPresentation = ReaderDownloadReadOwner<ReaderDownloadReadIdentity, ReaderDownloadReadSnapshot>
+
+private extension ReaderDownloadReadOwner where Identity == ReaderDownloadReadIdentity, Value == ReaderDownloadReadSnapshot {
+    @discardableResult
+    func refresh(identity: ReaderDownloadReadIdentity, book: ReaderBook,
+                 service: any ReaderDownloadServing, includeStorage: Bool = true) -> Task<Void, Never>? {
+        // A full request retains its inventory demand if status-only hints
+        // arrive while the current status read is still in flight.
+        return invalidate(identity: identity, priority: includeStorage ? 1 : 0) { [weak self] publish in
+            let status = try await service.readerDownloadStatus(book)
+            try Task.checkCancellation()
+            guard status.sourceId == identity.sourceID, status.bookId == identity.bookID else {
+                throw ReaderLibraryError.invalidResponse("download status identity")
+            }
+            // Keep confirmed same-context inventory while reading status.
+            let retainedStorage = self?.identity == identity ? self?.value?.storage : nil
+            publish(ReaderDownloadReadSnapshot(status: status, storage: retainedStorage))
+            if includeStorage {
+                // Do not hold the status lane while inventory awaits Core.
+                // Its transform merges with the latest status at publication.
+                self?.invalidateSupplement(identity: identity) {
+                    let storage = try await service.readerStorageSummary(protected: identity.protectedChapters)
+                    try Task.checkCancellation()
+                    return { current in ReaderDownloadReadSnapshot(status: current.status, storage: storage) }
+                }
+            }
+        }
     }
 }
 
@@ -956,21 +1249,20 @@ final class ReaderDownloadSummaryPresentation: ObservableObject {
 struct ReaderOnlineDownloadSummaryPanel: View {
     let book: ReaderBook
     let service: any ReaderDownloadServing
-    @StateObject private var presentation = ReaderDownloadSummaryPresentation()
+    @StateObject private var presentation = ReaderDownloadPresentation()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
 
-    private var status: ReaderDownloadStatus? {
-        presentation.bookIdentity == book.id ? presentation.status : nil
-    }
+    private var readIdentity: ReaderDownloadReadIdentity { .init(book: book) }
+    private var status: ReaderDownloadStatus? { presentation.identity == readIdentity ? presentation.value?.status : nil }
     private var failure: String? {
-        presentation.bookIdentity == book.id ? presentation.failure : nil
+        presentation.identity == readIdentity ? presentation.failure : nil
     }
 
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Button("关闭") { presentation.cancel(); dismiss() }
+                Button("关闭") { presentation.retire(); dismiss() }
                     .accessibilityIdentifier("online-download-summary-close")
                 Spacer()
                 Text("下载状态").font(ReaderTypography.font(.controlHeader))
@@ -1015,28 +1307,40 @@ struct ReaderOnlineDownloadSummaryPanel: View {
                 ReaderPageState(title: "正在加载下载状态", loading: true)
             }
         }.padding(.vertical, 20)
-            .task(id: book.id) {
+            .task(id: ReaderDownloadReadTaskIdentity(entity: readIdentity, foreground: phase == .active)) {
                 guard !Task.isCancelled, phase == .active else { return }
+                presentation.activate(identity: readIdentity)
                 refresh()
             }
             .onChange(of: phase) { _, value in
-                if value == .active { refresh() } else { presentation.cancel() }
+                if value != .active { presentation.retire() }
             }
-            .onDisappear { presentation.cancel() }
+            .onDisappear { presentation.retire() }
     }
 
     private func refresh() {
         guard phase == .active else { return }
-        presentation.refresh(book: book, service: service)
+        presentation.refresh(identity: readIdentity, book: book, service: service, includeStorage: false)
     }
 }
 
 struct ReaderOnlineDownloadPanel: View {
+    /// A presentation location, never a queued task or an operation result.
+    private struct ControlTarget {
+        let entity: ReaderDownloadReadIdentity
+        let chapterIndex: UInt32
+    }
     @ObservedObject var model: ReaderApplicationModel
-    let session: ReaderActiveSession
+    let book: ReaderBook
+    private let retainedSession: ReaderActiveSession?
+    private let taskOnly: Bool
+    private let closeAction: (() -> Void)?
+    @State private var presentationActive = true
+    @State private var chapterAnchor: UInt32?
+    @Binding private var retainedChapterAnchor: UInt32?
     @StateObject private var downloadActions: ReaderDownloadControlOwner
     @StateObject private var confirmation = ReaderNativeAlertOwner()
-    @State private var status: ReaderDownloadStatus?
+    @StateObject private var presentation = ReaderDownloadPresentation()
     @State private var start = "1"
     @State private var end = "1"
     @State private var failure: String?
@@ -1046,12 +1350,17 @@ struct ReaderOnlineDownloadPanel: View {
     @State private var batchFeedback: String?
     @State private var catalogGeneration = UUID()
     @State private var catalogTask: Task<Void, Never>?
+    @State private var controlTarget: ControlTarget?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
 
     init(model: ReaderApplicationModel, session: ReaderActiveSession) {
         self.model = model
-        self.session = session
+        self.book = session.book
+        self.retainedSession = session
+        self.taskOnly = false
+        self.closeAction = nil
+        _retainedChapterAnchor = .constant(nil)
         _downloadActions = StateObject(wrappedValue: ReaderDownloadControlOwner(
             pendingChecker: { [weak actions = model.actions] id in
                 guard let checker = actions?.pendingChecker else { return nil }
@@ -1060,105 +1369,197 @@ struct ReaderOnlineDownloadPanel: View {
         ))
     }
 
+    init(model: ReaderApplicationModel, book: ReaderBook,
+         downloadActions: ReaderDownloadControlOwner,
+         chapterAnchor: Binding<UInt32?> = .constant(nil), close: @escaping () -> Void) {
+        self.model = model; self.book = book
+        retainedSession = nil; taskOnly = true; closeAction = close
+        _downloadActions = StateObject(wrappedValue: downloadActions)
+        _retainedChapterAnchor = chapterAnchor
+    }
+
+    /// The global route has no fallback session. The session initializer keeps
+    /// its actual retained session only for the lifetime of that presentation
+    /// (including the existing isolated native cleanup host).
+    private var protectedSession: ReaderActiveSession? {
+        model.reader ?? (presentationActive ? retainedSession : nil)
+    }
+    private var matchingSession: ReaderActiveSession? {
+        guard let session = protectedSession,
+              session.book.sourceId.utf8.elementsEqual(book.sourceId.utf8),
+              session.book.bookId.utf8.elementsEqual(book.bookId.utf8) else { return nil }
+        return session
+    }
+    private var protectedChapters: [ReaderCachedChapterIdentity] {
+        protectedSession.map { [.init(book: $0.book, chapterIndex: $0.content.chapterIndex)] } ?? []
+    }
+    private func isCurrentChapter(_ chapter: UInt32) -> Bool {
+        matchingSession?.content.chapterIndex == chapter
+    }
+    private var canUpdateCatalog: Bool {
+        guard let retainedSession, let current = model.reader else { return false }
+        return current.id == retainedSession.id && matchingSession?.id == current.id
+    }
+    private var taskChapters: [ReaderDownloadChapter] {
+        guard let status else { return [] }
+        return taskOnly ? status.chapters.filter { [.queued, .inProgress, .paused, .completed, .failed, .cancelled].contains($0.state) } : status.chapters
+    }
+    private var readingPresentationVisible: Bool { !taskOnly || model.reader == nil }
+
     private var service: (any ReaderDownloadServing)? { model.libraryService as? any ReaderDownloadServing }
+    private var readIdentity: ReaderDownloadReadIdentity {
+        .init(book: book, sessionID: matchingSession?.id, chapterIndex: matchingSession?.content.chapterIndex, protectedChapters: protectedChapters)
+    }
+    private var snapshot: ReaderDownloadReadSnapshot? {
+        presentation.identity == readIdentity ? presentation.value : nil
+    }
+    private var status: ReaderDownloadStatus? { snapshot?.status }
+    private var visibleControlChapter: ReaderDownloadChapter? {
+        guard let status else { return nil }
+        if let controlTarget, controlTarget.entity == readIdentity {
+            return taskChapters.first { $0.chapterIndex == controlTarget.chapterIndex }
+        }
+        // Opening management during existing work still exposes an actual
+        // live chapter. Explicit download/control input then fixes its target.
+        return status.chapters.last { [.queued, .inProgress, .paused].contains($0.state) }
+    }
+    private var displayFailure: String? {
+        failure ?? (presentation.identity == readIdentity ? presentation.failure : nil)
+    }
     var body: some View {
         VStack(spacing: 14) {
-            HStack { Button("关闭") { dismiss() }.accessibilityIdentifier("online-download-close"); Spacer(); Text("下载管理").font(ReaderTypography.font(.controlHeader)); Spacer(); Button("刷新") { Task { await refresh() } } }.padding(.horizontal, 20)
-            Button(updatingCatalog ? "正在取得目录" : "更新在线目录") { updateCatalog() }.disabled(model.actions.hasPending || updatingCatalog)
-                .accessibilityIdentifier("online-update-catalog")
+            HStack { Button(taskOnly ? "返回" : "关闭") { presentation.retire(); presentationActive = false; if let closeAction { closeAction() } else { dismiss() } }.accessibilityIdentifier("online-download-close"); Spacer(); Text("下载管理").font(ReaderTypography.font(.controlHeader)); Spacer(); Button("刷新") { Task { await refresh() } }.disabled(phase != .active) }.padding(.horizontal, 20)
+            if canUpdateCatalog {
+                Button(updatingCatalog ? "正在取得目录" : "更新在线目录") { updateCatalog() }.disabled(model.actions.hasPending || updatingCatalog)
+                    .accessibilityIdentifier("online-update-catalog")
+            }
             if let catalogFeedback { Text(catalogFeedback).font(ReaderTypography.font(.caption)).accessibilityIdentifier("online-catalog-feedback") }
             if let status {
+                let controlChapter = visibleControlChapter
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
-                        Text(session.book.title).font(ReaderTypography.font(.controlHeader))
+                        Text(book.title).font(ReaderTypography.font(.controlHeader))
+                            .accessibilityIdentifier("online-download-book-identity:" + ReaderDownloadBookCursor(sourceId: book.sourceId, bookId: book.bookId).accessibilityKey)
+                        Text(book.sourceName ?? book.sourceId).font(ReaderTypography.font(.caption))
                         Text(ReaderDownloadStatusText.summary(status)).font(ReaderTypography.font(.caption))
+                        if !taskOnly {
                         HStack { TextField("起章", text: $start).keyboardType(.numberPad).readerField(); Text("至"); TextField("末章", text: $end).keyboardType(.numberPad).readerField(); Button("下载") { downloadRange() } }
                         HStack { Button("整本下载") { download(0..<status.chapterCount) }; Spacer(); Button("下载所选") { downloadSelected() }.disabled(selected.isEmpty).accessibilityIdentifier("online-download-selected") }.disabled(model.actions.hasPending)
+                        }
+                        // Relocate this one original row beside the download input;
+                        // the canonical list below omits it, so every AX ID is unique.
+                        if let chapter = controlChapter { chapterRow(chapter) }
                         if let batchFeedback { Text(batchFeedback).font(ReaderTypography.font(.caption)) }
                         Text("阅读前后章缓存与主动下载分别记账。清理自动缓存保留已完成下载及当前章。").font(ReaderTypography.font(.caption))
-                        if let storage = downloadActions.storage {
+                        if let storage = snapshot?.storage {
                             Text("可清理自动正文 \(ByteCountFormatter.string(fromByteCount: Int64(clamping: storage.cleanableBytes), countStyle: .file))").font(ReaderTypography.font(.caption))
                             Button("清理自动缓存") { confirmation.confirm("清理自动缓存？", message: "保留当前章和已完成下载；书架、阅读位置及原书不变。", actionTitle: "清理") { cleanup() } }.disabled(model.actions.hasPending)
                         }
-                        if let result = downloadActions.cleanupResult, result.scope == session.book.id {
+                        if let result = downloadActions.cleanupResult, result.scope == book.id {
                             ReaderPageState(title: result.title, detail: result.detail)
                                 .accessibilityIdentifier("online-cache-cleanup-result")
                         }
-                        ForEach(status.chapters) { chapter in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Toggle(isOn: Binding(get: { selected.contains(chapter.chapterIndex) }, set: { value in if value { selected.insert(chapter.chapterIndex) } else { selected.remove(chapter.chapterIndex) } })) { Text(chapter.title) }.toggleStyle(.button)
-                                        .accessibilityIdentifier("online-download-select:" + session.book.id + ":" + String(chapter.chapterIndex))
-                                    Spacer(); Text(ReaderDownloadStatusText.state(chapter.state)).font(ReaderTypography.font(.caption))
-                                        .accessibilityIdentifier("online-download-state:" + session.book.id + ":" + String(chapter.chapterIndex))
-                                }
-                                if let error = chapter.lastError { Text(error).font(ReaderTypography.font(.caption)) }
-                                HStack {
-                                    if [.queued, .inProgress].contains(chapter.state) {
-                                        Button("暂停") { task(chapter, action: .pause) }
-                                            .disabled(!downloadActions.canControl)
-                                            .accessibilityIdentifier("online-download-pause:" + session.book.id + ":" + String(chapter.chapterIndex))
-                                    }
-                                    if [.paused, .failed, .cancelled].contains(chapter.state) {
-                                        Button(chapter.state == .failed ? "重试" : "继续") { task(chapter, action: .resume) }
-                                            .disabled(!downloadActions.canResume)
-                                            .accessibilityIdentifier("online-download-resume:" + session.book.id + ":" + String(chapter.chapterIndex))
-                                    }
-                                    if [.queued, .inProgress, .paused].contains(chapter.state) {
-                                        Button("取消任务") { task(chapter, action: .cancel) }
-                                            .disabled(!downloadActions.canControl)
-                                            .accessibilityIdentifier("online-download-cancel:" + session.book.id + ":" + String(chapter.chapterIndex))
-                                    }
-                                    if chapter.chapterIndex != session.content.chapterIndex,
-                                       [.cached, .completed, .failed, .cancelled, .paused].contains(chapter.state) {
-                                        Button("清除此章下载") {
-                                            confirmation.confirm("清除此章下载？", message: "删除此章缓存正文、下载任务及对应图片副本。书架、目录和阅读位置保留。", actionTitle: "清除") {
-                                                clearChapter(chapter)
-                                            }
-                                        }
-                                        .disabled(!downloadActions.canClear)
-                                    }
-                                }.font(ReaderTypography.font(.caption))
-                            }.padding(.vertical, 8)
-                                .accessibilityElement(children: .contain)
-                                .accessibilityIdentifier("online-download-attempt:" + session.book.id + ":" + String(chapter.chapterIndex) + ":" + String(chapter.attempts))
-                            Divider()
+                        ForEach(taskChapters.filter { $0.chapterIndex != controlChapter?.chapterIndex }) { chapter in
+                            chapterRow(chapter)
                         }
-                    }.padding(20)
-                }.accessibilityIdentifier("online-download-scroll")
-            } else { ReaderPageState(title: failure == nil ? "正在加载下载状态" : "下载状态不可用", detail: failure ?? "", loading: failure == nil) }
-            if let failure, status != nil { ReaderPageState(title: "下载管理未完成", detail: failure).padding(.horizontal, 20) }
-            ReaderOperationStatus(owner: model.actions, scope: session.book.id)
-            ReaderOperationStatus(owner: downloadActions.resumeActions, scope: session.book.id)
-            ReaderOperationStatus(owner: downloadActions.controlActions, scope: session.book.id)
+                    }.padding(20).scrollTargetLayout()
+                }.scrollPosition(id: taskOnly ? $retainedChapterAnchor : $chapterAnchor, anchor: .top).accessibilityIdentifier("online-download-scroll")
+            } else { ReaderPageState(title: displayFailure == nil ? "正在加载下载状态" : "下载状态不可用", detail: displayFailure ?? "", loading: displayFailure == nil) }
+            if let displayFailure, status != nil { ReaderPageState(title: "下载管理未完成", detail: displayFailure).padding(.horizontal, 20) }
+            ReaderOperationStatus(owner: model.actions, scope: book.id)
+            ReaderOperationStatus(owner: downloadActions.resumeActions, scope: book.id)
+            ReaderOperationStatus(owner: downloadActions.controlActions, scope: book.id)
         }.padding(.vertical, 20).readerConfirmation(confirmation)
-            .task(id: phase) {
-                guard phase == .active else { return }
+            .task(id: ReaderDownloadReadTaskIdentity(entity: readIdentity, foreground: phase == .active && readingPresentationVisible)) {
+                guard readingPresentationVisible else { presentation.retire(); return }
+                guard !Task.isCancelled, presentationActive, phase == .active, let service else { return }
+                let identity = readIdentity
+                // Register before the first read can expose the download input.
+                let invalidations = await service.downloadStatusInvalidations(for: book)
+                guard !Task.isCancelled, presentationActive, phase == .active, readingPresentationVisible else { return }
+                presentation.activate(identity: identity)
+                let invalidationTask = Task { @MainActor in
+                    for await invalidation in invalidations {
+                        guard !Task.isCancelled, phase == .active, readingPresentationVisible else { return }
+                        guard invalidation.sourceID == identity.sourceID,
+                              invalidation.bookID == identity.bookID else { continue }
+                        // Any original operation for this entity may invalidate
+                        // its status; the hint never confirms an action or state.
+                        presentation.refresh(identity: identity, book: book,
+                                             service: service, includeStorage: false)
+                    }
+                }
+                defer { invalidationTask.cancel() }
                 await refresh()
                 while !Task.isCancelled { try? await Task.sleep(nanoseconds: 2_000_000_000); if !Task.isCancelled { await refresh() } }
             }
-            .onChange(of: phase) { value in if value != .active { cancelCatalogRead() } }
-            .onDisappear { cancelCatalogRead(); downloadActions.retireStorageCleanupPresentation() }
+            .onChange(of: status?.chapterCount) { _, count in
+                if end == "1", let count { end = String(count) }
+            }
+            .onChange(of: phase) { value in if value != .active { presentation.retire(); cancelCatalogRead() } }
+            .onAppear { presentationActive = true }
+            .onDisappear { presentationActive = false; presentation.retire(); cancelCatalogRead(); downloadActions.retireStorageCleanupPresentation() }
+    }
+    @ViewBuilder private func chapterRow(_ chapter: ReaderDownloadChapter) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                if taskOnly { Text(chapter.title.isEmpty ? "第 \(UInt64(chapter.chapterIndex) + 1) 章" : chapter.title) } else {
+                Toggle(isOn: Binding(get: { selected.contains(chapter.chapterIndex) }, set: { value in if value { selected.insert(chapter.chapterIndex) } else { selected.remove(chapter.chapterIndex) } })) { Text(chapter.title) }.toggleStyle(.button)
+                    .accessibilityIdentifier("online-download-select:" + book.id + ":" + String(chapter.chapterIndex))
+                }
+                Spacer(); Text(ReaderDownloadStatusText.state(chapter.state)).font(ReaderTypography.font(.caption))
+                    .accessibilityIdentifier("online-download-state:" + book.id + ":" + String(chapter.chapterIndex))
+            }
+            Text("尝试 \(chapter.attempts) / \(chapter.maxAttempts)").font(ReaderTypography.font(.caption))
+                .accessibilityIdentifier("online-download-attempts:" + book.id + ":" + String(chapter.chapterIndex))
+            if isCurrentChapter(chapter.chapterIndex) { Text("当前阅读章").font(ReaderTypography.font(.caption)) }
+            if let error = chapter.lastError { Text(error).font(ReaderTypography.font(.caption))
+                .accessibilityIdentifier("online-download-error:" + book.id + ":" + String(chapter.chapterIndex)) }
+            HStack {
+                if [.queued, .inProgress].contains(chapter.state) {
+                    Button("暂停") { task(chapter, action: .pause) }
+                        .disabled(!downloadActions.canControl)
+                        .accessibilityIdentifier("online-download-pause:" + book.id + ":" + String(chapter.chapterIndex))
+                }
+                if [.paused, .failed, .cancelled].contains(chapter.state) {
+                    Button(chapter.state == .failed ? "重试" : "继续") { task(chapter, action: .resume) }
+                        .disabled(!downloadActions.canResume)
+                        .accessibilityIdentifier("online-download-resume:" + book.id + ":" + String(chapter.chapterIndex))
+                }
+                if [.queued, .inProgress, .paused].contains(chapter.state) {
+                    Button("取消任务") { task(chapter, action: .cancel) }
+                        .disabled(!downloadActions.canControl)
+                        .accessibilityIdentifier("online-download-cancel:" + book.id + ":" + String(chapter.chapterIndex))
+                }
+                if !isCurrentChapter(chapter.chapterIndex),
+                   [.cached, .completed, .failed, .cancelled, .paused].contains(chapter.state) {
+                    Button("清除此章下载") {
+                        confirmation.confirm("清除此章下载？", message: "删除此章缓存正文、下载任务及对应图片副本。书架、目录和阅读位置保留。", actionTitle: "清除") {
+                            clearChapter(chapter)
+                        }
+                    }
+                    .disabled(!downloadActions.canClear)
+                }
+            }.font(ReaderTypography.font(.caption))
+        }.padding(.vertical, 8).id(chapter.chapterIndex)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("online-download-attempt:" + book.id + ":" + String(chapter.chapterIndex) + ":" + String(chapter.attempts))
+        Divider()
     }
     private func refresh() async {
-        guard let service else { return }
-        do {
-            let value = try await service.readerDownloadStatus(session.book)
-            try Task.checkCancellation(); status = value
-            if end == "1" { end = String(value.chapterCount) }
-            let summary = try await service.readerStorageSummary(protected: [.init(book: session.book, chapterIndex: session.content.chapterIndex)])
-            try Task.checkCancellation()
-            downloadActions.receiveStorageSummary(summary)
+        guard !Task.isCancelled, presentationActive, phase == .active, readingPresentationVisible, let service else { return }
+        if let request = presentation.refresh(identity: readIdentity, book: book, service: service) {
             failure = nil
-        } catch is CancellationError { } catch { failure = error.localizedDescription }
+            await request.value
+        }
     }
     private func updateCatalog() {
-        guard !updatingCatalog, model.libraryService is any ReaderOnlineServing else { return }
+        guard !updatingCatalog, canUpdateCatalog, let session = model.reader, model.libraryService is any ReaderOnlineServing else { return }
         let generation = UUID(); catalogGeneration = generation
-        updatingCatalog = true; catalogFeedback = nil
+        updatingCatalog = true; catalogFeedback = nil; failure = nil
         catalogTask = Task {
             do {
-                let detail = try await model.refreshOnlineCatalog(sessionID: session.id, bookID: session.book.id)
+                let detail = try await model.refreshOnlineCatalog(sessionID: session.id, bookID: book.id)
                 try Task.checkCancellation()
                 guard catalogGeneration == generation else { return }
                 catalogFeedback = "已取得目录，共 \(detail.chapters.count) 章"
@@ -1179,8 +1580,16 @@ struct ReaderOnlineDownloadPanel: View {
         download((lower - 1)..<upper)
     }
     private func download(_ range: Range<UInt32>) {
-        guard let service, !range.isEmpty else { return }
-        Task { _ = await model.actions.perform("下载章节", scope: session.book.id) { id in _ = try await service.downloadChapters(session.book, range: range, operationID: id) }; await refresh() }
+        guard let service, !range.isEmpty, !model.actions.hasPending else { return }
+        let target = ControlTarget(entity: readIdentity, chapterIndex: range.upperBound - 1)
+        failure = nil
+        Task {
+            _ = await model.actions.perform("下载章节", scope: book.id) { id in
+                controlTarget = target
+                _ = try await service.downloadChapters(book, range: range, operationID: id)
+            }
+            await refresh()
+        }
     }
     private func downloadSelected() {
         guard let service else { return }; let indexes = selected.sorted()
@@ -1189,8 +1598,9 @@ struct ReaderOnlineDownloadPanel: View {
             for index in indexes where index < UInt32.max {
                 // Each accepted chapter has its own real operation owner.
                 // Stop at an unresolved write and retain the remaining selection.
-                let confirmed = await model.actions.perform("下载所选章节", scope: session.book.id) { id in
-                    _ = try await service.downloadChapters(session.book, range: index..<(index + 1), operationID: id)
+                let confirmed = await model.actions.perform("下载所选章节", scope: book.id) { id in
+                    controlTarget = ControlTarget(entity: readIdentity, chapterIndex: index)
+                    _ = try await service.downloadChapters(book, range: index..<(index + 1), operationID: id)
                 }
                 guard confirmed else {
                     batchFeedback = "已处理 \(completed) 章，其余 \(indexes.count - completed) 章未完成；所选章节保留。"
@@ -1205,17 +1615,19 @@ struct ReaderOnlineDownloadPanel: View {
     private enum TaskAction { case pause, resume, cancel }
     private func task(_ chapter: ReaderDownloadChapter, action: TaskAction) {
         guard let service else { return }
+        let target = ControlTarget(entity: readIdentity, chapterIndex: chapter.chapterIndex)
         Task {
             let operation: (String) async throws -> Void = { id in
+                controlTarget = target
                 switch action {
-                case .pause: _ = try await service.pauseDownload(session.book, chapterIndex: chapter.chapterIndex, operationID: id)
-                case .resume: _ = try await service.resumeDownload(session.book, chapterIndex: chapter.chapterIndex, operationID: id)
-                case .cancel: _ = try await service.cancelDownload(session.book, chapterIndex: chapter.chapterIndex, operationID: id)
+                case .pause: _ = try await service.pauseDownload(book, chapterIndex: chapter.chapterIndex, operationID: id)
+                case .resume: _ = try await service.resumeDownload(book, chapterIndex: chapter.chapterIndex, operationID: id)
+                case .cancel: _ = try await service.cancelDownload(book, chapterIndex: chapter.chapterIndex, operationID: id)
                 }
             }
             switch action {
-            case .resume: _ = await downloadActions.performResume(scope: session.book.id, action: operation)
-            case .pause, .cancel: _ = await downloadActions.performControl(scope: session.book.id, action: operation)
+            case .resume: _ = await downloadActions.performResume(scope: book.id, action: operation)
+            case .pause, .cancel: _ = await downloadActions.performControl(scope: book.id, action: operation)
             }
             await refresh()
         }
@@ -1223,17 +1635,21 @@ struct ReaderOnlineDownloadPanel: View {
     private func cleanup() {
         guard let service else { return }
         let presentationID = downloadActions.cleanupPresentationID
-        Task { _ = await model.actions.perform("清理缓存", scope: session.book.id) { id in
-            downloadActions.beginStorageCleanup(operationID: id, scope: session.book.id, presentationID: presentationID)
-            let result = try await service.cleanupReaderStorage(retained: [], protected: [.init(book: session.book, chapterIndex: session.content.chapterIndex)], operationID: id)
-            downloadActions.receiveStorageCleanupReceipt(result, operationID: id, scope: session.book.id, presentationID: presentationID)
+        // Freeze the actual global reader tuple at confirmation, before any
+        // asynchronous dispatch. Retries retain these original parameters.
+        let protection = protectedChapters
+        Task { _ = await model.actions.perform("清理缓存", scope: book.id) { id in
+            downloadActions.beginStorageCleanup(operationID: id, scope: book.id, presentationID: presentationID)
+            let result = try await service.cleanupReaderStorage(retained: [], protected: protection, operationID: id)
+            downloadActions.receiveStorageCleanupReceipt(result, operationID: id, scope: book.id, presentationID: presentationID)
         }; await refresh() }
     }
     private func clearChapter(_ chapter: ReaderDownloadChapter) {
-        guard let service, chapter.chapterIndex != session.content.chapterIndex else { return }
+        guard let service, !isCurrentChapter(chapter.chapterIndex) else { return }
         Task {
-            _ = await downloadActions.performClear(scope: session.book.id) { id in
-                try await service.clearDownloadedChapter(session.book, chapterIndex: chapter.chapterIndex, operationID: id)
+            guard !isCurrentChapter(chapter.chapterIndex) else { return }
+            _ = await downloadActions.performClear(scope: book.id) { id in
+                try await service.clearDownloadedChapter(book, chapterIndex: chapter.chapterIndex, operationID: id)
             }
             await refresh()
         }

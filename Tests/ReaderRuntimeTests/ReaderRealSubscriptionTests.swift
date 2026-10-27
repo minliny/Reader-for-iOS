@@ -217,6 +217,250 @@ final class ReaderRealSubscriptionTests: XCTestCase {
         if let scenarioFailure { throw scenarioFailure }
     }
 
+    /// A real user deletion conflicts with re-admission from the live provider,
+    /// even if that provider has published no new version. Both full packages
+    /// come from the production Host; only this run's temporary library changes.
+    func testRealProviderRecheckPreservesLocalDeletionConflictAndSelectiveApplyAfterColdReopen() async throws {
+        actor CapturedInputs {
+            private var started = 0
+            private var inputs: [Data] = []
+            func begin() throws {
+                guard started < 2 else { throw ReaderLibraryError.invalidResponse("only two provider fetches are allowed") }
+                started += 1
+            }
+            func record(_ input: Data) { inputs.append(input) }
+            func snapshot() -> [Data] { inputs }
+        }
+        func require(_ condition: Bool, _ message: String) throws {
+            guard condition else {
+                XCTFail(message)
+                throw ReaderLibraryError.invalidResponse(message)
+            }
+        }
+        func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+        let manager = FileManager.default
+        let documents = try XCTUnwrap(manager.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let originalURL = documents.appendingPathComponent("Reader-real-sources.json")
+        let original = try Data(contentsOf: originalURL)
+        let originalDigest = hash(original)
+        try require(original.count == 5_606 && originalDigest == "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322",
+                    "Provision the unchanged original 5606-byte phone source package; no replacement is allowed")
+        let definitions = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [[String: Any]])
+        try require(definitions.count == 2, "The original package must contain both real source definitions")
+        let expectedSourceIDs = try definitions.map {
+            try XCTUnwrap($0["bookSourceUrl"] as? String).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.sorted()
+        let root = manager.temporaryDirectory.appendingPathComponent("ReaderRealSubscriptionDeletion-" + UUID().uuidString)
+        let sourceURL = root.appendingPathComponent("Sources")
+        let operationsURL = sourceURL.appendingPathComponent(".operations")
+        let expectedURL = try XCTUnwrap(URL(string: subscriptionURL))
+        let capturedInputs = CapturedInputs()
+        var service: ReaderLibraryService?
+        var namespace: String?
+        var identityBytes: Data?
+        var admittedCookieQuery: [String: Any]?
+        var keychainAdmissionFailed = false
+        var closedRuntimeCount = 0
+        var phase = "create isolated library identity"
+        var facts: [String: Any] = ["providerURL": subscriptionURL, "sourcePackageSHA256": originalDigest,
+            "sourcePackageBytes": original.count, "originalSourceIds": expectedSourceIDs,
+            "conflictScenario": "local user deletion versus genuine provider re-admission",
+            "remotePublicationClaim": false, "OSBackgroundExecutionClaim": false]
+        func cleanupFailure(_ detail: String) -> ReaderLibraryError {
+            try? attachFacts(["temporaryRoot": root.path, "namespace": namespace ?? "uncreated", "failure": detail],
+                             name: "real-subscription-deletion-cleanup-failure")
+            XCTFail("Temporary cleanup failed; preserve its attributable identity at \(root.path): \(detail)")
+            return .invalidResponse("real subscription-deletion temporary cleanup failed")
+        }
+        func retainOriginalIdentity() throws {
+            guard let identityBytes else { throw ReaderLibraryError.invalidResponse("original temporary identity was not captured") }
+            try manager.createDirectory(at: operationsURL, withIntermediateDirectories: true)
+            let identityURL = operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName)
+            if manager.fileExists(atPath: identityURL.path) {
+                guard try Data(contentsOf: identityURL) == identityBytes else {
+                    throw ReaderLibraryError.invalidResponse("retained temporary identity differs; it was not overwritten")
+                }
+            } else { try identityBytes.write(to: identityURL, options: .withoutOverwriting) }
+        }
+        func cleanupTemporaryLibrary() async throws {
+            if let active = service {
+                do { try await active.close() }
+                catch { throw cleanupFailure("Runtime close failed: \(error)") }
+                service = nil
+                closedRuntimeCount += 1
+            }
+            guard !keychainAdmissionFailed else {
+                throw cleanupFailure("The exact temporary credential pair was not originally absent; no credential or directory was deleted")
+            }
+            guard manager.fileExists(atPath: root.path) else {
+                if namespace != nil {
+                    do { try retainOriginalIdentity() }
+                    catch { throw cleanupFailure("Temporary root disappeared; original identity restoration failed: \(error)") }
+                    throw cleanupFailure("Temporary root disappeared before identity verification; original identity restored and credentials retained")
+                }
+                return
+            }
+            let identityURL = operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName)
+            do {
+                guard let identityBytes, try Data(contentsOf: identityURL) == identityBytes else {
+                    throw ReaderLibraryError.invalidResponse("temporary identity is missing or changed")
+                }
+            } catch { throw cleanupFailure("Temporary library identity could not be verified: \(error)") }
+            if let query = admittedCookieQuery {
+                let deleted = SecItemDelete(query as CFDictionary)
+                var readQuery = query; readQuery[kSecReturnData as String] = true
+                var remaining: CFTypeRef?
+                let read = SecItemCopyMatching(readQuery as CFDictionary, &remaining)
+                guard (deleted == errSecSuccess || deleted == errSecItemNotFound), read == errSecItemNotFound else {
+                    throw cleanupFailure("Exact credential cleanup failed: deleteStatus=\(deleted) postreadStatus=\(read)")
+                }
+            }
+            do {
+                try manager.removeItem(at: root)
+                guard !manager.fileExists(atPath: root.path) else {
+                    throw ReaderLibraryError.invalidResponse("temporary root remains after removal")
+                }
+            } catch {
+                let removalError = error
+                do { try retainOriginalIdentity() }
+                catch { throw cleanupFailure("Directory removal failed: \(removalError); identity restoration failed: \(error)") }
+                throw cleanupFailure("Directory removal failed; original temporary identity retained: \(removalError)")
+            }
+            try attachFacts(["closedRuntimeCount": closedRuntimeCount, "exactCredentialPairAbsent": admittedCookieQuery != nil,
+                             "temporaryRootRemoved": true], name: "real-subscription-deletion-cleanup-complete")
+        }
+        var scenarioFailure: Error?
+        do {
+            let identity = try ReaderHostLibraryIdentity.loadOrCreate(in: operationsURL)
+            namespace = identity
+            identityBytes = try Data(contentsOf: operationsURL.appendingPathComponent(ReaderHostLibraryIdentity.fileName))
+            let cookieSourceID = "source-package:" + (try XCTUnwrap(expectedURL.host))
+            let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "io.reader.minliny.source-cookies." + hash(Data(identity.utf8)),
+                kSecAttrAccount as String: hash(Data(cookieSourceID.utf8))]
+            var readQuery = query; readQuery[kSecReturnData as String] = true
+            var originalItem: CFTypeRef?
+            let initialStatus = SecItemCopyMatching(readQuery as CFDictionary, &originalItem)
+            guard initialStatus == errSecItemNotFound else {
+                keychainAdmissionFailed = true
+                throw ReaderLibraryError.invalidResponse("Fresh temporary credential pair must be absent before networking; status=\(initialStatus)")
+            }
+            admittedCookieQuery = query
+            let active = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: sourceURL)
+            service = active
+            phase = "import both original phone sources and save actual provider subscription"
+            let imported = try await active.importSources(original, operationID: UUID().uuidString)
+            try require(imported.count == 2 && imported.allSatisfy(\.succeeded), "Both original real sources must be accepted")
+            let originalSources = try await active.onlineSources().sorted { $0.id < $1.id }
+            try require(originalSources.map(\.id) == expectedSourceIDs, "The isolated library must initially contain only the two original sources")
+            let subscription = ReaderSourceSubscription(id: 941015, name: "真实 Yiove 本机删除冲突保留",
+                url: subscriptionURL, type: 0, customOrder: 0, autoUpdate: false, update: 0)
+            let saved = try await active.saveRuleSubscription(subscription, operationID: UUID().uuidString)
+            try require(saved == subscription, "The exact original provider URL must be saved")
+            phase = "first genuine provider check and one safe original apply"
+            let firstPlan = try await active.checkRuleSubscription(saved, fetch: { requested in
+                guard requested == expectedURL else { throw ReaderLibraryError.invalidResponse("provider URL identity") }
+                try await capturedInputs.begin()
+                let input = try await active.onlineFetch(requested)
+                await capturedInputs.record(input)
+                return input
+            })
+            assertOriginalPlan(firstPlan, subscription: saved)
+            let firstChange = try XCTUnwrap(firstPlan.changes.filter {
+                $0.safeToApply && isHTTPSource($0.sourceId) && !expectedSourceIDs.contains($0.sourceId)
+            }.sorted { $0.sourceId < $1.sourceId }.first, "The full live package must offer an actual safe HTTP source outside the original pair")
+            try require(firstChange.kind == "added", "The source to be deleted must be newly owned by this temporary library")
+            let firstApplied = try await active.applyRuleSubscription(firstPlan, sourceIDs: [firstChange.sourceId], operationID: UUID().uuidString)
+            assertOriginalApply(firstApplied, plan: firstPlan, selectedID: firstChange.sourceId)
+            try attach(firstApplied, name: "real-subscription-deletion-first-original-ACK")
+            let admittedSources = try await active.onlineSources()
+            try require(Set(admittedSources.map(\.id)) == Set(expectedSourceIDs + [firstChange.sourceId]), "Only one genuine provider source may be admitted")
+            let admitted = try XCTUnwrap(admittedSources.first(where: { $0.id == firstChange.sourceId }))
+            try assertDefinitionIdentity(admitted)
+            let subscriptionsBeforeDelete = try await active.ruleSubscriptions()
+            phase = "delete only the newly admitted temporary source using the public operation"
+            try await active.deleteSource(admitted.id, operationID: UUID().uuidString)
+            let afterDelete = try await active.onlineSources().sorted { $0.id < $1.id }
+            let afterDeleteSubscriptions = try await active.ruleSubscriptions()
+            let afterDeletePending = try await active.pendingCoreCommands()
+            try require(afterDelete == originalSources && afterDeleteSubscriptions == subscriptionsBeforeDelete && afterDeletePending.isEmpty,
+                        "Local deletion must preserve both original definitions, subscription clock and an empty pending journal")
+            let currentSubscription = try XCTUnwrap(afterDeleteSubscriptions.first(where: { $0.id == saved.id }))
+            phase = "second genuine provider check and local-deletion conflict"
+            let secondPlan = try await active.checkRuleSubscription(currentSubscription, fetch: { requested in
+                guard requested == expectedURL else { throw ReaderLibraryError.invalidResponse("provider URL identity") }
+                try await capturedInputs.begin()
+                let input = try await active.onlineFetch(requested)
+                await capturedInputs.record(input)
+                return input
+            })
+            assertOriginalPlan(secondPlan, subscription: currentSubscription)
+            try attach(secondPlan, name: "real-subscription-deletion-live-conflict-plan")
+            let conflict = try XCTUnwrap(secondPlan.changes.first(where: { $0.sourceId == admitted.id }))
+            facts["deletedSourceId"] = admitted.id; facts["observedChangeKind"] = conflict.kind
+            try require(conflict.kind == "conflict" && !conflict.safeToApply,
+                        "The actual provider must still contain the deleted source and Core must protect its deletion as a conflict; changed provider input requires a new plan")
+            let afterCheck = try await active.onlineSources().sorted { $0.id < $1.id }
+            let afterCheckSubscriptions = try await active.ruleSubscriptions()
+            try require(afterCheck == originalSources && afterCheckSubscriptions == afterDeleteSubscriptions,
+                        "The genuine provider check must not restore a deleted source or advance the subscription clock")
+            let secondChange = try XCTUnwrap(secondPlan.changes.filter {
+                $0.safeToApply && $0.sourceId != admitted.id && isHTTPSource($0.sourceId) && !expectedSourceIDs.contains($0.sourceId)
+            }.sorted { $0.sourceId < $1.sourceId }.first, "A different actual safe HTTP source is required for selective apply")
+            phase = "apply one different safe source while preserving the actual deletion conflict"
+            let secondApplied = try await active.applyRuleSubscription(secondPlan, sourceIDs: [secondChange.sourceId], operationID: UUID().uuidString)
+            assertOriginalApply(secondApplied, plan: secondPlan, selectedID: secondChange.sourceId)
+            try require(secondApplied.skippedSourceIds.contains(admitted.id), "The original ACK must explicitly skip the conflict identity")
+            try attach(secondApplied, name: "real-subscription-deletion-selective-original-ACK")
+            let beforeCold = try await active.onlineSources().sorted { $0.id < $1.id }
+            let beforeColdSubscriptions = try await active.ruleSubscriptions()
+            try require(Set(beforeCold.map(\.id)) == Set(expectedSourceIDs + [secondChange.sourceId]) &&
+                        beforeCold.filter { expectedSourceIDs.contains($0.id) } == originalSources,
+                        "Selective apply must retain both complete original sources and keep the locally deleted source absent")
+            let retainedSubscription = try XCTUnwrap(beforeColdSubscriptions.first(where: { $0.id == saved.id }))
+            try require(retainedSubscription.url == subscriptionURL && !retainedSubscription.autoUpdate && retainedSubscription.update == secondApplied.updatedAt,
+                        "Only the exact selective apply ACK may advance this temporary subscription clock")
+            try await active.close(); service = nil; closedRuntimeCount += 1
+            phase = "cold reopen the same temporary library without another provider request"
+            let reopened = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: sourceURL)
+            service = reopened
+            let coldSources = try await reopened.onlineSources().sorted { $0.id < $1.id }
+            let coldSubscriptions = try await reopened.ruleSubscriptions()
+            let coldPending = try await reopened.pendingCoreCommands()
+            try require(coldSources == beforeCold && coldSubscriptions == beforeColdSubscriptions && coldPending.isEmpty,
+                        "Cold reopen must retain exact source definitions, deletion, acknowledged subscription and no pending writes")
+            try require(try Data(contentsOf: originalURL) == original, "The original phone source file must remain byte-for-byte unchanged")
+            let inputs = await capturedInputs.snapshot()
+            try require(inputs.count == 2, "Exactly two genuine full provider checks must supply both Core inputs")
+            try require(hash(inputs[0]) == firstPlan.remoteDigest && hash(inputs[1]) == secondPlan.remoteDigest,
+                        "Each plan must bind its own actual decoded UTF-8 provider input")
+            facts["providerFetchInvocations"] = inputs.count
+            facts["firstCoreInputUTF8Bytes"] = inputs[0].count; facts["firstCoreInputUTF8SHA256"] = hash(inputs[0])
+            facts["secondCoreInputUTF8Bytes"] = inputs[1].count; facts["secondCoreInputUTF8SHA256"] = hash(inputs[1])
+            facts["sameRemoteInput"] = firstPlan.remoteDigest == secondPlan.remoteDigest
+            facts["selectivelyAppliedSourceId"] = secondChange.sourceId
+            facts["coldSourceIds"] = coldSources.map(\.id); facts["pendingCoreCommands"] = coldPending.count
+            facts["input"] = "two production Host fetches of complete unchanged responses; decoded UTF-8 Core input, no wire-byte identity claim"
+            facts["result"] = "live local-deletion conflict skipped; original sources, file and acknowledged selective apply retained after cold reopen"
+            try attachFacts(facts, name: "real-subscription-deletion-live-conflict-and-cold-retention")
+        } catch {
+            scenarioFailure = error
+            facts["failedPhase"] = phase; facts["failure"] = String(reflecting: error)
+            let inputs = await capturedInputs.snapshot()
+            facts["completedProviderInputs"] = inputs.map { ["coreInputUTF8Bytes": $0.count, "coreInputUTF8SHA256": hash($0)] as [String: Any] }
+            try? attachFacts(facts, name: "real-subscription-deletion-scenario-failure")
+        }
+        do { try await cleanupTemporaryLibrary() }
+        catch {
+            if let scenarioFailure {
+                try? attachFacts(["scenarioFailure": String(reflecting: scenarioFailure), "cleanupFailure": String(reflecting: error)],
+                                 name: "real-subscription-deletion-scenario-and-cleanup-failure")
+            }
+            throw error
+        }
+        if let scenarioFailure { throw scenarioFailure }
+    }
+
     func testRealSubscriptionFetchPreviewSafeApplyAndColdReplayPreserveLocalChanges() async throws {
         let manager = FileManager.default
         let root = manager.temporaryDirectory.appendingPathComponent("ReaderRealSubscription-" + UUID().uuidString, isDirectory: true)
@@ -530,6 +774,143 @@ final class ReaderRealSubscriptionTests: XCTestCase {
                 try await service.close()
             } catch { try? await service.close(); throw error }
         }
+    }
+
+    /// These metadata-only cases use the two existing provider addresses. No
+    /// provider request or source package is constructed for a delete guard.
+    func testOriginalProviderSubscriptionDeleteRejectsChangedCapturedConfiguration() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionDeleteBaseline-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+        let original = ReaderSourceSubscription(id: 941016, name: "真实 Yiove 订阅删除归属", url: subscriptionURL,
+            type: 0, customOrder: 0, autoUpdate: true, update: 0)
+        let alternateURL = "https://shuyuan-api.yiove.com/import/book-source-collection/e61838fa-9a13-4137-b68a-192313eade0c"
+        do {
+            for field in 0..<5 {
+                let captured = try await service.saveRuleSubscription(original, operationID: UUID().uuidString)
+                let current = ReaderSourceSubscription(id: original.id,
+                    name: field == 0 ? "已编辑的 Yiove 订阅名称" : original.name,
+                    url: field == 1 ? alternateURL : original.url, type: field == 2 ? 1 : original.type,
+                    customOrder: field == 3 ? 1 : original.customOrder,
+                    autoUpdate: field == 4 ? false : original.autoUpdate, update: original.update)
+                _ = try await service.saveRuleSubscription(current, operationID: UUID().uuidString)
+                let operationID = UUID().uuidString
+                do {
+                    try await service.deleteRuleSubscription(captured, operationID: operationID)
+                    XCTFail("The captured delete must not remove a changed subscription configuration")
+                } catch is ReaderSubscriptionCheckChanged { }
+                let rows = try await service.ruleSubscriptions()
+                XCTAssertEqual(rows, [current])
+                let parameters = try await service.existingCoreParameters(operationID: operationID, method: "rules.mutation.apply")
+                XCTAssertNil(parameters, "A changed captured row is rejected before allocating a new Core write")
+            }
+            let pending = try await service.pendingCoreCommands()
+            XCTAssertTrue(pending.isEmpty)
+            try await service.close()
+        } catch { try? await service.close(); throw error }
+    }
+
+    /// An actual apply clock may advance without changing the captured address
+    /// configuration. Delete removes that address and retains its imported source.
+    func testOriginalProviderPackageSubscriptionDeleteAllowsAcknowledgedClockAndPreservesSource() async throws {
+        let package = try originalProviderPackage()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionDeleteClock-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+        let original = ReaderSourceSubscription(id: 941017, name: "真实 Yiove 订阅删除保留书源", url: subscriptionURL,
+            type: 0, customOrder: 0, autoUpdate: false, update: 0)
+        do {
+            _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString)
+            let plan = try await service.checkRuleSubscription(original, fetch: { url in
+                XCTAssertEqual(url.absoluteString, original.url)
+                return package
+            })
+            let selected = try XCTUnwrap(plan.changes.filter { $0.safeToApply && isHTTPSource($0.sourceId) }
+                .sorted { $0.sourceId < $1.sourceId }.first)
+            let applied = try await service.applyRuleSubscription(plan, sourceIDs: [selected.sourceId], operationID: UUID().uuidString)
+            assertOriginalApply(applied, plan: plan, selectedID: selected.sourceId)
+            XCTAssertGreaterThan(applied.updatedAt, original.update)
+            let rows = try await service.ruleSubscriptions()
+            XCTAssertEqual(rows.first?.update, applied.updatedAt)
+            let sources = try await service.onlineSources()
+            XCTAssertEqual(sources.map(\.id), [selected.sourceId])
+            try await service.deleteRuleSubscription(original, operationID: UUID().uuidString)
+            let retainedRows = try await service.ruleSubscriptions()
+            let retainedSources = try await service.onlineSources()
+            let pending = try await service.pendingCoreCommands()
+            XCTAssertTrue(retainedRows.isEmpty)
+            XCTAssertEqual(retainedSources, sources, "Removing an address must preserve the complete original imported source")
+            XCTAssertTrue(pending.isEmpty)
+            try await service.close()
+        } catch { try? await service.close(); throw error }
+    }
+
+    func testOriginalProviderSubscriptionDeleteCapturedSequenceRejectsInterveningWriteAndABA() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionDeleteSequence-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+        let original = ReaderSourceSubscription(id: 941018, name: "真实 Yiove 订阅删除序列", url: subscriptionURL,
+            type: 0, customOrder: 0, autoUpdate: true, update: 0)
+        let changed = ReaderSourceSubscription(id: original.id, name: original.name, url: original.url,
+            type: original.type, customOrder: original.customOrder, autoUpdate: false, update: original.update)
+        do {
+            for aba in [false, true] {
+                _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString)
+                let nextSequence = try await service.prepareRuleSubscriptionDelete(original)
+                _ = try await service.saveRuleSubscription(changed, operationID: UUID().uuidString)
+                if aba { _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString) }
+                do {
+                    // This is the dispatch boundary after the final awaited head
+                    // read. Core must atomically reject this captured sequence.
+                    _ = try await service.rulesMutation("rule-sub.delete", ["id": original.id],
+                        operationID: UUID().uuidString, nextSequence: nextSequence)
+                    XCTFail("An intervening rules write, including A -> B -> A, must not rebase the delete")
+                } catch ReaderLibraryError.core(let code, _, _, let reason) {
+                    XCTAssertEqual(code, "INVALID_PARAMS"); XCTAssertEqual(reason, "rules_mutation_rejected")
+                }
+                let rows = try await service.ruleSubscriptions()
+                let pending = try await service.pendingCoreCommands()
+                XCTAssertEqual(rows, [aba ? original : changed])
+                XCTAssertTrue(pending.isEmpty)
+            }
+            try await service.close()
+        } catch { try? await service.close(); throw error }
+    }
+
+    func testOriginalProviderSubscriptionDeleteColdReplayConsumesOriginalWrapperBeforeReadingRow() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderSubscriptionDeleteReplay-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = root.appendingPathComponent("Core"), sources = root.appendingPathComponent("Sources")
+        var gate = try StagingCoreGate(storage: storage)
+        defer { gate.release(); gate.destroy() }
+        var service = try ReaderLibraryService(storageURL: storage, sourceURL: sources, client: gate, timing: gate.timing)
+        let original = ReaderSourceSubscription(id: 941019, name: "真实 Yiove 订阅原删除回执", url: subscriptionURL,
+            type: 0, customOrder: 0, autoUpdate: false, update: 0)
+        _ = try await service.saveRuleSubscription(original, operationID: UUID().uuidString)
+        let operationID = UUID().uuidString
+        gate.hold("rules.mutation.apply", advanceObserverDeadline: true)
+        do {
+            try await service.deleteRuleSubscription(original, operationID: operationID)
+            XCTFail("The original Core delete terminal is held")
+        } catch ReaderLibraryError.operationPending(_) { }
+        let parameters = try await service.existingCoreParameters(operationID: operationID, method: "rules.mutation.apply")
+        let frozen = try XCTUnwrap(parameters)
+        let bytes = try JSONSerialization.data(withJSONObject: frozen, options: [.sortedKeys])
+        gate.destroy()
+        gate = try StagingCoreGate(storage: storage)
+        service = try ReaderLibraryService(storageURL: storage, sourceURL: sources, client: gate, timing: gate.timing)
+        do {
+            try await service.deleteRuleSubscription(original, operationID: operationID)
+            XCTAssertEqual(gate.count("rule-sub.list"), 0, "Replay cannot reject an original delete because its row is now absent")
+            XCTAssertEqual(gate.count("rules.mutation.apply"), 0, "The original receipt is consumed without another write")
+            let retainedParameters = try await service.existingCoreParameters(operationID: operationID, method: "rules.mutation.apply")
+            let retained = try XCTUnwrap(retainedParameters)
+            XCTAssertEqual(try JSONSerialization.data(withJSONObject: retained, options: [.sortedKeys]), bytes)
+            let rows = try await service.ruleSubscriptions()
+            let pending = try await service.pendingCoreCommands()
+            XCTAssertTrue(rows.isEmpty); XCTAssertTrue(pending.isEmpty)
+            try await service.close()
+        } catch { try? await service.close(); throw error }
     }
 
     private func originalProviderPackage() throws -> Data {

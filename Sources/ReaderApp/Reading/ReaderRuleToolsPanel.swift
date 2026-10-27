@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import Combine
 #if DEBUG
 import CryptoKit
 import OSLog
@@ -43,11 +44,20 @@ private enum ReaderTXTPreviewTrace {
 @MainActor
 final class ReaderRuleWorkspace: ObservableObject {
     enum Kind: String, CaseIterable { case replace = "替换", txt = "TXT目录", dictionary = "字典", hierarchy = "本书分组" }
-    @Published var kind: Kind = .replace { didSet { if kind != oldValue { invalidateTXTPreview(reason: "kind.changed") } } }
-    @Published var replaceRules: [ReaderReplaceRule] = []
+    @Published var kind: Kind = .replace {
+        didSet {
+            if kind != oldValue {
+                invalidateTXTPreview(reason: "kind.changed"); invalidateReplacementPreview()
+                retireDictionaryQuery(); retireHierarchyRead()
+            }
+        }
+    }
+    @Published var replaceRules: [ReaderReplaceRule] = [] { didSet { if replaceRules != oldValue { invalidateReplacementPreview() } } }
     @Published var txtRules: [ReaderTXTTOCRule] = [] { didSet { if txtRules != oldValue { invalidateTXTPreview(reason: "savedRules.changed") } } }
-    @Published var dictionaryRules: [ReaderDictionaryRule] = []
-    @Published var replaceDraft = ReaderReplaceRuleDraft(pattern: "") { didSet { persistDrafts() } }
+    @Published var dictionaryRules: [ReaderDictionaryRule] = [] {
+        didSet { if dictionaryRules != oldValue { invalidateDictionaryQuery() } }
+    }
+    @Published var replaceDraft = ReaderReplaceRuleDraft(pattern: "") { didSet { invalidateReplacementPreview(); persistDrafts() } }
     @Published var txtDraft = ReaderTXTTOCRuleDraft(rule: "") {
         didSet {
 #if DEBUG
@@ -56,15 +66,47 @@ final class ReaderRuleWorkspace: ObservableObject {
             invalidateTXTPreview(reason: "draft.didSet"); persistDrafts()
         }
     }
-    @Published var dictionaryDraft = ReaderDictionaryRule(name: "") { didSet { persistDrafts() } }
-    @Published var editingReplace: Int64? { didSet { persistDrafts() } }
+    @Published var dictionaryDraft = ReaderDictionaryRule(name: "") { didSet { invalidateDictionaryQuery(); persistDrafts() } }
+    @Published var editingReplace: Int64? { didSet { invalidateReplacementPreview(); persistDrafts() } }
     @Published var editingTXT: Int64? { didSet { invalidateTXTPreview(reason: "editingID.didSet"); persistDrafts() } }
-    @Published var dictionaryWord = ""
-    @Published var dictionaryResult: String?
-    @Published var hierarchyJSON = "[]" { didSet { persistDrafts() } }
-    @Published var hierarchyPreview: ReaderDirectoryRulesResult?
-    var hierarchyPreviewInput: String?
-    @Published var replacementPreview: ReaderReplacePreview?
+    @Published var dictionaryWord = "" { didSet { invalidateDictionaryQuery() } }
+    @Published private(set) var dictionaryResult: String?
+    @Published private(set) var dictionaryFailure: String?
+    @Published private(set) var dictionaryLoading = false
+    private var dictionaryInputRevision = UUID()
+    private var dictionaryRequestID = UUID()
+    private var dictionaryTask: Task<Void, Never>?
+    @Published var hierarchyJSON = "[]" { didSet { invalidateHierarchyRead(); persistDrafts() } }
+    @Published private(set) var hierarchyPreview: ReaderDirectoryRulesResult?
+    private(set) var hierarchyPreviewInput: String?
+    @Published private(set) var hierarchyFailure: String?
+    @Published private(set) var hierarchyLoading = false
+    private var hierarchyInputRevision = UUID()
+    private var hierarchyRequestID = UUID()
+    private var hierarchyTask: Task<Void, Never>?
+    struct ReplacementContext: Equatable {
+        let sessionID: UUID
+        let restorationID: UUID
+        let sourceID: String
+        let bookID: String
+        let chapterIndex: UInt32
+        let bodyVersion: String?
+        let processingVersion: String?
+    }
+    struct ReplacementPreviewInput: Equatable {
+        let context: ReplacementContext
+        let rules: [ReaderReplaceRule]
+        let draft: ReaderReplaceRuleDraft
+        let editingID: Int64?
+    }
+    @Published private(set) var replacementPreview: ReaderReplacePreview?
+    @Published private(set) var replacementPreviewInput: ReplacementPreviewInput?
+    @Published private(set) var replacementPreviewLoading = false
+    @Published private(set) var replacementPreviewFailure: String?
+    private var replacementContext: ReplacementContext?
+    private var replacementGeneration = UUID()
+    private var replacementTask: Task<Void, Never>?
+    private var replacementReaderObservation: AnyCancellable?
     @Published var validation: String?
     @Published var failure: String?
     @Published var loading = false
@@ -105,7 +147,180 @@ final class ReaderRuleWorkspace: ObservableObject {
         }
         draftKey = key
     }
-    deinit { txtPreviewTask?.cancel() }
+    deinit { txtPreviewTask?.cancel(); replacementTask?.cancel(); dictionaryTask?.cancel(); hierarchyTask?.cancel() }
+
+    static func replacementContext(for session: ReaderActiveSession?, bookID: String) -> ReplacementContext? {
+        guard let session, session.book.id == bookID else { return nil }
+        return .init(sessionID: session.id, restorationID: session.restorationID,
+            sourceID: session.content.sourceId, bookID: session.content.bookId, chapterIndex: session.content.chapterIndex,
+            bodyVersion: session.content.bodyVersion, processingVersion: session.content.processingVersion)
+    }
+    func observeReplacementReader(_ reader: Published<ReaderActiveSession?>.Publisher, bookID: String) {
+        retireReplacementReader()
+        replacementReaderObservation = reader.sink { [weak self] session in
+            self?.setReplacementContext(Self.replacementContext(for: session, bookID: bookID))
+        }
+    }
+    func retireReplacementReader() {
+        replacementReaderObservation?.cancel(); replacementReaderObservation = nil
+        replacementContext = nil
+        invalidateReplacementPreview()
+        retireDictionaryQuery(); retireHierarchyRead()
+    }
+
+    func setReplacementContext(_ context: ReplacementContext?) {
+        guard replacementContext != context else { return }
+        replacementContext = context
+        invalidateReplacementPreview()
+        retireDictionaryQuery(); retireHierarchyRead()
+    }
+
+    private func invalidateDictionaryQuery() {
+        dictionaryInputRevision = UUID()
+        retireDictionaryQuery()
+    }
+    private func retireDictionaryQuery() {
+        dictionaryRequestID = UUID(); dictionaryTask?.cancel(); dictionaryTask = nil
+        dictionaryResult = nil; dictionaryFailure = nil; dictionaryLoading = false
+    }
+    /// The same reader observation that owns replacement previews also retires
+    /// dictionary reads. Input revisions distinguish equal text after an edit.
+    @discardableResult
+    func queryDictionary(read: @escaping (String, String) async throws -> String) -> Task<Void, Never>? {
+        guard kind == .dictionary, let context = replacementContext else { return nil }
+        retireDictionaryQuery()
+        let request = dictionaryRequestID, revision = dictionaryInputRevision
+        let name = dictionaryDraft.name, word = dictionaryWord
+        dictionaryLoading = true
+        let task = Task { [weak self] in
+            defer {
+                if let self, self.dictionaryRequestID == request { self.dictionaryLoading = false; self.dictionaryTask = nil }
+            }
+            do {
+                guard !Task.isCancelled, self?.dictionaryRequestID == request,
+                      self?.dictionaryInputRevision == revision, self?.replacementContext == context,
+                      self?.kind == .dictionary else { return }
+                let value = try await read(name, word)
+                guard let self, !Task.isCancelled, self.dictionaryRequestID == request,
+                      self.dictionaryInputRevision == revision, self.replacementContext == context, self.kind == .dictionary else { return }
+                self.dictionaryResult = value
+            } catch {
+                guard let self, !Task.isCancelled, self.dictionaryRequestID == request,
+                      self.dictionaryInputRevision == revision, self.replacementContext == context, self.kind == .dictionary else { return }
+                self.dictionaryFailure = error.localizedDescription
+            }
+        }
+        dictionaryTask = task
+        return task
+    }
+
+    private func invalidateHierarchyRead() {
+        hierarchyInputRevision = UUID()
+        retireHierarchyRead()
+    }
+    private func retireHierarchyRead() {
+        hierarchyRequestID = UUID(); hierarchyTask?.cancel(); hierarchyTask = nil
+        hierarchyPreview = nil; hierarchyPreviewInput = nil; hierarchyFailure = nil; hierarchyLoading = false
+    }
+    func invalidateRuleReadsForMutation() {
+        invalidateReplacementPreview(); retireDictionaryQuery(); retireHierarchyRead()
+    }
+    @discardableResult
+    func loadHierarchy(read: @escaping () async throws -> ReaderDirectoryRulesResult) -> Task<Void, Never>? {
+        beginHierarchyRead(replaceDraft: true, read: read)
+    }
+    @discardableResult
+    func previewHierarchy(read: @escaping () async throws -> ReaderDirectoryRulesResult) -> Task<Void, Never>? {
+        beginHierarchyRead(replaceDraft: false, read: read)
+    }
+    private func beginHierarchyRead(replaceDraft: Bool,
+                                    read: @escaping () async throws -> ReaderDirectoryRulesResult) -> Task<Void, Never>? {
+        guard kind == .hierarchy, let context = replacementContext else { return nil }
+        retireHierarchyRead()
+        let request = hierarchyRequestID, revision = hierarchyInputRevision, draft = hierarchyJSON
+        hierarchyLoading = true
+        let task = Task { [weak self] in
+            defer {
+                if let self, self.hierarchyRequestID == request { self.hierarchyLoading = false; self.hierarchyTask = nil }
+            }
+            do {
+                guard !Task.isCancelled, self?.hierarchyRequestID == request,
+                      self?.hierarchyInputRevision == revision, self?.hierarchyJSON == draft,
+                      self?.replacementContext == context, self?.kind == .hierarchy else { return }
+                let value = try await read()
+                guard let self, !Task.isCancelled, self.hierarchyRequestID == request,
+                      self.hierarchyInputRevision == revision, self.hierarchyJSON == draft,
+                      self.replacementContext == context, self.kind == .hierarchy else { return }
+                if replaceDraft {
+                    let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    // Encoding completes before the accepted read can replace
+                    // the draft. Its setter retires this request synchronously.
+                    self.hierarchyJSON = String(decoding: try encoder.encode(value.rules ?? []), as: UTF8.self)
+                }
+                self.hierarchyPreviewInput = self.hierarchyJSON
+                self.hierarchyPreview = value
+            } catch {
+                guard let self, !Task.isCancelled, self.hierarchyRequestID == request,
+                      self.hierarchyInputRevision == revision, self.hierarchyJSON == draft,
+                      self.replacementContext == context, self.kind == .hierarchy else { return }
+                self.hierarchyFailure = error.localizedDescription
+            }
+        }
+        hierarchyTask = task
+        return task
+    }
+    func invalidateReplacementPreview() {
+        replacementGeneration = UUID(); replacementTask?.cancel(); replacementTask = nil
+        replacementPreview = nil; replacementPreviewInput = nil
+        replacementPreviewLoading = false; replacementPreviewFailure = nil
+    }
+    func replacementPreviewBelongs(to context: ReplacementContext?) -> Bool {
+        guard let context, let input = replacementPreviewInput else { return false }
+        return replacementContext == context && input.context == context && kind == .replace
+            && input.rules == replaceRules && input.draft == replaceDraft && input.editingID == editingReplace
+    }
+    /// This workspace owns the exact read and its presentation lifetime. The
+    /// caller supplies the existing Core adapter, never a Host text processor.
+    @discardableResult
+    func previewReplacement(context: ReplacementContext,
+                            read: @escaping (ReplacementPreviewInput) async throws -> ReaderReplacePreview,
+                            isCurrent: @escaping () -> Bool) -> Task<Void, Never> {
+        setReplacementContext(context)
+        invalidateReplacementPreview()
+        let generation = replacementGeneration
+        let input = ReplacementPreviewInput(context: context, rules: replaceRules, draft: replaceDraft, editingID: editingReplace)
+        replacementPreviewInput = input; replacementPreviewLoading = true
+        let task = Task { [weak self] in
+            defer {
+                if let self, self.replacementGeneration == generation {
+                    self.replacementPreviewLoading = false; self.replacementTask = nil
+                }
+            }
+            do {
+                guard context.bodyVersion?.isEmpty == false, context.processingVersion?.isEmpty == false else {
+                    throw ReaderLibraryError.invalidPosition
+                }
+                let value = try await read(input)
+                guard let self, !Task.isCancelled, self.replacementGeneration == generation,
+                      self.replacementPreviewBelongs(to: context), isCurrent() else { return }
+                guard value.sourceId == context.sourceID, value.bookId == context.bookID,
+                      value.chapterIndex == context.chapterIndex else { throw ReaderLibraryError.invalidResponse("replacement preview identity") }
+                self.replacementPreview = value
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=replacement.published.result session=\(context.sessionID)")
+#endif
+            } catch {
+#if DEBUG
+                ReaderTXTPreviewTrace.emit("event=replacement.service.error session=\(context.sessionID) category=\(ReaderTXTPreviewTrace.errorCategory(error))")
+#endif
+                guard let self, !Task.isCancelled, self.replacementGeneration == generation,
+                      self.replacementPreviewBelongs(to: context), isCurrent() else { return }
+                self.replacementPreviewFailure = error.localizedDescription
+            }
+        }
+        replacementTask = task
+        return task
+    }
 
     func invalidateTXTPreview(reason: String = "caller") {
 #if DEBUG
@@ -211,6 +426,7 @@ struct ReaderRuleToolsPanel: View {
     @ObservedObject var model: ReaderApplicationModel
     @ObservedObject var state: ReaderRuleWorkspace
     let book: ReaderBook
+    var presentationActive = true
     @State private var importFile = false
     @State private var exportFile = false
     @State private var exportDocument = ReaderRuleDocument()
@@ -249,12 +465,14 @@ struct ReaderRuleToolsPanel: View {
             .task { await load() }
             .onAppear {
                 presented = true
+                if presentationActive { state.observeReplacementReader(model.$reader, bookID: book.id) }
 #if DEBUG
                 ReaderTXTPreviewTrace.emit("event=panel.appear presented=\(presented) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id)")
 #endif
             }
             .onDisappear {
                 presented = false; fileGeneration = UUID(); state.invalidateTXTPreview(reason: "panel.disappear")
+                state.retireReplacementReader()
 #if DEBUG
                 ReaderTXTPreviewTrace.emit("event=panel.disappear presented=\(presented) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id)")
 #endif
@@ -274,11 +492,18 @@ struct ReaderRuleToolsPanel: View {
                 }
             }
             .onChange(of: state.replaceDraft) { _, _ in state.validation = nil }
+            .onChange(of: replacementContext) { _, value in state.setReplacementContext(value) }
+            .onChange(of: presentationActive) { _, active in
+                if active, presented { state.observeReplacementReader(model.$reader, bookID: book.id) }
+                else { state.retireReplacementReader() }
+            }
             .onChange(of: book.id) { _, _ in state.invalidateTXTPreview(reason: "panel.book.changed") }
             .onChange(of: model.reader?.id) { _, _ in state.invalidateTXTPreview(reason: "panel.session.changed") }
             .onChange(of: model.reader?.book.id) { _, _ in state.invalidateTXTPreview(reason: "panel.readerBook.changed") }
-            .onChange(of: state.hierarchyJSON) { _, value in if state.hierarchyPreviewInput != value { state.hierarchyPreview = nil } }
-            .onChange(of: model.actions.hasPending) { old, new in if old && !new { Task { await load() } } }
+            .onChange(of: model.actions.hasPending) { old, new in
+                if new { state.invalidateRuleReadsForMutation() }
+                if old && !new { Task { await load() } }
+            }
     }
 
     private var replacement: some View {
@@ -344,7 +569,13 @@ struct ReaderRuleToolsPanel: View {
 #if DEBUG
                 .background { ReaderDebugPreviewHitProbe(role: "replacement-preview") }
 #endif
-            if let preview = state.replacementPreview {
+            if state.replacementPreviewBelongs(to: replacementContext), state.replacementPreviewLoading {
+                ReaderPageState(title: "正在预览已保存规则", loading: true)
+            }
+            if state.replacementPreviewBelongs(to: replacementContext), let failure = state.replacementPreviewFailure {
+                ReaderPageState(title: "替换预览未完成", detail: failure, actionTitle: "重新预览", action: previewReplacement)
+            }
+            if state.replacementPreviewBelongs(to: replacementContext), let preview = state.replacementPreview {
                 Text(preview.truncated ? "当前章预览（已截取）" : "当前章预览").font(ReaderTypography.font(.controlHeader))
                 Text("原文").font(ReaderTypography.font(.controlHeader)); Text(preview.before).textSelection(.enabled)
                     .accessibilityIdentifier("replacement-preview-before")
@@ -483,6 +714,10 @@ struct ReaderRuleToolsPanel: View {
                 TextField("查词", text: $state.dictionaryWord).readerField()
                 Button("查询") { queryDictionary() }.frame(minWidth: 44, minHeight: 44)
             }
+            if state.dictionaryLoading { ReaderPageState(title: "正在查询字典", loading: true) }
+            if let failure = state.dictionaryFailure {
+                ReaderPageState(title: "字典查询尚未完成", detail: failure, actionTitle: "重试", action: queryDictionary)
+            }
             if let result = state.dictionaryResult { Text(result).textSelection(.enabled) }
         }
     }
@@ -496,6 +731,8 @@ struct ReaderRuleToolsPanel: View {
                 Button("预览") { previewHierarchy(apply: false) }
                 Button("应用") { previewHierarchy(apply: true) }.disabled(model.actions.hasPending)
             }.frame(minHeight: 44)
+            if state.hierarchyLoading { ReaderPageState(title: "正在读取目录分组", loading: true) }
+            if let failure = state.hierarchyFailure { ReaderPageState(title: "目录分组读取尚未完成", detail: failure) }
             if let result = state.hierarchyPreview {
                 if let nodes = result.nodeCount { Text("\(nodes) 个目录项") }
                 if let chapters = result.readableChapterCount { Text("\(chapters) 个可读章节") }
@@ -550,6 +787,7 @@ struct ReaderRuleToolsPanel: View {
     }
     private func mutate(_ label: String, action: @escaping (String, any ReaderReadingToolsServing) async throws -> Void) {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
+        state.invalidateRuleReadsForMutation()
         Task {
             if await model.actions.perform(label, scope: book.id, action: { id in try await action(id, service) }) { await load() }
         }
@@ -572,59 +810,34 @@ struct ReaderRuleToolsPanel: View {
 #if DEBUG
         ReaderTXTPreviewTrace.emit("event=panel.replacement.tap presented=\(presented) serviceAvailable=\(model.libraryService is any ReaderReadingToolsServing) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id)")
 #endif
-        guard let service = model.libraryService as? any ReaderReadingToolsServing,
-              let current = model.reader, current.book.id == book.id else { return }
-        Task {
-            do {
+        guard presented, !model.actions.hasPending,
+              let service = model.libraryService as? any ReaderReadingToolsServing,
+              let current = model.reader, let context = replacementContext else { return }
+        state.previewReplacement(context: context, read: { input in
 #if DEBUG
-                ReaderTXTPreviewTrace.emit("event=replacement.service.begin session=\(current.id) chapter=\(current.content.chapterIndex)")
+            ReaderTXTPreviewTrace.emit("event=replacement.service.begin session=\(context.sessionID) chapter=\(context.chapterIndex)")
 #endif
-                let value = try await service.previewReplacement(for: book, chapterIndex: current.content.chapterIndex, maxScalars: 2048)
+            let value = try await service.previewReplacement(for: book, content: current.content, expectedRules: input.rules, maxScalars: 2048)
 #if DEBUG
-                ReaderTXTPreviewTrace.emit("event=replacement.service.result session=\(current.id) beforeUTF8Bytes=\(value.before.utf8.count) afterUTF8Bytes=\(value.after.utf8.count) truncated=\(value.truncated)")
+            ReaderTXTPreviewTrace.emit("event=replacement.service.result session=\(context.sessionID) beforeUTF8Bytes=\(value.before.utf8.count) afterUTF8Bytes=\(value.after.utf8.count) truncated=\(value.truncated)")
 #endif
-                guard presented, model.reader?.id == current.id, model.reader?.content.chapterIndex == current.content.chapterIndex else {
-#if DEBUG
-                    ReaderTXTPreviewTrace.emit("event=replacement.discard.result presented=\(presented) sessionMatches=\(model.reader?.id == current.id) chapterMatches=\(model.reader?.content.chapterIndex == current.content.chapterIndex)")
-#endif
-                    return
-                }
-                state.replacementPreview = value
-#if DEBUG
-                ReaderTXTPreviewTrace.emit("event=replacement.published.result session=\(current.id)")
-#endif
-            } catch {
-#if DEBUG
-                ReaderTXTPreviewTrace.emit("event=replacement.service.error session=\(current.id) category=\(ReaderTXTPreviewTrace.errorCategory(error))")
-#endif
-                if presented, model.reader?.id == current.id { state.failure = error.localizedDescription }
-            }
-        }
+            return value
+        }, isCurrent: {
+            presented && !model.actions.hasPending && replacementContext == context
+        })
+    }
+
+    private var replacementContext: ReaderRuleWorkspace.ReplacementContext? {
+        guard presented, presentationActive else { return nil }
+        return ReaderRuleWorkspace.replacementContext(for: model.reader, bookID: book.id)
     }
     private func queryDictionary() {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
-        let name = state.dictionaryDraft.name; let word = state.dictionaryWord
-        Task {
-            do {
-                let value = try await service.queryDictionary(ruleName: name, word: word)
-                guard presented, state.dictionaryDraft.name == name, state.dictionaryWord == word else { return }
-                state.dictionaryResult = value
-            } catch { if presented, state.dictionaryDraft.name == name, state.dictionaryWord == word { state.dictionaryResult = error.localizedDescription } }
-        }
+        state.queryDictionary { name, word in try await service.queryDictionary(ruleName: name, word: word) }
     }
     private func loadHierarchy() {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
-        let originalDraft = state.hierarchyJSON
-        Task {
-            do {
-                let current = try await service.directoryRules(for: book)
-                guard presented, state.hierarchyJSON == originalDraft else { return }
-                let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                state.hierarchyJSON = String(decoding: try encoder.encode(current.rules ?? []), as: UTF8.self)
-                state.hierarchyPreviewInput = state.hierarchyJSON
-                state.hierarchyPreview = current
-            } catch { state.failure = error.localizedDescription }
-        }
+        state.loadHierarchy { try await service.directoryRules(for: book) }
     }
     private func previewHierarchy(apply: Bool) {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
@@ -634,14 +847,7 @@ struct ReaderRuleToolsPanel: View {
             if apply {
                 mutate("应用目录分组") { id, service in _ = try await service.applyDirectoryRules(for: book, rules: rules, operationID: id) }
             } else {
-                Task {
-                    do {
-                        let value = try await service.previewDirectoryRules(for: book, rules: rules)
-                        guard presented, state.hierarchyJSON == originalDraft else { return }
-                        state.hierarchyPreviewInput = originalDraft
-                        state.hierarchyPreview = value
-                    } catch { if presented, state.hierarchyJSON == originalDraft { state.failure = error.localizedDescription } }
-                }
+                state.previewHierarchy { try await service.previewDirectoryRules(for: book, rules: rules) }
             }
         } catch { state.failure = "分组规则格式无效，请检查后重试" }
     }

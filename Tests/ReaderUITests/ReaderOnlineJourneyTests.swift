@@ -338,9 +338,162 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         XCTFail("This journey requires the original physical iPhone")
         throw SourceToolsFailure.prerequisite
 #endif
+#if !DEBUG
+        XCTFail("This exact Stop witness requires the opt-in DEBUG search trace")
+        throw SourceToolsFailure.prerequisite
+#endif
         try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone,
             "Require the original physical phone and its existing source library", app: nil)
+        struct PendingOperation: Decodable {
+            let operationID: String
+            let method: String
+            let scope: String
+            let commandSHA256: String
+            let completed: Bool
+            let resultPresent: Bool
+            let failurePresent: Bool
+            let sourceId: String
+            let bookId: String
+            let title: String
+        }
+        struct Preproof: Decodable {
+            let schemaVersion: Int
+            let policy: String
+            let capturedAtUTC: String
+            let targetUDID: String
+            let bundleID: String
+            let snapshotSHA256: String
+            let sourcePackageSHA256: String
+            let sourcePackageBytes: Int
+            let hostCommandCount: Int
+            let hostCommandManifestSHA256: String
+            let captureReceiptsSHA256: String
+            let coreCommit: String
+            let pendingOperationCount: Int
+            let pendingOperationIDs: [String]
+            let pendingOperations: [PendingOperation]
+            let descriptorSHA256: String
+            let preparationCommandSHA256: String
+            let corePreparationPayloadSHA256: String
+            let taskCount: Int
+            let completedTaskCount: Int
+            let failedTaskCount: Int
+            let cancelledTaskCount: Int
+            let pausedTaskCount: Int
+            let pendingTaskCount: Int
+            let inProgressTaskCount: Int
+            let physicalBodyCount: Int
+            let protectedOriginalHostCommandCount: Int
+            let protectedOriginalCompletedTaskCount: Int
+            let protectedOriginalFailedTaskCount: Int
+            let protectedOriginalPhysicalBodyCount: Int
+            let protectedOriginalManifestSHA256: String
+            let originalChapterIndex: UInt32
+            let originalScalarOffset: UInt32
+            let sourceNames: [String: String]
+            let sourceValues: [String: String]
+            let stoppedPhysicalApp: Bool
+            let preserveDataUpdateVerified: Bool
+        }
+        let environment = ProcessInfo.processInfo.environment
+        let rawPreproof = try XCTUnwrap(environment["READER_V4_STOP_PREPROOF_JSON"])
+        let expectedPreproofSHA = try XCTUnwrap(environment["READER_V4_STOP_PREPROOF_SHA256"])
+        let expectedCoreCommit = try XCTUnwrap(environment["READER_V4_STOP_EXPECTED_CORE_COMMIT"])
+        let targetUDID = try XCTUnwrap(environment["READER_PHYSICAL_TARGET_UDID"])
+        let preproofBytes = Data(rawPreproof.utf8)
+        let actualPreproofSHA = SHA256.hash(data: preproofBytes).map { String(format: "%02x", $0) }.joined()
+        try sourceToolsRequire(preproofBytes.count <= 16 * 1024 && actualPreproofSHA == expectedPreproofSHA,
+            "Require exact fresh stopped-App external preproof bytes before any source toggle", app: nil)
+        let proof = try JSONDecoder().decode(Preproof.self, from: preproofBytes)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let captured = formatter.date(from: proof.capturedAtUTC) ?? ISO8601DateFormatter().date(from: proof.capturedAtUTC)
+        let age = captured.map { Date().timeIntervalSince($0) }
+        let originalPendingID = "0ad35be2-67cd-43a0-b4b4-34e98814e40d"
+        let pendingSourceID = "https://dushu.baidu.com/"
+        let pendingBookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4345127024&pageNum=1&order=asc&site="
+        let originalSourceValues = ["http://199.33.126.51": "0", "https://m.idejian.com": "1", pendingSourceID: "1"]
+        let originalSourceNames = ["http://199.33.126.51": "👍 同人圈", "https://m.idejian.com": "得间小说", pendingSourceID: "百度小说"]
+        func isLowerHex(_ value: String, length: Int) -> Bool {
+            value.utf8.count == length && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+        }
+        let currentCounts = [proof.hostCommandCount, proof.taskCount, proof.completedTaskCount, proof.failedTaskCount,
+            proof.cancelledTaskCount, proof.pausedTaskCount, proof.pendingTaskCount, proof.inProgressTaskCount, proof.physicalBodyCount]
+        let taskClasses = [proof.completedTaskCount, proof.failedTaskCount, proof.cancelledTaskCount,
+            proof.pausedTaskCount, proof.pendingTaskCount, proof.inProgressTaskCount]
+        // Bound before summing untrusted decoded integers; the six classes
+        // describe the complete fresh task table, not the original subset.
+        let currentCountsConsistent = currentCounts.allSatisfy { (0...1_000_000).contains($0) }
+            && taskClasses.reduce(0, +) == proof.taskCount
+        try sourceToolsRequire(proof.schemaVersion == 3 && proof.policy == "physical-real-three-source-stop-v3"
+            && age.map({ (0...600).contains($0) }) == true
+            && proof.targetUDID == targetUDID && proof.bundleID == "io.reader.minliny.free"
+            && environment["SIMULATOR_UDID"] == nil
+            && isLowerHex(proof.snapshotSHA256, length: 64)
+            && isLowerHex(proof.hostCommandManifestSHA256, length: 64)
+            && isLowerHex(proof.captureReceiptsSHA256, length: 64)
+            && isLowerHex(proof.coreCommit, length: 40) && proof.coreCommit == expectedCoreCommit
+            && currentCountsConsistent && proof.pendingTaskCount == 0 && proof.inProgressTaskCount == 0,
+            "Require the fresh complete-current manifest, capture receipts, exact Runner-expected Core and exhaustive bounded task classifications", app: nil)
+        try sourceToolsRequire(proof.protectedOriginalHostCommandCount == 581
+            && proof.protectedOriginalCompletedTaskCount == 50 && proof.protectedOriginalFailedTaskCount == 1
+            && proof.protectedOriginalPhysicalBodyCount == 57
+            && proof.protectedOriginalManifestSHA256 == "566c856f78ae1d7d00dadd050bc9cb1d4c5349e82a4af7e43eb2f9863a92d635"
+            && proof.hostCommandCount >= proof.protectedOriginalHostCommandCount
+            && proof.completedTaskCount >= proof.protectedOriginalCompletedTaskCount
+            && proof.failedTaskCount >= proof.protectedOriginalFailedTaskCount
+            && proof.physicalBodyCount >= proof.protectedOriginalPhysicalBodyCount,
+            "The complete fresh totals must include the exact independently preserved original 581 Host/50 completed/1 failed/57 body subset", app: nil)
+        try sourceToolsRequire(proof.sourcePackageSHA256 == "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322"
+            && proof.sourcePackageBytes == 5606
+            && proof.pendingOperationCount == 1 && proof.pendingOperationIDs == [originalPendingID]
+            && proof.pendingOperations.count == 1
+            && proof.pendingOperations.allSatisfy({ pending in
+                pending.operationID == originalPendingID && pending.method == "bookshelf.add"
+                    && pending.scope == "shelf-add:" + pendingSourceID + "|" + pendingBookID
+                    && pending.commandSHA256 == "b8da0dd291ca82d63ba2afb88a9e371a280cfd130317c6d7e5e167f0e93a8f82"
+                    && !pending.completed && !pending.resultPresent && !pending.failurePresent
+                    && pending.sourceId == pendingSourceID && pending.bookId == pendingBookID && pending.title == "等到鸢尾纯白"
+            })
+            && proof.descriptorSHA256 == "b00559c3fda92b5515e69a4a577e0a50a2c0f3062ced7b1eaa2d92d72ec91e83"
+            && proof.preparationCommandSHA256 == "c3feb8f93a79776d5402763d8187b8730ff04b269272339d27fef810f08d8c67"
+            && proof.corePreparationPayloadSHA256 == "63b45965e8295bb40ad0a2b649d8d1756e6c65c834c3157563fab2586c0aac58"
+            && proof.originalChapterIndex == 40 && proof.originalScalarOffset == 0
+            && proof.sourceNames == originalSourceNames && proof.sourceValues == originalSourceValues
+            && proof.stoppedPhysicalApp && proof.preserveDataUpdateVerified,
+            "Require exact original pending owner, source definitions and protected reader facts before Stop", app: nil)
+        let preproofFacts: [String: Any] = [
+            "schemaVersion": proof.schemaVersion, "policy": proof.policy,
+            "preproofSHA256": expectedPreproofSHA, "snapshotSHA256": proof.snapshotSHA256,
+            "currentComplete": ["hostCommandCount": proof.hostCommandCount,
+                "hostCommandManifestSHA256": proof.hostCommandManifestSHA256,
+                "captureReceiptsSHA256": proof.captureReceiptsSHA256, "coreCommit": proof.coreCommit,
+                "taskCount": proof.taskCount, "completedTaskCount": proof.completedTaskCount,
+                "failedTaskCount": proof.failedTaskCount, "cancelledTaskCount": proof.cancelledTaskCount,
+                "pausedTaskCount": proof.pausedTaskCount, "pendingTaskCount": proof.pendingTaskCount,
+                "inProgressTaskCount": proof.inProgressTaskCount, "physicalBodyCount": proof.physicalBodyCount,
+                "descriptorSHA256": proof.descriptorSHA256, "preparationCommandSHA256": proof.preparationCommandSHA256,
+                "corePreparationPayloadSHA256": proof.corePreparationPayloadSHA256] as [String: Any],
+            "protectedOriginal": ["hostCommandCount": proof.protectedOriginalHostCommandCount,
+                "completedTaskCount": proof.protectedOriginalCompletedTaskCount,
+                "failedTaskCount": proof.protectedOriginalFailedTaskCount,
+                "physicalBodyCount": proof.protectedOriginalPhysicalBodyCount,
+                "manifestSHA256": proof.protectedOriginalManifestSHA256] as [String: Any],
+            "originalPendingOperationID": originalPendingID,
+            "originalPendingCommandSHA256": proof.pendingOperations[0].commandSHA256,
+            "boundary": "The trusted full proof SHA binds actual current totals, complete Host manifest, capture receipts and the exact Runner-expected Core. Current totals are not the protected original subset. The original b8 add remains unknown; its current continued descriptor and read/revision2 Core intent are independently bound and do not acknowledge that add. External postproof must protect all complete-current Host records/tasks/bodies, both admission descriptors, current Core intent, original unknown command, original source bytes and reader facts, and attribute only authorized changes."
+        ]
+        let preproofAttachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: preproofFacts,
+            options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+        preproofAttachment.name = "physical-real-three-source-stop-v3-external-preproof"
+        preproofAttachment.lifetime = .keepAlways; add(preproofAttachment)
         let app = XCUIApplication()
+        let traceMode = "physical-v4-02-search-trace-v1"
+        let traceRunID = UUID().uuidString.lowercased()
+        app.launchEnvironment["READER_V4_SEARCH_TRACE_MODE"] = traceMode
+        app.launchEnvironment["READER_V4_SEARCH_TRACE_RUN_ID"] = traceRunID
+        try sourceToolsRequire(app.state == .notRunning,
+            "The fresh global trace run must use the stopped App from the external preproof", app: app)
         let disabledSourceID = "http://199.33.126.51"
         let enabledSourceIDs = ["https://m.idejian.com", "https://dushu.baidu.com/"]
         let originalLabels = ["online-source:" + disabledSourceID: "👍 同人圈",
@@ -357,6 +510,14 @@ final class ReaderOnlineJourneyTests: XCTestCase {
             let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts,
                 options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
             attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        }
+        addTeardownBlock {
+            try attach("physical-real-three-source-stop-global-trace-run-binding", [
+                "mode": traceMode, "runID": traceRunID,
+                "rawRelativePath": "tmp/ReaderOnlineSearchTrace-" + traceRunID + "/trace.json",
+                "ownerRelativePath": "tmp/ReaderOnlineSearchTrace-" + traceRunID + "/owner.json",
+                "boundary": "This identifies only the first launch's opt-in run, including a skipped natural Stop window. Files may be absent before an actual search; their existence is not retirement evidence. Recovery relaunches clear trace mode/run rather than reusing this directory. External raw SHA/version/mode correspondence remains required."
+            ])
         }
         func exactToggle(_ sourceID: String) throws -> XCUIElement {
             let matches = app.switches.matching(identifier: "online-source-enabled:" + sourceID)
@@ -429,7 +590,13 @@ final class ReaderOnlineJourneyTests: XCTestCase {
             return confirmed.revision
         }
         func enterSources() throws {
-            if app.state == .notRunning { app.launch() }
+            if app.state == .notRunning {
+                // Recovery may reopen source management, never reuse a trace
+                // run directory or restart the observed search generation.
+                app.launchEnvironment["READER_V4_SEARCH_TRACE_MODE"] = ""
+                app.launchEnvironment["READER_V4_SEARCH_TRACE_RUN_ID"] = ""
+                app.launch()
+            }
             else if app.state != .runningForeground { app.activate() }
             if !app.buttons["online-close-sources"].exists {
                 if !app.buttons["online-open-sources"].exists {
@@ -519,6 +686,8 @@ final class ReaderOnlineJourneyTests: XCTestCase {
 
         app.launch()
         try enterSources()
+        try sourceToolsRequire(app.staticTexts.matching(identifier: "online-search-trace-owner").count == 1,
+            "Require the global workspace's one opt-in trace owner before changing the original source", app: app)
         try sourceToolsWait("Require a successful persisted initial source read with no unresolved source operation", timeout: 15) {
             guard let status = sourceState() else { return false }
             return status.revision > 0 && status.read == "ready" && status.operation == "terminal"
@@ -723,6 +892,52 @@ final class ReaderOnlineJourneyTests: XCTestCase {
             "candidateIDsBeforeStop": beforeStopIDs.sorted(), "candidateIDsAfterStop": stoppedIDs.sorted(),
             "candidateIDsAfterResearch": researchedIDs.sorted(), "originalSourceStateRestoredBeforeResearch": true,
             "boundary": "One natural three-source partial Stop, exact restoration through source management, then one explicit search of the original two enabled sources. UI identities do not claim raw transport callback or universal source coverage."])
+
+        struct StopSearchTraceProof: Decodable {
+            let r: String; let g: String; let n: Int; let e: Int; let f: Int; let c: Int
+            let s: String; let h: String; let v: Int
+            var fields: [String: Any] {
+                ["r": r, "g": g, "n": n, "e": e, "f": f, "c": c, "s": s, "h": h, "v": v]
+            }
+        }
+        var finalTraceProof: StopSearchTraceProof?
+        var finalTraceBytes: Data?
+        func completeTraceProof() -> Bool {
+            let owners = app.staticTexts.matching(identifier: "online-search-trace-owner")
+            guard owners.count == 1, let raw = owners.element.value as? String,
+                  let bytes = raw.data(using: .utf8), bytes.count <= 256,
+                  let object = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+                  Set(object.keys) == Set(["r", "g", "n", "e", "f", "c", "s", "h", "v"]),
+                  let value = try? JSONDecoder().decode(StopSearchTraceProof.self, from: bytes),
+                  value.r == traceRunID, UUID(uuidString: value.g)?.uuidString.lowercased() == value.g,
+                  (1...2).contains(value.n), (0...value.n).contains(value.f), (0...value.n).contains(value.c),
+                  (1...4096).contains(value.e), value.v > 0,
+                  ["captured", "incomplete"].contains(value.s),
+                  value.h.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil else { return false }
+            finalTraceProof = value; finalTraceBytes = bytes
+            return value.n == 2 && value.f == 2 && value.c == 2
+        }
+        let traceWaitBegan = ProcessInfo.processInfo.systemUptime
+        let traceReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in completeTraceProof() }, object: nil)
+        let traceWait = XCTWaiter.wait(for: [traceReady], timeout: 5)
+        let traceComplete = traceWait == .completed && finalTraceProof?.n == 2
+            && finalTraceProof?.f == 2 && finalTraceProof?.c == 2
+        try attach("physical-real-three-source-stop-global-trace-boundary", [
+            "mode": traceMode, "runID": traceRunID, "configuredWaitLimitSeconds": 5,
+            "observedWaitSeconds": ProcessInfo.processInfo.systemUptime - traceWaitBegan,
+            "waitResult": String(describing: traceWait), "twoGenerationCountsComplete": traceComplete,
+            "traceProof": finalTraceProof.map { $0.fields as Any } ?? NSNull(),
+            "rawRelativePath": "tmp/ReaderOnlineSearchTrace-" + traceRunID + "/trace.json",
+            "ownerRelativePath": "tmp/ReaderOnlineSearchTrace-" + traceRunID + "/owner.json",
+            "transportQuiescenceProven": false,
+            "boundary": "The method does not cold-relaunch its observed search. Both generations must be recorded, observer-finished and strictly Core-retired in this same run (n=f=c=2). Stop may leave the overall trace incomplete; these counters do not establish Host/HTTP closure or OS socket closure. Export the original raw files without relaunching into this run directory; owner.json and snapshot mode/run must match, and raw bytes must match this exact compact h/v and final g. A later SHA revision cannot substitute. Missing counts fail this witness; missing raw/hash correspondence remains INCOMPLETE externally. No extra search, Stop, source mutation, transport delay or automatic retry is authorized by this wait."
+        ])
+        if let finalTraceBytes {
+            let receipt = XCTAttachment(data: finalTraceBytes, uniformTypeIdentifier: "public.json")
+            receipt.name = "physical-real-three-source-stop-global-compact-proof"; receipt.lifetime = .keepAlways; add(receipt)
+        }
+        try sourceToolsRequire(traceComplete,
+            "Require this same global trace run's n=f=c=2 within the one five-second wait; incomplete counts cannot pass", app: app)
     }
 
     /// A separately selected recovery for a sealed failed Stop run. The runner
@@ -962,6 +1177,1182 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         keepScreenshot(app, name: "real-online-cold-shelf-reading")
         leaveReader(body, in: app)
         XCTAssertTrue(shelfBook.waitForExistence(timeout: 20), app.debugDescription)
+    }
+
+    /// One explicit admission of the already observed real Baidu candidate.
+    /// Runner-only preproof binds the stopped physical library; it supplies no
+    /// App state, source definitions, response, URL override or task mutation.
+    func testPhysicalExistingRealBaiduCandidateAdmissionAndColdShelfRetentionPreservesOriginalBook() throws {
+        struct Chapter: Decodable {
+            let index: UInt32
+            let title: String
+            let url: String
+        }
+        struct Preproof: Decodable {
+            let schemaVersion: Int
+            let policy: String
+            let capturedAtUTC: String
+            let targetUDID: String
+            let bundleID: String
+            let snapshotSHA256: String
+            let protectedSHA256: [String: String]
+            let sourceId: String
+            let sourceEnabled: Bool
+            let bookId: String
+            let title: String
+            let chapters: [Chapter]
+            let cachedIndexes: [UInt32]
+            let taskCount: Int
+            let inShelf: Bool
+            let hasReadingProgress: Bool
+            let originalSourceId: String
+            let originalBookId: String
+            let originalTitle: String
+            let originalChapterIndex: UInt32
+            let originalShelfBookIds: [String]
+            let originalCompletedTaskCount: Int
+            let originalFailedTaskCount: Int
+            let originalPhysicalBodyCount: Int
+            let pendingOperationCount: Int
+        }
+#if targetEnvironment(simulator)
+        XCTFail("This admission requires the original physical iPhone free-bundle library")
+        throw SourceToolsFailure.prerequisite
+#endif
+        let environment = ProcessInfo.processInfo.environment
+        let raw = try XCTUnwrap(environment["READER_PHYSICAL_ADMISSION_PREPROOF_JSON"])
+        let expectedSHA = try XCTUnwrap(environment["READER_PHYSICAL_ADMISSION_PREPROOF_SHA256"])
+        let snapshotSHA = try XCTUnwrap(environment["READER_PHYSICAL_ADMISSION_SNAPSHOT_SHA256"])
+        let target = try XCTUnwrap(environment["READER_PHYSICAL_TARGET_UDID"])
+        let sourceID = "https://dushu.baidu.com/"
+        let bookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4345127024&pageNum=1&order=asc&site="
+        let title = "等到鸢尾纯白"
+        let originalBookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4305547728&pageNum=1&order=asc&site="
+        let bytes = Data(raw.utf8)
+        func isSHA(_ value: String) -> Bool {
+            value.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil
+        }
+        try sourceToolsRequire(bytes.count <= 32 * 1024 && isSHA(expectedSHA)
+            && SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() == expectedSHA,
+            "Bind the exact external physical admission preproof before launching the App", app: nil)
+        let proof = try JSONDecoder().decode(Preproof.self, from: bytes)
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let captured = timestamp.date(from: proof.capturedAtUTC)
+            ?? ISO8601DateFormatter().date(from: proof.capturedAtUTC)
+        let age = captured.map { Date().timeIntervalSince($0) }
+        let protectedKeys: Set<String> = ["library", "files", "sources", "ledger", "originalBook",
+                                          "originalProgress", "originalTasks", "originalBodies"]
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone
+            && environment["SIMULATOR_UDID"] == nil
+            && proof.schemaVersion == 1 && proof.policy == "physical-real-baidu-candidate-admission-v1"
+            && age.map { (0...1800).contains($0) } == true
+            && target.range(of: #"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$"#, options: .regularExpression) != nil
+            && proof.targetUDID == target && proof.bundleID == "io.reader.minliny.free"
+            && isSHA(snapshotSHA) && proof.snapshotSHA256 == snapshotSHA
+            && Set(proof.protectedSHA256.keys) == protectedKeys && proof.protectedSHA256.values.allSatisfy(isSHA)
+            && proof.sourceId == sourceID && proof.sourceEnabled && proof.bookId == bookID && proof.title == title
+            && proof.chapters.map(\.index) == Array(UInt32(0)..<UInt32(50))
+            && proof.chapters.allSatisfy({ chapter in
+                !chapter.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && chapter.url.hasPrefix("https://dushu.baidu.com/api/pc/getChapterContent?")
+            })
+            && proof.cachedIndexes == [0] && proof.taskCount == 0 && !proof.inShelf && !proof.hasReadingProgress
+            && proof.originalSourceId == sourceID && proof.originalBookId == originalBookID
+            && proof.originalTitle == "剑来" && proof.originalChapterIndex < 50
+            && proof.originalShelfBookIds == [originalBookID]
+            && proof.originalCompletedTaskCount == 50 && proof.originalFailedTaskCount == 1
+            && proof.originalPhysicalBodyCount == 57 && proof.pendingOperationCount == 0,
+            "Require the fresh stopped original library, protected 50 completed tasks and untouched real candidate directory/cache facts; no replacement library is accepted", app: nil)
+        let preproof = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+        preproof.name = "physical-real-baidu-admission-external-preproof"; preproof.lifetime = .keepAlways; add(preproof)
+
+        let app = XCUIApplication(bundleIdentifier: proof.bundleID)
+        try sourceToolsRequire(app.state == .notRunning,
+            "Root must stop the original App before capturing the preproof and selecting this cold journey", app: app)
+        func button(_ identifier: String) throws -> XCUIElement {
+            let matches = app.buttons.matching(NSPredicate(format: "identifier == %@", identifier))
+            try sourceToolsRequire(matches.count == 1, "Require one exact native button: " + identifier, app: app)
+            return matches.element
+        }
+        func tap(_ identifier: String) throws {
+            let value = try button(identifier)
+            try sourceToolsRequire(value.isEnabled && value.isHittable,
+                "The exact native action must be enabled and hittable; no coordinate or alternate-result fallback: " + identifier, app: app)
+            value.tap()
+        }
+        func tapLabel(_ label: String) throws {
+            let matches = app.buttons.matching(NSPredicate(format: "label == %@", label))
+            try sourceToolsWait("Require one exact visible native menu label: " + label, timeout: 10) {
+                matches.count == 1 && matches.element.isEnabled && matches.element.isHittable
+            }
+            matches.element.tap()
+        }
+        func shelfBookIds() -> [String] {
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "book-"))
+                .allElementsBoundByIndex.map { String($0.identifier.dropFirst("book-".count)) }.sorted()
+        }
+        addTeardownBlock {
+            // An assertion failure must leave the original library stopped for
+            // postproof; an accepted admission is never rolled back or cleared.
+            if app.state != .notRunning { app.terminate() }
+            let attachment = XCTAttachment(string: "External full original-data postproof is required after every outcome. Teardown only stops the current original App; it never rolls back an admission, changes sources, clears data or replays an operation.")
+            attachment.name = "physical-real-baidu-admission-failure-postproof-required"
+            attachment.lifetime = .keepAlways; self.add(attachment)
+        }
+        app.launch()
+        try sourceToolsWait("Require the complete original unfiltered shelf before one new admission", timeout: 25) {
+            app.buttons["更多书架操作"].exists && !app.textFields["shelf-filter"].exists
+                && shelfBookIds() == proof.originalShelfBookIds.sorted()
+        }
+        let originalShelfLabel = try button("book-" + originalBookID).label
+        try sourceToolsRequire(originalShelfLabel.contains(proof.originalTitle), "The original shelf row must identify 剑来", app: app)
+        try tapLabel("更多书架操作"); try tapLabel("搜索与书源")
+        let queryMatches = app.textFields.matching(NSPredicate(format: "identifier == %@", "online-search-query"))
+        try sourceToolsWait("The normal online workspace must expose one real search field", timeout: 15) { queryMatches.count == 1 }
+        let query = queryMatches.element
+        let oldQuery = query.value as? String
+        try sourceToolsRequire(query.isHittable && (oldQuery == nil || oldQuery == "" || oldQuery == "书名或作者"),
+            "Preserve any unexpected search owner instead of replacing its query", app: app)
+        query.tap(); query.typeText(title)
+        try sourceToolsRequire(query.value as? String == title, "Search only the exact observed real candidate title", app: app)
+        try tap("online-search-submit")
+        let identity = sourceID + "|" + bookID
+        let candidateID = "online-result:" + identity
+        let candidates = app.buttons.matching(NSPredicate(format: "identifier == %@", candidateID))
+        try sourceToolsWait("The current real search must finish with this exact single Baidu candidate", timeout: 180) {
+            !app.buttons["online-search-stop"].exists && candidates.count == 1
+        }
+        try sourceToolsRequire(candidates.element.label.contains(title), "The exact source/book result must carry its real title", app: app)
+        try tap(candidateID)
+        let selected = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "online-selected:" + identity))
+        let detail = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "online-detail-book:" + bookID))
+        try sourceToolsWait("The selected exact source/book must provide its real detail and directory", timeout: 120) {
+            selected.count == 1 && detail.count == 1 && detail.element.label == title
+                && app.staticTexts["目录 · 50 章"].exists
+        }
+        try sourceToolsRequire(selected.element.label == "百度小说", "The admission must remain bound to the original Baidu source", app: app)
+        let admission = try button("online-add-and-read")
+        try sourceToolsWait("The real detail must permit its one explicit admission", timeout: 15) { admission.isEnabled }
+        for _ in 0..<8 {
+            if admission.isHittable { break }
+            let scrolls = app.scrollViews.matching(NSPredicate(format: "identifier == %@", "online-detail-scroll"))
+            try sourceToolsRequire(scrolls.count == 1 && scrolls.element.isHittable,
+                "Reveal the exact admission action only through its normal detail scroll", app: app)
+            scrolls.element.swipeDown()
+        }
+        keepScreenshot(app, name: "physical-real-baidu-candidate-before-explicit-admission")
+        try tap("online-add-and-read")
+        let body = app.textViews["reading-body"]
+        assertNativeBody(body, in: app, timeout: 180)
+        if !app.buttons["leave-reader"].isHittable {
+            body.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+        }
+        let readingBook = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:" + identity))
+        try sourceToolsWait("The actual reading controls must identify only the admitted candidate at its first chapter", timeout: 15) {
+            readingBook.count == 1 && readingBook.element.label == title
+                && app.staticTexts["reading-chapter:0"].exists && app.buttons["leave-reader"].isHittable
+        }
+        keepScreenshot(app, name: "physical-real-baidu-candidate-admitted-reading-identity")
+        try tap("leave-reader")
+        try sourceToolsWait("Normal reader exit must return to this same selected detail", timeout: 20) {
+            selected.count == 1 && detail.count == 1 && app.buttons["online-back-search"].isHittable
+        }
+        try tap("online-back-search"); try tap("online-close-workspace")
+        let expectedShelf = [originalBookID, bookID].sorted()
+        try sourceToolsWait("The shelf must contain the original book and exactly the one admitted candidate", timeout: 25) {
+            shelfBookIds() == expectedShelf && !app.textViews["reading-body"].exists
+        }
+        try sourceToolsRequire(try button("book-" + originalBookID).label == originalShelfLabel,
+            "The original 剑来 shelf projection must remain unchanged", app: app)
+        try sourceToolsRequire(try button("book-" + bookID).label.contains(title), "The new shelf row must identify the admitted title", app: app)
+        app.terminate()
+        try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10), "Normal exit must finish before the cold shelf check", app: app)
+        app.launch()
+        try sourceToolsWait("Cold startup must retain both exact shelf identities without opening either reader", timeout: 30) {
+            app.buttons["更多书架操作"].exists && shelfBookIds() == expectedShelf && !app.textViews["reading-body"].exists
+        }
+        try sourceToolsRequire(try button("book-" + originalBookID).label == originalShelfLabel,
+            "Cold startup must preserve the original shelf projection", app: app)
+        try sourceToolsRequire(try button("book-" + bookID).label.contains(title), "Cold startup must retain the real candidate title", app: app)
+        keepScreenshot(app, name: "physical-real-baidu-candidate-cold-two-book-shelf")
+        app.terminate()
+        try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10), "Leave the App stopped for the independent postproof snapshot", app: app)
+        let boundary = XCTAttachment(string: "preproofSHA256=\(expectedSHA)\nsnapshotSHA256=\(snapshotSHA)\ntargetUDID=\(target)\nbundleID=\(proof.bundleID)\nadmittedIdentity=\(identity)\noriginalIdentity=\(sourceID)|\(originalBookID)\nOne explicit real admission and first-chapter read only. New candidate shelf/progress, normal reading-window cache, admission/read-time commands and global continue-card attribution may change. Root must independently compare every original source, shelf row, 50 completed task rows, failed task, original body, progress and retained command after this method. No download control, whole/finite download dispatch, source management/import, cleanup or source switch is selected. Native pause/resume/cancel remain OPEN.")
+        boundary.name = "physical-real-baidu-candidate-admission-postproof-required"; boundary.lifetime = .keepAlways; add(boundary)
+    }
+
+    /// Continues only the retained unknown admission, once, through its explicit
+    /// UI action. The external stopped-library proof supplies identities and
+    /// hashes, never App state, a body, a response or replacement source data.
+    func testPhysicalExistingRealBaiduUnknownAdmissionExplicitContinuationAndColdShelfRetentionPreservesOriginalBook() throws {
+        struct Source: Decodable { let id: String; let name: String; let enabled: Bool }
+        struct Chapter: Decodable { let index: UInt32; let title: String; let url: String }
+        struct PendingAdd: Decodable {
+            let sourceId: String; let bookId: String; let title: String; let requireReadable: Bool
+        }
+        struct CoreIntent: Decodable {
+            let sha256: String; let sourceId: String; let bookId: String; let reason: String
+            let state: String; let revision: Int; let sourceVersion: String
+            let pendingAdd: PendingAdd; let pendingAddMatchesOriginalParameters: Bool
+        }
+        struct Preparation: Decodable {
+            let operationID: String; let method: String; let scope: String; let commandSHA256: String
+            let completed: Bool; let resultPresent: Bool; let failurePresent: Bool
+            let action: String; let reason: String; let sourceId: String; let bookId: String
+            let pendingAdd: PendingAdd; let pendingAddMatchesOriginalParameters: Bool
+            let coreIntent: CoreIntent
+        }
+        struct UnknownAdmission: Decodable {
+            let operationID: String; let method: String; let scope: String
+            let commandSHA256: String; let descriptorSHA256: String
+            let completed: Bool; let resultPresent: Bool; let failurePresent: Bool
+            let sourceId: String; let bookId: String; let title: String
+            let chapterIndex: UInt32; let chapterTitle: String; let chapterURL: String
+            let preparation: Preparation
+        }
+        struct CompletedStopSourceUpdate: Decodable {
+            let operationID: String; let commandSHA256: String; let method: String; let scope: String
+            let mutationMethod: String; let sourceId: String; let enabled: Bool; let sequence: Int
+            let completed: Bool; let resultPresent: Bool; let failurePresent: Bool
+        }
+        struct Preproof: Decodable {
+            let schemaVersion: Int; let policy: String; let capturedAtUTC: String
+            let historicalDraft: Bool; let captureFactsSHA256: String
+            let stoppedPhysicalApp: Bool; let preserveDataUpdateVerified: Bool
+            let targetUDID: String; let bundleID: String; let snapshotSHA256: String
+            let protectedSHA256: [String: String]
+            let sourcePackageSHA256: String; let sourcePackageBytes: Int; let sources: [Source]
+            let sourceId: String; let bookId: String; let title: String; let chapters: [Chapter]
+            let cachedIndexes: [UInt32]; let taskCount: Int; let inShelf: Bool; let hasReadingProgress: Bool
+            let originalSourceId: String; let originalBookId: String; let originalTitle: String
+            let originalChapterIndex: UInt32; let originalScalarOffset: UInt64; let originalShelfBookIds: [String]
+            let originalCompletedTaskCount: Int; let originalFailedTaskCount: Int; let originalPhysicalBodyCount: Int
+            let hostCommandCount: Int; let pendingOperationCount: Int; let pendingOperationIDs: [String]
+            let originalHostCommandCount: Int; let originalHostCommandSHA256: String
+            let allOriginalHostCommandBytesExact: Bool; let completedStopSourceUpdates: [CompletedStopSourceUpdate]
+            let pendingAdmission: UnknownAdmission; let independentFullPostproofRequired: Bool
+        }
+#if targetEnvironment(simulator)
+        XCTFail("This continuation requires the original physical iPhone free-bundle library")
+        throw SourceToolsFailure.prerequisite
+#endif
+        let environment = ProcessInfo.processInfo.environment
+        let raw = try XCTUnwrap(environment["READER_PHYSICAL_ADMISSION_CONTINUATION_PREPROOF_JSON"])
+        let expectedSHA = try XCTUnwrap(environment["READER_PHYSICAL_ADMISSION_CONTINUATION_PREPROOF_SHA256"])
+        let snapshotSHA = try XCTUnwrap(environment["READER_PHYSICAL_ADMISSION_CONTINUATION_SNAPSHOT_SHA256"])
+        let target = try XCTUnwrap(environment["READER_PHYSICAL_TARGET_UDID"])
+        let operationID = "0ad35be2-67cd-43a0-b4b4-34e98814e40d"
+        let sourceID = "https://dushu.baidu.com/"
+        let bookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4345127024&pageNum=1&order=asc&site="
+        let title = "等到鸢尾纯白"
+        let originalBookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4305547728&pageNum=1&order=asc&site="
+        let identity = sourceID + "|" + bookID
+        let originalIdentity = sourceID + "|" + originalBookID
+        func isSHA(_ value: String) -> Bool { value.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil }
+        let bytes = Data(raw.utf8)
+        try sourceToolsRequire(bytes.count <= 48 * 1024 && isSHA(expectedSHA)
+            && SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() == expectedSHA,
+            "Bind the exact fresh external continuation preproof before launching the original App", app: nil)
+        let proof = try JSONDecoder().decode(Preproof.self, from: bytes)
+        let timestamp = ISO8601DateFormatter(); timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let captured = timestamp.date(from: proof.capturedAtUTC) ?? ISO8601DateFormatter().date(from: proof.capturedAtUTC)
+        let requiredProtectedKeys: Set<String> = ["library", "files", "sources", "ledger", "originalBook",
+            "originalProgress", "originalTasks", "originalBodies", "hostCommands", "historicalHostBaseline", "completedStopSourceUpdates"]
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone && environment["SIMULATOR_UDID"] == nil
+            && proof.schemaVersion == 2 && proof.policy == "physical-real-baidu-admission-continuation-after-stop-v2"
+            && !proof.historicalDraft && isSHA(proof.captureFactsSHA256)
+            && proof.stoppedPhysicalApp && proof.preserveDataUpdateVerified
+            && captured.map { (0...1800).contains(Date().timeIntervalSince($0)) } == true
+            && target.range(of: #"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$"#, options: .regularExpression) != nil
+            && proof.targetUDID == target && proof.bundleID == "io.reader.minliny.free"
+            && environment["READER_PHYSICAL_ADMISSION_CONTINUATION_OPERATION_ID"] == operationID
+            && environment["READER_PHYSICAL_ADMISSION_CONTINUATION_ATTEMPT"] == "1"
+            && isSHA(snapshotSHA) && proof.snapshotSHA256 == snapshotSHA
+            && requiredProtectedKeys.isSubset(of: Set(proof.protectedSHA256.keys))
+            && proof.protectedSHA256.values.allSatisfy(isSHA) && proof.independentFullPostproofRequired,
+            "Require one externally selected physical attempt, its exact stopped-library snapshot and complete original-data protection hashes", app: nil)
+        let knownSources: [String: String] = [sourceID: "百度小说", "https://m.idejian.com": "得间小说", "http://199.33.126.51": "👍 同人圈"]
+        try sourceToolsRequire(proof.sourcePackageSHA256 == "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322"
+            && proof.sourcePackageBytes == 5606 && proof.sources.count == 3 && Set(proof.sources.map(\.id)).count == 3
+            && proof.sources.allSatisfy { knownSources[$0.id] == $0.name && $0.enabled == ($0.id != "http://199.33.126.51") }
+            && proof.sourceId == sourceID && proof.bookId == bookID && proof.title == title
+            && proof.chapters.map(\.index) == Array(UInt32(0)..<UInt32(50))
+            && proof.chapters.allSatisfy { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && $0.url.hasPrefix("https://dushu.baidu.com/api/pc/getChapterContent?") }
+            && proof.cachedIndexes == [0] && proof.taskCount == 0 && !proof.inShelf && !proof.hasReadingProgress
+            && proof.originalSourceId == sourceID && proof.originalBookId == originalBookID && proof.originalTitle == "剑来"
+            && proof.originalChapterIndex == 40 && proof.originalScalarOffset == 0 && proof.originalShelfBookIds == [originalBookID]
+            && proof.originalCompletedTaskCount == 50 && proof.originalFailedTaskCount == 1 && proof.originalPhysicalBodyCount == 57
+            && proof.hostCommandCount == 583 && proof.originalHostCommandCount == 581
+            && proof.originalHostCommandSHA256 == "90c64359624b004e9b5ca0f09c5c585a1f700eb01df21cad899e59518814c3a1"
+            && proof.allOriginalHostCommandBytesExact && proof.pendingOperationCount == 1 && proof.pendingOperationIDs == [operationID],
+            "Require the original three sources, protected original book/progress/tasks/bodies and only the retained unknown candidate owner", app: nil)
+        let expectedStopUpdates: [(operationID: String, sha: String, enabled: Bool, sequence: Int)] = [
+            ("757453de-2016-46dd-bd32-af1073a83f7b", "fd5a63c1a77cdc1053d5692d3e9b093dca9ea3ee3eb0d127cb94daa3e543e8ea", true, 24),
+            ("e4e09ddb-cabf-442b-a8d5-ac7b5acb12d6", "77ae6aee6933b8839556e0a48b87bf5c648bc16e91acd63b62575720cb8be047", false, 25)
+        ]
+        try sourceToolsRequire(proof.completedStopSourceUpdates.count == expectedStopUpdates.count
+            && expectedStopUpdates.indices.allSatisfy { index in
+                let actual = proof.completedStopSourceUpdates[index], expected = expectedStopUpdates[index]
+                return actual.operationID == expected.operationID && actual.commandSHA256 == expected.sha
+                    && actual.method == "rules.mutation.apply" && actual.scope == "rules-mutation"
+                    && actual.mutationMethod == "source.update" && actual.sourceId == "http://199.33.126.51"
+                    && actual.enabled == expected.enabled && actual.sequence == expected.sequence
+                    && actual.completed && actual.resultPresent && !actual.failurePresent
+            }, "Require only the two completed Stop source updates in addition to all 581 original command bytes", app: nil)
+        let pending = proof.pendingAdmission, preparation = pending.preparation, intent = preparation.coreIntent
+        func matchesCandidate(_ add: PendingAdd) -> Bool {
+            add.sourceId == sourceID && add.bookId == bookID && add.title == title && add.requireReadable
+        }
+        try sourceToolsRequire(pending.operationID == operationID && pending.method == "bookshelf.add"
+            && pending.scope == "shelf-add:" + identity
+            && pending.commandSHA256 == "b8da0dd291ca82d63ba2afb88a9e371a280cfd130317c6d7e5e167f0e93a8f82"
+            && pending.descriptorSHA256 == "f8eb6db590458d31ac5a60cbccdc2ef43b703867fc055d61acdd306701f61855"
+            && !pending.completed && !pending.resultPresent && !pending.failurePresent
+            && pending.sourceId == sourceID && pending.bookId == bookID && pending.title == title
+            && pending.chapterIndex == 0 && pending.chapterTitle == proof.chapters[0].title && pending.chapterURL == proof.chapters[0].url
+            && preparation.operationID == operationID + ":preparation" && preparation.method == "reading.preparation"
+            && preparation.scope == "online-preparation:" + identity
+            && preparation.commandSHA256 == "c3feb8f93a79776d5402763d8187b8730ff04b269272339d27fef810f08d8c67"
+            && preparation.completed && preparation.resultPresent && !preparation.failurePresent
+            && preparation.action == "begin" && preparation.reason == "add" && preparation.sourceId == sourceID && preparation.bookId == bookID
+            && matchesCandidate(preparation.pendingAdd) && preparation.pendingAddMatchesOriginalParameters
+            && isSHA(intent.sha256) && intent.sourceId == sourceID && intent.bookId == bookID && intent.reason == "add"
+            && intent.state == "active" && intent.revision == 1
+            && intent.sourceVersion == "47ff0e3312f354175e488ce582fcf699d0dc7a486a6f69903a0bb2b7f5894ce3"
+            && matchesCandidate(intent.pendingAdd) && intent.pendingAddMatchesOriginalParameters,
+            "Bind the original unknown Host bytes and descriptor to its completed preparation receipt and exact active Core intent; a Host completion alone is not a terminal intent", app: nil)
+        let preproof = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+        preproof.name = "physical-real-baidu-admission-continuation-external-preproof"; preproof.lifetime = .keepAlways; add(preproof)
+        let app = XCUIApplication(bundleIdentifier: proof.bundleID)
+        var startupAppState = "unobserved"
+        var startupNormalizationAttempted = false
+        var continuationTapCount = 0
+        let originalResumeTapCount = 0
+        var resumeFeatureObserved = false, continuedMessageObserved = false, coldTwoBookShelfObserved = false
+        func buttons(_ identifier: String) -> XCUIElementQuery { app.buttons.matching(NSPredicate(format: "identifier == %@", identifier)) }
+        func tap(_ identifier: String) throws {
+            let values = buttons(identifier)
+            try sourceToolsRequire(values.count == 1 && values.element.isEnabled && values.element.isHittable,
+                "Require one exact native action without coordinate or alternate-action fallback: " + identifier, app: app)
+            values.element.tap()
+        }
+        func tapLabel(_ label: String) throws {
+            let values = app.buttons.matching(NSPredicate(format: "label == %@", label))
+            try sourceToolsRequire(values.count == 1 && values.element.isEnabled && values.element.isHittable,
+                "Require one exact visible native label: " + label, app: app)
+            values.element.tap()
+        }
+        func shelfBookIds() -> [String] {
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "book-"))
+                .allElementsBoundByIndex.map { String($0.identifier.dropFirst("book-".count)) }.sorted()
+        }
+        func showReadingIdentity(_ expectedIdentity: String, title: String, chapter: UInt32) throws {
+            if !app.buttons["leave-reader"].isHittable {
+                app.textViews["reading-body"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+            }
+            let book = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:" + expectedIdentity))
+            let chapters = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reading-chapter:"))
+            try sourceToolsWait("The native controls must identify the exact real source/book/chapter", timeout: 15) {
+                book.count == 1 && book.element.label == title && chapters.count == 1
+                    && chapters.element.identifier == "reading-chapter:" + String(chapter) && app.buttons["leave-reader"].isHittable
+            }
+        }
+        addTeardownBlock {
+            // Save the attempt facts even if process shutdown later fails. A
+            // failed attachment must still stop the App for external postproof.
+            defer {
+                if app.state != .notRunning { app.terminate() }
+                XCTAssertTrue(app.wait(for: .notRunning, timeout: 10),
+                    "Stop the original App for independent preserve-data postproof")
+            }
+            let facts: [String: Any] = ["preproofSHA256": expectedSHA, "snapshotSHA256": snapshotSHA,
+                "operationID": operationID, "candidateIdentity": identity, "originalIdentity": originalIdentity,
+                "startupAppState": startupAppState, "startupNormalizationAttempted": startupNormalizationAttempted,
+                "continuationTapCount": continuationTapCount, "originalResumeTapCount": originalResumeTapCount,
+                "resumeFeatureObserved": resumeFeatureObserved, "continuedMessageObserved": continuedMessageObserved,
+                "coldTwoBookShelfObserved": coldTwoBookShelfObserved, "independentFullOriginalDataPostproofRequired": true,
+                "boundary": "One explicit continue-admission tap only. resume-feature is observed, never tapped. Unknown/failure stops without retry, replacement, rollback, cleanup or uninstall. UI reads prove real candidate chapter0 and original chapter40 visibility; exact original scalar/body/source/task/file/command retention requires Root's independent full postproof after App and Runner stop. Normal reading-time and reading-window cache changes must be attributed separately."]
+            let data = try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys])
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+            attachment.name = "physical-real-admission-continuation-one-attempt-and-postproof-boundary"
+            attachment.lifetime = .keepAlways; self.add(attachment)
+        }
+        // XCTest may start the target in the background after the external
+        // stopped preproof. Normalize that process before the explicit cold launch.
+        let observedStartupState = app.state
+        startupAppState = String(describing: observedStartupState)
+        if observedStartupState != .notRunning {
+            startupNormalizationAttempted = true
+            app.terminate()
+        }
+        try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10),
+            "Stop only XCTest's startup App before the explicit cold launch", app: nil)
+        app.launch()
+        try sourceToolsRequire(app.wait(for: .runningForeground, timeout: 20),
+            "The original Reader App must reach the foreground after its cold launch", app: nil)
+        try sourceToolsWait("Cold startup must retain the original single-book shelf before explicit continuation", timeout: 30) {
+            app.buttons["更多书架操作"].exists && !app.textFields["shelf-filter"].exists
+                && shelfBookIds() == proof.originalShelfBookIds.sorted() && !app.textViews["reading-body"].exists
+                && app.staticTexts["原操作待核对"].exists
+        }
+        let originalRows = buttons("book-" + originalBookID)
+        try sourceToolsRequire(originalRows.count == 1 && originalRows.element.label.contains(proof.originalTitle),
+            "Require the original 剑来 shelf identity", app: app)
+        let originalShelfLabel = originalRows.element.label
+        try tapLabel("查看")
+        let continuationID = "continue-admission-" + operationID
+        let continuation = buttons(continuationID)
+        let originalResume = buttons("resume-feature-" + operationID)
+        try sourceToolsWait("Expose only the retained original admission's explicit continuation action", timeout: 20) {
+            app.staticTexts["原操作核对"].exists && continuation.count == 1 && continuation.element.isEnabled && continuation.element.isHittable
+        }
+        let allContinuations = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "continue-admission-"))
+        try sourceToolsRequire(allContinuations.count == 1 && app.staticTexts["在线书籍入库"].exists,
+            "A second admission owner is a stop condition", app: app)
+        resumeFeatureObserved = originalResume.count == 1
+        keepScreenshot(app, name: "physical-real-admission-continuation-before-only-explicit-tap")
+        try sourceToolsRequire(continuationTapCount == 0 && originalResumeTapCount == 0,
+            "This method permits exactly one continuation tap and no original-resume or new-admission tap", app: app)
+        continuationTapCount += 1
+        try tap(continuationID)
+        try sourceToolsWait("The one continuation must finish with the explicit continued result; pending/unknown never triggers another tap", timeout: 180) {
+            app.staticTexts["已继续完成入库"].exists && continuation.count == 0 && originalResume.count == 0
+        }
+        continuedMessageObserved = true
+        keepScreenshot(app, name: "physical-real-admission-continuation-explicit-continued-result")
+        try tapLabel("关闭")
+        let expectedShelf = [originalBookID, bookID].sorted()
+        try sourceToolsWait("The continued result must correspond to exactly the original and actual admitted shelf entries", timeout: 30) {
+            shelfBookIds() == expectedShelf && !app.textViews["reading-body"].exists
+        }
+        try sourceToolsRequire(buttons("book-" + originalBookID).element.label == originalShelfLabel
+            && buttons("book-" + bookID).element.label.contains(title), "Retain the original shelf projection alongside the actual candidate", app: app)
+        try tap("book-" + bookID)
+        let body = app.textViews["reading-body"]
+        assertNativeBody(body, in: app, timeout: 180)
+        try showReadingIdentity(identity, title: title, chapter: 0)
+        keepScreenshot(app, name: "physical-real-admission-continuation-real-candidate-first-chapter")
+        try tap("leave-reader")
+        try sourceToolsWait("Normal candidate exit must return to the two real shelf entries", timeout: 25) { shelfBookIds() == expectedShelf && !body.exists }
+        app.terminate()
+        try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10), "Finish the normal stop before cold double-shelf retention", app: nil)
+        app.launch()
+        try sourceToolsWait("Cold startup must retain both exact books before opening the original reader", timeout: 30) {
+            app.buttons["更多书架操作"].exists && shelfBookIds() == expectedShelf && !body.exists
+        }
+        coldTwoBookShelfObserved = true
+        try sourceToolsRequire(buttons("book-" + originalBookID).element.label == originalShelfLabel
+            && buttons("book-" + bookID).element.label.contains(title), "Cold startup must retain both titles and the original shelf projection", app: app)
+        keepScreenshot(app, name: "physical-real-admission-continuation-cold-two-book-shelf")
+        try tap("book-" + originalBookID)
+        assertNativeBody(body, in: app, timeout: 180)
+        try showReadingIdentity(originalIdentity, title: proof.originalTitle, chapter: proof.originalChapterIndex)
+        keepScreenshot(app, name: "physical-real-admission-continuation-original-book-retained-chapter")
+        try tap("leave-reader")
+        try sourceToolsWait("Return both books without chapter navigation or progress manipulation", timeout: 25) { shelfBookIds() == expectedShelf && !body.exists }
+        try sourceToolsRequire(buttons("book-" + originalBookID).element.label == originalShelfLabel
+            && continuationTapCount == 1 && originalResumeTapCount == 0,
+            "The original shelf projection and one-tap continuation boundary must remain intact; exact progress is independently compared outside XCTest", app: app)
+        app.terminate()
+        try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10), "Leave the original App stopped for Root's full independent postproof", app: nil)
+    }
+
+    /// Reads the already completed r5 admission through two ordinary cold
+    /// shelf entries. This selector never submits or resumes an admission.
+    /// Runner-only proof bytes bind real external stopped-phone evidence; no
+    /// proof, body, source or state is forwarded to the target application.
+    func testPhysicalCompletedRealBaiduAdmissionColdTwoBookReadingPreservesOriginalPosition() throws {
+        struct Source: Decodable { let id: String; let name: String; let enabled: Bool }
+        struct Book: Decodable {
+            let sourceId: String; let bookId: String; let title: String
+            let chapterIndex: UInt32; let chapterTitle: String; let chapterURL: String; let scalarOffset: UInt64
+            let cachedIndexes: [UInt32]; let taskCount: Int; let hasReadingProgress: Bool
+            let bodyRowSHA256: String; let contentSHA256: String; let catalogSHA256: String
+        }
+        struct Host: Decodable {
+            let count: Int; let rawMapSHA256: String; let all584BaselineCommandsRawExact: Bool
+            let historicalCount: Int; let historicalSHA256: String; let pendingOperationIDs: [String]
+            let originalOperationID: String; let originalCommandSHA256: String; let originalStillUnknown: Bool
+            let childOperationID: String; let childCommandSHA256: String; let childCompleted: Bool
+            let childCreated: Bool; let childOriginalParameterBytesExact: Bool; let onlyOneContinuationChild: Bool
+            let descriptorSHA256: String; let descriptorCompletionKind: String
+            let candidateIntentRevision: Int; let candidateIntentReason: String; let candidateIntentState: String
+            let candidateIntentPendingAddAbsent: Bool; let candidateIntentSourceVersion: String
+            let originalIntentRevision: Int; let originalIntentReason: String; let originalIntentState: String
+        }
+        struct Preproof: Decodable {
+            let schemaVersion: Int; let policy: String; let historicalDraft: Bool; let capturedAtUTC: String
+            let targetUDID: String; let bundleID: String; let snapshotSHA256: String
+            let captureFactsSHA256: String; let artifactBindingSHA256: String; let artifactSchemaVersion: Int
+            let appSignedTreeSHA256: String; let runnerSignedTreeSHA256: String; let sourceManifestSHA256: String
+            let sameSourceAppAndRunner: Bool; let newAppInstalled: Bool; let newRunnerInstalled: Bool
+            let r5BaselineSnapshotSHA256: String; let r5CaptureFactsSHA256: String
+            let r5TestExitSHA256: String; let r5CaptureResultSHA256: String; let r5TestExitCode: Int
+            let stoppedPhysicalApp: Bool; let preserveDataUpdateVerified: Bool; let allBaselineProtectedDataExact: Bool
+            let protectedSHA256: [String: String]; let sourcePackageSHA256: String; let sourcePackageBytes: Int
+            let sources: [Source]; let expectedShelfBookIds: [String]; let candidate: Book; let original: Book; let host: Host
+            let originalCompletedTaskCount: Int; let originalFailedTaskCount: Int; let physicalBodyCount: Int
+            let independentFullPostproofRequired: Bool
+        }
+#if targetEnvironment(simulator)
+        XCTFail("This completed-admission follow-up requires the original physical iPhone library")
+        throw SourceToolsFailure.prerequisite
+#endif
+        let environment = ProcessInfo.processInfo.environment
+        let raw = try XCTUnwrap(environment["READER_PHYSICAL_COLD_TWO_BOOK_PREPROOF_JSON"])
+        let expectedSHA = try XCTUnwrap(environment["READER_PHYSICAL_COLD_TWO_BOOK_PREPROOF_SHA256"])
+        let snapshotSHA = try XCTUnwrap(environment["READER_PHYSICAL_COLD_TWO_BOOK_SNAPSHOT_SHA256"])
+        let artifactSHA = try XCTUnwrap(environment["READER_PHYSICAL_COLD_TWO_BOOK_ARTIFACT_BINDING_SHA256"])
+        let target = try XCTUnwrap(environment["READER_PHYSICAL_TARGET_UDID"])
+        let operationID = "0ad35be2-67cd-43a0-b4b4-34e98814e40d"
+        let sourceID = "https://dushu.baidu.com/"
+        let bookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4345127024&pageNum=1&order=asc&site="
+        let originalBookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4305547728&pageNum=1&order=asc&site="
+        let expectedShelf = [originalBookID, bookID].sorted()
+        func isSHA(_ value: String) -> Bool { value.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil }
+        let bytes = Data(raw.utf8)
+        try sourceToolsRequire(bytes.count <= 24 * 1024 && isSHA(expectedSHA)
+            && SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() == expectedSHA,
+            "Require exact external completed-admission preproof bytes before any target App launch", app: nil)
+        let proof = try JSONDecoder().decode(Preproof.self, from: bytes)
+        let timestamp = ISO8601DateFormatter(); timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let captured = timestamp.date(from: proof.capturedAtUTC) ?? ISO8601DateFormatter().date(from: proof.capturedAtUTC)
+        let protectedKeys: Set<String> = ["library", "files", "sources", "ledger", "originalBook", "originalProgress",
+            "originalTasks", "originalBodies", "hostCommands", "candidate", "completedAdmission", "r5Lineage", "pairInstallation"]
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone && environment["SIMULATOR_UDID"] == nil
+            && target.range(of: #"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$"#, options: .regularExpression) != nil
+            && proof.targetUDID == target && proof.bundleID == "io.reader.minliny.free"
+            && proof.schemaVersion == 1 && proof.policy == "physical-completed-baidu-admission-cold-two-book-v1"
+            && !proof.historicalDraft && captured.map { (0...1800).contains(Date().timeIntervalSince($0)) } == true
+            && proof.stoppedPhysicalApp && proof.preserveDataUpdateVerified && proof.allBaselineProtectedDataExact
+            && isSHA(snapshotSHA) && proof.snapshotSHA256 == snapshotSHA && isSHA(artifactSHA) && proof.artifactBindingSHA256 == artifactSHA
+            && isSHA(proof.captureFactsSHA256) && proof.independentFullPostproofRequired
+            && protectedKeys.isSubset(of: Set(proof.protectedSHA256.keys)) && proof.protectedSHA256.values.allSatisfy(isSHA)
+            && proof.artifactSchemaVersion == 3 && proof.sameSourceAppAndRunner && proof.newAppInstalled && proof.newRunnerInstalled
+            && isSHA(proof.appSignedTreeSHA256) && isSHA(proof.runnerSignedTreeSHA256) && isSHA(proof.sourceManifestSHA256)
+            && proof.r5BaselineSnapshotSHA256 == "6623f54988af533df45a9174a02da98996e1ae34178f5ef25de4f32b018a39e0"
+            && proof.r5CaptureFactsSHA256 == "00823198b858c9b1cb5991648a659f8948596f24702ad2cc7ea928ab089b1de9"
+            && proof.r5TestExitSHA256 == "e9ab066082c77a4fbcd4ea7b0d9c0deee63d550bf134af8a3d6a8bdaff75d187"
+            && proof.r5CaptureResultSHA256 == "25c5e84c12fa530de1fc4ff7e30852974443e68894b627ca6d095b98bdf6a3f4"
+            && proof.r5TestExitCode == 65,
+            "Bind this same wired iPhone, newly installed same-source signed r6 App and Runner, exact fresh r5-success data baseline and immutable r5 FAIL receipt", app: nil)
+        let knownSources: [String: String] = [sourceID: "百度小说", "https://m.idejian.com": "得间小说", "http://199.33.126.51": "👍 同人圈"]
+        let candidate = proof.candidate, original = proof.original, host = proof.host
+        try sourceToolsRequire(proof.sourcePackageSHA256 == "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322"
+            && proof.sourcePackageBytes == 5606 && proof.sources.count == 3 && Set(proof.sources.map(\.id)).count == 3
+            && proof.sources.allSatisfy { knownSources[$0.id] == $0.name && $0.enabled == ($0.id != "http://199.33.126.51") }
+            && proof.expectedShelfBookIds.sorted() == expectedShelf
+            && candidate.sourceId == sourceID && candidate.bookId == bookID && candidate.title == "等到鸢尾纯白"
+            && candidate.chapterIndex == 0 && candidate.chapterTitle == "第一章 年少惊鸿" && candidate.scalarOffset == 0
+            && candidate.chapterURL.hasPrefix("https://dushu.baidu.com/api/pc/getChapterContent?")
+            && candidate.cachedIndexes == [0] && candidate.taskCount == 0 && !candidate.hasReadingProgress
+            && candidate.bodyRowSHA256 == "a64a2a5e720f77fcd99ceb8da4ed6d5c6803763c91085da07e0b84738224c1c6"
+            && candidate.contentSHA256 == "b4aa9f3c6a4c4c1f1674d28281c3e00b442eb33973096ef03f209bb133a08443" && isSHA(candidate.catalogSHA256)
+            && original.sourceId == sourceID && original.bookId == originalBookID && original.title == "剑来"
+            && original.chapterIndex == 40 && original.chapterTitle == "第四十一章 练拳" && original.scalarOffset == 0
+            && original.chapterURL.hasPrefix("https://dushu.baidu.com/api/pc/getChapterContent?")
+            && original.cachedIndexes == Array(UInt32(0)..<UInt32(50)) && original.taskCount == 50 && original.hasReadingProgress
+            && original.bodyRowSHA256 == "652a8d869068ce253c72ec14d62c606d0bd7fc58e5f3186bccde74483e46c6eb"
+            && original.contentSHA256 == "36e66ec921e42e5c639bf92ea29ceed557781d567b059f3443c782b6fb78d0c1" && isSHA(original.catalogSHA256)
+            && proof.originalCompletedTaskCount == 50 && proof.originalFailedTaskCount == 1 && proof.physicalBodyCount == 57,
+            "Require the two actual Baidu books, original exact stored 40/0 position, candidate chapter0 cache and all protected source/task/body facts", app: nil)
+        try sourceToolsRequire(host.count == 584 && host.rawMapSHA256 == "be2b42d752204aaf9a441de43aa720b26ee7cfc6298ff0ce8a7f2b42d85e4031"
+            && host.all584BaselineCommandsRawExact && host.historicalCount == 581
+            && host.historicalSHA256 == "90c64359624b004e9b5ca0f09c5c585a1f700eb01df21cad899e59518814c3a1"
+            && host.pendingOperationIDs == [operationID] && host.originalOperationID == operationID && host.originalStillUnknown
+            && host.originalCommandSHA256 == "b8da0dd291ca82d63ba2afb88a9e371a280cfd130317c6d7e5e167f0e93a8f82"
+            && host.childOperationID == operationID + ":continuation:v1" && host.childCompleted && host.childCreated
+            && host.childCommandSHA256 == "7a29f2a81e74a04fb7e7d83e121baf0f213e01db77c6e0ef013381a2fbb87199"
+            && host.childOriginalParameterBytesExact && host.onlyOneContinuationChild
+            && host.descriptorSHA256 == "b00559c3fda92b5515e69a4a577e0a50a2c0f3062ced7b1eaa2d92d72ec91e83"
+            && host.descriptorCompletionKind == "continued" && host.candidateIntentRevision == 2
+            && host.candidateIntentReason == "read" && host.candidateIntentState == "active" && host.candidateIntentPendingAddAbsent
+            && host.candidateIntentSourceVersion == "47ff0e3312f354175e488ce582fcf699d0dc7a486a6f69903a0bb2b7f5894ce3"
+            && host.originalIntentRevision == 17 && host.originalIntentReason == "suppressed" && host.originalIntentState == "cancelled",
+            "Require the completed child ACK and descriptor beside the unchanged original unknown; no continuation, reconciliation or admission is selected", app: nil)
+        let preproof = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+        preproof.name = "physical-completed-admission-cold-two-book-external-preproof"; preproof.lifetime = .keepAlways; add(preproof)
+        let app = XCUIApplication(bundleIdentifier: proof.bundleID)
+        var startupAppState = "unobserved", startupNormalizationAttempted = false
+        var coldLaunchCount = 0, candidateEntryTapCount = 0, originalEntryTapCount = 0
+        var candidateBodyObserved = false, originalBodyObserved = false
+        var originalShelfLabel: String?
+        func buttons(_ identifier: String) -> XCUIElementQuery { app.buttons.matching(NSPredicate(format: "identifier == %@", identifier)) }
+        func tap(_ identifier: String) throws {
+            let values = buttons(identifier)
+            try sourceToolsRequire(values.count == 1 && values.element.isEnabled && values.element.isHittable,
+                "Require one exact native read action without coordinate or alternate-action fallback: " + identifier, app: app)
+            values.element.tap()
+        }
+        func shelfBookIds() -> [String] {
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "book-"))
+                .allElementsBoundByIndex.map { String($0.identifier.dropFirst("book-".count)) }.sorted()
+        }
+        func requireShelf(_ name: String) throws {
+            try sourceToolsWait("Require the complete original and admitted shelf entries without opening a reader", timeout: 30) {
+                app.buttons["更多书架操作"].exists && !app.textFields["shelf-filter"].exists
+                    && shelfBookIds() == expectedShelf && !app.textViews["reading-body"].exists
+                    && !app.staticTexts["原操作待核对"].exists
+                    && buttons("continue-admission-" + operationID).count == 0
+                    && buttons("resume-feature-" + operationID).count == 0
+            }
+            let first = buttons("book-" + originalBookID), second = buttons("book-" + bookID)
+            try sourceToolsRequire(first.count == 1 && second.count == 1 && first.element.label.contains(original.title)
+                && second.element.label.contains(candidate.title), "Both original Baidu identities must have their real titles", app: app)
+            if let originalShelfLabel {
+                try sourceToolsRequire(first.element.label == originalShelfLabel, "The original shelf projection must remain exact", app: app)
+            } else { originalShelfLabel = first.element.label }
+            keepScreenshot(app, name: name)
+        }
+        func coldLaunch() throws {
+            try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10), "The target App must be stopped before each explicit cold launch", app: nil)
+            app.launch(); coldLaunchCount += 1
+            try sourceToolsRequire(app.wait(for: .runningForeground, timeout: 20), "The newly installed same-source r6 App must reach the foreground", app: nil)
+        }
+        func read(_ book: Book, name: String) throws {
+            try tap("book-" + book.bookId)
+            if book.bookId == bookID { candidateEntryTapCount += 1 } else { originalEntryTapCount += 1 }
+            let body = app.textViews["reading-body"]
+            assertNativeBody(body, in: app, timeout: 180)
+            // Capture the visible body before opening controls hides its AX.
+            keepScreenshot(app, name: name + "-visible-body")
+            let leaveRows = buttons("leave-reader")
+            if leaveRows.count != 1 || !leaveRows.element.isHittable {
+                body.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+            }
+            let bookRows = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:" + book.sourceId + "|" + book.bookId))
+            let chapters = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reading-chapter:"))
+            try sourceToolsWait("The native controls must identify this exact real source, book and retained chapter", timeout: 15) {
+                bookRows.count == 1 && bookRows.element.label == book.title && chapters.count == 1
+                    && chapters.element.identifier == "reading-chapter:" + String(book.chapterIndex)
+                    && chapters.element.label.hasPrefix(book.chapterTitle + " · ") && leaveRows.count == 1 && leaveRows.element.isHittable
+            }
+            keepScreenshot(app, name: name + "-exact-reading-identity")
+            try tap("leave-reader")
+            try requireShelf(name + "-normal-returned-two-book-shelf")
+        }
+        addTeardownBlock {
+            defer {
+                if app.state != .notRunning { app.terminate() }
+                XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "Stop the original App for independent full postproof after every outcome")
+            }
+            let facts: [String: Any] = ["preproofSHA256": expectedSHA, "snapshotSHA256": snapshotSHA, "artifactBindingSHA256": artifactSHA,
+                "r5TestExitCode": 65, "r5ResultRewritten": false, "targetUDID": target, "bundleID": proof.bundleID,
+                "originalOperationID": operationID, "childOperationID": host.childOperationID,
+                "startupAppState": startupAppState, "startupNormalizationAttempted": startupNormalizationAttempted,
+                "coldLaunchCount": coldLaunchCount, "candidateEntryTapCount": candidateEntryTapCount, "originalEntryTapCount": originalEntryTapCount,
+                "candidateChapter0BodyObserved": candidateBodyObserved, "originalChapter40BodyObserved": originalBodyObserved,
+                "continuationTapCount": 0, "originalResumeTapCount": 0, "newAdmissionTapCount": 0,
+                "independentFullPostproofRequired": true,
+                "boundary": "Two cold launches, one candidate chapter0 entry, one original chapter40 entry and normal exits only. No page turn, scroll, seek, source change, admission/reconciliation, download, cleanup or state injection. Exact original scalar0 and original/candidate body, source, task, file and all584 retained Host bytes require independent stopped App+Runner postproof. Candidate chapter0/scalar0 progress may be created by its first normal exit; normal reading preparations/window cache and completed reading-time ACKs must be attributed separately. Opening the original may update its preparation from suppressed/cancelled; this must not be mistaken for replaying the original pending add. Container evidence does not measure production Keychain bytes or replace user acceptance."]
+            let data = try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys])
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+            attachment.name = "physical-completed-admission-cold-two-book-attempt-and-postproof-boundary"
+            attachment.lifetime = .keepAlways; self.add(attachment)
+        }
+        let startup = app.state; startupAppState = String(describing: startup)
+        if startup != .notRunning { startupNormalizationAttempted = true; app.terminate() }
+        try coldLaunch()
+        try requireShelf("physical-completed-admission-first-cold-two-book-shelf")
+        try read(candidate, name: "physical-completed-admission-cold-candidate-chapter0")
+        candidateBodyObserved = true
+        app.terminate()
+        try coldLaunch()
+        try requireShelf("physical-completed-admission-second-cold-two-book-shelf")
+        try read(original, name: "physical-completed-admission-cold-original-chapter40")
+        originalBodyObserved = true
+        try sourceToolsRequire(coldLaunchCount == 2 && candidateEntryTapCount == 1 && originalEntryTapCount == 1,
+            "Only the two explicitly selected cold reader entries may occur", app: app)
+        app.terminate()
+        try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10), "Leave the original App stopped for exact independent postproof", app: nil)
+    }
+
+    /// Runner-only preproof binds the stopped original phone library. This
+    /// selects one real re-search, never a candidate or source-definition edit.
+    /// UI PASS covers the returned tap and scrolled terminal projection only.
+    /// The optional same-snapshot trace witness binds the visible projection;
+    /// real acquisition and persisted source versions still require external proof.
+    func testPhysicalExistingRealBaiduSwitchSheetResearchPreservesScrolledCandidateTerminalProjection() throws {
+        struct Source: Decodable { let id: String; let name: String; let enabled: Bool }
+        struct PendingOperation: Decodable {
+            let operationID: String
+            let method: String
+            let scope: String
+            let commandSHA256: String
+            let completed: Bool
+            let resultPresent: Bool
+            let failurePresent: Bool
+            let sourceId: String
+            let bookId: String
+            let title: String
+        }
+        struct Preproof: Decodable {
+            let schemaVersion: Int
+            let policy: String
+            let capturedAtUTC: String
+            let targetUDID: String
+            let bundleID: String
+            let snapshotSHA256: String
+            let protectedSHA256: [String: String]
+            let sourcePackageSHA256: String
+            let sourcePackageBytes: Int
+            let sources: [Source]
+            let sourceId: String
+            let bookId: String
+            let title: String
+            let originalChapterIndex: UInt32
+            let originalScalarOffset: UInt64
+            let originalProgressLabel: String
+            let originalShelfBookIds: [String]
+            let originalCompletedTaskCount: Int
+            let originalFailedTaskCount: Int
+            let originalPhysicalBodyCount: Int
+            let pendingOperationCount: Int
+            let pendingOperationIDs: [String]
+            let pendingOperations: [PendingOperation]
+            let independentFullPostproofRequired: Bool
+        }
+#if targetEnvironment(simulator)
+        XCTFail("This re-search requires the original physical iPhone library")
+        throw SourceToolsFailure.prerequisite
+#endif
+        let environment = ProcessInfo.processInfo.environment
+        let raw = try XCTUnwrap(environment["READER_PHYSICAL_SWITCH_RESEARCH_PREPROOF_JSON"])
+        let expectedSHA = try XCTUnwrap(environment["READER_PHYSICAL_SWITCH_RESEARCH_PREPROOF_SHA256"])
+        let snapshotSHA = try XCTUnwrap(environment["READER_PHYSICAL_SWITCH_RESEARCH_SNAPSHOT_SHA256"])
+        let target = try XCTUnwrap(environment["READER_PHYSICAL_TARGET_UDID"])
+        let sourceID = "https://dushu.baidu.com/"
+        let bookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4305547728&pageNum=1&order=asc&site="
+        let identity = sourceID + "|" + bookID
+        let pendingOperationID = "0ad35be2-67cd-43a0-b4b4-34e98814e40d"
+        let pendingBookID = "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4345127024&pageNum=1&order=asc&site="
+        let bytes = Data(raw.utf8)
+        func isSHA(_ value: String) -> Bool {
+            value.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil
+        }
+        try sourceToolsRequire(bytes.count <= 32 * 1024 && isSHA(expectedSHA)
+            && SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() == expectedSHA,
+            "Require the exact fresh external re-search preproof before launching the original App", app: nil)
+        let proof = try JSONDecoder().decode(Preproof.self, from: bytes)
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let captured = timestamp.date(from: proof.capturedAtUTC)
+            ?? ISO8601DateFormatter().date(from: proof.capturedAtUTC)
+        let protectedKeys: Set<String> = ["library", "files", "sources", "ledger", "originalBook",
+            "originalProgress", "originalTasks", "originalBodies", "sourceBooks", "readingDocuments", "sourceSwitchTransactions"]
+        let knownSources: [String: String] = [sourceID: "百度小说", "https://m.idejian.com": "得间小说", "http://199.33.126.51": "👍 同人圈"]
+        let enabledSources = proof.sources.filter(\.enabled)
+        let enabledSourceIDs = Set(enabledSources.map(\.id))
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone && environment["SIMULATOR_UDID"] == nil
+            && proof.schemaVersion == 2 && proof.policy == "physical-real-baidu-switch-research-v2"
+            && captured.map { (0...1800).contains(Date().timeIntervalSince($0)) } == true
+            && target.range(of: #"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$"#, options: .regularExpression) != nil
+            && proof.targetUDID == target && proof.bundleID == "io.reader.minliny.free"
+            && isSHA(snapshotSHA) && proof.snapshotSHA256 == snapshotSHA
+            && Set(proof.protectedSHA256.keys) == protectedKeys && proof.protectedSHA256.values.allSatisfy(isSHA)
+            && proof.sourcePackageBytes == 5606
+            && proof.sourcePackageSHA256 == "f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322"
+            && proof.sources.count == 3 && Set(proof.sources.map(\.id)).count == proof.sources.count
+            && enabledSourceIDs == Set([sourceID, "https://m.idejian.com"])
+            && enabledSources.allSatisfy({ !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+            && proof.sources.allSatisfy({ knownSources[$0.id] == $0.name && $0.enabled == ($0.id != "http://199.33.126.51") })
+            && proof.sourceId == sourceID && proof.bookId == bookID && proof.title == "剑来"
+            && proof.originalChapterIndex == 40 && proof.originalScalarOffset == 0
+            && proof.originalProgressLabel.range(of: #"^(?:[0-9]{1,2}|100)%$"#, options: .regularExpression) != nil
+            && proof.originalShelfBookIds.contains(bookID)
+            && Set(proof.originalShelfBookIds).count == proof.originalShelfBookIds.count
+            && proof.originalCompletedTaskCount == 50 && proof.originalFailedTaskCount == 1
+            && proof.originalPhysicalBodyCount == 57
+            && proof.pendingOperationCount == 1 && proof.pendingOperationIDs == [pendingOperationID]
+            && proof.pendingOperations.count == 1 && proof.pendingOperations.allSatisfy({ pending in
+                pending.operationID == pendingOperationID && pending.method == "bookshelf.add"
+                    && pending.scope == "shelf-add:" + sourceID + "|" + pendingBookID
+                    && pending.commandSHA256 == "b8da0dd291ca82d63ba2afb88a9e371a280cfd130317c6d7e5e167f0e93a8f82"
+                    && !pending.completed && !pending.resultPresent && !pending.failurePresent
+                    && pending.sourceId == sourceID && pending.bookId == pendingBookID && pending.title == "等到鸢尾纯白"
+            })
+            && proof.independentFullPostproofRequired,
+            "Bind the fresh stopped original sources, admitted Baidu book, exact original position and all protected data, retaining only the exact original unknown Host add and its raw command SHA; never provision, settle, clear or repair these prerequisites", app: nil)
+        let preproof = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+        preproof.name = "physical-real-switch-research-external-preproof"; preproof.lifetime = .keepAlways; add(preproof)
+        let app = XCUIApplication(bundleIdentifier: proof.bundleID)
+        #if DEBUG
+        let traceRunID = UUID().uuidString.lowercased()
+        app.launchEnvironment["READER_V4_SEARCH_TRACE_MODE"] = "physical-v4-04-search-trace-v1"
+        app.launchEnvironment["READER_V4_SEARCH_TRACE_RUN_ID"] = traceRunID
+        #endif
+        try sourceToolsRequire(app.state == .notRunning, "Capture the external original-library proof with the App stopped", app: app)
+        func button(_ identifier: String) throws -> XCUIElement {
+            let matches = app.buttons.matching(NSPredicate(format: "identifier == %@", identifier))
+            try sourceToolsRequire(matches.count == 1, "Require one exact native action: " + identifier, app: app)
+            return matches.element
+        }
+        func tap(_ value: XCUIElement) throws {
+            try sourceToolsRequire(value.isEnabled && value.isHittable,
+                "The exact native action must be enabled and hittable; no alternate action or coordinate fallback", app: app)
+            value.tap()
+        }
+        func controls() throws {
+            if !app.buttons["reader-more"].isHittable {
+                app.textViews["reading-body"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+            }
+            try sourceToolsWait("The original reading session must expose its normal controls", timeout: 10) { app.buttons["reader-more"].isHittable }
+        }
+        func shelfBookIds() -> [String] {
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "book-"))
+                .allElementsBoundByIndex.map { String($0.identifier.dropFirst("book-".count)) }.sorted()
+        }
+        func hideControls() throws {
+            let hide = app.buttons["收起阅读控制"]
+            if hide.exists { try tap(hide) }
+            try sourceToolsWait("Hide reading controls before observing the actual body and progress footer", timeout: 10) {
+                !hide.exists && !app.buttons["reader-more"].isHittable
+            }
+        }
+        func requireOriginalReadingIdentity() throws {
+            let book = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:" + identity))
+            let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reading-chapter:"))
+            try sourceToolsRequire(book.count == 1 && book.element.label == proof.title && chapter.count == 1
+                && chapter.element.identifier == "reading-chapter:" + String(proof.originalChapterIndex),
+                "Visible reading controls must expose the exact original source/book/chapter identity", app: app)
+        }
+        func originalVisibleBody() throws -> String {
+            try hideControls()
+            let body = app.textViews["reading-body"]
+            assertNativeBody(body, in: app, timeout: 180)
+            let footer = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-progress"))
+            try sourceToolsRequire(footer.count == 1 && footer.element.isHittable
+                && footer.element.label == proof.originalProgressLabel,
+                "With controls hidden, the exact visible original percentage must match the external baseline; scalar comparison remains external", app: app)
+            return try XCTUnwrap(body.value as? String)
+        }
+        var observations = [[String: Any]]()
+        var researchTapCount = 0
+        var nativeScrollCount = 0
+        var observationPhase = "before-native-scroll"
+        var observedSearching = false
+        var observedPreviousCandidateDuringSearch = false
+        var researchReturnedUptime: TimeInterval?
+        func attachObservations(_ name: String) throws {
+            var facts: [String: Any] = ["preproofSHA256": expectedSHA, "snapshotSHA256": snapshotSHA,
+                "originalIdentity": identity, "researchTapCount": researchTapCount, "nativeScrollCount": nativeScrollCount,
+                "observations": observations, "uiPassScope": "USER_TAP_AND_TERMINAL_PROJECTION_ONLY",
+                "observedSearching": observedSearching, "observedPreviousCandidateDuringSearch": observedPreviousCandidateDuringSearch,
+                "instantaneousRetainedCandidateBoundary": observedPreviousCandidateDuringSearch ? "Observed in a public snapshot; not an atomic callback trace" : "OPEN: no intermediate previous-candidate state was naturally observed",
+                "independentFullOriginalDataPostproofRequired": true,
+                "boundary": "One real native candidate scroll followed by one explicit native re-search tap. UI PASS proves only the returned tap and scrolled terminal candidate/timing projection. Source search uses non-durable Core reads, so the durable Host journal cannot prove one new request per source or the generation of displayed milliseconds. Without a separately captured real transport/request trace, per-source fresh acquisition and timing generation remain OPEN; equal old/new ms cannot prove freshness. Native position checks cover chapter, percentage and visible body; exact scalar retention requires external snapshots. Reading lifecycle/time metadata and source_books discovery publications may change; every difference requires full external database/file attribution, retaining any strict-comparison FAIL. No candidate selection, source switch, source-definition mutation, delay, response injection or re-search retry."]
+            if let researchReturnedUptime { facts["researchTapReturnedUptime"] = researchReturnedUptime }
+            let value = try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys])
+            let attachment = XCTAttachment(data: value, uniformTypeIdentifier: "public.json")
+            attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        }
+        addTeardownBlock {
+            try attachObservations("physical-real-switch-research-observation-and-postproof-boundary")
+            // Close only known read hosts. A failed method never taps a candidate,
+            // repeats a re-search or uses an uncertain pending action to recover.
+            let close = app.buttons.matching(NSPredicate(format: "identifier == %@", "online-switch-close"))
+            if app.state == .runningForeground, close.count == 1, close.element.isEnabled, close.element.isHittable { close.element.tap() }
+            if app.state == .runningForeground, app.textViews["reading-body"].exists,
+               !app.buttons["online-switch-close"].exists { self.leaveReader(app.textViews["reading-body"], in: app) }
+            if app.state != .notRunning { app.terminate() }
+        }
+        app.launch()
+        try sourceToolsWait("Require the complete original unfiltered shelf; never admit another book for this method", timeout: 25) {
+            app.buttons["更多书架操作"].exists && !app.textFields["shelf-filter"].exists
+                && shelfBookIds() == proof.originalShelfBookIds.sorted()
+        }
+        try tap(try button("book-" + bookID))
+        let body = app.textViews["reading-body"]
+        try sourceToolsWait("The original reading route must appear before observing its two accessibility states", timeout: 180) {
+            body.exists || app.buttons["reader-more"].isHittable
+        }
+        let originalBody = try originalVisibleBody()
+        try controls(); try requireOriginalReadingIdentity()
+        try tap(try button("reader-more"))
+        let route = app.buttons.matching(NSPredicate(format: "label == %@", "切换书源"))
+        try sourceToolsRequire(route.count == 1, "Open only the original reading session's source-switch sheet", app: app)
+        try tap(route.element)
+
+        struct SearchTraceProof: Decodable {
+            let r: String; let g: String; let n: Int; let e: Int; let f: Int
+            let s: String; let h: String; let v: Int
+            var fields: [String: Any] {
+                ["r": r, "g": g, "n": n, "e": e, "f": f, "s": s, "h": h, "v": v]
+            }
+        }
+        struct Row {
+            let identifier: String
+            let sourceID: String
+            let label: String
+            let milliseconds: Int?
+            let previous: Bool
+            let frame: CGRect
+        }
+        struct Observation {
+            let snapshotOrdinal: Int
+            let snapshotBeganUptime: TimeInterval
+            let snapshotReturnedUptime: TimeInterval
+            let rows: [Row]
+            let viewport: CGRect
+            let searching: Bool
+            let settled: Bool
+            let traceProof: SearchTraceProof?
+            let traceProofBytes: Data?
+            var anchor: Row? { rows.first { $0.frame.intersection(viewport).height >= 12 } }
+        }
+        let timingPattern = try NSRegularExpression(pattern: #"[0-9]+ ms"#)
+        func capture() throws -> Observation? {
+            let began = ProcessInfo.processInfo.systemUptime
+            let tree = try app.snapshot()
+            var nodes: [(snapshot: any XCUIElementSnapshot, path: String)] = []
+            func collect(_ snapshot: any XCUIElementSnapshot, path: String) {
+                nodes.append((snapshot, path))
+                for (index, child) in snapshot.children.enumerated() { collect(child, path: path + "/" + String(index)) }
+            }
+            collect(tree, path: "root")
+            let prefix = "online-switch-candidate:"
+            let candidates = nodes.filter { $0.snapshot.elementType == .button && $0.snapshot.identifier.hasPrefix(prefix) }
+            let scrolls = nodes.filter { node in
+                node.snapshot.elementType == .scrollView && node.snapshot.frame.width > 100 && node.snapshot.frame.height > 100
+                    && candidates.contains { $0.path.hasPrefix(node.path + "/") }
+            }
+            guard let viewport = scrolls.map({ $0.snapshot.frame.intersection(tree.frame) }).filter({ !$0.isNull && !$0.isInfinite && $0.width > 100 && $0.height > 100 }).min(by: { $0.height < $1.height }) else { return nil }
+            let fields = nodes.filter { $0.snapshot.elementType == .textField }
+            let close = nodes.filter { $0.snapshot.elementType == .button && $0.snapshot.identifier == "online-switch-close" }
+            let owners = nodes.filter { $0.snapshot.identifier.hasPrefix("online-switch-owner:") }
+            var traceProof: SearchTraceProof?
+            var traceProofBytes: Data?
+            #if DEBUG
+            // Read only this tree's owner value. A later AX query cannot bind
+            // the candidate milliseconds or anchor captured by this snapshot.
+            if owners.count == 1, let raw = owners[0].snapshot.value as? String,
+               let data = raw.data(using: .utf8), data.count <= 256,
+               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               Set(object.keys) == Set(["r", "g", "n", "e", "f", "s", "h", "v"]),
+               let value = try? JSONDecoder().decode(SearchTraceProof.self, from: data),
+               value.r == traceRunID, UUID(uuidString: value.g)?.uuidString.lowercased() == value.g,
+               (1...2).contains(value.n), (0...value.n).contains(value.f),
+               (1...4096).contains(value.e), value.v > 0,
+               ["captured", "incomplete"].contains(value.s), isSHA(value.h) {
+                traceProof = value; traceProofBytes = data
+            }
+            #endif
+            let stopCount = nodes.filter { $0.snapshot.elementType == .button && $0.snapshot.label == "停止" }.count
+            let researchCount = nodes.filter { $0.snapshot.elementType == .button && $0.snapshot.label == "重新搜索" }.count
+            let searching = stopCount == 1 && researchCount == 0
+            let settled = stopCount == 0 && researchCount == 1
+                && !nodes.contains { $0.snapshot.label == "正在查找其他来源" }
+            var rows: [Row] = []
+            for node in candidates {
+                let candidate = node.snapshot
+                let candidateIdentity = String(candidate.identifier.dropFirst(prefix.count))
+                guard let separator = candidateIdentity.firstIndex(of: "|") else { return nil }
+                let candidateSource = String(candidateIdentity[..<separator])
+                let candidateBook = String(candidateIdentity[candidateIdentity.index(after: separator)...])
+                guard let source = enabledSources.first(where: { $0.id == candidateSource }),
+                      let url = URL(string: candidateBook), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil,
+                      candidateIdentity != identity, candidate.isEnabled, candidate.label.contains(source.name),
+                      candidate.frame.width > 0, candidate.frame.height > 0 else { return nil }
+                let matches = timingPattern.matches(in: candidate.label, range: NSRange(candidate.label.startIndex..., in: candidate.label))
+                let previous = candidate.label.contains("上次候选")
+                let milliseconds: Int?
+                if previous {
+                    guard matches.isEmpty && candidate.label.contains(searching ? "上次候选 · 本次搜索中" : "上次候选 · 本次未确认") else { return nil }
+                    milliseconds = nil
+                } else {
+                    guard matches.count == 1, let range = Range(matches[0].range, in: candidate.label),
+                          let elapsed = Int(candidate.label[range].dropLast(3)) else { return nil }
+                    milliseconds = elapsed
+                }
+                rows.append(Row(identifier: candidate.identifier, sourceID: candidateSource, label: candidate.label,
+                    milliseconds: milliseconds, previous: previous, frame: candidate.frame))
+            }
+            rows.sort { $0.frame.minY == $1.frame.minY ? $0.frame.minX < $1.frame.minX : $0.frame.minY < $1.frame.minY }
+            let valid = app.state == .runningForeground && fields.count == 1 && fields[0].snapshot.value as? String == proof.title
+                && close.count == 1 && close[0].snapshot.isEnabled && owners.count == 1
+                && owners[0].snapshot.identifier == "online-switch-owner:settled"
+                && !nodes.contains { $0.snapshot.elementType == .keyboard || $0.snapshot.elementType == .alert }
+                && rows.count >= 2 && Set(rows.map(\.identifier)).count == rows.count && (searching || settled)
+            let ordinal = observations.count + 1
+            let returned = ProcessInfo.processInfo.systemUptime
+            let observation = Observation(snapshotOrdinal: ordinal, snapshotBeganUptime: began, snapshotReturnedUptime: returned,
+                rows: rows, viewport: viewport, searching: searching, settled: settled,
+                traceProof: traceProof, traceProofBytes: traceProofBytes)
+            var observationFacts: [String: Any] = ["snapshotOrdinal": ordinal,
+                "snapshotBeganUptime": began, "snapshotReturnedUptime": returned,
+                "phase": observationPhase, "valid": valid, "searching": searching, "settled": settled,
+                "viewport": String(describing: viewport), "anchorIdentifier": observation.anchor?.identifier ?? "<absent>",
+                "anchorViewportOffsetY": observation.anchor.map { $0.frame.minY - viewport.minY } ?? 0,
+                "rows": rows.map { row -> [String: Any] in ["identifier": row.identifier, "sourceId": row.sourceID,
+                    "label": row.label, "currentMilliseconds": row.milliseconds.map { $0 as Any } ?? NSNull(), "previousCandidate": row.previous,
+                    "viewportRelativeFrame": String(describing: row.frame.offsetBy(dx: -viewport.minX, dy: -viewport.minY))] }]
+            observationFacts["traceProofSameSnapshot"] = traceProof.map { $0.fields as Any } ?? NSNull()
+            observations.append(observationFacts)
+            if researchTapCount == 1 && valid && searching {
+                observedSearching = true
+                observedPreviousCandidateDuringSearch = observedPreviousCandidateDuringSearch || rows.contains(where: \.previous)
+            }
+            return valid ? observation : nil
+        }
+        func settled(_ name: String) throws -> Observation {
+            observationPhase = name
+            var result: Observation?
+            var observationFailure: String?
+            func observe() -> Bool {
+                do {
+                    if let current = try capture(), current.settled { result = current; return true }
+                } catch { observationFailure = String(describing: error); return true }
+                return false
+            }
+            if !observe() {
+                let condition = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in observe() }, object: nil)
+                try sourceToolsRequire(XCTWaiter.wait(for: [condition], timeout: 180) == .completed,
+                    "Require the actual real-source re-search terminal: " + name, app: app)
+            }
+            try sourceToolsRequire(observationFailure == nil && result != nil,
+                "The public AX observation must finish without substituting malformed or missing candidates: " + name, app: app)
+            keepScreenshot(app, name: name)
+            return try XCTUnwrap(result)
+        }
+        func requireCurrentSourceTimings(_ value: Observation, name: String) throws {
+            let current = value.rows.filter { !$0.previous }
+            try sourceToolsRequire(Set(current.map(\.sourceID)) == enabledSourceIDs,
+                name + ": require actual currently confirmed candidates from both original enabled sources", app: app)
+            for source in enabledSources {
+                let sourceRows = current.filter { $0.sourceID == source.id }
+                try sourceToolsRequire(!sourceRows.isEmpty && sourceRows.allSatisfy { $0.milliseconds != nil }
+                    && Set(sourceRows.compactMap(\.milliseconds)).count == 1,
+                    name + ": require one consistent displayed elapsed-time projection for exact current candidate/source identities; freshness is external", app: app)
+            }
+        }
+        let initial = try settled("physical-real-switch-before-native-scroll")
+        try sourceToolsRequire(initial.rows.allSatisfy { !$0.previous },
+            "Require a complete current baseline before selecting the one explicit real re-search", app: app)
+        try requireCurrentSourceTimings(initial, name: "before-scroll")
+        let initialAnchor = try XCTUnwrap(initial.anchor)
+        let nativeScrolls = app.scrollViews.allElementsBoundByIndex.filter { scroll in
+            let frame = scroll.frame.intersection(app.frame)
+            return !frame.isNull && scroll.isHittable
+                && abs(frame.minX - initial.viewport.minX) <= 2 && abs(frame.minY - initial.viewport.minY) <= 2
+                && abs(frame.width - initial.viewport.width) <= 2 && abs(frame.height - initial.viewport.height) <= 2
+                && scroll.buttons.matching(NSPredicate(format: "identifier == %@", initialAnchor.identifier)).count == 1
+        }
+        try sourceToolsRequire(nativeScrolls.count == 1,
+            "Require the exact visible native candidate scroll host before one bounded real scroll", app: app)
+        let nativeScroll = nativeScrolls[0]
+        let scrollHeight = nativeScroll.frame.height
+        let distance = min(CGFloat(120), max(CGFloat(50), initialAnchor.frame.height * 0.45))
+        try sourceToolsRequire(scrollHeight > 100 && distance < scrollHeight * 0.5,
+            "The live candidate viewport must contain the complete bounded native drag", app: app)
+        let start = nativeScroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72))
+        let end = nativeScroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72 - distance / scrollHeight))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+        nativeScrollCount = 1
+        let scrolled = try settled("physical-real-switch-after-one-native-scroll")
+        let scrolledAnchor = try XCTUnwrap(scrolled.anchor)
+        let before = try settled("physical-real-switch-stable-scrolled-before-explicit-research")
+        try sourceToolsRequire(before.rows.allSatisfy { !$0.previous },
+            "The same real search must remain settled after the one candidate scroll", app: app)
+        try requireCurrentSourceTimings(before, name: "scrolled-before-research")
+        let beforeAnchor = try XCTUnwrap(before.anchor)
+        try sourceToolsRequire(beforeAnchor.identifier == scrolledAnchor.identifier
+            && abs((beforeAnchor.frame.minY - before.viewport.minY) - (scrolledAnchor.frame.minY - scrolled.viewport.minY)) <= 0.25,
+            "Two independent public snapshots must show the same settled scrolled anchor within 0.25pt before re-search; a moving or bouncing viewport is insufficient", app: app)
+        let movedOriginalRow = initial.rows.contains { old in
+            guard let current = before.rows.first(where: { $0.identifier == old.identifier }) else { return false }
+            return (old.frame.minY - initial.viewport.minY) - (current.frame.minY - before.viewport.minY) >= 12
+        }
+        let movedAnchor = beforeAnchor.identifier != initialAnchor.identifier
+            || abs((beforeAnchor.frame.minY - before.viewport.minY) - (initialAnchor.frame.minY - initial.viewport.minY)) >= 12
+        try sourceToolsRequire(movedOriginalRow && movedAnchor,
+            "Real results must produce a genuine nonzero native scroll and moved candidate anchor; short lists or an unmoved viewport fail the prerequisite, with no second drag or manufactured geometry", app: app)
+        let research = app.buttons.matching(NSPredicate(format: "label == %@", "重新搜索"))
+        try sourceToolsRequire(research.count == 1, "Only one exact native re-search action may be selected", app: app)
+        try tap(research.element)
+        researchTapCount = 1
+        researchReturnedUptime = ProcessInfo.processInfo.systemUptime
+        let after = try settled("physical-real-switch-after-one-explicit-research")
+        let beforeIDs = before.rows.map(\.identifier)
+        let beforeIDSet = Set(beforeIDs)
+        try sourceToolsRequire(after.rows.filter { beforeIDSet.contains($0.identifier) }.map(\.identifier) == beforeIDs,
+            "Every observed original candidate must retain its complete exact source/book identity and relative order after real re-search", app: app)
+        try requireCurrentSourceTimings(after, name: "after")
+        let afterAnchor = try XCTUnwrap(after.anchor)
+        try sourceToolsRequire(afterAnchor.identifier == beforeAnchor.identifier
+            && abs((afterAnchor.frame.minY - after.viewport.minY) - (beforeAnchor.frame.minY - before.viewport.minY)) <= 2,
+            "The same actual viewport anchor and intra-row offset must survive explicit re-search within 2pt; never scroll to repair it", app: app)
+        for identifier in beforeIDs {
+            let matches = app.buttons.matching(NSPredicate(format: "identifier == %@", identifier))
+            try sourceToolsRequire(matches.count == 1 && matches.element.isEnabled,
+                "Repeated exact selector lookup must resolve one retained candidate without tapping it: " + identifier, app: app)
+        }
+        #if DEBUG
+        func digest(_ value: String) -> String {
+            SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+        }
+        func frameFields(_ frame: CGRect) -> [String: Double] {
+            ["x": Double(frame.minX), "y": Double(frame.minY), "width": Double(frame.width), "height": Double(frame.height)]
+        }
+        let baseline = [before, scrolled, initial].first { value in
+            value.traceProof.map { $0.n == 1 && $0.f == 1 } ?? false
+        }
+        let generationBound = after.traceProof.map { current in
+            guard let original = baseline?.traceProof else { return false }
+            return current.n == 2 && current.f == 2 && current.g != original.g && current.v > original.v
+        } ?? false
+        let sourceTimings = enabledSourceIDs.sorted().compactMap { source -> [String: Any]? in
+            guard let milliseconds = after.rows.first(where: { $0.sourceID == source && !$0.previous })?.milliseconds else { return nil }
+            return ["sourceIDUTF8SHA256": digest(source), "milliseconds": milliseconds]
+        }
+        let candidateRows = after.rows.map { row -> [String: Any] in
+            ["candidateIdentifierUTF8SHA256": digest(row.identifier), "sourceIDUTF8SHA256": digest(row.sourceID),
+             "milliseconds": row.milliseconds.map { $0 as Any } ?? NSNull(), "previousCandidate": row.previous,
+             "viewportRelativeFrame": frameFields(row.frame.offsetBy(dx: -after.viewport.minX, dy: -after.viewport.minY))]
+        }
+        var witness: [String: Any] = ["schemaVersion": 1, "policy": "physical-v4-04-ui-snapshot-timing-witness-v1",
+            "timingGenerationBinding": generationBound ? "BOUND" : "INCOMPLETE", "runID": traceRunID,
+            "snapshotOrdinal": after.snapshotOrdinal, "snapshotBeganUptime": after.snapshotBeganUptime,
+            "snapshotReturnedUptime": after.snapshotReturnedUptime, "researchTapCount": researchTapCount,
+            "traceProof": after.traceProof.map { $0.fields as Any } ?? NSNull(),
+            "sourceTimings": sourceTimings, "candidateRows": candidateRows, "viewport": frameFields(after.viewport),
+            "anchor": ["candidateIdentifierUTF8SHA256": digest(afterAnchor.identifier),
+                       "sourceIDUTF8SHA256": digest(afterAnchor.sourceID),
+                       "milliseconds": afterAnchor.milliseconds.map { $0 as Any } ?? NSNull(),
+                       "previousCandidate": afterAnchor.previous,
+                       "viewportOffsetY": Double(afterAnchor.frame.minY - after.viewport.minY)],
+            "independentExactTraceSHARequired": true,
+            "boundary": "One AX tree supplies the final owner compact, visible source milliseconds, candidate identities and anchor. BOUND requires an earlier same-run n=f=1 compact and this tree's n=f=2 compact with a different g and increasing v. Missing or late compact evidence is INCOMPLETE without changing the candidate/anchor UI result. External trace bytes must match this exact h and v and contain g as the final generation; a later metrics revision with a different SHA cannot substitute. Real network acquisition and Core's persisted source version remain external requirements."]
+        if let baseline, let baselineProof = baseline.traceProof {
+            witness["baseline"] = ["snapshotOrdinal": baseline.snapshotOrdinal, "traceProof": baselineProof.fields]
+        } else { witness["baseline"] = NSNull() }
+        let witnessBytes = try JSONSerialization.data(withJSONObject: witness, options: [.sortedKeys])
+        let timingWitness = XCTAttachment(data: witnessBytes, uniformTypeIdentifier: "public.json")
+        timingWitness.name = "physical-real-switch-research-same-snapshot-timing-witness"
+        timingWitness.lifetime = .keepAlways; add(timingWitness)
+        if let traceProofBytes = after.traceProofBytes {
+            let traceReceipt = XCTAttachment(data: traceProofBytes, uniformTypeIdentifier: "public.json")
+            traceReceipt.name = "physical-real-switch-research-private-snapshot-proof"; traceReceipt.lifetime = .keepAlways; add(traceReceipt)
+        }
+        let traceBoundary = XCTAttachment(string: "Export tmp/ReaderSwitchSearchTrace-" + traceRunID + "/trace.json from the App container after stopping it. A timing-generation witness is accepted only when BOUND and the exported bytes exactly match its same-snapshot h and v, with g as the final generation. Missing compact evidence, a later metrics revision/SHA mismatch, incomplete trace, source-ordinal attribution, fresh acquisition or Core persisted source-version gaps remain INCOMPLETE externally; they do not change this method's candidate/anchor UI result. Fresh v2 preproof must bind the exact retained original unknown bookshelf.add pending operation and every protected identity.")
+        traceBoundary.name = "physical-real-switch-research-trace-export-boundary"; traceBoundary.lifetime = .keepAlways; add(traceBoundary)
+        #endif
+        try tap(try button("online-switch-close"))
+        try sourceToolsWait("Close only the read-only candidate sheet", timeout: 10) { !app.buttons["online-switch-close"].exists }
+        let returnedBody = try originalVisibleBody()
+        try sourceToolsRequire(returnedBody == originalBody,
+            "Returning from discovery must retain the original visible body without source admission or chapter navigation", app: app)
+        keepScreenshot(app, name: "physical-real-switch-research-returned-original-baidu-body")
+        try controls(); try requireOriginalReadingIdentity()
+        leaveReader(body, in: app)
+        try sourceToolsWait("Return to the complete original shelf without adding or switching any book", timeout: 20) {
+            app.buttons["更多书架操作"].exists && !app.textFields["shelf-filter"].exists
+                && shelfBookIds() == proof.originalShelfBookIds.sorted()
+        }
+        app.terminate()
+        try sourceToolsRequire(app.wait(for: .notRunning, timeout: 10),
+            "Leave the original App stopped for the required independent full-data postproof", app: app)
     }
 
     private func selectProvisionedSourcePackage(in app: XCUIApplication) {
@@ -1600,6 +2991,311 @@ final class ReaderOnlineJourneyTests: XCTestCase {
         throw SourceToolsFailure.prerequisite
     }
 
+    /// Native read/review/Cancel only. Root binds the real stopped-library
+    /// snapshot and separately compares raw preferences/Core after this method;
+    /// AX field equality is not a proof of private JSON-byte preservation.
+    func testExistingRealSubscriptionDraftReadOnlyReviewConfirmationCancelAndColdRetentionPreservesOriginalState() throws {
+#if targetEnvironment(simulator)
+        XCTFail("This journey requires the bound physical iPhone")
+        throw SourceToolsFailure.prerequisite
+#endif
+        struct Proof: Decodable {
+            let schemaVersion: Int
+            let policy: String
+            let runID: String
+            let capturedAtUnixSeconds: Double
+            let targetDeviceUDID: String
+            let bundleIdentifier: String
+            let installedAppSHA256: String
+            let installedRunnerSHA256: String
+            let snapshotSHA256: String
+            let pendingSubscriptionOperationIDs: [String]
+            let acceptedIntentAbsent: Bool
+            let sourceLabels: [String: String]
+            let subscriptionRawBase64: String
+            let subscriptionSHA256: String
+            let draftRawBase64: String?
+            let draftSHA256: String?
+            let draftIdentityRawBase64: String?
+            let draftIdentitySHA256: String?
+        }
+        struct Subscription: Decodable {
+            let id: Int64; let name: String; let url: String; let type: Int32
+            let customOrder: Int32; let autoUpdate: Bool; let update: Int64
+        }
+        struct Draft: Decodable {
+            let isPresent: Bool; let id: Int64; let name: String; let url: String
+            let type: Int32; let order: String; let autoUpdate: Bool; let update: Int64
+        }
+        func sha(_ bytes: Data) -> String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }
+        func validSHA(_ value: String) -> Bool {
+            value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+        }
+        func boundBytes(_ encoded: String?, _ expectedSHA: String?) throws -> Data? {
+            if encoded == nil && expectedSHA == nil { return nil }
+            guard let encoded, let expectedSHA, let bytes = Data(base64Encoded: encoded),
+                  !bytes.isEmpty, bytes.count <= 32 * 1024, validSHA(expectedSHA), sha(bytes) == expectedSHA else {
+                try sourceToolsRequire(false, "Require complete original bytes and their exact SHA-256; never infer an empty draft", app: nil)
+                throw SourceToolsFailure.prerequisite
+            }
+            return bytes
+        }
+        let environment = ProcessInfo.processInfo.environment
+        let encoded = try XCTUnwrap(environment["READER_SUBSCRIPTION_REVIEW_PREPROOF_B64"])
+        let expectedProofSHA = try XCTUnwrap(environment["READER_SUBSCRIPTION_REVIEW_PREPROOF_SHA256"])
+        let proofBytes = try XCTUnwrap(Data(base64Encoded: encoded))
+        try sourceToolsRequire(proofBytes.count <= 128 * 1024 && validSHA(expectedProofSHA) && sha(proofBytes) == expectedProofSHA,
+            "Bind the exact private same-run preproof", app: nil)
+        let proof = try JSONDecoder().decode(Proof.self, from: proofBytes)
+        let age = Date().timeIntervalSince1970 - proof.capturedAtUnixSeconds
+        try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone && proof.schemaVersion == 1
+            && proof.policy == "physical-real-subscription-draft-review-cancel-v1"
+            && UUID(uuidString: proof.runID) != nil && !proof.targetDeviceUDID.isEmpty
+            && proof.bundleIdentifier == "io.reader.minliny.free" && age >= -5 && age <= 600
+            && validSHA(proof.installedAppSHA256) && validSHA(proof.installedRunnerSHA256) && validSHA(proof.snapshotSHA256)
+            && proof.pendingSubscriptionOperationIDs.isEmpty && proof.acceptedIntentAbsent && !proof.sourceLabels.isEmpty,
+            "Require the fresh physical target/artifact/snapshot binding and no accepted or unknown subscription writes", app: nil)
+        let subscriptionBytes = try XCTUnwrap(try boundBytes(proof.subscriptionRawBase64, proof.subscriptionSHA256))
+        let original = try JSONDecoder().decode(Subscription.self, from: subscriptionBytes)
+        let originalURL = try XCTUnwrap(URLComponents(string: original.url))
+        try sourceToolsRequire(["http", "https"].contains(originalURL.scheme?.lowercased() ?? "")
+            && !(originalURL.host ?? "").isEmpty, "Use only the original real saved HTTP(S) subscription DTO", app: nil)
+        let originalDraftBytes = try boundBytes(proof.draftRawBase64, proof.draftSHA256)
+        let originalIdentityBytes = try boundBytes(proof.draftIdentityRawBase64, proof.draftIdentitySHA256)
+        let wasAbsent = originalDraftBytes == nil
+        let expected: Draft
+        if let originalDraftBytes {
+            expected = try JSONDecoder().decode(Draft.self, from: originalDraftBytes)
+            let raw = try XCTUnwrap(JSONSerialization.jsonObject(with: originalDraftBytes) as? [String: Any])
+            let baseline = raw["baseline"] as? [String: Any]
+            try sourceToolsRequire(expected.isPresent && expected.id == original.id && baseline?["absent"] == nil,
+                "An existing user draft must belong to this exact saved subscription; never replace an unrelated or new-row draft", app: nil)
+        } else {
+            try sourceToolsRequire(originalIdentityBytes == nil, "Only genuinely absent draft/identity keys authorize an owned temporary editor draft", app: nil)
+            // These are the real Core DTO's fields, exactly as the normal Edit
+            // action copies them. No subscription, source or body is generated.
+            expected = Draft(isPresent: true, id: original.id, name: original.name, url: original.url,
+                type: original.type, order: String(original.customOrder), autoUpdate: original.autoUpdate, update: original.update)
+        }
+        let app = XCUIApplication(bundleIdentifier: proof.bundleIdentifier)
+        let deadline = ProcessInfo.processInfo.systemUptime + 180
+        var cleanupDeadline: TimeInterval?
+        var createdDraft = false, discardedCreatedDraft = false
+        func require(_ condition: Bool, _ message: String) throws { try sourceToolsRequire(condition, message, app: app) }
+        func wait(_ message: String, timeout: TimeInterval = 12, _ condition: @escaping () -> Bool) throws {
+            let remaining = (cleanupDeadline ?? deadline) - ProcessInfo.processInfo.systemUptime
+            try require(remaining > 0, "Bounded native review deadline: " + message)
+            try sourceToolsWait(message, timeout: min(timeout, remaining), condition)
+        }
+        func button(_ id: String) throws -> XCUIElement {
+            let matches = app.buttons.matching(NSPredicate(format: "identifier == %@", id))
+            try require(matches.count == 1, "One exact actual button: " + id)
+            return matches.element
+        }
+        func labeledButton(_ label: String) throws -> XCUIElement {
+            let matches = app.buttons.matching(NSPredicate(format: "label == %@", label))
+            try require(matches.count == 1, "One exact actual native action: " + label)
+            return matches.element
+        }
+        func tap(_ element: XCUIElement) throws {
+            try require(element.exists && element.isEnabled && element.isHittable,
+                "Use the actual visible enabled control, without coordinate fallback: " + element.identifier)
+            element.tap()
+        }
+        func reveal(_ element: XCUIElement, in scroll: XCUIElement, towardTop: Bool = false) throws {
+            let until = min(cleanupDeadline ?? deadline, ProcessInfo.processInfo.systemUptime + 24)
+            var previous: CGRect?
+            for _ in 0..<8 {
+                try require(ProcessInfo.processInfo.systemUptime < until && scroll.exists,
+                    "Bounded actual scroll host must remain available")
+                if element.exists {
+                    let frame = element.frame
+                    if element.isHittable && frame.intersection(scroll.frame).height > 8 { return }
+                    try require(previous != frame, "Stop a non-progressing viewport; do not retry another scope")
+                    previous = frame
+                }
+                if towardTop { scroll.swipeDown() } else { scroll.swipeUp() }
+            }
+            try require(false, "The exact real control was not reached within eight native scrolls: " + element.identifier)
+        }
+        func editorScroll() throws -> XCUIElement {
+            let matches = app.scrollViews.containing(.textField, identifier: "subscription-name")
+            try require(matches.count == 1, "Use the one actual editor ScrollView")
+            return matches.element
+        }
+        func fieldValue(_ field: XCUIElement) -> String {
+            let value = field.value as? String ?? ""
+            return value == field.placeholderValue ? "" : value
+        }
+        func requireFields() throws {
+            let names = app.textFields.matching(identifier: "subscription-name")
+            let urls = app.textFields.matching(identifier: "subscription-url")
+            try require(names.count == 1 && urls.count == 1, "One real retained draft editor")
+            let scroll = try editorScroll()
+            let orders = scroll.textFields.allElementsBoundByIndex.filter { $0.placeholderValue == "排序值" }
+            let toggles = scroll.switches.matching(NSPredicate(format: "label == %@", "允许自动更新"))
+            try require(orders.count == 1 && toggles.count == 1, "Observe the actual order and auto-update controls without changing them")
+            try require(fieldValue(names.element) == expected.name && fieldValue(urls.element) == expected.url
+                && fieldValue(orders[0]) == expected.order && toggles.element.value as? String == (expected.autoUpdate ? "1" : "0"),
+                "Every visible raw input must equal the bound original draft, including whitespace")
+            let kind = expected.type == 0 ? "书源包" : "现有包类型 \(expected.type)"
+            try require(scroll.staticTexts.matching(NSPredicate(format: "label == %@", kind)).count >= 1,
+                "Preserve the draft's original package type")
+            try require(try button("subscription-save").isEnabled && !app.staticTexts["正在核对订阅操作"].exists,
+                "No pending subscription write may be consumed or replaced")
+        }
+        func requireOriginalRow() throws {
+            let name = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "subscription:\(original.id)"))
+            let url = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "subscription-url:\(original.id)"))
+            try require(name.count == 1 && url.count == 1 && name.element.label == (original.name.isEmpty ? "未命名订阅" : original.name)
+                && url.element.label == original.url, "Retain the exact original saved subscription identity/name/URL")
+        }
+        func openSubscriptions() throws {
+            try wait("The same real shelf must load") { app.buttons["更多书架操作"].exists }
+            try tap(try labeledButton("更多书架操作"))
+            try wait("Open the real search/source route") { app.buttons["搜索与书源"].exists }
+            try tap(try labeledButton("搜索与书源"))
+            try wait("Open existing source management") { app.buttons["online-open-sources"].exists }
+            try tap(try button("online-open-sources"))
+            try wait("Read the original sources") { app.buttons["online-source-file"].exists }
+            try require(try sourceToolsSourceLabels(app) == proof.sourceLabels, "Original source identities remain unchanged")
+            let entry = try button("online-rule-subscriptions")
+            try reveal(entry, in: app.scrollViews["online-source-scroll"], towardTop: true); try tap(entry)
+            try wait("Read the original subscription list") {
+                app.buttons["subscription-add"].exists && app.buttons["subscription-add"].isEnabled
+                    && !app.staticTexts["正在读取订阅"].exists
+            }
+            try requireOriginalRow()
+        }
+        func openRetainedDraft() throws {
+            let entry = try button("subscription-add")
+            try require(entry.label == "继续草稿", "Reopen only the retained same-ID draft; never create a replacement")
+            try tap(entry)
+            try wait("The original raw draft must reopen") { app.textFields["subscription-name"].exists }
+            try requireFields()
+        }
+        func closeEditor() throws {
+            try tap(try labeledButton("保留草稿并关闭"))
+            try wait("Normal editor close must preserve its draft") {
+                !app.textFields["subscription-name"].exists && app.buttons["subscription-add"].label == "继续草稿"
+            }
+        }
+        func closeReadHosts() throws {
+            try tap(try labeledButton("关闭订阅管理"))
+            try wait("Return to the original source host") { app.buttons["online-close-sources"].isHittable }
+            try require(try sourceToolsSourceLabels(app) == proof.sourceLabels, "Read/review cannot replace the original sources")
+            try tap(try button("online-close-sources"))
+            try wait("Return to the original workspace") { app.buttons["online-close-workspace"].isHittable }
+            try tap(try button("online-close-workspace"))
+            try wait("Normal return to the original shelf") { app.buttons["更多书架操作"].isHittable }
+        }
+        func discardOwnedDraft() throws {
+            try require(wasAbsent && createdDraft && !discardedCreatedDraft,
+                "Never discard an original user draft")
+            if !app.textFields["subscription-name"].exists { try openRetainedDraft() }
+            try requireFields()
+            let discard = try labeledButton("放弃草稿")
+            try reveal(discard, in: try editorScroll()); try tap(discard)
+            let alert = app.alerts["放弃这个草稿？"]
+            try wait("The actual owned-draft discard confirmation must appear") { alert.exists }
+            try require(alert.staticTexts["已保存的订阅不受影响。"].exists
+                && alert.buttons["放弃"].isHittable && alert.buttons["取消"].exists,
+                "Discard only this method's editor draft, never the saved subscription")
+            keepScreenshot(app, name: "subscription-review-owned-draft-discard-confirmation")
+            alert.buttons["放弃"].tap()
+            try wait("The test-created draft must be withdrawn through its normal UI") {
+                !app.textFields["subscription-name"].exists && app.buttons["subscription-add"].label == "添加"
+            }
+            discardedCreatedDraft = true
+            try requireOriginalRow()
+        }
+        addTeardownBlock {
+            if createdDraft && !discardedCreatedDraft {
+                cleanupDeadline = ProcessInfo.processInfo.systemUptime + 45
+                do {
+                    try require(app.state == .runningForeground, "Owned draft cleanup requires its known foreground App; no relaunch fallback")
+                    let reviewAlert = app.alerts["使用本次核对的编辑基线？"]
+                    if reviewAlert.exists { try tap(reviewAlert.buttons["取消"]) }
+                    try require(!app.alerts.firstMatch.exists, "Never accept an unknown alert during owned cleanup")
+                    try discardOwnedDraft()
+                } catch {
+                    let result = XCTAttachment(string: "OWNED_DRAFT_CLEANUP_NOT_COMPLETED\nrunID=\(proof.runID)\nDo not discard any other draft or alter preferences externally. Root must inspect the same-run stopped snapshot before further work.")
+                    result.name = "subscription-review-owned-cleanup-required"; result.lifetime = .keepAlways; self.add(result)
+                    XCTFail("The method-created draft could not be safely withdrawn through native UI: \(error)")
+                }
+            }
+        }
+        app.launch()
+        try openSubscriptions()
+        let entry = try button("subscription-add")
+        try require(entry.label == (wasAbsent ? "添加" : "继续草稿"), "UI draft presence must agree with the exact stopped-state bytes")
+        if wasAbsent {
+            let check = try button("subscription-check:\(original.id)")
+            let scroll = app.scrollViews["subscription-scroll"]
+            try reveal(check, in: scroll)
+            let edits = scroll.buttons.matching(NSPredicate(format: "label == %@", "编辑")).allElementsBoundByIndex.filter {
+                $0.isHittable && $0.isEnabled && abs($0.frame.midY - check.frame.midY) < 24
+            }
+            try require(edits.count == 1, "The Edit action must belong to this exact original subscription's control row")
+            createdDraft = true // Ownership starts before the one real Edit tap.
+            try tap(edits[0])
+            try wait("Only the original DTO's editor draft may be created") { app.textFields["subscription-name"].exists }
+            try requireFields()
+        } else { try openRetainedDraft() }
+        keepScreenshot(app, name: "subscription-review-original-raw-editor-fields")
+        let review = try button("subscription-review-draft")
+        try reveal(review, in: try editorScroll()); try tap(review)
+        let comparison = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "subscription-draft-comparison"))
+        try wait("Render the real local Core subscription/draft comparison without a provider request") {
+            comparison.count > 0 && app.buttons["subscription-confirm-draft-review"].exists
+        }
+        try require(app.staticTexts["订阅编号：\(original.id)"].exists && !app.staticTexts["未找到原订阅"].exists,
+            "The comparison must belong to the same actual saved subscription")
+        let pairs = [(original.name, expected.name), (original.url, expected.url),
+            (original.type == 0 ? "书源包" : "现有包类型 \(original.type)", expected.type == 0 ? "书源包" : "现有包类型 \(expected.type)"),
+            (String(original.customOrder), expected.order), (original.autoUpdate ? "允许" : "关闭", expected.autoUpdate ? "允许" : "关闭")]
+        for pair in pairs {
+            try require(app.staticTexts.matching(NSPredicate(format: "label == %@", "当前：" + pair.0)).count >= 1
+                && app.staticTexts.matching(NSPredicate(format: "label == %@", "草稿：" + pair.1)).count >= 1,
+                "Every full current/draft field must be shown, without truncating its AX value")
+        }
+        let heading = app.staticTexts["当前订阅与保留草稿"]
+        try reveal(heading, in: try editorScroll())
+        keepScreenshot(app, name: "subscription-review-actual-current-and-retained-fields")
+        let confirmReview = try button("subscription-confirm-draft-review")
+        try reveal(confirmReview, in: try editorScroll()); try tap(confirmReview)
+        let alert = app.alerts["使用本次核对的编辑基线？"]
+        try wait("The production native baseline confirmation must appear") { alert.exists }
+        try require(alert.buttons["确认核对"].exists && alert.buttons["取消"].isHittable
+            && alert.staticTexts["全部草稿输入都会保留。本次确认不保存；之后另点保存会用草稿的全部配置更新订阅。"].exists,
+            "The actual confirmation must explicitly separate baseline confirmation from Save")
+        keepScreenshot(app, name: "subscription-review-native-baseline-confirmation-before-cancel")
+        let actualAX = XCTAttachment(string: app.debugDescription); actualAX.name = "subscription-review-native-confirmation-actual-AX"
+        actualAX.lifetime = .keepAlways; add(actualAX)
+        alert.buttons["取消"].tap()
+        try wait("Cancel must return to the same unchanged comparison") { !alert.exists && comparison.count > 0 }
+        try requireFields()
+        try closeEditor(); try requireOriginalRow(); try closeReadHosts()
+        app.terminate(); app.launch()
+        try openSubscriptions(); try openRetainedDraft()
+        try require(!app.buttons["subscription-confirm-draft-review"].exists,
+            "A cold editor must retain input without reviving the old read comparison")
+        keepScreenshot(app, name: "subscription-review-cold-retained-original-fields")
+        if createdDraft { try discardOwnedDraft() } else { try closeEditor() }
+        try closeReadHosts()
+        let facts: [String: Any] = ["schemaVersion": 1, "runID": proof.runID, "preproofSHA256": expectedProofSHA,
+            "targetDeviceUDID": proof.targetDeviceUDID, "installedAppSHA256": proof.installedAppSHA256,
+            "installedRunnerSHA256": proof.installedRunnerSHA256, "snapshotSHA256": proof.snapshotSHA256,
+            "subscriptionSHA256": proof.subscriptionSHA256, "originalDraftSHA256": (proof.draftSHA256 as Any?) ?? NSNull(),
+            "originalDraftIdentitySHA256": (proof.draftIdentitySHA256 as Any?) ?? NSNull(), "originalDraftAbsent": wasAbsent,
+            "createdEditorDraft": createdDraft, "discardedOnlyCreatedDraft": discardedCreatedDraft,
+            "reviewTapCount": 1, "baselineConfirmationCancelCount": 1, "coldLaunchCount": 1,
+            "saveTapCount": 0, "applyTapCount": 0, "subscriptionDeleteTapCount": 0, "providerCheckTapCount": 0,
+            "boundary": "Actual native read/review/Cancel and cold raw-field retention only. No baseline confirmation or Core write. Original private draft/companion JSON bytes, hidden id/type/update/baseline/revision, full subscription DTO, source definitions, original commands and user library require Root's independent same-run stopped postproof. New editor draft is discarded only when both original keys were absent. Artifact/target hashes are external preproof bindings, not bytes read by this UI method. No upstream freshness, authentication or full visual-parity claim."]
+        let result = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.prettyPrinted, .sortedKeys]), uniformTypeIdentifier: "public.json")
+        result.name = "subscription-review-native-cancel-cold-retention-and-external-postproof-boundary"
+        result.lifetime = .keepAlways; add(result)
+    }
 
     /// Uses the exact existing subscription bound from a fresh, read-only
     /// device snapshot through the UI test runner. This method never

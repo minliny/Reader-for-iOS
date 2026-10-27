@@ -3,14 +3,71 @@ import SwiftUI
 @main
 struct ReaderApp: App {
     @UIApplicationDelegateAdaptor(ReaderOrientationDelegate.self) private var orientationDelegate
-    @StateObject private var bootstrap = ReaderBootstrap()
-    @StateObject private var preferences = ReaderPreferences()
-    @Environment(\.scenePhase) private var phase
+    @StateObject private var lifetime: ReaderAppLifetime
 
-    init() { ReaderFonts.registerBundledFonts(); ReaderRuleSubscriptionScheduler.shared.register() }
+    init() {
+        #if DEBUG
+        let isolated = ReaderNativeCleanupLaunch.isRequested || ReaderIsolatedUnitTestLaunch.isRequested
+        #else
+        let isolated = false
+        #endif
+        _lifetime = StateObject(wrappedValue: ReaderAppLifetime(production: !isolated))
+        ReaderFonts.registerBundledFonts()
+        #if DEBUG
+        if isolated {
+            ReaderNativeCleanupLaunch.registerBackgroundRejectionHandler()
+        } else {
+            ReaderRuleSubscriptionScheduler.shared.register()
+        }
+        #else
+        ReaderRuleSubscriptionScheduler.shared.register()
+        #endif
+    }
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if ReaderIsolatedUnitTestLaunch.isRequested {
+                Color.clear.accessibilityIdentifier(ReaderIsolatedUnitTestLaunch.isAdmitted
+                    ? "isolated-unit-host-ready" : "isolated-unit-host-rejected")
+            } else if ReaderNativeCleanupLaunch.isRequested {
+                ReaderNativeCleanupHarnessView()
+            } else {
+                productionRoot
+            }
+            #else
+            productionRoot
+            #endif
+        }
+    }
+
+    @ViewBuilder private var productionRoot: some View {
+        if let bootstrap = lifetime.bootstrap, let preferences = lifetime.preferences {
+            ReaderProductionRoot(bootstrap: bootstrap, preferences: preferences)
+        }
+    }
+}
+
+/// Keep the original owners at App lifetime, including scene recreation. An
+/// isolated DEBUG launch installs an empty container, not dormant normal owners.
+@MainActor
+private final class ReaderAppLifetime: ObservableObject {
+    let bootstrap: ReaderBootstrap?
+    let preferences: ReaderPreferences?
+    init(production: Bool) {
+        if production { bootstrap = ReaderBootstrap(); preferences = ReaderPreferences() }
+        else { bootstrap = nil; preferences = nil }
+    }
+}
+
+/// Construct the normal owners only in the normal launch branch. A DEBUG
+/// isolated journey must not start a second business runtime behind its UI.
+private struct ReaderProductionRoot: View {
+    @ObservedObject var bootstrap: ReaderBootstrap
+    @ObservedObject var preferences: ReaderPreferences
+    @Environment(\.scenePhase) private var phase
+
+    var body: some View {
             Group {
                 if let model = bootstrap.model {
                     ReaderRootView(model: model, preferences: preferences)
@@ -28,7 +85,6 @@ struct ReaderApp: App {
             .task { bootstrap.setForeground(phase == .active); await bootstrap.prepare() }
             .onOpenURL { url in bootstrap.openFile(url) }
             .onChange(of: phase) { _, value in bootstrap.setForeground(value == .active) }
-        }
     }
 }
 
@@ -99,23 +155,27 @@ struct ReaderRootView: View {
     @State private var shelfSearching = false
     @StateObject private var shelfPresentation = ReaderShelfPresentation()
     @State private var online = false
+    @State private var downloadsVisible = false
+    @StateObject private var downloads = ReaderDownloadManagementPresentation()
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         ZStack(alignment: .bottom) {
             Group {
-                if online {
+                if downloadsVisible {
+                    ReaderDownloadManagementView(model: model, owner: downloads, close: { downloadsVisible = false })
+                } else if online {
                     ReaderOnlineWorkspace(model: model, preferences: preferences, close: { online = false })
                 } else {
                 VStack(spacing: 0) {
                     if settings {
-                        ReaderSettingsView(preferences: preferences, online: { online = true })
+                        ReaderSettingsView(preferences: preferences, online: { online = true }, downloads: { downloadsVisible = true })
                     } else {
                         ReaderBookshelfView(model: model, preferences: preferences,
                             shelfAnchor: $shelfAnchor, query: $shelfQuery, searching: $shelfSearching,
                             presentation: shelfPresentation,
                             importFile: { if model.importBusy { model.importResultVisible = true } else { _ = filePicker.begin() } },
-                            online: { online = true })
+                            online: { online = true }, downloads: { downloadsVisible = true })
                     }
                     navigation
                 }

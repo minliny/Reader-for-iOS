@@ -78,3 +78,153 @@ final class ReaderLibraryActionOwner: ObservableObject {
         }
     }
 }
+
+/// One visible download projection. Activation belongs to the presentation;
+/// a late business completion may request a read but cannot revive a retired
+/// page or switch it back to an older entity. No write owner or ACK lives here.
+@MainActor
+final class ReaderDownloadReadOwner<Identity: Equatable, Value>: ObservableObject {
+    typealias Publish = @MainActor (Value) -> Void
+    typealias Read = @MainActor (@escaping Publish) async throws -> Void
+    typealias Merge = @MainActor (Value) -> Value
+    typealias Supplement = @MainActor () async throws -> Merge
+    @Published private(set) var identity: Identity?
+    @Published private(set) var value: Value?
+    @Published private(set) var failure: String?
+    @Published private(set) var loading = false
+    private var active = false
+    private var generation = UUID()
+    private var requestTask: Task<Void, Never>?
+    private var invalidatedRead: Read?
+    private var invalidatedReadPriority = Int.min
+    private var supplementTask: Task<Void, Never>?
+    private var invalidatedSupplement: Supplement?
+    private var readFailure: String?
+    private var supplementFailure: String?
+
+    deinit { requestTask?.cancel(); supplementTask?.cancel() }
+
+    func activate(identity: Identity) {
+        guard !active || self.identity != identity else { return }
+        cancelRead()
+        if self.identity != identity {
+            value = nil; failure = nil; readFailure = nil; supplementFailure = nil
+        }
+        self.identity = identity
+        active = true
+    }
+
+    /// The returned task lets polling wait for this complete read, rather than
+    /// repeatedly cancelling a slow status/storage request on a fixed timer.
+    @discardableResult
+    func refresh(identity: Identity,
+                 read: @escaping Read) -> Task<Void, Never>? {
+        guard active, self.identity == identity else { return nil }
+        cancelRead()
+        return beginRead(identity: identity, read: read)
+    }
+
+    /// Lifecycle hints only invalidate the projection. Preserve an in-flight
+    /// read and merge further hints into one subsequent current-entity read.
+    @discardableResult
+    func invalidate(identity: Identity, priority: Int = 0, read: @escaping Read) -> Task<Void, Never>? {
+        guard active, self.identity == identity else { return nil }
+        if let requestTask {
+            if invalidatedRead == nil || priority >= invalidatedReadPriority {
+                invalidatedRead = read
+                invalidatedReadPriority = priority
+            }
+            return requestTask
+        }
+        return beginRead(identity: identity, read: read)
+    }
+
+    private func beginRead(identity: Identity, read: @escaping Read) -> Task<Void, Never> {
+        let current = generation
+        readFailure = nil; publishFailure()
+        loading = true
+        let task = Task { [weak self] in
+            var nextRead: Read? = read
+            while let currentRead = nextRead {
+                guard !Task.isCancelled, self?.accepts(identity, generation: current) == true else { return }
+                self?.readFailure = nil; self?.publishFailure()
+                do {
+                    try await currentRead { [weak self] value in
+                        guard !Task.isCancelled, let self, self.accepts(identity, generation: current) else { return }
+                        self.value = value
+                    }
+                } catch is CancellationError { } catch {
+                    guard !Task.isCancelled, let self, self.accepts(identity, generation: current) else { return }
+                    self.readFailure = error.localizedDescription; self.publishFailure()
+                }
+                guard !Task.isCancelled, let self, self.accepts(identity, generation: current) else { return }
+                nextRead = self.invalidatedRead
+                self.invalidatedRead = nil
+                self.invalidatedReadPriority = Int.min
+            }
+            guard let self, self.accepts(identity, generation: current) else { return }
+            self.loading = false
+            self.requestTask = nil
+        }
+        requestTask = task
+        return task
+    }
+
+    /// Ancillary inventory must not delay status reads. Apply its result to
+    /// the current projection, never to a status captured before its await.
+    @discardableResult
+    func invalidateSupplement(identity: Identity, read: @escaping Supplement) -> Task<Void, Never>? {
+        guard active, self.identity == identity else { return nil }
+        if let supplementTask {
+            invalidatedSupplement = read
+            return supplementTask
+        }
+        let current = generation
+        supplementFailure = nil; publishFailure()
+        let task = Task { [weak self] in
+            var nextRead: Supplement? = read
+            while let currentRead = nextRead {
+                guard !Task.isCancelled, self?.accepts(identity, generation: current) == true else { return }
+                self?.supplementFailure = nil; self?.publishFailure()
+                do {
+                    let merge = try await currentRead()
+                    guard !Task.isCancelled, let self, self.accepts(identity, generation: current) else { return }
+                    if let value = self.value { self.value = merge(value) }
+                } catch is CancellationError { } catch {
+                    guard !Task.isCancelled, let self, self.accepts(identity, generation: current) else { return }
+                    self.supplementFailure = error.localizedDescription; self.publishFailure()
+                }
+                guard !Task.isCancelled, let self, self.accepts(identity, generation: current) else { return }
+                nextRead = self.invalidatedSupplement
+                self.invalidatedSupplement = nil
+            }
+            guard let self, self.accepts(identity, generation: current) else { return }
+            self.supplementTask = nil
+        }
+        supplementTask = task
+        return task
+    }
+
+    private func publishFailure() { failure = readFailure ?? supplementFailure }
+
+    func retire() {
+        active = false
+        cancelRead()
+    }
+
+    private func accepts(_ identity: Identity, generation: UUID) -> Bool {
+        active && self.identity == identity && self.generation == generation
+    }
+
+    private func cancelRead() {
+        generation = UUID()
+        requestTask?.cancel()
+        requestTask = nil
+        invalidatedRead = nil
+        invalidatedReadPriority = Int.min
+        supplementTask?.cancel()
+        supplementTask = nil
+        invalidatedSupplement = nil
+        loading = false
+    }
+}

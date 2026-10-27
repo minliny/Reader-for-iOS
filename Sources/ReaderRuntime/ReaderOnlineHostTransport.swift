@@ -16,6 +16,7 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
     private let httpRunner: HTTPRunner?
     private let webOwnerID = UUID()
     private var bindings: [UInt64: String] = [:]
+    private var requestTraces: [UInt64: ReaderSearchTraceBinding] = [:]
     private var jobs: [UInt64: [UUID: ReaderHTTPJob]] = [:]
     private var cookieOperations: [UInt64: [UUID: ReaderSourceCookieOperation]] = [:]
     private var cancelled = Set<UInt64>()
@@ -37,8 +38,10 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             }
         }
     }
-    func bind(requestID: UInt64, sourceID: String?) {
-        lock.lock(); bindings[requestID] = sourceID; lock.unlock()
+    func bind(requestID: UInt64, sourceID: String?, searchTrace: ReaderSearchTraceBinding? = nil) {
+        lock.lock(); bindings[requestID] = sourceID
+        requestTraces[requestID] = searchTrace.flatMap { $0.requestID == requestID ? $0 : nil }
+        lock.unlock()
     }
     func finish(requestID: UInt64) {
         lock.withLock { clear(requestID) }
@@ -46,14 +49,27 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
     func retireRead(requestID: UInt64) {
         lock.withLock { retiring.insert(requestID) }
         cancel(requestID: requestID)
-        lock.withLock { clearRetiredIfIdle(requestID) }
+        emitDrained(lock.withLock { clearRetiredIfIdle(requestID) })
     }
     private func clear(_ id: UInt64) {
         bindings[id] = nil; cancelled.remove(id); jobs[id] = nil; cookieOperations[id] = nil
+        requestTraces[id] = nil
         retiring.remove(id); activeHandlers[id] = nil
     }
-    private func clearRetiredIfIdle(_ id: UInt64) {
-        if retiring.contains(id), activeHandlers[id, default: 0] == 0, jobs[id]?.isEmpty ?? true { clear(id) }
+    private func workSummary(_ id: UInt64) -> ReaderSearchTraceEvent.HostWorkSummary {
+        .init(activeHandlerCount: activeHandlers[id, default: 0], jobCount: jobs[id]?.count ?? 0,
+              cookieOperationCount: cookieOperations[id]?.count ?? 0)
+    }
+    private func clearRetiredIfIdle(_ id: UInt64) -> (ReaderSearchTraceBinding, ReaderSearchTraceEvent.HostWorkSummary)? {
+        let summary = workSummary(id)
+        guard retiring.contains(id), summary.isEmpty else { return nil }
+        let trace = requestTraces[id]
+        clear(id)
+        return trace.map { ($0, summary) }
+    }
+    private func emitDrained(_ observation: (ReaderSearchTraceBinding, ReaderSearchTraceEvent.HostWorkSummary)?) {
+        guard let (trace, summary) = observation else { return }
+        trace.emit(.hostTransportDrained, hostWorkSummary: summary)
     }
     private func reservePackageRequest() -> UInt64 {
         lock.lock(); defer { lock.unlock() }
@@ -97,7 +113,10 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
         cancelled.insert(requestID)
         let active = Array(jobs[requestID]?.values ?? [:].values)
         let operations = Array(cookieOperations[requestID]?.values ?? [:].values)
+        let trace = requestTraces[requestID]
+        let summary = workSummary(requestID)
         lock.unlock()
+        trace?.emit(.hostCancellationRequested, hostWorkSummary: summary)
         // Never hold transport.lock while taking an operation lock. Commit uses
         // store -> operation -> transport, with cancellation checked at admission.
         operations.forEach { $0.cancel() }
@@ -173,10 +192,16 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
             self.lock.withLock { !self.cancelled.contains(requestID) && !self.retiring.contains(requestID) }
         }
     }
-    private func executeHTTP(parameters: [String: Any], sourceID: String, requestID: UInt64, binary: Bool = false) throws -> [String: Any] {
+    private func executeHTTP(parameters: [String: Any], sourceID: String, requestID: UInt64, binary: Bool = false,
+                             searchTrace: ReaderSearchTraceBinding? = nil) throws -> [String: Any] {
         let (identity, operation) = try beginCookieOperation(sourceID: sourceID, requestID: requestID)
-        defer { lock.withLock { cookieOperations[requestID]?[identity] = nil; jobs[requestID]?[identity] = nil } }
-        let job = try ReaderHTTPJob(params: parameters, jar: operation.jar, binary: binary)
+        defer {
+            emitDrained(lock.withLock {
+                cookieOperations[requestID]?[identity] = nil; jobs[requestID]?[identity] = nil
+                return clearRetiredIfIdle(requestID)
+            })
+        }
+        let job = try ReaderHTTPJob(params: parameters, jar: operation.jar, binary: binary, searchTrace: searchTrace)
         let stopped = lock.withLock {
             jobs[requestID, default: [:]][identity] = job
             return cancelled.contains(requestID) || retiring.contains(requestID)
@@ -210,20 +235,24 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
         }
     }
     func endHostRequest(requestID: UInt64) {
-        lock.withLock {
+        emitDrained(lock.withLock {
             activeHandlers[requestID, default: 1] -= 1
             if activeHandlers[requestID] == 0 { activeHandlers[requestID] = nil }
-            clearRetiredIfIdle(requestID)
-        }
+            return clearRetiredIfIdle(requestID)
+        })
     }
-    func handle(_ event: ReaderCoreEvent, client: ReaderCoreClient, cancellableRead: Bool) async throws {
+    func handle(_ event: ReaderCoreEvent, client: ReaderCoreClient, cancellableRead: Bool,
+                searchTrace: ReaderSearchTraceBinding? = nil) async throws {
         guard let operationID = event.operationId, let capability = event.capability else {
             throw ReaderHostFailure("INVALID_PARAMS", "Host 请求缺少身份")
         }
         let requestID = event.requestId ?? 0
+        let hostTrace = searchTrace.flatMap { $0.requestID == requestID ? $0.host(operationID: operationID, capability: capability) : nil }
         let accepted = beginHostRequest(requestID: requestID, cancellableRead: cancellableRead)
-        guard accepted else { throw URLError(.cancelled) }
-        defer { endHostRequest(requestID: requestID) }
+        guard accepted else { hostTrace?.emit(.hostOperationRejected, outcome: .cancelled); throw URLError(.cancelled) }
+        hostTrace?.emit(.hostOperationStarted)
+        var hostOutcome = ReaderSearchTraceEvent.Outcome.failed
+        defer { hostTrace?.emit(.hostOperationFinished, outcome: hostOutcome); endHostRequest(requestID: requestID) }
         let request = ReaderCoreHostRequest(operationId: operationID, capability: capability, rawParams: event.hostRequestParams ?? [:])
         do {
             let result: [String: Any]
@@ -235,7 +264,7 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
                 let evaluated: Result<[String: Any], Error>
                 do {
                     let value = try await ReaderSourceWebBridge.shared.evaluate(request.rawParams, ownerID: webOwnerID,
-                        requestID: requestID, operationID: operationID, cookies: operation.originalCookies,
+                        requestID: requestID, operationID: operationID, searchTrace: hostTrace, cookies: operation.originalCookies,
                         shouldCancel: { self.wasCancelled(requestID) }) { cookies in operation.replaceCookies(cookies) }
                     evaluated = .success(value)
                 } catch {
@@ -249,12 +278,14 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
                 let box = ReaderHostRequestBox(request: request)
                 result = try await withCheckedThrowingContinuation { continuation in
                     DispatchQueue.global(qos: .userInitiated).async {
-                        continuation.resume(with: Result { try self.performObject(box.request, requestID: requestID) })
+                        continuation.resume(with: Result { try self.performObject(box.request, requestID: requestID, searchTrace: hostTrace) })
                     }
                 }
             }
             try client.sendHostComplete(operationId: operationID, result: result)
+            hostOutcome = .succeeded
         } catch {
+            hostOutcome = .failure(error)
             let failure = error as? ReaderHostFailure
             let urlError = error as? URLError
             let policy = ReaderHTTPJob.failurePolicy(error)
@@ -263,11 +294,12 @@ final class ReaderIOSHostTransport: ReaderCoreHostTransport, @unchecked Sendable
                 message: failure?.message ?? (urlError == nil ? "来源请求未完成" : "网络请求未完成"), retryable: failure == nil && policy.retryable)
         }
     }
-    private func performObject(_ request: ReaderCoreHostRequest, requestID: UInt64) throws -> [String: Any] {
+    private func performObject(_ request: ReaderCoreHostRequest, requestID: UInt64,
+                               searchTrace: ReaderSearchTraceBinding? = nil) throws -> [String: Any] {
         let params = request.rawParams, source = key(request.rawParams, requestID: requestID)
         switch request.capability {
         case "http.execute":
-            return try executeHTTP(parameters: params, sourceID: source, requestID: requestID)
+            return try executeHTTP(parameters: params, sourceID: source, requestID: requestID, searchTrace: searchTrace)
         case "cookie.get":
             let cookies = try cookieStore.cookies(sourceID: source, for: (params["url"] as? String).flatMap(URL.init(string:)))
             return ["cookies": cookies.filter { cookie in
@@ -325,12 +357,38 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
     private var currentHop: URLRequest?
     private let limit: Int
     private let binary: Bool
-    init(params: [String: Any], jar: HTTPCookieStorage, binary: Bool = false) throws {
+    private let searchTrace: ReaderSearchTraceBinding?
+    // Observation only. URLSession may deliver metrics before or after the
+    // completion callback; retain the task identity until its session ends.
+    private struct TraceTask {
+        let session: ObjectIdentifier
+        let attempt: UInt8
+        let taskIdentifier: Int
+        var metricsSeen = false
+        var completionSeen = false
+    }
+    private var traceTasks: [ObjectIdentifier: TraceTask] = [:]
+    init(params: [String: Any], jar: HTTPCookieStorage, binary: Bool = false,
+         searchTrace: ReaderSearchTraceBinding? = nil) throws {
         self.params = params; self.jar = jar
+        self.searchTrace = searchTrace
         self.binary = binary; self.limit = (binary ? 8 : 32) * 1024 * 1024
         guard let url = (params["url"] as? String).flatMap(URL.init(string:)), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { throw ReaderHostFailure("INVALID_PARAMS", "仅支持 HTTP/HTTPS 来源地址") }
     }
-    func cancel() { lock.lock(); stopped = true; let active = task; lock.unlock(); active?.cancel(); cancellationSignal.signal() }
+    func cancel() {
+        lock.lock(); stopped = true; let active = task; lock.unlock()
+        if let active { cancelTask(active, outcome: .cancelled) }
+        cancellationSignal.signal()
+    }
+    private func cancelTask(_ active: URLSessionTask, outcome: ReaderSearchTraceEvent.Outcome) {
+        let attempt = lock.withLock { traceTasks[ObjectIdentifier(active)]?.attempt }
+        searchTrace?.emit(.httpTaskCancelAttempted, outcome: outcome,
+                          transportAttempt: attempt, taskIdentifier: active.taskIdentifier)
+        active.cancel()
+        // This is return from cancel(), not URLSession completion or drain.
+        searchTrace?.emit(.httpTaskCancelReturned, outcome: .succeeded,
+                          transportAttempt: attempt, taskIdentifier: active.taskIdentifier)
+    }
     func run() throws -> [String: Any] {
         let timeout = max(0.1, min(Double(params["timeoutMs"] as? Int ?? 30000) / 1000, 300))
         let deadline = Date().addingTimeInterval(timeout)
@@ -386,10 +444,21 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
             config.timeoutIntervalForResource = max(0.1, deadline.timeIntervalSinceNow)
             let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
             let active = session.dataTask(with: request)
-            lock.lock(); task = active; let stop = stopped; lock.unlock()
-            if stop { active.cancel() } else { active.resume() }
+            lock.lock(); task = active; let stop = stopped
+            if searchTrace != nil {
+                traceTasks[ObjectIdentifier(active)] = TraceTask(session: ObjectIdentifier(session),
+                    attempt: UInt8(attempt), taskIdentifier: active.taskIdentifier)
+            }
+            lock.unlock()
+            if stop { cancelTask(active, outcome: .cancelled) }
+            else {
+                // Completion may arrive before resume() returns. Record the
+                // attempt first; only the same task's completion closes it.
+                searchTrace?.emit(.httpTaskResumeAttempted, transportAttempt: UInt8(attempt), taskIdentifier: active.taskIdentifier)
+                active.resume()
+            }
             if done.wait(timeout: .now() + max(0, deadline.timeIntervalSinceNow)) == .timedOut {
-                active.cancel(); session.invalidateAndCancel(); throw URLError(.timedOut)
+                cancelTask(active, outcome: .timedOut); session.invalidateAndCancel(); throw URLError(.timedOut)
             }
             session.finishTasksAndInvalidate()
             if let error = failure {
@@ -449,10 +518,64 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
         self.response = http; completionHandler(.allow)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard bytes.count <= limit - data.count else { failure = ReaderHostFailure("RESOURCE_EXHAUSTED", "来源响应超过大小限制"); dataTask.cancel(); return }
+        guard bytes.count <= limit - data.count else { failure = ReaderHostFailure("RESOURCE_EXHAUSTED", "来源响应超过大小限制"); cancelTask(dataTask, outcome: .failed); return }
         bytes.append(data)
     }
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) { if failure == nil { failure = error }; done.signal() }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if failure == nil { failure = error }
+        let attempt: UInt8? = lock.withLock {
+            let key = ObjectIdentifier(task)
+            guard var trace = traceTasks[key] else { return nil }
+            trace.completionSeen = true; traceTasks[key] = trace
+            return trace.attempt
+        }
+        searchTrace?.emit(.httpTaskCompleted, outcome: failure.map { .failure($0) } ?? .succeeded,
+            transportAttempt: attempt, taskIdentifier: task.taskIdentifier, count: bytes.count,
+            httpStatus: (task.response as? HTTPURLResponse)?.statusCode)
+        done.signal()
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+        let attempt: UInt8? = lock.withLock {
+            let key = ObjectIdentifier(task)
+            guard var trace = traceTasks[key] else { return nil }
+            trace.metricsSeen = true; traceTasks[key] = trace
+            return trace.attempt
+        }
+        guard searchTrace != nil else { return }
+        var network = 0, cache = 0, push = 0, unknown = 0
+        for transaction in metrics.transactionMetrics {
+            switch transaction.resourceFetchType {
+            case .networkLoad: network += 1
+            case .localCache: cache += 1
+            case .serverPush: push += 1
+            default: unknown += 1
+            }
+        }
+        searchTrace?.emit(.httpTaskMetricsCollected, transportAttempt: attempt,
+            taskIdentifier: task.taskIdentifier,
+            httpFetchSummary: .init(transactionCount: metrics.transactionMetrics.count,
+                networkLoadCount: network, localCacheCount: cache,
+                serverPushCount: push, unknownCount: unknown))
+    }
+    func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
+        let ended: [TraceTask] = lock.withLock {
+            let sessionID = ObjectIdentifier(session)
+            let values = traceTasks.values.filter { $0.session == sessionID }
+            traceTasks = traceTasks.filter { $0.value.session != sessionID }
+            return values
+        }
+        for trace in ended {
+            if !trace.metricsSeen {
+                searchTrace?.emit(.httpTaskMetricsUnavailable, transportAttempt: trace.attempt,
+                    taskIdentifier: trace.taskIdentifier)
+            }
+            // This callback is independent of Host method return. A job can
+            // leave its worker after timeout while URLSession is still ending.
+            searchTrace?.emit(.httpSessionInvalidated, outcome: error.map { .failure($0) } ?? .succeeded,
+                transportAttempt: trace.attempt, taskIdentifier: trace.taskIdentifier,
+                count: trace.completionSeen ? 1 : 0)
+        }
+    }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         guard ReaderCoreHttpPolicy.allowNextRedirect(followRedirects: params["followRedirects"] as? Bool ?? true, maxRedirects: min(params["maxRedirects"] as? Int ?? 10, 20), observedHops: redirects.count), let from = response.url, let to = request.url, ["http", "https"].contains(to.scheme?.lowercased() ?? "") else { completionHandler(nil); return }
         let sameOrigin = from.scheme == to.scheme && from.host == to.host && from.port == to.port
@@ -480,6 +603,7 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
         let params: [String: Any]
         let timer: Task<Void, Never>
         let cookieSink: ([HTTPCookie]) -> Void
+        let searchTrace: ReaderSearchTraceBinding?
         var navigationGeneration: UInt64 = 0
         var evaluation: Task<Void, Never>?
     }
@@ -489,7 +613,9 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
             finish(id, .failure(URLError(.cancelled)))
         }
     }
-    func evaluate(_ params: [String: Any], ownerID: UUID, requestID: UInt64, operationID: UInt64? = nil, cookies: [HTTPCookie], shouldCancel: @escaping () -> Bool = { Task.isCancelled }, cookieSink: @escaping ([HTTPCookie]) -> Void = { _ in }) async throws -> [String: Any] {
+    func evaluate(_ params: [String: Any], ownerID: UUID, requestID: UInt64, operationID: UInt64? = nil,
+                  searchTrace: ReaderSearchTraceBinding? = nil, cookies: [HTTPCookie],
+                  shouldCancel: @escaping () -> Bool = { Task.isCancelled }, cookieSink: @escaping ([HTTPCookie]) -> Void = { _ in }) async throws -> [String: Any] {
         let id = RunKey(ownerID: ownerID, operationID: operationID ?? requestID)
         guard !shouldCancel() else { throw URLError(.cancelled) }
         guard runs[id] == nil else { throw ReaderHostFailure("BUSY", "网页来源操作正在进行") }
@@ -512,7 +638,8 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
             let timer = Task { try? await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000); if !Task.isCancelled { self.finish(id, .failure(URLError(.timedOut))) } }
             // Register before the first cookie await so cancellation can always
             // find its exact Host operation, including parallel child requests.
-            runs[id] = Run(parentID: requestID, view: view, continuation: continuation, params: params, timer: timer, cookieSink: cookieSink)
+            runs[id] = Run(parentID: requestID, view: view, continuation: continuation, params: params, timer: timer, cookieSink: cookieSink, searchTrace: searchTrace)
+            searchTrace?.emit(.webViewRunStarted)
             view.navigationDelegate = self
             Task { @MainActor in
                 for cookie in cookies {
@@ -536,9 +663,11 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
         runs[id]?.evaluation?.cancel()
         runs[id]?.evaluation = nil
         runs[id]?.navigationGeneration += 1
+        runs[id]?.searchTrace?.emit(.webViewNavigationStarted, navigationGeneration: runs[id]?.navigationGeneration)
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard let (id, run) = runs.first(where: { $0.value.view === webView }) else { return }
+        run.searchTrace?.emit(.webViewNavigationFinished, navigationGeneration: run.navigationGeneration)
         runs[id]?.evaluation?.cancel()
         let generation = run.navigationGeneration
         let evaluation = Task { @MainActor in
@@ -577,6 +706,12 @@ private final class ReaderHTTPJob: NSObject, URLSessionDataDelegate, @unchecked 
     }
     private func finish(_ id: RunKey, _ result: Result<[String: Any], Error>) {
         guard let run = runs.removeValue(forKey: id) else { return }
+        let outcome: ReaderSearchTraceEvent.Outcome
+        switch result {
+        case .success: outcome = .succeeded
+        case .failure(let error): outcome = .failure(error)
+        }
+        run.searchTrace?.emit(.webViewRunCompleted, outcome: outcome, navigationGeneration: run.navigationGeneration)
         run.timer.cancel(); run.evaluation?.cancel(); run.view.navigationDelegate = nil; run.view.stopLoading()
         run.view.configuration.userContentController.removeScriptMessageHandler(forName: "readerSourceResource", contentWorld: .defaultClient)
         let commitCookies = Self.shouldCommitCookies(for: result)

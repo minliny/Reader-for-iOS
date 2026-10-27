@@ -2,9 +2,104 @@ import CryptoKit
 import Foundation
 import XCTest
 @testable import Reader
+#if canImport(ReaderRuntime)
+@testable import ReaderRuntime
+#endif
 
 @MainActor
 final class ReaderShelfProjectionTests: XCTestCase {
+    /// Actual Core/service metadata CRUD in a private store. These rows have
+    /// no body and establish filter semantics, not real-novel acceptance.
+    func testShelfGroupOptionsRetainActualLabelsAcrossDefinitionCRUDWithoutInventingGroups() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderShelfGroupOptions-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+                                               sourceURL: root.appendingPathComponent("Sources"))
+        do {
+            func seed(_ id: String, group: String? = nil) async throws -> ReaderBook {
+                let operation = UUID().uuidString
+                var params: [String: Any] = ["sourceId": "shelf-group-options", "bookId": id,
+                    "title": "Owned metadata " + id, "author": ""]
+                if let group { params["group"] = group }
+                _ = try await service.coreMutation("bookshelf.add", params, operationID: operation, scope: "shelf-options-setup")
+                try await service.finishCoreOperation(operation)
+                let stored = try await service.bookDetails(for:
+                    ReaderBook(sourceId: "shelf-group-options", bookId: id, title: "Owned metadata " + id))
+                return try XCTUnwrap(stored)
+            }
+            let first = try await seed("first")
+            _ = try await seed("z", group: "z-tag")
+            _ = try await seed("a", group: "a-tag")
+            let ungrouped = try await seed("ungrouped")
+            let original = try await service.createGroup(name: "original-label", operationID: UUID().uuidString)
+            _ = try await service.assignGroup(original, to: first, operationID: UUID().uuidString)
+            let model = ReaderApplicationModel(service: service, readingTimeStorageURL: root.appendingPathComponent("ReadingTime/ledger.json"))
+            let presentation = ReaderShelfPresentation()
+            func refresh() async {
+                await model.reloadLibrary()
+                await presentation.reload(model: model, keyword: "")
+            }
+            await refresh()
+            XCTAssertNil(presentation.group)
+            XCTAssertEqual(presentation.groupNameOptions(model: model), ["original-label", "a-tag", "z-tag"])
+            presentation.group = original.groupName
+            await presentation.reload(model: model, keyword: "")
+            XCTAssertEqual(presentation.books(for: presentation.key(model: model, keyword: ""))?.map(\.id), [first.id])
+            XCTAssertEqual(presentation.groupNameOptions(model: model), ["original-label", "a-tag", "z-tag"],
+                           "A filtered subset cannot hide other confirmed shelf labels")
+
+            var renamed = original
+            renamed.groupName = "renamed-definition"
+            _ = try await service.updateGroup(renamed, operationID: UUID().uuidString)
+            await refresh()
+            XCTAssertEqual(presentation.groups, [renamed])
+            XCTAssertEqual(presentation.group, "original-label")
+            XCTAssertEqual(presentation.groupNameOptions(model: model), ["renamed-definition", "a-tag", "original-label", "z-tag"])
+            let retained = try await service.bookDetails(for: first)
+            XCTAssertEqual(retained?.group, "original-label", "Group CRUD must preserve the existing free-label contract")
+            let renamedMembers = try await service.listBooks(query: .init(sourceId: nil, group: renamed.groupName))
+            XCTAssertTrue(renamedMembers.isEmpty)
+            XCTAssertEqual(presentation.books(for: presentation.key(model: model, keyword: ""))?.map(\.id), [first.id])
+
+            try await service.deleteGroup(renamed, operationID: UUID().uuidString)
+            await refresh()
+            XCTAssertTrue(presentation.groups.isEmpty)
+            XCTAssertEqual(presentation.group, "original-label")
+            XCTAssertEqual(presentation.groupNameOptions(model: model), ["a-tag", "original-label", "z-tag"])
+            XCTAssertEqual(presentation.books(for: presentation.key(model: model, keyword: ""))?.map(\.id), [first.id])
+
+            let definedSecond = try await service.createGroup(name: "defined-2", operationID: UUID().uuidString)
+            let definedFirst = try await service.createGroup(name: "defined-1", operationID: UUID().uuidString)
+            let duplicate = try await service.createGroup(name: "defined-2", operationID: UUID().uuidString)
+            let blank = try await service.createGroup(name: "  \n", operationID: UUID().uuidString)
+            await refresh()
+            XCTAssertEqual(presentation.groups, [definedSecond, definedFirst, duplicate, blank],
+                           "Filter deduplication must not merge or invent actual group entities")
+            XCTAssertEqual(presentation.groupNameOptions(model: model), ["defined-2", "defined-1", "a-tag", "original-label", "z-tag"])
+            presentation.group = "selected-no-row"
+            await presentation.reload(model: model, keyword: "")
+            XCTAssertTrue(try XCTUnwrap(presentation.books(for: presentation.key(model: model, keyword: ""))).isEmpty)
+            XCTAssertEqual(presentation.group, "selected-no-row")
+            XCTAssertEqual(presentation.groupNameOptions(model: model),
+                           ["defined-2", "defined-1", "a-tag", "original-label", "selected-no-row", "z-tag"])
+            presentation.group = ""
+            await presentation.reload(model: model, keyword: "")
+            XCTAssertEqual(presentation.group, "")
+            XCTAssertEqual(presentation.books(for: presentation.key(model: model, keyword: ""))?.map(\.id), [ungrouped.id])
+            XCTAssertEqual(presentation.groupNameOptions(model: model), ["defined-2", "defined-1", "a-tag", "original-label", "z-tag"])
+            presentation.group = nil
+            await presentation.reload(model: model, keyword: "")
+            XCTAssertNil(presentation.group)
+            XCTAssertEqual(presentation.books(for: presentation.key(model: model, keyword: ""))?.count, 4)
+            let finalGroups = try await service.groups()
+            XCTAssertEqual(finalGroups, [definedSecond, definedFirst, duplicate, blank])
+            try await service.close()
+        } catch {
+            try? await service.close()
+            throw error
+        }
+    }
+
     /// Both inputs are the user's byte-identical provisioned originals. The
     /// normal Reader service owns this test's temporary Core store; there is
     /// no mock response, generated novel or alternative shelf business store.

@@ -70,7 +70,11 @@ struct ReaderReadingView: View {
         "\(session.book.id)|\(session.content.chapterIndex)|\(session.content.bodyVersion ?? "")|\(session.content.processingVersion ?? "")"
     }
     private var originalFormat: Bool { localKind?.kind == .ebook }
-    private var automaticPageAvailable: Bool { session.book.sourceId != "local" || localKind != nil && localKind?.reimportRequired == false || !(model.libraryService is any ReaderLibraryFeatures) }
+    private var automaticPageAvailable: Bool {
+        guard model.selection == nil else { return false }
+        return session.book.sourceId != "local" || localKind != nil && localKind?.reimportRequired == false
+            || !(model.libraryService is any ReaderLibraryFeatures)
+    }
     private var fraction: Double {
         session.content.scalarCount == 0 ? 0 : Double(session.scalarOffset) / Double(session.content.scalarCount)
     }
@@ -386,8 +390,8 @@ struct ReaderReadingView: View {
                     }.scrollIndicators(.hidden)
                 }
                 else if module == .search { ReaderContentSearchPanel(model: model, state: textTools, book: session.book) }
-                else if module == .notes { ReaderAnnotationsPanel(model: model, state: textTools, book: session.book) }
-                else if module == .rules { ReaderRuleToolsPanel(model: model, state: rules, book: session.book) }
+                else if module == .notes { ReaderAnnotationsPanel(model: model, state: textTools, book: session.book, presentationActive: controlsVisible) }
+                else if module == .rules { ReaderRuleToolsPanel(model: model, state: rules, book: session.book, presentationActive: controlsVisible) }
                 else if module == .records { ReaderReadingRecordPanel(model: model) }
                 else if module == .autoPage {
                     ReaderAutoPagePanel(owner: automaticPage, preferences: preferences, progress: p, available: automaticPageAvailable,

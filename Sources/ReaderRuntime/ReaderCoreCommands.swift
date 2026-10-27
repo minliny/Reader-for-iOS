@@ -69,7 +69,12 @@ extension ReaderLibraryService {
             return try await reconcileCoreCommand(operationID: operationID)
         }
         // This scope remains occupied across suspension and process restart.
-        guard try commandRecords().allSatisfy({ $0.completed || $0.scope != scope }) else { throw ReaderLibraryError.operationPending(scope) }
+        for pending in try commandRecords() where !pending.completed && pending.scope == scope {
+            guard try verifiedContinuedAdmissionReleases(pending) else { throw ReaderLibraryError.operationPending(scope) }
+        }
+        if method == "bookshelf.add" {
+            try requireOnlineAdmissionDispatchOwner(operationID: operationID, parameters: encoded, scope: scope)
+        }
         try Task.checkCancellation()
         var record = ReaderHostCommand(id: operationID, method: method, scope: scope, parameters: encoded, result: nil)
         try storeCommand(record)
@@ -131,17 +136,7 @@ extension ReaderLibraryService {
         guard !operationID.isEmpty else { throw ReaderLibraryError.invalidResponse("feature recovery identity") }
         if let result = try await resumeLocalReprocessOperation(operationID) { return result }
         if let admissionID = try onlineAdmissionOwnerID(forCoreOperationID: operationID) {
-            do {
-                _ = try await resumeOnlineAdmission(admissionID)
-                return .init(operationID: admissionID, status: .completed)
-            } catch {
-                if let rejection = try onlineAdmissionRejection(admissionID) {
-                    return .init(operationID: admissionID, status: .rejected, message: rejection.localizedDescription)
-                }
-                // This owner also observes canonical content and the shelf.
-                // A failed read cannot classify either original Core write.
-                return .init(operationID: admissionID, status: .pending, message: error.localizedDescription)
-            }
+            return try await reconcileOnlineAdmission(admissionID)
         }
         let records = try commandRecords()
         guard let selected = records.first(where: { $0.id == operationID }) else {
@@ -176,6 +171,12 @@ extension ReaderLibraryService {
             if let current = try commandRecord(original.id), current.completed,
                let data = current.result, let receipt = try? object(data), receipt["outcome"] as? String == "rejected" {
                 return .init(operationID: operationID, status: .rejected, message: error.localizedDescription)
+            }
+            if error is ReaderLegacyDownloadResumeNeedsNewIntent,
+               original.method == "cache.download.resume",
+               let current = try commandRecord(original.id), current.completed, current.result != nil,
+               try existingCoreParameters(operationID: original.id + ":acquire", method: "cache.book.prefetch") == nil {
+                return .init(operationID: operationID, status: .completed, message: error.localizedDescription)
             }
             return .init(operationID: operationID, status: .pending, message: error.localizedDescription)
         }
@@ -349,6 +350,76 @@ extension ReaderLibraryService {
         return try object(record.parameters)
     }
 
+    /// Continuation is allowed only after the old runtime/request owner is gone.
+    /// Neither this read nor continuation changes the old command journal.
+    func coldUnknownCoreParameters(operationID: String, method: String, scope: String) throws -> Data {
+        guard let record = try commandRecord(operationID), record.method == method, record.scope == scope,
+              !record.completed, record.result == nil, record.failure == nil,
+              !unresolvedWrites.values.contains(where: { $0.owner == .command(operationID) }) else {
+            throw ReaderLibraryError.operationPending(operationID)
+        }
+        return record.parameters
+    }
+
+    func completedCoreCommand(operationID: String, method: String, scope: String) throws -> (parameters: Data, result: Data) {
+        guard let record = try commandRecord(operationID), record.method == method, record.scope == scope,
+              record.completed, record.failure == nil, let result = record.result,
+              !unresolvedWrites.values.contains(where: { $0.owner == .command(operationID) }) else {
+            throw ReaderLibraryError.operationPending(operationID)
+        }
+        return (record.parameters, result)
+    }
+
+    /// A retained successful ACK may precede the separate Host completed write.
+    /// This read never sends or finishes the recorded command.
+    func acknowledgedCoreCommand(operationID: String, method: String, scope: String) throws -> (parameters: Data, result: Data) {
+        guard let record = try commandRecord(operationID), record.method == method, record.scope == scope,
+              record.failure == nil, let result = record.result,
+              !unresolvedWrites.values.contains(where: { $0.owner == .command(operationID) }) else {
+            throw ReaderLibraryError.operationPending(operationID)
+        }
+        return (record.parameters, result)
+    }
+
+    func definiteCoreCommandRejection(operationID: String, method: String, scope: String) throws -> ReaderLibraryError? {
+        guard let record = try commandRecord(operationID) else { return nil }
+        guard record.method == method, record.scope == scope else {
+            throw ReaderLibraryError.invalidResponse("rejected command identity")
+        }
+        guard record.completed, record.result == nil, let failure = record.failure,
+              !unresolvedWrites.values.contains(where: { $0.owner == .command(operationID) }) else { return nil }
+        return failure.error
+    }
+
+    func recordedCoreCommandParameters(operationID: String, method: String, scope: String) throws -> Data? {
+        guard let record = try commandRecord(operationID) else { return nil }
+        guard record.method == method, record.scope == scope else { throw ReaderLibraryError.invalidResponse("continuation command identity") }
+        return record.parameters
+    }
+
+    func hasOtherUnfinishedShelfAdd(sourceID: String, bookID: String, excluding: Set<String>) throws -> Bool {
+        try commandRecords().contains { record in
+            guard !record.completed, record.method == "bookshelf.add", !excluding.contains(record.id) else { return false }
+            let parameters = try object(record.parameters)
+            return parameters["sourceId"] as? String == sourceID && parameters["bookId"] as? String == bookID
+        }
+    }
+
+    private func verifiedContinuedAdmissionReleases(_ original: ReaderHostCommand) throws -> Bool {
+        guard original.method == "bookshelf.add", original.result == nil, original.failure == nil,
+              !unresolvedWrites.values.contains(where: { $0.owner == .command(original.id) }),
+              let childID = try completedAdmissionContinuation(originalID: original.id, parameters: original.parameters, scope: original.scope),
+              let child = try commandRecord(childID), child.method == "bookshelf.add", child.completed,
+              child.failure == nil, child.parameters == original.parameters,
+              child.scope == "online-admission-continuation:" + original.id,
+              let data = child.result else { return false }
+        let params = try object(original.parameters), receipt = try object(data)
+        let noOther = try !hasOtherUnfinishedShelfAdd(sourceID: params["sourceId"] as? String ?? "",
+            bookID: params["bookId"] as? String ?? "", excluding: [original.id])
+        return receipt["created"] as? Bool == true && receipt["sourceId"] as? String == params["sourceId"] as? String &&
+            receipt["bookId"] as? String == params["bookId"] as? String && noOther
+    }
+
     /// Core finite lineages require UUID/sequence. Host UI operation IDs stay
     /// unchanged in the journal; the complete Core tuple is frozen before send.
     func coreLineageID(_ operationID: String, sequence: UInt64) -> String {
@@ -470,7 +541,7 @@ extension ReaderLibraryService {
 
     /// All rule/source collection writes share Core's finite lineage. Calling
     /// a legacy collection writer after this lineage opens is not permitted.
-    func rulesMutation(_ method: String, _ parameters: [String: Any], operationID: String) async throws -> Data {
+    func rulesMutation(_ method: String, _ parameters: [String: Any], operationID: String, nextSequence: UInt64? = nil) async throws -> Data {
         let wrapper = "rules.mutation.apply"
         let mutation: [String: Any] = ["method": method, "params": parameters]
         let expected = try JSONSerialization.data(withJSONObject: mutation, options: [.sortedKeys])
@@ -482,10 +553,19 @@ extension ReaderLibraryService {
                 throw ReaderLibraryError.invalidResponse("rules operation identity")
             }
         } else {
-            let head = try object(await coreRead("rules.mutation.query", [:]))["head"] as? [String: Any]
-            let sequence = (head?["sequence"] as? NSNumber)?.uint64Value ?? 0
-            guard sequence < 9_007_199_254_740_991 else { throw ReaderLibraryError.invalidResponse("rules sequence exhausted") }
-            original = ["operationId": coreLineageID(operationID, sequence: sequence + 1), "sequence": sequence + 1, "mutation": mutation]
+            let sequence: UInt64
+            if let nextSequence {
+                // A caller that checked a row must keep that exact lineage;
+                // reading a newer head here would admit its stale snapshot.
+                guard nextSequence > 0, nextSequence <= 9_007_199_254_740_991 else { throw ReaderLibraryError.invalidResponse("rules sequence exhausted") }
+                sequence = nextSequence
+            } else {
+                let head = try object(await coreRead("rules.mutation.query", [:]))["head"] as? [String: Any]
+                let previous = (head?["sequence"] as? NSNumber)?.uint64Value ?? 0
+                guard previous < 9_007_199_254_740_991 else { throw ReaderLibraryError.invalidResponse("rules sequence exhausted") }
+                sequence = previous + 1
+            }
+            original = ["operationId": coreLineageID(operationID, sequence: sequence), "sequence": sequence, "mutation": mutation]
         }
         let response = try object(await coreMutation(wrapper, original, operationID: operationID, scope: "rules-mutation", timeout: 120))
         guard response["method"] as? String == method,

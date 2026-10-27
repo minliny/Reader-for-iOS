@@ -2,8 +2,8 @@ import Foundation
 import Combine
 
 /// Projects the Runtime's durable original-operation journal. This use case
-/// invokes only its registered typed recovery lane; it neither reconstructs
-/// command payloads nor finishes Core receipts from UI observations.
+/// invokes its registered recovery lane, or the user's explicit admission
+/// continuation; it never reconstructs payloads or confirms ACKs from UI reads.
 @MainActor
 final class ReaderFeatureRecoveryOwner: ObservableObject {
     @Published private(set) var operations: [ReaderPendingCoreCommand] = []
@@ -33,12 +33,21 @@ final class ReaderFeatureRecoveryOwner: ObservableObject {
         }
     }
     func resume(_ operationID: String) async -> ReaderFeatureRecoveryResult? {
+        await recover(operationID, continuingAdmission: false)
+    }
+    func continueAdmission(_ operationID: String) async -> ReaderFeatureRecoveryResult? {
+        guard operations.contains(where: { $0.id == operationID && $0.method == "online.admission" }) else { return nil }
+        return await recover(operationID, continuingAdmission: true)
+    }
+    private func recover(_ operationID: String, continuingAdmission: Bool) async -> ReaderFeatureRecoveryResult? {
         guard busyID == nil, operations.contains(where: { $0.id == operationID }),
               let feature = service as? any ReaderLibraryFeatures else { return nil }
         busyID = operationID
         defer { busyID = nil }
         do {
-            let result = try await feature.resumePendingFeatureOperation(operationID)
+            let result: ReaderFeatureRecoveryResult
+            if continuingAdmission { result = try await feature.continuePendingOnlineAdmission(operationID) }
+            else { result = try await feature.resumePendingFeatureOperation(operationID) }
             guard result.operationID == operationID else { throw ReaderLibraryError.invalidResponse("recovery identity") }
             lastResult = result
             details[operationID] = result.message
@@ -54,6 +63,7 @@ final class ReaderFeatureRecoveryOwner: ObservableObject {
     }
     func label(for operation: ReaderPendingCoreCommand) -> String {
         switch operation.method {
+        case "online.admission": return "在线书籍入库"
         case "source.switch.commit": return "切换书源"
         case "bookshelf.removeBatch": return "移出书架"
         case "bookshelf.group.assign": return "保存书籍分组"

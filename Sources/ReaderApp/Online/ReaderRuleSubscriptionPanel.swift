@@ -11,6 +11,7 @@ struct ReaderSubscriptionDraft: Codable, Equatable {
     var order = "0"
     var autoUpdate = false
     var update: Int64 = 0
+    var baseline: ReaderSubscriptionBaseline?
 
     init() {}
     init(_ subscription: ReaderSourceSubscription) {
@@ -18,6 +19,7 @@ struct ReaderSubscriptionDraft: Codable, Equatable {
         id = subscription.id; name = subscription.name; url = subscription.url
         type = subscription.type; order = String(subscription.customOrder)
         autoUpdate = subscription.autoUpdate; update = subscription.update
+        baseline = .existing(subscription)
     }
 
     func subscription() throws -> ReaderSourceSubscription {
@@ -37,6 +39,30 @@ struct ReaderSubscriptionDraft: Codable, Equatable {
     }
 }
 
+/// Keep editor identity across a cold recovery without changing the existing
+/// draft format. A partial/missing companion record is conservatively unknown.
+private struct ReaderSubscriptionDraftIdentity: Codable {
+    let revision: UUID
+    let draft: ReaderSubscriptionDraft
+}
+
+/// The identity also travels in the original flat draft JSON. A companion key
+/// whose deletion/write failed cannot bind an edited draft that returned to A.
+/// Older draft decoders ignore this private field; its absence is unowned.
+private struct ReaderSubscriptionDraftInlineIdentity: Decodable {
+    let revision: UUID?
+    enum CodingKeys: String, CodingKey { case revision = "_readerDraftRevision" }
+}
+
+/// A read-only comparison, never an accepted save. Both the presentation and
+/// every draft edit must still match when the user confirms this snapshot.
+struct ReaderSubscriptionDraftReview: Identifiable, Equatable {
+    let id: UUID
+    let draftRevision: UUID
+    let draft: ReaderSubscriptionDraft
+    let current: ReaderSourceSubscription?
+}
+
 enum ReaderSubscriptionMutation: Codable {
     case save(ReaderSourceSubscription)
     case delete(ReaderSourceSubscription)
@@ -54,7 +80,17 @@ struct ReaderSubscriptionIntent: Codable {
     let operationID: String
     let label: String
     let mutation: ReaderSubscriptionMutation
+    let saveBaseline: ReaderSubscriptionBaseline?
+    let saveDraft: ReaderSubscriptionDraft?
+    let saveDraftRevision: UUID?
     var scope: String { "rule-subscriptions/\(mutation.subscriptionID)" }
+
+    init(operationID: String, label: String, mutation: ReaderSubscriptionMutation, saveBaseline: ReaderSubscriptionBaseline? = nil,
+         saveDraft: ReaderSubscriptionDraft? = nil, saveDraftRevision: UUID? = nil) {
+        self.operationID = operationID; self.label = label; self.mutation = mutation; self.saveBaseline = saveBaseline
+        self.saveDraft = saveDraft
+        self.saveDraftRevision = saveDraftRevision
+    }
 }
 
 private enum ReaderSubscriptionPanelError: LocalizedError {
@@ -87,13 +123,29 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     @Published private(set) var appliedPlan: ReaderSubscriptionPlan?
     @Published private(set) var pendingIntent: ReaderSubscriptionIntent?
     @Published private(set) var journalFailure: String?
-    @Published var editorPresented = false
+    @Published var editorPresented = false {
+        didSet { if oldValue != editorPresented { invalidateDraftReview() } }
+    }
     @Published var draftFailure: String?
+    @Published private(set) var draftReview: ReaderSubscriptionDraftReview?
+    @Published private(set) var reviewingDraft = false
+    @Published private(set) var draftReviewFailure: String?
     @Published var draft: ReaderSubscriptionDraft {
         didSet {
+            draftRevision = UUID()
+            invalidateDraftReview()
             draftFailure = nil
-            if !draft.isPresent { defaults.removeObject(forKey: Self.draftKey) }
-            else if let data = try? JSONEncoder().encode(draft) { defaults.set(data, forKey: Self.draftKey) }
+            // Invalidate the old identity before either write. A missing or
+            // failed companion write must not make an edited A -> B -> A draft
+            // look like the first accepted save after a cold recovery.
+            defaults.removeObject(forKey: Self.draftIdentityKey)
+            if !draft.isPresent {
+                defaults.removeObject(forKey: Self.draftKey)
+            } else if let data = try? Self.encodeDraft(draft, revision: draftRevision) {
+                defaults.set(data, forKey: Self.draftKey)
+                let identity = ReaderSubscriptionDraftIdentity(revision: draftRevision, draft: draft)
+                if let record = try? JSONEncoder().encode(identity) { defaults.set(record, forKey: Self.draftIdentityKey) }
+            }
         }
     }
 
@@ -101,28 +153,59 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     private let service: any ReaderRuleSubscriptionServing
     private let defaults: UserDefaults
     private static let draftKey = "reader.ruleSubscriptions.draft.v1"
+    private static let draftIdentityKey = "reader.ruleSubscriptions.draftIdentity.v1"
     private static let intentKey = "reader.ruleSubscriptions.intent.v1"
     private var active = false
     private var readGeneration = UUID()
     private var checkGeneration = UUID()
     private var readTask: Task<Void, Never>?
     private var checkTask: Task<Void, Never>?
+    private var draftRevision = UUID()
+    private var draftReviewGeneration = UUID()
+    private var draftReviewTask: Task<Void, Never>?
+    private var draftReviewInvalidatedByAction = false
     private var actionObservation: AnyCancellable?
     private var ownerOperationID: String?
 
     var canMutate: Bool { !actions.hasPending && !actions.busy && pendingIntent == nil && journalFailure == nil }
     var canCheckPreview: Bool { active && foreground && canMutate }
     var canApplyPreview: Bool { canCheckPreview && previewInvalidation == nil }
+    var supportsDraftReview: Bool { draft.isPresent && draft.baseline != .absent }
+    var canReviewDraft: Bool { active && foreground && editorPresented && supportsDraftReview && canMutate && !reviewingDraft }
     var statusScope: String { actions.scope ?? "rule-subscriptions" }
     var safeChanges: [ReaderSubscriptionChange] { plan?.changes.filter(\.safeToApply) ?? [] }
     var planExpired: Bool { plan.map { $0.expiresAt <= Self.now } ?? false }
     private static var now: Int64 { Int64(Date().timeIntervalSince1970 * 1_000) }
+    private static func encodeDraft(_ draft: ReaderSubscriptionDraft, revision: UUID) throws -> Data {
+        let encoded = try JSONEncoder().encode(draft)
+        guard var object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
+            throw ReaderSubscriptionPanelError.intentNotSaved
+        }
+        object[ReaderSubscriptionDraftInlineIdentity.CodingKeys.revision.rawValue] = revision.uuidString
+        return try JSONSerialization.data(withJSONObject: object)
+    }
+    private var persistedDraftRevision: UUID? {
+        guard let data = defaults.data(forKey: Self.draftIdentityKey),
+              let identity = try? JSONDecoder().decode(ReaderSubscriptionDraftIdentity.self, from: data),
+              identity.draft == draft, identity.revision == draftRevision,
+              let raw = defaults.data(forKey: Self.draftKey),
+              let inline = try? JSONDecoder().decode(ReaderSubscriptionDraftInlineIdentity.self, from: raw),
+              inline.revision == identity.revision,
+              let stored = try? JSONDecoder().decode(ReaderSubscriptionDraft.self, from: raw), stored == draft else { return nil }
+        return identity.revision
+    }
 
     init(service: any ReaderRuleSubscriptionServing, defaults: UserDefaults = .standard) {
         self.service = service; self.defaults = defaults
         if let data = defaults.data(forKey: Self.draftKey),
            let restored = try? JSONDecoder().decode(ReaderSubscriptionDraft.self, from: data) { draft = restored }
         else { draft = ReaderSubscriptionDraft() }
+        if let data = defaults.data(forKey: Self.draftIdentityKey),
+           let identity = try? JSONDecoder().decode(ReaderSubscriptionDraftIdentity.self, from: data),
+           let raw = defaults.data(forKey: Self.draftKey),
+           let inline = try? JSONDecoder().decode(ReaderSubscriptionDraftInlineIdentity.self, from: raw),
+           inline.revision == identity.revision,
+           identity.draft == draft { draftRevision = identity.revision }
         readIntent()
         actions.pendingChecker = { [weak self] id in
             guard let self, let features = self.service as? any ReaderLibraryFeatures else { return nil }
@@ -131,11 +214,20 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
             catch { return nil }
         }
         actionObservation = actions.objectWillChange.sink { [weak self] _ in
+            // Retire the token synchronously without publishing from inside a
+            // view update. Even an operation that settles before the queued UI
+            // cleanup must permanently invalidate an older comparison.
+            if let self, !self.canMutate {
+                self.draftReviewGeneration = UUID()
+                self.draftReviewTask?.cancel()
+                self.draftReviewInvalidatedByAction = true
+            }
             DispatchQueue.main.async { self?.ownerDidChange() }
         }
     }
 
     func activate(foreground: Bool = true) {
+        invalidateDraftReview()
         active = true
         setForeground(foreground)
         refresh()
@@ -146,6 +238,7 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
 
     func retire() {
         active = false
+        invalidateDraftReview()
         invalidatePreview("页面已关闭，原检查结果需要重新核对。")
         readGeneration = UUID(); checkGeneration = UUID()
         readTask?.cancel(); checkTask?.cancel()
@@ -156,6 +249,7 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
     func setForeground(_ value: Bool) {
         guard foreground != value else { return }
         foreground = value
+        invalidateDraftReview()
         if !value { invalidatePreview("页面已离开前台，原检查结果需要重新核对。") }
     }
 
@@ -191,6 +285,7 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
         if !draft.isPresent {
             var value = ReaderSubscriptionDraft()
             value.isPresent = true
+            value.baseline = .absent
             value.id = Self.now
             while subscriptions.contains(where: { $0.id == value.id }) { value.id += 1 }
             draft = value
@@ -211,8 +306,56 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
 
     func saveDraft() {
         guard canMutate else { return }
-        do { begin("保存订阅", mutation: .save(try draft.subscription())) }
+        do {
+            // Legacy drafts retain all input, but cannot invent an original
+            // baseline from whichever row happens to exist after restoration.
+            guard let baseline = draft.baseline else {
+                throw ReaderSubscriptionPanelError.invalidDraft("旧草稿缺少原订阅基线。请先核对当前订阅并确认，再保存；原输入已保留。")
+            }
+            begin("保存订阅", mutation: .save(try draft.subscription()), saveBaseline: baseline, saveDraft: draft)
+        }
         catch { draftFailure = error.localizedDescription }
+    }
+
+    func reviewDraft() {
+        guard canReviewDraft else { return }
+        invalidateDraftReview()
+        let generation = draftReviewGeneration, revision = draftRevision, captured = draft
+        reviewingDraft = true
+        draftReviewTask = Task {
+            do {
+                let current = try await service.ruleSubscriptions().first { $0.id == captured.id }
+                guard acceptsDraftReview(generation: generation, revision: revision, captured: captured), !Task.isCancelled else { return }
+                draftReview = .init(id: generation, draftRevision: revision, draft: captured, current: current)
+                reviewingDraft = false; draftReviewTask = nil
+            } catch {
+                guard acceptsDraftReview(generation: generation, revision: revision, captured: captured), !Task.isCancelled else { return }
+                draftReviewFailure = error.localizedDescription
+                reviewingDraft = false; draftReviewTask = nil
+            }
+        }
+    }
+
+    func confirmDraftReview(_ review: ReaderSubscriptionDraftReview) {
+        guard draftReview == review, let current = review.current,
+              acceptsDraftReview(generation: review.id, revision: review.draftRevision, captured: review.draft) else { return }
+        // Explicit user acknowledgement changes only the editor baseline. All
+        // raw input survives, and a later Save still passes Core's write guard.
+        var retained = draft
+        retained.baseline = .existing(current)
+        draft = retained
+    }
+
+    private func acceptsDraftReview(generation: UUID, revision: UUID, captured: ReaderSubscriptionDraft) -> Bool {
+        active && foreground && editorPresented && canMutate && supportsDraftReview
+            && draftReviewGeneration == generation && draftRevision == revision && draft == captured
+    }
+
+    private func invalidateDraftReview() {
+        draftReviewInvalidatedByAction = false
+        draftReviewGeneration = UUID()
+        draftReviewTask?.cancel(); draftReviewTask = nil
+        draftReview = nil; reviewingDraft = false; draftReviewFailure = nil
     }
 
     func delete(_ subscription: ReaderSourceSubscription) { begin("删除订阅", mutation: .delete(subscription)) }
@@ -256,26 +399,33 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
         if let intent = pendingIntent { Task { await resumeAccepted(intent) } }
     }
 
-    private func begin(_ label: String, mutation: ReaderSubscriptionMutation) {
+    private func begin(_ label: String, mutation: ReaderSubscriptionMutation, saveBaseline: ReaderSubscriptionBaseline? = nil,
+                       saveDraft: ReaderSubscriptionDraft? = nil) {
         guard canMutate else { return }
+        invalidateDraftReview()
         stopCheck()
+        let savingDraftRevision = draftRevision
+        let acceptedDraftRevision = saveDraft == nil ? nil : persistedDraftRevision
         Task {
             let succeeded = await actions.perform(label, scope: "rule-subscriptions/\(mutation.subscriptionID)") { [self] id in
                 ownerOperationID = id
-                let accepted = ReaderSubscriptionIntent(operationID: id, label: label, mutation: mutation)
+                let accepted = ReaderSubscriptionIntent(operationID: id, label: label, mutation: mutation,
+                    saveBaseline: saveBaseline, saveDraft: saveDraft, saveDraftRevision: acceptedDraftRevision)
                 try retain(accepted)
-                try await execute(accepted)
+                try await execute(accepted, savingDraftRevision: savingDraftRevision)
             }
             settle(succeeded)
         }
     }
 
     private func resumeAccepted(_ accepted: ReaderSubscriptionIntent) async {
+        invalidateDraftReview()
+        let savingDraftRevision = draftRevision
         // The ActionOwner still owns presentation/retry. Its new envelope must
         // never replace the already accepted Runtime operation's original ID.
         let succeeded = await actions.perform(accepted.label, scope: accepted.scope) { [self] _ in
             ownerOperationID = accepted.operationID
-            try await execute(accepted)
+            try await execute(accepted, savingDraftRevision: savingDraftRevision)
         }
         settle(succeeded)
     }
@@ -295,11 +445,27 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
         pendingIntent = accepted
     }
 
-    private func execute(_ accepted: ReaderSubscriptionIntent) async throws {
+    private func execute(_ accepted: ReaderSubscriptionIntent, savingDraftRevision: UUID) async throws {
         switch accepted.mutation {
         case .save(let subscription):
-            let saved = try await service.saveRuleSubscription(subscription, operationID: accepted.operationID)
-            if let current = try? draft.subscription(), current == subscription {
+            let saved: ReaderSourceSubscription
+            do {
+                saved = try await service.saveRuleSubscription(subscription, baseline: accepted.saveBaseline, operationID: accepted.operationID)
+            } catch is ReaderSubscriptionCheckChanged {
+                if active, foreground, editorPresented, draftRevision == savingDraftRevision,
+                   let current = try? draft.subscription(), current == subscription, draft.baseline == accepted.saveBaseline {
+                    draftFailure = "当前订阅已变化，本次保存未覆盖它。请核对当前订阅并确认后，再保存；原输入已保留。"
+                }
+                throw ReaderSubscriptionCheckChanged()
+            }
+            // A typed ACK settles the original write, not later editor input.
+            // Keep the first submission's revision across retries, and compare
+            // the raw persisted snapshot and its identity after cold recovery.
+            // Legacy intents lacking either cannot discard a current draft.
+            if draftRevision == savingDraftRevision, accepted.saveDraftRevision == draftRevision,
+               persistedDraftRevision == accepted.saveDraftRevision,
+               let originalDraft = accepted.saveDraft,
+               draft == originalDraft, let current = try? draft.subscription(), current == subscription {
                 draft = ReaderSubscriptionDraft()
                 if active { editorPresented = false }
             }
@@ -307,7 +473,8 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
         case .delete(let subscription):
             try await service.deleteRuleSubscription(subscription, operationID: accepted.operationID)
             if checkedID == subscription.id { checkedID = nil; plan = nil; checkFailure = nil; selectedSourceIDs = []; previewInvalidation = nil }
-            if let current = try? draft.subscription(), current == subscription { draft = ReaderSubscriptionDraft() }
+            // Removing saved configuration never discards retained editor input.
+            // Its existing read-only review can show that the original is gone.
         case .apply(let capturedPlan, let identities):
             do {
                 let receipt = try await service.applyRuleSubscription(capturedPlan, sourceIDs: identities, operationID: accepted.operationID)
@@ -329,6 +496,7 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
 
     private func ownerDidChange() {
         objectWillChange.send()
+        if draftReviewInvalidatedByAction || !canMutate { invalidateDraftReview() }
         // ReaderOperationStatus invokes the same owner's retry directly. A
         // confirmed rejection on that path also retires the Host intent, while
         // the owner's unknown/pending state must retain it unchanged.
@@ -546,6 +714,19 @@ struct ReaderRuleSubscriptionPanel: View {
                     TextField("排序值", text: $state.draft.order).keyboardType(.numbersAndPunctuation).readerField()
                     Toggle("允许自动更新", isOn: $state.draft.autoUpdate)
                     if let failure = state.draftFailure { ReaderPageState(title: "草稿尚未保存", detail: failure) }
+                    else if state.draft.baseline == nil {
+                        ReaderPageState(title: "旧草稿需要核对", detail: "原输入已保留。请核对当前订阅并确认编辑基线，再保存。")
+                    }
+                    if state.supportsDraftReview {
+                        Button("核对当前订阅", action: state.reviewDraft)
+                            .frame(minHeight: 44).disabled(!state.canReviewDraft)
+                            .accessibilityIdentifier("subscription-review-draft")
+                    }
+                    if state.reviewingDraft { ReaderPageState(title: "正在核对当前订阅", loading: true) }
+                    if let failure = state.draftReviewFailure {
+                        ReaderPageState(title: "草稿核对未完成", detail: failure)
+                    }
+                    if let review = state.draftReview { draftComparison(review) }
                     operationStatus
                     Button("放弃草稿", role: .destructive) {
                         let captured = state.draft
@@ -559,6 +740,41 @@ struct ReaderRuleSubscriptionPanel: View {
             .font(ReaderTypography.font(.body)).tint(palette.accent)
             .readerConfirmation(editorConfirmation)
     }
+
+    private func draftComparison(_ review: ReaderSubscriptionDraftReview) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("当前订阅与保留草稿").font(ReaderTypography.font(.controlHeader))
+            Text("订阅编号：\(review.draft.id)").font(ReaderTypography.font(.caption))
+            comparisonField("名称", current: review.current?.name, draft: review.draft.name)
+            comparisonField("地址", current: review.current?.url, draft: review.draft.url)
+            comparisonField("包类型", current: review.current.map { subscriptionKind($0.type) }, draft: subscriptionKind(review.draft.type))
+            comparisonField("排序值", current: review.current.map { String($0.customOrder) }, draft: review.draft.order)
+            comparisonField("自动更新", current: review.current.map { $0.autoUpdate ? "允许" : "关闭" }, draft: review.draft.autoUpdate ? "允许" : "关闭")
+            if review.current != nil {
+                Text("确认仅绑定本次读到的订阅，不修改任何草稿输入，也不提交变更。之后点击保存，会以草稿的全部配置更新订阅；若当前订阅再次变化，保存仍可能被拒绝。")
+                    .font(ReaderTypography.font(.caption)).foregroundStyle(palette.muted)
+                Button("确认核对，保留草稿") {
+                    editorConfirmation.confirm("使用本次核对的编辑基线？",
+                        message: "全部草稿输入都会保留。本次确认不保存；之后另点保存会用草稿的全部配置更新订阅。",
+                        actionTitle: "确认核对") { state.confirmDraftReview(review) }
+                }.frame(minHeight: 44).disabled(!state.canReviewDraft)
+                    .accessibilityIdentifier("subscription-confirm-draft-review")
+            } else {
+                ReaderPageState(title: "未找到原订阅",
+                    detail: "原订阅可能已删除，全部草稿输入仍保留。本次核对不会把它恢复或转成新增。新增需要另行创建订阅；保存新增地址后，若允许自动更新，后续前台或系统后台机会可能检查并应用安全项。")
+            }
+        }.accessibilityIdentifier("subscription-draft-comparison")
+    }
+
+    private func comparisonField(_ title: String, current: String?, draft: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(ReaderTypography.font(.caption)).foregroundStyle(palette.muted)
+            Text("当前：" + (current ?? "不存在")).textSelection(.enabled)
+            Text("草稿：" + draft).textSelection(.enabled)
+        }.font(ReaderTypography.font(.caption))
+    }
+
+    private func subscriptionKind(_ type: Int32) -> String { type == 0 ? "书源包" : "现有包类型 \(type)" }
 
     private func edit(_ subscription: ReaderSourceSubscription) {
         guard state.canMutate else { return }

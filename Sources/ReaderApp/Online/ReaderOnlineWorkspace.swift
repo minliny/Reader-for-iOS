@@ -25,7 +25,9 @@ import WebKit
     @Published var notice: String?
     let actions = ReaderLibraryActionOwner()
     var service: (any ReaderOnlineServing)?
+    var searchTraceSink: ReaderSearchTraceSink? // Disabled unless an observation owner installs a sink.
     private var searchTask: Task<Void, Never>?
+    private var searchTrace: ReaderSearchTraceRecording?
     private var searchID = UUID()
     private var detailID = UUID()
     private var detailTask: Task<Void, Never>?
@@ -64,6 +66,7 @@ import WebKit
         sourcesID = UUID(); discoverySourcesTask?.cancel(); discoverySourcesTask = nil
         sourceLoading = false
         if searching { stopped = true }
+        searchTrace?.emit(.generationStopped, outcome: .presentationRetired); searchTrace = nil
         searchID = UUID(); searchTask?.cancel(); searchTask = nil; searching = false
         detailID = UUID(); detailTask?.cancel(); detailTask = nil; detailLoading = false
         // Keep obtained candidates/query/scroll/timings and every write owner.
@@ -134,7 +137,10 @@ import WebKit
         announcedSourceFailure = id
         return "书源刷新未完成，已有书源仍可使用。"
     }
-    func stop() { stopped = searching; searchTask?.cancel(); searchID = UUID(); searching = false }
+    func stop() {
+        searchTrace?.emit(.generationStopped, outcome: .cancelled); searchTrace = nil
+        stopped = searching; searchTask?.cancel(); searchID = UUID(); searching = false
+    }
     func search() { startSearch(retainCandidates: false) }
     func researchCandidates() { startSearch(retainCandidates: true) }
     private func startSearch(retainCandidates: Bool) {
@@ -145,27 +151,60 @@ import WebKit
         let enabled = sources.filter(\.enabled)
         guard !enabled.isEmpty else { return }
         let generation = UUID(); searchID = generation
+        let trace = searchTraceSink.map { ReaderSearchTraceRecording(searchID: generation, sink: $0) }
+        searchTrace = trace
+        trace?.emit(.generationStarted, count: enabled.count)
         let keyword = query
         if !retainCandidates || keyword != lastKeyword { results = []; scrollAnchor = nil }
         lastKeyword = keyword; currentResultIDs = []
         timings = [:]; failures = [:]; searched = true; stopped = false; searching = true; error = nil
         searchTask = Task {
             guard !Task.isCancelled, generation == searchID,
-                  searchPresentationIsCurrent(presentationID) else { return }
-            await withTaskGroup(of: (String, ReaderSourceSearchResult?, String?).self) { group in
-                var remaining = enabled.makeIterator()
-                func enqueue(_ source: ReaderOnlineSource) {
-                    group.addTask {
-                        guard !Task.isCancelled else { return (source.id, nil, nil) }
-                        do { return (source.id, try await service.searchSource(source.id, keyword: keyword, page: 1), nil) }
-                        catch is CancellationError { return (source.id, nil, nil) }
-                        catch { return (source.id, nil, error.localizedDescription) }
+                  searchPresentationIsCurrent(presentationID) else {
+                trace?.emit(.generationFinished, outcome: .superseded); return
+            }
+            await withTaskGroup(of: (String, UInt32, ReaderSourceSearchResult?, String?).self) { group in
+                var remaining = enabled.enumerated().makeIterator()
+                var unapplied = Set<UInt32>()
+                defer {
+                    // Returning from the original stale-generation guard also
+                    // discards every still-enqueued source, even if it finishes later.
+                    for ordinal in unapplied {
+                        trace?.emit(.sourceResultDiscarded, sourceOrdinal: ordinal, outcome: .superseded)
                     }
                 }
-                for _ in 0..<4 { if let source = remaining.next() { enqueue(source) } }
-                while let (sourceID, response, failure) = await group.next() {
+                func enqueue(_ source: ReaderOnlineSource, ordinal: UInt32) {
+                    if trace != nil { unapplied.insert(ordinal) }
+                    group.addTask {
+                        let attempt = trace.map { ReaderSearchTraceAttempt(recording: $0, sourceOrdinal: ordinal, source: source) }
+                        attempt?.emit(.sourceAttemptStarted)
+                        guard !Task.isCancelled else {
+                            attempt?.emit(.sourceAttemptFinished, outcome: .cancelled)
+                            return (source.id, ordinal, nil, nil)
+                        }
+                        do {
+                            let response = try await ReaderSearchTraceContext.$attempt.withValue(attempt) {
+                                try await service.searchSource(source.id, keyword: keyword, page: 1)
+                            }
+                            attempt?.emit(.sourceAttemptFinished, outcome: .succeeded,
+                                count: response.books.count, durationMilliseconds: response.elapsedMilliseconds)
+                            return (source.id, ordinal, response, nil)
+                        } catch is CancellationError {
+                            attempt?.emit(.sourceAttemptFinished, outcome: .cancelled)
+                            return (source.id, ordinal, nil, nil)
+                        } catch {
+                            attempt?.emit(.sourceAttemptFinished, outcome: .failure(error))
+                            return (source.id, ordinal, nil, error.localizedDescription)
+                        }
+                    }
+                }
+                for _ in 0..<4 {
+                    if let source = remaining.next() { enqueue(source.element, ordinal: UInt32(clamping: source.offset + 1)) }
+                }
+                while let (sourceID, ordinal, response, failure) = await group.next() {
                     guard generation == searchID, !Task.isCancelled,
                           searchPresentationIsCurrent(presentationID) else { group.cancelAll(); return }
+                    unapplied.remove(ordinal)
                     if let response {
                         // Stable identity/order: late metadata never moves a tapped row.
                         var indexes = Dictionary(uniqueKeysWithValues: results.enumerated().map { ($0.element.id, $0.offset) })
@@ -175,12 +214,21 @@ import WebKit
                             currentResultIDs.insert(book.id)
                         }
                         timings[sourceID] = response.elapsedMilliseconds
-                    } else if let failure { failures[sourceID] = failure }
-                    if let source = remaining.next() { enqueue(source) }
+                        trace?.emit(.sourceResultApplied, sourceOrdinal: ordinal, outcome: .succeeded,
+                                    count: response.books.count, durationMilliseconds: response.elapsedMilliseconds)
+                    } else if let failure {
+                        failures[sourceID] = failure
+                        trace?.emit(.sourceResultApplied, sourceOrdinal: ordinal, outcome: .failed)
+                    } else { trace?.emit(.sourceResultDiscarded, sourceOrdinal: ordinal, outcome: .cancelled) }
+                    if let source = remaining.next() { enqueue(source.element, ordinal: UInt32(clamping: source.offset + 1)) }
                 }
             }
             if generation == searchID, searchPresentationIsCurrent(presentationID) {
                 searching = false; searchTask = nil
+                searchTrace = nil
+                trace?.emit(.generationFinished)
+            } else {
+                trace?.emit(.generationFinished, outcome: .superseded)
             }
         }
     }
@@ -222,6 +270,9 @@ struct ReaderOnlineWorkspace: View {
     @ObservedObject var preferences: ReaderPreferences
     let close: () -> Void
     @StateObject private var state: ReaderOnlineWorkspaceModel
+    #if DEBUG
+    @StateObject private var searchEvidence: ReaderOnlineSearchEvidence
+    #endif
     @ObservedObject private var subscriptionScheduler: ReaderRuleSubscriptionScheduler
     @State private var managing = false
     @State private var subscriptions = false
@@ -240,6 +291,10 @@ struct ReaderOnlineWorkspace: View {
                     state: ReaderOnlineWorkspaceModel, subscriptionScheduler: ReaderRuleSubscriptionScheduler) {
         self.model = model; self.preferences = preferences; self.close = close
         _state = StateObject(wrappedValue: state)
+        #if DEBUG
+        _searchEvidence = StateObject(wrappedValue: ReaderOnlineSearchEvidence(attachingTo: state,
+            expectedMode: ReaderOnlineSearchEvidence.globalMode))
+        #endif
         _subscriptionScheduler = ObservedObject(wrappedValue: subscriptionScheduler)
     }
 
@@ -251,7 +306,14 @@ struct ReaderOnlineWorkspace: View {
                     close()
                 }
                     .accessibilityIdentifier("online-close-workspace")
-                Text(managing ? "书源管理" : "在线搜索").font(ReaderTypography.font(.controlHeader))
+                #if DEBUG
+                if searchEvidence.enabled {
+                    workspaceTitle.accessibilityIdentifier(ReaderOnlineSearchEvidence.globalHeaderIdentifier)
+                        .accessibilityValue(searchEvidence.proof)
+                } else { workspaceTitle }
+                #else
+                workspaceTitle
+                #endif
                 Spacer()
                 Button(managing ? "搜索" : "书源") { focusedSearchField = nil; managing.toggle() }.frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier(managing ? "online-close-sources" : "online-open-sources")
@@ -286,6 +348,9 @@ struct ReaderOnlineWorkspace: View {
             // Only the complete workspace lifetime ends here. Its management/
             // detail overlays and the root's reading opacity keep this view alive.
             .onDisappear { state.retireDiscoveryPresentation(workspacePresentationID) }
+    }
+    private var workspaceTitle: some View {
+        Text(managing ? "书源管理" : "在线搜索").font(ReaderTypography.font(.controlHeader))
     }
     private var searchPage: some View {
         VStack(spacing: 12) {
@@ -795,28 +860,37 @@ private struct ReaderSourceLogin: View {
                 Spacer()
                 Button("完成登录") { save() }.disabled(service == nil || webView == nil || saving || !lifetime.canSave)
             }.padding()
-            if let failure { ReaderPageState(title: "网页登录未完成", detail: failure) }
-            else if let cookies, let loginURL { ReaderSourceLoginWebView(url: loginURL, cookies: cookies, lifetime: lifetime, webView: $webView) }
+            if let cookies, let loginURL {
+                if let failure { ReaderPageState(title: "登录状态未能保存", detail: failure) }
+                ReaderSourceLoginWebView(url: loginURL, cookies: cookies, lifetime: lifetime, webView: $webView)
+            }
+            else if let failure {
+                ReaderPageState(title: "网页登录未完成", detail: failure, actionTitle: "重试") {
+                    Task { await prepare() }
+                }
+            }
             else { ReaderPageState(title: "正在准备来源登录", loading: true) }
-        }.task {
-            guard let token = lifetime.beginPreparation() else { return }
-            guard let service else {
-                failure = "来源登录服务尚未准备"
-                return
-            }
-            guard loginURL != nil else {
-                failure = "此书源没有可用的 HTTP/HTTPS 网页登录地址"
-                return
-            }
-            do {
-                let original = try await service.prepareLogin(token.sourceID)
-                guard !Task.isCancelled, lifetime.finishPreparation(token) else { return }
-                cookies = original
-            } catch {
-                guard !Task.isCancelled, lifetime.acceptsPreparation(token) else { return }
-                failure = error.localizedDescription
-            }
-        }.onDisappear { lifetime.retire() }
+        }.task { await prepare() }.onDisappear { lifetime.retire() }
+    }
+    private func prepare() async {
+        guard cookies == nil, let token = lifetime.beginPreparation() else { return }
+        failure = nil
+        guard let service else {
+            failure = "来源登录服务尚未准备"
+            return
+        }
+        guard loginURL != nil else {
+            failure = "此书源没有可用的 HTTP/HTTPS 网页登录地址"
+            return
+        }
+        do {
+            let original = try await service.prepareLogin(token.sourceID)
+            guard !Task.isCancelled, lifetime.finishPreparation(token) else { return }
+            cookies = original
+        } catch {
+            guard !Task.isCancelled, lifetime.acceptsPreparation(token) else { return }
+            failure = error.localizedDescription
+        }
     }
     private var loginURL: URL? {
         ReaderSourceLoginURL.resolve(definition: source.definition, baseURL: source.baseURL)
@@ -831,7 +905,7 @@ private struct ReaderSourceLogin: View {
             return
         }
         guard !saving, let token = lifetime.beginSave() else { return }
-        saving = true
+        saving = true; failure = nil
         let originalCookies = cookies ?? []
         Task {
             let updatedCookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
