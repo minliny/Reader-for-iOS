@@ -1486,6 +1486,110 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let basisSHA256: String
     }
 
+    /// Root admits the existing real TXT and stopped-library preproof separately.
+    /// Cursor/retirement semantics reuse ReaderTextToolsLifecycleTests; this is
+    /// only the native More consumer, without import, rule or display changes.
+    func testExistingRealTXTContentSearchMoreAppendsActualResultsAndRetainsFirstHit() throws {
+        let app = XCUIApplication()
+        guard !realEpubJourney, app.state == .notRunning,
+              bookID == "book-local:aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5" else {
+            XCTFail("Require the existing exact original TXT and Root's stopped-App premise")
+            throw JourneyError.prerequisite
+        }
+        var returnedNormally = false
+        defer {
+            if !returnedNormally {
+                evidence(app, "real-TXT-More-failure-current-screen")
+                let ax = XCTAttachment(string: app.debugDescription)
+                ax.name = "real-TXT-More-failure-AX"; ax.lifetime = .keepAlways; add(ax)
+            }
+        }
+        app.launch(); try openExistingRuleRoundtripBook(app)
+        openModule("home", app: app)
+        let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+        XCTAssertEqual(chapter.count, 1)
+        let originalChapterID = chapter.element.identifier
+        hideControls(app)
+        let originalAnchor = try anchor(app, name: "real-TXT-More-original-visible-anchor")
+        openTool("正文搜索", app: app)
+        let query = app.textFields["content-search-query"]
+        replace(query, with: "2") // One native Return/onSubmit; never tap the Search/Stop button again.
+        let predicate = NSPredicate(format: "identifier BEGINSWITH %@",
+            "content-hit-local|" + String(bookID.dropFirst(5)) + "|")
+        let hits = app.buttons.matching(predicate)
+        waitUntil("The one real initial search returns actual source-bound hits", timeout: 45) {
+            hits.count > 0 && app.buttons["content-search-submit"].label == "搜索" && !app.keyboards.firstMatch.exists
+        }
+        guard query.value as? String == "2", hits.count > 0, !app.keyboards.firstMatch.exists else { throw JourneyError.prerequisite }
+        let firstID = hits.element(boundBy: 0).identifier, firstLabel = hits.element(boundBy: 0).label
+        let candidates = app.scrollViews.allElementsBoundByIndex.enumerated().filter {
+            $0.element.buttons.matching(identifier: firstID).count == 1 && $0.element.frame.width > 100 && $0.element.frame.height > 100
+        }.sorted { $0.element.frame.width * $0.element.frame.height < $1.element.frame.width * $1.element.frame.height }
+        guard let selected = candidates.first,
+              candidates.count == 1 || candidates[1].element.frame.width * candidates[1].element.frame.height > selected.element.frame.width * selected.element.frame.height else {
+            throw JourneyError.prerequisite
+        }
+        let ownerIndex = selected.offset, ownerFrame = selected.element.frame
+        func owner() throws -> XCUIElement {
+            let current = app.scrollViews.element(boundBy: ownerIndex)
+            guard current.exists, current.frame == ownerFrame, current.isHittable,
+                  !app.keyboards.firstMatch.exists, app.buttons["control-grabber"].label.hasPrefix("完整控制栏"),
+                  [ownerFrame.minX, ownerFrame.minY, ownerFrame.maxX, ownerFrame.maxY].allSatisfy(\.isFinite) else { throw JourneyError.prerequisite }
+            return current // Unfiltered index, never a query containing the now-lazy first row.
+        }
+        func record(_ stage: String) throws -> [String] {
+            let rows = try owner().buttons.matching(predicate).allElementsBoundByIndex
+            let ax = XCTAttachment(string: app.debugDescription)
+            ax.name = "real-TXT-More-" + stage + "-AX"; ax.lifetime = .keepAlways; add(ax)
+            evidence(app, "real-TXT-More-" + stage)
+            return rows.map(\.identifier) // Observed AX rows only; no claim that LazyVStack exposed every page ID.
+        }
+        func reach(_ target: XCUIElement, downward: Bool, deadline: TimeInterval, fast: Bool = true) throws {
+            for step in 0...32 {
+                guard ProcessInfo.processInfo.systemUptime < deadline else { break }
+                let scroll = try owner(), viewport = ownerFrame.intersection(app.frame).insetBy(dx: 8, dy: 8)
+                if target.exists, target.isHittable, viewport.contains(target.frame), ProcessInfo.processInfo.systemUptime < deadline { return }
+                guard step < 32, viewport.height > 100, ProcessInfo.processInfo.systemUptime < deadline else { break }
+                if downward { scroll.swipeUp(velocity: fast ? .fast : .slow) } else { scroll.swipeDown(velocity: .fast) }
+            }
+            XCTFail("The actual result-list target was not reached within 30 seconds / 32 native scrolls; no late tap")
+            throw JourneyError.prerequisite
+        }
+        let initialIDs = try record("initial-results")
+        let more = try owner().buttons.matching(NSPredicate(format: "label == %@", "更多结果"))
+        let moreDeadline = ProcessInfo.processInfo.systemUptime + 30
+        try reach(more.firstMatch, downward: true, deadline: moreDeadline)
+        let scroll = try owner(), before = scroll.buttons.matching(predicate).allElementsBoundByIndex
+        let oldTail = try XCTUnwrap(before.last)
+        let oldTailID = oldTail.identifier
+        guard more.count == 1, more.element.isEnabled, oldTail.isHittable, ownerFrame.intersection(app.frame).contains(oldTail.frame),
+              oldTail.frame.maxY <= more.element.frame.minY else { throw JourneyError.prerequisite }
+        let beforeIDs = try record("before-one-More")
+        guard ProcessInfo.processInfo.systemUptime < moreDeadline else { throw JourneyError.prerequisite }
+        more.element.tap() // Exactly one real More, only while its original reach deadline still holds.
+        waitUntil("More exposes an actual new row after the prior page's retained tail", timeout: 30) {
+            let ids = app.scrollViews.element(boundBy: ownerIndex).buttons.matching(predicate).allElementsBoundByIndex.map(\.identifier)
+            guard app.buttons["content-search-submit"].label == "搜索", let tail = ids.firstIndex(of: oldTailID) else { return false }
+            return ids.dropFirst(tail + 1).contains { !beforeIDs.contains($0) && !initialIDs.contains($0) }
+        }
+        let appendedIDs = try record("after-one-More")
+        let tailIndex = try XCTUnwrap(appendedIDs.firstIndex(of: oldTailID))
+        let newID = try XCTUnwrap(appendedIDs.dropFirst(tailIndex + 1).first { !beforeIDs.contains($0) && !initialIDs.contains($0) })
+        let appended = try owner().buttons.matching(identifier: newID)
+        try reach(appended.element, downward: true, deadline: ProcessInfo.processInfo.systemUptime + 30, fast: false)
+        _ = try record("actual-appended-row-visible")
+        let first = try owner().buttons.matching(identifier: firstID)
+        try reach(first.element, downward: false, deadline: ProcessInfo.processInfo.systemUptime + 30)
+        XCTAssertEqual(first.count, 1); XCTAssertEqual(first.element.label, firstLabel)
+        _ = try record("original-first-hit-retained")
+        let facts = XCTAttachment(string: "firstHitID=\(firstID)\noldTailID=\(oldTailID)\nobservedAppendedID=\(newID)\nMoreTaps=1\nObserved AX order/visible rows only; cursor bytes, exact page counts and all-page unique IDs are NOT_CAPTURED. Root separately audits original inputs, progress, retained files and commands.")
+        facts.name = "real-TXT-More-observed-identity-boundary"; facts.lifetime = .keepAlways; add(facts)
+        hideControls(app)
+        try assertVisible(originalAnchor, app: app, name: "real-TXT-More-reader-anchor-preserved")
+        openModule("home", app: app); XCTAssertEqual(chapter.element.identifier, originalChapterID)
+        leaveReader(app); returnedNormally = true
+    }
+
     func testOriginalTXTSearchNativeCopyHighlightPreviewAndAutomaticPageConsumer() throws {
         let app = XCUIApplication(); app.launch()
         try importAndOpenOriginal(app)
