@@ -66,22 +66,22 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         let stateID = "online-download-state:" + book.identity + ":" + String(downloadIndex)
         let state = element(stateID, app: app)
         let select = element("online-download-select:" + book.identity + ":" + String(downloadIndex), app: app)
-        reveal(select, in: app.scrollViews["online-download-scroll"], app: app)
+        try reveal(select, in: app.scrollViews["online-download-scroll"], app: app)
         XCTAssertTrue(state.exists, "The selected index must belong to the actual installed catalog")
         XCTAssertEqual(state.label, "未下载", "A cached/completed chapter cannot satisfy the uncached-download prerequisite")
         XCTAssertTrue(select.isHittable); select.tap()
         let download = app.buttons["online-download-selected"]
-        reveal(download, in: app.scrollViews["online-download-scroll"], app: app, towardTop: true)
+        try reveal(download, in: app.scrollViews["online-download-scroll"], app: app, towardTop: true)
         XCTAssertTrue(download.isEnabled); download.tap()
         // The download list is lazy. Observe the same exact chapter in the
         // visible list rather than treating an unbuilt offscreen row as absent.
-        reveal(select, in: app.scrollViews["online-download-scroll"], app: app)
+        try reveal(select, in: app.scrollViews["online-download-scroll"], app: app)
         wait("This exact chapter must complete its original download and materialization", timeout: 300) {
             state.exists && state.label == "已完成"
         }
         keep(app, name: "real-online-exact-uncached-chapter-completed")
         app.buttons["online-download-close"].tap()
-        choose(downloadIndex, app: app)
+        try choose(downloadIndex, app: app)
         XCTAssertEqual(try currentChapter(book, app: app), downloadIndex)
         hideControls(app)
         let downloadedAnchor = try anchor(app, name: "real-online-downloaded-chapter-reading")
@@ -95,7 +95,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         try visible(downloadedAnchor, app: app, name: "real-online-downloaded-body-cold-reopen-NETWORK-NOT-DISABLED")
         downloads(app)
         let retainedState = element(stateID, app: app)
-        reveal(element("online-download-select:" + book.identity + ":" + String(downloadIndex), app: app),
+        try reveal(element("online-download-select:" + book.identity + ":" + String(downloadIndex), app: app),
                in: app.scrollViews["online-download-scroll"], app: app)
         XCTAssertEqual(retainedState.label, "已完成")
         keep(app, name: "real-online-completed-download-retained-after-cold-reopen")
@@ -239,7 +239,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertEqual(footer.label, originalProgress)
 
         for index in [UInt32(38), 39, 41, 42] {
-            choose(index, app: app)
+            try choose(index, app: app)
             XCTAssertEqual(try currentChapter(book, app: app), index)
             hideControls(app)
             _ = try anchor(app, name: "actual-os-offline-cached-window-chapter-\(index)")
@@ -247,7 +247,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
 
         // Normal chapter navigation lands at scalar zero. The genuine retained
         // zero baseline above makes this return preserve the original position.
-        choose(40, app: app)
+        try choose(40, app: app)
         XCTAssertEqual(try currentChapter(book, app: app), 40)
         hideControls(app)
         try visible(originalAnchor, app: app, name: "actual-os-offline-original-body-after-cached-window")
@@ -873,28 +873,53 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["online-update-catalog"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["online-download-selected"].waitForExistence(timeout: 30))
     }
-    private func choose(_ index: UInt32, app: XCUIApplication) {
+    private func choose(_ index: UInt32, app: XCUIApplication) throws {
         controls(app)
+        let prefix = "reading-chapter:"
+        let readings = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).allElementsBoundByAccessibilityElement
+        guard readings.count == 1, let current = UInt32(readings[0].identifier.dropFirst(prefix.count)) else {
+            XCTFail("Require the unique actual current chapter before choosing a directory target")
+            throw Prerequisite.invalid("current directory chapter identity unavailable")
+        }
         app.buttons["control-module-directory"].tap()
         let grabber = app.buttons["control-grabber"]
         if !grabber.label.hasPrefix("完整控制栏") { grabber.tap() }
         wait("The existing full directory controls must open", timeout: 10) { grabber.label.hasPrefix("完整控制栏") }
         let directory = app.buttons.matching(NSPredicate(format: "label == '目录' AND identifier != 'control-module-directory'")).firstMatch
         XCTAssertTrue(directory.waitForExistence(timeout: 5)); directory.tap()
-        let row = app.buttons["chapter-\(index)"]
-        let scroll = try? XCTUnwrap(app.scrollViews.allElementsBoundByIndex.first(where: \.isHittable))
-        XCTAssertNotNil(scroll, "The actual directory scroll surface must be visible")
-        if let scroll { reveal(row, in: scroll, app: app) }
-        XCTAssertTrue(row.isHittable); row.tap()
-        wait("The actual Core directory target must become selected", timeout: 30) { row.isSelected }
-    }
-    private func reveal(_ target: XCUIElement, in scroll: XCUIElement, app: XCUIApplication, towardTop: Bool = false) {
-        XCTAssertTrue(scroll.exists, "Use the actual currently presented scroll surface")
-        for _ in 0..<30 {
-            if target.exists && target.isHittable { return }
-            if towardTop { scroll.swipeDown() } else { scroll.swipeUp() }
+        let order = app.buttons.matching(NSPredicate(format: "label IN %@", ["正序", "倒序"] as NSArray)).allElementsBoundByAccessibilityElement
+        let currentRowID = "chapter-\(current)"
+        let owners = app.scrollViews.containing(.button, identifier: currentRowID).allElementsBoundByAccessibilityElement
+        guard order.count == 1, owners.count == 1,
+              owners[0].buttons[currentRowID].isSelected else {
+            XCTFail("Require the actual directory order and its unique scroll owner containing the selected current chapter")
+            throw Prerequisite.invalid("directory order or selected-row owner unavailable")
         }
-        XCTAssertTrue(target.exists && target.isHittable, "The exact real chapter must be reachable through ordinary scrolling.\n" + app.debugDescription)
+        // The action offers the other order: 正序 means the current list is descending.
+        let descending = order[0].label == "正序"
+        let scroll = owners[0], row = scroll.buttons["chapter-\(index)"]
+        try reveal(row, in: scroll, app: app, towardTop: descending ? index > current : index < current)
+        row.tap()
+        wait("The actual Core directory target must become selected", timeout: 30) { row.isSelected }
+        guard row.isSelected else { throw Prerequisite.invalid("directory target did not become selected") }
+    }
+    private func reveal(_ target: XCUIElement, in scroll: XCUIElement, app: XCUIApplication, towardTop: Bool = false) throws {
+        let deadline = ProcessInfo.processInfo.systemUptime + 30
+        var swipes = 0
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            guard scroll.exists else { break }
+            if target.exists {
+                let frame = target.frame, viewport = scroll.frame.intersection(app.frame)
+                if !frame.isNull, !frame.isInfinite, frame.width > 0, frame.height > 0,
+                   [frame.minX, frame.minY, frame.maxX, frame.maxY].allSatisfy(\.isFinite),
+                   viewport.contains(frame), target.isHittable { return }
+            }
+            guard swipes < 32, ProcessInfo.processInfo.systemUptime < deadline else { break }
+            if towardTop { scroll.swipeDown() } else { scroll.swipeUp() }
+            swipes += 1
+        }
+        XCTFail("The exact target was not fully visible in its owned scroll surface within 30 seconds / 32 swipes; stop without tapping or searching again")
+        throw Prerequisite.invalid("owned scroll target unavailable within bounds")
     }
     private func leave(_ app: XCUIApplication) {
         controls(app); app.buttons["leave-reader"].tap()
