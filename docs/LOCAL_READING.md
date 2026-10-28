@@ -4,15 +4,17 @@
 V2–V8 的必做范围、顺序与状态统一见工作区唯一待办
 [iOS V2–V8 版本要求](../../DEVELOPMENT_BACKLOG.md#ios-version-requirements)。
 `SOURCE_READY` 表示源码交接就绪；方法测试、App 构建、安装、原生交互和用户验收分别成立。
-源码 Core pin 已更新到 `8e242a9371086a1dfc1d72fdbe468b61d52a11aa`，新增全局下载任务分页索引并保留源执行观察；配套 Framework、App/Runner 和安装结果分别绑定准确回执。最近已核实的 iPhone 测试候选仍运行 `b5f00c01`。新 App/Runner、准确方法和未执行的原生旅程分别见唯一待办，不能把更新 pin、构建或历史方法通过计为当前整版验收。
+源码 Core pin 已更新到 `f3227e30d1022d6d0984fbfadcb1e3cf5679c6a7`，新增本地导入原始阶段回执；存储、协议注册及 Runtime 共 23 个准确方法通过，iOS17 arm64 device Framework 已构建。配套 Host 状态机及准确夹具仍在当前分支收口，App 配对编译、安装和真机行为分别成立。手机实际仍是 `c0379f5` 测试 App / Core `8e242a93` / 旧 `501a492` UI Runner；最近六个普通隔离方法通过，不能把新 pin、Framework 或历史方法结果计为新 App 或整版验收。
 
 V4 当前仍为 OPEN。最新实际证据与复用范围统一见上述唯一待办中的 2026-10-27 复用索引和后续记录；
 下文保留各轮原始失败、限制与时点结论，不以早期 OPEN 覆盖后来已经通过的准确切片。
 真实多源 Stop、隔离库非空原生清理、下载暂停/继续原 ACK、取消冷恢复、独立入架续办及两书冷读已有对应证据；
 原未知入架的 ACK 仍未知，独立续办 child 的成功不改变它。订阅保存/删除保护及草稿核对恢复已有真机宿主方法结果，
 但方法结果不替代原生按钮/弹层、真实远端新版本或系统后台验收。
-OS 断网持续阅读和冷启、真实认证及后续 Cookie 消费、底层同请求取消/换源计时代次、剩余失败恢复、
-真实订阅更新冲突、完整跨设备/视觉交互和最终交付仍按准确范围开放；不为复验清理用户原库。
+系统真实断网后的五章缓存阅读和三次冷开已有准确证据，按原场景复用；真实账号认证按用户决定暂跳。
+底层同请求取消/换源计时代次、剩余失败恢复、真实订阅新版本/后台机会、完整跨设备/视觉交互和最终交付
+仍按准确范围开放；不为复验清理用户原库。真实 EPUB 首正文导航和 TXT More 分页保留当前失败，
+MOBI 原生旅程未运行，不由早期模拟器或其他候选结果代替。
 
 ## 固定参考与运行依赖
 
@@ -28,15 +30,24 @@ UI `95366cd93775ea0ad3ecbc0f60e8882717f93169`、
 本轮 V2–V4 扩展增加了目录/电子书展示、规则订阅、下载及换源恢复等配套合同；
 旧 Framework 不会因为 Host 源码出现新入口就获得这些能力。
 最终升级须明确协议/schema、位置和历史未决操作的边界，保留原书与原 journal，
-重新构建并绑定准确产物。当前固定 pin 为 `8e242a9371086a1dfc1d72fdbe468b61d52a11aa`，Swift binding SHA-256 为
+重新构建并绑定准确产物。当前源码固定 pin 为 `f3227e30d1022d6d0984fbfadcb1e3cf5679c6a7`，Swift binding SHA-256 为
 `e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0`。
 此前 Core141 与 e978 的模拟器 Framework 构建及字节回执保留；历史 `b6a5bb9` 入架计数修复的 Framework 已实际从干净固定提交重建（`reader-document-admission-b6-framework-build-exit.json`），393个对象的最低版本核验符合17声明，C ABI 和 Swift binding 未变。e978 的只读调试能力保持，Core141 补齐的 V1 TXT 旧格式事实及原书SHA/字节识别保持；对应原书方法与Host原生消费者各自绑定原结果，不因本次打包重复计为新验证。
 最终 App、安装与交互结果仍须分别绑定实际回执，Framework 通过不替代 App 交付。
 从参考 Core `2a301653` 升级到当前 pin，protocol/C ABI/runtime-config 仍为 1，
-SQLite `user_version` 仍为 38，存储快照 `schemaVersion` 仍为 16，本次未引入 DDL 迁移。
+SQLite base `user_version` 仍为 38，存储快照 `schemaVersion` 仍为 16；本次明确新增本地导入物理扩展 schema2，
+不是“没有 DDL”。独立 `reader_local_import_*` 表保存本机 epoch/head、原始正负回执和 heavy journal，
+不进入 portable snapshot，不占用主仓并行的全局 39–44 迁移游标。
 但新增下载权威状态和换源阶段回执不代表旧二进制能够识别；不据此承诺安全回退，
 原书、数据库与原 journal 必须保留并由兼容的 Core/Host 组合继续处理。
-本次从 `8acdf7bb` 仅追加下载 resume/acquisition 原子保护；新 `expectedResume` 会进入原预取 journal，旧 Core 的严格 DTO 不识别该新字段，不能无条件降级。绑定 SHA、C ABI、SQLite/schema 版本均未变，设备 Framework 已重建；App、方法及原生交互仍按本轮实际结果另记。
+此前从 `8acdf7bb` 追加下载 resume/acquisition 原子保护时，新 `expectedResume` 进入原预取 journal，旧 Core 的严格 DTO 不识别该新字段，不能无条件降级。该次绑定 SHA、C ABI、SQLite/schema 版本未变，设备 Framework 已重建；对应 App、方法及原生交互仍保留各自原结果，不移作当前候选证据。
+
+本地导入 v2 复用原 Host staging/journal owner，以新 phase 和 generation2 冻结同一原始 binding。
+Core 在同一事务提交业务与原始 Applied/Rejected 回执；查询和重放先返回原结果，不能从当前书架猜测 ACK。
+Host 持久保存完整 terminal 后才 settle、退休原资源并移除自己的记录。八个未结算槽不按时间或新导入淘汰。
+旧 journal 不自动升级，旧 shelfAwaiting 的未知写入继续保留；原在线未知操作也不参与此协议。
+仅 portable snapshot 持久化的后端不能承载本机权威，必须在替换业务前拒绝模式切换。
+这些源码与 Core 方法证据不代替新 SwiftHost 方法、手机进程冷开、原生交互或用户验收。
 
 ## 已接入源码的能力范围
 

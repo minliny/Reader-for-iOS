@@ -187,14 +187,15 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         if isClosed { return }
         try drainUnresolvedReplies(importsOnly: true)
         // Do not destroy the runtime underneath an in-flight durable import/write.
-        guard activeRequests.isEmpty, unresolvedWrites.values.allSatisfy({ $0.owner == .flush }),
+        guard activeRequests.isEmpty, unresolvedWrites.values.allSatisfy({ $0.owner == .flush || $0.localV2Proof != nil }),
               !importInFlight, !recovering, !assetMutationInFlight else { throw ReaderLibraryError.busy }
         try await flush()
-        guard activeRequests.isEmpty, unresolvedWrites.isEmpty, !importInFlight, !recovering, !assetMutationInFlight else { throw ReaderLibraryError.busy }
+        guard activeRequests.isEmpty, unresolvedWrites.values.allSatisfy({ $0.localV2Proof != nil }), !importInFlight, !recovering, !assetMutationInFlight else { throw ReaderLibraryError.busy }
         isClosed = true
         for observer in downloadStatusObservers.values { observer.continuation.finish() }
         downloadStatusObservers.removeAll()
         client.destroy()
+        unresolvedWrites.removeAll() // Remaining entries have durable v2 ACK proof; wrapper destruction retires their transports.
     }
 
     public func downloadStatusInvalidations(for book: ReaderBook) async -> AsyncStream<ReaderDownloadStatusInvalidation> {
@@ -262,18 +263,21 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             }
         }
         var record: HostImportRecord?
-        var persistSendAttempted = false
-        var shelfDispatched = false
-        var shelfAcknowledged = false
+        var authoritySendAttempted = false
         do {
             guard let hash = stagingOwner.sha256 else { throw ReaderLibraryError.invalidResponse("unsealed import source") }
             let bookID = "local:" + hash
-            if let original = try records().first(where: { $0.hash == hash && $0.phase != .finalize }) {
+            if let original = try records().first(where: { $0.hash == hash && !$0.hasReadableImportReceipt }) {
                 throw ReaderLibraryError.operationPending(original.id)
             }
             if let existing = try await shelfBook(bookID) {
                 _ = try commitSource(staged, hash: hash)
                 return ReaderImportResult(book: existing, created: false)
+            }
+            struct Capabilities: Decodable { let capabilities: [String] }
+            let capabilities = try decode(Capabilities.self, await request("core.info", [:]))
+            guard capabilities.capabilities.contains(HostLocalImportV2.requiredCapability) else {
+                throw ReaderLibraryError.invalidResponse("local import v2 capability is required")
             }
             let input: [String: Any] = [
                 "bookId": bookID, "fileName": url.lastPathComponent,
@@ -283,6 +287,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             let parsedObject = try object(parsed)
             guard let preview = parsedObject["preview"] as? [String: Any],
                   let summary = preview["summary"] as? [String: Any],
+                  let format = summary["format"] as? String, !format.isEmpty,
                   let integrity = summary["integrity"] as? [String: Any],
                   (integrity["schemaVersion"] as? Int) == 1,
                   ["complete", "recoverable"].contains(integrity["readability"] as? String ?? "") else {
@@ -293,58 +298,25 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             let transactionID = "ios-import-" + selection
             record = HostImportRecord(id: transactionID, fileName: url.lastPathComponent,
                                       stagedName: staged.lastPathComponent, hash: hash,
-                                      phase: .persistAwaiting, rollbackToken: nil, shelfParameters: nil)
+                                      phase: .v2Preparing, rollbackToken: nil, shelfParameters: nil)
+            record?.protocolGeneration = 2
+            record?.requiredCapability = HostLocalImportV2.requiredCapability
+            record?.localV2 = HostLocalImportV2(preview: try JSONSerialization.data(withJSONObject: preview, options: .sortedKeys),
+                sourceBytes: UInt64(stagingOwner.expectedBytes), format: format)
             try writeRecord(record!)
             liveImportResources[transactionID] = stagingOwner
             liveImportResources[transactionID] = try stagingLease.handoff(stagingOwner)
-            let persisted = try await request("import.persist", [
-                "transactionId": transactionID, "parsed": parsedObject
-            ], mutation: true, timeout: 120, owner: .importOperation(id: transactionID, stage: .persist),
-               onSendAttempt: { persistSendAttempted = true })
-            var persistedRecord = record!
-            let local = try applyPersistedReceipt(persisted, record: &persistedRecord)
-            record = persistedRecord
-            finishMutation(.importOperation(id: transactionID, stage: .persist))
-            let token = try object(persistedRecord.rollbackToken!)
-            let shelf = try object(persistedRecord.shelfParameters!)
-            _ = try commitSource(staged, hash: hash) { created in
-                try registerSourceCreation(created, owner: stagingOwner, using: stagingLease)
-            }
-            record?.phase = .shelfAwaiting
+            record?.localV2?.resourceOwner = liveImportResources[transactionID]
             try writeRecord(record!)
-            shelfDispatched = true
-            let addedData = try await request("bookshelf.add", shelf, mutation: true,
-                                              owner: .importOperation(id: transactionID, stage: .shelf))
-            struct Add: Decodable { let created: Bool }
-            let added = try decode(Add.self, addedData)
-            shelfAcknowledged = true
-            record?.phase = .finalize
-            // Once the shelf ACK arrives, cleanup failure cannot undo a readable import.
-            var pending = true
-            do {
-                try writeRecord(record!)
-                finishMutation(.importOperation(id: transactionID, stage: .shelf))
-                let finalized = try await request("import.finalize", ["rollbackToken": token], mutation: true,
-                                      owner: .importOperation(id: transactionID, stage: .finalize))
-                try validateImportTerminal(finalized, record: record!, stage: .finalize)
-                try retireImportResources(record!, authority: .finalized, using: stagingLease)
-                try removeRecord(transactionID)
-                liveImportResources.removeValue(forKey: transactionID)
-                finishMutation(.importOperation(id: transactionID, stage: .finalize))
-                pending = false
-            } catch { /* Keep the opaque receipt for explicit startup recovery. */ }
-            let fallback = ReaderBook(bookId: bookID, title: shelf["title"] as? String ?? "",
-                                      author: shelf["author"] as? String ?? "",
-                                      chapterCount: (local["chapterCount"] as? NSNumber)?.uint32Value ?? 0)
-            let book = (try? await shelfBook(bookID)) ?? fallback
-            return ReaderImportResult(book: book, created: added.created, finalizationPending: pending)
+            var prepared = record!
+            try await bootstrapLocalImportV2(&prepared, onSend: { authoritySendAttempted = true })
+            record = prepared
+            return try await continueLocalImportV2(prepared, using: stagingLease, firstPersist: true)
+        } catch let completed as ReaderImportRollbackCompletion {
+            throw completed
         } catch {
-            if shelfAcknowledged { throw ReaderLibraryError.operationPending(record?.id ?? selection) }
-            if let record, hasPendingImport(record.id) { throw ReaderLibraryError.operationPending(record.id) }
-            let unknown = isUnknownOutcome(error)
-            if let current = record, !persistSendAttempted {
-                // This same invocation has not entered client.send for persist.
-                // Local record/handoff I/O failure is not an unknown Core write.
+            if let current = record, !authoritySendAttempted {
+                // No v2 authority request was attempted by this invocation.
                 liveImportResources[current.id] = liveImportResources[current.id] ?? stagingOwner
                 try retireImportResources(current, authority: .notDispatched, using: stagingLease)
                 do { try removeRecord(current.id) }
@@ -352,32 +324,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 liveImportResources.removeValue(forKey: current.id)
                 throw error
             }
-            if let current = record {
-                if current.rollbackToken == nil && !Self.isDefiniteMutationRejection(error) {
-                    throw ReaderLibraryError.operationPending(current.id)
-                }
-                if shelfDispatched && unknown { throw ReaderLibraryError.operationPending(current.id) }
-                if let tokenData = current.rollbackToken {
-                    do {
-                        var rollbackRecord = current
-                        rollbackRecord.phase = .rollback
-                        rollbackRecord.rejection = StoredImportRejection(error)
-                        rollbackRecord.originalFailure = String(describing: error)
-                        try writeRecord(rollbackRecord)
-                        let rolledBack = try await request("import.rollback", ["rollbackToken": try object(tokenData)], mutation: true,
-                                              owner: .importOperation(id: current.id, stage: .rollback))
-                        try validateImportTerminal(rolledBack, record: rollbackRecord, stage: .rollback)
-                        try retireImportResources(rollbackRecord, authority: .rolledBack, using: stagingLease)
-                    } catch { throw ReaderLibraryError.operationPending(current.id) }
-                } else {
-                    // Only this actual persist rejection permits cleanup. An
-                    // owner-file absence is not loss of the live inode proof.
-                    try retireImportResources(current, authority: .persistRejected, using: stagingLease)
-                }
-                try removeRecord(current.id)
-                liveImportResources.removeValue(forKey: current.id)
-                finishMutation(.importOperation(id: current.id, stage: .rollback))
-            }
+            if let record { throw ReaderLibraryError.operationPending(record.id) }
             // The private owner defer retires only a proved precommit inode.
             throw error
         }
@@ -385,11 +332,470 @@ public actor ReaderLibraryService: ReaderLibraryServing {
 
     /// Host records contain only opaque Core receipts and file-operation intent.
     /// They are not a second shelf/progress database. Unknown persist outcomes
-    /// remain visible until Core offers an exact receipt query for that operation.
+    /// remain visible until the matching protocol's original receipt is known.
     public func pendingImports() async throws -> [ReaderPendingImport] {
         guard !isClosed else { throw ReaderLibraryError.closed }
         return try records().map { ReaderPendingImport(id: $0.reprocessOperationID ?? $0.id, fileName: $0.fileName,
-                                               requiresReconciliation: $0.phase != .finalize) }
+                                               requiresReconciliation: !$0.hasReadableImportReceipt) }
+    }
+
+    private func localV2(_ record: HostImportRecord) throws -> HostLocalImportV2 {
+        guard record.protocolGeneration == 2, record.requiredCapability == HostLocalImportV2.requiredCapability,
+              record.rollbackToken == nil, record.shelfParameters == nil, record.reprocessOperationID == nil,
+              record.phase.rawValue.hasPrefix("v2"), let value = record.localV2,
+              value.sourceBytes > 0, value.sourceBytes <= UInt64(ReaderImportStagingLease.maximumInputBytes) else {
+            throw ReaderLibraryError.invalidResponse("local import v2 journal")
+        }
+        guard !value.format.isEmpty,
+              value.binding != nil || record.phase == .v2Preparing || record.phase == .v2AuthorityAwaiting,
+              !value.settled || record.phase == .v2Terminal,
+              value.terminalStage == nil || (record.phase == .v2Terminal && value.receipts[value.terminalStage!] != nil) else {
+            throw ReaderLibraryError.invalidResponse("local import v2 journal phase proof")
+        }
+        if let binding = value.binding {
+            guard binding.transactionId == record.id, binding.sourceId == "local", binding.bookId == "local:" + record.hash,
+                  binding.sourceSha256 == record.hash, binding.sourceBytes == value.sourceBytes,
+                  binding.format == value.format, !binding.authorityEpoch.isEmpty, binding.sequence > 0 else {
+                throw ReaderLibraryError.invalidResponse("local import v2 original binding")
+            }
+        }
+        return value
+    }
+
+    private func finishLocalV2NonAdmission(_ record: HostImportRecord, using lease: ReaderImportStagingLease) throws -> Never {
+        let state = try localV2(record)
+        guard record.phase == .v2NotAdmitted, state.persistAttempts == 1, !state.persistOutcomeWasUnknown,
+              state.receipts.isEmpty, let proof = state.nonAdmission,
+              proof.method == "import.local.persist.v2", let rawBinding = try object(proof.parameters)["binding"] as? [String: Any],
+              try decode(LocalImportV2Binding.self, JSONSerialization.data(withJSONObject: rawBinding)) == state.binding else {
+            throw ReaderLibraryError.invalidResponse("fresh non-admission proof")
+        }
+        let event = try ReaderCoreEvent(data: proof.event)
+        guard event.requestId == proof.requestID, event.type == "error",
+              Self.coreErrorDetails(from: event)?["localImportDisposition"] as? String == "nonAdmitted" else {
+            throw ReaderLibraryError.invalidResponse("original non-admission envelope")
+        }
+        if let pending = unresolvedWrites[proof.requestID] {
+            guard pending.owner == .importOperation(id: record.id, stage: .persist),
+                  case .success(let original)? = pending.terminal, original.rawData == proof.event else {
+                throw ReaderLibraryError.invalidResponse("non-admission original transport")
+            }
+            unresolvedWrites.removeValue(forKey: proof.requestID)
+        }
+        try retireImportResources(record, authority: .persistRejected, using: lease)
+        try removeRecord(record.id); liveImportResources.removeValue(forKey: record.id)
+        throw ReaderImportRollbackCompletion(operationId: record.id, originalFailure: record.rejection?.message)
+    }
+
+    private func finishLocalV2Undispatched(_ record: HostImportRecord, using lease: ReaderImportStagingLease) throws -> Never {
+        let state = try localV2(record)
+        guard record.phase == .v2Undispatched, state.receipts.isEmpty, !state.persistOutcomeWasUnknown,
+              state.persistAttempts <= 1, !hasPendingImport(record.id) else {
+            throw ReaderLibraryError.invalidResponse("original undispatched v2 intent")
+        }
+        try retireImportResources(record, authority: .notDispatched, using: lease)
+        try removeRecord(record.id); liveImportResources.removeValue(forKey: record.id)
+        throw ReaderImportRollbackCompletion(operationId: record.id, originalFailure: record.originalFailure)
+    }
+
+    private func validateLocalV2Authority(_ authority: LocalImportV2Authority, binding: LocalImportV2Binding? = nil) throws {
+        guard authority.protocolGeneration == 2, authority.baseSchemaVersion == 38, authority.extensionSchema == 2,
+              !authority.authorityEpoch.isEmpty, authority.activeLimit == 8, authority.activeCount <= authority.activeLimit,
+              binding == nil || authority.authorityEpoch == binding?.authorityEpoch else {
+            throw ReaderLibraryError.invalidResponse("local import v2 authority")
+        }
+    }
+
+    private func applyLocalV2Authority(_ data: Data, record: inout HostImportRecord) throws {
+        var state = try localV2(record)
+        let authority = try decode(LocalImportV2Authority.self, data)
+        try validateLocalV2Authority(authority)
+        if let binding = state.binding {
+            // A late metadata ACK can never re-freeze an admitted sequence.
+            try validateLocalV2Authority(authority, binding: binding)
+            return
+        }
+        guard authority.headSequence < UInt64.max, authority.activeCount < authority.activeLimit else {
+            throw ReaderLibraryError.operationPending(record.id)
+        }
+        let binding = LocalImportV2Binding(authorityEpoch: authority.authorityEpoch, sequence: authority.headSequence + 1,
+            transactionId: record.id, sourceId: "local", bookId: "local:" + record.hash,
+            sourceSha256: record.hash, sourceBytes: state.sourceBytes, format: state.format)
+        guard state.binding == nil || state.binding == binding else { throw ReaderLibraryError.invalidResponse("changed original authority") }
+        state.binding = binding; record.localV2 = state
+        if record.phase == .v2Preparing || record.phase == .v2AuthorityAwaiting { record.phase = .v2PersistAwaiting }
+        try writeRecord(record)
+    }
+
+    private func bootstrapLocalImportV2(_ record: inout HostImportRecord, onSend: (() -> Void)? = nil) async throws {
+        _ = try localV2(record)
+        record.phase = .v2AuthorityAwaiting; try writeRecord(record)
+        let reply = try await request("import.local.authority.v2", [:], mutation: true,
+            owner: .importOperation(id: record.id, stage: .localV2Authority), onSendAttempt: onSend,
+            localImportV2Replay: true)
+        try applyLocalV2Authority(reply, record: &record)
+        try confirmLocalV2Transports(record, stage: .localV2Authority)
+    }
+
+    private func localV2Receipt(_ record: HostImportRecord, stage: String) throws -> [String: Any]? {
+        guard let data = try localV2(record).receipts[stage] else { return nil }
+        return try object(data)
+    }
+
+    private func localV2ReceiptError(_ receipt: [String: Any]) throws -> ReaderLibraryError {
+        guard receipt["outcome"] as? String == "rejected", let error = receipt["error"] as? [String: Any],
+              let code = error["code"] as? String, let message = error["message"] as? String,
+              let retryable = error["retryable"] as? Bool else {
+            throw ReaderLibraryError.invalidResponse("original local import rejection")
+        }
+        let details = error["details"] as? [String: Any]
+        return .core(code: code, message: message, retryable: retryable, reason: details?["reason"] as? String)
+    }
+
+    /// A transport replay/query contains the original business receipts, not
+    /// the original wire envelope. Persist every accepted receipt before release.
+    private func applyLocalV2Snapshot(_ data: Data, record: inout HostImportRecord, expectedStage: String? = nil) throws {
+        var state = try localV2(record)
+        let hadTerminal = state.terminalStage != nil
+        let snapshot = try object(data)
+        guard let rawBinding = snapshot["binding"] as? [String: Any],
+              try decode(LocalImportV2Binding.self, JSONSerialization.data(withJSONObject: rawBinding)) == state.binding,
+              let phase = snapshot["phase"] as? String, let terminal = snapshot["terminal"] as? Bool,
+              let receipts = snapshot["receipts"] as? [[String: Any]] else {
+            throw ReaderLibraryError.invalidResponse("original local import snapshot")
+        }
+        var observed = Set<String>()
+        for receipt in receipts {
+            guard let stage = receipt["stage"] as? String, ["persist", "publish", "finalize", "rollback"].contains(stage),
+                  observed.insert(stage).inserted, let outcome = receipt["outcome"] as? String,
+                  let semantic = receipt["semanticFingerprint"] as? String, !semantic.isEmpty,
+                  let ack = receipt["ackFingerprint"] as? String, !ack.isEmpty else {
+                throw ReaderLibraryError.invalidResponse("original local import receipt")
+            }
+            if outcome == "rejected" { _ = try localV2ReceiptError(receipt); guard receipt["data"] is NSNull else { throw ReaderLibraryError.invalidResponse("rejected receipt data") } }
+            else if outcome != "applied" || !(receipt["error"] is NSNull) || receipt["data"] is NSNull || receipt["data"] == nil {
+                throw ReaderLibraryError.invalidResponse("applied local import receipt")
+            }
+            let raw = try JSONSerialization.data(withJSONObject: receipt, options: .sortedKeys)
+            if let original = state.receipts[stage], original != raw { throw ReaderLibraryError.invalidResponse("changed original local import receipt") }
+            state.receipts[stage] = raw
+        }
+        guard expectedStage == nil || observed.contains(expectedStage!) else { throw ReaderLibraryError.invalidResponse("missing requested local import receipt") }
+        func outcome(_ stage: String) -> String? {
+            guard let raw = state.receipts[stage], let value = try? object(raw) else { return nil }
+            return value["outcome"] as? String
+        }
+        switch phase {
+        case "rejected":
+            guard terminal, outcome("persist") == "rejected" else { throw ReaderLibraryError.invalidResponse("persist rejection terminal") }
+            state.terminalStage = "persist"; record.phase = .v2Terminal
+        case "finalized", "rolledBack":
+            let stage = phase == "finalized" ? "finalize" : "rollback"
+            guard terminal, outcome(stage) == "applied", let raw = state.receipts[stage],
+                  let receipt = try object(raw)["data"] as? [String: Any],
+                  receipt["transactionId"] as? String == record.id,
+                  receipt["bookId"] as? String == "local:" + record.hash, receipt["stage"] as? String == stage else {
+                throw ReaderLibraryError.invalidResponse("local import terminal identity")
+            }
+            state.terminalStage = stage; record.phase = .v2Terminal
+        case "published":
+            guard !terminal, outcome("persist") == "applied", outcome("publish") == "applied" else { throw ReaderLibraryError.invalidResponse("published local import") }
+            record.phase = .v2FinalizeAwaiting
+        case "persisted":
+            guard !terminal, outcome("persist") == "applied" else { throw ReaderLibraryError.invalidResponse("persisted local import") }
+            if outcome("publish") == "rejected" || record.phase == .v2RollbackAwaiting { record.phase = .v2RollbackAwaiting }
+            else if record.phase == .v2PublishAwaiting { record.phase = .v2PublishAwaiting }
+            else { record.phase = .v2Persisted }
+        default: throw ReaderLibraryError.invalidResponse("local import v2 phase")
+        }
+        // A late, earlier-stage snapshot can add its immutable receipt, never
+        // regress a later durable ACK or completed settlement.
+        if state.terminalStage != nil { record.phase = .v2Terminal }
+        else if outcome("publish") == "applied" { record.phase = .v2FinalizeAwaiting }
+        else if outcome("publish") == "rejected" { record.phase = .v2RollbackAwaiting }
+        record.localV2 = state
+        if let rejected = try localV2Receipt(record, stage: state.terminalStage == "persist" ? "persist" : "publish"), rejected["outcome"] as? String == "rejected" {
+            record.rejection = StoredImportRejection(try localV2ReceiptError(rejected))
+        }
+        try writeRecord(record)
+        if !hadTerminal, state.terminalStage != nil {
+            try importStagingObserver(.localV2TerminalDurable, operationsURL.appendingPathComponent(record.id + ".json"))
+        }
+    }
+
+    private func localV2Stage(_ record: HostImportRecord) throws -> (String, ImportMutationStage) {
+        switch record.phase {
+        case .v2PersistAwaiting: return ("persist", .persist)
+        case .v2PublishAwaiting: return ("publish", .shelf)
+        case .v2FinalizeAwaiting: return ("finalize", .finalize)
+        case .v2RollbackAwaiting: return ("rollback", .rollback)
+        default: throw ReaderLibraryError.invalidResponse("local import stage intent")
+        }
+    }
+
+    private func localV2OwnerStage(_ stage: String) throws -> ImportMutationStage {
+        switch stage {
+        case "persist": return .persist
+        case "publish": return .shelf
+        case "finalize": return .finalize
+        case "rollback": return .rollback
+        default: throw ReaderLibraryError.invalidResponse("local import original stage")
+        }
+    }
+
+    private func permitsLocalV2Replay(_ method: String, parameters: [String: Any], owner: PendingMutationOwner) throws -> Bool {
+        guard case .importOperation(let id, let stage) = owner,
+              let record = try records().first(where: { $0.id == id }), record.protocolGeneration == 2 else { return false }
+        let state = try localV2(record)
+        if stage == .localV2Authority {
+            return method == "import.local.authority.v2" && parameters.isEmpty && state.binding == nil
+                && (record.phase == .v2Preparing || record.phase == .v2AuthorityAwaiting)
+        }
+        guard let raw = parameters["binding"] as? [String: Any],
+              try decode(LocalImportV2Binding.self, JSONSerialization.data(withJSONObject: raw)) == state.binding else { return false }
+        if stage == .localV2Settle {
+            guard method == "import.local.settle.v2", record.phase == .v2Terminal,
+                  let terminal = state.terminalStage, parameters["terminalStage"] as? String == terminal,
+                  let receipt = try localV2Receipt(record, stage: terminal) else { return false }
+            return parameters["terminalReceiptFingerprint"] as? String == receipt["ackFingerprint"] as? String
+        }
+        let (name, expectedOwner) = try localV2Stage(record)
+        guard stage == expectedOwner, method == "import.local.\(name).v2" else { return false }
+        if name == "persist" {
+            guard let preview = parameters["parsed"] as? [String: Any] else { return false }
+            return try JSONSerialization.data(withJSONObject: preview, options: .sortedKeys) == state.preview
+        }
+        return parameters.count == 1
+    }
+
+    private func confirmLocalV2Transports(_ record: HostImportRecord, stage: ImportMutationStage) throws {
+        let state = try localV2(record)
+        guard let binding = state.binding else { throw ReaderLibraryError.invalidResponse("unbound original reply proof") }
+        let receipt: Data?
+        switch stage {
+        case .localV2Authority: receipt = nil
+        case .localV2Settle:
+            guard state.settled, let terminal = state.terminalStage else { throw ReaderLibraryError.invalidResponse("settlement not durable") }
+            receipt = state.receipts[terminal]
+        default:
+            let name = stage == .shelf ? "publish" : stage == .persist ? "persist" : stage == .finalize ? "finalize" : "rollback"
+            guard let original = state.receipts[name] else { throw ReaderLibraryError.invalidResponse("stage ACK not durable") }
+            receipt = original
+        }
+        let proof = LocalImportV2TransportProof(binding: binding, stage: stage, receipt: receipt)
+        for id in unresolvedWrites.keys.sorted() {
+            guard var pending = unresolvedWrites[id], pending.owner == .importOperation(id: record.id, stage: stage) else { continue }
+            guard stage == .localV2Authority || pending.localV2RequestBinding == binding else { throw ReaderLibraryError.invalidResponse("original transport binding") }
+            pending.localV2Proof = proof
+            if let terminal = pending.terminal {
+                try validateLocalV2Transport(terminal, pending: pending, requestID: id)
+                unresolvedWrites.removeValue(forKey: id)
+            } else { unresolvedWrites[id] = pending }
+        }
+    }
+
+    private func validateLocalV2Transport(_ reply: Result<ReaderCoreEvent, ReaderCoreClientError>, pending: PendingMutation, requestID: UInt64) throws {
+        guard let proof = pending.localV2Proof else { throw ReaderLibraryError.invalidResponse("unconfirmed local import transport") }
+        let event = try reply.get()
+        guard event.requestId == requestID else { throw ReaderLibraryError.invalidResponse("original local import wire request") }
+        if proof.stage != .localV2Authority, pending.localV2RequestBinding != proof.binding { throw ReaderLibraryError.invalidResponse("late original binding") }
+        // A transport error is not a business rejection. Its original business
+        // outcome was separately obtained and durably stored before this proof.
+        if event.type == "error" { return }
+        let data = try responseData(reply, method: pending.method, requestID: requestID)
+        if proof.stage == .localV2Authority {
+            try validateLocalV2Authority(decode(LocalImportV2Authority.self, data), binding: proof.binding)
+            return
+        }
+        let value = try object(data)
+        if proof.stage == .localV2Settle {
+            guard let authority = value["authority"] as? [String: Any], ["settled", "retired"].contains(value["state"] as? String ?? "") else { throw ReaderLibraryError.invalidResponse("late original settlement") }
+            try validateLocalV2Authority(decode(LocalImportV2Authority.self, JSONSerialization.data(withJSONObject: authority)), binding: proof.binding)
+            return
+        }
+        guard let binding = value["binding"] as? [String: Any],
+              try decode(LocalImportV2Binding.self, JSONSerialization.data(withJSONObject: binding)) == proof.binding,
+              let expected = proof.receipt, let original = try object(expected)["stage"] as? String,
+              let receipts = value["receipts"] as? [[String: Any]],
+              let receipt = receipts.first(where: { $0["stage"] as? String == original }),
+              try JSONSerialization.data(withJSONObject: receipt, options: .sortedKeys) == expected else {
+            throw ReaderLibraryError.invalidResponse("late original local import ACK")
+        }
+    }
+
+    private func localV2Parameters(_ record: HostImportRecord, stage: String) throws -> [String: Any] {
+        let state = try localV2(record)
+        guard let binding = state.binding else { throw ReaderLibraryError.invalidResponse("missing original local import binding") }
+        var params: [String: Any] = ["binding": try object(JSONEncoder().encode(binding))]
+        if stage == "persist" {
+            params["parsed"] = try object(state.preview)
+            // Only the transport locator changes after container relocation.
+            let staged = stagingURL.appendingPathComponent(record.stagedName)
+            let source = FileManager.default.fileExists(atPath: staged.path) ? staged : stableSource(record.hash)
+            let verified = try ReaderImportStagingLease.verifiedFile(at: source)
+            guard verified.sha256 == record.hash,
+                  try source.resourceValues(forKeys: [.fileSizeKey]).fileSize == Int(state.sourceBytes) else {
+                throw ReaderLibraryError.invalidResponse("original local import source locator")
+            }
+            params["sourcePath"] = source.path
+        }
+        return params
+    }
+
+    private func queryLocalV2Stage(_ record: inout HostImportRecord, stage: String) async throws -> Bool {
+        let state = try localV2(record)
+        guard let binding = state.binding else { throw ReaderLibraryError.invalidResponse("unbound local import query") }
+        var params: [String: Any] = ["binding": try object(JSONEncoder().encode(binding)), "stage": stage]
+        if let receipt = try localV2Receipt(record, stage: stage), let fingerprint = receipt["semanticFingerprint"] as? String { params["fingerprint"] = fingerprint }
+        else if stage == "persist" { params["parsed"] = try object(state.preview) }
+        let response = try object(await request("import.local.query.v2", params))
+        guard let rawAuthority = response["authority"] as? [String: Any] else { throw ReaderLibraryError.operationPending(record.id) }
+        let authority = try decode(LocalImportV2Authority.self, JSONSerialization.data(withJSONObject: rawAuthority))
+        try validateLocalV2Authority(authority, binding: binding)
+        guard let queryState = response["state"] as? String else { throw ReaderLibraryError.invalidResponse("local import query state") }
+        if queryState == "active", let operation = response["operation"] as? [String: Any] {
+            try applyLocalV2Snapshot(JSONSerialization.data(withJSONObject: operation), record: &record)
+            if let receipt = response["receipt"] as? [String: Any] {
+                guard receipt["stage"] as? String == stage, let original = record.localV2?.receipts[stage],
+                      try JSONSerialization.data(withJSONObject: receipt, options: .sortedKeys) == original else {
+                    throw ReaderLibraryError.invalidResponse("query original stage receipt")
+                }
+            }
+            if record.localV2?.receipts[stage] != nil {
+                try confirmLocalV2Transports(record, stage: localV2OwnerStage(stage))
+            }
+            return true
+        }
+        // Absence is not an ACK or proof an old worker exited. Reissuing only
+        // this exact binding lets Core atomically arbitrate a pending original.
+        return queryState == "absent" && stage == "persist" && authority.headSequence < UInt64.max
+            && binding.sequence == authority.headSequence + 1
+    }
+
+    private func localV2Result(_ record: HostImportRecord, pending: Bool) throws -> ReaderImportResult {
+        guard let persist = try localV2Receipt(record, stage: "persist"), persist["outcome"] as? String == "applied",
+              let persisted = persist["data"] as? [String: Any], persisted["kind"] as? String == "localBook",
+              let local = persisted["data"] as? [String: Any], let metadata = local["book"] as? [String: Any],
+              let published = try localV2Receipt(record, stage: "publish"), published["outcome"] as? String == "applied",
+              let add = published["data"] as? [String: Any], let created = add["created"] as? Bool else {
+            throw ReaderLibraryError.invalidResponse("original readable local import receipts")
+        }
+        let book = ReaderBook(bookId: "local:" + record.hash, title: metadata["title"] as? String ?? "",
+            author: metadata["author"] as? String ?? "", chapterCount: (local["chapterCount"] as? NSNumber)?.uint32Value ?? 0)
+        return ReaderImportResult(book: book, created: created, finalizationPending: pending)
+    }
+
+    private func applyLocalV2Settlement(_ data: Data, record: inout HostImportRecord) throws {
+        var state = try localV2(record)
+        guard record.phase == .v2Terminal, let binding = state.binding, let stage = state.terminalStage,
+              let receipt = try localV2Receipt(record, stage: stage), !(receipt["ackFingerprint"] as? String ?? "").isEmpty else {
+            throw ReaderLibraryError.invalidResponse("durable local import terminal required")
+        }
+        let response = try object(data)
+        guard let rawAuthority = response["authority"] as? [String: Any],
+              ["settled", "retired"].contains(response["state"] as? String ?? "") else { throw ReaderLibraryError.invalidResponse("local import settlement") }
+        try validateLocalV2Authority(decode(LocalImportV2Authority.self, JSONSerialization.data(withJSONObject: rawAuthority)), binding: binding)
+        state.settled = true; record.localV2 = state; try writeRecord(record)
+    }
+
+    private func continueLocalImportV2(_ original: HostImportRecord, using lease: ReaderImportStagingLease, firstPersist: Bool = false) async throws -> ReaderImportResult {
+        var record = original
+        var directPersist = firstPersist
+        var dispatched = Set<String>()
+        var persistSendAttemptedThisPass = false
+        do {
+            for _ in 0..<8 {
+                var state = try localV2(record)
+                if record.phase == .v2NotAdmitted { try finishLocalV2NonAdmission(record, using: lease) }
+                if record.phase == .v2Undispatched { try finishLocalV2Undispatched(record, using: lease) }
+                if state.binding == nil {
+                    guard dispatched.insert("authority").inserted else { throw ReaderLibraryError.operationPending(record.id) }
+                    try await bootstrapLocalImportV2(&record); continue
+                }
+                if record.phase == .v2Terminal {
+                    guard let binding = state.binding, let stage = state.terminalStage,
+                          let receipt = try localV2Receipt(record, stage: stage), let fingerprint = receipt["ackFingerprint"] as? String else {
+                        throw ReaderLibraryError.invalidResponse("original terminal receipt")
+                    }
+                    if !state.settled {
+                        guard dispatched.insert("settle").inserted else { throw ReaderLibraryError.operationPending(record.id) }
+                        // terminalStage + full original receipt are already durable.
+                        let reply = try await request("import.local.settle.v2", ["binding": try object(JSONEncoder().encode(binding)),
+                            "terminalStage": stage, "terminalReceiptFingerprint": fingerprint], mutation: true,
+                            owner: .importOperation(id: record.id, stage: .localV2Settle), localImportV2Replay: true)
+                        try applyLocalV2Settlement(reply, record: &record)
+                        try confirmLocalV2Transports(record, stage: .localV2Settle)
+                        state = try localV2(record)
+                    }
+                    let authority: ReaderImportStagingLease.RetirementAuthority = stage == "finalize" ? .finalized : stage == "rollback" ? .rolledBack : .persistRejected
+                    try retireImportResources(record, authority: authority, using: lease)
+                    try removeRecord(record.id); liveImportResources.removeValue(forKey: record.id)
+                    if stage != "finalize" { throw ReaderImportRollbackCompletion(operationId: record.id, originalFailure: record.rejection?.message ?? record.originalFailure) }
+                    return try localV2Result(record, pending: false)
+                }
+                if record.phase == .v2Persisted {
+                    do {
+                        let proof = try importResourceProof(for: record, using: lease)
+                        _ = try commitSource(stagingURL.appendingPathComponent(record.stagedName), hash: record.hash) { created in
+                            guard let proof else { throw ReaderLibraryError.invalidResponse("missing v2 source ownership") }
+                            try registerSourceCreation(created, owner: proof, using: lease)
+                        }
+                        record.phase = .v2PublishAwaiting
+                    } catch {
+                        record.originalFailure = String(describing: error); record.phase = .v2RollbackAwaiting
+                    }
+                    try writeRecord(record); continue
+                }
+                let (stage, ownerStage) = try localV2Stage(record)
+                let queried = !(directPersist && stage == "persist")
+                if queried {
+                    guard try await queryLocalV2Stage(&record, stage: stage) else { throw ReaderLibraryError.operationPending(record.id) }
+                    if record.phase == .v2Terminal || record.phase == .v2Persisted { continue }
+                    if try localV2Stage(record).0 != stage { continue }
+                }
+                directPersist = false
+                if let receipt = try localV2Receipt(record, stage: stage) {
+                    if receipt["outcome"] as? String == "rejected" { throw ReaderLibraryError.operationPending(record.id) }
+                    continue
+                }
+                guard dispatched.insert(stage).inserted else { throw ReaderLibraryError.operationPending(record.id) }
+                let parameters = try localV2Parameters(record, stage: stage)
+                if stage == "persist" { record.localV2?.persistAttempts += 1; try writeRecord(record) }
+                let reply: Data
+                do {
+                    reply = try await request("import.local.\(stage).v2", parameters, mutation: true,
+                        timeout: stage == "persist" ? 120 : 30, owner: .importOperation(id: record.id, stage: ownerStage),
+                        onSendAttempt: { if stage == "persist" { persistSendAttemptedThisPass = true } }, localImportV2Replay: queried)
+                } catch let failure as LocalImportV2WireFailure {
+                    if firstPersist, !queried, stage == "persist", record.localV2?.persistAttempts == 1,
+                       record.localV2?.persistOutcomeWasUnknown == false, failure.disposition == "nonAdmitted" {
+                        record.localV2?.nonAdmission = .init(method: failure.method, requestID: failure.requestID,
+                            parameters: try JSONSerialization.data(withJSONObject: parameters, options: .sortedKeys), event: failure.event)
+                        record.phase = .v2NotAdmitted; record.rejection = StoredImportRejection(failure.underlying)
+                        try writeRecord(record)
+                        try importStagingObserver(.localV2NonAdmissionDurable, operationsURL.appendingPathComponent(record.id + ".json"))
+                        try finishLocalV2NonAdmission(record, using: lease)
+                    }
+                    if stage == "persist" { record.localV2?.persistOutcomeWasUnknown = true; try writeRecord(record) }
+                    throw failure
+                } catch {
+                    if stage == "persist" { record.localV2?.persistOutcomeWasUnknown = true; try writeRecord(record) }
+                    throw error
+                }
+                try applyLocalV2Snapshot(reply, record: &record, expectedStage: stage)
+                try confirmLocalV2Transports(record, stage: ownerStage)
+            }
+            throw ReaderLibraryError.operationPending(record.id)
+        } catch let completed as ReaderImportRollbackCompletion { throw completed }
+        catch {
+            if firstPersist, !persistSendAttemptedThisPass, record.localV2?.receipts["persist"] == nil {
+                record.phase = .v2Undispatched; record.originalFailure = error.localizedDescription
+                try writeRecord(record)
+                try finishLocalV2Undispatched(record, using: lease)
+            }
+            if record.hasReadableImportReceipt { return try localV2Result(record, pending: true) }
+            throw ReaderLibraryError.operationPending(record.id)
+        }
     }
 
     /// Reuses the original raw source and Core's atomic position migration.
@@ -542,6 +948,13 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         try drainUnresolvedReplies(importsOnly: true, resourceLease: stagingLease)
         var completedRejection: Error?
         for var record in try records() {
+            if record.protocolGeneration != nil {
+                guard record.protocolGeneration == 2 else { continue }
+                do { _ = try await continueLocalImportV2(record, using: stagingLease) }
+                catch let completed as ReaderImportRollbackCompletion { if completedRejection == nil { completedRejection = completed } }
+                catch { /* Preserve the original v2 record and source. */ }
+                continue
+            }
             // A live original request owns this phase until its terminal reply
             // is applied. Never race it with a replacement mutation.
             guard !hasPendingImport(record.id) else { continue }
@@ -613,6 +1026,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     func request(_ method: String, _ params: [String: Any], mutation: Bool = false,
                          timeout: TimeInterval = 30, owner: PendingMutationOwner? = nil,
                          onSendAttempt: (() -> Void)? = nil,
+                         localImportV2Replay: Bool = false,
                          searchTraceAttempt: ReaderSearchTraceAttempt? = nil,
                          sourceExecutionObservationID: UUID? = nil) async throws -> Data {
         guard !isClosed else { throw ReaderLibraryError.closed }
@@ -623,8 +1037,10 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         if !mutation { try Task.checkCancellation() }
         if mutation {
             guard let owner else { throw ReaderLibraryError.invalidResponse("missing mutation owner") }
-            if unresolvedWrites.values.contains(where: { $0.owner == owner }) {
-                throw ReaderLibraryError.operationPending(method)
+            if unresolvedWrites.values.contains(where: { $0.owner == owner && $0.localV2Proof == nil }) {
+                var permitted = false
+                if localImportV2Replay { permitted = try permitsLocalV2Replay(method, parameters: params, owner: owner) }
+                guard permitted else { throw ReaderLibraryError.operationPending(method) }
             }
         }
         requestID += 1
@@ -637,8 +1053,11 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         if mutation, let owner {
             // Reserve the owner before the first suspension, not only after a
             // deadline: actor reentrancy cannot dispatch a competing write.
-            unresolvedWrites[id] = PendingMutation(method: method, owner: owner, terminal: nil,
-                                                   downloadStatusIdentity: downloadIdentity)
+            var pending = PendingMutation(method: method, owner: owner, terminal: nil, downloadStatusIdentity: downloadIdentity)
+            if method.hasPrefix("import.local."), method.hasSuffix(".v2"), let raw = params["binding"] as? [String: Any] {
+                pending.localV2RequestBinding = try decode(LocalImportV2Binding.self, JSONSerialization.data(withJSONObject: raw))
+            }
+            unresolvedWrites[id] = pending
         }
         do {
             onSendAttempt?() // Infallible: after reservation, immediately before the actual send attempt.
@@ -946,8 +1365,14 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             // missing offline body from a retryable network failure without
             // parsing localized error messages.
             let reason = details?["reason"] as? String ?? details?["category"] as? String
-            throw ReaderLibraryError.core(code: error?.code ?? "INTERNAL", message: error?.message ?? "",
-                                          retryable: error?.retryable ?? false, reason: reason)
+            let failure = ReaderLibraryError.core(code: error?.code ?? "INTERNAL", message: error?.message ?? "",
+                retryable: error?.retryable ?? false, reason: reason)
+            if ["authority", "persist", "publish", "finalize", "rollback", "query", "settle"].contains(where: { method == "import.local.\($0).v2" }),
+               let disposition = details?["localImportDisposition"] as? String, ["nonAdmitted", "unknown"].contains(disposition) {
+                throw LocalImportV2WireFailure(method: method, requestID: requestID, disposition: disposition,
+                    event: event.rawData, underlying: failure)
+            }
+            throw failure
         }
         guard event.type == "result", let data = event.data else { throw ReaderLibraryError.invalidResponse(method) }
         return try JSONSerialization.data(withJSONObject: data)
@@ -1006,6 +1431,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
 
     private func hasPendingImport(_ recordID: String) -> Bool {
         unresolvedWrites.values.contains { pending in
+            if pending.localV2Proof != nil { return false }
             if case .importOperation(let id, _) = pending.owner { return id == recordID }
             return false
         }
@@ -1033,9 +1459,37 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 }
             }
             if pending.terminal == nil { startPendingHostPump(requestID: id) }
+            if pending.localV2Proof != nil {
+                if let terminal = pending.terminal {
+                    try validateLocalV2Transport(terminal, pending: pending, requestID: id)
+                    unresolvedWrites.removeValue(forKey: id)
+                }
+                continue
+            }
             guard case .importOperation(let recordID, let stage) = pending.owner,
                   let terminal = pending.terminal,
                   var record = try records().first(where: { $0.id == recordID }) else { continue }
+            if record.protocolGeneration != nil {
+                guard record.protocolGeneration == 2 else { continue }
+                do {
+                    let data = try responseData(terminal, method: pending.method, requestID: id)
+                    switch stage {
+                    case .localV2Authority: try applyLocalV2Authority(data, record: &record)
+                    case .localV2Settle: try applyLocalV2Settlement(data, record: &record)
+                    case .persist, .shelf, .finalize, .rollback:
+                        let name = stage == .shelf ? "publish" : stage == .persist ? "persist" : stage == .finalize ? "finalize" : "rollback"
+                        try applyLocalV2Snapshot(data, record: &record, expectedStage: name)
+                    }
+                    try confirmLocalV2Transports(record, stage: stage)
+                } catch {
+                    if case .success(let event) = terminal, event.requestId == id, event.type == "error" {
+                        // This envelope ended, but it is not a stored business
+                        // rejection. Keep the journal and query its old binding.
+                        unresolvedWrites.removeValue(forKey: id)
+                    } else { throw error }
+                }
+                continue
+            }
             let data: Data
             do { data = try responseData(terminal, method: pending.method, requestID: id) }
             catch {
@@ -1086,6 +1540,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                     try removeRecord(recordID)
                     liveImportResources.removeValue(forKey: recordID)
                 }
+            case .localV2Authority, .localV2Settle:
+                throw ReaderLibraryError.invalidResponse("v2 transport cannot enter legacy recovery")
             }
             unresolvedWrites.removeValue(forKey: id)
             if stage == .rollback { throw rollbackCompletion(record) }
@@ -1179,7 +1635,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     }
 
     private func importResourceProof(for record: HostImportRecord, using lease: ReaderImportStagingLease) throws -> ReaderImportStagingOwner? {
-        let proof = try liveImportResources[record.id] ?? lease.owner(for: record.id)
+        let proof = try liveImportResources[record.id] ?? lease.owner(for: record.id) ?? record.localV2?.resourceOwner
         guard let proof else { return nil } // Legacy bare staging is never guessed to be ours.
         guard proof.transactionID == record.id, proof.stagedName == record.stagedName, proof.sha256 == record.hash else {
             throw ReaderLibraryError.invalidResponse("original import resource identity")
@@ -1238,7 +1694,12 @@ private struct ReaderSourceExecutionStatus: Decodable {
 }
 
 private struct HostImportRecord: Codable {
-    enum Phase: String, Codable { case preparing, persistAwaiting, persisted, shelfAwaiting, finalize, rollback, completed, rejected }
+    enum Phase: String, Codable {
+        case preparing, persistAwaiting, persisted, shelfAwaiting, finalize, rollback, completed, rejected
+        // An older Host must fail decoding these phases, never recover them as v1.
+        case v2Preparing, v2AuthorityAwaiting, v2PersistAwaiting, v2Persisted, v2PublishAwaiting
+        case v2FinalizeAwaiting, v2RollbackAwaiting, v2Terminal, v2NotAdmitted, v2Undispatched
+    }
     let id: String
     let fileName: String
     let stagedName: String
@@ -1252,16 +1713,95 @@ private struct HostImportRecord: Codable {
     var reprocessInput: Data? = nil
     var reprocessResult: ReaderImportResult? = nil
     var reprocessFinalizationDispatched: Bool? = nil
+    var protocolGeneration: UInt32? = nil
+    var requiredCapability: String? = nil
+    var localV2: HostLocalImportV2? = nil
+
+    var hasReadableImportReceipt: Bool {
+        if protocolGeneration == nil { return phase == .finalize }
+        guard protocolGeneration == 2, requiredCapability == HostLocalImportV2.requiredCapability,
+              rollbackToken == nil, shelfParameters == nil, let state = localV2, let binding = state.binding,
+              binding.transactionId == id, binding.sourceId == "local", binding.bookId == "local:" + hash,
+              binding.sourceSha256 == hash, binding.sourceBytes == state.sourceBytes, binding.format == state.format,
+              phase == .v2FinalizeAwaiting || (phase == .v2Terminal && state.terminalStage == "finalize") else { return false }
+        for stage in ["finalize", "rollback"] {
+            if let raw = state.receipts[stage], let receipt = try? JSONSerialization.jsonObject(with: raw) as? [String: Any],
+               receipt["outcome"] as? String == "rejected" { return false }
+        }
+        guard let receipt = state.receipts["publish"],
+              let value = try? JSONSerialization.jsonObject(with: receipt) as? [String: Any] else { return false }
+        return value["stage"] as? String == "publish" && value["outcome"] as? String == "applied"
+            && !(value["semanticFingerprint"] as? String ?? "").isEmpty && !(value["ackFingerprint"] as? String ?? "").isEmpty
+            && value["error"] is NSNull && (value["data"] as? [String: Any])?["created"] is Bool
+    }
+}
+
+private struct HostLocalImportV2: Codable {
+    static let requiredCapability = "import.local.receipts.v2"
+    let preview: Data
+    let sourceBytes: UInt64
+    let format: String
+    var binding: LocalImportV2Binding? = nil
+    var receipts: [String: Data] = [:]
+    var terminalStage: String? = nil
+    var settled = false
+    var resourceOwner: ReaderImportStagingOwner? = nil
+    var persistAttempts = 0
+    var persistOutcomeWasUnknown = false
+    var nonAdmission: LocalImportV2NonAdmission? = nil
+}
+
+private struct LocalImportV2NonAdmission: Codable {
+    let method: String
+    let requestID: UInt64
+    let parameters: Data
+    let event: Data
+}
+
+private struct LocalImportV2WireFailure: Error, LocalizedError {
+    let method: String
+    let requestID: UInt64
+    let disposition: String
+    let event: Data
+    let underlying: ReaderLibraryError
+    var errorDescription: String? { underlying.localizedDescription }
+}
+
+private struct LocalImportV2Authority: Codable {
+    let protocolGeneration: UInt32
+    let baseSchemaVersion: UInt32
+    let extensionSchema: UInt32
+    let authorityEpoch: String
+    let headSequence: UInt64
+    let activeCount: UInt32
+    let activeLimit: UInt32
+}
+
+fileprivate struct LocalImportV2Binding: Codable, Equatable {
+    let authorityEpoch: String
+    let sequence: UInt64
+    let transactionId: String
+    let sourceId: String
+    let bookId: String
+    let sourceSha256: String
+    let sourceBytes: UInt64
+    let format: String
 }
 
 /// The original import has an authoritative compensation ACK. This is a
 /// confirmed import failure, not a claim that the earlier mutation never ran.
-public struct ReaderImportRollbackCompletion: Error, Sendable {
+public struct ReaderImportRollbackCompletion: Error, Sendable, LocalizedError {
     public let operationId: String
     public let originalFailure: String?
+    public var errorDescription: String? { originalFailure }
 }
 
-enum ImportMutationStage: Hashable { case persist, shelf, finalize, rollback }
+enum ImportMutationStage: Hashable { case persist, shelf, finalize, rollback, localV2Authority, localV2Settle }
+fileprivate struct LocalImportV2TransportProof {
+    let binding: LocalImportV2Binding
+    let stage: ImportMutationStage
+    let receipt: Data?
+}
 enum PendingMutationOwner: Hashable {
     case importOperation(id: String, stage: ImportMutationStage)
     case progress(sourceId: String, bookId: String)
@@ -1278,6 +1818,8 @@ struct PendingMutation {
     var executingHostRequest: ReaderCoreEvent?
     var uncertainHostRequests: [ReaderCoreEvent] = []
     var lateHostHandledCount: Int = 0
+    fileprivate var localV2RequestBinding: LocalImportV2Binding? = nil
+    fileprivate var localV2Proof: LocalImportV2TransportProof? = nil
 }
 private struct ReaderRequestDeadlineExceeded: Error {}
 

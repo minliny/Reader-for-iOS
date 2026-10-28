@@ -2,6 +2,7 @@ import Foundation
 import CryptoKit
 import Darwin
 import XCTest
+import SQLite3
 #if canImport(ReaderCoreClient)
 import ReaderCoreClient
 #endif
@@ -30,8 +31,8 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         XCTAssertEqual(try fixture.stagePayloads(), [])
         XCTAssertEqual(try fixture.ownerReceipts(), [])
         XCTAssertEqual(fixture.client.count("import.parse"), 0)
-        XCTAssertEqual(fixture.client.count("import.persist"), 0)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 0)
         try fixture.assertOriginalPreserved()
         try await fixture.service.close()
     }
@@ -53,7 +54,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         XCTAssertEqual(try fixture.stagePayloads(), [])
         XCTAssertEqual(try fixture.ownerReceipts(), [])
         XCTAssertEqual(fixture.client.count("import.parse"), 0)
-        XCTAssertEqual(fixture.client.count("import.persist"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
         try fixture.assertOriginalPreserved()
         try await fixture.service.close()
     }
@@ -77,7 +78,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         XCTAssertEqual(try fixture.stagePayloads(), [])
         XCTAssertEqual(try fixture.ownerReceipts(), [])
         XCTAssertEqual(fixture.client.count("import.parse"), 0)
-        XCTAssertEqual(fixture.client.count("import.persist"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
         try fixture.assertOriginalPreserved()
         try await fixture.service.close()
     }
@@ -101,7 +102,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         XCTAssertEqual(try fixture.stagePayloads(), [])
         XCTAssertEqual(try fixture.ownerReceipts(), [])
         XCTAssertEqual(fixture.client.count("import.parse"), 0)
-        XCTAssertEqual(fixture.client.count("import.persist"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
         try fixture.assertOriginalPreserved()
         try await fixture.service.close()
     }
@@ -130,7 +131,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
                 XCTAssertEqual(captured, Data(fixture.original.prefix(1024 * 1024)))
             } else { XCTAssertEqual(captured, fixture.original) }
             XCTAssertEqual(fixture.client.count("import.parse"), point == .parsed ? 1 : 0)
-            XCTAssertEqual(fixture.client.count("import.persist"), 0)
+            XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
             let unrelated = sourceRoot.appendingPathComponent(".staging/legacy-unowned.source")
             try fixture.original.write(to: unrelated, options: .atomic)
             let originalReceipt = try Data(contentsOf: capturedReceipt)
@@ -144,7 +145,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
             XCTAssertFalse(FileManager.default.fileExists(atPath: capturedPayload.path))
             XCTAssertFalse(FileManager.default.fileExists(atPath: capturedReceipt.path))
             XCTAssertEqual(try Data(contentsOf: unrelated), fixture.original)
-            for method in ["import.parse", "import.persist", "bookshelf.add", "import.finalize", "import.rollback"] {
+            for method in ["import.parse", "import.local.persist.v2", "import.local.publish.v2", "import.local.finalize.v2", "import.local.rollback.v2"] {
                 XCTAssertEqual(gate.count(method), 0, "Resource recovery cannot replay \(method)")
             }
             try fixture.assertOriginalPreserved()
@@ -157,106 +158,296 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         let receipt = StagingHandoffCapture()
         let fixture = try StagingFixture(observer: { try receipt.capture($0, payload: $1) })
         defer { fixture.cleanUp() }
-        fixture.client.hold("import.persist", advanceObserverDeadline: true)
-        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("The actual original persist reply is held") }
-        catch ReaderLibraryError.operationPending(_) {}
-        let originalJournal = try fixture.onlyBusinessJournal()
-        let journalBytes = try Data(contentsOf: originalJournal)
-        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: journalBytes) as? [String: Any])
-        XCTAssertEqual(journal["phase"] as? String, "persistAwaiting")
-        XCTAssertNil(journal["rollbackToken"])
-        let ownerURL = try XCTUnwrap(receipt.url)
-        let ownerBytes = try XCTUnwrap(receipt.bytes)
-        try ownerBytes.write(to: ownerURL, options: .atomic) // Actual production receipt, crash-at-handoff overlap.
-        let owner = try JSONDecoder().decode(ReaderImportStagingOwner.self, from: ownerBytes)
-        XCTAssertEqual(owner.phase, .handedOff)
-        XCTAssertEqual(journal["id"] as? String, owner.transactionID)
-        XCTAssertEqual(journal["stagedName"] as? String, owner.stagedName)
-        XCTAssertEqual(journal["hash"] as? String, owner.sha256)
-        let payload = fixture.sources.appendingPathComponent(".staging/" + owner.stagedName)
-        let before = try Data(contentsOf: payload)
-        let pending = try await fixture.service.recoverPendingImports()
-        XCTAssertEqual(pending.count, 1)
-        XCTAssertEqual(try Data(contentsOf: originalJournal), journalBytes)
-        XCTAssertEqual(try Data(contentsOf: payload), before)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: ownerURL.path), "Keep exact resource identity until the original business terminal")
-        XCTAssertEqual(fixture.client.count("import.persist"), 1)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 0)
-        XCTAssertEqual(fixture.client.count("import.rollback"), 0)
-        fixture.client.release()
-        let settled = try await fixture.service.recoverPendingImports()
-        XCTAssertTrue(settled.isEmpty)
-        XCTAssertEqual(fixture.client.count("import.persist"), 1)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 1)
-        XCTAssertEqual(try fixture.ownerReceipts(), [])
-        XCTAssertEqual(try fixture.stagePayloads(), [])
-        let books = try await fixture.service.listBooks() // Projection only, never the original ACK.
-        let book = try XCTUnwrap(books.first)
-        XCTAssertEqual(book.bookId, "local:" + StagingFixture.sha(fixture.original))
-        XCTAssertEqual(book.chapterCount, 948)
-        let retained = try await fixture.service.retainedSourceURL(for: book)
-        XCTAssertEqual(try Data(contentsOf: retained), fixture.original)
-        try fixture.assertOriginalPreserved()
-        try await fixture.service.close()
-    }
-
-    func testRealOriginalHeldPersistRejectionRetiresItsExactStageEvenWithoutOwnerMetadata() async throws {
-        let capture = StagingHandoffCapture()
-        let fixture = try StagingFixture(observer: { point, payload in
-            try capture.capture(point, payload: payload)
-            guard point == .handedOff else { return }
-            // Change only this new private staging inode after real parse, not
-            // selected input, RPC parameters, journal identity or any Core result.
-            let writer = try FileHandle(forUpdating: payload)
-            let first = try XCTUnwrap(try writer.read(upToCount: 1)?.first)
-            try writer.seek(toOffset: 0)
-            try writer.write(contentsOf: Data([first ^ 0xff]))
-            try writer.synchronize()
-            try writer.close()
-            try FileManager.default.removeItem(at: try XCTUnwrap(capture.url))
-        })
-        defer { fixture.cleanUp() }
-        let copy = try fixture.copyInput("actual-original-known-rejection.txt")
-        fixture.client.hold("import.persist", advanceObserverDeadline: true)
-        do { _ = try await fixture.service.importBook(at: copy); XCTFail("The original Core rejection has not been released") }
+        fixture.client.hold("import.local.persist.v2", advanceObserverDeadline: true)
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("The original persist envelope is held") }
         catch ReaderLibraryError.operationPending(_) {}
         let journalURL = try fixture.onlyBusinessJournal()
-        let journalBytes = try Data(contentsOf: journalURL)
-        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: journalBytes) as? [String: Any])
-        let id = try XCTUnwrap(journal["id"] as? String)
-        let staged = fixture.sources.appendingPathComponent(".staging/" + (try XCTUnwrap(journal["stagedName"] as? String)))
-        let inode = try stagingFileIdentity(staged)
-        let changedStage = try Data(contentsOf: staged)
-        XCTAssertNotEqual(changedStage, fixture.original)
-        let sent = try XCTUnwrap(fixture.client.originalRequest("import.persist"))
-        let parameters = try XCTUnwrap(JSONSerialization.jsonObject(with: sent.parameters) as? [String: Any])
-        XCTAssertEqual(parameters["transactionId"] as? String, id)
-        let terminal = try XCTUnwrap(fixture.client.originalTerminal("import.persist"))
-        XCTAssertEqual(terminal.requestId, sent.requestID)
-        XCTAssertEqual(terminal.type, "error")
-        XCTAssertEqual(terminal.error?["code"] as? String, "INVALID_PARAMS")
-        XCTAssertEqual(try Data(contentsOf: journalURL), journalBytes)
-        let pending = try await fixture.service.recoverPendingImports()
-        XCTAssertEqual(pending.map(\.id), [id], "No fresh read or missing metadata is an original ACK")
-        XCTAssertEqual(try Data(contentsOf: journalURL), journalBytes)
-        XCTAssertEqual(try stagingFileIdentity(staged), inode)
-        XCTAssertEqual(try Data(contentsOf: staged), changedStage)
-        XCTAssertEqual(fixture.client.count("import.persist"), 1)
+        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: journalURL)) as? [String: Any])
+        XCTAssertEqual(journal["phase"] as? String, "v2PersistAwaiting")
+        XCTAssertEqual(journal["protocolGeneration"] as? Int, 2)
+        XCTAssertEqual(journal["requiredCapability"] as? String, "import.local.receipts.v2")
+        XCTAssertNil(journal["rollbackToken"]); XCTAssertNil(journal["shelfParameters"])
+        let owner = try JSONDecoder().decode(ReaderImportStagingOwner.self, from: try XCTUnwrap(receipt.bytes))
+        XCTAssertEqual(journal["id"] as? String, owner.transactionID)
+        XCTAssertEqual(journal["hash"] as? String, owner.sha256)
+        XCTAssertEqual(try Data(contentsOf: fixture.sources.appendingPathComponent(".staging/" + owner.stagedName)), fixture.original)
+        // Query obtains the actual stored original ACK in a new envelope. It
+        // need not wait for the lost transport, nor redispatch materialization.
+        let completed = try await fixture.service.recoverPendingImports()
+        XCTAssertTrue(completed.isEmpty)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.finalize.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.settle.v2"), 1)
+        XCTAssertEqual(try fixture.ownerReceipts(), []); XCTAssertEqual(try fixture.businessJournals(), [])
+        let late = await fixture.service.unresolvedWrites.count
+        XCTAssertEqual(late, 1, "The unobserved original transport keeps its durable-confirmed RAM proof")
         fixture.client.release()
-        do { _ = try await fixture.service.recoverPendingImports(); XCTFail("The exact original Core rejection must be reported") }
-        catch ReaderLibraryError.core(let code, _, _, _) { XCTAssertEqual(code, "INVALID_PARAMS") }
-        XCTAssertEqual(try fixture.stagePayloads(), [])
-        XCTAssertEqual(try fixture.ownerReceipts(), [])
-        XCTAssertEqual(try fixture.businessJournals(), [])
-        XCTAssertEqual(fixture.client.count("import.persist"), 1)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 0)
-        XCTAssertEqual(fixture.client.count("import.rollback"), 0)
-        XCTAssertEqual(try Data(contentsOf: copy), fixture.original)
-        try fixture.assertOriginalPreserved()
-        try await fixture.service.close()
+        do { let pending = try await fixture.service.recoverPendingImports(); XCTAssertTrue(pending.isEmpty) }
+        let afterLate = await fixture.service.unresolvedWrites.count
+        XCTAssertEqual(afterLate, 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 1)
+        let stable = fixture.sources.appendingPathComponent(StagingFixture.sha(fixture.original) + ".source")
+        XCTAssertEqual(try Data(contentsOf: stable), fixture.original)
+        try fixture.assertOriginalPreserved(); try await fixture.service.close()
     }
 
-    func testRealOriginalMoveThenDirectorySyncFailureWaitsForOriginalRollbackAndProtectsPreexistingSameSHA() async throws {
+    func testRealOriginalFreshV2NonAdmissionRetiresItsExactStageEvenWithoutOwnerMetadata() async throws {
+        let capture = StagingHandoffCapture()
+        let fixture = try StagingFixture(observer: { try capture.capture($0, payload: $1) })
+        defer { fixture.cleanUp() }
+        fixture.client.beforeFirstSend("import.local.persist.v2") {
+            let owner = try JSONDecoder().decode(ReaderImportStagingOwner.self, from: try XCTUnwrap(capture.bytes))
+            let payload = fixture.sources.appendingPathComponent(".staging/" + owner.stagedName)
+            let writer = try FileHandle(forUpdating: payload)
+            defer { try? writer.close() }
+            let first = try XCTUnwrap(try writer.read(upToCount: 1)?.first)
+            try writer.seek(toOffset: 0); try writer.write(contentsOf: Data([first ^ 0xff])); try writer.synchronize()
+            try FileManager.default.removeItem(at: try XCTUnwrap(capture.url))
+        }
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("A first transport preflight refusal is not an import") }
+        catch let completion as ReaderImportRollbackCompletion { XCTAssertFalse(completion.operationId.isEmpty) }
+        let sent = try XCTUnwrap(fixture.client.originalRequest("import.local.persist.v2"))
+        let terminal = try XCTUnwrap(fixture.client.originalTerminal("import.local.persist.v2"))
+        XCTAssertEqual(terminal.requestId, sent.requestID); XCTAssertEqual(terminal.type, "error")
+        XCTAssertEqual(try stagingErrorDetails(terminal)["localImportDisposition"] as? String, "nonAdmitted")
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.settle.v2"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 0)
+        XCTAssertEqual(try fixture.stagePayloads(), []); XCTAssertEqual(try fixture.ownerReceipts(), [])
+        XCTAssertEqual(try fixture.businessJournals(), [])
+        try fixture.assertOriginalPreserved(); try await fixture.service.close()
+    }
+
+    func testRealOriginalColdV2PersistLossQueriesFrozenPreviewWithoutReparseOrRedispatch() async throws {
+        let fixture = try StagingFixture()
+        defer { fixture.cleanUp() }
+        fixture.client.hold("import.local.persist.v2", advanceObserverDeadline: true)
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original persist envelope is lost") }
+        catch ReaderLibraryError.operationPending(_) {}
+        let journal = try stagingObject(Data(contentsOf: fixture.onlyBusinessJournal()))
+        let state = try XCTUnwrap(journal["localV2"] as? [String: Any])
+        let preview = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(state["preview"] as? String)))
+        let binding = try stagingBinding(journal)
+        let summary = try XCTUnwrap(stagingObject(preview)["summary"] as? [String: Any])
+        XCTAssertEqual(binding["format"] as? String, summary["format"] as? String)
+        XCTAssertEqual((binding["sourceBytes"] as? NSNumber)?.uint64Value, UInt64(fixture.original.count))
+        let staged = fixture.sources.appendingPathComponent(".staging/" + (try XCTUnwrap(journal["stagedName"] as? String)))
+        let identity = try stagingFileIdentity(staged)
+        fixture.client.destroy() // The only lost fact is this process's wire envelope.
+        let (gate, reopened) = try fixture.reopen()
+        defer { gate.destroy() }
+        let remaining = try await reopened.recoverPendingImports()
+        XCTAssertTrue(remaining.isEmpty, "One cold pass consumes Core's original persist ACK and finishes")
+        let query = try stagingObject(XCTUnwrap(gate.originalRequest("import.local.query.v2")).parameters)
+        XCTAssertEqual(query["stage"] as? String, "persist")
+        XCTAssertEqual(try stagingJSON(XCTUnwrap(query["parsed"] as? [String: Any])), preview)
+        XCTAssertEqual(try stagingJSON(XCTUnwrap(query["binding"] as? [String: Any])), try stagingJSON(stagingBinding(journal)))
+        for method in ["import.parse", "import.local.persist.v2", "bookshelf.add", "import.persist"] { XCTAssertEqual(gate.count(method), 0) }
+        for method in ["import.local.publish.v2", "import.local.finalize.v2", "import.local.settle.v2"] { XCTAssertEqual(gate.count(method), 1) }
+        let stable = fixture.stableSource
+        XCTAssertEqual(try stagingFileIdentity(stable), identity); XCTAssertEqual(try Data(contentsOf: stable), fixture.original)
+        XCTAssertEqual(try fixture.ownerReceipts(), []); XCTAssertEqual(try fixture.businessJournals(), [])
+        try fixture.assertOriginalPreserved(); try await reopened.close()
+    }
+
+    func testRealOriginalColdV2LostPublishRefusalRollsBackInOnePassAfterExactMetadataRestore() async throws {
+        let terminalCapture = StagingJournalCapture(point: .localV2TerminalDurable)
+        let fixture = try StagingFixture()
+        defer { fixture.cleanUp() }
+        let fault = StagingMetadataCapture()
+        fixture.client.beforeFirstSend("import.local.publish.v2") { try fault.change(fixture) }
+        fixture.client.hold("import.local.publish.v2", advanceObserverDeadline: true)
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original business refusal envelope is lost") }
+        catch ReaderLibraryError.operationPending(_) {}
+        let negative = try stagingReceipt(XCTUnwrap(fixture.client.originalTerminal("import.local.publish.v2")), stage: "publish")
+        XCTAssertEqual(negative["outcome"] as? String, "rejected")
+        XCTAssertTrue(negative["data"] is NSNull); XCTAssertNotNil(negative["error"] as? [String: Any])
+        try fault.restore(fixture) // Restore exact original bytes before opening a new runtime.
+        fixture.client.destroy()
+        let (gate, reopened) = try fixture.reopen(observer: { try terminalCapture.observe($0, url: $1) })
+        defer { gate.destroy() }
+        do { _ = try await reopened.recoverPendingImports(); XCTFail("Original rollback must report the original rejected import") }
+        catch let completion as ReaderImportRollbackCompletion { XCTAssertFalse(completion.operationId.isEmpty) }
+        let terminalJournal = try stagingObject(XCTUnwrap(terminalCapture.bytes))
+        XCTAssertEqual(try stagingStoredReceipt(terminalJournal, stage: "publish"), try stagingJSON(negative))
+        XCTAssertEqual(try stagingObject(stagingStoredReceipt(terminalJournal, stage: "rollback"))["outcome"] as? String, "applied")
+        XCTAssertEqual(gate.count("import.local.rollback.v2"), 1); XCTAssertEqual(gate.count("import.local.settle.v2"), 1)
+        for method in ["import.parse", "import.local.persist.v2", "import.local.publish.v2", "import.local.finalize.v2", "bookshelf.add"] { XCTAssertEqual(gate.count(method), 0) }
+        XCTAssertEqual(try fixture.businessJournals(), []); XCTAssertEqual(try fixture.ownerReceipts(), [])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.stableSource.path))
+        try fixture.assertOriginalPreserved(); try await reopened.close()
+    }
+
+    func testRealOriginalV2TerminalDurableColdRecoveryUsesRetiredSettleWithoutReplayingBusiness() async throws {
+        let capture = StagingJournalCapture(point: .localV2TerminalDurable, stopOnce: true)
+        let fixture = try StagingFixture(observer: { try capture.observe($0, url: $1) })
+        defer { fixture.cleanUp() }
+        let imported = try await fixture.service.importBook(at: fixture.input)
+        XCTAssertTrue(imported.finalizationPending)
+        let journal = try stagingObject(XCTUnwrap(capture.bytes))
+        let terminal = try stagingObject(stagingStoredReceipt(journal, stage: "finalize"))
+        let identity = try stagingFileIdentity(fixture.stableSource)
+        let actual = try fixture.client.directRequest("import.local.settle.v2", params: ["binding": try stagingBinding(journal),
+            "terminalStage": "finalize", "terminalReceiptFingerprint": try XCTUnwrap(terminal["ackFingerprint"] as? String)])
+        XCTAssertEqual(actual.type, "result"); XCTAssertEqual(actual.data?["state"] as? String, "settled")
+        fixture.client.destroy()
+        let (gate, reopened) = try fixture.reopen()
+        defer { gate.destroy() }
+        let remaining = try await reopened.recoverPendingImports()
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertEqual(try gate.originalTerminal("import.local.settle.v2")?.data?["state"] as? String, "retired")
+        XCTAssertEqual(gate.count("import.local.settle.v2"), 1)
+        for method in ["import.parse", "import.local.persist.v2", "import.local.publish.v2", "import.local.finalize.v2", "import.local.rollback.v2"] { XCTAssertEqual(gate.count(method), 0) }
+        XCTAssertEqual(try stagingFileIdentity(fixture.stableSource), identity)
+        XCTAssertEqual(try Data(contentsOf: fixture.stableSource), fixture.original)
+        XCTAssertEqual(try fixture.ownerReceipts(), []); XCTAssertEqual(try fixture.businessJournals(), [])
+        try fixture.assertOriginalPreserved(); try await reopened.close()
+    }
+
+    func testRealOriginalV2FreshNonAdmissionDurableCrashRetiresOnlyItsOwnerOnColdReentry() async throws {
+        let handoff = StagingHandoffCapture()
+        let capture = StagingJournalCapture(point: .localV2NonAdmissionDurable, stopOnce: true)
+        let fixture = try StagingFixture(observer: { point, url in
+            try handoff.capture(point, payload: url); try capture.observe(point, url: url)
+        })
+        defer { fixture.cleanUp() }
+        fixture.client.beforeFirstSend("import.local.persist.v2") { try stagingCorruptOwnedPayload(handoff, sources: fixture.sources) }
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Stop after durable original non-admission proof") }
+        catch ReaderLibraryError.operationPending(_) {}
+        let journal = try stagingObject(XCTUnwrap(capture.bytes))
+        XCTAssertEqual(journal["phase"] as? String, "v2NotAdmitted")
+        let state = try XCTUnwrap(journal["localV2"] as? [String: Any])
+        XCTAssertNotNil(state["nonAdmission"] as? [String: Any])
+        XCTAssertEqual(try fixture.ownerReceipts().count, 1)
+        fixture.client.destroy()
+        let (gate, reopened) = try fixture.reopen()
+        defer { gate.destroy() }
+        do { _ = try await reopened.recoverPendingImports(); XCTFail("Known original refusal is reported after exact resource retirement") }
+        catch is ReaderImportRollbackCompletion {}
+        for method in ["import.parse", "import.local.query.v2", "import.local.persist.v2", "import.local.settle.v2"] { XCTAssertEqual(gate.count(method), 0) }
+        XCTAssertEqual(try fixture.stagePayloads(), []); XCTAssertEqual(try fixture.ownerReceipts(), [])
+        XCTAssertEqual(try fixture.businessJournals(), [])
+        try fixture.assertOriginalPreserved(); try await reopened.close()
+    }
+
+    func testRealOriginalV2SameTupleReplayRetiresLateOriginalErrorAfterJournalRemoval() async throws {
+        let fixture = try StagingFixture()
+        defer { fixture.cleanUp() }
+        fixture.client.deferFirstNativeSend("import.local.persist.v2")
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original transport delivery is deferred") }
+        catch ReaderLibraryError.operationPending(_) {}
+        let original = try stagingObject(XCTUnwrap(fixture.client.originalRequest("import.local.persist.v2")).parameters)
+        XCTAssertEqual(fixture.client.nativeCount("import.local.persist.v2"), 0)
+        let recovered = try await fixture.service.recoverPendingImports()
+        XCTAssertTrue(recovered.isEmpty)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 2)
+        XCTAssertEqual(fixture.client.nativeCount("import.local.persist.v2"), 1)
+        let replay = try stagingObject(XCTUnwrap(fixture.client.lastRequest("import.local.persist.v2")).parameters)
+        XCTAssertEqual(try stagingJSON(original), try stagingJSON(replay), "Replay keeps the original binding, semantic preview and locator")
+        XCTAssertEqual(try fixture.businessJournals(), [])
+        let pendingTransport = await fixture.service.unresolvedWrites.count
+        XCTAssertEqual(pendingTransport, 1)
+        let identity = try stagingFileIdentity(fixture.stableSource)
+        try fixture.client.deliverDeferredOriginal() // Real Core now returns retired, not a synthesized ACK.
+        let afterLate = try await fixture.service.recoverPendingImports()
+        XCTAssertTrue(afterLate.isEmpty)
+        let remainingTransport = await fixture.service.unresolvedWrites.count
+        XCTAssertEqual(remainingTransport, 0)
+        XCTAssertEqual(try fixture.client.originalTerminal("import.local.persist.v2")?.type, "error")
+        XCTAssertEqual(fixture.client.nativeCount("import.local.persist.v2"), 2)
+        XCTAssertEqual(fixture.client.count("import.parse"), 1)
+        XCTAssertEqual(try fixture.businessJournals(), []); XCTAssertEqual(try fixture.ownerReceipts(), [])
+        XCTAssertEqual(try stagingFileIdentity(fixture.stableSource), identity)
+        XCTAssertEqual(try Data(contentsOf: fixture.stableSource), fixture.original)
+        try fixture.assertOriginalPreserved(); try await fixture.service.close()
+    }
+
+    func testRealOriginalV2ColdReplayNonAdmissionCannotEraseTheUnknownOriginalIntent() async throws {
+        let handoff = StagingHandoffCapture()
+        let fixture = try StagingFixture(observer: { try handoff.capture($0, payload: $1) })
+        defer { fixture.cleanUp() }
+        fixture.client.deferFirstNativeSend("import.local.persist.v2")
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original delivery is unknown") }
+        catch ReaderLibraryError.operationPending(_) {}
+        let journalURL = try fixture.onlyBusinessJournal()
+        let originalJournal = try stagingObject(Data(contentsOf: journalURL))
+        fixture.client.destroy()
+        let (gate, reopened) = try fixture.reopen()
+        defer { gate.destroy() }
+        gate.beforeFirstSend("import.local.persist.v2") { try stagingCorruptOwnedPayload(handoff, sources: fixture.sources) }
+        let pending = try await reopened.recoverPendingImports()
+        XCTAssertEqual(pending.count, 1); XCTAssertEqual(pending.first?.requiresReconciliation, true)
+        let event = try XCTUnwrap(gate.originalTerminal("import.local.persist.v2"))
+        XCTAssertEqual(event.type, "error"); XCTAssertEqual(try stagingErrorDetails(event)["localImportDisposition"] as? String, "nonAdmitted")
+        let after = try stagingObject(Data(contentsOf: journalURL))
+        XCTAssertEqual(after["phase"] as? String, "v2PersistAwaiting")
+        XCTAssertEqual(try stagingJSON(stagingBinding(after)), try stagingJSON(stagingBinding(originalJournal)))
+        let state = try XCTUnwrap(after["localV2"] as? [String: Any])
+        XCTAssertEqual(state["persistOutcomeWasUnknown"] as? Bool, true); XCTAssertNil(state["nonAdmission"])
+        XCTAssertEqual(try fixture.ownerReceipts().count, 1); XCTAssertEqual(try fixture.stagePayloads().count, 1)
+        XCTAssertEqual(gate.count("import.parse"), 0); XCTAssertEqual(gate.count("import.local.persist.v2"), 1)
+        XCTAssertEqual(gate.count("import.local.settle.v2"), 0)
+        try fixture.assertOriginalPreserved()
+        // Teardown destroys only the private runtime; UNKNOWN is not business completion.
+    }
+
+    func testRealOriginalV2RejectedRollbackRemainsPendingWithoutStageRedispatch() async throws {
+        let fault = StagingMetadataCapture(), sync = StagingDirectorySyncFault()
+        let fixture = try StagingFixture(observer: { try sync.observe($0, url: $1) }, directorySync: { try sync.synchronize($0) })
+        defer { fixture.cleanUp() }
+        sync.failOnce(in: fixture.sources)
+        fixture.client.beforeFirstSend("import.local.rollback.v2") { try fault.change(fixture) }
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original rejected rollback is unresolved") }
+        catch ReaderLibraryError.operationPending(_) {}
+        let original = try stagingReceipt(XCTUnwrap(fixture.client.originalTerminal("import.local.rollback.v2")), stage: "rollback")
+        XCTAssertEqual(original["outcome"] as? String, "rejected")
+        try fault.restore(fixture)
+        let journalURL = try fixture.onlyBusinessJournal()
+        let ownerNames = try fixture.ownerReceipts(), identity = try stagingFileIdentity(fixture.stableSource)
+        let pending = try await fixture.service.recoverPendingImports()
+        XCTAssertEqual(pending.count, 1); XCTAssertEqual(pending.first?.requiresReconciliation, true)
+        XCTAssertEqual(try stagingStoredReceipt(stagingObject(Data(contentsOf: journalURL)), stage: "rollback"), try stagingJSON(original))
+        XCTAssertEqual(fixture.client.count("import.local.rollback.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.settle.v2"), 0)
+        XCTAssertEqual(try fixture.ownerReceipts(), ownerNames)
+        XCTAssertEqual(try stagingFileIdentity(fixture.stableSource), identity)
+        XCTAssertEqual(try Data(contentsOf: fixture.stableSource), fixture.original)
+        try fixture.assertOriginalPreserved()
+    }
+
+    func testRealOriginalV2ColdRejectedFinalizeKeepsOriginalNegativeAfterExactTOCRestore() async throws {
+        let fault = StagingTOCCapture()
+        let fixture = try StagingFixture()
+        defer { fixture.cleanUp() }
+        fixture.client.beforeFirstSend("import.local.finalize.v2") { try fault.change(fixture) }
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original finalize afterimage refusal remains unresolved") }
+        catch ReaderLibraryError.operationPending(_) {}
+        let original = try stagingReceipt(XCTUnwrap(fixture.client.originalTerminal("import.local.finalize.v2")), stage: "finalize")
+        XCTAssertEqual(original["outcome"] as? String, "rejected")
+        XCTAssertTrue(original["data"] is NSNull); XCTAssertNotNil(original["error"] as? [String: Any])
+        try fault.restore(fixture) // Restore exact canonical TOC bytes before the cold query.
+        let journalURL = try fixture.onlyBusinessJournal()
+        let journal = try stagingObject(Data(contentsOf: journalURL))
+        let identity = try stagingFileIdentity(fixture.stableSource), owners = try fixture.ownerReceipts()
+        fixture.client.destroy()
+        let (gate, reopened) = try fixture.reopen()
+        defer { gate.destroy() }
+        let pending = try await reopened.recoverPendingImports()
+        XCTAssertEqual(pending.count, 1); XCTAssertEqual(pending.first?.requiresReconciliation, true)
+        let after = try stagingObject(Data(contentsOf: journalURL))
+        XCTAssertEqual(after["phase"] as? String, "v2FinalizeAwaiting")
+        XCTAssertEqual(try stagingJSON(stagingBinding(after)), try stagingJSON(stagingBinding(journal)))
+        XCTAssertEqual(try stagingStoredReceipt(after, stage: "finalize"), try stagingJSON(original))
+        XCTAssertGreaterThan(gate.count("import.local.query.v2"), 0)
+        for method in ["import.parse", "import.local.persist.v2", "import.local.publish.v2", "import.local.finalize.v2", "import.local.rollback.v2", "import.local.settle.v2"] { XCTAssertEqual(gate.count(method), 0) }
+        XCTAssertEqual(try fixture.ownerReceipts(), owners)
+        XCTAssertEqual(try stagingFileIdentity(fixture.stableSource), identity)
+        XCTAssertEqual(try Data(contentsOf: fixture.stableSource), fixture.original)
+        try fault.assertRestored(fixture); try fixture.assertOriginalPreserved()
+    }
+
+    func testRealOriginalV2MoveThenDirectorySyncFailureWaitsForOriginalRollbackAndProtectsPreexistingSameSHA() async throws {
         for preexisting in [false, true] {
             let fault = StagingDirectorySyncFault()
             let fixture = try StagingFixture(observer: { try fault.observe($0, url: $1) },
@@ -268,7 +459,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
             if preexisting { try fixture.original.write(to: stable, options: .atomic) }
             let oldIdentity = preexisting ? try stagingFileIdentity(stable) : nil
             fault.failOnce(in: preexisting ? fixture.sources.appendingPathComponent(".staging") : fixture.sources)
-            fixture.client.hold("import.rollback", advanceObserverDeadline: true)
+            fixture.client.hold("import.local.rollback.v2", advanceObserverDeadline: true)
             do { _ = try await fixture.service.importBook(at: copy); XCTFail("The original rollback ACK is withheld") }
             catch ReaderLibraryError.operationPending(_) {}
             XCTAssertEqual(fault.failureCount, 1, "Fault is at commitSource's actual directory-sync boundary")
@@ -276,7 +467,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
             let journalBytes = try Data(contentsOf: journalURL)
             let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: journalBytes) as? [String: Any])
             let id = try XCTUnwrap(journal["id"] as? String)
-            XCTAssertEqual(journal["phase"] as? String, "rollback")
+            XCTAssertEqual(journal["phase"] as? String, "v2RollbackAwaiting")
             let sourceIdentity = try stagingFileIdentity(stable)
             let ownerName = try XCTUnwrap(try fixture.ownerReceipts().first)
             let ownerURL = fixture.sources.appendingPathComponent(".staging/.owners/" + ownerName)
@@ -292,29 +483,27 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
                 XCTAssertEqual(created.name, stable.lastPathComponent)
                 XCTAssertEqual(fault.registeredCount, 1, "Creation proof is published before failing directory synchronization")
             }
-            let sent = try XCTUnwrap(fixture.client.originalRequest("import.rollback"))
-            let terminal = try XCTUnwrap(fixture.client.originalTerminal("import.rollback"))
+            let sent = try XCTUnwrap(fixture.client.originalRequest("import.local.rollback.v2"))
+            let terminal = try XCTUnwrap(fixture.client.originalTerminal("import.local.rollback.v2"))
             XCTAssertEqual(terminal.requestId, sent.requestID)
             let result = try XCTUnwrap(terminal.data)
-            let rollback = try XCTUnwrap(result["data"] as? [String: Any])
-            XCTAssertEqual(result["kind"] as? String, "localBook")
-            XCTAssertEqual(rollback["book_id"] as? String, "local:" + hash)
-            XCTAssertEqual(rollback["restored"] as? Bool, true)
+            let receipts = try XCTUnwrap(result["receipts"] as? [[String: Any]])
+            let receipt = try XCTUnwrap(receipts.first { $0["stage"] as? String == "rollback" })
+            XCTAssertEqual(receipt["outcome"] as? String, "applied")
+            let rollback = try XCTUnwrap(receipt["data"] as? [String: Any])
+            XCTAssertEqual(rollback["bookId"] as? String, "local:" + hash)
+            XCTAssertEqual(rollback["transactionId"] as? String, id)
             XCTAssertEqual(try Data(contentsOf: stable), fixture.original)
-            let stillPending = try await fixture.service.recoverPendingImports()
-            XCTAssertEqual(stillPending.map(\.id), [id])
-            XCTAssertEqual(try Data(contentsOf: journalURL), journalBytes)
-            XCTAssertEqual(try stagingFileIdentity(stable), sourceIdentity)
-            XCTAssertEqual(fixture.client.count("import.rollback"), 1)
-            fixture.client.release()
-            do { _ = try await fixture.service.recoverPendingImports(); XCTFail("Original rollback must project a confirmed import failure") }
+            do { _ = try await fixture.service.recoverPendingImports(); XCTFail("Query must project the actual original rollback failure completion") }
             catch let completion as ReaderImportRollbackCompletion {
                 XCTAssertEqual(completion.operationId, id)
                 XCTAssertTrue(completion.originalFailure?.contains(NSPOSIXErrorDomain) == true, "The original sync failure is preserved")
             }
-            XCTAssertEqual(fixture.client.count("import.rollback"), 1)
-            XCTAssertEqual(fixture.client.count("import.persist"), 1)
-            XCTAssertEqual(fixture.client.count("bookshelf.add"), 0)
+            fixture.client.release()
+            do { let pending = try await fixture.service.recoverPendingImports(); XCTAssertTrue(pending.isEmpty) }
+            XCTAssertEqual(fixture.client.count("import.local.rollback.v2"), 1)
+            XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 1)
+            XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 0)
             XCTAssertEqual(try fixture.stagePayloads(), [])
             XCTAssertEqual(try fixture.ownerReceipts(), [])
             XCTAssertEqual(try fixture.businessJournals(), [])
@@ -341,15 +530,15 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         let owner = try JSONDecoder().decode(ReaderImportStagingOwner.self, from: try XCTUnwrap(capture.bytes))
         XCTAssertEqual(owner.phase, .handedOff, "Production persisted the resource handoff before this observer fault")
         XCTAssertEqual(fixture.client.count("import.parse"), 1)
-        XCTAssertEqual(fixture.client.count("import.persist"), 0)
-        XCTAssertEqual(fixture.client.count("import.rollback"), 0)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.rollback.v2"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 0)
         XCTAssertEqual(try fixture.stagePayloads(), [])
         XCTAssertEqual(try fixture.ownerReceipts(), [])
         XCTAssertEqual(try fixture.businessJournals(), [])
         let pending = try await fixture.service.recoverPendingImports()
         XCTAssertTrue(pending.isEmpty, "This proven pre-send failure cannot become a permanent unknown operation")
-        XCTAssertEqual(fixture.client.count("import.persist"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
         XCTAssertEqual(try Data(contentsOf: copy), fixture.original)
         try fixture.assertOriginalPreserved()
         try await fixture.service.close()
@@ -381,51 +570,43 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         let recovered = try await fixture.service.recoverPendingImports()
         XCTAssertTrue(recovered.isEmpty, "The actor's active-import reservation is released too")
         XCTAssertEqual(fixture.client.count("import.parse"), 0)
-        XCTAssertEqual(fixture.client.count("import.persist"), 0)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.persist.v2"), 0)
+        XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 0)
         XCTAssertEqual(try Data(contentsOf: copy), fixture.original)
         try fixture.assertOriginalPreserved()
         try await fixture.service.close()
     }
 
-    func testRealOriginalLateShelfACKKeepsSourceOwnershipUntilTheOriginalFinalize() async throws {
+    func testRealOriginalLateV2PublishACKKeepsSourceOwnershipUntilTheOriginalFinalize() async throws {
         let fixture = try StagingFixture()
         defer { fixture.cleanUp() }
-        fixture.client.hold("bookshelf.add", advanceObserverDeadline: true)
-        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original shelf ACK is held") }
+        fixture.client.hold("import.local.publish.v2", advanceObserverDeadline: true)
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original publish envelope is held") }
         catch ReaderLibraryError.operationPending(_) {}
         let journalURL = try fixture.onlyBusinessJournal()
-        let bytes = try Data(contentsOf: journalURL)
-        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
-        XCTAssertEqual(journal["phase"] as? String, "shelfAwaiting")
+        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: journalURL)) as? [String: Any])
+        XCTAssertEqual(journal["phase"] as? String, "v2PublishAwaiting")
         let stable = fixture.sources.appendingPathComponent(StagingFixture.sha(fixture.original) + ".source")
         let identity = try stagingFileIdentity(stable)
-        XCTAssertEqual(try fixture.ownerReceipts().count, 1)
-        let pending = try await fixture.service.recoverPendingImports()
-        XCTAssertEqual(pending.count, 1)
-        XCTAssertEqual(try Data(contentsOf: journalURL), bytes)
-        XCTAssertEqual(try stagingFileIdentity(stable), identity)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 1)
-        XCTAssertEqual(fixture.client.count("import.finalize"), 0)
+        do { let pending = try await fixture.service.recoverPendingImports(); XCTAssertTrue(pending.isEmpty) }
+        XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.finalize.v2"), 1)
+        XCTAssertEqual(try fixture.businessJournals(), [])
         fixture.client.release()
-        let completed = try await fixture.service.recoverPendingImports()
-        XCTAssertTrue(completed.isEmpty)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 1)
-        XCTAssertEqual(fixture.client.count("import.finalize"), 1)
-        XCTAssertEqual(fixture.client.count("import.rollback"), 0)
+        do { let pending = try await fixture.service.recoverPendingImports(); XCTAssertTrue(pending.isEmpty) }
+        XCTAssertEqual(fixture.client.count("import.local.publish.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.rollback.v2"), 0)
         XCTAssertEqual(try stagingFileIdentity(stable), identity)
         XCTAssertEqual(try Data(contentsOf: stable), fixture.original)
         XCTAssertEqual(try fixture.ownerReceipts(), [])
-        XCTAssertEqual(try fixture.stagePayloads(), [])
-        try fixture.assertOriginalPreserved()
-        try await fixture.service.close()
+        try fixture.assertOriginalPreserved(); try await fixture.service.close()
     }
 
-    func testRealOriginalColdShelfAwaitingKeepsUnknownOutcomeWithoutRedispatch() async throws {
+    func testLegacyRealOriginalColdShelfAwaitingKeepsUnknownOutcomeWithoutRedispatch() async throws {
         let fixture = try StagingFixture()
         defer { fixture.cleanUp() }
         fixture.client.hold("bookshelf.add", advanceObserverDeadline: true)
-        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original shelf ACK is held") }
+        do { _ = try await fixture.produceLegacyShelfAwaiting(); XCTFail("Original shelf ACK is held") }
         catch ReaderLibraryError.operationPending(_) {}
         XCTAssertEqual(try fixture.client.originalTerminal("bookshelf.add")?.type, "result")
         let journalURL = try fixture.onlyBusinessJournal()
@@ -467,36 +648,26 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         try await reopened.close()
     }
 
-    func testRealOriginalLateFinalizeACKRetiresOnlyOwnerAndKeepsTheReadableSource() async throws {
+    func testRealOriginalLateV2FinalizeACKRetiresOnlyOwnerAndKeepsTheReadableSource() async throws {
         let fixture = try StagingFixture()
         defer { fixture.cleanUp() }
-        fixture.client.hold("import.finalize", advanceObserverDeadline: true)
+        fixture.client.hold("import.local.finalize.v2", advanceObserverDeadline: true)
         let result = try await fixture.service.importBook(at: fixture.input)
         XCTAssertTrue(result.finalizationPending)
         let stable = try await fixture.service.retainedSourceURL(for: result.book)
         let identity = try stagingFileIdentity(stable)
-        let journalURL = try fixture.onlyBusinessJournal()
-        let bytes = try Data(contentsOf: journalURL)
-        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
-        XCTAssertEqual(journal["phase"] as? String, "finalize")
-        XCTAssertEqual(try fixture.ownerReceipts().count, 1)
-        let pending = try await fixture.service.recoverPendingImports()
-        XCTAssertEqual(pending.count, 1)
-        XCTAssertEqual(fixture.client.count("import.finalize"), 1)
-        XCTAssertEqual(try Data(contentsOf: journalURL), bytes)
-        XCTAssertEqual(try stagingFileIdentity(stable), identity)
+        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: fixture.onlyBusinessJournal())) as? [String: Any])
+        XCTAssertEqual(journal["phase"] as? String, "v2FinalizeAwaiting")
+        do { let pending = try await fixture.service.recoverPendingImports(); XCTAssertTrue(pending.isEmpty) }
+        XCTAssertEqual(fixture.client.count("import.local.finalize.v2"), 1)
+        XCTAssertEqual(fixture.client.count("import.local.settle.v2"), 1)
         fixture.client.release()
-        let completed = try await fixture.service.recoverPendingImports()
-        XCTAssertTrue(completed.isEmpty)
-        XCTAssertEqual(fixture.client.count("import.finalize"), 1)
-        XCTAssertEqual(fixture.client.count("bookshelf.add"), 1)
-        XCTAssertEqual(fixture.client.count("import.rollback"), 0)
+        do { let pending = try await fixture.service.recoverPendingImports(); XCTAssertTrue(pending.isEmpty) }
+        XCTAssertEqual(fixture.client.count("import.local.finalize.v2"), 1)
         XCTAssertEqual(try stagingFileIdentity(stable), identity)
         XCTAssertEqual(try Data(contentsOf: stable), fixture.original)
         XCTAssertEqual(try fixture.ownerReceipts(), [])
-        XCTAssertEqual(try fixture.stagePayloads(), [])
-        try fixture.assertOriginalPreserved()
-        try await fixture.service.close()
+        try fixture.assertOriginalPreserved(); try await fixture.service.close()
     }
 
     func testRealOriginalLiveImportLeaseBlocksAnotherActorRecoveryUntilTheReadFinishes() async throws {
@@ -525,7 +696,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
             catch ReaderLibraryError.busy {}
             XCTAssertEqual(try Data(contentsOf: payload), before)
             XCTAssertEqual(otherGate.count("import.parse"), 0)
-            XCTAssertEqual(otherGate.count("import.persist"), 0)
+            XCTAssertEqual(otherGate.count("import.local.persist.v2"), 0)
             fixture.client.release()
             let imported = try await importing.value
             let retained = try await fixture.service.retainedSourceURL(for: imported.book)
@@ -567,7 +738,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: payload), payloadBefore)
         XCTAssertEqual(try Data(contentsOf: journal), originalJournalBytes)
         XCTAssertEqual(gate.count("import.parse"), 0)
-        XCTAssertEqual(gate.count("import.persist"), 0)
+        XCTAssertEqual(gate.count("import.local.persist.v2"), 0)
         try fixture.assertOriginalPreserved()
         // close() also consults original journals; direct fixture-client destroy
         // is test teardown, never a claim that the business owner was resolved.
@@ -613,7 +784,7 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: unknown), unknownBytes)
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: linked.path), fixture.input.path)
         XCTAssertEqual(gate.count("import.parse"), 0)
-        XCTAssertEqual(gate.count("import.persist"), 0)
+        XCTAssertEqual(gate.count("import.local.persist.v2"), 0)
         try fixture.assertOriginalPreserved()
         try await service.close()
         try await fixture.service.close()
@@ -621,6 +792,38 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
 }
 
 private enum StagingTestFailure: Error { case missingOriginalTerminal }
+
+private func stagingObject(_ bytes: Data) throws -> [String: Any] {
+    try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+}
+private func stagingJSON(_ object: [String: Any]) throws -> Data {
+    try JSONSerialization.data(withJSONObject: object, options: .sortedKeys)
+}
+private func stagingBinding(_ journal: [String: Any]) throws -> [String: Any] {
+    let state = try XCTUnwrap(journal["localV2"] as? [String: Any])
+    return try XCTUnwrap(state["binding"] as? [String: Any])
+}
+private func stagingStoredReceipt(_ journal: [String: Any], stage: String) throws -> Data {
+    let state = try XCTUnwrap(journal["localV2"] as? [String: Any])
+    let receipts = try XCTUnwrap(state["receipts"] as? [String: String])
+    return try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(receipts[stage])))
+}
+private func stagingReceipt(_ event: ReaderCoreEvent, stage: String) throws -> [String: Any] {
+    XCTAssertEqual(event.type, "result")
+    let receipts = try XCTUnwrap(event.data?["receipts"] as? [[String: Any]])
+    return try XCTUnwrap(receipts.first { $0["stage"] as? String == stage })
+}
+private func stagingErrorDetails(_ event: ReaderCoreEvent) throws -> [String: Any] {
+    let wire = try stagingObject(event.rawData)
+    return try XCTUnwrap((wire["error"] as? [String: Any])?["details"] as? [String: Any])
+}
+private func stagingCorruptOwnedPayload(_ capture: StagingHandoffCapture, sources: URL) throws {
+    let owner = try JSONDecoder().decode(ReaderImportStagingOwner.self, from: try XCTUnwrap(capture.bytes))
+    let writer = try FileHandle(forUpdating: sources.appendingPathComponent(".staging/" + owner.stagedName))
+    defer { try? writer.close() }
+    let first = try XCTUnwrap(try writer.read(upToCount: 1)?.first)
+    try writer.seek(toOffset: 0); try writer.write(contentsOf: Data([first ^ 0xff])); try writer.synchronize()
+}
 
 @MainActor
 private final class StagingFixture {
@@ -651,6 +854,136 @@ private final class StagingFixture {
         return url
     }
     func assertOriginalPreserved() throws { XCTAssertEqual(try Data(contentsOf: input), original) }
+    var stableSource: URL { sources.appendingPathComponent(Self.sha(original) + ".source") }
+    func reopen(observer: @escaping ReaderImportStagingObserver = { _, _ in }) throws -> (StagingCoreGate, ReaderLibraryService) {
+        let core = root.appendingPathComponent("Core")
+        let gate = try StagingCoreGate(storage: core)
+        let reopened = try ReaderLibraryService(storageURL: core, sourceURL: sources, client: gate,
+            timing: gate.timing, importStagingObserver: observer)
+        return (gate, reopened)
+    }
+    /// Explicit compatibility producer, not a normal import route or an old-App
+    /// migration claim. Every v1 business value comes from this real Core.
+    func produceLegacyShelfAwaiting() async throws {
+        let stage = sources.appendingPathComponent(".staging")
+        let lease = try ReaderImportStagingLease(stagingURL: stage)
+        defer { lease.release() }
+        var owner = try lease.copy(input, selection: UUID().uuidString.lowercased(), cancellation: ReaderImportCopyCancellation())
+        let payload = lease.payloadURL(owner), hash = try XCTUnwrap(owner.sha256), id = owner.transactionID
+        let parsedData = try await service.request("import.parse", ["kind": "localBook", "input": [
+            "bookId": "local:" + hash, "fileName": input.lastPathComponent, "filePath": payload.path,
+            "title": input.deletingPathExtension().lastPathComponent]], timeout: 120)
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: parsedData) as? [String: Any])
+        try lease.parsed(owner)
+        var journal: [String: Any] = ["id": id, "fileName": input.lastPathComponent,
+            "stagedName": owner.stagedName, "hash": hash, "phase": "persistAwaiting"]
+        let journalURL = sources.appendingPathComponent(".operations/" + id + ".json")
+        try ReaderImportStagingLease.writeDurably(JSONSerialization.data(withJSONObject: journal), to: journalURL)
+        owner = try lease.handoff(owner)
+        let persistedData = try await service.request("import.persist", ["transactionId": id, "parsed": parsed],
+            mutation: true, timeout: 120, owner: .importOperation(id: id, stage: .persist))
+        let persisted = try XCTUnwrap(JSONSerialization.jsonObject(with: persistedData) as? [String: Any])
+        let token = try XCTUnwrap(persisted["rollbackToken"] as? [String: Any])
+        let result = try XCTUnwrap(persisted["persisted"] as? [String: Any])
+        let local = try XCTUnwrap(result["data"] as? [String: Any])
+        let metadata = try XCTUnwrap(local["book"] as? [String: Any])
+        XCTAssertEqual((token["token"] as? [String: Any])?["transactionId"] as? String, id)
+        var shelf: [String: Any] = ["sourceId": "local", "bookId": "local:" + hash,
+            "title": metadata["title"] as? String ?? "", "author": metadata["author"] as? String ?? "", "requireReadable": true]
+        for key in ["coverUrl", "intro", "kind"] { if let value = metadata[key] { shelf[key] = value } }
+        journal["rollbackToken"] = try JSONSerialization.data(withJSONObject: token).base64EncodedString()
+        journal["shelfParameters"] = try JSONSerialization.data(withJSONObject: shelf).base64EncodedString()
+        journal["phase"] = "persisted"
+        try ReaderImportStagingLease.writeDurably(JSONSerialization.data(withJSONObject: journal), to: journalURL)
+        await service.finishMutation(.importOperation(id: id, stage: .persist))
+        let stable = sources.appendingPathComponent(hash + ".source")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stable.path))
+        let identity = try stagingFileIdentity(payload)
+        try ReaderImportStagingLease.moveExclusively(payload, to: stable)
+        owner.createdSource = .init(name: stable.lastPathComponent, identity: identity)
+        try lease.recordCreatedSource(owner)
+        try ReaderImportStagingLease.synchronizeDirectory(sources)
+        try ReaderImportStagingLease.synchronizeDirectory(stage)
+        journal["phase"] = "shelfAwaiting"
+        try ReaderImportStagingLease.writeDurably(JSONSerialization.data(withJSONObject: journal), to: journalURL)
+        _ = try await service.request("bookshelf.add", shelf, mutation: true, owner: .importOperation(id: id, stage: .shelf))
+        XCTFail("This compatibility seam must hold the real original shelf ACK")
+    }
+    // Explicit test-only metadata fault, confined to this fixture's private DB.
+    // No receipt/head/journal/body or shared production database is edited.
+    nonisolated func bookMetadata(_ bookID: String) throws -> Data {
+        try withMetadataDB { db in
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "SELECT book_json FROM books WHERE book_id = ?1", -1, &statement, nil) == SQLITE_OK else { throw CocoaError(.fileReadUnknown) }
+            defer { sqlite3_finalize(statement) }
+            try bindText(Data(bookID.utf8), to: 1, statement: statement)
+            guard sqlite3_step(statement) == SQLITE_ROW, let bytes = sqlite3_column_blob(statement, 0) else { throw CocoaError(.fileReadUnknown) }
+            let value = Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0)))
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw CocoaError(.fileReadUnknown) }
+            return value
+        }
+    }
+    nonisolated func replaceBookMetadata(_ bookID: String, expected: Data, replacement: Data) throws {
+        try withMetadataDB { db in
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "UPDATE books SET book_json = ?1 WHERE book_id = ?2 AND book_json = ?3", -1, &statement, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+            defer { sqlite3_finalize(statement) }
+            try bindText(replacement, to: 1, statement: statement)
+            try bindText(Data(bookID.utf8), to: 2, statement: statement)
+            try bindText(expected, to: 3, statement: statement)
+            guard sqlite3_step(statement) == SQLITE_DONE, sqlite3_changes(db) == 1 else { throw CocoaError(.fileWriteUnknown) }
+        }
+        XCTAssertEqual(try bookMetadata(bookID), replacement)
+    }
+    nonisolated func tocPayload(_ bookID: String) throws -> Data {
+        try withMetadataDB { db in
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "SELECT payload FROM cache WHERE key = ?1", -1, &statement, nil) == SQLITE_OK else { throw CocoaError(.fileReadUnknown) }
+            defer { sqlite3_finalize(statement) }
+            try bindText(Data(("local_book.v1.toc:" + bookID).utf8), to: 1, statement: statement)
+            guard sqlite3_step(statement) == SQLITE_ROW, sqlite3_column_type(statement, 0) == SQLITE_TEXT else { throw CocoaError(.fileReadUnknown) }
+            let count = Int(sqlite3_column_bytes(statement, 0))
+            let value = count == 0 ? Data() : Data(bytes: try XCTUnwrap(sqlite3_column_blob(statement, 0)), count: count)
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw CocoaError(.fileReadUnknown) }
+            return value
+        }
+    }
+    nonisolated func replaceTOCPayload(_ bookID: String, expected: Data, replacement: Data) throws {
+        try withMetadataDB { db in
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "UPDATE cache SET payload = ?1 WHERE key = ?2 AND payload = ?3", -1, &statement, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+            defer { sqlite3_finalize(statement) }
+            try bindText(replacement, to: 1, statement: statement)
+            try bindText(Data(("local_book.v1.toc:" + bookID).utf8), to: 2, statement: statement)
+            try bindText(expected, to: 3, statement: statement)
+            guard sqlite3_step(statement) == SQLITE_DONE, sqlite3_changes(db) == 1 else { throw CocoaError(.fileWriteUnknown) }
+        }
+        XCTAssertEqual(try tocPayload(bookID), replacement)
+    }
+    nonisolated private func withMetadataDB<T>(_ action: (OpaquePointer) throws -> T) throws -> T {
+        let ownedRoot = root.resolvingSymlinksInPath().standardizedFileURL
+        let directory = root.appendingPathComponent("Core").resolvingSymlinksInPath().standardizedFileURL
+        let url = directory.appendingPathComponent("reader-core.sqlite3").standardizedFileURL
+        guard root.lastPathComponent.hasPrefix("ReaderImportOwner-"), url.deletingLastPathComponent() == directory,
+              ownedRoot.deletingLastPathComponent() == FileManager.default.temporaryDirectory.resolvingSymlinksInPath().standardizedFileURL,
+              directory.deletingLastPathComponent() == ownedRoot,
+              url.resolvingSymlinksInPath() == url else { throw CocoaError(.fileReadNoPermission) }
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK, let db else {
+            if let db { sqlite3_close(db) }; throw CocoaError(.fileReadUnknown)
+        }
+        defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 1_000)
+        return try action(db)
+    }
+    nonisolated private func bindText(_ value: Data, to index: Int32, statement: OpaquePointer?) throws {
+        guard value.count <= Int(Int32.max), let text = String(data: value, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        let status = text.withCString { bytes in
+            sqlite3_bind_text(statement, index, bytes, Int32(value.count), transient)
+        }
+        guard status == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+    }
     func stagePayloads() throws -> [String] {
         try FileManager.default.contentsOfDirectory(atPath: sources.appendingPathComponent(".staging").path).filter { $0.hasSuffix(".source") }.sorted()
     }
@@ -669,7 +1002,7 @@ private final class StagingFixture {
         return try XCTUnwrap(files.first)
     }
     func cleanUp() { client.release(); client.destroy(); try? FileManager.default.removeItem(at: root) }
-    static func sha(_ bytes: Data) -> String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }
+    nonisolated static func sha(_ bytes: Data) -> String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }
 }
 
 private func stagingFileIdentity(_ url: URL) throws -> ReaderImportStagingOwner.FileIdentity {
@@ -736,6 +1069,60 @@ private final class StagingFault: @unchecked Sendable {
     func didRun() { lock.lock(); value += 1; lock.unlock() }
 }
 
+private final class StagingJournalCapture: @unchecked Sendable {
+    enum Captured: Error { case stop }
+    private let lock = NSLock()
+    private let point: ReaderImportStagingCheckpoint
+    private var shouldStop: Bool
+    private var captured: Data?
+    init(point: ReaderImportStagingCheckpoint, stopOnce: Bool = false) { self.point = point; shouldStop = stopOnce }
+    var bytes: Data? { lock.lock(); defer { lock.unlock() }; return captured }
+    func observe(_ point: ReaderImportStagingCheckpoint, url: URL) throws {
+        guard point == self.point else { return }
+        let originalJournal = try Data(contentsOf: url)
+        lock.lock(); captured = originalJournal; let stop = shouldStop; shouldStop = false; lock.unlock()
+        if stop { throw Captured.stop }
+    }
+}
+
+private final class StagingMetadataCapture: @unchecked Sendable {
+    private var bookID: String?
+    private var original: Data?
+    private var changed: Data?
+    func change(_ fixture: StagingFixture) throws {
+        let id = "local:" + StagingFixture.sha(fixture.original)
+        let bytes = try fixture.bookMetadata(id)
+        var value = try stagingObject(bytes)
+        value["title"] = (try XCTUnwrap(value["title"] as? String)) + " [owned metadata conflict]"
+        let replacement = try stagingJSON(value)
+        try fixture.replaceBookMetadata(id, expected: bytes, replacement: replacement)
+        bookID = id; original = bytes; changed = replacement
+    }
+    func restore(_ fixture: StagingFixture) throws {
+        try fixture.replaceBookMetadata(XCTUnwrap(bookID), expected: XCTUnwrap(changed), replacement: XCTUnwrap(original))
+    }
+}
+
+private final class StagingTOCCapture: @unchecked Sendable {
+    private var bookID: String?
+    private var original: Data?
+    func change(_ fixture: StagingFixture) throws {
+        let id = "local:" + StagingFixture.sha(fixture.original)
+        let bytes = try fixture.tocPayload(id)
+        XCTAssertFalse(bytes.isEmpty)
+        guard !bytes.isEmpty else { throw CocoaError(.fileReadUnknown) }
+        try fixture.replaceTOCPayload(id, expected: bytes, replacement: Data())
+        bookID = id; original = bytes
+    }
+    func restore(_ fixture: StagingFixture) throws {
+        try fixture.replaceTOCPayload(XCTUnwrap(bookID), expected: Data(), replacement: XCTUnwrap(original))
+        try assertRestored(fixture)
+    }
+    func assertRestored(_ fixture: StagingFixture) throws {
+        XCTAssertEqual(try fixture.tocPayload(XCTUnwrap(bookID)), try XCTUnwrap(original))
+    }
+}
+
 private final class StagingCrashSnapshot: @unchecked Sendable {
     enum Captured: Error { case stop }
     let point: ReaderImportStagingCheckpoint
@@ -782,6 +1169,7 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
     private var counts: [String: Int] = [:]
     private var methods: [UInt64: String] = [:]
     private var requests: [String: SentRequest] = [:]
+    private var latestRequests: [String: SentRequest] = [:]
     private var terminals: [String: Data] = [:]
     private var heldMethod: String?
     private var heldID: UInt64?
@@ -790,6 +1178,12 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
     private var ready = false
     private var advancesDeadline = false
     private var clock: TimeInterval = 0
+    private var deferredMethod: String?
+    private var deferredSend: (method: String, id: UInt64, params: [String: Any])?
+    private var deferredDeadlineAdvanced = false
+    private var beforeSend: [String: () throws -> Void] = [:]
+    private var nativeCounts: [String: Int] = [:]
+    private var directID: UInt64 = 8_000_000
     var onHeld: (@Sendable () -> Void)?
     init(storage: URL) throws {
         try FileManager.default.createDirectory(at: storage, withIntermediateDirectories: true)
@@ -801,7 +1195,22 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
     var heldRequestID: UInt64? { lock.lock(); defer { lock.unlock() }; return heldID }
     var cancelRequestIDs: [UInt64] { lock.lock(); defer { lock.unlock() }; return observedCancelIDs }
     func count(_ name: String) -> Int { lock.lock(); defer { lock.unlock() }; return counts[name, default: 0] }
+    func nativeCount(_ name: String) -> Int { lock.lock(); defer { lock.unlock() }; return nativeCounts[name, default: 0] }
+    func beforeFirstSend(_ method: String, action: @escaping () throws -> Void) { lock.lock(); beforeSend[method] = action; lock.unlock() }
+    func deferFirstNativeSend(_ method: String) { lock.lock(); deferredMethod = method; lock.unlock() }
+    func deliverDeferredOriginal() throws {
+        lock.lock(); defer { lock.unlock() }
+        guard let original = deferredSend else { throw ReaderLibraryError.invalidResponse("no deferred original") }
+        _ = try native.send(method: original.method, requestId: original.id, params: original.params)
+        nativeCounts[original.method, default: 0] += 1
+        deferredSend = nil
+    }
+    func directRequest(_ method: String, params: [String: Any]) throws -> ReaderCoreEvent {
+        lock.lock(); directID += 1; let id = directID; lock.unlock()
+        return try native.request(method: method, requestId: id, params: params, timeout: 10)
+    }
     func originalRequest(_ method: String) -> SentRequest? { lock.lock(); defer { lock.unlock() }; return requests[method] }
+    func lastRequest(_ method: String) -> SentRequest? { lock.lock(); defer { lock.unlock() }; return latestRequests[method] }
     func originalTerminal(_ method: String) throws -> ReaderCoreEvent? {
         lock.lock(); let bytes = terminals[method]; lock.unlock()
         return try bytes.map { try ReaderCoreEvent(data: $0) }
@@ -813,10 +1222,21 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
     func release() { lock.lock(); ready = true; lock.unlock() }
     @discardableResult
     func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
+        lock.lock(); let hook = beforeSend.removeValue(forKey: method); lock.unlock()
+        try hook?()
         lock.lock(); defer { lock.unlock() }
+        if method == deferredMethod, deferredSend == nil {
+            deferredMethod = nil; deferredSend = (method, requestId, params)
+            counts[method, default: 0] += 1; methods[requestId] = method
+            requests[method] = .init(requestID: requestId, parameters: try JSONSerialization.data(withJSONObject: params, options: .sortedKeys))
+            latestRequests[method] = requests[method]
+            return requestId // Transport delivery is deferred; no Core result is invented.
+        }
         let id = try native.send(method: method, requestId: requestId, params: params)
+        nativeCounts[method, default: 0] += 1
         counts[method, default: 0] += 1
         methods[requestId] = method
+        latestRequests[method] = .init(requestID: requestId, parameters: try JSONSerialization.data(withJSONObject: params, options: .sortedKeys))
         if requests[method] == nil {
             requests[method] = .init(requestID: requestId, parameters: try JSONSerialization.data(withJSONObject: params, options: [.sortedKeys]))
         }
@@ -825,6 +1245,10 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
     }
     func pollEvent(requestId: UInt64) -> Result<ReaderCoreEvent, ReaderCoreClientError>? {
         lock.lock(); defer { lock.unlock() }
+        if deferredSend?.id == requestId {
+            if !deferredDeadlineAdvanced { clock += 200; deferredDeadlineAdvanced = true }
+            return nil
+        }
         guard requestId == heldID else {
             let result = native.pollEvent(requestId: requestId)
             if case .success(let event)? = result, ["result", "error"].contains(event.type), let method = methods[requestId] {

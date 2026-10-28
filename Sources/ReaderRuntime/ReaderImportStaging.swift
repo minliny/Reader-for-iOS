@@ -41,6 +41,8 @@ enum ReaderImportStagingCheckpoint: Equatable {
     case parsed
     case handedOff
     case retainedSourceRegistered
+    case localV2TerminalDurable
+    case localV2NonAdmissionDurable
     case sourceDescriptorClosed(succeeded: Bool)
     case payloadDescriptorClosed(succeeded: Bool)
 }
