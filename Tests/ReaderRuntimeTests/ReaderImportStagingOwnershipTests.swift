@@ -421,6 +421,52 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         try await fixture.service.close()
     }
 
+    func testRealOriginalColdShelfAwaitingKeepsUnknownOutcomeWithoutRedispatch() async throws {
+        let fixture = try StagingFixture()
+        defer { fixture.cleanUp() }
+        fixture.client.hold("bookshelf.add", advanceObserverDeadline: true)
+        do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original shelf ACK is held") }
+        catch ReaderLibraryError.operationPending(_) {}
+        XCTAssertEqual(try fixture.client.originalTerminal("bookshelf.add")?.type, "result")
+        let journalURL = try fixture.onlyBusinessJournal()
+        let journalBytes = try Data(contentsOf: journalURL)
+        let journal = try XCTUnwrap(JSONSerialization.jsonObject(with: journalBytes) as? [String: Any])
+        XCTAssertEqual(journal["phase"] as? String, "shelfAwaiting")
+        let originalPending = try await fixture.service.pendingImports()
+        XCTAssertEqual(originalPending.count, 1)
+        XCTAssertEqual(originalPending.first?.requiresReconciliation, true)
+        let stable = fixture.sources.appendingPathComponent(StagingFixture.sha(fixture.original) + ".source")
+        let stableIdentity = try stagingFileIdentity(stable)
+        let ownerNames = try fixture.ownerReceipts()
+        XCTAssertEqual(ownerNames.count, 1)
+        let ownerURL = fixture.sources.appendingPathComponent(".staging/.owners")
+            .appendingPathComponent(try XCTUnwrap(ownerNames.first))
+        let ownerBytes = try Data(contentsOf: ownerURL)
+        let ownerIdentity = try stagingFileIdentity(ownerURL)
+
+        // Lose only this private process's in-memory original reply. Reopen the
+        // same real Core storage and retained source, never a fabricated record.
+        fixture.client.destroy()
+        let core = fixture.root.appendingPathComponent("Core")
+        let reopenedClient = try StagingCoreGate(storage: core)
+        defer { reopenedClient.destroy() }
+        let reopened = try ReaderLibraryService(storageURL: core, sourceURL: fixture.sources,
+            client: reopenedClient, timing: reopenedClient.timing)
+        let remaining = try await reopened.recoverPendingImports()
+        XCTAssertEqual(remaining, originalPending)
+        for method in ["bookshelf.add", "import.persist", "import.rollback", "import.finalize"] {
+            XCTAssertEqual(reopenedClient.count(method), 0, "Cold recovery cannot dispatch \(method) to resolve an unknown shelf ACK")
+        }
+        XCTAssertEqual(try Data(contentsOf: journalURL), journalBytes)
+        XCTAssertEqual(try stagingFileIdentity(stable), stableIdentity)
+        XCTAssertEqual(try Data(contentsOf: stable), fixture.original)
+        XCTAssertEqual(try fixture.ownerReceipts(), ownerNames)
+        XCTAssertEqual(try Data(contentsOf: ownerURL), ownerBytes)
+        XCTAssertEqual(try stagingFileIdentity(ownerURL), ownerIdentity)
+        try fixture.assertOriginalPreserved()
+        try await reopened.close()
+    }
+
     func testRealOriginalLateFinalizeACKRetiresOnlyOwnerAndKeepsTheReadableSource() async throws {
         let fixture = try StagingFixture()
         defer { fixture.cleanUp() }

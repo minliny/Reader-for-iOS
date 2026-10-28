@@ -451,9 +451,25 @@ final class ReaderApplicationModelTests: XCTestCase {
         XCTAssertEqual(model.importOperation?.phase, .unresolved)
         XCTAssertTrue(model.importBusy)
         XCTAssertFalse(model.importResultVisible, "Finishing the task must not reopen a dismissed result surface")
+        let unresolvedOperation = model.importOperation
+        let originalPending = service.pending
+        let recoverCount = service.recoverCount
         model.importFile(URL(fileURLWithPath: "/selection/second.txt"))
         XCTAssertEqual(service.importCount, 1, "An unresolved original mutation must not dispatch a replacement")
+        XCTAssertFalse(model.importResultVisible, "Rejected external input must not reopen the dismissed original result")
+        XCTAssertEqual(model.feedback, "正在处理其他导入，本次打开的文件尚未导入，请稍后重新打开")
+        XCTAssertEqual(model.importOperation, unresolvedOperation)
+        XCTAssertEqual(service.pending, originalPending)
+        XCTAssertEqual(service.recoverCount, recoverCount)
+        XCTAssertTrue(model.importBusy)
+
+        // Exercise only the existing model presentation binding. Native More
+        // menu delivery is a separate UI boundary, not proved by this assignment.
+        model.importResultVisible = true
         XCTAssertTrue(model.importResultVisible)
+        XCTAssertEqual(model.importOperation, unresolvedOperation)
+        XCTAssertEqual(service.pending, originalPending)
+        XCTAssertEqual(service.importCount, 1)
     }
 
     func testAcknowledgedImportWithCleanupPendingDoesNotBlockTheNextImport() async {

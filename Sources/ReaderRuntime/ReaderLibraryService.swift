@@ -568,7 +568,10 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                     continue
                 }
                 if record.phase != .finalize {
-                    guard let shelf = record.shelfParameters else { continue }
+                    // Only persisted proves the shelf request was not dispatched.
+                    // A cold shelfAwaiting journal has no original reply owner;
+                    // another add is a new write, never confirmation of that ACK.
+                    guard record.phase == .persisted, let shelf = record.shelfParameters else { continue }
                     let ownership = try importResourceProof(for: record, using: stagingLease)
                     _ = try commitSource(stagingURL.appendingPathComponent(record.stagedName), hash: record.hash) { created in
                         if let ownership { try registerSourceCreation(created, owner: ownership, using: stagingLease) }
