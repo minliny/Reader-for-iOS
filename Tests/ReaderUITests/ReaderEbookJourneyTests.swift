@@ -212,6 +212,16 @@ final class ReaderEbookJourneyTests: XCTestCase {
         executionTimeAllowance = 300
         let app = XCUIApplication(); app.launch()
         importOriginal(prefix: "覆汉", format: "mobi", expectedID: mobiID, app: app)
+        try verifyMobiFirstProseAdjacentChapterAndReturn(app)
+    }
+
+    func testExistingRealFuHanFirstProseAdjacentChapterAndReturn() throws {
+        executionTimeAllowance = 300
+        let app = XCUIApplication(); app.launch()
+        try verifyMobiFirstProseAdjacentChapterAndReturn(app)
+    }
+
+    private func verifyMobiFirstProseAdjacentChapterAndReturn(_ app: XCUIApplication) throws {
         openBook(mobiID, app: app)
         // Existing source-bound Core materializations independently agree on
         // these actual prose titles/anchors. No cover or TOC is prose evidence.
@@ -230,7 +240,7 @@ final class ReaderEbookJourneyTests: XCTestCase {
         let start = app.buttons["章首"]
         XCTAssertTrue(start.isEnabled && start.isHittable); start.tap()
         hideControls(app)
-        try assertVisible(firstAnchor, app: app, name: "mobi-ordinary-source-prose")
+        try assertVisible(firstAnchor, app: app, name: "mobi-ordinary-source-prose", appScreenshot: true)
 
         openModule("home", app: app)
         let next = app.buttons["下一章"]
@@ -238,14 +248,14 @@ final class ReaderEbookJourneyTests: XCTestCase {
         let nextHeader = app.staticTexts["reading-chapter:4"]
         waitUntil("Actual adjacent original MOBI chapter", timeout: 25) { nextHeader.exists && nextHeader.label.hasPrefix(nextTitle + " · ") }
         hideControls(app)
-        try assertVisible(nextAnchor, app: app, name: "mobi-ordinary-source-adjacent")
+        try assertVisible(nextAnchor, app: app, name: "mobi-ordinary-source-adjacent", appScreenshot: true)
 
         openModule("home", app: app)
         let previous = app.buttons["上一章"]
         XCTAssertTrue(previous.isEnabled && previous.isHittable); previous.tap()
         waitUntil("Return to actual original MOBI prose", timeout: 25) { firstHeader.exists && firstHeader.label.hasPrefix(firstTitle + " · ") }
         hideControls(app)
-        try assertVisible(firstAnchor, app: app, name: "mobi-ordinary-source-return")
+        try assertVisible(firstAnchor, app: app, name: "mobi-ordinary-source-return", appScreenshot: true)
         leaveReader(app)
         XCTAssertTrue(app.buttons[mobiID].waitForExistence(timeout: 15), "The actual admitted original remains on the shelf")
     }
@@ -646,13 +656,13 @@ final class ReaderEbookJourneyTests: XCTestCase {
         return anchor
     }
 
-    private func assertVisible(_ anchor: String, app: XCUIApplication, name: String) throws {
+    private func assertVisible(_ anchor: String, app: XCUIApplication, name: String, appScreenshot: Bool = false) throws {
         waitForBody(app)
         waitUntil("Actual original passage remains visible: " + name, timeout: 30) {
-            guard self.ebookBody(app).isHittable, let lines = try? self.ocr(app) else { return false }
+            guard self.ebookBody(app).isHittable, let lines = try? self.ocr(app, appScreenshot: appScreenshot) else { return false }
             return self.normalized(lines.joined()).contains(anchor)
         }
-        XCTAssertTrue(normalized(try ocr(app).joined()).contains(anchor))
+        XCTAssertTrue(normalized(try ocr(app, appScreenshot: appScreenshot).joined()).contains(anchor))
         evidence(app, name: name)
     }
 
@@ -660,8 +670,9 @@ final class ReaderEbookJourneyTests: XCTestCase {
         String(String.UnicodeScalarView(value.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }))
     }
 
-    private func ocr(_ app: XCUIApplication) throws -> [String] {
+    private func ocr(_ app: XCUIApplication, appScreenshot: Bool = false) throws -> [String] {
         let source = try XCTUnwrap(app.screenshot().image.cgImage)
+        if appScreenshot { return try recognizedLines(source) }
         let window = app.frame
         let visible = ebookBody(app).frame.intersection(window).insetBy(dx: 6, dy: 6)
         XCTAssertGreaterThan(visible.width, 100); XCTAssertGreaterThan(visible.height, 100)
@@ -670,6 +681,10 @@ final class ReaderEbookJourneyTests: XCTestCase {
             width: visible.width * CGFloat(source.width) / window.width,
             height: visible.height * CGFloat(source.height) / window.height).integral
         let image = try XCTUnwrap(source.cropping(to: crop))
+        return try recognizedLines(image)
+    }
+
+    private func recognizedLines(_ image: CGImage) throws -> [String] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate; request.recognitionLanguages = ["zh-Hans", "en-US"]
         request.usesLanguageCorrection = false
