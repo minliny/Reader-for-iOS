@@ -574,16 +574,36 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                     try unavailable("Require this owner's actual native activity collection",
                         name: "external-TXT-native-share-collection-unavailable")
                 }
-                let readers = collections.element.cells.matching(NSPredicate(format:
+                let collection = collections.element
+                let readers = collection.cells.matching(NSPredicate(format:
                     "identifier == 'shareCell' AND label == 'Reader'"))
-                guard readers.firstMatch.waitForExistence(timeout: 5), readers.count == 1 else {
-                    try unavailable("Require one explicitly named Reader shareCell in this exact native sharing owner",
-                        name: "external-TXT-native-Reader-shareCell-ambiguous-or-absent")
+                let deadline = ProcessInfo.processInfo.systemUptime + 35
+                var priorVisible: [String]?, activityRows: [[String]] = []
+                for step in 0...6 {
+                    let readerCount = readers.count
+                    guard readerCount <= 1 else { break }
+                    let visible = readers.allElementsBoundByIndex.filter {
+                        $0.isHittable && $0.isEnabled && $0.frame.width > 0 && $0.frame.height > 0
+                            && viewport.contains($0.frame)
+                    }
+                    if readerCount == 1, visible.count == 1 { return visible }
+                    guard step < 6, ProcessInfo.processInfo.systemUptime < deadline else { break }
+                    let rowViewport = collection.frame.intersection(viewport)
+                    guard rowViewport.width > 100, rowViewport.height > 40 else { break }
+                    let labels = collection.cells.allElementsBoundByIndex.filter {
+                        rowViewport.contains($0.frame)
+                    }.map(\.label)
+                    activityRows.append(labels)
+                    guard !labels.isEmpty, labels != priorVisible else { break }
+                    priorVisible = labels
+                    // Real phones may have more installed sharing apps than
+                    // the original native target. Stay in this exact app row.
+                    collection.swipeLeft(velocity: .fast)
                 }
-                return readers.allElementsBoundByIndex.filter {
-                    $0.isHittable && $0.isEnabled && $0.frame.width > 0 && $0.frame.height > 0
-                        && viewport.contains($0.frame)
-                }
+                let trace = XCTAttachment(string: activityRows.map { $0.joined(separator: " | ") }.joined(separator: "\n"))
+                trace.name = "external-TXT-actual-native-activity-row-trace"; trace.lifetime = .keepAlways; add(trace)
+                try unavailable("Require one explicitly named Reader shareCell in this exact native app row after bounded native scrolling",
+                    name: "external-TXT-native-Reader-shareCell-ambiguous-or-absent")
             }
             // Preserve the original direct context-menu path if the real
             // system exposes an explicit Reader menu item instead of a sheet.
