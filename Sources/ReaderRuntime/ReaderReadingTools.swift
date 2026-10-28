@@ -687,6 +687,7 @@ extension ReaderLibraryService: ReaderReadingToolsServing {
         try decode(ReaderRuleBundle.self, await coreRead("rule-bundle.export", [:]))
     }
     public func importRuleBundle(json: String, replaceExisting: Bool, operationID: String) async throws -> ReaderRuleBundleImport {
+        try ReaderRuleBundleInput.validateJSON(json)
         let result = try decode(ReaderRuleBundleImport.self, await rulesMutation("rule-bundle.import", [
             "json": json, "replaceExisting": replaceExisting
         ], operationID: operationID))

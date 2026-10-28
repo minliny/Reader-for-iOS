@@ -12,6 +12,29 @@ import ReaderCoreClient
 
 @MainActor
 final class ReaderFeatureRecoveryTests: XCTestCase {
+#if !canImport(ReaderRuntime)
+    func testLateNativeDismissalRetiresOnlyTheOriginalConfirmation() async throws {
+        let owner = ReaderNativeAlertOwner()
+        var actions: [String] = []
+        owner.confirm("原确认", message: "原操作") { actions.append("original") }
+        let originalID = try XCTUnwrap(owner.request?.id)
+        let oldDismissal = try XCTUnwrap(owner.dismissFromPresentation())
+        owner.request = nil // The obsolete presentation was explicitly retired.
+        owner.confirm("新确认", message: "新操作") { actions.append("replacement") }
+        let replacementID = try XCTUnwrap(owner.request?.id)
+        XCTAssertNotEqual(originalID, replacementID)
+        await oldDismissal.value
+        XCTAssertEqual(owner.request?.id, replacementID)
+        XCTAssertTrue(actions.isEmpty, "Presentation retirement must not invoke business actions")
+        owner.request?.action()
+        XCTAssertEqual(actions, ["replacement"])
+        let currentDismissal = try XCTUnwrap(owner.dismissFromPresentation())
+        await currentDismissal.value
+        XCTAssertNil(owner.request)
+        XCTAssertNil(owner.dismissFromPresentation())
+    }
+#endif
+
     func testColdGroupAndRuleRecoveryConsumesExactOriginalReceiptsWithoutRedispatch() async throws {
         let fixture = try FeatureRecoveryFixture()
         defer { fixture.cleanUp() }

@@ -432,6 +432,8 @@ struct ReaderRuleToolsPanel: View {
     @State private var exportDocument = ReaderRuleDocument()
     @State private var presented = false
     @State private var fileGeneration = UUID()
+    @State private var fileReadTask: Task<Void, Never>?
+    @State private var fileConfirmationID: UUID?
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @Environment(\.colorScheme) private var scheme
     var body: some View {
@@ -471,7 +473,7 @@ struct ReaderRuleToolsPanel: View {
 #endif
             }
             .onDisappear {
-                presented = false; fileGeneration = UUID(); state.invalidateTXTPreview(reason: "panel.disappear")
+                presented = false; retireFileInput(); state.invalidateTXTPreview(reason: "panel.disappear")
                 state.retireReplacementReader()
 #if DEBUG
                 ReaderTXTPreviewTrace.emit("event=panel.disappear presented=\(presented) readerPresent=\(model.reader != nil) bookMatches=\(model.reader?.book.id == book.id)")
@@ -481,7 +483,10 @@ struct ReaderRuleToolsPanel: View {
             .fileImporter(isPresented: $importFile, allowedContentTypes: [.json, .plainText]) { result in
                 switch result {
                 case .success(let url): readImport(url)
-                case .failure(let error): model.showFeedback(error.localizedDescription)
+                case .failure(let error):
+                    if presented, presentationActive, (error as NSError).code != NSUserCancelledError {
+                        model.showFeedback(error.localizedDescription)
+                    }
                 }
             }
             .fileExporter(isPresented: $exportFile, document: exportDocument, contentType: .json, defaultFilename: "Reader规则") { result in
@@ -495,10 +500,10 @@ struct ReaderRuleToolsPanel: View {
             .onChange(of: replacementContext) { _, value in state.setReplacementContext(value) }
             .onChange(of: presentationActive) { _, active in
                 if active, presented { state.observeReplacementReader(model.$reader, bookID: book.id) }
-                else { state.retireReplacementReader() }
+                else { retireFileInput(); state.retireReplacementReader() }
             }
-            .onChange(of: book.id) { _, _ in state.invalidateTXTPreview(reason: "panel.book.changed") }
-            .onChange(of: model.reader?.id) { _, _ in state.invalidateTXTPreview(reason: "panel.session.changed") }
+            .onChange(of: book.id) { _, _ in retireFileInput(); state.invalidateTXTPreview(reason: "panel.book.changed") }
+            .onChange(of: model.reader?.id) { _, _ in retireFileInput(); state.invalidateTXTPreview(reason: "panel.session.changed") }
             .onChange(of: model.reader?.book.id) { _, _ in state.invalidateTXTPreview(reason: "panel.readerBook.changed") }
             .onChange(of: model.actions.hasPending) { old, new in
                 if new { state.invalidateRuleReadsForMutation() }
@@ -853,7 +858,8 @@ struct ReaderRuleToolsPanel: View {
     }
     private func export() {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
-        let generation = UUID(); fileGeneration = generation
+        retireFileInput()
+        let generation = fileGeneration
         Task {
             do {
                 let json = try await service.exportRuleBundle().json
@@ -865,31 +871,37 @@ struct ReaderRuleToolsPanel: View {
     /// Registered file boundary: coordinated, security-scoped system read;
     /// Core still parses and validates the imported rule bundle.
     private func readImport(_ url: URL) {
-        let generation = UUID(); fileGeneration = generation
-        Task {
-            let result = await Task.detached(priority: .userInitiated) { () -> Result<String, Error> in
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                var coordinationError: NSError?
-                var contents: Result<String, Error>?
-                NSFileCoordinator().coordinate(readingItemAt: url, options: .withoutChanges, error: &coordinationError) { coordinated in
-                    contents = Result {
-                        let data = try Data(contentsOf: coordinated)
-                        guard let json = String(data: data, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
-                        return json
-                    }
-                }
-                if let coordinationError { return .failure(coordinationError) }
-                return contents ?? .failure(CocoaError(.fileReadUnknown))
-            }.value
-            guard presented, fileGeneration == generation else { return }
-            switch result {
-            case .success(let json):
+        guard presented, presentationActive, let current = model.reader,
+              Data(current.book.sourceId.utf8) == Data(book.sourceId.utf8),
+              Data(current.book.bookId.utf8) == Data(book.bookId.utf8) else { return }
+        retireFileInput()
+        let generation = fileGeneration, sessionID = current.id
+        fileReadTask = Task {
+            defer { if fileGeneration == generation { fileReadTask = nil } }
+            do {
+                let json = try await ReaderRuleBundleInput.readUTF8File(at: url)
+                guard presented, presentationActive, fileGeneration == generation,
+                      model.reader?.id == sessionID, !Task.isCancelled else { return }
+                guard confirmation.request == nil else { return }
                 confirmation.confirm("导入规则", message: "合并规则包；同 ID 的规则或订阅、同名字典将由文件内容覆盖，其他现有项保留。", actionTitle: "导入") {
+                    guard presented, presentationActive, fileGeneration == generation, model.reader?.id == sessionID else { return }
                     mutate("导入规则") { id, service in _ = try await service.importRuleBundle(json: json, replaceExisting: false, operationID: id) }
                 }
-            case .failure(let error): model.showFeedback(error.localizedDescription)
+                fileConfirmationID = confirmation.request?.id
+            } catch is CancellationError {
+                // Retire only the platform read, never an accepted Core save.
+            } catch {
+                guard presented, presentationActive, fileGeneration == generation,
+                      model.reader?.id == sessionID, !Task.isCancelled else { return }
+                model.showFeedback(error.localizedDescription)
             }
         }
+    }
+    private func retireFileInput() {
+        fileGeneration = UUID()
+        fileReadTask?.cancel()
+        fileReadTask = nil
+        if let fileConfirmationID, confirmation.request?.id == fileConfirmationID { confirmation.request = nil }
+        fileConfirmationID = nil
     }
 }

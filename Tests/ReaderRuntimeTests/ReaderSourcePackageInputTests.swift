@@ -45,6 +45,10 @@ final class ReaderSourcePackageInputTests: XCTestCase {
             let text = try await ReaderSourcePackageInput.readUTF8File(at: input)
             XCTAssertEqual(Data(text.utf8), original)
             XCTAssertEqual(digest(Data(text.utf8)), expectedDigest)
+            // The same genuine package exercises shared platform byte I/O.
+            // It is a source package, not valid rule-bundle format evidence.
+            let ruleBoundaryText = try await ReaderRuleBundleInput.readUTF8File(at: input)
+            XCTAssertEqual(Data(ruleBoundaryText.utf8), original)
             let validation = try await service.validateSources(Data(text.utf8))
             XCTAssertEqual(validation.count, 2)
             XCTAssertTrue(validation.allSatisfy(\.succeeded))
@@ -109,6 +113,29 @@ final class ReaderSourcePackageInputTests: XCTestCase {
                 XCTAssertNil(owner.acceptedOperationID)
                 XCTAssertNil(actions.pendingOperationID)
             }
+            let oversizedRule = root.appendingPathComponent("oversized-rule-input.json")
+            try FileManager.default.copyItem(at: input, to: oversizedRule)
+            do {
+                let handle = try FileHandle(forWritingTo: oversizedRule)
+                defer { try? handle.close() }
+                try handle.truncate(atOffset: UInt64(ReaderRuleBundleInput.maximumBytes) + 1)
+            }
+            do {
+                _ = try await ReaderRuleBundleInput.readUTF8File(at: oversizedRule)
+                XCTFail("The rule input must be rejected at its descriptor before allocating the whole file")
+            } catch { assertCocoa(error, code: .fileReadTooLarge) }
+            let oversizedRuleText = try XCTUnwrap(String(data: Data(contentsOf: oversizedRule, options: .mappedIfSafe), encoding: .utf8))
+            do {
+                _ = try await service.importRuleBundle(json: oversizedRuleText, replaceExisting: false, operationID: UUID().uuidString)
+                XCTFail("Programmatic rule input must also fail before creating a Core mutation")
+            } catch { assertCocoa(error, code: .fileReadTooLarge) }
+            XCTAssertEqual(gate.count("rules.mutation.apply"), 0)
+            let cancelledRead = Task { try await ReaderRuleBundleInput.readUTF8File(at: input) }
+            cancelledRead.cancel()
+            do {
+                _ = try await cancelledRead.value
+                XCTFail("A cancelled-before-start read must not return a file candidate")
+            } catch is CancellationError { }
             let savedAfter = try await service.onlineSources()
             XCTAssertEqual(savedAfter, savedBefore)
             XCTAssertEqual(gate.count("rules.mutation.apply"), 0)

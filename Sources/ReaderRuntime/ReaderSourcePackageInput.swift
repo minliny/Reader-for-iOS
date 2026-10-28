@@ -9,11 +9,7 @@ public enum ReaderSourcePackageInput {
     public static let maximumBytes = 32 * 1024 * 1024
 
     public static func decodeUTF8(_ data: Data) throws -> String {
-        guard data.count <= maximumBytes else { throw CocoaError(.fileReadTooLarge) }
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw CocoaError(.fileReadInapplicableStringEncoding)
-        }
-        return text
+        try ReaderCoordinatedUTF8Input.decode(data, maximumBytes: maximumBytes)
     }
 
     /// Called before JSONSerialization, including programmatic/pasted input.
@@ -22,10 +18,39 @@ public enum ReaderSourcePackageInput {
     }
 
     public static func readUTF8File(at url: URL) async throws -> String {
+        try await ReaderCoordinatedUTF8Input.read(at: url, maximumBytes: maximumBytes, options: [])
+    }
+}
+
+/// Exact Core@8e remote/rule_bundle.rs raw JSON bound. This does not parse or
+/// validate a rule bundle; Core owns the format, merge and mutation receipt.
+public enum ReaderRuleBundleInput {
+    public static let maximumBytes = 16 * 1024 * 1024
+
+    public static func validateJSON(_ text: String) throws {
+        guard text.utf8.count <= maximumBytes else { throw CocoaError(.fileReadTooLarge) }
+    }
+
+    public static func readUTF8File(at url: URL) async throws -> String {
+        try await ReaderCoordinatedUTF8Input.read(at: url, maximumBytes: maximumBytes, options: .withoutChanges)
+    }
+}
+
+/// Shared platform byte I/O; callers retain their separate input policies.
+private enum ReaderCoordinatedUTF8Input {
+    static func decode(_ data: Data, maximumBytes: Int) throws -> String {
+        guard data.count <= maximumBytes else { throw CocoaError(.fileReadTooLarge) }
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
+        return text
+    }
+
+    static func read(at url: URL, maximumBytes: Int, options: NSFileCoordinator.ReadingOptions) async throws -> String {
         try Task.checkCancellation()
-        let read = ReaderSourcePackageCoordinatedRead(url: url)
+        let read = ReaderCoordinatedUTF8Read(url: url, maximumBytes: maximumBytes, options: options)
         let worker = Task.detached(priority: .userInitiated) {
-            try Self.decodeUTF8(read.run())
+            try Self.decode(read.run(), maximumBytes: maximumBytes)
         }
         return try await withTaskCancellationHandler(operation: {
             let text = try await worker.value
@@ -42,11 +67,15 @@ public enum ReaderSourcePackageInput {
 /// cancellation flag because a coordinated accessor need not share Task context.
 /// NSFileCoordinator.cancel stops a pending accessor; an active accessor checks
 /// cancellation between bounded FileHandle reads. It does not cancel a save.
-private final class ReaderSourcePackageCoordinatedRead: @unchecked Sendable {
+private final class ReaderCoordinatedUTF8Read: @unchecked Sendable {
     private let url: URL
+    private let maximumBytes: Int
+    private let options: NSFileCoordinator.ReadingOptions
     private let coordinator = NSFileCoordinator(filePresenter: nil)
     private let cancellation = ReaderImportCopyCancellation()
-    init(url: URL) { self.url = url }
+    init(url: URL, maximumBytes: Int, options: NSFileCoordinator.ReadingOptions) {
+        self.url = url; self.maximumBytes = maximumBytes; self.options = options
+    }
     func cancel() { cancellation.cancel(); coordinator.cancel() }
 
     func run() throws -> Data {
@@ -56,7 +85,7 @@ private final class ReaderSourcePackageCoordinatedRead: @unchecked Sendable {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?
         var result: Result<Data, Error>?
-        coordinator.coordinate(readingItemAt: url, options: [], error: &coordinationError) { readable in
+        coordinator.coordinate(readingItemAt: url, options: options, error: &coordinationError) { readable in
             result = Result { try self.readDescriptor(readable) }
         }
         try cancellation.check()
@@ -71,7 +100,7 @@ private final class ReaderSourcePackageCoordinatedRead: @unchecked Sendable {
         guard fd >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
         defer { Darwin.close(fd) }
         let before = try regularStat(fd)
-        guard before.st_size >= 0, before.st_size <= Int64(ReaderSourcePackageInput.maximumBytes) else {
+        guard before.st_size >= 0, before.st_size <= Int64(maximumBytes) else {
             throw CocoaError(.fileReadTooLarge)
         }
         let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: false)

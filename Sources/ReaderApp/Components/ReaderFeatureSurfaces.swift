@@ -23,11 +23,13 @@ final class ReaderNativeAlertOwner: ObservableObject {
     /// presentation. Defer the published mutation to the next main-actor
     /// turn so dismissing the native alert cannot publish from inside a view
     /// update.
-    func dismissFromPresentation() {
-        guard request != nil else { return }
-        Task { @MainActor [weak self] in
+    @discardableResult
+    func dismissFromPresentation() -> Task<Void, Never>? {
+        guard let requestID = request?.id else { return nil }
+        return Task { @MainActor [weak self] in
             await Task.yield()
-            self?.request = nil
+            guard let self, self.request?.id == requestID else { return }
+            self.request = nil
         }
     }
 }
