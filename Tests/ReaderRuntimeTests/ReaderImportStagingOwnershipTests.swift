@@ -1286,14 +1286,14 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
             let result = native.pollEvent(requestId: requestId)
             if case .success(let event)? = result, ["result", "error"].contains(event.type), let method = methods[requestId] {
                 terminals[method] = event.rawData
-                terminalsByRequest[event.requestId] = event.rawData
+                if let terminalID = event.requestId { terminalsByRequest[terminalID] = event.rawData }
             }
             return result
         }
         if held == nil, let event = native.pollEvent(requestId: requestId) {
             if case .success(let value) = event, ["result", "error"].contains(value.type) {
                 held = event
-                terminalsByRequest[value.requestId] = value.rawData
+                if let terminalID = value.requestId { terminalsByRequest[terminalID] = value.rawData }
                 if let method = methods[requestId] { terminals[method] = value.rawData }
                 if advancesDeadline { clock += 200 }
                 onHeld?()
