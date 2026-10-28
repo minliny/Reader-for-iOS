@@ -598,7 +598,15 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                     priorVisible = labels
                     // Real phones may have more installed sharing apps than
                     // the original native target. Stay in this exact app row.
-                    collection.swipeLeft(velocity: .fast)
+                    let window = files.frame
+                    let start = CGPoint(x: rowViewport.maxX - rowViewport.width * 0.15, y: rowViewport.midY)
+                    let end = CGPoint(x: rowViewport.minX + rowViewport.width * 0.15, y: rowViewport.midY)
+                    guard window.width > 100, window.height > 100, window.contains(start), window.contains(end) else { break }
+                    let origin = files.coordinate(withNormalizedOffset: .zero)
+                    origin.withOffset(CGVector(dx: start.x - window.minX, dy: start.y - window.minY))
+                        .press(forDuration: 0.05,
+                            thenDragTo: origin.withOffset(CGVector(dx: end.x - window.minX, dy: end.y - window.minY)),
+                            withVelocity: .slow, thenHoldForDuration: 0.05)
                 }
                 let trace = XCTAttachment(string: activityRows.map { $0.joined(separator: " | ") }.joined(separator: "\n"))
                 trace.name = "external-TXT-actual-native-activity-row-trace"; trace.lifetime = .keepAlways; add(trace)
