@@ -86,3 +86,16 @@ schemes:
           parallelizable: false
     archive:
       config: Release
+  ReaderUnit:
+    build:
+      targets:
+        Reader: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: ReaderTests
+          parallelizable: false
+    archive:
+      config: Release

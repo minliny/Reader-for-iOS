@@ -337,7 +337,8 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         fixture.client.deferFirstNativeSend("import.local.persist.v2")
         do { _ = try await fixture.service.importBook(at: fixture.input); XCTFail("Original transport delivery is deferred") }
         catch ReaderLibraryError.operationPending(_) {}
-        let original = try stagingObject(XCTUnwrap(fixture.client.originalRequest("import.local.persist.v2")).parameters)
+        let originalRequest = try XCTUnwrap(fixture.client.originalRequest("import.local.persist.v2"))
+        let original = try stagingObject(originalRequest.parameters)
         XCTAssertEqual(fixture.client.nativeCount("import.local.persist.v2"), 0)
         let recovered = try await fixture.service.recoverPendingImports()
         XCTAssertTrue(recovered.isEmpty)
@@ -349,12 +350,28 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         let pendingTransport = await fixture.service.unresolvedWrites.count
         XCTAssertEqual(pendingTransport, 1)
         let identity = try stagingFileIdentity(fixture.stableSource)
+        let methods = ["import.parse", "import.local.authority.v2", "import.local.query.v2", "import.local.persist.v2",
+            "import.local.publish.v2", "import.local.finalize.v2", "import.local.rollback.v2", "import.local.settle.v2"]
+        let beforeLate = methods.map { fixture.client.count($0) }
         try fixture.client.deliverDeferredOriginal() // Real Core now returns retired, not a synthesized ACK.
-        let afterLate = try await fixture.service.recoverPendingImports()
-        XCTAssertTrue(afterLate.isEmpty)
+        let deadline = ProcessInfo.processInfo.systemUptime + 10
+        var late: ReaderCoreEvent?
+        repeat {
+            // No business journal remains. Observe only the original transport;
+            // this does not recover/query/replay any business phase.
+            try await fixture.service.drainUnresolvedReplies(importsOnly: true)
+            late = try fixture.client.terminal(requestID: originalRequest.requestID)
+            if late != nil || ProcessInfo.processInfo.systemUptime >= deadline { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        } while true
+        let originalTerminal = try XCTUnwrap(late, "The actual original request must terminate within ten seconds")
+        XCTAssertEqual(originalTerminal.requestId, originalRequest.requestID)
+        XCTAssertEqual(originalTerminal.type, "error")
+        let evidence = XCTAttachment(data: originalTerminal.rawData, uniformTypeIdentifier: "public.json")
+        evidence.name = "local-import-v2-late-original-terminal.private"; evidence.lifetime = .keepAlways; add(evidence)
         let remainingTransport = await fixture.service.unresolvedWrites.count
         XCTAssertEqual(remainingTransport, 0)
-        XCTAssertEqual(try fixture.client.originalTerminal("import.local.persist.v2")?.type, "error")
+        XCTAssertEqual(methods.map { fixture.client.count($0) }, beforeLate, "Late observation cannot dispatch any new business phase or query")
         XCTAssertEqual(fixture.client.nativeCount("import.local.persist.v2"), 2)
         XCTAssertEqual(fixture.client.count("import.parse"), 1)
         XCTAssertEqual(try fixture.businessJournals(), []); XCTAssertEqual(try fixture.ownerReceipts(), [])
@@ -375,11 +392,22 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
         fixture.client.destroy()
         let (gate, reopened) = try fixture.reopen()
         defer { gate.destroy() }
-        gate.beforeFirstSend("import.local.persist.v2") { try stagingCorruptOwnedPayload(handoff, sources: fixture.sources) }
+        gate.beforeFirstSend("import.local.persist.v2") {
+            let owner = try JSONDecoder().decode(ReaderImportStagingOwner.self, from: try XCTUnwrap(handoff.bytes))
+            let payload = fixture.sources.appendingPathComponent(".staging/" + owner.stagedName)
+            let writer = try FileHandle(forWritingTo: payload)
+            defer { try? writer.close() }
+            XCTAssertEqual(try writer.seekToEnd(), UInt64(fixture.original.count))
+            try writer.write(contentsOf: Data([0])); try writer.synchronize()
+        }
         let pending = try await reopened.recoverPendingImports()
         XCTAssertEqual(pending.count, 1); XCTAssertEqual(pending.first?.requiresReconciliation, true)
         let event = try XCTUnwrap(gate.originalTerminal("import.local.persist.v2"))
+        XCTAssertEqual(event.requestId, try XCTUnwrap(gate.originalRequest("import.local.persist.v2")).requestID)
         XCTAssertEqual(event.type, "error"); XCTAssertEqual(try stagingErrorDetails(event)["localImportDisposition"] as? String, "nonAdmitted")
+        XCTAssertEqual(try stagingErrorDetails(event)["reason"] as? String, "transportPreflight")
+        let evidence = XCTAttachment(data: event.rawData, uniformTypeIdentifier: "public.json")
+        evidence.name = "local-import-v2-cold-non-admission-terminal.private"; evidence.lifetime = .keepAlways; add(evidence)
         let after = try stagingObject(Data(contentsOf: journalURL))
         XCTAssertEqual(after["phase"] as? String, "v2PersistAwaiting")
         XCTAssertEqual(try stagingJSON(stagingBinding(after)), try stagingJSON(stagingBinding(originalJournal)))
@@ -1171,6 +1199,7 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
     private var requests: [String: SentRequest] = [:]
     private var latestRequests: [String: SentRequest] = [:]
     private var terminals: [String: Data] = [:]
+    private var terminalsByRequest: [UInt64: Data] = [:]
     private var heldMethod: String?
     private var heldID: UInt64?
     private var observedCancelIDs: [UInt64] = []
@@ -1215,6 +1244,10 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
         lock.lock(); let bytes = terminals[method]; lock.unlock()
         return try bytes.map { try ReaderCoreEvent(data: $0) }
     }
+    func terminal(requestID: UInt64) throws -> ReaderCoreEvent? {
+        lock.lock(); let bytes = terminalsByRequest[requestID]; lock.unlock()
+        return try bytes.map { try ReaderCoreEvent(data: $0) }
+    }
     func hold(_ method: String, advanceObserverDeadline: Bool) {
         lock.lock(); defer { lock.unlock() }
         heldMethod = method; advancesDeadline = advanceObserverDeadline
@@ -1253,12 +1286,14 @@ final class StagingCoreGate: ReaderCoreEventClient, @unchecked Sendable {
             let result = native.pollEvent(requestId: requestId)
             if case .success(let event)? = result, ["result", "error"].contains(event.type), let method = methods[requestId] {
                 terminals[method] = event.rawData
+                terminalsByRequest[event.requestId] = event.rawData
             }
             return result
         }
         if held == nil, let event = native.pollEvent(requestId: requestId) {
             if case .success(let value) = event, ["result", "error"].contains(value.type) {
                 held = event
+                terminalsByRequest[value.requestId] = value.rawData
                 if let method = methods[requestId] { terminals[method] = value.rawData }
                 if advancesDeadline { clock += 200 }
                 onHeld?()
