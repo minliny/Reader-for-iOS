@@ -370,6 +370,111 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
         }
     }
 
+    /// Reuses the existing controlled note-owner metadata, not an imported
+    /// corpus or fabricated Core/native acceptance. Held replies exercise the
+    /// production read owner and its exact input/presentation boundaries.
+    func testNoteReadsUseExactUTF8AndRetireLateRepliesAcrossReaderAndPresentationChanges() async throws {
+        let book = ReaderBook(bookId: "host-note-owner", title: "Controlled note owner", chapterCount: 1)
+        let content = ReaderChapterContent(bookId: book.bookId, chapterIndex: 0, chapterTitle: "Ownership boundary",
+            content: "Controlled ownership text", bodyVersion: "body-owner-1", processingVersion: "processing-owner-1")
+        let session = ReaderActiveSession(id: UUID(), book: book, chapters: [.init(index: 0, title: content.chapterTitle)],
+            content: content, scalarOffset: 0, progressRevision: nil, restorationID: UUID())
+        func mark(_ time: Int64) throws -> ReaderHighlight {
+            try JSONDecoder().decode(ReaderHighlight.self, from: JSONSerialization.data(withJSONObject: [
+                "time": time, "bookUrl": book.bookId, "chapterUrl": "", "bookName": book.title, "bookAuthor": "",
+                "chapterIndex": 0, "chapterPos": 0, "chapterPosEnd": 1, "layoutTitleLength": 0,
+                "chapterName": content.chapterTitle, "bookText": "", "style": "highlight", "note": ""
+            ]))
+        }
+        let first = try mark(1), second = try mark(2), current = try mark(3)
+        let state = ReaderTextToolsState()
+        var held: [Int: CheckedContinuation<[ReaderHighlight], Error>] = [:]
+        var received: [Int: Data] = [:]
+        defer {
+            state.retireNotes()
+            for reply in held.values { reply.resume(returning: []) }
+        }
+        func begin(_ id: Int) throws -> Task<Void, Never> {
+            try XCTUnwrap(state.readNotes(for: book) { actualBook, query in
+                XCTAssertEqual(Data(actualBook.sourceId.utf8), Data(book.sourceId.utf8))
+                XCTAssertEqual(Data(actualBook.bookId.utf8), Data(book.bookId.utf8))
+                received[id] = Data(query.utf8)
+                return try await withCheckedThrowingContinuation { held[id] = $0 }
+            })
+        }
+        func complete(_ id: Int, _ values: [ReaderHighlight]) throws {
+            try XCTUnwrap(held.removeValue(forKey: id)).resume(returning: values)
+        }
+        func fail(_ id: Int) throws {
+            try XCTUnwrap(held.removeValue(forKey: id)).resume(throwing: CocoaError(.fileReadUnknown))
+        }
+        let nfc = "\u{00e9}", nfd = "e\u{0301}"
+        XCTAssertEqual(nfc, nfd); XCTAssertNotEqual(Data(nfc.utf8), Data(nfd.utf8))
+        let sameEpoch = UUID()
+        XCTAssertNotEqual(ReaderTextToolsState.NoteReadKey(book: book, query: nfc, readerEpoch: sameEpoch),
+            ReaderTextToolsState.NoteReadKey(book: book, query: nfd, readerEpoch: sameEpoch))
+        state.activateNotes(session: session, selection: nil); state.noteQuery = nfc
+        let oldKey = ReaderTextToolsState.NoteReadKey(book: book, query: state.noteQuery, readerEpoch: state.noteReadEpoch)
+        let old = try begin(1); await waitUntil { held[1] != nil }
+        state.noteQuery = nfd
+        XCTAssertTrue(old.isCancelled, "Input retirement cancels the exact original read before a view update")
+        XCTAssertNotEqual(oldKey, ReaderTextToolsState.NoteReadKey(book: book, query: state.noteQuery, readerEpoch: state.noteReadEpoch))
+        let newer = try begin(2); await waitUntil { held[2] != nil }
+        XCTAssertEqual(received[1], Data(nfc.utf8)); XCTAssertEqual(received[2], Data(nfd.utf8))
+        try complete(2, [second]); await newer.value
+        try complete(1, [first]); await old.value
+        XCTAssertEqual(state.notes, [second]); XCTAssertNil(state.notesFailure)
+
+        // A superseded read's failure/defer must not clear the newer task's loading state.
+        let replaced = try begin(3); await waitUntil { held[3] != nil }
+        let replacement = try begin(4); await waitUntil { held[4] != nil }
+        let replacementGeneration = state.notesGeneration
+        try fail(3); await replaced.value
+        XCTAssertTrue(replaced.isCancelled); XCTAssertTrue(state.notesLoading)
+        XCTAssertEqual(state.notesGeneration, replacementGeneration); XCTAssertNil(state.notesFailure)
+        try complete(4, [current]); await replacement.value
+        XCTAssertEqual(state.notes, [current]); XCTAssertFalse(state.notesLoading)
+
+        let inputABA = try begin(5); await waitUntil { held[5] != nil }
+        state.noteQuery = nfc; state.noteQuery = nfd
+        try complete(5, [first]); await inputABA.value
+        XCTAssertTrue(inputABA.isCancelled); XCTAssertEqual(state.notes, [current])
+
+        let readerABA = try begin(6); await waitUntil { held[6] != nil }
+        var restored = session; restored.restorationID = UUID()
+        state.updateNoteContext(session: restored, selection: nil)
+        state.updateNoteContext(session: session, selection: nil)
+        try complete(6, [first]); await readerABA.value
+        XCTAssertTrue(readerABA.isCancelled); XCTAssertEqual(state.notes, [current])
+
+        let reopened = try begin(7); await waitUntil { held[7] != nil }
+        state.retireNotes(); state.activateNotes(session: session, selection: nil)
+        let live = try begin(8); await waitUntil { held[8] != nil }
+        try fail(7); await reopened.value
+        XCTAssertTrue(reopened.isCancelled); XCTAssertTrue(state.notesLoading); XCTAssertNil(state.notesFailure)
+        try complete(8, [second]); await live.value
+        XCTAssertEqual(state.notes, [second])
+
+        let removedReader = try begin(9); await waitUntil { held[9] != nil }
+        state.updateNoteContext(session: nil, selection: nil)
+        XCTAssertNil(state.readNotes(for: book) { _, _ in XCTFail("A missing reader cannot issue a read"); return [] })
+        try complete(9, [first]); await removedReader.value
+        XCTAssertTrue(removedReader.isCancelled); XCTAssertEqual(state.notes, [second])
+        state.updateNoteContext(session: session, selection: nil)
+        let cancelled = try begin(10); await waitUntil { held[10] != nil }
+        cancelled.cancel(); try complete(10, [first]); await cancelled.value
+        XCTAssertEqual(state.notes, [second]); XCTAssertFalse(state.notesLoading)
+
+        let failed = try begin(11); await waitUntil { held[11] != nil }
+        try fail(11); await failed.value
+        XCTAssertNotNil(state.notesFailure); XCTAssertEqual(state.notes, [second])
+        let retry = try begin(12); await waitUntil { held[12] != nil }
+        try complete(12, [current]); await retry.value
+        XCTAssertEqual(state.notes, [current]); XCTAssertNil(state.notesFailure); XCTAssertFalse(state.notesLoading)
+        state.retireNotes()
+        XCTAssertNil(state.readNotes(for: book) { _, _ in XCTFail("A retired presentation cannot issue a read"); return [] })
+    }
+
     func testRealOriginalSearchRetirementCancelsExactReadAndPreservesConfirmedResults() async throws {
         let digest = "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5"
         let input = try ReaderLocalFormatsTests.originalURL(format: "txt", byteCount: 8_871_723, digest: digest)

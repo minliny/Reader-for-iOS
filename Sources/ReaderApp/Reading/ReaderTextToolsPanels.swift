@@ -45,6 +45,26 @@ final class ReaderTextToolsState: ObservableObject {
         let note: String
         let editing: ReaderHighlight?
     }
+    struct NoteReadKey: Hashable {
+        let source: Data
+        let book: Data
+        let query: Data
+        let readerEpoch: UUID
+        init(book: ReaderBook, query: String, readerEpoch: UUID) {
+            source = Data(book.sourceId.utf8); self.book = Data(book.bookId.utf8)
+            self.query = Data(query.utf8); self.readerEpoch = readerEpoch
+        }
+    }
+    private struct NoteReadContext: Equatable {
+        let session: UUID
+        let restoration: UUID
+        let source: Data
+        let book: Data
+        init(_ session: ReaderActiveSession) {
+            self.session = session.id; restoration = session.restorationID
+            source = Data(session.book.sourceId.utf8); book = Data(session.book.bookId.utf8)
+        }
+    }
     @Published var query = "" { didSet { if !query.utf8.elementsEqual(oldValue.utf8) { retireSearch() } } }
     @Published var submitted = ""
     @Published var requested = ""
@@ -54,7 +74,9 @@ final class ReaderTextToolsState: ObservableObject {
     @Published private(set) var searchRequiresRestart = false
     @Published var hasMore = false
     @Published var notes: [ReaderHighlight] = []
-    @Published var noteQuery = ""
+    @Published var noteQuery = "" {
+        didSet { if !noteQuery.utf8.elementsEqual(oldValue.utf8) { retireNoteRead() } }
+    }
     @Published var note = "" { didSet { noteRevision = UUID() } }
     @Published var editingNote: ReaderHighlight? { didSet { noteRevision = UUID() } }
     @Published var notesFailure: String?
@@ -75,6 +97,11 @@ final class ReaderTextToolsState: ObservableObject {
     private var notesActive = false
     private var noteContext: NoteContext?
     private var noteObservation: AnyCancellable?
+    @Published private(set) var noteReadEpoch = UUID()
+    private var noteReadContext: NoteReadContext?
+    private var noteReadTask: Task<Void, Never>?
+
+    deinit { noteReadTask?.cancel() }
 
     /// Retire only the current read. Confirmed results and return position stay
     /// available; the Runtime owns cancellation and exact reply retirement.
@@ -214,10 +241,13 @@ final class ReaderTextToolsState: ObservableObject {
     func activateNotes(session: ReaderActiveSession?, selection: ReaderTextSelection?) {
         noteObservation?.cancel(); noteObservation = nil
         notePresentation = UUID(); notesActive = true
+        retireNoteRead()
         updateNoteContext(session: session, selection: selection)
     }
 
     func updateNoteContext(session: ReaderActiveSession?, selection: ReaderTextSelection?) {
+        let readContext = session.map(NoteReadContext.init)
+        if readContext != noteReadContext { retireNoteRead(); noteReadContext = readContext }
         let context = session.map { NoteContext(session: $0, selection: selection) }
         if context != noteContext { noteRevision = UUID(); noteContext = context }
     }
@@ -225,7 +255,45 @@ final class ReaderTextToolsState: ObservableObject {
     func retireNotes() {
         notesActive = false; notePresentation = UUID()
         noteObservation?.cancel(); noteObservation = nil
-        notesGeneration = UUID(); notesLoading = false
+        retireNoteRead(); noteReadContext = nil
+    }
+
+    private func retireNoteRead() {
+        noteReadEpoch = UUID(); notesGeneration = UUID()
+        noteReadTask?.cancel(); noteReadTask = nil; notesLoading = false
+    }
+
+    @discardableResult
+    func readNotes(for book: ReaderBook, read: @escaping @MainActor (ReaderBook, String) async throws -> [ReaderHighlight]) -> Task<Void, Never>? {
+        let input = NoteReadKey(book: book, query: noteQuery, readerEpoch: noteReadEpoch)
+        guard notesActive, let context = noteReadContext,
+              context.source == input.source, context.book == input.book else { return nil }
+        noteReadTask?.cancel()
+        let generation = UUID(); notesGeneration = generation
+        let presentation = notePresentation, query = noteQuery
+        notesLoading = true; notesFailure = nil
+        let task = Task { [weak self] in
+            defer {
+                if let self, self.notesGeneration == generation { self.notesLoading = false; self.noteReadTask = nil }
+            }
+            do {
+                let values = try await read(book, query)
+                guard let self, !Task.isCancelled,
+                      self.acceptsNoteRead(input, context: context, presentation: presentation, generation: generation) else { return }
+                self.notes = values; self.notesFailure = nil
+            } catch {
+                guard let self, !Task.isCancelled,
+                      self.acceptsNoteRead(input, context: context, presentation: presentation, generation: generation) else { return }
+                self.notesFailure = error.localizedDescription
+            }
+        }
+        noteReadTask = task
+        return task
+    }
+
+    private func acceptsNoteRead(_ input: NoteReadKey, context: NoteReadContext, presentation: UUID, generation: UUID) -> Bool {
+        notesActive && notePresentation == presentation && notesGeneration == generation && noteReadContext == context
+            && noteReadEpoch == input.readerEpoch && Data(noteQuery.utf8) == input.query
     }
 
     func captureNoteDraft(for book: ReaderBook) -> NoteDraft? {
@@ -332,6 +400,7 @@ struct ReaderAnnotationsPanel: View {
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @Environment(\.colorScheme) private var scheme
     var body: some View {
+        let readKey = ReaderTextToolsState.NoteReadKey(book: book, query: state.noteQuery, readerEpoch: state.noteReadEpoch)
         VStack(spacing: 8) {
             TextField("搜索笔记", text: $state.noteQuery).readerField()
             if let selected = model.selection, selected.bookId == book.bookId {
@@ -384,13 +453,15 @@ struct ReaderAnnotationsPanel: View {
                 }
             }
         }.font(ReaderTypography.font(.caption)).padding(10)
-            .task(id: "\(book.id)|\(state.noteQuery)") { await load() }
+            .task(id: readKey) {
+                guard readKey == ReaderTextToolsState.NoteReadKey(book: book, query: state.noteQuery, readerEpoch: state.noteReadEpoch) else { return }
+                await load()
+            }
             .onChange(of: model.actions.hasPending) { old, new in if old && !new { Task { await load() } } }
             .onAppear { if presentationActive { state.observeNotes(in: model) } }
             .onChange(of: presentationActive) { _, active in
                 if active {
                     state.observeNotes(in: model)
-                    Task { await load() }
                 } else { state.retireNotes() }
             }
             .onDisappear { state.retireNotes() }
@@ -398,15 +469,10 @@ struct ReaderAnnotationsPanel: View {
     }
     private func load() async {
         guard presentationActive, let service = model.libraryService as? any ReaderReadingToolsServing else { return }
-        let query = state.noteQuery
-        let generation = UUID(); state.notesGeneration = generation
-        state.notesLoading = true
-        defer { if generation == state.notesGeneration { state.notesLoading = false } }
-        do {
-            let values = try await service.highlights(for: book, query: query)
-            guard generation == state.notesGeneration, !Task.isCancelled else { return }
-            state.notes = values; state.notesFailure = nil
-        } catch { if generation == state.notesGeneration, !Task.isCancelled { state.notesFailure = error.localizedDescription } }
+        guard let task = state.readNotes(for: book, read: { book, query in
+            try await service.highlights(for: book, query: query)
+        }) else { return }
+        await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
     }
     private func save() {
         guard let service = model.libraryService as? any ReaderReadingToolsServing,
