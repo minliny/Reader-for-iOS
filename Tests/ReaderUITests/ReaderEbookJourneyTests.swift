@@ -191,6 +191,65 @@ final class ReaderEbookJourneyTests: XCTestCase {
         // establish actual in-flight rendering before full motion acceptance.
     }
 
+    func testExistingRealZhongSongFirstProseAndShelfReturn() throws {
+        executionTimeAllowance = 180
+        let app = XCUIApplication(); app.launch(); openBook(epubID, app: app)
+        openModule("directory", app: app)
+        let tab = app.buttons.matching(NSPredicate(format: "label == '目录' AND identifier != 'control-module-directory'")).firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 5)); tab.tap()
+        let title = "第1章 牢房"
+        let prose = app.buttons.matching(NSPredicate(format: "identifier == 'chapter-2' AND label == %@", title))
+        XCTAssertTrue(prose.firstMatch.waitForExistence(timeout: 10)); XCTAssertEqual(prose.count, 1)
+        XCTAssertTrue(prose.firstMatch.isEnabled && prose.firstMatch.isHittable); prose.firstMatch.tap()
+        let header = app.staticTexts["reading-chapter:2"]
+        waitUntil("Actual existing EPUB first prose", timeout: 25) { header.exists && header.label.hasPrefix(title + " · ") }
+        hideControls(app)
+        try assertVisible("一缕微光从高墙上的小小气窗透进来昏暗", app: app, name: "epub-existing-source-first-prose")
+        leaveReader(app)
+    }
+
+    func testOriginalFuHanPickerFirstProseAdjacentChapterAndReturn() throws {
+        executionTimeAllowance = 300
+        let app = XCUIApplication(); app.launch()
+        importOriginal(prefix: "覆汉", format: "mobi", expectedID: mobiID, app: app)
+        openBook(mobiID, app: app)
+        // Existing source-bound Core materializations independently agree on
+        // these actual prose titles/anchors. No cover or TOC is prose evidence.
+        let firstTitle = "第一章 卢龙塞"
+        let nextTitle = "第二章 请战"
+        let firstAnchor = "塞外一座足可容纳数千鲜卑军士的大营立"
+        let nextAnchor = "诸位乡邻子弟自从建宁年间算起这么多年"
+        openModule("directory", app: app)
+        let tab = app.buttons.matching(NSPredicate(format: "label == '目录' AND identifier != 'control-module-directory'")).firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 5)); tab.tap()
+        let prose = app.buttons.matching(NSPredicate(format: "identifier == 'chapter-3' AND label == %@", firstTitle))
+        XCTAssertTrue(prose.firstMatch.waitForExistence(timeout: 10)); XCTAssertEqual(prose.count, 1)
+        XCTAssertTrue(prose.firstMatch.isEnabled && prose.firstMatch.isHittable); prose.firstMatch.tap()
+        let firstHeader = app.staticTexts["reading-chapter:3"]
+        waitUntil("Actual original MOBI prose selected", timeout: 25) { firstHeader.exists && firstHeader.label.hasPrefix(firstTitle + " · ") }
+        let start = app.buttons["章首"]
+        XCTAssertTrue(start.isEnabled && start.isHittable); start.tap()
+        hideControls(app)
+        try assertVisible(firstAnchor, app: app, name: "mobi-ordinary-source-prose")
+
+        openModule("home", app: app)
+        let next = app.buttons["下一章"]
+        XCTAssertTrue(next.isEnabled && next.isHittable); next.tap()
+        let nextHeader = app.staticTexts["reading-chapter:4"]
+        waitUntil("Actual adjacent original MOBI chapter", timeout: 25) { nextHeader.exists && nextHeader.label.hasPrefix(nextTitle + " · ") }
+        hideControls(app)
+        try assertVisible(nextAnchor, app: app, name: "mobi-ordinary-source-adjacent")
+
+        openModule("home", app: app)
+        let previous = app.buttons["上一章"]
+        XCTAssertTrue(previous.isEnabled && previous.isHittable); previous.tap()
+        waitUntil("Return to actual original MOBI prose", timeout: 25) { firstHeader.exists && firstHeader.label.hasPrefix(firstTitle + " · ") }
+        hideControls(app)
+        try assertVisible(firstAnchor, app: app, name: "mobi-ordinary-source-return")
+        leaveReader(app)
+        XCTAssertTrue(app.buttons[mobiID].waitForExistence(timeout: 15), "The actual admitted original remains on the shelf")
+    }
+
     func testOriginalFuHanPickerBodyChapterReturnAndColdVisibleAnchor() throws {
         let app = XCUIApplication(); app.launch()
         importOriginal(prefix: "覆汉", format: "mobi", expectedID: mobiID, app: app)

@@ -1487,8 +1487,8 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     }
 
     /// Root admits the existing real TXT and stopped-library preproof separately.
-    /// Cursor/retirement semantics reuse ReaderTextToolsLifecycleTests; this is
-    /// only the native More consumer, without import, rule or display changes.
+    /// One real TXT search: fixed More, actual appended hit, native body and
+    /// return. Cursor lifecycle reuses ReaderTextToolsLifecycleTests.
     func testExistingRealTXTContentSearchMoreAppendsActualResultsAndRetainsFirstHit() throws {
         let app = XCUIApplication()
         guard !realEpubJourney, app.state == .notRunning,
@@ -1496,26 +1496,18 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             XCTFail("Require the existing exact original TXT and Root's stopped-App premise")
             throw JourneyError.prerequisite
         }
-        var returnedNormally = false
-        var ownerGeometryTrace: [String] = []
-        var failureRecorded = false
-        func recordFailure(_ reason: String) {
+        var returnedNormally = false, failureRecorded = false
+        var stage = "opening-existing-TXT"
+        func recordFailure() {
             guard !failureRecorded else { return }
             failureRecorded = true
-            // Persist buffered facts before remote AX/screenshot calls and
-            // before XCTFail: continueAfterFailure=false need not unwind defer.
-            let facts: [String: Any] = ["scope": "FAILURE_DIAGNOSTIC_NOT_JOURNEY_ACCEPTANCE",
-                "phase": "before-failure-UI-snapshot", "reason": reason,
-                "ownerGeometryTrace": ownerGeometryTrace,
-                "reachLimitSeconds": 30, "reachLimitNativeScrolls": 32]
-            let data = (try? JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys])) ?? Data()
-            let trace = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
-            trace.name = "real-TXT-More-failure-buffered-facts"; trace.lifetime = .keepAlways; add(trace)
+            let facts = XCTAttachment(string: "FAILURE_NOT_ACCEPTANCE\nstage=" + stage + "\nOne initial search and at most one More; no import, preference change or scroll-until-footer loop.")
+            facts.name = "real-TXT-More-failure-buffered-facts"; facts.lifetime = .keepAlways; add(facts)
             evidence(app, "real-TXT-More-failure-current-screen")
-            let ax = XCTAttachment(string: app.debugDescription + "\nActual owner geometry samples:\n" + ownerGeometryTrace.joined(separator: "\n"))
+            let ax = XCTAttachment(string: app.debugDescription)
             ax.name = "real-TXT-More-failure-AX"; ax.lifetime = .keepAlways; add(ax)
         }
-        defer { if !returnedNormally { recordFailure("non-normal-exit") } }
+        defer { if !returnedNormally { recordFailure() } }
         app.launch(); try openExistingRuleRoundtripBook(app)
         openModule("home", app: app)
         let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
@@ -1525,91 +1517,82 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         let originalAnchor = try anchor(app, name: "real-TXT-More-original-visible-anchor")
         openTool("正文搜索", app: app)
         let query = app.textFields["content-search-query"]
-        replace(query, with: "2") // One native Return/onSubmit; never tap the Search/Stop button again.
-        let predicate = NSPredicate(format: "identifier BEGINSWITH %@",
-            "content-hit-local|" + String(bookID.dropFirst(5)) + "|")
-        let hits = app.buttons.matching(predicate)
-        waitUntil("The one real initial search returns actual source-bound hits", timeout: 45) {
-            hits.count > 0 && app.buttons["content-search-submit"].label == "搜索" && !app.keyboards.firstMatch.exists
+        replace(query, with: "2") // One actual Return; never tap Search/Stop again.
+        let predicate = NSPredicate(format: "identifier BEGINSWITH %@", "content-hit-local|" + String(bookID.dropFirst(5)) + "|")
+        let rows = app.scrollViews["content-search-results"].buttons.matching(predicate)
+        let count = app.staticTexts["content-search-result-count"]
+        func displayedCount() -> Int? { (count.value as? String).flatMap(Int.init) }
+        stage = "initial-results"
+        waitUntil("The initial real search returns hits and an actual displayed count", timeout: 45) {
+            rows.count > 0 && (displayedCount() ?? 0) > 0
+                && app.buttons["content-search-submit"].label == "搜索" && !app.keyboards.firstMatch.exists
         }
-        guard query.value as? String == "2", hits.count > 0, !app.keyboards.firstMatch.exists else { throw JourneyError.prerequisite }
-        let firstID = hits.element(boundBy: 0).identifier, firstLabel = hits.element(boundBy: 0).label
-        let candidates = app.scrollViews.allElementsBoundByIndex.enumerated().filter {
-            $0.element.buttons.matching(identifier: firstID).count == 1 && $0.element.frame.width > 100 && $0.element.frame.height > 100
-        }.sorted { $0.element.frame.width * $0.element.frame.height < $1.element.frame.width * $1.element.frame.height }
-        guard let selected = candidates.first,
-              candidates.count == 1 || candidates[1].element.frame.width * candidates[1].element.frame.height > selected.element.frame.width * selected.element.frame.height else {
-            throw JourneyError.prerequisite
+        XCTAssertEqual(query.value as? String, "2")
+        let firstCount = try XCTUnwrap(displayedCount())
+        XCTAssertGreaterThan(firstCount, 0); XCTAssertLessThanOrEqual(firstCount, 100)
+        let initialIDs = rows.allElementsBoundByIndex.map(\.identifier) // Materialized AX rows only.
+        let firstID = rows.element(boundBy: 0).identifier, firstLabel = rows.element(boundBy: 0).label
+        evidence(app, "real-TXT-More-initial-results")
+        let more = app.buttons["content-search-more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 5))
+        guard more.isHittable, more.isEnabled, app.frame.contains(more.frame) else {
+            recordFailure(); throw JourneyError.prerequisite
         }
-        let ownerIndex = selected.offset, ownerFrame = selected.element.frame
-        func owner() throws -> XCUIElement {
-            let current = app.scrollViews.element(boundBy: ownerIndex)
-            guard current.exists else { throw JourneyError.prerequisite }
-            // AX prints rounded rectangles. Read this sample once and retain
-            // its actual precision while using the existing 2pt UI tolerance.
-            let measured = current.frame
-            let original = [ownerFrame.minX, ownerFrame.minY, ownerFrame.width, ownerFrame.height]
-            let actual = [measured.minX, measured.minY, measured.width, measured.height]
-            let drift = zip(actual, original).map { abs($0 - $1) }
-            ownerGeometryTrace.append("original=" + original.map { String(format: "%.17g", Double($0)) }.joined(separator: ",")
-                + "; actual=" + actual.map { String(format: "%.17g", Double($0)) }.joined(separator: ",")
-                + "; drift=" + drift.map { String(format: "%.17g", Double($0)) }.joined(separator: ","))
-            guard original.allSatisfy(\.isFinite), actual.allSatisfy(\.isFinite),
-                  measured.width > 0, measured.height > 0, drift.allSatisfy({ $0 <= 2 }), current.isHittable,
-                  !app.keyboards.firstMatch.exists, app.buttons["control-grabber"].label.hasPrefix("完整控制栏") else { throw JourneyError.prerequisite }
-            return current // Unfiltered index, never a query containing the now-lazy first row.
+        stage = "one-fixed-More"
+        more.tap() // No result-list scroll is needed to reach this product action.
+        waitUntil("One More appends actual results", timeout: 30) {
+            (displayedCount() ?? 0) > firstCount && app.buttons["content-search-submit"].label == "搜索"
         }
-        func record(_ stage: String) throws -> [String] {
-            let rows = try owner().buttons.matching(predicate).allElementsBoundByIndex
-            let ax = XCTAttachment(string: app.debugDescription)
-            ax.name = "real-TXT-More-" + stage + "-AX"; ax.lifetime = .keepAlways; add(ax)
-            evidence(app, "real-TXT-More-" + stage)
-            return rows.map(\.identifier) // Observed AX rows only; no claim that LazyVStack exposed every page ID.
-        }
-        func reach(_ target: XCUIElement, downward: Bool, deadline: TimeInterval, fast: Bool = true) throws {
-            for step in 0...32 {
-                guard ProcessInfo.processInfo.systemUptime < deadline else { break }
-                let scroll = try owner(), viewport = ownerFrame.intersection(app.frame).insetBy(dx: 8, dy: 8)
-                if target.exists, target.isHittable, viewport.contains(target.frame), ProcessInfo.processInfo.systemUptime < deadline { return }
-                guard step < 32, viewport.height > 100, ProcessInfo.processInfo.systemUptime < deadline else { break }
-                if downward { scroll.swipeUp(velocity: fast ? .fast : .slow) } else { scroll.swipeDown(velocity: .fast) }
+        let appendedCount = try XCTUnwrap(displayedCount())
+        XCTAssertLessThanOrEqual(appendedCount - firstCount, 100)
+        let results = app.scrollViews["content-search-results"]
+        func newlyVisibleHit() -> XCUIElement? {
+            let viewport = results.frame.intersection(app.frame)
+            return rows.allElementsBoundByIndex.first {
+                !initialIDs.contains($0.identifier) && $0.isHittable && viewport.contains($0.frame)
             }
-            recordFailure("bounded-result-list-target-not-reached")
-            XCTFail("The actual result-list target was not reached within 30 seconds / 32 native scrolls; no late tap")
-            throw JourneyError.prerequisite
         }
-        let initialIDs = try record("initial-results")
-        let more = try owner().buttons.matching(NSPredicate(format: "label == %@", "更多结果"))
-        let moreDeadline = ProcessInfo.processInfo.systemUptime + 30
-        try reach(more.firstMatch, downward: true, deadline: moreDeadline)
-        let scroll = try owner(), before = scroll.buttons.matching(predicate).allElementsBoundByIndex
-        let oldTail = try XCTUnwrap(before.last)
-        let oldTailID = oldTail.identifier
-        guard more.count == 1, more.element.isEnabled, oldTail.isHittable, ownerFrame.intersection(app.frame).contains(oldTail.frame),
-              oldTail.frame.maxY <= more.element.frame.minY else { throw JourneyError.prerequisite }
-        let beforeIDs = try record("before-one-More")
-        guard ProcessInfo.processInfo.systemUptime < moreDeadline else { throw JourneyError.prerequisite }
-        more.element.tap() // Exactly one real More, only while its original reach deadline still holds.
-        waitUntil("More exposes an actual new row after the prior page's retained tail", timeout: 30) {
-            let ids = app.scrollViews.element(boundBy: ownerIndex).buttons.matching(predicate).allElementsBoundByIndex.map(\.identifier)
-            guard app.buttons["content-search-submit"].label == "搜索", let tail = ids.firstIndex(of: oldTailID) else { return false }
-            return ids.dropFirst(tail + 1).contains { !beforeIDs.contains($0) && !initialIDs.contains($0) }
+        waitUntil("The appended batch exposes a real new hit without another scroll", timeout: 30) { newlyVisibleHit() != nil }
+        let hit = try XCTUnwrap(newlyVisibleHit()), hitID = hit.identifier
+        let identity = hitID.split(separator: "|", omittingEmptySubsequences: false)
+        guard identity.count == 4, identity[0] == "content-hit-local", identity[1] == Substring(bookID.dropFirst(5)),
+              let hitChapter = UInt32(identity[2]), let hitOffset = UInt64(identity[3]) else { throw JourneyError.prerequisite }
+        let snippet = normalized(try XCTUnwrap(hit.staticTexts.allElementsBoundByIndex.last).label)
+        XCTAssertGreaterThanOrEqual(snippet.count, 12)
+        evidence(app, "real-TXT-More-appended-hit-visible")
+        stage = "appended-hit-to-body"
+        hit.tap()
+        waitUntil("The actual hit's canonical chapter becomes current", timeout: 25) {
+            chapter.count == 1 && chapter.element.identifier == "reading-chapter:\(hitChapter)"
         }
-        let appendedIDs = try record("after-one-More")
-        let tailIndex = try XCTUnwrap(appendedIDs.firstIndex(of: oldTailID))
-        let newID = try XCTUnwrap(appendedIDs.dropFirst(tailIndex + 1).first { !beforeIDs.contains($0) && !initialIDs.contains($0) })
-        let appended = try owner().buttons.matching(identifier: newID)
-        try reach(appended.element, downward: true, deadline: ProcessInfo.processInfo.systemUptime + 30, fast: false)
-        _ = try record("actual-appended-row-visible")
-        let first = try owner().buttons.matching(identifier: firstID)
-        try reach(first.element, downward: false, deadline: ProcessInfo.processInfo.systemUptime + 30)
-        XCTAssertEqual(first.count, 1); XCTAssertEqual(first.element.label, firstLabel)
-        _ = try record("original-first-hit-retained")
-        let facts = XCTAttachment(string: "firstHitID=\(firstID)\noldTailID=\(oldTailID)\nobservedAppendedID=\(newID)\nMoreTaps=1\nObserved AX order/visible rows only; cursor bytes, exact page counts and all-page unique IDs are NOT_CAPTURED. Root separately audits original inputs, progress, retained files and commands.\nActual owner geometry samples:\n" + ownerGeometryTrace.joined(separator: "\n"))
-        facts.name = "real-TXT-More-observed-identity-boundary"; facts.lifetime = .keepAlways; add(facts)
         hideControls(app)
-        try assertVisible(originalAnchor, app: app, name: "real-TXT-More-reader-anchor-preserved")
-        openModule("home", app: app); XCTAssertEqual(chapter.element.identifier, originalChapterID)
+        waitUntil("Native body displays context from that actual hit snippet", timeout: 25) {
+            guard let capture = try? self.screen(app) else { return false }
+            let visible = self.normalized(capture.text)
+            return snippet.indices.contains { start in
+                let fragment = String(snippet[start...].prefix(12))
+                return fragment.count == 12 && visible.contains(fragment)
+            }
+        }
+        XCTAssertFalse(normalized(try screen(app).text).contains(originalAnchor), "The new hit must leave the original visible passage")
+        evidence(app, "real-TXT-More-actual-hit-body")
+        // Reopen the existing search without submitting another query. Its
+        // retained rows naturally start at the top of the new presentation.
+        stage = "retained-first-hit-and-return"
+        openTool("正文搜索", app: app)
+        XCTAssertEqual(query.value as? String, "2"); XCTAssertEqual(displayedCount(), appendedCount)
+        let first = app.buttons[firstID]
+        XCTAssertTrue(first.waitForExistence(timeout: 5)); XCTAssertTrue(first.isHittable)
+        XCTAssertEqual(first.label, firstLabel, "The original first hit survives More and the body visit")
+        let back = app.buttons["返回搜索前的位置"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5)); XCTAssertTrue(back.isHittable); back.tap()
+        waitUntil("Return restores the original canonical chapter", timeout: 25) {
+            chapter.count == 1 && chapter.element.identifier == originalChapterID
+        }
+        hideControls(app)
+        try assertVisible(originalAnchor, app: app, name: "real-TXT-More-returned-original-visible-position")
+        let facts = XCTAttachment(string: "firstDisplayedCount=\(firstCount)\nafterMoreDisplayedCount=\(appendedCount)\nfirstHitID=\(firstID)\nappendedVisibleHitID=\(hitID)\nhitChapter=\(hitChapter)\nhitScalarOffset=\(hitOffset)\nMoreTaps=1\nInitial AX IDs are materialized rows only; no all-page unique-ID or durable-cursor claim. Original first hit and original visible reader passage were restored through the native UI.")
+        facts.name = "real-TXT-More-observed-identity-boundary"; facts.lifetime = .keepAlways; add(facts)
         leaveReader(app); returnedNormally = true
     }
 

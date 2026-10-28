@@ -318,6 +318,7 @@ struct ReaderContentSearchPanel: View {
     @ObservedObject var state: ReaderTextToolsState
     let book: ReaderBook
     @Environment(\.colorScheme) private var scheme
+    @State private var resultToReveal: (generation: UUID, index: Int)?
     var body: some View {
         VStack(spacing: 8) {
             HStack {
@@ -333,6 +334,12 @@ struct ReaderContentSearchPanel: View {
             if !state.results.isEmpty, state.requested != state.submitted {
                 Text("保留上次“\(state.submitted)”的结果").font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
             }
+            if !state.results.isEmpty {
+                Text("已显示 \(state.results.count) 条结果")
+                    .foregroundStyle(ReaderPalette(scheme).muted)
+                    .accessibilityIdentifier("content-search-result-count")
+                    .accessibilityValue(String(state.results.count))
+            }
             if let failure = state.searchFailure {
                 ReaderPageState(title: state.results.isEmpty ? "正文搜索尚未完成" : "本次搜索尚未完成，保留原结果",
                                 detail: failure, actionTitle: state.searchRequiresRestart ? "重新搜索" : "重试") {
@@ -343,29 +350,40 @@ struct ReaderContentSearchPanel: View {
             else if state.results.isEmpty, !state.submitted.isEmpty, state.searchFailure == nil {
                 ReaderPageState(title: "没有找到匹配正文")
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(state.results) { result in
-                            Button {
-                                guard let scope = result.positionScope else { model.showFeedback("搜索位置缺少版本信息，请重新搜索"); return }
-                                if state.returnPosition == nil, let current = model.reader,
-                                   let original = try? ReaderContentPositionScope(book: current.book, content: current.content) {
-                                    state.returnPosition = (original, current.scalarOffset)
-                                }
-                                Task { await model.jump(scope: scope, scalarOffset: result.chapterOffset) }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(result.chapterTitle).font(ReaderTypography.font(.controlHeader))
-                                    Text(result.snippet).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
-                                }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
-                                    .background(ReaderPalette(scheme).readElevated, in: RoundedRectangle(cornerRadius: 8))
-                            }.buttonStyle(ReaderPressFeedback()).accessibilityIdentifier("content-hit-\(result.id)")
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 8) {
+                            ForEach(state.results) { result in
+                                Button {
+                                    guard let scope = result.positionScope else { model.showFeedback("搜索位置缺少版本信息，请重新搜索"); return }
+                                    if state.returnPosition == nil, let current = model.reader,
+                                       let original = try? ReaderContentPositionScope(book: current.book, content: current.content) {
+                                        state.returnPosition = (original, current.scalarOffset)
+                                    }
+                                    Task { await model.jump(scope: scope, scalarOffset: result.chapterOffset) }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text(result.chapterTitle).font(ReaderTypography.font(.controlHeader))
+                                        Text(result.snippet).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
+                                    }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                                        .background(ReaderPalette(scheme).readElevated, in: RoundedRectangle(cornerRadius: 8))
+                                }.buttonStyle(ReaderPressFeedback()).id(result.id)
+                                    .accessibilityIdentifier("content-hit-\(result.id)")
+                            }
                         }
-                        if state.hasMore {
-                            Button("更多结果") { search(more: true) }.frame(minHeight: 44).disabled(state.searchLoading)
+                    }.accessibilityIdentifier("content-search-results")
+                        .onChange(of: state.results) { _, _ in
+                            guard let reveal = resultToReveal, reveal.generation == state.searchGeneration,
+                                  state.results.indices.contains(reveal.index) else { return }
+                            proxy.scrollTo(state.results[reveal.index].id, anchor: .top)
+                            resultToReveal = nil
                         }
-                    }
                 }
+            }
+            if state.hasMore {
+                Button("更多结果") { search(more: true) }
+                    .frame(maxWidth: .infinity, minHeight: 44).disabled(state.searchLoading)
+                    .accessibilityIdentifier("content-search-more")
             }
             if let original = state.returnPosition {
                 Button("返回搜索前的位置") {
@@ -381,14 +399,18 @@ struct ReaderContentSearchPanel: View {
         }.padding(10).font(ReaderTypography.font(.caption))
             .onDisappear { state.retireSearch() }
     }
-    private func stop() { state.cancelSearch() }
+    private func stop() { resultToReveal = nil; state.cancelSearch() }
     private func search(more: Bool) {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
+        let index = more ? state.results.count : 0
         state.startSearch(for: book, using: service, more: more)
+        resultToReveal = (state.searchGeneration, index)
     }
     private func retry() {
         guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
+        let index = state.failedSearchRequest?.append == true ? state.results.count : 0
         state.retrySearch(for: book, using: service)
+        resultToReveal = (state.searchGeneration, index)
     }
 }
 
