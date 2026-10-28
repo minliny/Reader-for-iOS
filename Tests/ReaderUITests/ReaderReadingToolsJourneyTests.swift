@@ -1498,13 +1498,24 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
         }
         var returnedNormally = false
         var ownerGeometryTrace: [String] = []
-        defer {
-            if !returnedNormally {
-                evidence(app, "real-TXT-More-failure-current-screen")
-                let ax = XCTAttachment(string: app.debugDescription + "\nActual owner geometry samples:\n" + ownerGeometryTrace.joined(separator: "\n"))
-                ax.name = "real-TXT-More-failure-AX"; ax.lifetime = .keepAlways; add(ax)
-            }
+        var failureRecorded = false
+        func recordFailure(_ reason: String) {
+            guard !failureRecorded else { return }
+            failureRecorded = true
+            // Persist buffered facts before remote AX/screenshot calls and
+            // before XCTFail: continueAfterFailure=false need not unwind defer.
+            let facts: [String: Any] = ["scope": "FAILURE_DIAGNOSTIC_NOT_JOURNEY_ACCEPTANCE",
+                "phase": "before-failure-UI-snapshot", "reason": reason,
+                "ownerGeometryTrace": ownerGeometryTrace,
+                "reachLimitSeconds": 30, "reachLimitNativeScrolls": 32]
+            let data = (try? JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys])) ?? Data()
+            let trace = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+            trace.name = "real-TXT-More-failure-buffered-facts"; trace.lifetime = .keepAlways; add(trace)
+            evidence(app, "real-TXT-More-failure-current-screen")
+            let ax = XCTAttachment(string: app.debugDescription + "\nActual owner geometry samples:\n" + ownerGeometryTrace.joined(separator: "\n"))
+            ax.name = "real-TXT-More-failure-AX"; ax.lifetime = .keepAlways; add(ax)
         }
+        defer { if !returnedNormally { recordFailure("non-normal-exit") } }
         app.launch(); try openExistingRuleRoundtripBook(app)
         openModule("home", app: app)
         let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
@@ -1563,6 +1574,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 guard step < 32, viewport.height > 100, ProcessInfo.processInfo.systemUptime < deadline else { break }
                 if downward { scroll.swipeUp(velocity: fast ? .fast : .slow) } else { scroll.swipeDown(velocity: .fast) }
             }
+            recordFailure("bounded-result-list-target-not-reached")
             XCTFail("The actual result-list target was not reached within 30 seconds / 32 native scrolls; no late tap")
             throw JourneyError.prerequisite
         }
