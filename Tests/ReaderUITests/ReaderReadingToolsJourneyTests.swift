@@ -587,6 +587,19 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                             && viewport.contains($0.frame)
                     }
                     if readerCount == 1, visible.count == 1 { return visible }
+                    let appMore = collection.cells.matching(NSPredicate(format:
+                        "identifier == 'shareCell' AND label IN %@", ["更多", "More"]))
+                    if appMore.count == 1, appMore.element.isHittable,
+                       viewport.contains(appMore.element.frame), ProcessInfo.processInfo.systemUptime < deadline {
+                        appMore.element.tap()
+                        let expanded = files.cells.containing(NSPredicate(format: "label IN %@", activityNames))
+                        guard expanded.firstMatch.waitForExistence(timeout: 10), expanded.count == 1 else {
+                            try unavailable("Require one explicit Reader choice in the actual native expanded app list",
+                                name: "external-TXT-expanded-native-Reader-choice-unavailable")
+                        }
+                        systemEvidence("external-TXT-actual-expanded-native-apps")
+                        return expanded.allElementsBoundByIndex.filter { $0.isHittable && $0.isEnabled }
+                    }
                     guard step < 6, ProcessInfo.processInfo.systemUptime < deadline else { break }
                     let rowViewport = collection.frame.intersection(viewport)
                     guard rowViewport.width > 100, rowViewport.height > 40 else { break }
@@ -624,18 +637,13 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                     && !bars.contains(where: { $0.contains(CGPoint(x: item.frame.midX, y: item.frame.midY)) })
             }
         }
-        var activities = try actualReaderActivities()
+        var activities: [XCUIElement] = []
         var shareTapped = false
-        if activities.isEmpty {
-            let shares = files.menuItems.matching(NSPredicate(format: "label IN %@", ["共享", "分享", "Share"]))
-                .allElementsBoundByIndex.filter(\.isHittable)
-            let buttons = files.buttons.matching(NSPredicate(format: "label IN %@", ["共享", "分享", "Share"]))
-                .allElementsBoundByIndex.filter(\.isHittable)
-            let actual = shares.isEmpty ? buttons : shares
-            guard actual.count == 1, let share = actual.first, share.isEnabled else {
-                try unavailable("The actual original-file menu has neither a unique explicit Reader activity nor one native Share action",
-                    name: "external-TXT-Reader-activity-unavailable")
-            }
+        let sharePredicate = NSPredicate(format: "label IN %@", ["共享", "分享", "Share"])
+        let buttons = files.buttons.matching(sharePredicate).allElementsBoundByIndex.filter(\.isHittable)
+        let shares = buttons.isEmpty ? files.menuItems.matching(sharePredicate).allElementsBoundByIndex.filter(\.isHittable) : []
+        let actual = buttons.isEmpty ? shares : buttons
+        if actual.count == 1, let share = actual.first, share.isEnabled {
             share.tap(); shareTapped = true
             let owner = files.otherElements.matching(identifier: "ActivityListView")
             guard owner.firstMatch.waitForExistence(timeout: 5), owner.count == 1 else {
@@ -643,6 +651,8 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                     name: "external-TXT-native-share-owner-unavailable")
             }
             systemEvidence("external-TXT-original-native-share-candidates")
+            activities = try actualReaderActivities()
+        } else {
             activities = try actualReaderActivities()
         }
         guard activities.count == 1, let activity = activities.first else {
