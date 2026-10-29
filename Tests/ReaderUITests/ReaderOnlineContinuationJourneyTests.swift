@@ -103,6 +103,131 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         leave(app)
     }
 
+    /// The second original Baidu book was already admitted and cold-read in
+    /// r6. Observe an actual missing chapter; never clear cache or add a book.
+    @MainActor
+    func testExistingRealAdmittedBaiduUncachedChapterOfflineFailurePreservesVisibleBody() throws {
+        executionTimeAllowance = 240
+        try requirePhysicalOfflinePhone()
+        guard try required("READER_ONLINE_OS_NETWORK_CHANGE_AUTHORIZED") == "1",
+              try required("READER_ONLINE_PHYSICAL_USB_CONFIRMED") == "1" else {
+            XCTFail("Require the existing human network authorization and Root's live USB observation before changing Wi-Fi")
+            throw Prerequisite.invalid("authorized wired physical route required")
+        }
+        let book = Book(source: "https://dushu.baidu.com/",
+            id: "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid=4345127024&pageNum=1&order=asc&site=",
+            title: "等到鸢尾纯白")
+        let app = XCUIApplication(); app.launch()
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+        guard !app.textFields["shelf-filter"].exists else {
+            XCTFail("Preserve an already-open user shelf query instead of replacing it")
+            throw Prerequisite.invalid("original closed shelf search required")
+        }
+        app.buttons["搜索本地书架"].tap()
+        let query = app.textFields["shelf-filter"]
+        XCTAssertTrue(query.waitForExistence(timeout: 5)); query.tap(); query.typeText(book.title + "\n")
+        let books = app.buttons.matching(NSPredicate(format: "identifier == %@", book.shelfID))
+        XCTAssertTrue(books.firstMatch.waitForExistence(timeout: 15)); XCTAssertEqual(books.count, 1)
+        XCTAssertTrue(books.firstMatch.isEnabled && books.firstMatch.isHittable); books.firstMatch.tap()
+        XCTAssertTrue(app.textViews["reading-body"].waitForExistence(timeout: 30))
+        let originalChapter = try currentChapter(book, app: app)
+        hideControls(app)
+        let originalProgress = app.staticTexts["reading-progress"].label
+        let originalAnchor = try anchor(app, name: "real-existing-second-baidu-before-uncached-offline-attempt")
+        downloads(app)
+        let missing = try observeExistingMissingChapter(book, outside: originalChapter, app: app)
+        app.buttons["online-download-close"].tap()
+
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launch(); try requireSettingsRoot(settings)
+        let airplane = try XCTUnwrap(uniqueSettingsSwitch(airplaneLabels, settings: settings)).observation
+        try openSettingsWiFi(settings)
+        let wifi = try XCTUnwrap(uniqueSettingsSwitch(wifiLabels, settings: settings)).observation
+        // Registered before the first network change. Restoration uses the
+        // actual original values, including failures after a partial change.
+        addTeardownBlock { [weak self] in
+            guard let self else { throw Prerequisite.invalid("network restoration owner missing") }
+            try await self.restoreObservedNetwork(airplane: airplane.value, wifi: wifi.value)
+        }
+        try requireSettingsRoot(settings); try setSettingsSwitch(airplaneLabels, to: 1, settings: settings)
+        try openSettingsWiFi(settings); try setSettingsSwitch(wifiLabels, to: 0, settings: settings)
+        XCTAssertEqual(try XCTUnwrap(uniqueSettingsSwitch(wifiLabels, settings: settings)).observation.value, 0)
+        try requireSettingsRoot(settings)
+        XCTAssertEqual(try XCTUnwrap(uniqueSettingsSwitch(airplaneLabels, settings: settings)).observation.value, 1)
+        let path = try observeUnsatisfiedSystemPath(settings: settings)
+        app.activate()
+        try choose(missing, app: app, requireSelection: false)
+        let error = app.staticTexts.matching(NSPredicate(format: "label IN %@", [
+            "网络未完成，已保留当前正文", "网络请求未完成，已保留当前正文",
+            "本章尚未缓存，已保留当前正文", "章节加载失败，已保留当前正文"
+        ] as NSArray)).firstMatch
+        let feedbackObserved = error.waitForExistence(timeout: 15)
+        let attemptedRow = app.buttons["chapter-\(missing)"]
+        wait("The original directory must become usable after the failed request", timeout: 20) {
+            attemptedRow.isEnabled && !attemptedRow.isSelected
+        }
+        let retainedChapter = try currentChapter(book, app: app)
+        hideControls(app)
+        try visible(originalAnchor, app: app, name: "real-uncached-offline-attempt-retains-original-visible-body")
+        let retainedProgress = app.staticTexts["reading-progress"].label
+        let facts: [String: Any] = ["sourceId": book.source, "bookId": book.id, "title": book.title,
+            "originalChapter": originalChapter, "actualMissingChapter": missing, "missingStateObserved": "未下载",
+            "originalProgress": originalProgress, "retainedProgress": retainedProgress,
+            "retainedChapter": retainedChapter, "failureFeedbackObserved": feedbackObserved,
+            "systemPath": path, "originalAirplane": airplane.json, "originalWiFi": wifi.json,
+            "newAdmissions": 0, "cacheRemovals": 0,
+            "exactScalarEvidence": "NOT_EXPOSED_BY_NATIVE_AX; no percentage-to-scalar inference",
+            "writeBoundary": "Ordinary reading timing/progress flush may write; no zero-write claim"]
+        let evidence = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]),
+            uniformTypeIdentifier: "public.json")
+        evidence.name = "actual-existing-uncached-offline-failure-and-visible-body-retention"; evidence.lifetime = .keepAlways; add(evidence)
+        leave(app)
+        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 10))
+        XCTAssertEqual(retainedChapter, originalChapter); XCTAssertEqual(retainedProgress, originalProgress)
+        XCTAssertTrue(feedbackObserved, "Actual failure feedback must be seen; unchanged body alone does not prove a failed tap/request")
+    }
+
+    private func observeExistingMissingChapter(_ book: Book, outside current: UInt32, app: XCUIApplication) throws -> UInt32 {
+        let scroll = app.scrollViews["online-download-scroll"]
+        let prefix = "online-download-state:" + book.identity + ":"
+        for step in 0..<6 {
+            let viewport = scroll.frame.intersection(app.frame)
+            let snapshot = try scroll.snapshot()
+            var pending: [XCUIElementSnapshot] = [snapshot]
+            var missing: [(UInt32, CGFloat)] = []
+            while let node = pending.popLast() {
+                pending.append(contentsOf: node.children.reversed())
+                if node.identifier.hasPrefix(prefix), node.label == "未下载", viewport.contains(node.frame),
+                   let index = UInt32(node.identifier.dropFirst(prefix.count)), abs(Int64(index) - Int64(current)) > 2 {
+                    missing.append((index, node.frame.minY))
+                }
+            }
+            if let actual = missing.sorted(by: { $0.1 < $1.1 }).first { return actual.0 }
+            if step < 5 { scroll.swipeUp() }
+        }
+        keep(app, name: "real-existing-book-has-no-observed-missing-chapter")
+        XCTFail("No actual reachable missing chapter was observed; do not clear cache or invent an index")
+        throw Prerequisite.invalid("actual missing chapter prerequisite absent")
+    }
+
+    @MainActor
+    private func restoreObservedNetwork(airplane: Int, wifi: Int) throws {
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.activate(); try requireSettingsRoot(settings)
+        try setSettingsSwitch(airplaneLabels, to: airplane, settings: settings)
+        try openSettingsWiFi(settings); try setSettingsSwitch(wifiLabels, to: wifi, settings: settings)
+        let restoredWiFi = try XCTUnwrap(uniqueSettingsSwitch(wifiLabels, settings: settings)).observation
+        try requireSettingsRoot(settings)
+        let restoredAirplane = try XCTUnwrap(uniqueSettingsSwitch(airplaneLabels, settings: settings)).observation
+        XCTAssertEqual(restoredAirplane.value, airplane); XCTAssertEqual(restoredWiFi.value, wifi)
+        let evidence = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
+            "restoredAirplane": restoredAirplane.json, "restoredWiFi": restoredWiFi.json
+        ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+        evidence.name = "actual-original-system-network-switches-restored"; evidence.lifetime = .keepAlways; add(evidence)
+        XCUIApplication().activate()
+    }
+
     /// Run only after the user has disabled the physical iPhone's network and
     /// Root has retained a fresh read-only snapshot of this original library.
     /// The environment records those observations in the UITest process only;
@@ -873,7 +998,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["online-update-catalog"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["online-download-selected"].waitForExistence(timeout: 30))
     }
-    private func choose(_ index: UInt32, app: XCUIApplication) throws {
+    private func choose(_ index: UInt32, app: XCUIApplication, requireSelection: Bool = true) throws {
         var trace: [String] = []
         func fail(_ reason: String) throws -> Never {
             keep(app, name: "directory-chapter-\(index)-navigation-failure")
@@ -980,6 +1105,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             try fail("The exact directory chapter was not fully visible within 30 seconds / 32 steps; stop without tapping or searching again")
         }
         row.tap()
+        if !requireSelection { return }
         let selected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in row.isSelected }, object: nil)
         guard XCTWaiter.wait(for: [selected], timeout: 30) == .completed, row.isSelected else {
             try fail("The exact actual Core directory target must become selected after its native tap")
