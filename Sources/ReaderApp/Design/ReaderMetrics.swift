@@ -36,6 +36,7 @@ enum ReaderMetrics {
     static let moduleNavigationHeight: CGFloat = 80
     static let moduleNavigationBottomGap: CGFloat = 14
     static let brightnessRail = CGSize(width: 38, height: 190)
+    static let brightnessTrackHeight: CGFloat = 104
 
     static func shelfContentWidth(_ width: CGFloat) -> CGFloat {
         min(width >= expandedMinWidth ? shelfWideMaxWidth : shelfMaxWidth, max(0, width - screenInset * 2))
@@ -183,8 +184,9 @@ struct ReaderControlContentLayout {
     func integratedViewportHeight(dockHeight: CGFloat, hasHeader: Bool) -> CGFloat {
         max(0, dockHeight - integratedTop(hasHeader: hasHeader) - bottomGap)
     }
-    func integratedPanelHeight(fullHeight: CGFloat) -> CGFloat {
-        max(120, fullViewportHeight(dockHeight: fullHeight))
+    func integratedPanelHeight(dockHeight: CGFloat, showsNavigation: Bool) -> CGFloat {
+        max(ReaderMetrics.minimumHitSize, fullViewportHeight(dockHeight: dockHeight)
+            - (showsNavigation ? navigationHeight + navigationGap : 0))
     }
 }
 

@@ -477,6 +477,8 @@ struct ReaderReadingView: View {
 
     private func integratedControlContent(layout: ReaderControlContentLayout, width: CGFloat, endpointInput: Bool) -> some View {
         let p = fullProgress
+        let showsNavigation = p < 1
+        let panelHeight = layout.integratedPanelHeight(dockHeight: motion.dockHeight, showsNavigation: showsNavigation)
         return ScrollView {
             VStack(spacing: 0) {
                 if module != .home {
@@ -487,13 +489,14 @@ struct ReaderReadingView: View {
                 HStack(alignment: .top, spacing: 14) {
                     dockModuleContent(layout: layout, quickContentHeight: layout.quickNaturalHeight, integrated: true)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .frame(height: module == .home ? nil : layout.integratedPanelHeight(fullHeight: motion.fullHeight))
-                    if p < 1 {
-                        ReaderBrightnessRail(owner: brightness).frame(width: ReaderMetrics.brightnessRail.width)
+                        .frame(height: module == .home ? nil : panelHeight)
+                    if showsNavigation {
+                        ReaderBrightnessRail(owner: brightness, height: min(ReaderMetrics.brightnessRail.height, panelHeight))
+                            .frame(width: ReaderMetrics.brightnessRail.width)
                             .opacity(1 - p).accessibilityHidden(!endpointInput)
                     }
                 }
-                if p < 1 {
+                if showsNavigation {
                     moduleNavigation(layout: layout, width: width).opacity(1 - p)
                         .padding(.top, layout.navigationGap)
                 }

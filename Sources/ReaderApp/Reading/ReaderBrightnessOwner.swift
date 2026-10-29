@@ -114,16 +114,16 @@ final class ReaderBrightnessOwner: NSObject, ObservableObject {
         }
     }
 
-    func updateDrag(translationY: CGFloat) {
-        guard translationY.isFinite, ready else { return }
+    func updateDrag(translationY: CGFloat, trackHeight: CGFloat = ReaderMetrics.brightnessTrackHeight) {
+        guard translationY.isFinite, trackHeight.isFinite, trackHeight > 0, ready else { return }
         if dragStart == nil { dragStart = appliedPercent }
         guard let dragStart else { return }
-        request(dragStart - translationY / ReaderBrightnessRail.trackHeight * 99)
+        request(dragStart - translationY / trackHeight * 99)
     }
 
-    func endDrag(translationY: CGFloat) {
+    func endDrag(translationY: CGFloat, trackHeight: CGFloat = ReaderMetrics.brightnessTrackHeight) {
         guard dragStart != nil else { return }
-        updateDrag(translationY: translationY)
+        updateDrag(translationY: translationY, trackHeight: trackHeight)
         dragStart = nil
         observeAppliedValue()
     }
@@ -135,10 +135,10 @@ final class ReaderBrightnessOwner: NSObject, ObservableObject {
         observeAppliedValue()
     }
 
-    func tapTrack(y: CGFloat) {
-        guard y.isFinite, ready else { return }
+    func tapTrack(y: CGFloat, trackHeight: CGFloat = ReaderMetrics.brightnessTrackHeight) {
+        guard y.isFinite, trackHeight.isFinite, trackHeight > 0, ready else { return }
         dragStart = nil
-        request(1 + (1 - min(ReaderBrightnessRail.trackHeight, max(0, y)) / ReaderBrightnessRail.trackHeight) * 99)
+        request(1 + (1 - min(trackHeight, max(0, y)) / trackHeight) * 99)
     }
 
     func adjust(by delta: CGFloat) {
@@ -200,42 +200,49 @@ final class ReaderBrightnessAttachmentView: UIView {
     func detach() { retired = true; owner?.detach(attachmentID: attachmentID) }
 }
 
-/// Frozen ReaderControlGeometry: rail38×190, icon20 at y9, track8×104,
+/// Default frozen ReaderControlGeometry: rail38×190, icon20 at y9, track8×104,
 /// track pointer target24, two14-point gaps. Unsupported automatic brightness
 /// has no active A control; its20-point endpoint slot remains empty.
+/// An integrated height budget scales vertical geometry and its input mapping
+/// together, so this sibling cannot enlarge the panel's reserved height.
 struct ReaderBrightnessRail: View {
     @ObservedObject var owner: ReaderBrightnessOwner
+    var height: CGFloat? = nil
     @Environment(\.colorScheme) private var scheme
     @GestureState private var dragging = false
-    static let trackHeight: CGFloat = 104
+    static let trackHeight = ReaderMetrics.brightnessTrackHeight
 
     var body: some View {
         let palette = ReaderPalette(scheme)
+        let height = min(ReaderMetrics.brightnessRail.height,
+                         max(ReaderMetrics.minimumHitSize, self.height ?? ReaderMetrics.brightnessRail.height))
+        let scale = height / ReaderMetrics.brightnessRail.height
+        let trackHeight = Self.trackHeight * scale
         VStack(spacing: 0) {
-            ReaderIcon(.sun, size: 20).padding(.top, 9)
+            ReaderIcon(.sun, size: 20 * scale).padding(.top, 9 * scale)
             ZStack(alignment: .bottom) {
                 Capsule().fill(palette.border).frame(width: 8)
                 VStack {
                     Spacer(minLength: 0)
                     Rectangle().fill(palette.readPrimary)
-                        .frame(height: Self.trackHeight * min(100, max(1, owner.percent)) / 100)
+                        .frame(height: trackHeight * min(100, max(1, owner.percent)) / 100)
                 }.frame(width: 8).clipShape(Capsule())
-            }.frame(width: 24, height: Self.trackHeight)
+            }.frame(width: 24, height: trackHeight)
                 .contentShape(Rectangle())
-                .gesture(dragGesture.exclusively(before: SpatialTapGesture().onEnded { event in
-                    owner.tapTrack(y: event.location.y)
+                .gesture(dragGesture(trackHeight: trackHeight).exclusively(before: SpatialTapGesture().onEnded { event in
+                    owner.tapTrack(y: event.location.y, trackHeight: trackHeight)
                 }))
                 .transaction { $0.animation = nil }
-                .padding(.top, 14)
+                .padding(.top, 14 * scale)
                 .accessibilityElement()
                 .accessibilityLabel("阅读亮度")
                 .accessibilityValue(owner.isReady ? "\(Int(owner.percent.rounded()))%" : "当前窗口亮度暂不可用")
                 .accessibilityAdjustableAction { direction in
                     owner.adjust(by: direction == .increment ? 0.1 : -0.1)
                 }
-            Color.clear.frame(width: 24, height: 20).padding(.top, 14)
+            Color.clear.frame(width: 24, height: 20 * scale).padding(.top, 14 * scale)
                 .accessibilityHidden(true)
-        }.frame(width: 38, height: 190, alignment: .top)
+        }.frame(width: 38, height: height, alignment: .top)
             .background(palette.panel, in: Capsule())
             .overlay(Capsule().stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
             .opacity(owner.isReady ? 1 : 0.45)
@@ -246,11 +253,11 @@ struct ReaderBrightnessRail: View {
             .onDisappear { owner.cancelDrag() }
     }
 
-    private var dragGesture: some Gesture {
+    private func dragGesture(trackHeight: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 1, coordinateSpace: .local)
             .updating($dragging) { _, active, _ in active = true }
-            .onChanged { owner.updateDrag(translationY: $0.translation.height) }
-            .onEnded { owner.endDrag(translationY: $0.translation.height) }
+            .onChanged { owner.updateDrag(translationY: $0.translation.height, trackHeight: trackHeight) }
+            .onEnded { owner.endDrag(translationY: $0.translation.height, trackHeight: trackHeight) }
     }
 }
 
