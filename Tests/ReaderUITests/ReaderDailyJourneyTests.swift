@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import Vision
+import CryptoKit
 
 /// Select explicitly after the required original books have been imported by
 /// the real system picker. These methods never call Runtime or inject book data.
@@ -277,6 +278,16 @@ final class ReaderDailyJourneyTests: XCTestCase {
     /// The Gutenberg original keeps its downloaded basename and bytes. This
     /// physical journey retains both books; it is not the missing 湛蓝 fixture.
     func testPhysicalTwoRealTXTFirstImportIndependentColdPositionsAndDuplicatePreservation() throws {
+        try physicalTwoRealTXTJourney(continuingObservedFirstImport: false)
+    }
+
+    /// The original failed batch already admitted B. Consume its exact A
+    /// observation and continue reading; never repeat that first import.
+    func testPhysicalTwoRealTXTContinuationAfterObservedFirstImportPreservesPositionsAndDuplicate() throws {
+        try physicalTwoRealTXTJourney(continuingObservedFirstImport: true)
+    }
+
+    private func physicalTwoRealTXTJourney(continuingObservedFirstImport: Bool) throws {
         executionTimeAllowance = 360
         let app = XCUIApplication()
         let pgID = "book-local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
@@ -312,8 +323,33 @@ final class ReaderDailyJourneyTests: XCTestCase {
         func open(_ id: String) throws {
             try shelf()
             let books = app.buttons.matching(identifier: id)
-            try observe("exact SHA book is visible") { books.count == 1 && books.element.isHittable }
-            try require(books.element.isEnabled, "exact book enabled"); books.element.tap()
+            try observe("one exact SHA shelf row") { books.count == 1 }
+            let scrolls = app.scrollViews.containing(.button, identifier: id)
+            try require(scrolls.count == 1, "one actual shelf scroll containing the exact row")
+            let revealDeadline = ProcessInfo.processInfo.systemUptime + 10
+            func fullyReached() -> Bool {
+                guard books.count == 1, scrolls.count == 1 else { return false }
+                let row = books.element, viewport = scrolls.element.frame
+                return row.frame.width > 0 && row.frame.height > 0 && viewport.width > 0 && viewport.height > 0
+                    && app.frame.contains(viewport) && viewport.contains(row.frame) && app.frame.contains(row.frame)
+                    && row.isEnabled && row.isHittable
+            }
+            for step in 0...4 {
+                if fullyReached() { break }
+                try require(books.count == 1 && scrolls.count == 1, "retain exact shelf row and scroll owner")
+                let row = books.element.frame, viewport = scrolls.element.frame
+                try require(row.width > 0 && row.height > 0 && viewport.width > 0 && viewport.height > 0
+                            && app.frame.contains(viewport), "actual shelf row and viewport geometry")
+                if step == 4 || ProcessInfo.processInfo.systemUptime >= revealDeadline { break }
+                let geometry = XCTAttachment(string: "book=\(id); nativeSwipe=\(step + 1); row=\(row); viewport=\(viewport)")
+                geometry.name = stage + "-actual-shelf-reveal"; geometry.lifetime = .keepAlways; add(geometry)
+                if row.maxY > viewport.maxY { scrolls.element.swipeUp() }
+                else if row.minY < viewport.minY { scrolls.element.swipeDown() }
+                else { break }
+            }
+            try require(ProcessInfo.processInfo.systemUptime < revealDeadline && fullyReached(),
+                        "exact row fully contained and hittable within four native swipes/ten seconds")
+            books.element.tap()
             try observe("unobscured native TXT body", timeout: 20) {
                 app.textViews["reading-body"].isHittable && !app.buttons["control-grabber"].isHittable
             }
@@ -326,6 +362,40 @@ final class ReaderDailyJourneyTests: XCTestCase {
         }
         struct NativePosition {
             let book: String, chapter: String, label: String, progress: String, anchor: String
+        }
+        func frozenOriginalA() throws -> NativePosition {
+            let environment = ProcessInfo.processInfo.environment
+            guard let proof = environment["READER_TWO_REAL_TXT_ORIGINAL_A_PROOF_UTF8"],
+                  let expectedSHA = environment["READER_TWO_REAL_TXT_ORIGINAL_A_PROOF_SHA256"] else {
+                throw Prerequisite.twoRealTXT("exact original A UTF8 observation and SHA256 are required")
+            }
+            let bytes = Data(proof.utf8)
+            let actualSHA = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+            try require(expectedSHA.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
+                        && actualSHA == expectedSHA, "original A proof exact UTF8 SHA256")
+            let keys = Set(["book", "chapter", "label", "nativeProgress", "actualVisibleAnchor"])
+            var fields = [String: String]()
+            for line in proof.components(separatedBy: .newlines) {
+                let pair = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+                guard pair.count == 2, keys.contains(String(pair[0])) else { continue }
+                let key = String(pair[0])
+                try require(fields[key] == nil && !pair[1].isEmpty, "one actual original A field " + key)
+                fields[key] = String(pair[1])
+            }
+            guard let book = fields["book"], let chapter = fields["chapter"], let label = fields["label"],
+                  let progress = fields["nativeProgress"], let anchor = fields["actualVisibleAnchor"] else {
+                throw Prerequisite.twoRealTXT("original A native observation fields missing")
+            }
+            try require(book == firstID && chapter.hasPrefix("reading-chapter:")
+                        && UInt32(chapter.dropFirst("reading-chapter:".count)) != nil
+                        && progress.range(of: "^(100|[0-9]{1,2})%$", options: .regularExpression) != nil
+                        && (18...24).contains(anchor.count) && normalized(anchor) == anchor,
+                        "original A proof bound to exact AAC book/chapter/native position")
+            let original = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.plain-text")
+            original.name = "two-real-TXT-frozen-original-A-proof-exact-UTF8"; original.lifetime = .keepAlways; add(original)
+            let binding = XCTAttachment(string: "actualSHA256=\(actualSHA); originalFirstImport=REUSED_NATIVE_SLICE_FROM_PRIOR_FAIL; firstImportDispatchesInThisMethod=0; CoreImportACK=NOT_CAPTURED")
+            binding.name = "two-real-TXT-continuation-proof-binding"; binding.lifetime = .keepAlways; add(binding)
+            return NativePosition(book: book, chapter: chapter, label: label, progress: progress, anchor: anchor)
         }
         func capture(_ id: String, name: String) throws -> NativePosition {
             let chapter = continuationChapter(id, ebook: false, app: app, name: name)
@@ -429,11 +499,20 @@ final class ReaderDailyJourneyTests: XCTestCase {
                     && ProcessInfo.processInfo.environment["READER_PHYSICAL_TWO_REAL_TXT_AUTHORIZED"] == "1",
                     "physical phone and explicit Runner-only authorization required")
         #endif
+        let priorA = continuingObservedFirstImport ? try frozenOriginalA() : nil
         app.launch(); try shelf()
-        try require(app.buttons.matching(identifier: pgID).count == 0, "B must not already be on the original shelf")
-        stage = "A-original"; try open(firstID)
-        let a = try capture(firstID, name: stage); try leave()
-        stage = "B-first-import"; try pickerImport(created: true)
+        let a: NativePosition
+        if let priorA {
+            try require(app.buttons.matching(identifier: pgID).count == 1, "retain B from the observed first import")
+            stage = "A-original-proof-verification"; try open(firstID)
+            try verify(priorA, name: stage); a = priorA; try leave()
+            stage = "B-existing-after-observed-first-import"
+        } else {
+            try require(app.buttons.matching(identifier: pgID).count == 0, "B must not already be on the original shelf")
+            stage = "A-original"; try open(firstID)
+            a = try capture(firstID, name: stage); try leave()
+            stage = "B-first-import"; try pickerImport(created: true)
+        }
         try open(pgID); openModule("directory", app: app)
         let directory = app.buttons.matching(NSPredicate(format: "label == '目录' AND identifier != 'control-module-directory'"))
         try require(directory.count == 1 && directory.element.isHittable, "actual chapter directory tab"); directory.element.tap()
