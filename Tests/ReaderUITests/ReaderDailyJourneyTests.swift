@@ -23,8 +23,8 @@ final class ReaderDailyJourneyTests: XCTestCase {
         openModule("directory", app: app)
         app.buttons["directory-bookmarks"].tap()
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'bookmark-'"))
-        let add = app.buttons["add-bookmark"]
-        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        let addButton = app.buttons["add-bookmark"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 10))
         waitUntil("The original bookmark list has finished loading", timeout: 10) {
             !app.staticTexts["正在读取书签"].exists &&
                 (app.staticTexts["暂无书签"].exists || rows.count > 0)
@@ -33,7 +33,7 @@ final class ReaderDailyJourneyTests: XCTestCase {
             XCTFail("Require an actually empty original-book list; never remove existing user bookmarks")
             return
         }
-        add.tap()
+        addButton.tap()
         waitUntil("One actual newly created bookmark is visible", timeout: 15) { rows.count == 1 }
         let ownedID = try XCTUnwrap(rows.allElementsBoundByIndex.first?.identifier)
         XCTAssertTrue(ownedID.hasPrefix("bookmark-"))
