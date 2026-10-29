@@ -246,7 +246,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
                     try observeRunnerCategory("teardown-restored", expected: originalCategory)
                     restorationPending = false
                 } catch {
-                    evidence(settings, name: "physical-system-text-teardown-restoration-failure")
+                    self.evidence(settings, name: "physical-system-text-teardown-restoration-failure")
                     app.activate()
                     XCTFail("Original system text restoration was attempted and remains unconfirmed: \(error)")
                 }
