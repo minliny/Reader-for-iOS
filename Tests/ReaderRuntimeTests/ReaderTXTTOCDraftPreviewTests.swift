@@ -143,6 +143,169 @@ final class ReaderTXTTOCDraftPreviewTests: XCTestCase {
             throw error
         }
     }
+    func testRealGutenbergTXTDirectoryRuleReprocessDisableAndColdPreservesMigratedPosition() async throws {
+        let initialFailureCount = testRun?.failureCount ?? 0
+        let digest = "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let input = try ReaderLocalFormatsTests.originalURL(format: "txt", byteCount: 99_898, digest: digest)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderGutenbergTXTRule-" + UUID().uuidString)
+        let core = root.appendingPathComponent("Core"), sources = root.appendingPathComponent("Sources")
+        var library: ReaderLibraryService?, reopened: ReaderLibraryService?
+        var stage = "create-isolated-library", observations: [[String: Any]] = []
+        func require(_ condition: Bool, _ message: String) throws {
+            guard condition else { throw ReaderLibraryError.invalidResponse("\(stage): \(message)") }
+        }
+        func attach(_ status: String, error: Error? = nil) throws {
+            var facts: [String: Any] = ["status": status, "stage": stage, "library": root.path,
+                "sourceSha256": digest, "sourceBytes": 99_898, "observations": observations,
+                "scope": "ACTUAL_ISOLATED_CORE_HOST_CHAIN_NOT_NATIVE_UI"]
+            if let error { facts["error"] = String(describing: error) }
+            let value = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]),
+                                      uniformTypeIdentifier: "public.json")
+            value.name = "Actual-Gutenberg-TXT-rule-reprocess-position-stages"; value.lifetime = .keepAlways; add(value)
+        }
+        do {
+            let active = try ReaderLibraryService(storageURL: core, sourceURL: sources); library = active
+            stage = "import-original"
+            let imported = try await active.importBook(at: input), book = imported.book
+            try require(imported.created && !imported.finalizationPending && book.bookId == "local:" + digest, "original import ACK")
+            let retained = try await active.retainedSourceURL(for: book)
+            let chapters = try await active.chapters(for: book)
+            try require(chapters.count == 10, "require the actual nine source headings plus intro")
+            let headings = Array(chapters.dropFirst())
+            try require(Set(headings.map(\.title)).count == 9, "source headings must be unique")
+            let omitted = headings[headings.count / 2]
+            let body = try await active.content(for: book, chapterIndex: omitted.index)
+            try require(body.scalarCount >= 576, "the omitted middle chapter needs scalar512 plus a real64-scalar anchor")
+            let anchor = String(body.content.unicodeScalars.dropFirst(512).prefix(64))
+            let anchorSHA = sha(Data(anchor.utf8))
+            let initial = try await active.progress(for: book)
+            let saved = try await active.saveProgress(for: book, content: body, scalarOffset: 512,
+                                                     expectedRevision: initial.progressRevision)
+            let mark = try await active.createBookmark(for: book, content: body, scalarOffset: 512,
+                text: anchor, note: "真实目录位置迁移", operationID: UUID().uuidString)
+            let toc = try canonicalJSON(await active.coreRead("local_book.toc", ["bookId": book.bookId]))
+            let initialRules = try await active.txtTOCRules()
+            try require(initialRules.isEmpty, "the new isolated library must have no saved TXT rules")
+
+            func observe(_ owner: ReaderLibraryService) async throws -> ReaderProgressSnapshot {
+                let snapshot = try await owner.progress(for: book)
+                let position = try XCTUnwrap(snapshot.progress)
+                let current = try await owner.content(for: book, chapterIndex: position.chapterIndex)
+                try require(snapshot.found && position.sourceId == book.sourceId && position.bookId == book.bookId,
+                            "progress identity")
+                try require(current.sourceId == book.sourceId && current.bookId == book.bookId &&
+                    current.chapterIndex == position.chapterIndex && position.chapterOffset <= current.scalarCount &&
+                    current.scalarCount - position.chapterOffset >= 64, "actual body range")
+                try require(position.bodyVersion != nil && position.processingVersion != nil &&
+                    position.bodyVersion == current.bodyVersion && position.processingVersion == current.processingVersion,
+                    "progress versions must identify the actual body")
+                let actual = String(current.content.unicodeScalars.dropFirst(Int(position.chapterOffset)).prefix(64))
+                try require(actual == anchor, "same consecutive source64-scalar anchor at the migrated position")
+                let marks = try await owner.bookmarks(for: book)
+                let currentMark = try XCTUnwrap(marks.first { $0.time == mark.time })
+                try require(currentMark.chapterIndex == Int32(position.chapterIndex) &&
+                    currentMark.scalarOffset == position.chapterOffset && currentMark.bookText == anchor &&
+                    currentMark.positionScope == (try ReaderContentPositionScope(book: book, content: current)),
+                    "the original bookmark must migrate with the same actual position scope")
+                observations.append(["stage": stage, "chapterIndex": position.chapterIndex,
+                    "chapterTitle": current.chapterTitle, "scalarOffset": position.chapterOffset,
+                    "bodyVersion": current.bodyVersion ?? "", "processingVersion": current.processingVersion ?? "",
+                    "progress": try JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)),
+                    "bookmarkTime": mark.time, "anchorScalarCount": 64, "anchorSha256": anchorSHA])
+                return snapshot
+            }
+            stage = "saved-original-position"
+            try require(try await observe(active) == saved, "complete original progress receipt")
+            // f322 scans the normalized original with a multiline regex, while
+            // automatic titles trim their edges. Chapters2/7/9 have original
+            // U+3000 indentation; preserve internal title bytes and allow only
+            // horizontal edge whitespace, never consume a neighboring line.
+            let titles = headings.filter { $0.index != omitted.index }.map(\.title)
+            let pattern = "^[\\t \\u{3000}]*(?:" + titles.map(NSRegularExpression.escapedPattern(for:)).joined(separator: "|") + ")[\\t \\u{3000}]*$"
+            let draft = ReaderTXTTOCRuleDraft(name: "阿Q真实中间章节边界合并", rule: pattern, serialNumber: -10)
+            stage = "read-only-draft-preview"
+            let preview = try await active.previewTXTTOCRule(for: book, draft: draft, editingRuleID: nil, limit: 64)
+            observations.append(["stage": stage, "originalChapterCount": chapters.count, "omittedChapterIndex": omitted.index,
+                "omittedChapterTitle": omitted.title, "draftMatchCount": preview.draftMatchCount,
+                "previewChapterCount": preview.chapterCount, "draftStatus": preview.draftStatus.rawValue,
+                "patternSha256": sha(Data(pattern.utf8))])
+            try require(preview.sourceId == book.sourceId && preview.bookId == book.bookId && preview.sourceSha256 == digest &&
+                preview.draftSelected && preview.draftStatus == .selected && preview.draftMatchCount >= 4 &&
+                !preview.automaticFallback && !preview.truncated && preview.chapterCount < UInt32(chapters.count) &&
+                !preview.chapters.contains(where: { $0.title == omitted.title }), "real draft must remove the intended boundary")
+            try require(try canonicalJSON(await active.coreRead("local_book.toc", ["bookId": book.bookId])) == toc,
+                        "preview must not change the actual directory")
+            try require(try await active.progress(for: book) == saved, "preview must preserve the complete progress")
+            try require(try await active.txtTOCRules() == initialRules, "preview must not save a rule")
+
+            stage = "save-rule-without-reprocessing"
+            let rule = try await active.createTXTTOCRule(draft, operationID: UUID().uuidString)
+            observations.append(["stage": stage, "actualRuleID": rule.id])
+            try require(rule.draft == draft, "actual saved rule ACK")
+            try require(try await active.txtTOCRules() == [rule], "only this actual saved rule may exist")
+            try require(try canonicalJSON(await active.coreRead("local_book.toc", ["bookId": book.bookId])) == toc,
+                        "saving must not re-cut the directory")
+            try require(try await observe(active) == saved, "saving alone must not move the original position")
+
+            stage = "explicit-reprocess-migrates-position"
+            let changed = try await active.reprocessLocalBook(book, operationID: UUID().uuidString)
+            try require(!changed.created && !changed.finalizationPending && changed.book.id == book.id, "original reprocess ACK")
+            let reparsed = try await active.chapters(for: book)
+            try require(reparsed != chapters && reparsed.map(\.title) == preview.chapters.map(\.title),
+                        "actual directory must match the preview over the same original and saved rule")
+            let migrated = try await observe(active)
+            let migratedPosition = try XCTUnwrap(migrated.progress)
+            try require(migratedPosition.chapterIndex != omitted.index && migratedPosition.chapterOffset > 512,
+                        "removing the saved position's boundary must actually move it into the preceding chapter")
+
+            stage = "disable-original-rule-and-explicitly-restore"
+            var disabled = rule.draft; disabled.enable = false
+            let disabledRule = try await active.updateTXTTOCRule(id: rule.id, draft: disabled, operationID: UUID().uuidString)
+            try require(disabledRule.id == rule.id && disabledRule.draft == disabled, "disable the original Core ID")
+            let restored = try await active.reprocessLocalBook(book, operationID: UUID().uuidString)
+            try require(!restored.created && !restored.finalizationPending && restored.book.id == book.id, "restore reprocess ACK")
+            try require(try await active.chapters(for: book) == chapters, "automatic directory must be restored")
+            try require(try canonicalJSON(await active.coreRead("local_book.toc", ["bookId": book.bookId])) == toc,
+                        "the complete original automatic TOC must return")
+            let restoredProgress = try await observe(active)
+            try require(restoredProgress.progress?.chapterIndex == omitted.index && restoredProgress.progress?.chapterOffset == 512,
+                        "the same source position must return to its original automatic chapter and offset")
+
+            stage = "delete-only-owned-rule"
+            try require(try await active.deleteTXTTOCRule(id: rule.id, operationID: UUID().uuidString), "actual delete ACK")
+            try require(try await active.txtTOCRules().isEmpty, "the owned rule must be absent")
+            try require(try await active.pendingImports().isEmpty, "no unfinished import or reprocess")
+            try require(try await active.pendingFeatureOperations().isEmpty, "no unfinished feature operation")
+            try await active.close()
+
+            stage = "cold-reopen-independent-library"
+            let cold = try ReaderLibraryService(storageURL: core, sourceURL: sources); reopened = cold
+            try require(try await cold.listBooks().map(\.id) == [book.id], "the independent shelf contains only the real imported book")
+            try require(try await cold.chapters(for: book) == chapters, "cold original directory")
+            try require(try canonicalJSON(await cold.coreRead("local_book.toc", ["bookId": book.bookId])) == toc, "cold complete TOC")
+            try require(try await observe(cold) == restoredProgress, "cold complete real progress must remain unchanged")
+            try require(try await cold.txtTOCRules().isEmpty, "deleted rule stays absent after reopening")
+            try require(try await cold.pendingImports().isEmpty, "cold import pending must be empty")
+            try require(try await cold.pendingFeatureOperations().isEmpty, "cold feature pending must be empty")
+            let coldRetained = try await cold.retainedSourceURL(for: book)
+            for url in [input, retained, coldRetained] {
+                let bytes = try Data(contentsOf: url, options: .mappedIfSafe)
+                try require(bytes.count == 99_898 && sha(bytes) == digest, "original and retained raw bytes must be unchanged")
+            }
+            try await cold.close()
+            stage = "completed"
+            try require((testRun?.failureCount ?? initialFailureCount) == initialFailureCount,
+                        "any XCTest assertion failure must preserve the owned library")
+            try attach("PASS_REAL_CORE_HOST_CHAIN_ONLY")
+            try FileManager.default.removeItem(at: root)
+        } catch {
+            if let library { try? await library.close() }
+            if let reopened { try? await reopened.close() }
+            try? attach("FAIL_PRESERVED_OWNED_LIBRARY", error: error)
+            throw error
+        }
+    }
+
     private func assertIdentity(_ result: ReaderTXTTOCRulePreview, book: ReaderBook, digest: String, limit: UInt32,
                                 file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(result.sourceId, "local", file: file, line: line)
