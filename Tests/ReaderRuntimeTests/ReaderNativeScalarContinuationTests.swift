@@ -173,15 +173,17 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
             let ackRevision = try XCTUnwrap(model.reader?.progressRevision)
             let saved = try await library.progress(for: imported.book)
             let position = try XCTUnwrap(saved.progress)
+            let receiptEvidence = XCTAttachment(string: "Model original ACK revision=\(ackRevision)\nCore stored position="
+                + String(decoding: try JSONEncoder().encode(saved), as: UTF8.self))
+            receiptEvidence.name = "native-scalar-original-ack-and-stored-row"; receiptEvidence.lifetime = .keepAlways; add(receiptEvidence)
             try require(flushed && saved.found && ackRevision != session.progressRevision && saved.progressRevision == ackRevision,
                         "Model must consume the original save ACK revision before a separate Core read confirms it")
             try require(position.sourceId == body.sourceId && position.bookId == body.bookId
                         && position.chapterIndex == body.chapterIndex && position.chapterOffset == scalar
-                        && position.bodyVersion == body.bodyVersion && position.processingVersion == body.processingVersion
-                        && position.locationRevision?.isEmpty == false, "Core must retain the exact native scalar and complete position scope")
-            let receiptEvidence = XCTAttachment(string: "Model original ACK revision=\(ackRevision)\nCore stored position="
-                + String(decoding: try JSONEncoder().encode(saved), as: UTF8.self))
-            receiptEvidence.name = "native-scalar-original-ack-and-stored-row"; receiptEvidence.lifetime = .keepAlways; add(receiptEvidence)
+                        && position.bodyVersion == body.bodyVersion && position.processingVersion == body.processingVersion,
+                        "Core must retain the exact native scalar and complete position scope")
+            try require(position.locationRevision == nil,
+                        "A scalar-only save without a resolver anchor or source-switch transaction cannot fabricate a location revision")
             try nativeAnchor(position.chapterOffset, body: body, font: 18, stage: "saved")
             let reflow = expectation(description: "production font and width reflow restored")
             let eventCount = positions.count
