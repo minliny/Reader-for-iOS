@@ -133,7 +133,8 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         let originalChapter = try currentChapter(book, app: app)
         hideControls(app)
         let originalProgress = app.staticTexts["reading-progress"].label
-        let originalAnchor = try anchor(app, name: "real-existing-second-baidu-before-uncached-offline-attempt")
+        let originalAnchor = try anchor(app, name: "real-existing-second-baidu-before-uncached-offline-attempt",
+            completeVisibleBody: true)
         downloads(app)
         let missing = try observeExistingMissingChapter(book, outside: originalChapter, app: app)
         app.buttons["online-download-close"].tap()
@@ -1137,13 +1138,16 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: timeout), .completed, fact)
     }
-    private func anchor(_ app: XCUIApplication, name: String) throws -> String {
+    private func anchor(_ app: XCUIApplication, name: String, completeVisibleBody: Bool = false) throws -> String {
         var lines: [String] = []
         wait("The actual reading viewport must contain visible body text", timeout: 30) {
             guard let actual = try? self.ocr(app), actual.count >= 4 else { return false }
             lines = actual; return true
         }
-        let value = String(normalize(lines.dropFirst().prefix(2).joined()).prefix(24))
+        // This original chapter begins with short paragraphs. Keep the same
+        // 18–24-character requirement, taking consecutive visible body lines.
+        let body = completeVisibleBody ? lines.dropFirst().joined() : lines.dropFirst().prefix(2).joined()
+        let value = String(normalize(body).prefix(24))
         XCTAssertGreaterThanOrEqual(value.count, 18)
         keep(app, name: name)
         let evidence = XCTAttachment(string: value)
