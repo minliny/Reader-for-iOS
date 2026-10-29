@@ -110,7 +110,6 @@ final class ReaderPlatformJourneyTests: XCTestCase {
             "runnerCategoryOnly": originalCategory.rawValue, "chapterSelectionOrSeek": false])
 
         let largerTitles = ["更大字体", "Larger Text"]
-        let largerSwitchLabels = ["更大的辅助功能字体", "Larger Accessibility Sizes"]
         func onPage(_ titles: [String]) -> Bool {
             settings.state == .runningForeground && settings.navigationBars.matching(NSPredicate(format: "label IN %@ OR identifier IN %@", titles as NSArray, titles as NSArray)).count == 1
         }
@@ -182,7 +181,9 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         }
         func inspectTextValue() -> SystemTextValue? {
             guard onPage(largerTitles) else { return nil }
-            let owners = settings.switches.matching(NSPredicate(format: "label IN %@", largerSwitchLabels as NSArray)).allElementsBoundByIndex
+            // Bind the identifier observed on this actual phone, independent
+            // of the OS wording change from 辅助功能 to 无障碍.
+            let owners = settings.switches.matching(identifier: "LARGER_DYNAMIC_TYPE_SWITCH").allElementsBoundByIndex
             // Settings can expose a labelled row switch with one native child.
             let parents = owners.filter { $0.descendants(matching: .switch).count == 1 }
             guard let owner = parents.count == 1 ? parents.first : (owners.count == 1 ? owners.first : nil) else { return nil }
@@ -198,11 +199,9 @@ final class ReaderPlatformJourneyTests: XCTestCase {
                   toggle.isEnabled, toggle.frame.width > 0, toggle.frame.height > 0, owner.frame.contains(toggle.frame) else { return nil }
             let slider = sliders.element
             guard slider.isEnabled, slider.frame.width > 0, slider.frame.height > 0, let raw = slider.value as? String else { return nil }
-            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            let percent = value.hasSuffix("%")
-            guard let number = Double(percent ? String(value.dropLast()) : value), number.isFinite,
-                  number >= 0, number <= (percent ? 100 : 1) else { return nil }
-            return SystemTextValue(switchValue: switchValue, sliderPosition: CGFloat(percent ? number / 100 : number),
+            let position = slider.normalizedSliderPosition
+            guard position.isFinite, (0...1).contains(position) else { return nil }
+            return SystemTextValue(switchValue: switchValue, sliderPosition: position,
                                    sliderValue: raw, toggle: toggle, slider: slider)
         }
         func textValue(_ stage: String) throws -> SystemTextValue {
@@ -218,8 +217,14 @@ final class ReaderPlatformJourneyTests: XCTestCase {
                 try require(onPage(largerTitles) && control.exists && control.frame.width > 0 && control.frame.height > 0,
                             "Settings-known-control-frame-required", settings)
                 if step == 6 || ProcessInfo.processInfo.systemUptime >= deadline { break }
-                let owners = settings.tables.allElementsBoundByIndex.filter(\.isHittable)
-                    + settings.collectionViews.allElementsBoundByIndex.filter(\.isHittable)
+                // The actual page has a separate table for its bottom slider.
+                // Select only the observed target's real containing table.
+                let containers = settings.tables.allElementsBoundByIndex + settings.collectionViews.allElementsBoundByIndex
+                let owners = containers.filter {
+                    guard $0.isHittable else { return false }
+                    if control.elementType == .slider { return $0.sliders.count == 1 }
+                    return $0.switches.matching(identifier: "LARGER_DYNAMIC_TYPE_SWITCH").count == 1
+                }
                 try require(owners.count == 1, "Settings-system-text-scroll-owner", settings)
                 if control.frame.midY < owners[0].frame.midY { owners[0].swipeDown() } else { owners[0].swipeUp() }
             }
