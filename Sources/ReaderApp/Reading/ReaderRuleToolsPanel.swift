@@ -85,6 +85,7 @@ final class ReaderRuleWorkspace: ObservableObject {
     @Published private(set) var dictionaryResult: String?
     @Published private(set) var dictionaryFailure: String?
     @Published private(set) var dictionaryLoading = false
+    var dictionaryResultID: UUID { dictionaryRequestID }
     private var dictionaryInputRevision = UUID()
     private var dictionaryRequestID = UUID()
     private var dictionaryTask: Task<Void, Never>?
@@ -771,7 +772,9 @@ struct ReaderRuleToolsPanel: View {
             if let failure = state.dictionaryFailure {
                 ReaderPageState(title: "字典查询尚未完成", detail: failure, actionTitle: "重试", action: queryDictionary)
             }
-            if let result = state.dictionaryResult { Text(result).textSelection(.enabled) }
+            if let result = state.dictionaryResult {
+                ReaderDictionaryDefinition(definition: result, displayID: state.dictionaryResultID)
+            }
         }
     }
 
