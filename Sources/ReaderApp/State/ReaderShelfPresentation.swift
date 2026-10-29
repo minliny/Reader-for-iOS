@@ -160,6 +160,7 @@ final class ReaderShelfPresentation: ObservableObject {
             // Publish books and their applied identity together. A same-key
             // refresh retains this value until its replacement is confirmed.
             projection = Projection(key: key, books: result)
+            model.ensureShelfFormats(for: result)
             Self.logger.info("reload.confirmed request=\(current.uuidString, privacy: .public) count=\(result.count, privacy: .public) layout=\(layout, privacy: .public) key=\(key.logSummary, privacy: .public)")
             if let result = try? await service.groups(), generation == current, !Task.isCancelled {
                 groups = result

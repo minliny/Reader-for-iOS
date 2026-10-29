@@ -423,7 +423,8 @@ struct ReaderBookshelfView: View {
                 HStack(spacing: 6) {
                     Text(book.title).font(ReaderTypography.font(.shelfTitle)).lineLimit(1)
                     Spacer(minLength: 0)
-                    metadataTag(book.sourceId == "local" ? (book.kind ?? "书籍") : "小说"); metadataTag(book.sourceId == "local" ? "本地" : "在线")
+                    metadataTag(model.shelfFormatLabel(for: book)).accessibilityIdentifier("shelf-format:" + book.id)
+                    metadataTag(book.sourceId == "local" ? "本地" : "在线")
                 }
                 Text(book.author).font(ReaderTypography.font(.shelfAuthor)).foregroundStyle(palette.muted).lineLimit(1)
                     .frame(minHeight: 14)

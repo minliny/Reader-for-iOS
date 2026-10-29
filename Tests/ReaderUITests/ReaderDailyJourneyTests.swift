@@ -600,6 +600,76 @@ final class ReaderDailyJourneyTests: XCTestCase {
         completed = true
     }
 
+    func testPhysicalOriginalTXTAndEbookFormatBadgesUseParserFactsAcrossFilterAndColdLaunch() throws {
+        executionTimeAllowance = 150
+        let app = XCUIApplication()
+        let originals = [
+            (firstID, firstTitle, "TXT"),
+            ("book-local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38", "pg25332", "TXT"),
+            ("book-local:a25dcde710240f9c2c03d7b7b98aa09277d83392f3dc0da9779f6bc78e7c0cef", "覆汉", "MOBI"),
+            ("book-local:5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67", "终宋", "EPUB")
+        ]
+        var completed = false
+        addTeardownBlock {
+            guard !completed else { return }
+            let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screen.name = "real-format-badge-failure-screen"; screen.lifetime = .keepAlways; self.add(screen)
+            let ax = XCTAttachment(string: app.debugDescription)
+            ax.name = "real-format-badge-failure-AX"; ax.lifetime = .keepAlways; self.add(ax)
+        }
+        func require(_ fact: Bool, _ message: String) throws {
+            guard fact else { throw Prerequisite.twoRealTXT("original format badge: " + message) }
+        }
+        func observe(_ message: String, timeout: TimeInterval = 10, _ condition: @escaping () -> Bool) throws {
+            let expected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            try require(XCTWaiter.wait(for: [expected], timeout: timeout) == .completed, message)
+        }
+        #if targetEnvironment(simulator)
+        throw Prerequisite.twoRealTXT("physical iPhone required")
+        #endif
+        try require(UIDevice.current.userInterfaceIdiom == .phone
+                    && ProcessInfo.processInfo.environment["READER_PHYSICAL_FORMAT_BADGES_AUTHORIZED"] == "1",
+                    "physical target and explicit Runner authorization")
+        func shelf() throws {
+            try observe("normal original shelf", timeout: 20) { app.buttons["更多书架操作"].isHittable }
+            try require(!app.textFields["shelf-filter"].exists && app.buttons["全部分组"].exists,
+                        "retain original closed query and all-groups presentation")
+            try require(app.buttons["使用封面布局"].exists, "retain actual list layout; no preference changes")
+        }
+        func badge(_ original: (String, String, String), name: String, filter: Bool = false) throws {
+            try shelf()
+            let row = app.buttons[original.0]
+            let value = app.staticTexts["shelf-format:local|" + String(original.0.dropFirst("book-".count))]
+            var ownsQuery = filter
+            if !row.exists || !value.exists || !app.frame.contains(value.frame) { ownsQuery = true }
+            if ownsQuery {
+                filterShelf(original.1, app: app)
+                try require((app.textFields["shelf-filter"].value as? String) == original.1, "own exact original title query")
+            }
+            try require(row.waitForExistence(timeout: 10), "retained exact original SHA row")
+            try observe("actual original format " + original.2) {
+                row.exists && value.exists && value.label == original.2 && value.frame.width > 0 && value.frame.height > 0
+                    && app.frame.contains(value.frame) && row.frame.contains(value.frame)
+            }
+            let text = XCTAttachment(string: "book=\(original.0); actualFormat=\(value.label); actualFrame=\(value.frame); no book mutation or import")
+            text.name = name + "-actual-format"; text.lifetime = .keepAlways; add(text)
+            if ownsQuery {
+                clearShelfFilter(app)
+                try observe("close only this method's query") { !app.textFields["shelf-filter"].exists }
+            }
+        }
+        app.launch(); try shelf()
+        for (index, original) in originals.enumerated() { try badge(original, name: "real-format-initial-\(index)") }
+        try badge(originals[0], name: "real-format-confirmed-filter", filter: true)
+        let initial = XCTAttachment(screenshot: app.screenshot())
+        initial.name = "real-original-format-badges"; initial.lifetime = .keepAlways; add(initial)
+        app.terminate(); app.launch(); try shelf()
+        for (index, original) in originals.enumerated() { try badge(original, name: "real-format-after-cold-\(index)") }
+        let final = XCTAttachment(screenshot: app.screenshot())
+        final.name = "real-original-format-badges-after-cold"; final.lifetime = .keepAlways; add(final)
+        completed = true
+    }
+
     private struct ContinuationAnchor {
         let shelfID: String
         let chapterID: String

@@ -74,6 +74,7 @@ final class ReaderApplicationModel: ObservableObject {
     let readingTime: ReaderReadingTimeOwner
     let featureRecovery: ReaderFeatureRecoveryOwner
     @Published private(set) var books: [ReaderBook] = []
+    @Published private var shelfFormatLabels: [String: String] = [:]
     @Published private(set) var libraryState: ReaderPageLoadState = .loading
     @Published private(set) var reader: ReaderActiveSession?
     @Published private(set) var openingBookID: String?
@@ -92,6 +93,10 @@ final class ReaderApplicationModel: ObservableObject {
     private let backgroundTasks: any ReaderBackgroundTaskManaging
     private var navigationGeneration = UUID()
     private var libraryGeneration = UUID()
+    private var shelfFormatLoad: Task<Void, Never>?
+    private var shelfFormatLoadGeneration: UUID?
+    private var shelfFormatPending: [String: ReaderBook] = [:]
+    private var shelfFormatAttempted = Set<String>()
     private var chapterGeneration = UUID()
     private var catalogGeneration = UUID()
     private var feedbackGeneration = UUID()
@@ -172,6 +177,8 @@ final class ReaderApplicationModel: ObservableObject {
         }
     }
 
+    deinit { shelfFormatLoad?.cancel() }
+
     var importBusy: Bool { reconcilingImports || importOperation?.phase == .importing || importOperation?.phase == .unresolved }
 
     func start() async {
@@ -187,6 +194,9 @@ final class ReaderApplicationModel: ObservableObject {
         let generation = UUID()
         let navigation = navigationGeneration
         libraryGeneration = generation
+        shelfFormatLoad?.cancel(); shelfFormatLoad = nil
+        shelfFormatLoadGeneration = nil
+        shelfFormatPending.removeAll(); shelfFormatAttempted.removeAll()
         if books.isEmpty { libraryState = .loading }
         do {
             let result: [ReaderBook]
@@ -196,10 +206,69 @@ final class ReaderApplicationModel: ObservableObject {
             guard generation == libraryGeneration, navigation == navigationGeneration else { return }
             books = result
             libraryState = result.isEmpty ? .empty : .ready
+            let retained = Set(result.filter { $0.sourceId == "local" }.map(\.id))
+            shelfFormatLabels = shelfFormatLabels.filter { retained.contains($0.key) }
+            ensureShelfFormats(for: result)
         } catch {
             guard generation == libraryGeneration, navigation == navigationGeneration else { return }
             if books.isEmpty { libraryState = .failed("书架加载失败，请重试") }
             else { showFeedback("书架刷新失败，已保留当前内容") }
+        }
+    }
+
+    /// Display facts never enter ReaderBook's Codable/business identity.
+    func shelfFormatLabel(for book: ReaderBook) -> String {
+        book.sourceId == "local" ? (shelfFormatLabels[book.id] ?? "书籍") : "小说"
+    }
+
+    /// Full-library and filtered projections join one generation-owned read
+    /// queue. Positive parser facts survive refresh; unknowns are attempted
+    /// once per library generation, without a row/view-driven retry loop.
+    func ensureShelfFormats(for candidates: [ReaderBook]) {
+        guard !Task.isCancelled, let features = service as? any ReaderLibraryFeatures else { return }
+        let retained = Set(books.filter { $0.sourceId == "local" }.map(\.id))
+        for book in candidates where book.sourceId == "local" && retained.contains(book.id)
+            && shelfFormatLabels[book.id] == nil && !shelfFormatAttempted.contains(book.id) {
+            shelfFormatPending[book.id] = book
+        }
+        guard shelfFormatLoad == nil, !shelfFormatPending.isEmpty else { return }
+        let generation = libraryGeneration
+        shelfFormatLoadGeneration = generation
+        shelfFormatLoad = Task { [weak self] in
+            defer {
+                if let self, shelfFormatLoadGeneration == generation {
+                    shelfFormatLoad = nil; shelfFormatLoadGeneration = nil
+                }
+            }
+            while self?.libraryGeneration == generation, !Task.isCancelled,
+                  let next = self?.shelfFormatPending.first {
+                let book = next.value
+                self?.shelfFormatPending.removeValue(forKey: next.key)
+                guard self?.books.contains(where: { $0.sourceId == "local" && $0.id == book.id }) == true,
+                      self?.shelfFormatLabels[book.id] == nil,
+                      self?.shelfFormatAttempted.insert(book.id).inserted == true else { continue }
+                do {
+                    let value = try await features.localPresentationKind(for: book)
+                    guard let self, libraryGeneration == generation, !Task.isCancelled,
+                          books.contains(where: { $0.sourceId == "local" && $0.id == book.id }),
+                          Data(value.sourceId.utf8) == Data(book.sourceId.utf8),
+                          Data(value.bookId.utf8) == Data(book.bookId.utf8) else { continue }
+                    let label: String?
+                    switch (value.kind, value.format) {
+                    case (.text, "txt"): label = "TXT"
+                    case (.ebook, "epub"): label = "EPUB"
+                    case (.ebook, "mobi"): label = "MOBI"
+                    case (.ebook, "kf8"): label = "KF8"
+                    case (.ebook, "azw"): label = "AZW"
+                    case (.ebook, "azw3"): label = "AZW3"
+                    default: label = nil
+                    }
+                    if let label { shelfFormatLabels[book.id] = label }
+                } catch {
+                    // A failed/unproven read leaves the neutral display fact;
+                    // it never changes a book, acknowledges a write or guesses TXT.
+                }
+            }
         }
     }
 
