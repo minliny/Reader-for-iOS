@@ -603,35 +603,46 @@ struct ReaderReadingView: View {
 
     private func accessibleQuickContent(_ layout: ReaderControlContentLayout) -> some View {
         VStack(spacing: layout.quickSectionGap) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(session.content.chapterTitle).font(ReaderTextStyle(.inter, 13, 700, lineHeight: 16.25).font)
-                    .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.chapterTitleHeight)
-                HStack {
-                    chapterStep(-1, icon: .chevronLeft, label: "上一章", layout: layout)
-                    Spacer()
-                    chapterStep(1, icon: .chevronRight, label: "下一章", layout: layout)
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(Int(((scrubFraction ?? fraction) * 100).rounded()))%")
-                    Text("共 \(session.chapters.count) 章")
-                }.font(ReaderTextStyle(.inter, 9, 400, lineHeight: 9).font)
-                    .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.progressLabelHeight)
-                    .foregroundStyle(palette.app("TOK_READ_MUTED"))
-                ReaderChapterProgressSlider(value: scrubFraction ?? fraction,
-                    changed: { scrubFraction = $0 }, committed: { model.seek(to: $0); scrubFraction = nil },
-                    cancelled: { scrubFraction = nil }).frame(height: 44)
-                    .accessibilityLabel("章节阅读进度").accessibilityIdentifier("chapter-progress")
-            }.padding(11).frame(maxWidth: .infinity, alignment: .leading)
-                .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
-            VStack(spacing: 8) {
-                quickAction("搜索", icon: .search, layout: layout) { select(.search) }
-                quickAction("自动翻页", icon: .autoPage, layout: layout) { select(.autoPage) }
-                quickAction("替换", icon: .replace, layout: layout) { select(.rules) }
-            }.padding(9).frame(maxWidth: .infinity)
-                .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
+            accessibleQuickSummary(layout)
+            accessibleQuickActions(layout)
         }
+    }
+
+    // Keep structural metadata small on the device main stack. Erasing only
+    // the call site still instantiates the whole original opaque view type.
+    // These fixed boundaries keep all bindings and actions in this owner.
+    private func accessibleQuickSummary(_ layout: ReaderControlContentLayout) -> AnyView {
+        AnyView(VStack(alignment: .leading, spacing: 8) {
+            AnyView(Text(session.content.chapterTitle).font(ReaderTextStyle(.inter, 13, 700, lineHeight: 16.25).font)
+                .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.chapterTitleHeight))
+            AnyView(HStack {
+                chapterStep(-1, icon: .chevronLeft, label: "上一章", layout: layout)
+                Spacer()
+                chapterStep(1, icon: .chevronRight, label: "下一章", layout: layout)
+            })
+            AnyView(VStack(alignment: .leading, spacing: 6) {
+                Text("\(Int(((scrubFraction ?? fraction) * 100).rounded()))%")
+                Text("共 \(session.chapters.count) 章")
+            }.font(ReaderTextStyle(.inter, 9, 400, lineHeight: 9).font)
+                .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.progressLabelHeight)
+                .foregroundStyle(palette.app("TOK_READ_MUTED")))
+            AnyView(ReaderChapterProgressSlider(value: scrubFraction ?? fraction,
+                changed: { scrubFraction = $0 }, committed: { model.seek(to: $0); scrubFraction = nil },
+                cancelled: { scrubFraction = nil }).frame(height: 44)
+                .accessibilityLabel("章节阅读进度").accessibilityIdentifier("chapter-progress"))
+        }.padding(11).frame(maxWidth: .infinity, alignment: .leading)
+            .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1)))
+    }
+
+    private func accessibleQuickActions(_ layout: ReaderControlContentLayout) -> AnyView {
+        AnyView(VStack(spacing: 8) {
+            AnyView(quickAction("搜索", icon: .search, layout: layout) { select(.search) })
+            AnyView(quickAction("自动翻页", icon: .autoPage, layout: layout) { select(.autoPage) })
+            AnyView(quickAction("替换", icon: .replace, layout: layout) { select(.rules) })
+        }.padding(9).frame(maxWidth: .infinity)
+            .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1)))
     }
 
     private func chapterStep(_ delta: Int, icon: ReaderIconName, label: String, layout: ReaderControlContentLayout) -> some View {
