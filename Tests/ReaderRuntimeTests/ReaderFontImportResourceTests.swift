@@ -11,6 +11,55 @@ import XCTest
 /// mutated file/defaults suite belongs to a newly allocated test fixture only.
 @MainActor
 final class ReaderFontImportResourceTests: XCTestCase {
+    func testUnreadableFontManifestPreservesCustomOrderAndSelectionUntilReloadSucceeds() async throws {
+        let input = try FontOriginal.ofl()
+        let fixture = try FontResourceFixture(input: input, events: FontImportEvents())
+        defer { fixture.cleanUp() }
+        try fixture.requireUnregisteredOriginalFace()
+        await fixture.library.importFonts([input.url])
+        try fixture.assertConfirmedFont()
+        let custom = "custom:" + (try XCTUnwrap(fixture.library.fonts.first)).id.uuidString
+        let preferences = ReaderPreferences(defaults: fixture.defaults)
+        fixture.library.selectChoice(custom, preferences: preferences)
+        let index = try XCTUnwrap(fixture.library.choiceOrder.firstIndex(of: custom))
+        fixture.library.moveChoices(fromOffsets: IndexSet(integer: index), toOffset: 0)
+        let order = fixture.library.choiceOrder
+        XCTAssertEqual(order.first, custom)
+        let manifest = try XCTUnwrap(fixture.defaults.data(forKey: "reader.fontLibrary.v1"))
+        let original = try XCTUnwrap(fixture.defaults.persistentDomain(forName: fixture.suite))
+        let fontIdentity = try fileIdentity(fixture.finalURL)
+        // Only this isolated fixture's metadata is faulted. The actual OFL
+        // input and imported font bytes remain intact throughout the test.
+        let unreadable = Data([0xff])
+        fixture.defaults.set(unreadable, forKey: "reader.fontLibrary.v1")
+        let cold = ReaderFontLibrary(directory: fixture.directory, defaults: fixture.defaults)
+        fixture.library.reload()
+        for library in [fixture.library, cold] {
+            XCTAssertNotNil(library.loadFailure); XCTAssertFalse(library.canModify)
+            XCTAssertEqual(fixture.defaults.stringArray(forKey: "reader.fontLibrary.order.v2"), order)
+            XCTAssertEqual(fixture.defaults.data(forKey: "reader.fontLibrary.v1"), unreadable)
+            XCTAssertEqual(fixture.defaults.string(forKey: "appearance.fontPostScriptName"), preferences.fontPostScriptName)
+            XCTAssertEqual(fixture.defaults.string(forKey: "appearance.fontSlotID"), custom)
+        }
+        XCTAssertEqual(fixture.library.choiceOrder, order, "A failed warm read retains its last known display order")
+        XCTAssertTrue(cold.selectableChoices.contains { $0.id == "serif" && $0.available },
+            "A failed cold read can still display real bundled fonts without overwriting the saved custom order")
+        XCTAssertEqual(try fileIdentity(fixture.finalURL), fontIdentity)
+        try fixture.assertOriginalAndLegacyUnchanged()
+        fixture.defaults.set(manifest, forKey: "reader.fontLibrary.v1")
+        cold.reload()
+        XCTAssertNil(cold.loadFailure); XCTAssertTrue(cold.canModify)
+        XCTAssertEqual(cold.choiceOrder, order)
+        XCTAssertEqual(cold.selectedChoiceID(named: preferences.fontPostScriptName, preferred: preferences.fontSlotID), custom)
+        XCTAssertEqual(cold.fonts, fixture.library.fonts)
+        XCTAssertTrue(NSDictionary(dictionary: try XCTUnwrap(fixture.defaults.persistentDomain(forName: fixture.suite)))
+            .isEqual(to: original), "Restoring the original manifest must preserve every original preference")
+        try fixture.assertConfirmedFont()
+        try fixture.assertNoOwnedTransient()
+        try fixture.assertOriginalAndLegacyUnchanged()
+        XCTAssertEqual(try fileIdentity(fixture.finalURL), fontIdentity)
+    }
+
     func testDefaultSerifSelectionSurvivesOrderAndNormalChoiceRestoresAbsentKeysWithoutChangingAliases() throws {
         let suite = "ReaderFontDefaultSelectionTests." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

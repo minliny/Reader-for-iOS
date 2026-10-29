@@ -164,7 +164,9 @@ final class ReaderFontLibrary: ObservableObject {
         } catch {
             manifestReadable = false
             loadFailure = "字体列表读取失败，已有字体文件已保留"
-            normalizeChoiceOrder()
+            // An unreadable manifest is not evidence that its fonts were removed.
+            // Keep persisted order intact; cold readers can show bundled choices.
+            if choiceOrder.isEmpty { choiceOrder = Self.defaultSlots }
         }
     }
 
