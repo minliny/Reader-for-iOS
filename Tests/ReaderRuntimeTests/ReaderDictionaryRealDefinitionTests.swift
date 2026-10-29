@@ -195,6 +195,94 @@ final class ReaderDictionaryRealDefinitionTests: XCTestCase {
         }
     }
 
+    /// Reuse the one already captured real HTTP response. This follow-up never
+    /// creates a Core, saves a rule, accesses credentials or performs a query.
+    func testRealOriginalDictionaryDefinitionLoadsBundledUIFontInWebKit() async throws {
+        let digest = "6d246b03e02e39b208b6aa6c407c945f2d2e0c0b50f22e58296965eaa6254096"
+        let host = ReaderDictionaryDefinitionHost()
+        var window: UIWindow?
+        var phase = "locate unchanged previously captured real response"
+        var facts: [String: Any] = ["responseBytes": 2_247, "responseSHA256": digest,
+                                   "newDictionaryQueries": 0, "newCoreInstances": 0]
+        defer { host.retire(); window?.isHidden = true }
+        do {
+            let input = try ReaderLocalFormatsTests.originalURL(format: "html", byteCount: 2_247, digest: digest)
+            let original = try Data(contentsOf: input)
+            try require(original.count == 2_247 && hash(original) == digest,
+                        "Use only the unchanged real dictionary response captured previously")
+            let definition = try XCTUnwrap(String(data: original, encoding: .utf8))
+            try require(["Project", "计划", "工程", "项目"].allSatisfy { definition.contains($0) },
+                        "The retained response must contain its actual headword and meanings")
+            let captionSize = ReaderTypography.style(.caption).size
+            let font = ReaderFonts.uiFont(.ui, size: captionSize)
+            let fontAsset = try ReaderEbookFontAsset.prepare(postScriptName: font.fontName)
+            let family = ReaderDictionaryDefinitionHost.bundledFontFamily
+            facts["nativePostScriptName"] = font.fontName; facts["expectedFontSize"] = captionSize
+            facts["expectedBundledFontBytes"] = fontAsset.0.count
+            facts["expectedBundledFontSHA256"] = hash(fontAsset.0)
+
+            phase = "load actual response with the production Reader UI face"
+            let web = host.webView
+            web.frame = CGRect(x: 0, y: 0, width: 390, height: 600)
+            let renderedWindow = UIWindow(frame: web.bounds)
+            let controller = UIViewController(); controller.view = web
+            renderedWindow.rootViewController = controller; renderedWindow.isHidden = false
+            window = renderedWindow
+            let displayID = UUID()
+            let deadline = Task { @MainActor in
+                try await Task.sleep(nanoseconds: 12_000_000_000)
+                host.retire()
+            }
+            defer { deadline.cancel() }
+            try await host.load(definition: definition, displayID: displayID,
+                style: ReaderDictionaryDefinitionStyle(font: font, foreground: .black,
+                                                        background: .white, link: .blue))
+            deadline.cancel()
+            try require(host.loadedDisplayID == displayID, "The actual font-ready result must retain its original display identity")
+
+            phase = "observe actual FontFaceSet, original embedded font bytes and rendered text"
+            let measured = try await web.callAsyncJavaScript(Self.measureActualBundledFont,
+                arguments: ["family": family], in: nil, contentWorld: .defaultClient)
+            var dom = try XCTUnwrap(measured as? [String: Any])
+            // Font bytes cross into WebKit. Check that exact original data,
+            // but keep the large base64 source out of diagnostic attachments.
+            let dataURL = try XCTUnwrap(dom.removeValue(forKey: "fontDataURL") as? String)
+            let prefix = "data:" + fontAsset.1 + ";base64,"
+            try require(dataURL.hasPrefix(prefix), "The production CSS face must use its original MIME and a data URL")
+            let embeddedBytes = try XCTUnwrap(Data(base64Encoded: String(dataURL.dropFirst(prefix.count))))
+            facts["embeddedFontBytes"] = embeddedBytes.count; facts["embeddedFontSHA256"] = hash(embeddedBytes)
+            facts["render"] = dom
+            try attach(facts, name: "real-dictionary-bundled-UI-font-actual-FontFaceSet")
+            try require(embeddedBytes == fontAsset.0,
+                        "WebKit must receive the exact Reader UI font asset, without rewritten font tables")
+            let measuredSize = try XCTUnwrap(dom["fontSize"] as? NSNumber).doubleValue
+            try require(dom["cssFamily"] as? String == family && dom["resultFontFamily"] as? String == family
+                        && abs(measuredSize - Double(captionSize)) < 0.01
+                        && dom["fontSetStatus"] as? String == "loaded"
+                        && dom["matchingFontFaces"] as? Int == 1 && dom["loadedFontFaces"] as? Int == 1,
+                        "The exact data font must be an actually loaded FontFaceSet member and the first rendered Reader family at the exact caption size")
+            try require(dom["realTextVisible"] as? Bool == true && dom["literalMarkupVisible"] as? Bool == false
+                        && dom["resultVisible"] as? Bool == true && dom["fontFaceRules"] as? Int == 1,
+                        "The real response must remain readable in the actual loaded font document")
+            try require(dom["dataOnlyFontCSP"] as? Bool == true && dom["otherResourcesDenied"] as? Bool == true
+                        && dom["remoteCSSURLs"] as? Int == 0 && dom["resourceAttributes"] as? Int == 0
+                        && dom["sourceScripts"] as? Int == 0 && dom["eventAttributes"] as? Int == 0
+                        && !web.configuration.defaultWebpagePreferences.allowsContentJavaScript
+                        && !web.configuration.websiteDataStore.isPersistent,
+                        "Bundled data fonts must preserve the source-script and HTTP subresource restrictions")
+            try require(try Data(contentsOf: input) == original, "The real response original must remain unchanged")
+            host.retire(); renderedWindow.isHidden = true
+            try require(host.loadedDisplayID == nil, "Retirement must remove the loaded display identity")
+            facts["inputBytesPreserved"] = true; facts["retiredDisplayIdentityCleared"] = true
+            facts["result"] = "real response rendered with the exact loaded bundled Reader UI font"
+            try attach(facts, name: "real-dictionary-bundled-UI-font-and-retirement-complete")
+        } catch {
+            facts["failedPhase"] = phase; facts["failure"] = String(describing: error)
+            try? attach(facts, name: "real-dictionary-bundled-UI-font-failure-stage")
+            throw error
+        }
+    }
+
     private func require(_ condition: Bool, _ message: String, file: StaticString = #filePath, line: UInt = #line) throws {
         guard condition else {
             XCTFail(message, file: file, line: line)
@@ -234,4 +322,33 @@ final class ReaderDictionaryRealDefinitionTests: XCTestCase {
       remoteResourceAttributes:resources,eventAttributes:events,
       restrictiveCSP:['default-src','script-src','img-src','font-src','connect-src','media-src','frame-src','object-src'].every(name=>csp.includes(name+" 'none'"))};
     """
+
+    /// Read the already loaded platform font face and safe document. A matching
+    /// CSS family string or fonts.check on an unknown family is insufficient.
+    private static let measureActualBundledFont = #"""
+    const root=document.getElementById('reader-dictionary-definition');
+    if(!root)return {missingContainer:true};
+    const clean=value=>String(value).replace(/["']/g,'').trim();
+    const rules=[...document.getElementById('reader-dictionary-style').sheet.cssRules];
+    const fontRules=rules.filter(rule=>rule.type===CSSRule.FONT_FACE_RULE);
+    const fontRule=fontRules.find(rule=>clean(rule.style.fontFamily)===family);
+    const src=fontRule?.style.getPropertyValue('src')||'';
+    const dataURL=src.match(/url\(\s*["']?(data:[^"')\s]+)["']?\s*\)/i)?.[1]||'';
+    const faces=[...document.fonts].filter(face=>clean(face.family)===family);
+    const style=getComputedStyle(root),text=root.innerText,rect=root.getBoundingClientRect();
+    const csp=document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content||'';
+    const elements=[...document.querySelectorAll('*')];
+    const resourceAttributes=elements.reduce((count,node)=>count+[...node.attributes].filter(attribute=>['src','srcset','poster','background','xlink:href'].includes(attribute.name)).length,0);
+    const eventAttributes=elements.reduce((count,node)=>count+[...node.attributes].filter(attribute=>attribute.name.toLowerCase().startsWith('on')).length,0);
+    return {fontDataURL:dataURL,fontFaceRules:fontRules.length,matchingFontFaces:faces.length,
+      loadedFontFaces:faces.filter(face=>face.status==='loaded').length,fontSetStatus:document.fonts.status,
+      cssFamily:clean(style.fontFamily.split(',')[0]),resultFontFamily:root.dataset.fontFamily,fontSize:parseFloat(style.fontSize),
+      realTextVisible:['Project','计划','工程','项目'].every(value=>text.includes(value)),
+      literalMarkupVisible:/<\/?(?:br|div|em|a)(?:\s|>)/i.test(text),
+      resultVisible:rect.width>0&&rect.height>0&&rect.top>=0&&rect.top<innerHeight,
+      dataOnlyFontCSP:csp.split(';').some(item=>item.trim()==='font-src data:'),
+      otherResourcesDenied:['default-src','script-src','img-src','connect-src','media-src','frame-src','object-src'].every(name=>csp.includes(name+" 'none'")),
+      remoteCSSURLs:(rules.map(rule=>rule.cssText).join('\n').match(/https?:/gi)||[]).length,
+      resourceAttributes,eventAttributes,sourceScripts:document.scripts.length};
+    """#
 }

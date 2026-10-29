@@ -102,6 +102,7 @@ private struct ReaderDictionaryDefinitionNative: UIViewRepresentable {
 @MainActor
 final class ReaderDictionaryDefinitionHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     enum State { case idle, loading(UUID), ready(UUID), failed(UUID), retired }
+    static let bundledFontFamily = "ReaderDictionaryBundledUI"
     let webView: WKWebView
     var openURL: (URL) -> Void
     var onState: ((State) -> Void)?
@@ -110,7 +111,8 @@ final class ReaderDictionaryDefinitionHost: NSObject, WKNavigationDelegate, WKUI
     private var generation = UUID()
     private var initialNavigationAdmitted = false
     private var retired = false
-    private var pending: (displayID: UUID, definition: String, continuation: CheckedContinuation<Void, Error>)?
+    private var pending: (displayID: UUID, definition: String, fontFamily: String, fontSize: CGFloat,
+                          continuation: CheckedContinuation<Void, Error>)?
     private var navigation: WKNavigation?
     private static var blockingRules: Task<WKContentRuleList, Error>?
 
@@ -139,6 +141,7 @@ final class ReaderDictionaryDefinitionHost: NSObject, WKNavigationDelegate, WKUI
         state = .loading(displayID)
         do {
             let rules = try await Self.externalResourceRules()
+            let fontAsset = try await Self.bundledUIFont(for: style)
             try Task.checkCancellation()
             guard !retired, generation == ticket else { throw CancellationError() }
             webView.configuration.userContentController.removeAllContentRuleLists()
@@ -146,8 +149,9 @@ final class ReaderDictionaryDefinitionHost: NSObject, WKNavigationDelegate, WKUI
             initialNavigationAdmitted = false
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
-                    pending = (displayID, definition, continuation)
-                    navigation = webView.loadHTMLString(Self.document(style: style), baseURL: nil)
+                    pending = (displayID, definition, fontAsset == nil ? "" : Self.bundledFontFamily,
+                               style.fontSize, continuation)
+                    navigation = webView.loadHTMLString(Self.document(style: style, fontAsset: fontAsset), baseURL: nil)
                     if navigation == nil { finish(.failure(ReaderLibraryError.invalidResponse("dictionary document"))) }
                 }
             } onCancel: {
@@ -183,7 +187,8 @@ final class ReaderDictionaryDefinitionHost: NSObject, WKNavigationDelegate, WKUI
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard !retired, webView === self.webView, navigation === self.navigation, let pending else { return }
         let ticket = generation
-        webView.callAsyncJavaScript(Self.installDefinition, arguments: ["definition": pending.definition],
+        webView.callAsyncJavaScript(Self.installDefinition,
+            arguments: ["definition": pending.definition, "bundledFontFamily": pending.fontFamily, "fontSize": pending.fontSize],
             in: nil, in: .defaultClient) { [weak self] result in
                 guard let self, !self.retired, self.generation == ticket else { return }
                 self.finish(result.map { _ in () })
@@ -232,14 +237,28 @@ final class ReaderDictionaryDefinitionHost: NSObject, WKNavigationDelegate, WKUI
         catch { blockingRules = nil; throw error }
     }
 
-    private static func document(style: ReaderDictionaryDefinitionStyle) -> String {
+    private static func bundledUIFont(for style: ReaderDictionaryDefinitionStyle) async throws -> (Data, String)? {
+        guard style.fontName == ReaderFonts.postScriptName(.ui) else { return nil }
+        let postScriptName = style.fontName
+        return try await Task.detached(priority: .userInitiated) {
+            try ReaderEbookFontAsset.prepare(postScriptName: postScriptName)
+        }.value
+    }
+
+    private static func document(style: ReaderDictionaryDefinitionStyle, fontAsset: (Data, String)?) -> String {
         let font = style.fontName.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let family = fontAsset == nil ? font : bundledFontFamily
+        let fontPolicy = fontAsset == nil ? "'none'" : "data:"
+        let fontFace = fontAsset.map {
+            "@font-face{font-family:\"\(bundledFontFamily)\";src:url(\"data:\($0.1);base64,\($0.0.base64EncodedString())\");font-style:normal;font-weight:400;font-display:block}"
+        } ?? ""
         return """
         <!doctype html><html><head><meta charset="utf-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; img-src 'none'; font-src 'none'; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; img-src 'none'; font-src \(fontPolicy); connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-        html,body{margin:0;padding:0;background:\(style.background);color:\(style.foreground);font-family:"\(font)",-apple-system,system-ui,sans-serif;font-size:\(style.fontSize)px;line-height:1.55;overflow-wrap:anywhere}
+        <style id="reader-dictionary-style">
+        \(fontFace)
+        html,body{margin:0;padding:0;background:\(style.background);color:\(style.foreground);font-family:"\(family)",-apple-system,system-ui,sans-serif;font-size:\(style.fontSize)px;line-height:1.55;overflow-wrap:anywhere}
         #reader-dictionary-definition{padding:12px}p,div,ul,ol{margin-block:0.5em}a{color:\(style.link);text-decoration:underline}em,i{font-style:italic}strong,b{font-weight:700}
         </style></head><body><div id="reader-dictionary-definition"></div></body></html>
         """
@@ -252,19 +271,29 @@ final class ReaderDictionaryDefinitionHost: NSObject, WKNavigationDelegate, WKUI
     const template=document.createElement('template');
     template.innerHTML=definition;
     const hasMarkup=template.content.querySelector('*')!==null;
-    if(!hasMarkup){container.textContent=template.content.textContent;container.style.whiteSpace='pre-wrap';container.dataset.kind='text';return;}
-    template.content.querySelectorAll('script,style,link,meta,base,title,iframe,frame,frameset,object,embed,img,picture,source,video,audio,track,svg,canvas,input,button,select,textarea').forEach(node=>node.remove());
-    template.content.querySelectorAll('form').forEach(node=>node.replaceWith(...node.childNodes));
-    template.content.querySelectorAll('*').forEach(node=>{
-      for(const attribute of [...node.attributes]){
-        if(!['href','title','lang','dir'].includes(attribute.name)||attribute.name==='href'&&node.tagName!=='A')node.removeAttribute(attribute.name);
-      }
-      if(node.tagName==='A'){
-        const href=node.getAttribute('href')||'';
-        try{const url=new URL(href);if(!/^https?:\\/\\//i.test(href)||!['http:','https:'].includes(url.protocol)||!url.hostname)node.removeAttribute('href');}
-        catch{node.removeAttribute('href');}
-      }
-    });
-    container.replaceChildren(template.content);container.style.whiteSpace='normal';container.dataset.kind='html';
+    if(!hasMarkup){container.textContent=template.content.textContent;container.style.whiteSpace='pre-wrap';container.dataset.kind='text';}
+    else{
+      template.content.querySelectorAll('script,style,link,meta,base,title,iframe,frame,frameset,object,embed,img,picture,source,video,audio,track,svg,canvas,input,button,select,textarea').forEach(node=>node.remove());
+      template.content.querySelectorAll('form').forEach(node=>node.replaceWith(...node.childNodes));
+      template.content.querySelectorAll('*').forEach(node=>{
+        for(const attribute of [...node.attributes]){
+          if(!['href','title','lang','dir'].includes(attribute.name)||attribute.name==='href'&&node.tagName!=='A')node.removeAttribute(attribute.name);
+        }
+        if(node.tagName==='A'){
+          const href=node.getAttribute('href')||'';
+          try{const url=new URL(href);if(!/^https?:\\/\\//i.test(href)||!['http:','https:'].includes(url.protocol)||!url.hostname)node.removeAttribute('href');}
+          catch{node.removeAttribute('href');}
+        }
+      });
+      container.replaceChildren(template.content);container.style.whiteSpace='normal';container.dataset.kind='html';
+    }
+    container.dataset.fontFamily=bundledFontFamily;
+    if(bundledFontFamily){
+      const request=`normal ${fontSize}px "${bundledFontFamily}"`;
+      const loaded=await document.fonts.load(request,container.textContent||'Reader');
+      await document.fonts.ready;
+      const face=[...document.fonts].find(item=>item.family.replaceAll('"','').replaceAll("'",'')===bundledFontFamily);
+      if(!loaded.length||!face||face.status!=='loaded')throw new Error('Reader dictionary font did not load');
+    }else{await document.fonts.ready;}
     """
 }
