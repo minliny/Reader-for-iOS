@@ -488,8 +488,9 @@ enum ReaderEbookRealWebKitProbe {
                 if let failure { XCTFail("\(label) line height \(lineHeight): \(failure)"); throw failure }
                 XCTAssertTrue(container.webView === web, "Line-height changes retain the original production WebKit")
                 let value = try await web.callAsyncJavaScript("""
-                    const p=[...document.querySelectorAll('p')].find(p=>p.textContent.trim().length>=128);
-                    if(!p)throw Error('original-prose-paragraph-missing');
+                    const paragraphs=[...document.querySelectorAll('p')];
+                    const p=paragraphs.reduce((longest,node)=>!longest||node.textContent.trim().length>longest.textContent.trim().length?node:longest,null);
+                    if(!p||!p.textContent.trim().length)throw Error('original-prose-paragraph-missing');
                     const publicationRules=[...document.styleSheets].filter(sheet=>sheet.href&&!sheet.disabled).flatMap(sheet=>{
                       try{return [...sheet.cssRules].filter(rule=>rule.selectorText==='p'&&rule.style?.getPropertyValue('line-height')==='1.5em')
                         .map(rule=>({href:sheet.href,selector:rule.selectorText,lineHeight:rule.style.getPropertyValue('line-height')}));}
@@ -498,7 +499,7 @@ enum ReaderEbookRealWebKitProbe {
                     if(!publicationRules.length)throw Error('original-publication-paragraph-rule-not-loaded');
                     const s=getComputedStyle(p),fontSize=parseFloat(s.fontSize),lineHeight=parseFloat(s.lineHeight);
                     if(!(fontSize>0&&lineHeight>0))throw Error('original-paragraph-metrics-invalid');
-                    return {tag:p.localName,characters:p.textContent.trim().length,fontSize,lineHeight,ratio:lineHeight/fontSize,publicationRules};
+                    return {tag:p.localName,characters:p.textContent.trim().length,paragraphCount:paragraphs.length,fontSize,lineHeight,ratio:lineHeight/fontSize,publicationRules};
                     """, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
                 let paragraph = try XCTUnwrap(value)
                 XCTAssertEqual(paragraph["tag"] as? String, "p")
