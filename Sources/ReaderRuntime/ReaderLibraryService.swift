@@ -948,12 +948,12 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         // malformed old journal is never interpreted as an absent Core owner.
         try stagingLease.recoverPrecommit(protections: stagingProtections())
         try drainUnresolvedReplies(importsOnly: true, resourceLease: stagingLease)
-        var completedRejection: Error?
+        var completedRejections: [ReaderImportRollbackCompletion] = []
         for var record in try records() {
             if record.protocolGeneration != nil {
                 guard record.protocolGeneration == 2 else { continue }
                 do { _ = try await continueLocalImportV2(record, using: stagingLease) }
-                catch let completed as ReaderImportRollbackCompletion { if completedRejection == nil { completedRejection = completed } }
+                catch let completed as ReaderImportRollbackCompletion { completedRejections.append(completed) }
                 catch { /* Preserve the original v2 record and source. */ }
                 continue
             }
@@ -977,9 +977,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                     try removeRecord(record.id)
                     liveImportResources.removeValue(forKey: record.id)
                     finishMutation(.importOperation(id: record.id, stage: .rollback))
-                    if completedRejection == nil {
-                        completedRejection = rollbackCompletion(record)
-                    }
+                    completedRejections.append(rollbackCompletion(record))
                     continue
                 }
                 if record.phase != .finalize {
@@ -1008,7 +1006,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 finishMutation(.importOperation(id: record.id, stage: .finalize))
             } catch { /* Retain receipt and source on every unresolved recovery. */ }
         }
-        if let completedRejection { throw completedRejection }
+        if completedRejections.count == 1, let completed = completedRejections.first { throw completed }
+        if completedRejections.count > 1 { throw ReaderImportRollbackCompletions(completions: completedRejections) }
         return try await pendingImports()
     }
 
@@ -1562,9 +1561,9 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         }
     }
 
-    private func rollbackCompletion(_ record: HostImportRecord) -> Error {
-        if let rejection = record.rejection { return rejection.error }
-        return ReaderImportRollbackCompletion(operationId: record.id, originalFailure: record.originalFailure)
+    private func rollbackCompletion(_ record: HostImportRecord) -> ReaderImportRollbackCompletion {
+        let failure = record.rejection?.error.localizedDescription ?? record.originalFailure
+        return ReaderImportRollbackCompletion(operationId: record.id, originalFailure: failure)
     }
 
     private func validateImportTerminal(_ data: Data, record: HostImportRecord, stage: ImportMutationStage) throws {
@@ -1808,6 +1807,17 @@ public struct ReaderImportRollbackCompletion: Error, Sendable, LocalizedError {
     public let operationId: String
     public let originalFailure: String?
     public var errorDescription: String? { originalFailure }
+}
+
+/// Recovery may settle more than one original import while cleanup-only
+/// records remain. Keep every Core operation identity so the Host can settle
+/// each presentation item independently after a restart.
+public struct ReaderImportRollbackCompletions: Error, Sendable, LocalizedError {
+    public let completions: [ReaderImportRollbackCompletion]
+    public init(completions: [ReaderImportRollbackCompletion]) { self.completions = completions }
+    public var errorDescription: String? {
+        completions.compactMap(\.errorDescription).joined(separator: "；")
+    }
 }
 
 enum ImportMutationStage: Hashable { case persist, shelf, finalize, rollback, localV2Authority, localV2Settle }

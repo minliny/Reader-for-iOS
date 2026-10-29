@@ -22,6 +22,10 @@ struct ReaderImportItemPresentation: Identifiable, Equatable {
     enum Phase: Equatable { case waiting, importing, completed, failed, unresolved, skipped }
     let id: UUID
     let filename: String
+    /// The Core operation identity which owns an unresolved result. The UI
+    /// item UUID remains presentation-only and is never used to settle a
+    /// mutation after a restart.
+    var originalOperationID: String?
     var phase: Phase = .waiting
     var message = "等待导入"
 }
@@ -318,8 +322,9 @@ final class ReaderApplicationModel: ObservableObject {
                     needsImportCleanup = needsImportCleanup || result.finalizationPending
                 } catch {
                     guard importOperation?.id == operation else { return }
-                    if case ReaderLibraryError.operationPending = error {
+                    if case let ReaderLibraryError.operationPending(operationID) = error {
                         importOperation?.items[index].phase = .unresolved
+                        importOperation?.items[index].originalOperationID = operationID
                         importOperation?.items[index].message = "原导入结果待核对"
                         stopImportAfterCurrent = true
                     } else {
@@ -352,43 +357,86 @@ final class ReaderApplicationModel: ObservableObject {
         guard importOperation?.phase != .importing, !reconcilingImports else { return }
         reconcilingImports = true
         defer { reconcilingImports = false }
-        let originalOperation = importOperation?.id
+        // Capture the original ledger projection before recovery can retire a
+        // journal. This is display metadata only; Core remains the owner of
+        // the operation and its result.
+        let pendingBeforeRecovery = try? await service.pendingImports()
+        if importOperation == nil, let pendingBeforeRecovery, !pendingBeforeRecovery.isEmpty {
+            let items = pendingBeforeRecovery.map { pending in
+                ReaderImportItemPresentation(id: UUID(), filename: pending.fileName,
+                    originalOperationID: pending.id,
+                    phase: pending.requiresReconciliation ? .unresolved : .completed,
+                    message: pending.requiresReconciliation ? "原导入结果待核对" : "书籍已保留，等待清理")
+            }
+            importOperation = ReaderImportPresentation(id: UUID(),
+                filename: items.count == 1 ? items[0].filename : "上次导入",
+                phase: items.contains(where: { $0.phase == .unresolved }) ? .unresolved : .completed,
+                message: items.contains(where: { $0.phase == .unresolved }) ? "导入结果仍在确认，请保留文件" : "书籍已保留，等待清理",
+                items: items)
+        }
+        let recoveryPresentationID = importOperation?.id
         do {
             let pending = try await service.recoverPendingImports()
-            guard importOperation?.id == originalOperation else { return }
-            needsImportCleanup = !pending.isEmpty
+            guard importOperation?.id == recoveryPresentationID else { return }
+            needsImportCleanup = pending.contains(where: { !$0.requiresReconciliation })
             if let unresolved = pending.first(where: \.requiresReconciliation) {
                 importOperation = ReaderImportPresentation(id: importOperation?.id ?? UUID(), filename: unresolved.fileName,
-                    phase: .unresolved, message: "导入结果仍在确认，请保留文件", items: importOperation?.items ?? [])
+                    phase: .unresolved, message: "导入结果仍在确认，请保留文件",
+                    items: importOperation?.items ?? [ReaderImportItemPresentation(id: UUID(), filename: unresolved.fileName,
+                        originalOperationID: unresolved.id, phase: .unresolved, message: "原导入结果待核对")])
             } else if importOperation?.phase == .unresolved {
                 importOperation?.phase = .completed
                 importOperation?.message = "原导入操作已核对"
                 if let items = importOperation?.items {
                     for index in items.indices where items[index].phase == .unresolved {
+                        // No typed rejection was returned and the original
+                        // journal is gone: this is the only success path.
                         importOperation?.items[index].phase = .completed
                         importOperation?.items[index].message = "原导入操作已确认"
                     }
                 }
             }
         } catch {
-            guard importOperation?.id == originalOperation else { return }
+            guard importOperation?.id == recoveryPresentationID else { return }
             let pending = try? await service.pendingImports()
-            if (ReaderLibraryService.isDefiniteMutationRejection(error) || error is ReaderImportRollbackCompletion), pending?.isEmpty == true {
-                if importOperation?.phase == .unresolved {
-                    importOperation?.phase = .failed
-                    importOperation?.message = "原导入操作未完成，已有书籍已保留。请检查文件后重试。"
-                    if let items = importOperation?.items {
-                        for index in items.indices where items[index].phase == .unresolved {
-                            importOperation?.items[index].phase = .failed
-                            importOperation?.items[index].message = "原导入操作未完成"
-                        }
-                    }
-                } else if importOperation == nil {
-                    showFeedback("上次导入未完成，已有书籍已保留")
-                }
+            let completions: [ReaderImportRollbackCompletion]
+            if let completion = error as? ReaderImportRollbackCompletion {
+                completions = [completion]
+            } else if let grouped = error as? ReaderImportRollbackCompletions {
+                completions = grouped.completions
             } else if let unresolved = pending?.first(where: \.requiresReconciliation) {
                 importOperation = ReaderImportPresentation(id: importOperation?.id ?? UUID(), filename: unresolved.fileName,
-                    phase: .unresolved, message: "导入结果仍在确认，请保留文件", items: importOperation?.items ?? [])
+                    phase: .unresolved, message: "导入结果仍在确认，请保留文件",
+                    items: importOperation?.items ?? [ReaderImportItemPresentation(id: UUID(), filename: unresolved.fileName,
+                        originalOperationID: unresolved.id, phase: .unresolved, message: "原导入结果待核对")])
+                updateBackgroundLease()
+                return
+            } else {
+                // A failed pending read is still unknown. Preserve the last
+                // projection and never infer success from missing metadata.
+                updateBackgroundLease()
+                return
+            }
+            guard !completions.isEmpty else { updateBackgroundLease(); return }
+            var items = importOperation?.items ?? []
+            for completion in completions {
+                if let index = items.firstIndex(where: { $0.originalOperationID == completion.operationId }) {
+                    items[index].phase = .failed
+                    items[index].message = "原导入操作未完成"
+                } else {
+                    let filename = pending?.first(where: { $0.id == completion.operationId })?.fileName
+                        ?? pendingBeforeRecovery?.first(where: { $0.id == completion.operationId })?.fileName
+                        ?? "原导入操作"
+                    items.append(ReaderImportItemPresentation(id: UUID(), filename: filename,
+                        originalOperationID: completion.operationId, phase: .failed, message: "原导入操作未完成"))
+                }
+            }
+            importOperation = ReaderImportPresentation(id: importOperation?.id ?? UUID(),
+                filename: items.count == 1 ? items[0].filename : "上次导入",
+                phase: items.contains(where: { $0.phase == .unresolved }) ? .unresolved : .failed,
+                message: "原导入操作未完成，已有书籍已保留。请检查文件后重试。", items: items)
+            if let pending, pending.contains(where: { !$0.requiresReconciliation }) {
+                needsImportCleanup = true
             }
         }
         updateBackgroundLease()

@@ -472,6 +472,80 @@ final class ReaderApplicationModelTests: XCTestCase {
         XCTAssertEqual(service.importCount, 1)
     }
 
+    func testTypedRecoveryFailureIsConsumedByOriginalIDWithoutWaitingForCleanupOnlyRecords() async throws {
+        let service = ApplicationModelServiceFake()
+        service.holdImports = true
+        let dispatched = expectation(description: "Import dispatched")
+        service.onImport = { _ in dispatched.fulfill() }
+        let model = ReaderApplicationModel(service: service)
+        model.importFile(URL(fileURLWithPath: "/selection/failed.txt"))
+        await fulfillment(of: [dispatched], timeout: 2)
+        model.importResultVisible = false
+        let originalID = "original-failed-import"
+        service.pending = [
+            ReaderPendingImport(id: originalID, fileName: "failed.txt", requiresReconciliation: true),
+            ReaderPendingImport(id: "cleanup-only", fileName: "already-imported.txt", requiresReconciliation: false)
+        ]
+        let unresolved = expectation(description: "The original operation keeps its Core ID")
+        let observe = model.$importOperation.compactMap { $0 }.sink { value in
+            if value.items.contains(where: { $0.originalOperationID == originalID && $0.phase == .unresolved }) { unresolved.fulfill() }
+        }
+        defer { observe.cancel(); service.releasePendingRequests() }
+        service.completeImport(.failure(ReaderLibraryError.operationPending(originalID)))
+        await fulfillment(of: [unresolved], timeout: 2)
+        service.pending = [ReaderPendingImport(id: "cleanup-only", fileName: "already-imported.txt", requiresReconciliation: false)]
+        service.recoverError = ReaderImportRollbackCompletions(completions: [
+            ReaderImportRollbackCompletion(operationId: originalID, originalFailure: "rejected")
+        ])
+        await model.reconcileImports()
+        let item = try XCTUnwrap(model.importOperation?.items.first(where: { $0.originalOperationID == originalID }))
+        XCTAssertEqual(item.phase, .failed)
+        XCTAssertFalse(model.importBusy, "A cleanup-only record must not block a confirmed original failure")
+        XCTAssertEqual(model.importOperation?.phase, .failed)
+    }
+
+    func testMultipleTypedRecoveryFailuresRemainAddressableIndependently() async {
+        let service = ApplicationModelServiceFake()
+        let model = ReaderApplicationModel(service: service)
+        service.pending = [
+            ReaderPendingImport(id: "failed-a", fileName: "a.txt", requiresReconciliation: true),
+            ReaderPendingImport(id: "failed-b", fileName: "b.txt", requiresReconciliation: true),
+            ReaderPendingImport(id: "cleanup", fileName: "done.txt", requiresReconciliation: false)
+        ]
+        service.recoverError = ReaderImportRollbackCompletions(completions: [
+            ReaderImportRollbackCompletion(operationId: "failed-a", originalFailure: "a"),
+            ReaderImportRollbackCompletion(operationId: "failed-b", originalFailure: "b")
+        ])
+        await model.start()
+        XCTAssertEqual(model.importOperation?.items.filter { $0.phase == .failed }.compactMap(\.originalOperationID).sorted(), ["failed-a", "failed-b"])
+        XCTAssertFalse(model.importBusy)
+    }
+
+    func testPendingReadFailureKeepsExistingUnknownImportUnresolved() async throws {
+        let service = ApplicationModelServiceFake()
+        service.holdImports = true
+        let dispatched = expectation(description: "Import dispatched")
+        service.onImport = { _ in dispatched.fulfill() }
+        let model = ReaderApplicationModel(service: service)
+        model.importFile(URL(fileURLWithPath: "/selection/unknown.txt"))
+        await fulfillment(of: [dispatched], timeout: 2)
+        let originalID = "unknown-import"
+        let unresolved = expectation(description: "Unknown outcome is projected")
+        let observe = model.$importOperation.compactMap { $0 }.sink { value in
+            if value.items.contains(where: { $0.originalOperationID == originalID && $0.phase == .unresolved }) { unresolved.fulfill() }
+        }
+        defer { observe.cancel(); service.releasePendingRequests() }
+        service.pending = [ReaderPendingImport(id: originalID, fileName: "unknown.txt", requiresReconciliation: true)]
+        service.completeImport(.failure(ReaderLibraryError.operationPending(originalID)))
+        await fulfillment(of: [unresolved], timeout: 2)
+        let pendingFailure = NSError(domain: "ReaderApplicationModelTests", code: 1)
+        service.pendingError = pendingFailure
+        service.recoverError = pendingFailure
+        await model.reconcileImports()
+        XCTAssertEqual(model.importOperation?.phase, .unresolved)
+        XCTAssertTrue(model.importBusy)
+    }
+
     func testAcknowledgedImportWithCleanupPendingDoesNotBlockTheNextImport() async {
         let service = ApplicationModelServiceFake()
         service.importResult = ReaderImportResult(book: book, created: true, finalizationPending: true)
@@ -1098,6 +1172,8 @@ private final class ApplicationModelServiceFake: ReaderDownloadServing {
     var rejectSaves = false
     var flushFailuresRemaining = 0
     var pending: [ReaderPendingImport] = []
+    var pendingError: Error?
+    var recoverError: Error?
     var openingProgress: ReaderProgressSnapshot?
     var progressReconciliationResult: ReaderProgressSnapshot?
     var progressReconciliationError: Error?
@@ -1211,8 +1287,15 @@ private final class ApplicationModelServiceFake: ReaderDownloadServing {
         if flushFailuresRemaining > 0 { flushFailuresRemaining -= 1; throw Failure.rejected }
     }
     func close() async throws {}
-    func pendingImports() async throws -> [ReaderPendingImport] { pending }
-    func recoverPendingImports() async throws -> [ReaderPendingImport] { recoverCount += 1; return pending }
+    func pendingImports() async throws -> [ReaderPendingImport] {
+        if let pendingError { throw pendingError }
+        return pending
+    }
+    func recoverPendingImports() async throws -> [ReaderPendingImport] {
+        recoverCount += 1
+        if let recoverError { self.recoverError = nil; throw recoverError }
+        return pending
+    }
 
     func cacheReadingWindow(_ book: ReaderBook, around chapterIndex: UInt32) async throws -> ReaderReadingCacheWindow {
         let index = cacheWindowCount
