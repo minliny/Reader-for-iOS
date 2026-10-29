@@ -8,6 +8,11 @@ import XCTest
 /// or renamed substitute can satisfy its original-format SHA identity.
 final class ReaderLocalFormatsTests: XCTestCase {
     @MainActor
+    func testRealZhongSongEpubUserLineHeightOverridesOriginalParagraphsAndPreservesScalar() async throws {
+        try await ReaderEbookRealWebKitProbe.verifyLineHeight(in: self)
+    }
+
+    @MainActor
     func testRealZhongSongEpubWebKitPresentationRestoresScalarAndLoadsReaderFonts() async throws {
         try await ReaderEbookRealWebKitProbe.verify(in: self, format: "epub", byteCount: 7_406_795,
             digest: "5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67")

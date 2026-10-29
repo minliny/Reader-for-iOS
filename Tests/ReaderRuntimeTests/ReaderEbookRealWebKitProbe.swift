@@ -14,6 +14,59 @@ import XCTest
 /// are method faults, not additional format inputs or fake Core/Host responses.
 @MainActor
 enum ReaderEbookRealWebKitProbe {
+    /// Actual original paragraph CSS and production configure/reflow only;
+    /// this does not claim native preference-control or cold-start coverage.
+    static func verifyLineHeight(in test: XCTestCase) async throws {
+        let digest = "5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67"
+        let original = try ReaderLocalFormatsTests.originalURL(format: "epub", byteCount: 7_406_795, digest: digest)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealWK.LineHeight-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: root.appendingPathComponent("Sources"))
+        do {
+            let imported = try await library.importBook(at: original)
+            XCTAssertTrue(imported.created); XCTAssertFalse(imported.finalizationPending)
+            let book = imported.book
+            XCTAssertEqual(book.bookId, "local:" + digest)
+            var selected: (ReaderChapterContent, ReaderEbookDocument)?
+            let chapters = try await library.chapters(for: book)
+            for chapter in chapters.filter({ !$0.url.isEmpty }).prefix(16) {
+                let document = try await library.ebookPresentation(for: book, chapterIndex: chapter.index)
+                guard document.entryPath == "OEBPS/Text/Cha1.xhtml" else { continue }
+                let content = try await library.content(for: book, chapterIndex: chapter.index)
+                try document.validate(content: content)
+                selected = (content, document); break
+            }
+            let (content, document) = try XCTUnwrap(selected, "The first sixteen actual Core chapters must contain the original Cha1 prose")
+            let retained = try await library.retainedSourceURL(for: book)
+            let reader = ReaderEbookArchiveReader(sourceURL: retained, bookID: book.bookId)
+            let entry = try await reader.readEntry(document.entryPath, maximumBytes: 32 * 1024 * 1024)
+            let cssPath = "OEBPS/Styles/Style0001.css"
+            let css = try await reader.readEntry(cssPath, maximumBytes: 64 * 1024)
+            XCTAssertEqual(entry.count, 12_149); XCTAssertEqual(css.count, 6_480)
+            XCTAssertEqual(sha(entry), "66a035e32059da26ca655d51926fa8c992f6e8cc1fd7bb6c19dbc18f00a63d75")
+            XCTAssertEqual(sha(css), "942c4a3b9d9d28873c17bef5446bedea0f086c3cf7629a9f0135c4c370087d45")
+            let scalars = Array(content.content.unicodeScalars)
+            let anchor = try XCTUnwrap(scalars.indices.first { $0 >= 512 && !scalars[$0].properties.isWhitespace && scalars[$0].value != 0xfffc })
+            let observed = try await library.progress(for: book)
+            let saved = try await library.saveProgress(for: book, content: content, scalarOffset: UInt64(anchor), expectedRevision: observed.progressRevision)
+            XCTAssertEqual(saved.progress?.chapterOffset, UInt64(anchor))
+            XCTAssertEqual(saved.progress?.bodyVersion, content.bodyVersion)
+            XCTAssertEqual(saved.progress?.processingVersion, content.processingVersion)
+            let serif = ReaderTypography.readingFont(size: 26)
+            try assertFont(serif, file: "NotoSerifSC-Regular.ttf", expectedDigest: "9502147ceba7b5bc7fd3415083f6a5d133f22d8f9efb4974d4b85f3a97ea2d3a")
+            try await render(in: test, document: document, content: content, reader: reader, offset: UInt64(anchor),
+                fonts: [serif], label: "epub-original-paragraph-line-height", originalImageEntry: nil, lineHeights: [1.35, 2.15])
+            let after = try await library.progress(for: book)
+            XCTAssertEqual(after, saved, "Display-only reflow preserves every field of the original Core progress snapshot")
+            let afterEntry = try await reader.readEntry(document.entryPath, maximumBytes: 32 * 1024 * 1024)
+            let afterCSS = try await reader.readEntry(cssPath, maximumBytes: 64 * 1024)
+            XCTAssertEqual(sha(afterEntry), sha(entry)); XCTAssertEqual(sha(afterCSS), sha(css))
+            XCTAssertEqual(sha(try Data(contentsOf: retained, options: .mappedIfSafe)), digest)
+            XCTAssertEqual(sha(try Data(contentsOf: original, options: .mappedIfSafe)), digest)
+            try await library.close()
+        } catch { try? await library.close(); throw error }
+    }
+
     static func verify(in test: XCTestCase, format: String, byteCount: Int, digest: String) async throws {
         let original = try ReaderLocalFormatsTests.originalURL(format: format, byteCount: byteCount, digest: digest)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealWK-" + UUID().uuidString)
@@ -363,7 +416,7 @@ enum ReaderEbookRealWebKitProbe {
 
     private static func render(in test: XCTestCase, document: ReaderEbookDocument, content: ReaderChapterContent,
                                reader: ReaderEbookArchiveReader, offset: UInt64, fonts: [UIFont], label: String,
-                               originalImageEntry: String?) async throws {
+                               originalImageEntry: String?, lineHeights: [CGFloat] = []) async throws {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = try XCTUnwrap(scenes.first { $0.activationState == .foregroundActive }
             ?? scenes.first { $0.activationState == .foregroundInactive }, "Real WebKit display requires the test host's foreground UIWindowScene")
@@ -416,6 +469,45 @@ enum ReaderEbookRealWebKitProbe {
             XCTAssertTrue(container.webView === web, "Font reflow must keep one active book WebKit")
             try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
                 font: font, phase: label + "/font-reflow")
+        }
+        if !lineHeights.isEmpty {
+            let originalLineHeight = surface.lineHeight
+            let font = try XCTUnwrap(fonts.last)
+            for lineHeight in lineHeights + [originalLineHeight] {
+                let ready = test.expectation(description: label + " actual paragraph line height " + String(describing: lineHeight))
+                waiting = ready
+                surface = ReaderEbookSurface(document: document, content: content, archiveReader: reader,
+                    scalarOffset: offset, restorationID: surface.restorationID, fontSize: 26, lineHeight: lineHeight,
+                    horizontalInset: 20, bottomInset: 24, paper: ReaderPaperPalette(theme: .day),
+                    positionChanged: { unsolicitedPositions.append($0) }, selectionChanged: { _, _, _ in }, centerTapped: {},
+                    failed: { error in failure = error; let current = waiting; waiting = nil; current?.fulfill() },
+                    fontName: font.fontName, paged: true,
+                    layoutReady: { let current = waiting; waiting = nil; current?.fulfill() }, readerFont: font)
+                host.rootView = AnyView(surface); host.view.layoutIfNeeded()
+                await test.fulfillment(of: [ready], timeout: 30)
+                if let failure { XCTFail("\(label) line height \(lineHeight): \(failure)"); throw failure }
+                XCTAssertTrue(container.webView === web, "Line-height changes retain the original production WebKit")
+                let value = try await web.callAsyncJavaScript("""
+                    const p=[...document.querySelectorAll('p')].find(p=>p.textContent.trim().length>=128);
+                    if(!p)throw Error('original-prose-paragraph-missing');
+                    const publicationRules=[...document.styleSheets].filter(sheet=>sheet.href&&!sheet.disabled).flatMap(sheet=>{
+                      try{return [...sheet.cssRules].filter(rule=>rule.selectorText==='p'&&rule.style?.getPropertyValue('line-height')==='1.5em')
+                        .map(rule=>({href:sheet.href,selector:rule.selectorText,lineHeight:rule.style.getPropertyValue('line-height')}));}
+                      catch{return [];}
+                    });
+                    if(!publicationRules.length)throw Error('original-publication-paragraph-rule-not-loaded');
+                    const s=getComputedStyle(p),fontSize=parseFloat(s.fontSize),lineHeight=parseFloat(s.lineHeight);
+                    if(!(fontSize>0&&lineHeight>0))throw Error('original-paragraph-metrics-invalid');
+                    return {tag:p.localName,characters:p.textContent.trim().length,fontSize,lineHeight,ratio:lineHeight/fontSize,publicationRules};
+                    """, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
+                let paragraph = try XCTUnwrap(value)
+                XCTAssertEqual(paragraph["tag"] as? String, "p")
+                XCTAssertEqual(try XCTUnwrap(paragraph["ratio"] as? NSNumber).doubleValue, Double(lineHeight), accuracy: 0.02)
+                try writeStandardOutput("original-paragraph-line-height", ["requested": Double(lineHeight), "paragraph": paragraph,
+                    "entry": document.entryPath, "chapterIndex": content.chapterIndex, "savedScalar": offset])
+                try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
+                    font: font, phase: label + "/line-height-" + String(describing: lineHeight))
+            }
         }
         if let originalImageEntry {
             try await assertOriginalImage(in: test, web: web, content: content, offset: offset, entry: originalImageEntry, label: label)
