@@ -34,6 +34,7 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
         var waitingLayout: XCTestExpectation?, waitingPage: XCTestExpectation?
         var positions: [UInt64] = [], commits: [(UUID, ReaderNativePageOutcome)] = []
         var layoutReadyCount = 0
+        var lifecycleStage = "reading"
         func unmount() {
             waitingLayout = nil; waitingPage = nil
             host.rootView = AnyView(EmptyView()); host.view.layoutIfNeeded()
@@ -45,6 +46,30 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
             await fulfillment(of: [ready], timeout: 15)
             subscription.cancel()
             return try XCTUnwrap(model.reader)
+        }
+        func closeReader(_ model: ReaderApplicationModel, book: ReaderBook, stage: String) async throws {
+            var formatReady: XCTestExpectation?
+            var subscription: AnyCancellable?
+            if model.shelfFormatLabel(for: book) != "TXT" {
+                let ready = expectation(description: stage + " shelf parser finished its real TXT metadata read")
+                formatReady = ready
+                subscription = model.objectWillChange.receive(on: DispatchQueue.main)
+                    .filter { model.shelfFormatLabel(for: book) == "TXT" }.first()
+                    .sink { _ in ready.fulfill() }
+            }
+            defer { subscription?.cancel() }
+            lifecycleStage = stage + "-host-close"
+            await model.closeReader()
+            lifecycleStage = stage + "-shelf-format-completion"
+            if let formatReady { await fulfillment(of: [formatReady], timeout: 8) }
+            try require(model.shelfFormatLabel(for: book) == "TXT",
+                        "The private Model must finish its real shelf metadata read before closing Core")
+        }
+        func closeEvidence(_ model: ReaderApplicationModel, book: ReaderBook, stage: String) {
+            lifecycleStage = stage
+            let attachment = XCTAttachment(string: "stage=\(stage) shelfFormat=\(model.shelfFormatLabel(for: book)) readerClosed=\(model.reader == nil)\n"
+                + "sourceId=\(book.sourceId) bookId=\(book.bookId)")
+            attachment.name = "native-scalar-lifecycle-" + stage; attachment.lifetime = .keepAlways; add(attachment)
         }
         func mount(_ model: ReaderApplicationModel, session: ReaderActiveSession,
                    width: CGFloat, font: CGFloat, turn: UUID? = nil) {
@@ -198,9 +223,11 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
             let reflowFlushed = await model.flushReading()
             let afterReflow = try await library.progress(for: imported.book)
             try require(reflowFlushed && afterReflow == saved, "Reflow must not replace the original acknowledged Core position")
-            unmount(); await model.closeReader()
+            unmount(); try await closeReader(model, book: imported.book, stage: "original")
             try require(model.reader == nil, "The original Host session must close before its Core")
+            closeEvidence(model, book: imported.book, stage: "original-before-core-close")
             try await library.close()
+            closeEvidence(model, book: imported.book, stage: "original-after-core-close")
             let reopened = try ReaderLibraryService(storageURL: coreURL, sourceURL: sourcesURL)
             services.append(reopened)
             let coldModel = ReaderApplicationModel(service: reopened, readingTimeStorageURL: root.appendingPathComponent("Time-2.json"))
@@ -223,15 +250,17 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
             try require(retained.path.hasPrefix(sourcesURL.path + "/"), "Retained source must belong to this private UUID library")
             try require(try Data(contentsOf: input) == original && Data(contentsOf: retained) == original,
                         "Both the provisioned original and retained source must remain byte-identical")
-            unmount(); await coldModel.closeReader()
+            unmount(); try await closeReader(coldModel, book: imported.book, stage: "cold")
             try require(coldModel.reader == nil, "The cold Host must close before successful cleanup")
+            closeEvidence(coldModel, book: imported.book, stage: "cold-before-core-close")
             try await reopened.close(); activeModel = nil
+            closeEvidence(coldModel, book: imported.book, stage: "cold-after-core-close")
             try manager.removeItem(at: root)
         } catch {
             unmount()
             if let activeModel { await activeModel.closeReader() }
             for library in services { try? await library.close() }
-            let attachment = XCTAttachment(string: "Preserved failed private Core/Sources: " + root.path)
+            let attachment = XCTAttachment(string: "stage=\(lifecycleStage) error=\(error)\nPreserved failed private Core/Sources: " + root.path)
             attachment.name = "native-scalar-failure-root"; attachment.lifetime = .keepAlways; add(attachment)
             throw error
         }
