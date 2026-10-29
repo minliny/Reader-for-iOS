@@ -4,17 +4,369 @@ import XCTest
 import CoreImage
 import ImageIO
 
-/// Select on an explicitly owned iPad simulator after the real system picker
-/// has imported this unchanged Downloads original. No Runtime call, launch
-/// argument, generated content or simulated window geometry participates.
+/// Use the explicitly owned platform and an unchanged, real picker-imported
+/// Downloads original. No Runtime call or generated reading fixture participates.
 final class ReaderPlatformJourneyTests: XCTestCase {
     private let originalBookID = "book-local:aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5"
-    private enum Prerequisite: Error { case iPadRequired, invalidViewport, maximumContentSizeRequired }
+    private enum Prerequisite: Error { case iPadRequired, invalidViewport, maximumContentSizeRequired, physicalTextSize(String) }
     private var lastOCRGeometry = ""
     private var lastOCRLines: [String] = []
     private var lastOCRImage: UIImage?
 
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    /// Physical portrait only. Settings owns the system value; the Runner's
+    /// category is an observation, never a substitute for Reader's real UI.
+    @MainActor
+    func testPhysicalIPhoneSystemMaximumTextControlsPreserveOriginalReading() throws {
+        let app = XCUIApplication(), settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        func fail(_ fact: String, _ owner: XCUIApplication) -> Error {
+            evidence(owner, name: "physical-system-text-failure-" + fact)
+            let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screen.name = "physical-system-text-failure-actual-screen"; screen.lifetime = .keepAlways; add(screen)
+            return Prerequisite.physicalTextSize(fact)
+        }
+        func require(_ fact: Bool, _ name: String, _ owner: XCUIApplication) throws {
+            guard fact else { throw fail(name, owner) }
+        }
+        func record(_ name: String, _ facts: [String: Any]) throws {
+            let item = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+            item.name = name; item.lifetime = .keepAlways; add(item)
+        }
+        func observed(_ fact: String, timeout: TimeInterval = 5, owner: XCUIApplication, _ condition: @escaping () -> Bool) throws {
+            let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            try require(XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed, fact, owner)
+        }
+        func fullyVisible(_ element: XCUIElement, in owner: XCUIElement) -> Bool {
+            let frame = element.frame
+            return element.exists && frame.width > 0 && frame.height > 0
+                && app.frame.insetBy(dx: -1, dy: -1).contains(frame)
+                && owner.frame.insetBy(dx: -1, dy: -1).contains(frame)
+        }
+        #if targetEnvironment(simulator)
+        throw fail("physical-iPhone-required", app)
+        #else
+        try require(UIDevice.current.userInterfaceIdiom == .phone, "physical-iPhone-required", app)
+        #endif
+        try require(ProcessInfo.processInfo.environment["READER_PHYSICAL_SYSTEM_TEXT_CHANGE_AUTHORIZED"] == "1",
+                    "explicit-physical-system-text-change-authorization-required", app)
+        app.launch()
+        try observed("normal-original-library", timeout: 20, owner: app) { app.buttons["更多书架操作"].isHittable }
+        try require(app.frame.height > app.frame.width, "portrait-window-required-no-rotation", app)
+        try require(!app.textFields["shelf-filter"].exists && app.buttons["搜索本地书架"].isHittable,
+                    "this-journey-requires-a-new-closed-shelf-query", app)
+        app.buttons["搜索本地书架"].tap()
+        let filter = app.textFields["shelf-filter"]
+        try require(filter.waitForExistence(timeout: 5) && filter.isHittable, "shelf-query-owner", app)
+        evidence(app, name: "physical-system-text-before-native-shelf-query")
+        // This field was created by this method. Its empty SwiftUI value can
+        // be nil; only the actual typed echo is a required String observation.
+        filter.tap(); filter.typeText("仙子请听我解释\n")
+        try require((filter.value as? String) == "仙子请听我解释", "this-shelf-query-exact-typed-echo", app)
+        try observed("shelf-keyboard-closed", owner: app) { !app.keyboards.firstMatch.exists }
+        let book = app.buttons[originalBookID]
+        try require(book.waitForExistence(timeout: 15) && book.isHittable, "existing-original-TXT-required-no-import", app)
+        evidence(app, name: "physical-system-text-existing-original-library"); book.tap()
+        let body = app.textViews["reading-body"]
+        try observed("original-body-ready", timeout: 20, owner: app) { body.isHittable }
+        func openControls() throws {
+            if !app.buttons["control-grabber"].isHittable {
+                try require(body.isHittable && fullyVisible(body, in: app), "current-body-controls-entry", app)
+                evidence(app, name: "physical-system-text-before-native-controls-entry")
+                body.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+            }
+            try observed("native-controls-ready", owner: app) { app.buttons["control-grabber"].isHittable }
+        }
+        func closeControls() throws {
+            let close = app.buttons.matching(NSPredicate(format: "label == %@", "收起阅读控制"))
+            try require(close.count == 1 && close.element.isHittable, "unique-normal-controls-close", app)
+            evidence(app, name: "physical-system-text-before-native-controls-close")
+            close.element.tap()
+            try observed("native-body-owns-input", owner: app) { body.isHittable && !app.buttons["control-grabber"].isHittable }
+        }
+        try openControls()
+        let chapterQuery = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+        let readingBook = app.staticTexts["reading-book:local|" + String(originalBookID.dropFirst("book-".count))]
+        try require(chapterQuery.count == 1 && readingBook.exists, "original-reading-identity", app)
+        let chapterID = chapterQuery.element.identifier, chapterLabel = chapterQuery.element.label
+        let chapterTitle = chapterLabel.components(separatedBy: " · ").first ?? chapterLabel
+        try require(UInt32(chapterID.dropFirst("reading-chapter:".count)) != nil && !chapterTitle.isEmpty,
+                    "current-chapter-readable-no-seek", app)
+        try closeControls()
+        let progress = app.staticTexts["reading-progress"]
+        try require(progress.exists && !progress.label.isEmpty, "original-native-progress", app)
+        let originalProgress = progress.label
+        evidence(app, name: "physical-system-text-original-body-before-Settings")
+        let baselineLines = try ocr(app)
+        let prose = baselineLines.filter { normalized($0) != normalized(chapterTitle) && normalized($0) != normalized("仙子请听我解释") }
+        var proseText = normalized(prose.joined())
+        if proseText.hasPrefix(normalized(chapterTitle)) { proseText.removeFirst(normalized(chapterTitle).count) }
+        let anchor = String(proseText.prefix(24))
+        try require(anchor.count >= 18 && anchor.unicodeScalars.filter { (0x3400...0x9FFF).contains($0.value) }.count >= 18,
+                    "current-body-needs-natural-18-to-24-character-anchor-no-reposition", app)
+        let originalCategory = UIApplication.shared.preferredContentSizeCategory
+        try record("physical-system-text-original-reading", ["chapterID": chapterID, "chapterLabel": chapterLabel,
+            "nativeProgress": originalProgress, "bodyOCR": baselineLines, "anchor": anchor,
+            "runnerCategoryOnly": originalCategory.rawValue, "chapterSelectionOrSeek": false])
+
+        let largerTitles = ["更大字体", "Larger Text"]
+        let largerSwitchLabels = ["更大的辅助功能字体", "Larger Accessibility Sizes"]
+        func onPage(_ titles: [String]) -> Bool {
+            settings.state == .runningForeground && settings.navigationBars.matching(NSPredicate(format: "label IN %@ OR identifier IN %@", titles as NSArray, titles as NSArray)).count == 1
+        }
+        func openLargerText() throws {
+            settings.activate()
+            try observed("Settings-foreground", owner: settings) { settings.state == .runningForeground }
+            if onPage(largerTitles) { return }
+            let backLabels = ["设置", "Settings", "辅助功能", "Accessibility", "显示与文字大小", "Display & Text Size", "返回", "Back"]
+            for _ in 0..<6 {
+                if onPage(["设置", "Settings"]) { break }
+                let back = settings.navigationBars.buttons.matching(NSPredicate(format: "label IN %@ OR identifier == 'BackButton'", backLabels as NSArray))
+                    .allElementsBoundByIndex.filter(\.isHittable)
+                try require(back.count == 1, "Settings-known-unique-back-owner-before-change", settings)
+                back[0].tap()
+            }
+            try require(onPage(["设置", "Settings"]), "Settings-root-before-change", settings)
+            for labels in [["辅助功能", "Accessibility"], ["显示与文字大小", "Display & Text Size"], largerTitles] {
+                let deadline = ProcessInfo.processInfo.systemUptime + 15
+                var row: XCUIElement?
+                for step in 0...6 {
+                    let rows = settings.cells.allElementsBoundByIndex.filter {
+                        $0.isHittable && $0.staticTexts.matching(NSPredicate(format: "label IN %@", labels as NSArray)).count == 1
+                    }
+                    if rows.count == 1 { row = rows[0]; break }
+                    try require(rows.isEmpty, "Settings-route-owner-ambiguous", settings)
+                    if step == 6 || ProcessInfo.processInfo.systemUptime >= deadline { break }
+                    let owners = settings.tables.allElementsBoundByIndex.filter(\.isHittable)
+                        + settings.collectionViews.allElementsBoundByIndex.filter(\.isHittable)
+                    try require(owners.count == 1, "Settings-route-scroll-owner-before-change", settings)
+                    owners[0].swipeUp()
+                }
+                guard let row else { throw fail("Settings-exact-route-not-found-before-change", settings) }
+                evidence(settings, name: "physical-system-text-Settings-route-" + labels[1]); row.tap()
+                try observed("Settings-exact-page-" + labels[1], owner: settings) { onPage(labels) }
+            }
+        }
+        struct SystemTextValue {
+            let switchValue: Int, sliderPosition: CGFloat, sliderValue: String
+            let toggle: XCUIElement, slider: XCUIElement
+            var facts: [String: Any] { ["largerAccessibilitySwitch": switchValue, "sliderActualValue": sliderValue,
+                "sliderNormalizedPosition": Double(sliderPosition), "switchFrame": NSCoder.string(for: toggle.frame),
+                "switchIdentifier": toggle.identifier, "switchLabel": toggle.label,
+                "sliderIdentifier": slider.identifier, "sliderLabel": slider.label, "sliderFrame": NSCoder.string(for: slider.frame)] }
+        }
+        func inspectTextValue() -> SystemTextValue? {
+            guard onPage(largerTitles) else { return nil }
+            let owners = settings.switches.matching(NSPredicate(format: "label IN %@", largerSwitchLabels as NSArray)).allElementsBoundByIndex
+            // Settings can expose a labelled row switch with one native child.
+            let parents = owners.filter { $0.descendants(matching: .switch).count == 1 }
+            guard let owner = parents.count == 1 ? parents.first : (owners.count == 1 ? owners.first : nil) else { return nil }
+            let children = owner.descendants(matching: .switch)
+            let toggle = children.count == 1 ? children.element : owner
+            func binary(_ value: Any?) -> Int? {
+                if let text = value as? String, text == "0" || text == "1" { return Int(text) }
+                if let number = value as? NSNumber, number == 0 || number == 1 { return number.intValue }
+                return nil
+            }
+            let sliders = settings.sliders
+            guard let switchValue = binary(owner.value), binary(toggle.value) == switchValue, sliders.count == 1,
+                  toggle.isEnabled, toggle.frame.width > 0, toggle.frame.height > 0, owner.frame.contains(toggle.frame) else { return nil }
+            let slider = sliders.element
+            guard slider.isEnabled, slider.frame.width > 0, slider.frame.height > 0, let raw = slider.value as? String else { return nil }
+            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            let percent = value.hasSuffix("%")
+            guard let number = Double(percent ? String(value.dropLast()) : value), number.isFinite,
+                  number >= 0, number <= (percent ? 100 : 1) else { return nil }
+            return SystemTextValue(switchValue: switchValue, sliderPosition: CGFloat(percent ? number / 100 : number),
+                                   sliderValue: raw, toggle: toggle, slider: slider)
+        }
+        func textValue(_ stage: String) throws -> SystemTextValue {
+            guard let value = inspectTextValue() else { throw fail("Settings-unreadable-or-nonunique-system-text-" + stage, settings) }
+            evidence(settings, name: "physical-system-text-Settings-" + stage)
+            try record("physical-system-text-Settings-value-" + stage, value.facts)
+            return value
+        }
+        func exposeSettingsControl(_ control: XCUIElement) throws {
+            let deadline = ProcessInfo.processInfo.systemUptime + 15
+            for step in 0...6 {
+                if control.isHittable && settings.frame.contains(control.frame) { return }
+                try require(onPage(largerTitles) && control.exists && control.frame.width > 0 && control.frame.height > 0,
+                            "Settings-known-control-frame-required", settings)
+                if step == 6 || ProcessInfo.processInfo.systemUptime >= deadline { break }
+                let owners = settings.tables.allElementsBoundByIndex.filter(\.isHittable)
+                    + settings.collectionViews.allElementsBoundByIndex.filter(\.isHittable)
+                try require(owners.count == 1, "Settings-system-text-scroll-owner", settings)
+                if control.frame.midY < owners[0].frame.midY { owners[0].swipeDown() } else { owners[0].swipeUp() }
+            }
+            throw fail("Settings-known-control-not-reached-within-bound", settings)
+        }
+        func setTextValue(switchValue: Int, position: CGFloat, exactValue: String?) throws {
+            let before = try textValue("before-native-change")
+            if before.switchValue != switchValue {
+                try exposeSettingsControl(before.toggle)
+                evidence(settings, name: "physical-system-text-before-native-system-switch")
+                before.toggle.tap()
+                try observed("Settings-switch-native-change-readback", owner: settings) { inspectTextValue()?.switchValue == switchValue }
+            }
+            let actual = try textValue("before-native-slider")
+            if actual.sliderPosition != position {
+                try exposeSettingsControl(actual.slider)
+                evidence(settings, name: "physical-system-text-before-native-system-slider")
+                actual.slider.adjust(toNormalizedSliderPosition: position)
+            }
+            try observed("Settings-slider-native-change-readback", owner: settings) {
+                guard let readback = inspectTextValue() else { return false }
+                return readback.switchValue == switchValue && readback.sliderPosition == position
+                    && (exactValue == nil || readback.sliderValue == exactValue)
+            }
+        }
+        func observeRunnerCategory(_ stage: String, expected: UIContentSizeCategory) throws {
+            let observation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                UIApplication.shared.preferredContentSizeCategory == expected
+            }, object: nil)
+            let result = XCTWaiter.wait(for: [observation], timeout: 2)
+            try record("physical-system-text-Runner-category-" + stage, ["runnerCategoryOnly": UIApplication.shared.preferredContentSizeCategory.rawValue,
+                "expectedRunnerCategory": expected.rawValue, "observedWithinTwoSeconds": result == .completed,
+                "notAnAUTCategoryAssertion": true])
+        }
+        try openLargerText()
+        let original = try textValue("original-before-any-mutation")
+        try require(original.toggle.isHittable && original.slider.isHittable
+                    && settings.frame.contains(original.toggle.frame) && settings.frame.contains(original.slider.frame),
+                    "both-original-system-controls-visible-before-any-mutation", settings)
+        var restorationPending = false
+        // Register only after both actual original values are known, before
+        // either can change. A thrown restore adds a separate teardown issue.
+        addTeardownBlock { @MainActor in
+            if restorationPending {
+                do {
+                    try openLargerText()
+                    try setTextValue(switchValue: original.switchValue, position: original.sliderPosition, exactValue: original.sliderValue)
+                    _ = try textValue("teardown-exact-original-restored")
+                    try observeRunnerCategory("teardown-restored", expected: originalCategory)
+                    restorationPending = false
+                } catch {
+                    evidence(settings, name: "physical-system-text-teardown-restoration-failure")
+                    app.activate()
+                    XCTFail("Original system text restoration was attempted and remains unconfirmed: \(error)")
+                }
+                app.activate()
+            }
+        }
+        restorationPending = true
+        try setTextValue(switchValue: 1, position: 1, exactValue: nil)
+        let maximum = try textValue("maximum-system-readback")
+        try require(maximum.switchValue == 1 && maximum.sliderPosition == 1, "actual-system-maximum-required", settings)
+        try observeRunnerCategory("maximum", expected: .accessibilityExtraExtraExtraLarge)
+
+        app.activate()
+        try observed("original-reader-returned-at-maximum", owner: app) { body.isHittable }
+        try require(app.frame.height > app.frame.width, "portrait-retained", app)
+        try openControls()
+        try require(chapterQuery.count == 1 && chapterQuery.element.identifier == chapterID && chapterQuery.element.label == chapterLabel,
+                    "maximum-retains-original-chapter", app)
+        let outer = app.scrollViews["control-content-scroll"]
+        try require(outer.waitForExistence(timeout: 5) && outer.isHittable, "AUT-actual-adaptive-content-scroll", app)
+        var verticalGestures = 0, horizontalGestures = 0
+        func revealVertically(_ element: XCUIElement) throws {
+            let deadline = ProcessInfo.processInfo.systemUptime + 20
+            for step in 0...10 {
+                if fullyVisible(element, in: outer) && element.isHittable { return }
+                try require(element.exists && element.frame.width > 0 && element.frame.height > 0, "real-control-frame-required-no-invented-target", app)
+                if step == 10 || ProcessInfo.processInfo.systemUptime >= deadline { break }
+                evidence(app, name: "physical-system-text-before-native-vertical-\(verticalGestures)")
+                if element.frame.midY < outer.frame.midY { outer.swipeDown() } else { outer.swipeUp() }
+                verticalGestures += 1
+            }
+            throw fail("bounded-outer-scroll-control-not-fully-reached", app)
+        }
+        func painted(_ text: String, on element: XCUIElement, stage: String) throws {
+            try revealVertically(element)
+            evidence(app, name: stage)
+            assertWithinWindow(element, app: app, label: stage)
+            try assertShortLabel(text, on: element, app: app, name: stage)
+        }
+        evidence(app, name: "physical-system-text-actual-header-allows-existing-one-line-ellipsis")
+        let header = actualElement("reading-header-surface", app: app)
+        let bookTitle = actualElement("reading-header-book-title", app: app)
+        let chapter = actualElement("reading-header-chapter-title", app: app)
+        assertWithinWindow(header, app: app, label: "actual portrait reading header")
+        assertContained(bookTitle, in: header, name: "actual one-line book title")
+        assertContained(chapter, in: header, name: "actual one-line chapter title")
+        try require(bookTitle.frame.maxY <= chapter.frame.minY + 1, "header-labels-do-not-overlap", app)
+        let bookTitleOCR = try ocr(app, region: bookTitle.frame), chapterTitleOCR = try ocr(app, region: chapter.frame)
+        try require(!normalized(bookTitleOCR.joined()).isEmpty && !normalized(chapterTitleOCR.joined()).isEmpty, "actual-header-has-painted-text", app)
+        try record("physical-system-text-actual-header-OCR", ["bookTitleOCR": bookTitleOCR,
+            "chapterTitleOCR": chapterTitleOCR, "existingSingleLineEllipsisAllowed": true,
+            "fullAXTitleIsNotFullPaintedTitleProof": true])
+        let summaryChapter = outer.staticTexts.matching(NSPredicate(format: "label == %@", chapterTitle))
+        try require(summaryChapter.count == 1, "current-quick-chapter-title-owner", app)
+        try painted(chapterTitle, on: summaryChapter.element, stage: "physical-system-text-quick-current-chapter")
+        for pattern in ["[0-9]{1,3}%", "共 [0-9]+ 章"] {
+            let label = outer.staticTexts.matching(NSPredicate(format: "label MATCHES %@", pattern))
+            try require(label.count == 1, "quick-progress-or-total-owner", app)
+            try painted(label.element.label, on: label.element, stage: "physical-system-text-quick-" + pattern)
+        }
+        for title in ["搜索", "自动翻页", "替换"] {
+            let action = outer.buttons.matching(NSPredicate(format: "label == %@", title))
+            try require(action.count == 1, "quick-action-unique-owner-" + title, app)
+            try painted(title, on: action.element, stage: "physical-system-text-quick-action-" + title)
+            // Readability/reachability only: never start automatic page turns,
+            // search, replacement, a chapter change, or a download.
+        }
+        for (module, title) in [("directory", "目录"), ("appearance", "外观"), ("settings", "设置"), ("home", "阅读")] {
+            let navigation = outer.scrollViews.allElementsBoundByIndex.filter {
+                $0.buttons["control-module-home"].exists && $0.buttons["control-module-settings"].exists
+            }
+            try require(navigation.count == 1, "actual-module-horizontal-scroll-owner", app)
+            let nav = navigation[0], button = app.buttons["control-module-" + module]
+            try revealVertically(nav)
+            let deadline = ProcessInfo.processInfo.systemUptime + 10
+            for step in 0...4 {
+                if fullyVisible(button, in: nav) && button.isHittable { break }
+                try require(button.exists && button.frame.width > 0, "actual-module-frame", app)
+                if step == 4 || ProcessInfo.processInfo.systemUptime >= deadline { break }
+                evidence(app, name: "physical-system-text-before-native-horizontal-\(horizontalGestures)")
+                if button.frame.midX < nav.frame.midX { nav.swipeRight() } else { nav.swipeLeft() }
+                horizontalGestures += 1
+            }
+            try require(fullyVisible(button, in: nav) && button.isHittable && button.isEnabled, "bounded-module-reachable-" + module, app)
+            evidence(app, name: "physical-system-text-before-native-module-" + module)
+            try assertShortLabel(title, on: button, app: app, name: "physical-system-text-module-" + module)
+            button.tap()
+            try observed("actual-module-selected-" + module, owner: app) { button.isSelected }
+            if module == "directory" {
+                let expand = app.buttons["expand-controls"]
+                try painted("展开", on: expand, stage: "physical-system-text-expand-action"); expand.tap()
+                try observed("actual-full-endpoint", owner: app) { expand.label == "收起" }
+                try painted("收起", on: expand, stage: "physical-system-text-collapse-action"); expand.tap()
+                try observed("actual-quick-endpoint", owner: app) { expand.label == "展开" }
+            }
+        }
+        try record("physical-system-text-actual-native-scrolls", ["verticalGestures": verticalGestures, "horizontalGestures": horizontalGestures,
+            "onlyModuleSelectionAndExpandCollapse": true, "rotationAndShortViewport": "NOT_RUN"])
+        try closeControls()
+        try openLargerText()
+        try setTextValue(switchValue: original.switchValue, position: original.sliderPosition, exactValue: original.sliderValue)
+        _ = try textValue("normal-exact-original-restored")
+        restorationPending = false
+        try observeRunnerCategory("normal-restored", expected: originalCategory)
+        app.activate()
+        try observed("restored-original-reader", owner: app) { body.isHittable && progress.exists }
+        try require(progress.label == originalProgress, "restored-original-native-progress", app)
+        evidence(app, name: "physical-system-text-restored-original-body")
+        try assertVisible(anchor, app: app, name: "physical-system-text-restored-original-visible-anchor")
+        try openControls()
+        try require(chapterQuery.count == 1 && chapterQuery.element.identifier == chapterID && chapterQuery.element.label == chapterLabel,
+                    "restored-original-chapter", app)
+        let leave = app.buttons["leave-reader"]
+        try require(leave.isHittable && leave.isEnabled, "normal-original-reader-exit", app); leave.tap()
+        try observed("normal-original-library-return", timeout: 20, owner: app) { app.buttons["更多书架操作"].isHittable }
+        try require(filter.exists && app.buttons["搜索本地书架"].isHittable, "this-shelf-query-normal-close", app)
+        app.buttons["搜索本地书架"].tap()
+        try observed("this-shelf-query-closed", owner: app) { !filter.exists }
+        evidence(app, name: "physical-system-text-original-library-and-system-values-restored")
+    }
 
     func testIPadPortraitLandscapeRetainsOriginalTXTAnchorAndDirectoryWithinWindow() throws {
         guard UIDevice.current.userInterfaceIdiom == .pad else {
