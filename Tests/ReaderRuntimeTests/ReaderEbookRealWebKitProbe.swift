@@ -30,9 +30,9 @@ enum ReaderEbookRealWebKitProbe {
             var selected: (ReaderChapterContent, ReaderEbookDocument)?
             let chapters = try await library.chapters(for: book)
             for chapter in chapters.filter({ !$0.url.isEmpty }).prefix(16) {
+                let content = try await library.content(for: book, chapterIndex: chapter.index)
                 let document = try await library.ebookPresentation(for: book, chapterIndex: chapter.index)
                 guard document.entryPath == "OEBPS/Text/Cha1.xhtml" else { continue }
-                let content = try await library.content(for: book, chapterIndex: chapter.index)
                 try document.validate(content: content)
                 selected = (content, document); break
             }
