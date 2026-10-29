@@ -512,6 +512,61 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
         }
     }
 
+    func testDiscardDraftConfirmationRejectsABAAndRetiredEditor() async throws {
+        // Exercise the real registered alert callback and persisted draft. A
+        // subscription DTO here is controlled metadata, not a remote package.
+        for boundary in 0..<10 {
+            let service = SubscriptionLifecycleService()
+            let domain = "ReaderSubscriptionDiscard-" + UUID().uuidString
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+            defer { defaults.removePersistentDomain(forName: domain); service.release() }
+            let state = ReaderRuleSubscriptionPanelModel(service: service, defaults: defaults)
+            defer { state.retire() }
+            state.activate(); state.edit(service.subscription)
+            state.draft.name = "User retained input"
+            await waitUntil("The initial panel read completed", { state.loaded && !state.loading })
+            let confirmation = ReaderNativeAlertOwner()
+            confirmation.confirm("放弃这个草稿？", message: "已保存的订阅不受影响。",
+                actionTitle: "放弃", destructive: true,
+                action: try XCTUnwrap(state.makeDiscardDraftConfirmation()))
+            let request = try XCTUnwrap(confirmation.request)
+            switch boundary {
+            case 0: break // The same live editor may discard its own draft.
+            case 1:
+                let original = state.draft.name
+                state.draft.name = original + " changed"; state.draft.name = original
+            case 2: state.draft.name += " changed"
+            case 3: state.editorPresented = false; state.editorPresented = true
+            case 4: state.setForeground(false); state.setForeground(true)
+            case 5: state.retire(); state.activate()
+            case 6: state.setForeground(false)
+            case 7: state.editorPresented = false
+            case 8: state.retire()
+            default:
+                XCTAssertTrue(state.actions.restoreAccepted(id: UUID().uuidString, label: "Unresolved original",
+                    scope: "rule-subscriptions/810", action: { id in throw ReaderLibraryError.operationPending(id) }))
+            }
+            let retained = state.draft, presented = state.editorPresented
+            let bytes = defaults.data(forKey: "reader.ruleSubscriptions.draft.v1")
+            let identity = defaults.data(forKey: "reader.ruleSubscriptions.draftIdentity.v1")
+            request.action()
+            if boundary == 0 {
+                XCTAssertFalse(state.draft.isPresent); XCTAssertFalse(state.editorPresented)
+                XCTAssertNil(defaults.data(forKey: "reader.ruleSubscriptions.draft.v1"))
+                XCTAssertNil(defaults.data(forKey: "reader.ruleSubscriptions.draftIdentity.v1"))
+            } else {
+                XCTAssertEqual(state.draft, retained, "A retired confirmation must not clear current input")
+                XCTAssertEqual(state.editorPresented, presented)
+                XCTAssertEqual(defaults.data(forKey: "reader.ruleSubscriptions.draft.v1"), bytes)
+                XCTAssertEqual(defaults.data(forKey: "reader.ruleSubscriptions.draftIdentity.v1"), identity)
+                let restored = ReaderRuleSubscriptionPanelModel(service: service, defaults: defaults)
+                XCTAssertEqual(restored.draft, retained, "Rejected stale confirmation preserves cold restoration")
+            }
+            XCTAssertTrue(service.writes.isEmpty); XCTAssertEqual(service.checks, 0)
+            XCTAssertNil(state.pendingIntent)
+        }
+    }
+
     func testMissingOriginalReviewCannotResurrectSubscriptionAndNewDraftDoesNotReview() async throws {
         let service = SubscriptionLifecycleService()
         let domain = "ReaderSubscriptionMissingReview-" + UUID().uuidString
@@ -530,7 +585,7 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
         state.confirmDraftReview(review)
         XCTAssertEqual(state.draft, captured); XCTAssertNil(state.draft.baseline)
         XCTAssertTrue(service.writes.isEmpty); XCTAssertNil(state.pendingIntent)
-        state.discardDraft(captured)
+        try XCTUnwrap(state.makeDiscardDraftConfirmation())()
         state.newOrContinueDraft()
         XCTAssertEqual(state.draft.baseline, .absent)
         XCTAssertFalse(state.supportsDraftReview); XCTAssertFalse(state.canReviewDraft)

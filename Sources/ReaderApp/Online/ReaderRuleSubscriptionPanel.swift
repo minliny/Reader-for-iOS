@@ -299,9 +299,15 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
         draftFailure = nil; editorPresented = true
     }
 
-    func discardDraft(_ captured: ReaderSubscriptionDraft) {
-        guard canMutate, draft == captured else { return }
-        draft = ReaderSubscriptionDraft(); editorPresented = false
+    func makeDiscardDraftConfirmation() -> (() -> Void)? {
+        guard active, foreground, editorPresented, canMutate, draft.isPresent else { return nil }
+        let captured = draft, revision = draftRevision, generation = draftReviewGeneration
+        return { [weak self] in
+            guard let self, self.active, self.foreground, self.editorPresented, self.canMutate,
+                  self.draft.isPresent, self.draft == captured,
+                  self.draftRevision == revision, self.draftReviewGeneration == generation else { return }
+            self.draft = ReaderSubscriptionDraft(); self.editorPresented = false
+        }
     }
 
     func saveDraft() {
@@ -729,10 +735,8 @@ struct ReaderRuleSubscriptionPanel: View {
                     if let review = state.draftReview { draftComparison(review) }
                     operationStatus
                     Button("放弃草稿", role: .destructive) {
-                        let captured = state.draft
-                        editorConfirmation.confirm("放弃这个草稿？", message: "已保存的订阅不受影响。", actionTitle: "放弃", destructive: true) {
-                            state.discardDraft(captured)
-                        }
+                        guard let discard = state.makeDiscardDraftConfirmation() else { return }
+                        editorConfirmation.confirm("放弃这个草稿？", message: "已保存的订阅不受影响。", actionTitle: "放弃", destructive: true, action: discard)
                     }.frame(minHeight: 44).disabled(!state.canMutate)
                 }.padding(20)
             }
