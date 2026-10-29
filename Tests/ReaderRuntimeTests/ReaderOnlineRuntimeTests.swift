@@ -502,7 +502,7 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
     func testRealBaiduCandidateRejectsDeclaredPreviewAndPreservesFreeBodyWithoutShelfAdmission() async throws {
         executionTimeAllowance = 90
         let start = ContinuousClock.now, initialFailures = testRun?.failureCount ?? 0
-        let expectedSHA = "26ab6aae6fb080fb077f1bf49e2b84ac0a676733dc8dc87f785e03d79f4f78d2"
+        let expectedSHA = "1344379b0583a11d00320d56e1f1167cfeed258c54f689c888b1f68e3bd02d37"
         let sourceID = "https://dushu.baidu.com/"
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealBaiduPreview-" + UUID().uuidString)
         let sourceURL = root.appendingPathComponent("Sources"), operations = sourceURL.appendingPathComponent(".operations")

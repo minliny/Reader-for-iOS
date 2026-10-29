@@ -43,7 +43,7 @@
       "chapterList": "data.chapter.chapterInfo",
       "chapterName": "chapter_title##默认卷.|正文.|[\\(（【].*?[求更谢乐发订合补加].*?[】）\\)]",
       "chapterUrl": "https://dushu.baidu.com/api/pc/getChapterContent?data=%7B%22book_id%22:%22{$.book_id}%22,%22cid%22:%22{$.book_id}%7C{$.chapter_id}%22,%22need_bookinfo%22:0%7D",
-      "isVip": "$.price_status@js:result === \"1\" || result === 1 ? true : result === \"0\" || result === 0 ? false : undefined"
+      "isVip": "$.price_status@js:var status = String(result); status === \"1\" ? true : status === \"0\" ? false : undefined"
     },
     "searchUrl": "/api/getSearchResultData?page={{page}}&count=10&query={{key}}",
     "bookSourceComment": "对该接口明确返回的试读响应报告未取得完整正文；不会把试读片段作为完整章节。"
