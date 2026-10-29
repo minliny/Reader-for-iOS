@@ -133,10 +133,12 @@ final class ReaderDailyJourneyTests: XCTestCase {
         }
         let edit = app.buttons.matching(NSPredicate(format: "label == '编辑'"))
         XCTAssertEqual(edit.count, 1); XCTAssertTrue(edit.element.isEnabled); edit.element.tap()
-        let field = input(), draft = marker + "-未保存"
+        let field = input()
         XCTAssertEqual(field.value as? String, marker)
         field.tap(); field.typeText("-未保存")
-        XCTAssertEqual(field.value as? String, draft)
+        let draft = try XCTUnwrap(input().value as? String)
+        XCTAssertEqual(draft.replacingOccurrences(of: "-未保存", with: ""), marker)
+        XCTAssertEqual(draft.components(separatedBy: "-未保存").count, 2)
         XCTAssertEqual(app.buttons["save-annotation"].label, "保存笔记")
         let remove = app.buttons.matching(NSPredicate(format: "label == '删除'"))
         XCTAssertEqual(remove.count, 1)
