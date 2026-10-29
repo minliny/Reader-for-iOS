@@ -13,6 +13,62 @@ final class ReaderDailyJourneyTests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// One existing original TXT. Only an actually empty bookmark list permits
+    /// creation and removal of this method's one new native bookmark.
+    func testExistingRealTXTBookmarkDraftBlocksDeletionAndOwnedBookmarkCanBeRemoved() throws {
+        executionTimeAllowance = 180
+        let app = XCUIApplication()
+        app.launch()
+        openContinuationBook(firstID, title: firstTitle, ebook: false, app: app)
+        openModule("directory", app: app)
+        app.buttons["directory-bookmarks"].tap()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'bookmark-'"))
+        let add = app.buttons["add-bookmark"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        waitUntil("The original bookmark list has finished loading", timeout: 10) {
+            !app.staticTexts["正在读取书签"].exists &&
+                (app.staticTexts["暂无书签"].exists || rows.count > 0)
+        }
+        guard app.staticTexts["暂无书签"].exists, rows.count == 0 else {
+            XCTFail("Require an actually empty original-book list; never remove existing user bookmarks")
+            return
+        }
+        add.tap()
+        waitUntil("One actual newly created bookmark is visible", timeout: 15) { rows.count == 1 }
+        let ownedID = try XCTUnwrap(rows.allElementsBoundByIndex.first?.identifier)
+        XCTAssertTrue(ownedID.hasPrefix("bookmark-"))
+        let ownership = XCTAttachment(string: "originalBook=\(firstID)\ninitialBookmarks=0\nownedNativeBookmark=\(ownedID)")
+        ownership.name = "actual-created-bookmark-ownership-before-editor"; ownership.lifetime = .keepAlways; add(ownership)
+        let edit = app.buttons.matching(NSPredicate(format: "label == '备注'"))
+        XCTAssertEqual(edit.count, 1); XCTAssertTrue(edit.element.isEnabled); edit.element.tap()
+        let note = app.textFields["书签备注"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        let marker = "书签备注保留-" + String(UUID().uuidString.prefix(8))
+        note.tap(); note.typeText(marker + "\n")
+        XCTAssertEqual(note.value as? String, marker)
+        let remove = app.buttons.matching(NSPredicate(format: "label == '删除'"))
+        XCTAssertEqual(remove.count, 1); XCTAssertTrue(remove.element.isEnabled); remove.element.tap()
+        XCTAssertTrue(app.staticTexts["请先保存或取消当前书签备注"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.alerts["删除书签"].exists)
+        XCTAssertTrue(app.buttons[ownedID].exists)
+        XCTAssertEqual(note.value as? String, marker, "Blocking deletion must retain the exact unsaved draft")
+        let cancel = app.buttons.matching(NSPredicate(format: "label == '取消'"))
+        XCTAssertEqual(cancel.count, 1); cancel.element.tap()
+        XCTAssertFalse(note.exists)
+        XCTAssertTrue(app.buttons[ownedID].exists); XCTAssertEqual(rows.count, 1)
+        remove.element.tap()
+        let confirmation = app.alerts["删除书签"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["删除"].tap()
+        waitUntil("The one owned bookmark is removed through the normal confirmation", timeout: 15) {
+            !app.buttons[ownedID].exists && rows.count == 0 && app.staticTexts["暂无书签"].exists
+        }
+        let facts = XCTAttachment(string: "originalBook=\(firstID)\ninitialBookmarks=0\ncreatedAndRemovedNativeBookmark=\(ownedID)\nunsavedDraftRetainedAfterBlockedDeletion=true\noriginalUserBookmarksRemoved=0\nCore ACK details require their actual receipt; AX ownership is not a fabricated ACK")
+        facts.name = "actual-bookmark-draft-deletion-and-owned-cleanup"; facts.lifetime = .keepAlways; add(facts)
+        hideControls(app)
+        leaveContinuation(ebook: false, app: app)
+    }
+
     /// Existing-book continuation only. This does not complete the two-TXT
     /// journey, create bookmarks, change preferences or move either position.
     func testExistingRealTXTAndEPUBAlternateAndColdReopenPreserveIndependentVisibleAnchors() throws {

@@ -89,11 +89,13 @@ struct ReaderBookmarkPanel: View {
                                 }.accessibilityIdentifier("bookmark-\(bookmark.id)")
                                 HStack {
                                     Button("备注") { state.editing = bookmark; state.note = bookmark.content }
+                                        .disabled(model.actions.hasPending || state.loading)
                                     Spacer()
                                     Button("删除", role: .destructive) {
+                                        guard acceptsRemoval(bookmark) else { return }
                                         confirmation.confirm("删除书签", message: bookmark.chapterName,
                                             actionTitle: "删除", destructive: true) { remove(bookmark) }
-                                    }
+                                    }.disabled(model.actions.hasPending || state.loading)
                                 }.font(ReaderTypography.font(.caption)).frame(minHeight: 44)
                             }.padding(12).background(ReaderPalette(scheme).readElevated, in: RoundedRectangle(cornerRadius: 8)).id(String(describing: bookmark.id))
                         }
@@ -124,9 +126,18 @@ struct ReaderBookmarkPanel: View {
             state.bookmarks = result; state.failure = nil
         } catch { if generation == state.generation, !Task.isCancelled { state.failure = error.localizedDescription } }
     }
+    private func acceptsRemoval(_ bookmark: ReaderBookmark) -> Bool {
+        guard state.editing?.id != bookmark.id else {
+            model.showFeedback("请先保存或取消当前书签备注")
+            return false
+        }
+        return true
+    }
     private func remove(_ bookmark: ReaderBookmark) {
-        guard let feature = model.libraryService as? any ReaderLibraryFeatures else { return }
+        guard acceptsRemoval(bookmark),
+              let feature = model.libraryService as? any ReaderLibraryFeatures else { return }
         Task {
+            guard acceptsRemoval(bookmark) else { return }
             if await model.actions.perform("删除书签", scope: book.id, action: { id in
                 try await feature.deleteBookmark(bookmark, operationID: id)
             }) { await load() }
