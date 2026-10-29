@@ -226,3 +226,94 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
         var selections: [(UInt64, UInt64, String)] = []
     }
 }
+
+/// Platform font and layout-budget checks only; no book/Core fixture or claim
+/// of whole-reader rendering, physical touch, or accessibility acceptance.
+@MainActor
+final class ReaderControlAccessibilityLayoutTests: XCTestCase {
+    private let categories: [UIContentSizeCategory] = [
+        .extraSmall, .small, .medium, .large, .extraLarge, .extraExtraLarge, .extraExtraExtraLarge,
+        .accessibilityMedium, .accessibilityLarge, .accessibilityExtraLarge,
+        .accessibilityExtraExtraLarge, .accessibilityExtraExtraExtraLarge
+    ]
+
+    func testDefaultAndSmallerControlGeometryKeepsFrozenHostMetrics() {
+        for category in categories.prefix(4) {
+            let traits = UITraitCollection(preferredContentSizeCategory: category)
+            let scale = UIFontMetrics(forTextStyle: .body).scaledValue(for: 1, compatibleWith: traits)
+            let layout = ReaderMetrics.controlContent(bodyScale: scale)
+            XCTAssertFalse(layout.adaptsText, category.rawValue)
+            XCTAssertEqual(layout.actionLabelHeight, 13)
+            XCTAssertEqual(layout.actionHeight, 55.438, accuracy: 0.0001)
+            XCTAssertEqual(layout.summaryHeight, 108.563, accuracy: 0.0001)
+            XCTAssertEqual(layout.actionPanelHeight, 75.438, accuracy: 0.0001)
+            XCTAssertEqual(layout.moduleLabelHeight, 15)
+            XCTAssertEqual(layout.moduleButtonHeight, 62)
+            XCTAssertEqual(layout.navigationHeight, 80)
+            XCTAssertEqual(layout.headerHeight, 30)
+            XCTAssertEqual(layout.contentTop(progress: 0), 29)
+            XCTAssertEqual(layout.contentTop(progress: 1), 57)
+            XCTAssertEqual(layout.quickViewportHeight(dockHeight: 330), 190)
+            XCTAssertEqual(layout.quickViewportHeight(dockHeight: 252), 112)
+            XCTAssertEqual(layout.fullViewportHeight(dockHeight: 736), 666)
+            XCTAssertEqual(layout.quickDockHeight(baseline: 330, fullHeight: 736), 330)
+            XCTAssertFalse(layout.needsIntegratedScroll(quickHeight: 330))
+            XCTAssertFalse(layout.needsIntegratedScroll(quickHeight: 252))
+        }
+    }
+
+    func testLargerControlBudgetsFitRegisteredNativeFontsForEveryContentSizeCategory() throws {
+        ReaderFonts.registerBundledFonts()
+        var observations: [[String: Any]] = []
+        for category in categories.dropFirst(4) {
+            let traits = UITraitCollection(preferredContentSizeCategory: category)
+            let metrics = UIFontMetrics(forTextStyle: .body)
+            let scale = metrics.scaledValue(for: 1, compatibleWith: traits)
+            let layout = ReaderMetrics.controlContent(bodyScale: scale)
+            XCTAssertTrue(layout.adaptsText, category.rawValue)
+            XCTAssertGreaterThanOrEqual(layout.moduleMinimumWidth, ReaderMetrics.minimumHitSize)
+            let labels: [(ReaderTypeface, CGFloat, CGFloat, CGFloat)] = [
+                (.inter, 11, 800, layout.actionLabelHeight), (.uiBold, 10, 700, layout.moduleLabelHeight),
+                (.inter, 13, 700, layout.chapterTitleHeight), (.inter, 9, 400, layout.progressLabelHeight),
+                (.uiBold, 14, 700, layout.headerLabelHeight), (.uiBold, 10, 700, layout.collapseLabelHeight)
+            ]
+            for (face, size, weight, budget) in labels {
+                let registered = ReaderFonts.uiFont(face, size: size, weight: weight)
+                let native = metrics.scaledFont(for: registered, compatibleWith: traits)
+                let cjk = metrics.scaledFont(for: ReaderFonts.uiFont(.ui, size: size), compatibleWith: traits)
+                XCTAssertEqual(native.familyName, registered.familyName)
+                XCTAssertGreaterThan(native.pointSize, registered.pointSize)
+                XCTAssertGreaterThanOrEqual(budget, native.lineHeight, "\(category.rawValue): \(native.fontName)")
+                XCTAssertGreaterThanOrEqual(budget, cjk.lineHeight, "\(category.rawValue): registered CJK fallback budget")
+                observations.append(["category": category.rawValue, "bodyScale": scale,
+                    "font": native.fontName, "pointSize": native.pointSize,
+                    "nativeLineHeight": native.lineHeight, "cjkLineHeight": cjk.lineHeight, "budget": budget])
+            }
+        }
+        let evidence = XCTAttachment(data: try JSONSerialization.data(withJSONObject: observations, options: [.sortedKeys]),
+            uniformTypeIdentifier: "public.json")
+        evidence.name = "control-dynamic-type-registered-font-line-heights"; evidence.lifetime = .keepAlways; add(evidence)
+    }
+
+    func testShortControlViewportUsesOneScrollableBudgetIncludingNavigation() {
+        for category in categories {
+            let traits = UITraitCollection(preferredContentSizeCategory: category)
+            let scale = UIFontMetrics(forTextStyle: .body).scaledValue(for: 1, compatibleWith: traits)
+            let layout = ReaderMetrics.controlContent(bodyScale: scale)
+            for height in [CGFloat(80), 120, 160] {
+                let quick = layout.quickDockHeight(baseline: 252, fullHeight: height)
+                XCTAssertEqual(quick, height)
+                XCTAssertTrue(layout.needsIntegratedScroll(quickHeight: quick), category.rawValue)
+                for hasHeader in [false, true] {
+                    let viewport = layout.integratedViewportHeight(dockHeight: height, hasHeader: hasHeader)
+                    XCTAssertGreaterThan(viewport, 0)
+                    XCTAssertLessThanOrEqual(layout.integratedTop(hasHeader: hasHeader) + viewport, height)
+                    XCTAssertEqual(layout.integratedTop(hasHeader: hasHeader) + viewport + layout.bottomGap, height)
+                }
+                XCTAssertGreaterThan(layout.quickNaturalHeight + layout.navigationGap + layout.navigationHeight,
+                                     layout.integratedViewportHeight(dockHeight: height, hasHeader: false),
+                                     "The navigation belongs inside the same scroll when its natural contents cannot fit")
+            }
+        }
+    }
+}

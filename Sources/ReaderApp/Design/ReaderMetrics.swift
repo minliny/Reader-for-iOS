@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Geometry from Host@33f7c7b. All values are logical points, never screen pixels.
 enum ReaderMetrics {
@@ -86,6 +87,83 @@ enum ReaderMetrics {
             dockBottomPadding: max(0, max(expanded ? 33 : 19, safe.bottom) - safe.bottom),
             fullHeight: full,
             quickHeight: min(expanded ? Self.wideQuickHeight : Self.quickHeight, full))
+    }
+
+    static func controlContent(bodyScale: CGFloat) -> ReaderControlContentLayout {
+        ReaderControlContentLayout(bodyScale: bodyScale)
+    }
+}
+
+/// One content budget for the dock. The frozen <= Large path keeps authored
+/// points; larger text uses the same Body scale as ReaderTextStyle's fonts.
+struct ReaderControlContentLayout {
+    let adaptsText: Bool
+    let actionLabelHeight: CGFloat
+    let moduleLabelHeight: CGFloat
+    let chapterTitleHeight: CGFloat
+    let progressLabelHeight: CGFloat
+    let headerLabelHeight: CGFloat
+    let collapseLabelHeight: CGFloat
+    let moduleMinimumWidth: CGFloat
+
+    init(bodyScale: CGFloat) {
+        let scale = bodyScale.isFinite ? max(1, bodyScale) : 1
+        adaptsText = scale > 1.0001
+        func line(_ face: ReaderTypeface, _ size: CGFloat, _ weight: CGFloat = 400) -> CGFloat {
+            // Include the registered CJK face in the budget for labels whose
+            // Latin font delegates Chinese glyphs to a fallback.
+            ceil(max(ReaderFonts.uiFont(face, size: size * scale, weight: weight).lineHeight,
+                     ReaderFonts.uiFont(.ui, size: size * scale).lineHeight))
+        }
+        actionLabelHeight = adaptsText ? max(13, line(.inter, 11, 800)) : 13
+        moduleLabelHeight = adaptsText ? max(15, line(.uiBold, 10, 700)) : 15
+        chapterTitleHeight = adaptsText ? max(34, line(.inter, 13, 700)) : 34
+        progressLabelHeight = adaptsText ? max(30, line(.inter, 9)) : 30
+        headerLabelHeight = adaptsText ? max(20, line(.uiBold, 14, 700)) : 20
+        collapseLabelHeight = adaptsText ? max(14, line(.uiBold, 10, 700)) : 14
+        let font = ReaderFonts.uiFont(.uiBold, size: 10 * scale)
+        moduleMinimumWidth = adaptsText
+            ? max(ReaderMetrics.minimumHitSize,
+                  ceil(["阅读", "目录", "外观", "设置"].map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0) + 20)
+            : 0
+    }
+
+    let quickTop: CGFloat = 29
+    let headerTop: CGFloat = 19
+    let headerGap: CGFloat = 8
+    let bottomGap: CGFloat = 13
+    let navigationGap: CGFloat = 18
+    let navigationExpansionOffset: CGFloat = 20
+    let quickSectionGap: CGFloat = 6
+    let chapterRowHeight: CGFloat = 52.563
+    var stepSize: CGFloat { adaptsText ? 44 : 34 }
+    var actionHeight: CGFloat { adaptsText ? max(44, actionLabelHeight + 20) : 55.438 }
+    var actionPanelHeight: CGFloat { adaptsText ? actionHeight * 3 + 34 : 75.438 }
+    var summaryHeight: CGFloat { adaptsText ? chapterTitleHeight * 2 + stepSize + progressLabelHeight + 44 + 46 : 108.563 }
+    var quickNaturalHeight: CGFloat { adaptsText ? summaryHeight + quickSectionGap + actionPanelHeight : 190 }
+    var moduleButtonHeight: CGFloat { 42 + 5 + moduleLabelHeight }
+    var navigationHeight: CGFloat { moduleButtonHeight + 18 }
+    var headerHeight: CGFloat { adaptsText ? headerLabelHeight + max(44, collapseLabelHeight + 16) + 8 : 30 }
+    var fullTop: CGFloat { headerTop + headerHeight + headerGap }
+
+    func contentTop(progress: CGFloat) -> CGFloat { quickTop + (fullTop - quickTop) * progress }
+    func quickViewportHeight(dockHeight: CGFloat) -> CGFloat {
+        min(quickNaturalHeight, max(0, dockHeight - quickTop - navigationHeight - bottomGap - navigationGap))
+    }
+    func fullViewportHeight(dockHeight: CGFloat) -> CGFloat { max(0, dockHeight - fullTop - bottomGap) }
+    func quickDockHeight(baseline: CGFloat, fullHeight: CGFloat) -> CGFloat {
+        guard adaptsText else { return min(baseline, fullHeight) }
+        return min(fullHeight, max(baseline, quickTop + quickNaturalHeight + navigationHeight + bottomGap + navigationGap))
+    }
+    func needsIntegratedScroll(quickHeight: CGFloat) -> Bool {
+        adaptsText || quickHeight < quickTop + navigationHeight + bottomGap + navigationGap + ReaderMetrics.minimumHitSize
+    }
+    func integratedTop(hasHeader: Bool) -> CGFloat { hasHeader ? headerTop : quickTop }
+    func integratedViewportHeight(dockHeight: CGFloat, hasHeader: Bool) -> CGFloat {
+        max(0, dockHeight - integratedTop(hasHeader: hasHeader) - bottomGap)
+    }
+    func integratedPanelHeight(fullHeight: CGFloat) -> CGFloat {
+        max(120, fullViewportHeight(dockHeight: fullHeight))
     }
 }
 

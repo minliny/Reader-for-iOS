@@ -55,6 +55,7 @@ struct ReaderReadingView: View {
     @StateObject private var dockHitDiagnostics = ReaderDockHitDiagnostics()
     #endif
     @ScaledMetric(relativeTo: .body) private var footerHeight: CGFloat = 24
+    @ScaledMetric(relativeTo: .body) private var controlBodyScale: CGFloat = 1
 
     init(model: ReaderApplicationModel, preferences: ReaderPreferences, session: ReaderActiveSession) {
         self.model = model; self.preferences = preferences; self.session = session
@@ -65,6 +66,7 @@ struct ReaderReadingView: View {
     private var palette: ReaderPalette { ReaderPalette(preferences.appDark ? .dark : .light) }
     private var controlsVisible: Bool { motion.isPresented }
     private var fullProgress: CGFloat { motion.expansion }
+    private var controlContentLayout: ReaderControlContentLayout { ReaderMetrics.controlContent(bodyScale: controlBodyScale) }
     private var effectiveReduceMotion: Bool { reduceMotion || preferences.reduceMotion }
     private var surfaceIdentity: String {
         "\(session.book.id)|\(session.content.chapterIndex)|\(session.content.bodyVersion ?? "")|\(session.content.processingVersion ?? "")"
@@ -152,6 +154,7 @@ struct ReaderReadingView: View {
                 .onChange(of: geometry.size) { _, size in configureMotion(size: size, safe: geometry.safeAreaInsets) }
                 .onChange(of: geometry.safeAreaInsets) { _, safe in configureMotion(size: geometry.size, safe: safe) }
                 .onChange(of: module) { _, _ in configureMotion(size: geometry.size, safe: geometry.safeAreaInsets) }
+                .onChange(of: controlBodyScale) { _, _ in configureMotion(size: geometry.size, safe: geometry.safeAreaInsets) }
                 .onPreferenceChange(ReaderReadingHeaderHeightKey.self) { height in
                     // A hidden/unmounted header contributes the empty preference.
                     // Retain its last real measurement for the next presentation.
@@ -360,84 +363,50 @@ struct ReaderReadingView: View {
         let inset = min(13, width / 4)
         let fullWidth = max(0, width - inset * 2)
         let quickWidth = max(0, fullWidth - 52)
-        let quickContentHeight = min(190, max(0, motion.quickHeight - 140))
+        let contentLayout = controlContentLayout
+        let integrated = contentLayout.needsIntegratedScroll(quickHeight: motion.quickHeight)
+        let quickContentHeight = contentLayout.quickViewportHeight(dockHeight: motion.quickHeight)
         let contentWidth = quickWidth + (fullWidth - quickWidth) * p
-        let contentHeight = quickContentHeight + (max(0, motion.fullHeight - 70) - quickContentHeight) * p
+        let contentHeight = quickContentHeight + (contentLayout.fullViewportHeight(dockHeight: motion.fullHeight) - quickContentHeight) * p
         let endpointInput = !pointerHeld && !motion.isDragging && (p == 0 || p == 1) && motion.visibility > 0
         return ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 24).fill(palette.app("TOK_READ_SURFACE"))
                 .frame(width: width, height: height)
             RoundedRectangle(cornerRadius: 24).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1)
                 .frame(width: width, height: height).allowsHitTesting(false)
-            if module != .home {
-                RoundedRectangle(cornerRadius: 12).fill(palette.panel)
-                    .frame(width: fullWidth, height: max(0, motion.fullHeight - 70))
-                    .offset(x: inset, y: 57).opacity(p).allowsHitTesting(false)
-                RoundedRectangle(cornerRadius: 8).fill(palette.panel)
-                    .frame(width: contentWidth, height: contentHeight)
-                    .offset(x: inset, y: 29 + 28 * p).opacity(1 - p).allowsHitTesting(false)
-            }
-            Group {
-                if module == .home {
-                    if quickContentHeight < 190 {
-                        ScrollView { quickContent }.scrollIndicators(.hidden)
-                    } else { quickContent }
-                } else if module == .directory { directoryContent }
-                else if module == .appearance {
-                    ScrollView {
-                        ReaderReadingPreferencesPanel(preferences: preferences, fontLibrary: fontLibrary,
-                            supportsBottomAlignment: !originalFormat && preferences.pageMode == .paged).padding(12)
-                    }.scrollIndicators(.hidden)
+            if integrated {
+                integratedControlContent(layout: contentLayout, width: fullWidth, endpointInput: endpointInput)
+                    .frame(width: fullWidth, height: contentLayout.integratedViewportHeight(dockHeight: height, hasHeader: module != .home))
+                    .offset(x: inset, y: contentLayout.integratedTop(hasHeader: module != .home))
+                    .allowsHitTesting(endpointInput).accessibilityHidden(!endpointInput)
+            } else {
+                if module != .home {
+                    RoundedRectangle(cornerRadius: 12).fill(palette.panel)
+                        .frame(width: fullWidth, height: contentLayout.fullViewportHeight(dockHeight: motion.fullHeight))
+                        .offset(x: inset, y: contentLayout.fullTop).opacity(p).allowsHitTesting(false)
+                    RoundedRectangle(cornerRadius: 8).fill(palette.panel)
+                        .frame(width: contentWidth, height: contentHeight)
+                        .offset(x: inset, y: contentLayout.contentTop(progress: p)).opacity(1 - p).allowsHitTesting(false)
                 }
-                else if module == .search { ReaderContentSearchPanel(model: model, state: textTools, book: session.book) }
-                else if module == .notes { ReaderAnnotationsPanel(model: model, state: textTools, book: session.book, presentationActive: controlsVisible) }
-                else if module == .rules { ReaderRuleToolsPanel(model: model, state: rules, book: session.book, presentationActive: controlsVisible) }
-                else if module == .records { ReaderReadingRecordPanel(model: model) }
-                else if module == .autoPage {
-                    ReaderAutoPagePanel(owner: automaticPage, preferences: preferences, progress: p, available: automaticPageAvailable,
-                        previousEnabled: session.chapters.first?.index != session.content.chapterIndex && !model.chapterLoading,
-                        nextEnabled: session.chapters.last?.index != session.content.chapterIndex && !model.chapterLoading,
-                        previous: { automaticPage.pause(); Task { await model.moveChapter(-1) } },
-                        next: { automaticPage.pause(); Task { await model.moveChapter(1) } },
-                        start: startAutomaticPage)
+                dockModuleContent(layout: contentLayout, quickContentHeight: quickContentHeight, integrated: false)
+                    .frame(width: contentWidth, height: max(0, contentHeight), alignment: .topLeading)
+                    .clipped().offset(x: inset, y: contentLayout.contentTop(progress: p))
+                    .allowsHitTesting(endpointInput).accessibilityHidden(!endpointInput)
+                if module != .home {
+                    controlModuleHeader(layout: contentLayout)
+                        .frame(width: fullWidth, height: contentLayout.headerHeight)
+                        .offset(x: inset, y: contentLayout.headerTop)
+                        .opacity(p).allowsHitTesting(endpointInput && p > 0)
                 }
-                else { readingSettings }
-            }.frame(width: contentWidth, height: max(0, contentHeight), alignment: .topLeading)
-                .clipped().offset(x: inset, y: 29 + 28 * p)
-                .allowsHitTesting(endpointInput)
-                .accessibilityHidden(!endpointInput)
-            if module != .home {
-                HStack {
-                    if !moduleParents.isEmpty {
-                        ReaderIconAction(icon: .back, label: "返回上一级阅读工具") { backModule() }
-                    }
-                    Text(moduleTitle).font(ReaderTypography.font(.controlHeader))
-                    Spacer()
-                    Button { if p > 0.5 { collapse() } else { expand() } } label: {
-                        HStack(spacing: 4) {
-                            Text(p > 0.5 ? "收起" : "展开").font(ReaderTypography.font(.controlCollapse))
-                            ReaderIcon(.chevronDown, size: 16).rotationEffect(.degrees(p > 0.5 ? 0 : 180))
-                        }.frame(minWidth: 64, minHeight: 30)
-                    }.buttonStyle(ReaderPressFeedback()).accessibilityIdentifier("expand-controls")
-                }.frame(width: fullWidth, height: 30).offset(x: inset, y: 19)
-                    .opacity(p).allowsHitTesting(endpointInput && p > 0)
+                ReaderBrightnessRail(owner: brightness)
+                    .offset(x: width - 13.56 - 38 + (38 + 13.56) * p, y: contentLayout.quickTop)
+                    .opacity(1 - p).allowsHitTesting(endpointInput && p < 1)
+                    .accessibilityHidden(!endpointInput || p >= 1)
+                moduleNavigation(layout: contentLayout, width: max(0, width - 24))
+                    .offset(x: 12, y: height - contentLayout.navigationHeight - contentLayout.bottomGap + contentLayout.navigationExpansionOffset * p)
+                    .opacity(1 - p).allowsHitTesting(endpointInput && p < 1)
+                    .accessibilityHidden(!endpointInput || p >= 1)
             }
-            ReaderBrightnessRail(owner: brightness)
-                .offset(x: width - 13.56 - 38 + (38 + 13.56) * p, y: 29)
-                .opacity(1 - p).allowsHitTesting(endpointInput && p < 1)
-                .accessibilityHidden(!endpointInput || p >= 1)
-            HStack(spacing: 4) {
-                moduleButton(.home, icon: .bookshelf, label: "阅读")
-                moduleButton(.directory, icon: .directory, label: "目录")
-                moduleButton(.appearance, icon: .appearance, label: "外观")
-                moduleButton(.settings, icon: .settings, label: "设置")
-            }.padding(.leading, 9).padding(.top, 9)
-                .frame(width: max(0, width - 24), height: 80)
-                .background(palette.app("TOK_SURFACE_SOLID_OPAQUE"), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
-                .offset(x: 12, y: height - 93 + 20 * p)
-                .opacity(1 - p).allowsHitTesting(endpointInput && p < 1)
-                .accessibilityHidden(!endpointInput || p >= 1)
             Capsule().fill(palette.app("TOK_READ_HANDLE")).frame(width: 42, height: 4)
                 .offset(x: (width - 42) / 2, y: 9).allowsHitTesting(false)
             ReaderControlTouchCap(
@@ -474,75 +443,227 @@ struct ReaderReadingView: View {
             #endif
     }
 
+    @ViewBuilder
+    private func dockModuleContent(layout: ReaderControlContentLayout, quickContentHeight: CGFloat, integrated: Bool) -> some View {
+        Group {
+            if module == .home {
+                if !integrated && quickContentHeight < layout.quickNaturalHeight {
+                    ScrollView { quickContent(layout) }.scrollIndicators(.hidden)
+                } else { quickContent(layout) }
+            } else if module == .directory { directoryContent }
+            else if module == .appearance {
+                ScrollView {
+                    ReaderReadingPreferencesPanel(preferences: preferences, fontLibrary: fontLibrary,
+                        supportsBottomAlignment: !originalFormat && preferences.pageMode == .paged).padding(12)
+                }.scrollIndicators(.hidden)
+            }
+            else if module == .search { ReaderContentSearchPanel(model: model, state: textTools, book: session.book) }
+            else if module == .notes { ReaderAnnotationsPanel(model: model, state: textTools, book: session.book, presentationActive: controlsVisible) }
+            else if module == .rules { ReaderRuleToolsPanel(model: model, state: rules, book: session.book, presentationActive: controlsVisible) }
+            else if module == .records { ReaderReadingRecordPanel(model: model) }
+            else if module == .autoPage {
+                ReaderAutoPagePanel(owner: automaticPage, preferences: preferences, progress: fullProgress, available: automaticPageAvailable,
+                    previousEnabled: session.chapters.first?.index != session.content.chapterIndex && !model.chapterLoading,
+                    nextEnabled: session.chapters.last?.index != session.content.chapterIndex && !model.chapterLoading,
+                    previous: { automaticPage.pause(); Task { await model.moveChapter(-1) } },
+                    next: { automaticPage.pause(); Task { await model.moveChapter(1) } },
+                    start: startAutomaticPage)
+            }
+            else { readingSettings }
+        }
+    }
+
+    private func integratedControlContent(layout: ReaderControlContentLayout, width: CGFloat, endpointInput: Bool) -> some View {
+        let p = fullProgress
+        return ScrollView {
+            VStack(spacing: 0) {
+                if module != .home {
+                    controlModuleHeader(layout: layout)
+                        .frame(minHeight: layout.headerHeight)
+                        .padding(.bottom, layout.headerGap)
+                }
+                HStack(alignment: .top, spacing: 14) {
+                    dockModuleContent(layout: layout, quickContentHeight: layout.quickNaturalHeight, integrated: true)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .frame(height: module == .home ? nil : layout.integratedPanelHeight(fullHeight: motion.fullHeight))
+                    if p < 1 {
+                        ReaderBrightnessRail(owner: brightness).frame(width: ReaderMetrics.brightnessRail.width)
+                            .opacity(1 - p).accessibilityHidden(!endpointInput)
+                    }
+                }
+                if p < 1 {
+                    moduleNavigation(layout: layout, width: width).opacity(1 - p)
+                        .padding(.top, layout.navigationGap)
+                }
+            }.frame(width: width, alignment: .topLeading)
+        }.scrollIndicators(.visible).accessibilityIdentifier("control-content-scroll")
+    }
+
+    @ViewBuilder private func controlModuleHeader(layout: ReaderControlContentLayout) -> some View {
+        if layout.adaptsText {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(moduleTitle).font(ReaderTypography.font(.controlHeader))
+                    .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.headerLabelHeight)
+                HStack {
+                    if !moduleParents.isEmpty { ReaderIconAction(icon: .back, label: "返回上一级阅读工具") { backModule() } }
+                    Spacer()
+                    expandControl(layout: layout)
+                }
+            }
+        } else {
+            HStack {
+                if !moduleParents.isEmpty { ReaderIconAction(icon: .back, label: "返回上一级阅读工具") { backModule() } }
+                Text(moduleTitle).font(ReaderTypography.font(.controlHeader))
+                Spacer()
+                expandControl(layout: layout)
+            }
+        }
+    }
+
+    private func expandControl(layout: ReaderControlContentLayout) -> some View {
+        Button { if fullProgress > 0.5 { collapse() } else { expand() } } label: {
+            HStack(spacing: 4) {
+                Text(fullProgress > 0.5 ? "收起" : "展开").font(ReaderTypography.font(.controlCollapse))
+                ReaderIcon(.chevronDown, size: 16).rotationEffect(.degrees(fullProgress > 0.5 ? 0 : 180))
+            }.frame(minWidth: 64, minHeight: layout.adaptsText ? max(44, layout.collapseLabelHeight + 16) : 30)
+        }.buttonStyle(ReaderPressFeedback()).accessibilityIdentifier("expand-controls")
+    }
+
+    private func moduleNavigation(layout: ReaderControlContentLayout, width: CGFloat) -> some View {
+        Group {
+            if layout.adaptsText {
+                ScrollView(.horizontal) { moduleButtons(layout: layout) }.scrollIndicators(.visible)
+            } else { moduleButtons(layout: layout) }
+        }.padding(.leading, 9).padding(.top, 9)
+            .frame(width: width, height: layout.navigationHeight)
+            .background(palette.app("TOK_SURFACE_SOLID_OPAQUE"), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
+    }
+
+    private func moduleButtons(layout: ReaderControlContentLayout) -> some View {
+        HStack(spacing: 4) {
+            moduleButton(.home, icon: .bookshelf, label: "阅读", layout: layout)
+            moduleButton(.directory, icon: .directory, label: "目录", layout: layout)
+            moduleButton(.appearance, icon: .appearance, label: "外观", layout: layout)
+            moduleButton(.settings, icon: .settings, label: "设置", layout: layout)
+        }
+    }
+
     private var moduleTitle: String {
         switch module { case .home: return "阅读"; case .directory: return "目录"; case .appearance: return "外观"
         case .search: return "正文搜索"; case .notes: return "高亮与笔记"; case .rules: return "规则"
         case .settings: return "阅读设置"; case .records: return "阅读记录"; case .autoPage: return "自动翻页" }
     }
 
-    private var quickContent: some View {
-        VStack(spacing: 6) {
-            // Host@33f7c7b ReaderControlPanel.ets:1652–1788.
-            VStack(spacing: 0) {
+    @ViewBuilder private func quickContent(_ layout: ReaderControlContentLayout) -> some View {
+        if layout.adaptsText { accessibleQuickContent(layout) } else {
+            VStack(spacing: layout.quickSectionGap) {
+                // Host@33f7c7b ReaderControlPanel.ets:1652–1788.
+                VStack(spacing: 0) {
+                    HStack(spacing: 8) {
+                        chapterStep(-1, icon: .chevronLeft, label: "上一章", layout: layout)
+                        Text(session.content.chapterTitle)
+                            .font(ReaderTextStyle(.inter, 13, 700, lineHeight: 16.25).font)
+                            .foregroundStyle(palette.readInk).lineLimit(1)
+                            .frame(maxWidth: .infinity).frame(height: layout.chapterTitleHeight)
+                        chapterStep(1, icon: .chevronRight, label: "下一章", layout: layout)
+                    }.frame(height: layout.chapterTitleHeight).padding(.horizontal, 11).padding(.top, 10)
+                        .frame(height: layout.chapterRowHeight)
+                    HStack(spacing: 0) {
+                        Text("\(Int(((scrubFraction ?? fraction) * 100).rounded()))%")
+                            .frame(width: 26.23, alignment: .leading)
+                        ReaderChapterProgressSlider(value: scrubFraction ?? fraction,
+                            changed: { scrubFraction = $0 },
+                            committed: { model.seek(to: $0); scrubFraction = nil },
+                            cancelled: { scrubFraction = nil })
+                            .frame(maxWidth: .infinity).frame(height: layout.progressLabelHeight)
+                            .accessibilityLabel("章节阅读进度").accessibilityIdentifier("chapter-progress")
+                        Text("共 \(session.chapters.count) 章")
+                            .minimumScaleFactor(0.8).allowsTightening(true)
+                            .frame(width: 39, height: layout.progressLabelHeight, alignment: .trailing).padding(.leading, 5.5)
+                    }
+                    .font(ReaderTextStyle(.inter, 9, 400, lineHeight: 9).font)
+                    .foregroundStyle(palette.app("TOK_READ_MUTED")).lineLimit(1)
+                    .frame(height: layout.progressLabelHeight).padding(.horizontal, 11).padding(.top, 6).frame(height: layout.progressLabelHeight)
+                }.frame(height: layout.summaryHeight, alignment: .top)
+                    .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
                 HStack(spacing: 8) {
-                    chapterStep(-1, icon: .chevronLeft, label: "上一章")
-                    Text(session.content.chapterTitle)
-                        .font(ReaderTextStyle(.inter, 13, 700, lineHeight: 16.25).font)
-                        .foregroundStyle(palette.readInk).lineLimit(1)
-                        .frame(maxWidth: .infinity).frame(height: 34)
-                    chapterStep(1, icon: .chevronRight, label: "下一章")
-                }.frame(height: 34).padding(.horizontal, 11).padding(.top, 10)
-                    .frame(height: 52.563)
-                HStack(spacing: 0) {
-                    Text("\(Int(((scrubFraction ?? fraction) * 100).rounded()))%")
-                        .frame(width: 26.23, alignment: .leading)
-                    ReaderChapterProgressSlider(value: scrubFraction ?? fraction,
-                        changed: { scrubFraction = $0 },
-                        committed: { model.seek(to: $0); scrubFraction = nil },
-                        cancelled: { scrubFraction = nil })
-                        .frame(maxWidth: .infinity).frame(height: 30)
-                        .accessibilityLabel("章节阅读进度").accessibilityIdentifier("chapter-progress")
-                    Text("共 \(session.chapters.count) 章")
-                        .minimumScaleFactor(0.8).allowsTightening(true)
-                        .frame(width: 39, height: 30, alignment: .trailing).padding(.leading, 5.5)
+                    quickAction("搜索", icon: .search, layout: layout) { select(.search) }
+                    quickAction("自动翻页", icon: .autoPage, layout: layout) { select(.autoPage) }
+                    quickAction("替换", icon: .replace, layout: layout) { select(.rules) }
+                }.padding(.leading, 9).frame(height: layout.actionPanelHeight)
+                    .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
+            }
+        }
+    }
+
+    private func accessibleQuickContent(_ layout: ReaderControlContentLayout) -> some View {
+        VStack(spacing: layout.quickSectionGap) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(session.content.chapterTitle).font(ReaderTextStyle(.inter, 13, 700, lineHeight: 16.25).font)
+                    .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.chapterTitleHeight)
+                HStack {
+                    chapterStep(-1, icon: .chevronLeft, label: "上一章", layout: layout)
+                    Spacer()
+                    chapterStep(1, icon: .chevronRight, label: "下一章", layout: layout)
                 }
-                .font(ReaderTextStyle(.inter, 9, 400, lineHeight: 9).font)
-                .foregroundStyle(palette.app("TOK_READ_MUTED")).lineLimit(1)
-                .frame(height: 30).padding(.horizontal, 11).padding(.top, 6).frame(height: 30)
-            }.frame(height: 108.563, alignment: .top)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(Int(((scrubFraction ?? fraction) * 100).rounded()))%")
+                    Text("共 \(session.chapters.count) 章")
+                }.font(ReaderTextStyle(.inter, 9, 400, lineHeight: 9).font)
+                    .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.progressLabelHeight)
+                    .foregroundStyle(palette.app("TOK_READ_MUTED"))
+                ReaderChapterProgressSlider(value: scrubFraction ?? fraction,
+                    changed: { scrubFraction = $0 }, committed: { model.seek(to: $0); scrubFraction = nil },
+                    cancelled: { scrubFraction = nil }).frame(height: 44)
+                    .accessibilityLabel("章节阅读进度").accessibilityIdentifier("chapter-progress")
+            }.padding(11).frame(maxWidth: .infinity, alignment: .leading)
                 .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
-            HStack(spacing: 8) {
-                quickAction("搜索", icon: .search) { select(.search) }
-                quickAction("自动翻页", icon: .autoPage) { select(.autoPage) }
-                quickAction("替换", icon: .replace) { select(.rules) }
-            }.padding(.leading, 9).frame(height: 75.438)
+            VStack(spacing: 8) {
+                quickAction("搜索", icon: .search, layout: layout) { select(.search) }
+                quickAction("自动翻页", icon: .autoPage, layout: layout) { select(.autoPage) }
+                quickAction("替换", icon: .replace, layout: layout) { select(.rules) }
+            }.padding(9).frame(maxWidth: .infinity)
                 .background(palette.panel, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(palette.app("TOK_LINE_STRONG"), lineWidth: 1))
         }
     }
 
-    private func chapterStep(_ delta: Int, icon: ReaderIconName, label: String) -> some View {
+    private func chapterStep(_ delta: Int, icon: ReaderIconName, label: String, layout: ReaderControlContentLayout) -> some View {
         let enabled = !model.chapterLoading && (delta < 0
             ? session.chapters.first?.index != session.content.chapterIndex
             : session.chapters.last?.index != session.content.chapterIndex)
         return Button { Task { await model.moveChapter(delta) } } label: {
-            ReaderIcon(icon, size: 20).frame(width: 34, height: 34)
+            ReaderIcon(icon, size: 20).frame(width: layout.stepSize, height: layout.stepSize)
                 .background(enabled ? palette.readElevated : palette.app("TOK_READ_DISABLED_BG"), in: Circle())
                 .opacity(enabled ? 1 : 0.4)
         }.buttonStyle(ReaderPressFeedback()).disabled(!enabled).accessibilityLabel(label)
     }
 
-    private func quickAction(_ title: String, icon: ReaderIconName, action: @escaping () -> Void) -> some View {
+    private func quickAction(_ title: String, icon: ReaderIconName, layout: ReaderControlContentLayout, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            // Host@33f7c7b ReaderControlPanel.ets:1615–1637.
-            VStack(spacing: 0) {
-                ReaderIcon(icon, size: 24).padding(.top, 4.72)
-                Text(title).font(ReaderTextStyle(.inter, 11, 800, lineHeight: 13).font)
-                    .foregroundStyle(palette.readInk).lineLimit(1)
-                    .frame(maxWidth: .infinity).frame(height: 13).padding(.top, 5.78)
-            }.frame(maxWidth: .infinity).frame(height: 55.438, alignment: .top)
-                .background(palette.readElevated, in: RoundedRectangle(cornerRadius: 8))
+            if layout.adaptsText {
+                HStack(spacing: 10) {
+                    ReaderIcon(icon, size: 24)
+                    Text(title).font(ReaderTextStyle(.inter, 11, 800, lineHeight: 13).font)
+                        .fixedSize(horizontal: false, vertical: true).frame(minHeight: layout.actionLabelHeight)
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 12).padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: layout.actionHeight)
+                    .background(palette.readElevated, in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                // Host@33f7c7b ReaderControlPanel.ets:1615–1637.
+                VStack(spacing: 0) {
+                    ReaderIcon(icon, size: 24).padding(.top, 4.72)
+                    Text(title).font(ReaderTextStyle(.inter, 11, 800, lineHeight: 13).font)
+                        .foregroundStyle(palette.readInk).lineLimit(1)
+                        .frame(maxWidth: .infinity).frame(height: layout.actionLabelHeight).padding(.top, 5.78)
+                }.frame(maxWidth: .infinity).frame(height: layout.actionHeight, alignment: .top)
+                    .background(palette.readElevated, in: RoundedRectangle(cornerRadius: 8))
+            }
         }.buttonStyle(ReaderPressFeedback())
     }
 
@@ -766,7 +887,7 @@ struct ReaderReadingView: View {
         }
     }
 
-    private func moduleButton(_ value: ReaderControlModule, icon: ReaderIconName, label: String) -> some View {
+    private func moduleButton(_ value: ReaderControlModule, icon: ReaderIconName, label: String, layout: ReaderControlContentLayout) -> some View {
         Button { select(value) } label: {
             // Host@33f7c7b ReaderControlPanel.ets:1978–2007. The active
             // registered SVGs retain the same paths, changing only this ink.
@@ -779,8 +900,11 @@ struct ReaderReadingView: View {
                     .accessibilityHidden(true)
                 Text(label).font(ReaderTextStyle(.uiBold, 10, 700, lineHeight: 15).font)
                     .foregroundStyle(module == value ? palette.readPrimary : palette.app("TOK_READ_ICON"))
-                    .frame(maxWidth: .infinity).frame(height: 15).lineLimit(1)
-            }.frame(maxWidth: .infinity).frame(height: 62)
+                    .frame(maxWidth: .infinity).frame(height: layout.adaptsText ? nil : layout.moduleLabelHeight)
+                    .frame(minHeight: layout.adaptsText ? layout.moduleLabelHeight : nil).lineLimit(1)
+                    .fixedSize(horizontal: layout.adaptsText, vertical: layout.adaptsText)
+            }.frame(minWidth: layout.adaptsText ? layout.moduleMinimumWidth : nil,
+                    maxWidth: layout.adaptsText ? nil : .infinity).frame(height: layout.moduleButtonHeight)
                 .contentShape(RoundedRectangle(cornerRadius: 12))
         }.buttonStyle(ReaderPressFeedback()).accessibilityAddTraits(module == value ? .isSelected : [])
             .accessibilityIdentifier("control-module-\(value)")
@@ -947,17 +1071,18 @@ struct ReaderReadingView: View {
 
     private func controlViewport(size: CGSize, safe: EdgeInsets) -> ReaderControlViewportLayout {
         let baseline = ReaderMetrics.controlViewport(size: size, safe: safe)
-        guard readingHeaderHeight > 54 else { return baseline }
+        let contentLayout = controlContentLayout
+        guard readingHeaderHeight > 54 || contentLayout.adaptsText else { return baseline }
         let windowHeight = size.height + safe.top + safe.bottom
         let headerTop = max(19, safe.top + 10)
-        let dockTop = max(88, headerTop + readingHeaderHeight + 8)
+        let dockTop = max(88, headerTop + max(54, readingHeaderHeight) + 8)
         let fullHeight = min(baseline.fullHeight,
             max(0, windowHeight - dockTop - max(ReaderMetrics.fullBottomGap, safe.bottom)))
         return ReaderControlViewportLayout(topBarWidth: baseline.topBarWidth,
             topBarPadding: baseline.topBarPadding, topBarOffsetX: baseline.topBarOffsetX,
             dockWidth: baseline.dockWidth, dockOffsetX: baseline.dockOffsetX,
             dockBottomPadding: baseline.dockBottomPadding, fullHeight: fullHeight,
-            quickHeight: min(baseline.quickHeight, fullHeight))
+            quickHeight: contentLayout.quickDockHeight(baseline: baseline.quickHeight, fullHeight: fullHeight))
     }
 
 }
