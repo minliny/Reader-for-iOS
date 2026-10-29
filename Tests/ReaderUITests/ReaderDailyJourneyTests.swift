@@ -18,6 +18,15 @@ final class ReaderDailyJourneyTests: XCTestCase {
     func testExistingRealTXTAnnotationDraftBlocksDeletionAndOwnedNoteCanBeRemoved() throws {
         executionTimeAllowance = 180
         let app = XCUIApplication()
+        let initialFailures = testRun?.failureCount ?? 0
+        defer {
+            if (testRun?.failureCount ?? 0) > initialFailures {
+                let screen = XCTAttachment(screenshot: app.screenshot())
+                screen.name = "annotation-guard-failure-current-screen"; screen.lifetime = .keepAlways; self.add(screen)
+                let ax = XCTAttachment(string: app.debugDescription)
+                ax.name = "annotation-guard-failure-current-AX"; ax.lifetime = .keepAlways; self.add(ax)
+            }
+        }
         app.launch()
         openContinuationBook(firstID, title: firstTitle, ebook: false, app: app)
         openModule("settings", app: app)
@@ -32,7 +41,7 @@ final class ReaderDailyJourneyTests: XCTestCase {
         }
         hideControls(app)
         app.textViews["reading-body"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).press(forDuration: 0.8)
-        var action: XCUIElement?
+        var action: XCUIElement?, observedArrowUsed = false
         for _ in 0..<4 {
             action = [app.buttons["高亮与笔记"], app.menuItems["高亮与笔记"]].first {
                 $0.waitForExistence(timeout: 0.5) && $0.isHittable
@@ -40,7 +49,23 @@ final class ReaderDailyJourneyTests: XCTestCase {
             if action != nil { break }
             let more = ["前进", "显示更多项目", "Show more items", "更多", "More"]
                 .map { app.buttons[$0] }.first { $0.exists && $0.isHittable }
-            guard let more else { break }; more.tap()
+            if let more { more.tap(); continue }
+            // The original phone's retained screen exposes an unlabelled
+            // right arrow beside the actual Copy row. Limit this consumer to
+            // that observed portrait geometry; do not guess on other targets.
+            guard !observedArrowUsed else { break }
+            let copy = [app.buttons["拷贝"], app.menuItems["拷贝"]].first {
+                $0.exists && $0.isHittable
+            }
+            guard let copy else { break }
+            let window = app.frame, frame = copy.frame
+            guard abs(window.width - 430) < 1, abs(window.height - 932) < 1,
+                  frame.width > 0, frame.height > 0, window.contains(frame) else { break }
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "actual-native-Copy-row-before-observed-right-arrow"; screenshot.lifetime = .keepAlways; self.add(screenshot)
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.9185,
+                dy: (frame.midY - window.minY) / window.height)).tap()
+            observedArrowUsed = true
         }
         try XCTUnwrap(action, "Require the actual native selection menu; never inject selected text").tap()
         let selected = app.staticTexts["annotation-selected-text"]
