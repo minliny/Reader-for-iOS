@@ -594,10 +594,16 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                 }
                 stage = "real-free-chapter0"
                 let free = try await active.content(for: book, chapterIndex: 0)
+                observations.append(["stage": stage, "actualVisibleScalars": free.scalarCount,
+                    "actualVisibleSHA256": hash(Data(free.content.utf8)),
+                    "bodyVersion": free.bodyVersion ?? "", "processingVersion": free.processingVersion ?? ""])
+                // Retained f322 reader_documents proves this visible scope;
+                // chapter_cache's 2232-scalar raw body is a different layer.
                 try require(free.sourceId == sourceID && free.bookId == book.bookId && free.chapterIndex == 0 &&
-                    free.bodyVersion?.isEmpty == false && free.processingVersion?.isEmpty == false &&
-                    free.scalarCount == 2232 && hash(Data(free.content.utf8)) == "b4aa9f3c6a4c4c1f1674d28281c3e00b442eb33973096ef03f209bb133a08443",
-                    "the actual free chapter must match the retained canonical body, not merely exceed a length threshold")
+                    free.scalarCount == 2098 &&
+                    free.bodyVersion == "37a89892948c700d4a228a2ef9c12ca45d8f98e698d79f553341b1b05e983fe5" &&
+                    free.processingVersion == "41ea864565d336ab3cd3f22dc4f3051e0389041238618bbeb52054431657adfa",
+                    "the actual visible body and blocks must match the retained Core visible-document versions")
                 let progress = try await active.progress(for: book)
                 let cache = try canonical(await active.coreRead("cache.book.status", ["sourceId": sourceID, "bookId": book.bookId]))
                 observations.append(["stage": stage, "bookIdSha256": hash(Data(book.bookId.utf8)),
