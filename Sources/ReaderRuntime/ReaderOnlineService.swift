@@ -158,7 +158,9 @@ extension ReaderLibraryService: ReaderOnlineServing {
         guard !rows.isEmpty else { throw ReaderLibraryError.invalidResponse("no installed online catalog") }
         return rows.compactMap { row in
             guard row["navigable"] as? Bool != false, let index = (row["chapterIndex"] as? NSNumber)?.uint32Value else { return nil }
-            return ReaderChapter(index: index, title: row["title"] as? String ?? "", url: row["url"] as? String ?? "", level: (row["level"] as? NSNumber)?.uint32Value)
+            return ReaderChapter(index: index, title: row["title"] as? String ?? "", url: row["url"] as? String ?? "",
+                level: (row["level"] as? NSNumber)?.uint32Value, displayTitle: row["displayTitle"] as? String,
+                isVip: row["isVip"] as? Bool, isPay: row["isPay"] as? Bool, contextTitle: row["contextTitle"] as? String)
         }
     }
     func onlineContent(for book: ReaderBook, chapterIndex: UInt32, directoryTargetProof: [String: Any]? = nil, preparationRevision: Int64? = nil) async throws -> ReaderChapterContent {

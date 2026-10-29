@@ -76,3 +76,26 @@ struct ReaderOperationStatus: View {
         }
     }
 }
+
+/// Source-provided catalog facts only. These labels neither grant access nor
+/// disable navigation, and an absent purchase flag never means unpaid.
+struct ReaderChapterSourceLabel: View {
+    let isVip: Bool?
+    let isPay: Bool?
+    @Environment(\.colorScheme) private var scheme
+    static func text(isVip: Bool?, isPay: Bool?) -> String? {
+        if isVip == true {
+            if let isPay { return isPay ? "VIP · 已购" : "VIP · 未购" }
+            return "VIP"
+        }
+        return isPay == true ? "已购" : nil
+    }
+    var body: some View {
+        if let text = Self.text(isVip: isVip, isPay: isPay) {
+            Text(text).font(ReaderTypography.font(.caption))
+                .foregroundStyle(ReaderPalette(scheme).muted)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityLabel("来源标记：" + text)
+        }
+    }
+}

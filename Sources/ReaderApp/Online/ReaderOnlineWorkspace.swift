@@ -447,7 +447,13 @@ struct ReaderOnlineWorkspace: View {
                             .accessibilityIdentifier("online-add-and-read")
                         Text("目录 · \(detail.chapters.count) 章").font(ReaderTypography.font(.controlHeader))
                         ForEach(detail.chapters) { chapter in
-                            Button(chapter.title) { add(detail, index: chapter.index) }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            Button { add(detail, index: chapter.index) } label: {
+                                HStack(spacing: 8) {
+                                    Text(chapter.displayTitle ?? chapter.title)
+                                    Spacer(minLength: 0)
+                                    ReaderChapterSourceLabel(isVip: chapter.isVip, isPay: chapter.isPay)
+                                }
+                            }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 .disabled(state.actions.hasPending)
                         }
                     }.padding(20)

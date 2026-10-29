@@ -25,6 +25,10 @@ public enum ReaderDownloadChapterState: String, Codable, Sendable {
 public struct ReaderDownloadChapter: Decodable, Sendable, Identifiable {
     public let chapterIndex: UInt32
     public let title: String
+    public let displayTitle: String?
+    public let isVip: Bool?
+    public let isPay: Bool?
+    public let contextTitle: String?
     public let url: String
     public let navigable: Bool?
     public let state: ReaderDownloadChapterState
@@ -35,12 +39,16 @@ public struct ReaderDownloadChapter: Decodable, Sendable, Identifiable {
     public var id: UInt32 { chapterIndex }
     let variables: [String: String]
     private enum CodingKeys: String, CodingKey {
-        case chapterIndex, title, url, navigable, state, cachedBytes, attempts, maxAttempts, lastError, variables
+        case chapterIndex, title, displayTitle, isVip, isPay, contextTitle, url, navigable, state, cachedBytes, attempts, maxAttempts, lastError, variables
     }
     public init(from decoder: Decoder) throws {
         let v = try decoder.container(keyedBy: CodingKeys.self)
         chapterIndex = try v.decode(UInt32.self, forKey: .chapterIndex)
         title = try v.decodeIfPresent(String.self, forKey: .title) ?? ""
+        displayTitle = try v.decodeIfPresent(String.self, forKey: .displayTitle)
+        isVip = try v.decodeIfPresent(Bool.self, forKey: .isVip)
+        isPay = try v.decodeIfPresent(Bool.self, forKey: .isPay)
+        contextTitle = try v.decodeIfPresent(String.self, forKey: .contextTitle)
         url = try v.decodeIfPresent(String.self, forKey: .url) ?? ""
         navigable = try v.decodeIfPresent(Bool.self, forKey: .navigable)
         state = try v.decode(ReaderDownloadChapterState.self, forKey: .state)

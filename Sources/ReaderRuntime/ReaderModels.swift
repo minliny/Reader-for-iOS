@@ -66,9 +66,16 @@ public struct ReaderChapter: Codable, Hashable, Sendable, Identifiable {
     public let title: String
     public let url: String
     public let level: UInt32?
+    public let displayTitle: String?
+    public let isVip: Bool?
+    public let isPay: Bool?
+    public let contextTitle: String?
     public var id: UInt32 { index }
-    public init(index: UInt32, title: String, url: String = "", level: UInt32? = nil) {
+    public init(index: UInt32, title: String, url: String = "", level: UInt32? = nil,
+                displayTitle: String? = nil, isVip: Bool? = nil, isPay: Bool? = nil,
+                contextTitle: String? = nil) {
         self.index = index; self.title = title; self.url = url; self.level = level
+        self.displayTitle = displayTitle; self.isVip = isVip; self.isPay = isPay; self.contextTitle = contextTitle
     }
 }
 

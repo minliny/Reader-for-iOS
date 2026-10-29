@@ -6,6 +6,9 @@ public struct ReaderDirectoryNode: Codable, Hashable, Sendable, Identifiable {
     public let depth: UInt32
     public let title: String
     public let displayTitle: String?
+    public let isVip: Bool?
+    public let isPay: Bool?
+    public let contextTitle: String?
     public let kind: String
     public let chapterIndex: UInt32?
     public let chapterOffsetScalar: UInt64?

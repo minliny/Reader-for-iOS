@@ -12,6 +12,79 @@ import ReaderCoreClient
 
 @MainActor
 final class ReaderDownloadReceiptTests: XCTestCase {
+    /// Controlled Core presentation DTOs, not generated novels or a source
+    /// acceptance test. Exercise the actual cached-catalog consumer as well as
+    /// direct TOC/directory/download decoding, including explicit false flags.
+    func testChapterPresentationSurvivesCachedCatalogWithoutChangingNavigationOrDownloadState() async throws {
+        let flags: [(Bool?, Bool?)] = [(nil, nil), (false, nil), (true, nil),
+            (nil, false), (nil, true), (false, false), (false, true), (true, false), (true, true)]
+        var rows: [[String: Any]] = []
+        for (index, values) in flags.enumerated() {
+            var facts: [String: Any] = ["displayTitle": "１０１（上）", "contextTitle": "卷一"]
+            if let vip = values.0 { facts["isVip"] = vip }
+            if let paid = values.1 { facts["isPay"] = paid }
+            let title = "正文", url = "https://example.invalid/chapter/\(index)"
+            var toc = facts
+            toc.merge(["index": index, "title": title, "url": url, "level": 2]) { _, new in new }
+            let chapter = try JSONDecoder().decode(ReaderChapter.self, from: downloadCanonical(toc))
+            XCTAssertEqual(chapter.index, UInt32(index)); XCTAssertEqual(chapter.id, UInt32(index))
+            XCTAssertEqual(chapter.title, title); XCTAssertEqual(chapter.url, url); XCTAssertEqual(chapter.level, 2)
+            XCTAssertEqual(chapter.displayTitle, "１０１（上）"); XCTAssertEqual(chapter.contextTitle, "卷一")
+            XCTAssertEqual(chapter.isVip, values.0); XCTAssertEqual(chapter.isPay, values.1)
+            let roundTrip = try JSONDecoder().decode(ReaderChapter.self, from: JSONEncoder().encode(chapter))
+            XCTAssertEqual(roundTrip, chapter, "Explicit false and absent source facts must stay distinct")
+
+            var node = facts
+            node.merge(["nodeId": "node-\(index)", "depth": 1, "title": title, "kind": "target",
+                "chapterIndex": index, "chapterOffsetScalar": 0, "hasChildren": false, "expanded": true]) { _, new in new }
+            let directory = try JSONDecoder().decode(ReaderDirectoryNode.self, from: downloadCanonical(node))
+            XCTAssertEqual(directory.id, "node-\(index)"); XCTAssertEqual(directory.chapterIndex, UInt32(index))
+            XCTAssertEqual(directory.title, title); XCTAssertEqual(directory.displayTitle, chapter.displayTitle)
+            XCTAssertEqual(directory.contextTitle, chapter.contextTitle)
+            XCTAssertEqual(directory.isVip, values.0); XCTAssertEqual(directory.isPay, values.1)
+            XCTAssertTrue(directory.navigable, "Source access labels are not a navigation authorization")
+            node["kind"] = "group"; node.removeValue(forKey: "chapterIndex")
+            XCTAssertFalse(try JSONDecoder().decode(ReaderDirectoryNode.self, from: downloadCanonical(node)).navigable)
+
+            var cached = facts
+            cached.merge(["chapterIndex": index, "title": title, "url": url, "level": 2,
+                "navigable": true, "state": "completed", "attempts": 1, "maxAttempts": 3, "cachedBytes": 1]) { _, new in new }
+            let download = try JSONDecoder().decode(ReaderDownloadChapter.self, from: downloadCanonical(cached))
+            XCTAssertEqual(download.id, UInt32(index)); XCTAssertEqual(download.title, title)
+            XCTAssertEqual(download.displayTitle, chapter.displayTitle); XCTAssertEqual(download.contextTitle, chapter.contextTitle)
+            XCTAssertEqual(download.isVip, values.0); XCTAssertEqual(download.isPay, values.1)
+            XCTAssertEqual(download.state, .completed); XCTAssertEqual(download.navigable, true)
+            rows.append(cached)
+        }
+        rows.append(["chapterIndex": 99, "title": "卷二", "url": "", "navigable": false,
+            "state": "missing", "isVip": true, "isPay": false])
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderChapterPresentation-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let client = DownloadInventoryReplyFixture(pages: [["chapters": rows]], readMethod: "cache.book.status")
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+            sourceURL: root.appendingPathComponent("Sources"), client: client, timing: .live)
+        let book = ReaderBook(sourceId: "method-source", bookId: "method-book", title: "Controlled metadata")
+        let catalog = try await service.onlineChapters(for: book)
+        XCTAssertEqual(catalog.map(\.index), Array(UInt32(0)..<UInt32(flags.count)), "Non-navigable groups remain excluded")
+        for (chapter, values) in zip(catalog, flags) {
+            XCTAssertEqual(chapter.title, "正文"); XCTAssertEqual(chapter.displayTitle, "１０１（上）")
+            XCTAssertEqual(chapter.contextTitle, "卷一"); XCTAssertEqual(chapter.level, 2)
+            XCTAssertEqual(chapter.isVip, values.0); XCTAssertEqual(chapter.isPay, values.1)
+        }
+        XCTAssertEqual(client.inventoryParameters.count, 1)
+        XCTAssertEqual(client.inventoryParameters.first?["sourceId"] as? String, book.sourceId)
+        XCTAssertEqual(client.inventoryParameters.first?["bookId"] as? String, book.bookId)
+        try await service.close()
+        #if !canImport(ReaderRuntime)
+        XCTAssertNil(ReaderChapterSourceLabel.text(isVip: nil, isPay: nil))
+        XCTAssertNil(ReaderChapterSourceLabel.text(isVip: false, isPay: false), "Unknown/free access must not be inferred")
+        XCTAssertEqual(ReaderChapterSourceLabel.text(isVip: true, isPay: nil), "VIP")
+        XCTAssertEqual(ReaderChapterSourceLabel.text(isVip: true, isPay: false), "VIP · 未购")
+        XCTAssertEqual(ReaderChapterSourceLabel.text(isVip: true, isPay: true), "VIP · 已购")
+        XCTAssertEqual(ReaderChapterSourceLabel.text(isVip: nil, isPay: true), "已购")
+        #endif
+    }
+
     /// Controlled protocol pages cover the Host consumer only. These identities
     /// are metadata fixtures, not real books, source usability or UI evidence.
     func testDownloadInventoryConsumesExactKeysetPagesAndRejectsIncoherentIdentityWithoutAssumingText() async throws {
@@ -364,13 +437,16 @@ private final class DownloadInventoryReplyFixture: ReaderCoreEventClient, @unche
     private var pages: [[String: Any]]
     private var replies: [UInt64: ReaderCoreEvent] = [:]
     private var parameters: [[String: Any]] = []
-    init(pages: [[String: Any]]) { self.pages = pages }
+    private let readMethod: String
+    init(pages: [[String: Any]], readMethod: String = "cache.download.books.list") {
+        self.pages = pages; self.readMethod = readMethod
+    }
     var inventoryParameters: [[String: Any]] { lock.lock(); defer { lock.unlock() }; return parameters }
     func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
         lock.lock(); defer { lock.unlock() }
         let data: [String: Any]
         switch method {
-        case "cache.download.books.list":
+        case readMethod:
             guard !pages.isEmpty else { throw ReaderLibraryError.invalidResponse("Unexpected inventory page") }
             parameters.append(params); data = pages.removeFirst()
         case "runtime.storage.flush": data = [:]

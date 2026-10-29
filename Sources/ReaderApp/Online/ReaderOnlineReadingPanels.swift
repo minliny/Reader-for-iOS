@@ -1288,7 +1288,8 @@ struct ReaderOnlineDownloadSummaryPanel: View {
                         ForEach(status.chapters) { chapter in
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
-                                    Text(chapter.title)
+                                    Text(chapter.displayTitle ?? chapter.title)
+                                    ReaderChapterSourceLabel(isVip: chapter.isVip, isPay: chapter.isPay)
                                     Spacer()
                                     Text(ReaderDownloadStatusText.state(chapter.state))
                                         .accessibilityIdentifier("online-download-summary-state:" + book.id + ":" + String(chapter.chapterIndex))
@@ -1503,10 +1504,11 @@ struct ReaderOnlineDownloadPanel: View {
     @ViewBuilder private func chapterRow(_ chapter: ReaderDownloadChapter) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                if taskOnly { Text(chapter.title.isEmpty ? "第 \(UInt64(chapter.chapterIndex) + 1) 章" : chapter.title) } else {
-                Toggle(isOn: Binding(get: { selected.contains(chapter.chapterIndex) }, set: { value in if value { selected.insert(chapter.chapterIndex) } else { selected.remove(chapter.chapterIndex) } })) { Text(chapter.title) }.toggleStyle(.button)
+                if taskOnly { Text(chapter.displayTitle ?? (chapter.title.isEmpty ? "第 \(UInt64(chapter.chapterIndex) + 1) 章" : chapter.title)) } else {
+                Toggle(isOn: Binding(get: { selected.contains(chapter.chapterIndex) }, set: { value in if value { selected.insert(chapter.chapterIndex) } else { selected.remove(chapter.chapterIndex) } })) { Text(chapter.displayTitle ?? chapter.title) }.toggleStyle(.button)
                     .accessibilityIdentifier("online-download-select:" + book.id + ":" + String(chapter.chapterIndex))
                 }
+                ReaderChapterSourceLabel(isVip: chapter.isVip, isPay: chapter.isPay)
                 Spacer(); Text(ReaderDownloadStatusText.state(chapter.state)).font(ReaderTypography.font(.caption))
                     .accessibilityIdentifier("online-download-state:" + book.id + ":" + String(chapter.chapterIndex))
             }

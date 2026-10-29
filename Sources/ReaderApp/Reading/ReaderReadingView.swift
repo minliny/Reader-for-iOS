@@ -649,7 +649,8 @@ struct ReaderReadingView: View {
         let selected = chapter.index == session.content.chapterIndex
         return Button { openCanonicalChapter(chapter.index) } label: {
             HStack(spacing: 12) {
-                Text(chapter.title).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
+                Text(chapter.displayTitle ?? chapter.title).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
+                ReaderChapterSourceLabel(isVip: chapter.isVip, isPay: chapter.isPay)
                 Spacer(minLength: 0)
                 if selected { ReaderIcon(.check, size: 18) }
             }.foregroundStyle(selected ? palette.green : palette.ink)
@@ -697,6 +698,7 @@ struct ReaderReadingView: View {
                                 HStack(spacing: 8) {
                                     if node.hasChildren { ReaderIcon(.chevronDown, size: 14).rotationEffect(.degrees(node.expanded ? 0 : -90)) }
                                     Text(node.displayTitle ?? node.title).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
+                                    ReaderChapterSourceLabel(isVip: node.isVip, isPay: node.isPay)
                                     Spacer(minLength: 0)
                                     if node.navigable, node.chapterIndex == session.content.chapterIndex { ReaderIcon(.check, size: 18) }
                                 }.padding(.leading, 14 + CGFloat(min(node.depth, 6)) * 12).padding(.trailing, 14).frame(minHeight: 48)
