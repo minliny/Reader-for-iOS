@@ -528,9 +528,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 name: "external-TXT-original-item-ambiguous")
         }
         let originalCellLabel = original.label
-        systemEvidence("external-TXT-original-Files-item-before-long-press")
         original.press(forDuration: 1.0)
-        systemEvidence("external-TXT-original-native-context-menu")
         let activityNames = ["Reader", "Open in Reader", "Copy to Reader",
             "在 Reader 中打开", "在Reader中打开", "拷贝到 Reader", "拷贝到Reader"]
         var actualShareCaption: String?
@@ -592,13 +590,49 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                     if appMore.count == 1, appMore.element.isHittable,
                        viewport.contains(appMore.element.frame), ProcessInfo.processInfo.systemUptime < deadline {
                         appMore.element.tap()
-                        let expanded = files.cells.containing(NSPredicate(format: "label IN %@", activityNames))
+                        let apps = files.otherElements.matching(identifier: "ShareSheet.EditAppsView")
+                        guard apps.firstMatch.waitForExistence(timeout: 10), apps.count == 1 else {
+                            try unavailable("Require the actual expanded native Apps owner",
+                                name: "external-TXT-expanded-native-apps-owner-unavailable")
+                        }
+                        let tables = apps.element.tables.matching(identifier: "tableView")
+                        guard tables.count == 1 else {
+                            try unavailable("Require this Apps owner's native table",
+                                name: "external-TXT-expanded-native-apps-table-unavailable")
+                        }
+                        let table = tables.element
+                        let expanded = table.cells.containing(NSPredicate(format:
+                            "identifier == 'activityTitleLabel' AND label == 'Reader'"))
                         guard expanded.firstMatch.waitForExistence(timeout: 10), expanded.count == 1 else {
                             try unavailable("Require one explicit Reader choice in the actual native expanded app list",
                                 name: "external-TXT-expanded-native-Reader-choice-unavailable")
                         }
-                        systemEvidence("external-TXT-actual-expanded-native-apps")
-                        return expanded.allElementsBoundByIndex.filter { $0.isHittable && $0.isEnabled }
+                        let revealDeadline = ProcessInfo.processInfo.systemUptime + 45
+                        var previousY: CGFloat?
+                        for reveal in 0...5 {
+                            let window = files.frame
+                            let safeTable = table.frame.intersection(window).insetBy(dx: 0, dy: 100)
+                            let row = expanded.element
+                            let frame = row.frame
+                            if frame.width > 0, frame.height > 0, safeTable.contains(frame),
+                               row.isHittable, row.isEnabled {
+                                return [row]
+                            }
+                            guard reveal < 5, ProcessInfo.processInfo.systemUptime < revealDeadline,
+                                  safeTable.width > 100, safeTable.height > 100,
+                                  frame.maxY > safeTable.maxY,
+                                  previousY.map({ frame.minY < $0 - 1 }) ?? true else { break }
+                            previousY = frame.minY
+                            let distance = min(safeTable.height, max(80, frame.maxY - safeTable.maxY + 40))
+                            let origin = files.coordinate(withNormalizedOffset: .zero)
+                            origin.withOffset(CGVector(dx: safeTable.midX - window.minX,
+                                dy: safeTable.maxY - window.minY))
+                                .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(
+                                    dx: safeTable.midX - window.minX, dy: safeTable.maxY - distance - window.minY)),
+                                    withVelocity: .slow, thenHoldForDuration: 0.05)
+                        }
+                        try unavailable("The explicit Reader row must become visible and actionable after bounded native table scrolling",
+                            name: "external-TXT-expanded-native-Reader-not-actionable")
                     }
                     guard step < 6, ProcessInfo.processInfo.systemUptime < deadline else { break }
                     let rowViewport = collection.frame.intersection(viewport)
@@ -650,7 +684,8 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 try unavailable("The normal Share action must produce one actual native ActivityListView",
                     name: "external-TXT-native-share-owner-unavailable")
             }
-            systemEvidence("external-TXT-original-native-share-candidates")
+            // The original item and native captions are checked below; retain
+            // full Files AX/screenshots on failure rather than at every step.
             activities = try actualReaderActivities()
         } else {
             activities = try actualReaderActivities()
