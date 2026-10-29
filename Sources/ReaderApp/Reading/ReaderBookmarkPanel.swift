@@ -41,6 +41,22 @@ final class ReaderBookmarkState: ObservableObject {
               editing == captured.bookmark, note == captured.note else { return }
         editing = nil; note = ""
     }
+
+    @discardableResult
+    func performNoteSave(_ captured: NoteDraft, actions: ReaderLibraryActionOwner, scope: String,
+                         refresh: (@MainActor () async -> Void)? = nil,
+                         action: @escaping (String) async throws -> Void) async -> Bool {
+        await actions.perform("保存备注", scope: scope, ended: { [weak self] _, confirmed in
+            guard confirmed, let self, self.acceptsNotePresentation(captured) else { return }
+            self.finishNoteSave(captured)
+            if let refresh {
+                Task { [weak self] in
+                    guard self?.acceptsNotePresentation(captured) == true else { return }
+                    await refresh()
+                }
+            }
+        }, action: action)
+    }
 }
 
 struct ReaderBookmarkPanel: View {
@@ -147,11 +163,8 @@ struct ReaderBookmarkPanel: View {
         guard let feature = model.libraryService as? any ReaderLibraryFeatures,
               let captured = state.captureNoteDraft(for: bookmark) else { return }
         Task {
-            if await model.actions.perform("保存备注", scope: book.id, action: { id in
+            await state.performNoteSave(captured, actions: model.actions, scope: book.id, refresh: { await load() }) { id in
                 _ = try await feature.updateBookmark(captured.bookmark, note: captured.note, operationID: id)
-            }), state.acceptsNotePresentation(captured) {
-                state.finishNoteSave(captured)
-                await load()
             }
         }
     }

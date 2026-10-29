@@ -288,11 +288,9 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
             var reply: CheckedContinuation<Void, Never>?
             defer { reply?.resume() }
             let action = Task {
-                let success = await owner.perform("Controlled original note save", scope: book.id) { _ in
+                await state.performNoteSave(captured, actions: owner, scope: book.id) { _ in
                     await withCheckedContinuation { reply = $0 }
                 }
-                if success { state.finishNoteSave(captured) }
-                return success
             }
             await waitUntil { reply != nil }
             switch boundary {
@@ -338,11 +336,9 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
             var reply: CheckedContinuation<Void, Never>?
             defer { reply?.resume() }
             let action = Task {
-                let success = await owner.perform("Controlled original bookmark save", scope: book.id) { _ in
+                await state.performNoteSave(captured, actions: owner, scope: book.id) { _ in
                     await withCheckedContinuation { reply = $0 }
                 }
-                if success { state.finishNoteSave(captured) }
-                return success
             }
             await waitUntil { reply != nil }
             let originalID = try XCTUnwrap(owner.pendingOperationID)
@@ -367,6 +363,88 @@ final class ReaderTextToolsLifecycleTests: XCTestCase {
             XCTAssertFalse(owner.hasPending); XCTAssertFalse(owner.busy); XCTAssertNil(owner.recovery)
             XCTAssertEqual(state.note, boundary == 0 ? "" : retainedNote)
             XCTAssertEqual(state.editing, boundary == 0 ? nil : retainedEditing)
+        }
+    }
+
+    /// Controlled action outcomes exercise the production completion binding.
+    /// The editor metadata is not a Core ACK, book import or native acceptance.
+    func testNoteSaveOriginalResumeConsumesOnlyCapturedDraftAndPreservesUnknownFailureOrRetiredEditor() async throws {
+        let book = ReaderBook(bookId: "host-note-owner", title: "Controlled note owner", chapterCount: 1)
+        let content = ReaderChapterContent(bookId: book.bookId, chapterIndex: 0, chapterTitle: "Ownership boundary",
+            content: "Controlled ownership text", bodyVersion: "body-owner-1", processingVersion: "processing-owner-1")
+        let session = ReaderActiveSession(id: UUID(), book: book, chapters: [.init(index: 0, title: content.chapterTitle)],
+            content: content, scalarOffset: 0, progressRevision: nil, restorationID: UUID())
+        let selection = ReaderTextSelection(sourceId: book.sourceId, bookId: book.bookId, chapterIndex: 0,
+            bodyVersion: content.bodyVersion, processingVersion: content.processingVersion, start: 0, end: 1, text: "Controlled selection")
+        let mark = try JSONDecoder().decode(ReaderHighlight.self, from: JSONSerialization.data(withJSONObject: [
+            "time": 1, "bookUrl": book.bookId, "chapterUrl": "controlled-owner-chapter", "bookName": book.title,
+            "bookAuthor": "", "chapterIndex": 0, "chapterPos": 0, "chapterPosEnd": 1, "layoutTitleLength": 0,
+            "chapterName": content.chapterTitle, "bookText": "", "style": "highlight", "note": "Saved note"
+        ]))
+        let bookmark = try JSONDecoder().decode(ReaderBookmark.self, from: JSONSerialization.data(withJSONObject: [
+            "time": 1, "bookName": book.title, "bookAuthor": "", "chapterIndex": 0,
+            "chapterPos": 0, "chapterName": content.chapterTitle, "bookText": "", "content": "Saved note"
+        ]))
+        // Modes are a new note, an edited note, and an edited bookmark note.
+        for mode in 0..<3 {
+            for boundary in 0..<9 {
+                let notes = ReaderTextToolsState(), bookmarks = ReaderBookmarkState(), owner = ReaderLibraryActionOwner()
+                defer { notes.retireNotes(); bookmarks.retire() }
+                notes.activateNotes(session: session, selection: selection)
+                notes.editingNote = mode == 1 ? mark : nil; notes.note = "Original raw draft"
+                bookmarks.activate(); bookmarks.editing = bookmark; bookmarks.note = "Original raw draft"
+                var calls: [String] = [], refreshes = 0
+                let controlledAction: (String) async throws -> Void = { operationID in
+                    calls.append(operationID)
+                    if calls.count == 1 || boundary == 1 { throw ReaderLibraryError.operationPending(operationID) }
+                    if boundary == 2 { throw BoundaryError.missingActualResult }
+                }
+                let initial: Bool
+                if mode < 2 {
+                    let captured = try XCTUnwrap(notes.captureNoteDraft(for: book))
+                    XCTAssertEqual(captured.editing, mode == 1 ? mark : nil)
+                    initial = await notes.performNoteSave(captured, actions: owner, scope: book.id,
+                        refresh: { refreshes += 1 }, action: controlledAction)
+                } else {
+                    let captured = try XCTUnwrap(bookmarks.captureNoteDraft(for: bookmark))
+                    initial = await bookmarks.performNoteSave(captured, actions: owner, scope: book.id,
+                        refresh: { refreshes += 1 }, action: controlledAction)
+                }
+                XCTAssertFalse(initial); XCTAssertTrue(owner.hasPending); XCTAssertFalse(owner.busy)
+                let originalID = try XCTUnwrap(owner.pendingOperationID)
+                XCTAssertEqual(calls, [originalID]); XCTAssertEqual(refreshes, 0)
+                XCTAssertEqual(mode < 2 ? notes.note : bookmarks.note, "Original raw draft")
+                switch boundary {
+                case 3:
+                    if mode < 2 { notes.note = "New raw input" } else { bookmarks.note = "New raw input" }
+                case 4:
+                    if mode < 2 { notes.note = "Changed in between"; notes.note = "Original raw draft" }
+                    else { bookmarks.note = "Changed in between"; bookmarks.note = "Original raw draft" }
+                case 5:
+                    if mode < 2 { notes.editingNote = mode == 0 ? mark : nil } else { bookmarks.editing = nil }
+                case 6:
+                    if mode < 2 { notes.editingNote = mode == 0 ? mark : nil; notes.editingNote = mode == 1 ? mark : nil }
+                    else { bookmarks.editing = nil; bookmarks.editing = bookmark }
+                case 7:
+                    notes.retireNotes(); notes.activateNotes(session: session, selection: selection)
+                    bookmarks.retire(); bookmarks.activate()
+                case 8: notes.retireNotes(); bookmarks.retire()
+                default: break
+                }
+                let retained = mode < 2 ? notes.note : bookmarks.note
+                let retainedEditing = notes.editingNote, retainedBookmark = bookmarks.editing
+                let succeeded = await owner.resumeOriginal()
+                XCTAssertEqual(succeeded, boundary != 1 && boundary != 2)
+                XCTAssertEqual(calls, [originalID, originalID], "Only the original action and UUID may resume")
+                XCTAssertEqual(owner.hasPending, boundary == 1); XCTAssertFalse(owner.busy)
+                if boundary == 1 { XCTAssertEqual(owner.pendingOperationID, originalID) }
+                XCTAssertEqual(mode < 2 ? notes.note : bookmarks.note, boundary == 0 ? "" : retained)
+                if mode < 2 { XCTAssertEqual(notes.editingNote, boundary == 0 ? nil : retainedEditing) }
+                else { XCTAssertEqual(bookmarks.editing, boundary == 0 ? nil : retainedBookmark) }
+                let expectedRefreshes = boundary == 1 || boundary == 2 || boundary >= 7 ? 0 : 1
+                if expectedRefreshes == 1 { await waitUntil { refreshes == 1 } }
+                XCTAssertEqual(refreshes, expectedRefreshes, "A retired presentation cannot refresh through an original ACK")
+            }
         }
     }
 

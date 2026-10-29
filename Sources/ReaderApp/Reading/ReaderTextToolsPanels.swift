@@ -311,6 +311,24 @@ final class ReaderTextToolsState: ObservableObject {
               note == captured.note, editingNote == captured.editing else { return }
         editingNote = nil; note = ""
     }
+
+    /// Completion belongs to the original action even when its first observer
+    /// returned pending. The existing draft guard owns whether input can clear.
+    @discardableResult
+    func performNoteSave(_ captured: NoteDraft, actions: ReaderLibraryActionOwner, scope: String,
+                         refresh: (@MainActor () async -> Void)? = nil,
+                         action: @escaping (String) async throws -> Void) async -> Bool {
+        await actions.perform("保存笔记", scope: scope, ended: { [weak self] _, confirmed in
+            guard confirmed, let self, self.acceptsNotePresentation(captured) else { return }
+            self.finishNoteSave(captured)
+            if let refresh {
+                Task { [weak self] in
+                    guard self?.acceptsNotePresentation(captured) == true else { return }
+                    await refresh()
+                }
+            }
+        }, action: action)
+    }
 }
 
 struct ReaderContentSearchPanel: View {
@@ -506,7 +524,11 @@ struct ReaderAnnotationsPanel: View {
         let selected = model.selection
         let session = model.reader
         Task {
-            let success = await model.actions.perform("保存笔记", scope: book.id) { id in
+            await state.performNoteSave(captured, actions: model.actions, scope: book.id, refresh: {
+                await load()
+                guard state.acceptsNotePresentation(captured) else { return }
+                await model.reloadHighlights()
+            }) { id in
                 if let editing { _ = try await service.updateHighlight(editing, note: note, style: editing.style, operationID: id) }
                 else {
                     guard let selected, let session, selected.sourceId == book.sourceId,
@@ -517,10 +539,6 @@ struct ReaderAnnotationsPanel: View {
                         range: ReaderScalarRange(lowerBound: selected.start, upperBound: selected.end),
                         style: "highlight", note: note, operationID: id)
                 }
-            }
-            if success, state.acceptsNotePresentation(captured) {
-                state.finishNoteSave(captured)
-                await load(); await model.reloadHighlights()
             }
         }
     }
