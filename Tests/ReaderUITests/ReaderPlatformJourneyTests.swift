@@ -130,17 +130,42 @@ final class ReaderPlatformJourneyTests: XCTestCase {
             for labels in [["无障碍", "Accessibility"], ["显示与文字大小", "Display & Text Size"], largerTitles] {
                 let deadline = ProcessInfo.processInfo.systemUptime + 15
                 var row: XCUIElement?
+                var scanTowardTop = true, previousCellFrames: String?
                 for step in 0...6 {
-                    let rows = settings.cells.allElementsBoundByIndex.filter {
-                        $0.isHittable && $0.staticTexts.matching(NSPredicate(format: "label IN %@", labels as NSArray)).count == 1
+                    let labelsOnPage = settings.staticTexts.matching(NSPredicate(format: "label IN %@", labels as NSArray)).allElementsBoundByIndex
+                    let visible = labelsOnPage.filter(\.isHittable)
+                    if visible.count == 1 {
+                        let cells = settings.cells.allElementsBoundByIndex.filter { $0.frame.contains(visible[0].frame) }
+                        try require(cells.count == 1, "Settings-route-label-cell-owner-ambiguous", settings)
+                        row = visible[0]; break
                     }
-                    if rows.count == 1 { row = rows[0]; break }
-                    try require(rows.isEmpty, "Settings-route-owner-ambiguous", settings)
+                    try require(visible.isEmpty && labelsOnPage.count <= 1, "Settings-route-owner-ambiguous", settings)
                     if step == 6 || ProcessInfo.processInfo.systemUptime >= deadline { break }
                     let owners = settings.tables.allElementsBoundByIndex.filter(\.isHittable)
                         + settings.collectionViews.allElementsBoundByIndex.filter(\.isHittable)
                     try require(owners.count == 1, "Settings-route-scroll-owner-before-change", settings)
-                    owners[0].swipeUp()
+                    if let target = labelsOnPage.first {
+                        if target.frame.midY < owners[0].frame.midY { owners[0].swipeDown() }
+                        else { owners[0].swipeUp() }
+                    } else {
+                        // Settings retains its real list offset after leaving.
+                        // The prior failure ended at the bottom: first scan up,
+                        // reverse once only when a frozen cell tree stops moving.
+                        guard let snapshot = try? owners[0].snapshot() else { throw fail("Settings-route-snapshot-unavailable", settings) }
+                        var nodes = [snapshot], frames = [String]()
+                        while let node = nodes.popLast() {
+                            if node.elementType == .cell { frames.append(node.identifier + node.label + NSCoder.string(for: node.frame)) }
+                            nodes.append(contentsOf: node.children)
+                        }
+                        try require(!frames.isEmpty, "Settings-route-real-cell-geometry-required", settings)
+                        let signature = frames.joined(separator: "|")
+                        if signature == previousCellFrames {
+                            if !scanTowardTop { break }
+                            scanTowardTop = false
+                        }
+                        previousCellFrames = signature
+                        if scanTowardTop { owners[0].swipeDown() } else { owners[0].swipeUp() }
+                    }
                 }
                 guard let row else { throw fail("Settings-exact-route-not-found-before-change", settings) }
                 evidence(settings, name: "physical-system-text-Settings-route-" + labels[1]); row.tap()
