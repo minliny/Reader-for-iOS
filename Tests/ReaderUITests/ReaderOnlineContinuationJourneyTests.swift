@@ -138,6 +138,11 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         downloads(app)
         let missing = try observeExistingMissingChapter(book, outside: originalChapter, app: app)
         app.buttons["online-download-close"].tap()
+        let missingTitle = try required("READER_ONLINE_UNCACHED_CHAPTER_TITLE")
+        // Resolve the actual native target while still online. A locator or
+        // keyboard precondition must fail before any system network change.
+        try choose(missing, app: app, requireSelection: false, filteringTitle: missingTitle,
+            prepareFilteredTargetOnly: true)
 
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch(); try requireSettingsRoot(settings)
@@ -157,8 +162,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(uniqueSettingsSwitch(airplaneLabels, settings: settings)).observation.value, 1)
         let path = try observeUnsatisfiedSystemPath(settings: settings)
         app.activate()
-        try choose(missing, app: app, requireSelection: false,
-            filteringTitle: try required("READER_ONLINE_UNCACHED_CHAPTER_TITLE"))
+        try filteredDirectoryTarget(missing, title: missingTitle, app: app).tap()
         let error = app.staticTexts.matching(NSPredicate(format: "label IN %@", [
             "网络未完成，已保留当前正文", "网络请求未完成，已保留当前正文",
             "本章尚未缓存，已保留当前正文", "章节加载失败，已保留当前正文"
@@ -1003,8 +1007,28 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["online-update-catalog"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["online-download-selected"].waitForExistence(timeout: 30))
     }
+    private func filteredDirectoryTarget(_ index: UInt32, title: String, app: XCUIApplication) throws -> XCUIElement {
+        let query = app.textFields["directory-query"]
+        let rows = app.buttons.matching(NSPredicate(format: "identifier == %@", "chapter-\(index)"))
+        guard query.exists, query.value as? String == title,
+              rows.firstMatch.waitForExistence(timeout: 10), rows.count == 1 else {
+            keep(app, name: "filtered-directory-target-identity-failure")
+            XCTFail("The actual filtered directory must retain its exact query and one observed chapter index")
+            throw Prerequisite.invalid("filtered chapter identity changed")
+        }
+        let row = rows.firstMatch
+        let owners = app.scrollViews.allElementsBoundByIndex.filter { $0.buttons["chapter-\(index)"].exists }
+        guard owners.count == 1, row.isEnabled, row.isHittable,
+              owners[0].frame.intersection(app.frame).contains(row.frame) else {
+            keep(app, name: "filtered-directory-target-geometry-failure")
+            XCTFail("Require the filtered target fully visible in its actual owner; do not assume keyboard dismissal")
+            throw Prerequisite.invalid("filtered chapter geometry unavailable")
+        }
+        return row
+    }
+
     private func choose(_ index: UInt32, app: XCUIApplication, requireSelection: Bool = true,
-                        filteringTitle: String? = nil) throws {
+                        filteringTitle: String? = nil, prepareFilteredTargetOnly: Bool = false) throws {
         var trace: [String] = []
         func fail(_ reason: String) throws -> Never {
             keep(app, name: "directory-chapter-\(index)-navigation-failure")
@@ -1032,24 +1056,21 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         XCTAssertTrue(directory.waitForExistence(timeout: 5)); directory.tap()
         if let filteringTitle {
             let query = app.textFields["directory-query"]
+            let locate = app.buttons["locate-current-chapter"]
             guard !filteringTitle.isEmpty, query.waitForExistence(timeout: 5), query.isHittable,
-                  (query.value as? String).map({ $0.isEmpty || $0 == "筛选目录标题" }) == true else {
-                try fail("Require an original empty directory query before filtering the observed target title")
+                  locate.isHittable else {
+                try fail("Require the actual directory query and its existing clear/locate action")
             }
+            // SwiftUI can expose an empty field without an AX value. Use the
+            // existing action that explicitly clears this temporary query;
+            // never infer empty input from an absent accessibility attribute.
+            locate.tap()
             query.tap(); query.typeText(filteringTitle)
             wait("The real title filter must retain its exact input", timeout: 10) {
                 query.value as? String == filteringTitle
             }
-            let rows = app.buttons.matching(NSPredicate(format: "identifier == %@", "chapter-\(index)"))
-            guard rows.firstMatch.waitForExistence(timeout: 10), rows.count == 1 else {
-                try fail("The actual filtered directory must contain the one exact observed chapter index")
-            }
-            let row = rows.firstMatch
-            let owners = app.scrollViews.allElementsBoundByIndex.filter { $0.buttons["chapter-\(index)"].exists }
-            guard owners.count == 1, row.isEnabled, row.isHittable,
-                  owners[0].frame.intersection(app.frame).contains(row.frame) else {
-                try fail("Require the filtered target fully visible in its actual owner; do not assume keyboard dismissal")
-            }
+            let row = try filteredDirectoryTarget(index, title: filteringTitle, app: app)
+            if prepareFilteredTargetOnly { return }
             row.tap()
             if requireSelection {
                 wait("The exact filtered chapter must become selected", timeout: 30) { row.isSelected }
