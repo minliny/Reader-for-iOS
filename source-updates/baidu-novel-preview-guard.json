@@ -1,0 +1,51 @@
+[
+  {
+    "bookSourceGroup": "Reader 内置 · 已验证书源",
+    "bookSourceName": "百度小说",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://dushu.baidu.com/",
+    "capabilities": [
+      "import",
+      "search",
+      "detail",
+      "toc",
+      "content"
+    ],
+    "enabled": true,
+    "enabledCookieJar": false,
+    "enabledExplore": false,
+    "provenance": {
+      "origin": "reader-project-authored",
+      "upstreamSite": "https://dushu.baidu.com/",
+      "parentBuiltinId": "reader-builtin-baidu",
+      "parentBuiltinVersion": 6,
+      "parentContentRuleSHA256": "375861a491c9d726fec45ff329a01e168df2803db517e0841114f7ecb9371748",
+      "notes": "Explicit-import candidate for the existing source identity. Rejects the observed provider-declared incomplete paid preview response; does not decode full-content resources or claim account entitlement. Core and native acceptance remain separate."
+    },
+    "ruleBookInfo": {
+      "intro": "@js:'<br>'+java.get('intro')",
+      "lastChapter": "共{$.data.chapter.chapterCount}##[\\(（【].*?[求更谢乐发订合补加].*?[】）\\)]"
+    },
+    "ruleContent": {
+      "content": "<js>\nvar response = JSON.parse(String(result));\nvar novel = response && response.data && response.data.novel;\nif (!novel || typeof novel.content !== \"string\" || !novel.content.trim()) {\n  throw new Error(\"来源未返回可用正文\");\n}\nvar content = novel.content;\nvar actualCount = Array.from(content).length;\nvar countField = novel.word_sum;\nvar validCount = (typeof countField === \"number\" && Number.isSafeInteger(countField) && countField > 0) ||\n  (typeof countField === \"string\" && /^[1-9][0-9]*$/.test(countField) && Number.isSafeInteger(Number(countField)));\nvar hasFullReference = typeof novel.content_url === \"string\" && novel.content_url.trim().length > 0;\nvar paidStatus = novel.price_status === \"1\" || novel.price_status === 1;\nif (paidStatus && actualCount <= 100 && validCount && Number(countField) > actualCount && hasFullReference) {\n  throw new Error(\"当前书源只返回试读内容，未取得完整正文\");\n}\ncontent;\n</js>"
+    },
+    "ruleSearch": {
+      "author": "author",
+      "bookList": "$..novelList[*]",
+      "bookUrl": "https://boxnovel.baidu.com/boxnovel/wiseapi/chapterList?bookid={$.bookId}&pageNum=1&order=asc&site=",
+      "checkKeyWord": "青春",
+      "coverUrl": "cover",
+      "intro": "description@put:{'intro':'description'}",
+      "kind": "{{$.tagList}},{{$.status}}",
+      "name": "title"
+    },
+    "ruleToc": {
+      "chapterList": "data.chapter.chapterInfo",
+      "chapterName": "chapter_title##默认卷.|正文.|[\\(（【].*?[求更谢乐发订合补加].*?[】）\\)]",
+      "chapterUrl": "https://dushu.baidu.com/api/pc/getChapterContent?data=%7B%22book_id%22:%22{$.book_id}%22,%22cid%22:%22{$.book_id}%7C{$.chapter_id}%22,%22need_bookinfo%22:0%7D",
+      "isVip": "$.price_status@js:result === \"1\" || result === 1 ? true : result === \"0\" || result === 0 ? false : undefined"
+    },
+    "searchUrl": "/api/getSearchResultData?page={{page}}&count=10&query={{key}}",
+    "bookSourceComment": "对该接口明确返回的试读响应报告未取得完整正文；不会把试读片段作为完整章节。"
+  }
+]

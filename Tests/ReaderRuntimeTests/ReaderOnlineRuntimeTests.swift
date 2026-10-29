@@ -498,6 +498,180 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
     /// These are original source definitions selected from the frozen real
     /// HarmonyOS package, not a synthetic successful HTTP/rule replay. Failures
     /// remain real failures and cannot be replaced by an in-process response.
+    @MainActor
+    func testRealBaiduCandidateRejectsDeclaredPreviewAndPreservesFreeBodyWithoutShelfAdmission() async throws {
+        executionTimeAllowance = 90
+        let start = ContinuousClock.now, initialFailures = testRun?.failureCount ?? 0
+        let expectedSHA = "26ab6aae6fb080fb077f1bf49e2b84ac0a676733dc8dc87f785e03d79f4f78d2"
+        let sourceID = "https://dushu.baidu.com/"
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealBaiduPreview-" + UUID().uuidString)
+        let sourceURL = root.appendingPathComponent("Sources"), operations = sourceURL.appendingPathComponent(".operations")
+        var service: ReaderLibraryService?, cookieQuery: [String: Any]?, identityBytes: Data?
+        var stage = "candidate-input", candidateSHA = "NOT_READ", observations: [[String: Any]] = []
+        var scenarioFailure: Error?, scenarioFailureStage: String?
+        func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+        func require(_ condition: Bool, _ message: String) throws {
+            guard condition else { throw ReaderLibraryError.invalidResponse("\(stage): \(message)") }
+        }
+        func canonical(_ data: Data) throws -> Data {
+            try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: data), options: [.sortedKeys])
+        }
+        func attach(_ status: String, error: Error? = nil) throws {
+            let elapsed = start.duration(to: .now).components
+            var facts: [String: Any] = ["status": status, "stage": stage, "temporaryRoot": root.path,
+                "candidateSha256": candidateSHA, "expectedCandidateSha256": expectedSHA,
+                "elapsedSeconds": Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
+                "observations": observations, "shelfAdmission": "NOT_PERFORMED",
+                "scope": "REAL_NETWORK_ISOLATED_CORE_HOST_ONLY_NOT_NATIVE_UI_OR_ENTITLEMENT"]
+            if let error {
+                facts["errorType"] = String(reflecting: type(of: error))
+                if let failure = error as? ReaderLibraryError, case let .core(code, message, retryable, reason) = failure {
+                    facts["coreError"] = ["code": code, "category": reason ?? "", "retryable": retryable,
+                        "messageSha256": hash(Data(message.utf8))]
+                }
+            }
+            let value = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]),
+                                      uniformTypeIdentifier: "public.json")
+            value.name = "Actual-Baidu-candidate-free-body-and-preview-refusal"; value.lifetime = .keepAlways; add(value)
+        }
+        func cleanExactCredential() throws {
+            guard let cookieQuery else { return }
+            try require(try Data(contentsOf: operations.appendingPathComponent(ReaderHostLibraryIdentity.fileName)) == identityBytes,
+                        "retain the original temporary namespace before exact credential cleanup")
+            let deleted = SecItemDelete(cookieQuery as CFDictionary)
+            var read = cookieQuery; read[kSecReturnData as String] = true
+            var remaining: CFTypeRef?
+            let status = SecItemCopyMatching(read as CFDictionary, &remaining)
+            try require((deleted == errSecSuccess || deleted == errSecItemNotFound) && status == errSecItemNotFound,
+                        "only the admitted temporary service/account pair may be removed")
+        }
+        do {
+            let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
+            let input = documents.appendingPathComponent("baidu-novel-preview-guard.json")
+            let package = try Data(contentsOf: input); candidateSHA = hash(package)
+            try require(candidateSHA == expectedSHA, "the explicit-import candidate must match its frozen original bytes")
+            stage = "admit-private-cookie-pair-before-network"
+            let namespace = try ReaderHostLibraryIdentity.loadOrCreate(in: operations)
+            identityBytes = try Data(contentsOf: operations.appendingPathComponent(ReaderHostLibraryIdentity.fileName))
+            let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "io.reader.minliny.source-cookies." + hash(Data(namespace.utf8)),
+                kSecAttrAccount as String: hash(Data(sourceID.utf8))]
+            var read = query; read[kSecReturnData as String] = true
+            var prior: CFTypeRef?
+            try require(SecItemCopyMatching(read as CFDictionary, &prior) == errSecItemNotFound,
+                        "a pre-existing credential pair cannot be used or cleaned")
+            cookieQuery = query
+            let active = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"), sourceURL: sourceURL)
+            service = active
+            let scenario = Task { @MainActor in
+                stage = "import-real-candidate"
+                try require(try await active.listBooks().isEmpty, "fresh isolated shelf")
+                let imported = try await active.importSources(package, operationID: UUID().uuidString)
+                try require(imported.count == 1 && imported.allSatisfy(\.succeeded), "original source import ACK")
+                let sources = try await active.onlineSources()
+                try require(sources.count == 1 && sources[0].id == sourceID && sources[0].enabled, "exact Baidu source identity")
+                observations.append(["stage": stage, "sourceId": sourceID, "sourceVersion": sources[0].version])
+                stage = "real-search-and-detail"
+                let search = try await active.searchSource(sourceID, keyword: "等到鸢尾纯白", page: 1)
+                observations.append(["stage": stage, "actualSearchCount": search.books.count, "elapsedMilliseconds": search.elapsedMilliseconds])
+                let matches = search.books.filter { candidate in
+                    guard candidate.sourceId == sourceID, candidate.title == "等到鸢尾纯白",
+                          let url = URLComponents(string: candidate.bookId) else { return false }
+                    return url.host == "boxnovel.baidu.com" && url.queryItems?.contains(where: {
+                        $0.name == "bookid" && $0.value == "4345127024"
+                    }) == true
+                }
+                try require(matches.count == 1, "one actual exact-title/book4345127024 search candidate")
+                let candidate = try XCTUnwrap(matches.first)
+                let detail = try await active.onlineDetail(candidate), book = detail.book
+                try require(book.sourceId == sourceID && book.bookId == candidate.bookId && detail.chapters.count == 50,
+                            "actual matching50-chapter directory")
+                for (index, vip) in [(UInt32(0), false), (19, false), (20, true), (36, true)] {
+                    let chapter = try XCTUnwrap(detail.chapters.first { $0.index == index })
+                    try require(chapter.isVip == vip && !chapter.url.isEmpty,
+                                "source fee metadata must preserve the real row's navigation")
+                    observations.append(["stage": stage, "chapterIndex": index, "isVip": vip, "navigable": true])
+                }
+                stage = "real-free-chapter0"
+                let free = try await active.content(for: book, chapterIndex: 0)
+                try require(free.sourceId == sourceID && free.bookId == book.bookId && free.chapterIndex == 0 &&
+                    free.bodyVersion?.isEmpty == false && free.processingVersion?.isEmpty == false &&
+                    free.scalarCount == 2232 && hash(Data(free.content.utf8)) == "b4aa9f3c6a4c4c1f1674d28281c3e00b442eb33973096ef03f209bb133a08443",
+                    "the actual free chapter must match the retained canonical body, not merely exceed a length threshold")
+                let progress = try await active.progress(for: book)
+                let cache = try canonical(await active.coreRead("cache.book.status", ["sourceId": sourceID, "bookId": book.bookId]))
+                observations.append(["stage": stage, "bookIdSha256": hash(Data(book.bookId.utf8)),
+                    "scalarCount": free.scalarCount, "bodySha256": hash(Data(free.content.utf8)),
+                    "bodyVersion": free.bodyVersion ?? "", "processingVersion": free.processingVersion ?? "",
+                    "cacheStatusSha256": hash(cache), "progressSha256": hash(try JSONEncoder().encode(progress))])
+                stage = "real-preview-chapter36-must-refuse"
+                var refused = false
+                do {
+                    let unexpected = try await active.content(for: book, chapterIndex: 36)
+                    observations.append(["stage": stage, "unexpectedReturnedScalarCount": unexpected.scalarCount,
+                        "unexpectedBodySha256": hash(Data(unexpected.content.utf8))])
+                } catch let failure as ReaderLibraryError {
+                    guard case let .core(code, message, retryable, reason) = failure else { throw failure }
+                    let originalRefusal = message.contains("当前书源只返回试读内容，未取得完整正文")
+                    observations.append(["stage": stage, "coreCode": code, "category": reason ?? "",
+                        "retryable": retryable, "containsOriginalSourceRefusal": originalRefusal,
+                        "messageSha256": hash(Data(message.utf8))])
+                    try require(originalRefusal, "the actual Core error must preserve the original source refusal")
+                    refused = true
+                }
+                try require(refused, "a97/100-scalar preview cannot return as a successful complete chapter")
+                stage = "verify-original-free-cache-and-progress"
+                try require(try await active.progress(for: book) == progress, "the complete prior progress must be unchanged")
+                try require(try canonical(await active.coreRead("cache.book.status", ["sourceId": sourceID, "bookId": book.bookId])) == cache,
+                            "failed preview must not change the original cache inventory")
+                try require(try await active.content(for: book, chapterIndex: 0) == free, "the original free body and versions must remain exact")
+                try require(try await active.listBooks().isEmpty, "the method must never admit a shelf book")
+                try require(try await active.pendingFeatureOperations().isEmpty, "no original feature mutation may remain pending")
+                try require(hash(Data(contentsOf: input)) == expectedSHA, "candidate input bytes must remain unchanged")
+            }
+            // This cancels only the owned read scenario; accepted Core/HTTP
+            // results are never replaced by synthetic timeout responses.
+            let deadline = Task { @MainActor in
+                do { try await Task.sleep(until: start.advanced(by: .seconds(90)), clock: .continuous); scenario.cancel() }
+                catch { }
+            }
+            do { try await scenario.value; deadline.cancel() }
+            catch { deadline.cancel(); scenario.cancel(); throw error }
+        } catch { scenarioFailure = error; scenarioFailureStage = stage }
+        do {
+            // A failed close retains both directory and namespace; do not
+            // delete credentials while their original transport can still run.
+            if let service { try await service.close() }
+            stage = "exact-private-cleanup"
+            try cleanExactCredential()
+        } catch {
+            observations.append(["stage": "exact-private-cleanup", "succeeded": false])
+            if scenarioFailure == nil { scenarioFailure = error; scenarioFailureStage = stage }
+        }
+        if let scenarioFailure {
+            stage = scenarioFailureStage ?? stage
+            try? attach("FAIL_OWNED_LIBRARY_PRESERVED", error: scenarioFailure)
+            throw scenarioFailure
+        }
+        do {
+            try require((testRun?.failureCount ?? initialFailures) == initialFailures, "any XCTest failure must retain the owned root")
+            try attach("REAL_CORE_ASSERTIONS_CONFIRMED_BEFORE_OWNED_ROOT_REMOVAL")
+            try FileManager.default.removeItem(at: root)
+        } catch {
+            // Keep the same UUID ownership if recursive removal only removed
+            // some children. Never overwrite a changed identity.
+            if let identityBytes {
+                try? FileManager.default.createDirectory(at: operations, withIntermediateDirectories: true)
+                let identityURL = operations.appendingPathComponent(ReaderHostLibraryIdentity.fileName)
+                if !FileManager.default.fileExists(atPath: identityURL.path) {
+                    try? identityBytes.write(to: identityURL, options: .withoutOverwriting)
+                }
+            }
+            try? attach("FAIL_OWNED_LIBRARY_PRESERVED", error: error)
+            throw error
+        }
+    }
+
     func testRealStoredSourcesSearchDetailShelfAndCachedBody() async throws {
         let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
         let package = try Data(contentsOf: documents.appendingPathComponent("Reader-real-sources.json"))
