@@ -166,6 +166,146 @@ final class ReaderTXTTOCDraftPreviewTests: XCTestCase {
 /// These results are not generated books, provider inputs or format acceptance.
 @MainActor
 extension ReaderTXTTOCDraftPreviewTests {
+    /// Exercises the production deletion/ActionOwner path with controlled
+    /// service Bool/throw outcomes, not a Core receipt or native UI claim.
+    func testConfirmedRuleDeletionPreservesLatestDraftAndRetiresOnlyItsEditor() async throws {
+        for kind in [ReaderRuleWorkspace.Kind.replace, .txt] {
+            for edit in 0..<3 {
+                let domain = "ReaderRuleDeleteSuccess-" + UUID().uuidString
+                let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+                defer { defaults.removePersistentDomain(forName: domain) }
+                let (state, projection) = deletionWorkspace(kind: kind, defaults: defaults)
+                let actions = ReaderLibraryActionOwner(), id: Int64 = kind == .replace ? 7 : 11
+                let input = state.captureRuleDeletion(kind: kind, id: id)
+                let entered = expectation(description: "Actual deletion adapter entered")
+                var reply: CheckedContinuation<Bool, Error>?
+                var calls = 0
+                let task = Task { await state.deleteRule(input, actions: actions, scope: "controlled-rule-owner|controlled-chapter", label: "Controlled deletion") { actualKind, actualID, operationID in
+                    XCTAssertEqual(actualKind, kind); XCTAssertEqual(actualID, id); XCTAssertFalse(operationID.isEmpty)
+                    calls += 1
+                    return try await withCheckedThrowingContinuation { reply = $0; entered.fulfill() }
+                } }
+                await fulfillment(of: [entered], timeout: 3)
+                XCTAssertTrue(actions.hasPending)
+                if edit != 0 {
+                    if kind == .replace {
+                        let name = state.replaceDraft.name; state.replaceDraft.name = "Latest unsaved input"
+                        if edit == 2 { state.replaceDraft.name = name }
+                    } else {
+                        let name = state.txtDraft.name; state.txtDraft.name = "Latest unsaved input"
+                        if edit == 2 { state.txtDraft.name = name }
+                    }
+                }
+                let expected = try encodedRuleDrafts(state)
+                try XCTUnwrap(reply).resume(returning: true)
+                let confirmed = await task.value
+                XCTAssertTrue(confirmed); XCTAssertFalse(actions.hasPending); XCTAssertEqual(calls, 1)
+                XCTAssertEqual(state.editingReplace, kind == .replace ? nil : 7)
+                XCTAssertEqual(state.editingTXT, kind == .txt ? nil : 11)
+                XCTAssertEqual(try encodedRuleDrafts(state), expected)
+                let cold = ReaderRuleWorkspace(identity: "controlled-rule-owner|controlled-chapter", defaults: defaults)
+                XCTAssertEqual(cold.editingReplace, state.editingReplace); XCTAssertEqual(cold.editingTXT, state.editingTXT)
+                XCTAssertEqual(try encodedRuleDrafts(cold), expected, "Latest draft survives after the deleted target retires")
+                withExtendedLifetime(projection) {}
+            }
+        }
+    }
+
+    func testRuleDeletionRejectsFalseUnknownAndLateACKForChangedOrReopenedEditor() async throws {
+        for kind in [ReaderRuleWorkspace.Kind.replace, .txt] {
+            for boundary in 0..<9 {
+                let domain = "ReaderRuleDeleteRetired-" + UUID().uuidString
+                let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+                defer { defaults.removePersistentDomain(forName: domain) }
+                let (state, projection) = deletionWorkspace(kind: kind, defaults: defaults)
+                let actions = ReaderLibraryActionOwner(), id: Int64 = kind == .replace ? 7 : 11
+                let input = state.captureRuleDeletion(kind: kind, id: id)
+                // The confirmation retains the original identity even if its
+                // editor is explicitly selected again before dispatch.
+                if boundary == 8 {
+                    if kind == .replace { state.editingReplace = id } else { state.editingTXT = id }
+                }
+                let entered = expectation(description: "Original delete service continuation entered")
+                var reply: CheckedContinuation<Bool, Error>?, operationID = ""
+                let task = Task { await state.deleteRule(input, actions: actions, scope: "controlled-rule-owner|controlled-chapter", label: "Controlled deletion") { actualKind, actualID, actualOperation in
+                    XCTAssertEqual(actualKind, kind); XCTAssertEqual(actualID, id); operationID = actualOperation
+                    return try await withCheckedThrowingContinuation { reply = $0; entered.fulfill() }
+                } }
+                await fulfillment(of: [entered], timeout: 3)
+                switch boundary {
+                case 3, 4:
+                    if kind == .replace { state.editingReplace = 19; if boundary == 4 { state.editingReplace = id } }
+                    else { state.editingTXT = 19; if boundary == 4 { state.editingTXT = id } }
+                case 5:
+                    if kind == .replace { state.editingReplace = id } else { state.editingTXT = id }
+                case 6:
+                    state.retireReplacementReader()
+                    state.observeReplacementReader(projection.$reader, bookID: "controlled-rule-owner|controlled-chapter")
+                case 7: state.kind = .dictionary; state.kind = kind
+                default: break
+                }
+                let replacementID = state.editingReplace, txtID = state.editingTXT
+                let persisted = defaults.data(forKey: "reader.toolDrafts.v1.controlled-rule-owner|controlled-chapter")
+                let drafts = try encodedRuleDrafts(state), terminal = try XCTUnwrap(reply)
+                if boundary == 1 { terminal.resume(throwing: ReplacementReadFailure.controlled) }
+                else if boundary == 2 { terminal.resume(throwing: ReaderLibraryError.operationPending(operationID)) }
+                else { terminal.resume(returning: boundary != 0) }
+                let confirmed = await task.value
+                XCTAssertEqual(confirmed, boundary != 1 && boundary != 2)
+                XCTAssertEqual(state.editingReplace, replacementID); XCTAssertEqual(state.editingTXT, txtID)
+                XCTAssertEqual(try encodedRuleDrafts(state), drafts)
+                XCTAssertEqual(defaults.data(forKey: "reader.toolDrafts.v1.controlled-rule-owner|controlled-chapter"), persisted)
+            }
+        }
+    }
+
+    func testRuleDeletionOriginalActionResumeRetiresOnlyTheStillCurrentEditor() async throws {
+        for kind in [ReaderRuleWorkspace.Kind.replace, .txt] {
+            for reopen in [false, true] {
+                let domain = "ReaderRuleDeleteResume-" + UUID().uuidString
+                let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+                defer { defaults.removePersistentDomain(forName: domain) }
+                let (state, projection) = deletionWorkspace(kind: kind, defaults: defaults)
+                let actions = ReaderLibraryActionOwner(), id: Int64 = kind == .replace ? 7 : 11
+                let input = state.captureRuleDeletion(kind: kind, id: id)
+                var calls: [String] = []
+                let initial = await state.deleteRule(input, actions: actions, scope: "controlled-rule-owner|controlled-chapter", label: "Controlled deletion") { actualKind, actualID, operationID in
+                    XCTAssertEqual(actualKind, kind); XCTAssertEqual(actualID, id); calls.append(operationID)
+                    if calls.count == 1 { throw ReaderLibraryError.operationPending(operationID) }
+                    return true
+                }
+                XCTAssertFalse(initial); XCTAssertTrue(actions.hasPending)
+                if reopen {
+                    state.retireReplacementReader()
+                    state.observeReplacementReader(projection.$reader, bookID: "controlled-rule-owner|controlled-chapter")
+                }
+                state.replaceDraft.name = "Latest replacement draft"; state.txtDraft.name = "Latest TXT draft"
+                let drafts = try encodedRuleDrafts(state)
+                let resumed = await actions.resumeOriginal()
+                XCTAssertTrue(resumed); XCTAssertFalse(actions.hasPending)
+                XCTAssertEqual(calls.count, 2); XCTAssertEqual(calls.first, calls.last)
+                XCTAssertEqual(state.editingReplace, !reopen && kind == .replace ? nil : 7)
+                XCTAssertEqual(state.editingTXT, !reopen && kind == .txt ? nil : 11)
+                XCTAssertEqual(try encodedRuleDrafts(state), drafts)
+            }
+        }
+    }
+
+    private func deletionWorkspace(kind: ReaderRuleWorkspace.Kind, defaults: UserDefaults) -> (ReaderRuleWorkspace, ReplacementReaderProjection) {
+        let state = ReaderRuleWorkspace(identity: "controlled-rule-owner|controlled-chapter", defaults: defaults)
+        state.kind = kind; state.replaceDraft = replacementRule().draft
+        state.txtDraft = .init(name: "Controlled TXT draft", rule: "^Chapter", example: "Metadata only", serialNumber: 3, enable: false)
+        state.editingReplace = 7; state.editingTXT = 11
+        let projection = ReplacementReaderProjection(replacementSession(replacementContext()))
+        state.observeReplacementReader(projection.$reader, bookID: "controlled-rule-owner|controlled-chapter")
+        return (state, projection)
+    }
+
+    private func encodedRuleDrafts(_ state: ReaderRuleWorkspace) throws -> [Data] {
+        let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+        return [try encoder.encode(state.replaceDraft), try encoder.encode(state.txtDraft), try encoder.encode(state.dictionaryDraft)]
+    }
+
     func testReplacementPreviewBindsCurrentChapterVersionsAndInvalidatesChangedInputs() async throws {
         let domain = "ReaderReplacementPreviewBinding-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))

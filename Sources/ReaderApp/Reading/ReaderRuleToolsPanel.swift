@@ -47,6 +47,7 @@ final class ReaderRuleWorkspace: ObservableObject {
     @Published var kind: Kind = .replace {
         didSet {
             if kind != oldValue {
+                editorPresentation = UUID()
                 invalidateTXTPreview(reason: "kind.changed"); invalidateReplacementPreview()
                 retireDictionaryQuery(); retireHierarchyRead()
             }
@@ -67,8 +68,19 @@ final class ReaderRuleWorkspace: ObservableObject {
         }
     }
     @Published var dictionaryDraft = ReaderDictionaryRule(name: "") { didSet { invalidateDictionaryQuery(); persistDrafts() } }
-    @Published var editingReplace: Int64? { didSet { invalidateReplacementPreview(); persistDrafts() } }
-    @Published var editingTXT: Int64? { didSet { invalidateTXTPreview(reason: "editingID.didSet"); persistDrafts() } }
+    @Published var editingReplace: Int64? { didSet { replacementEditorRevision = UUID(); invalidateReplacementPreview(); persistDrafts() } }
+    @Published var editingTXT: Int64? { didSet { txtEditorRevision = UUID(); invalidateTXTPreview(reason: "editingID.didSet"); persistDrafts() } }
+    private var editorPresentation = UUID()
+    private var replacementEditorRevision = UUID()
+    private var txtEditorRevision = UUID()
+    struct RuleDeletionInput {
+        let kind: Kind
+        let ruleID: Int64
+        fileprivate let presentation: UUID
+        fileprivate let editorRevision: UUID
+        fileprivate let context: ReplacementContext?
+        fileprivate let wasEditing: Bool
+    }
     @Published var dictionaryWord = "" { didSet { invalidateDictionaryQuery() } }
     @Published private(set) var dictionaryResult: String?
     @Published private(set) var dictionaryFailure: String?
@@ -162,6 +174,7 @@ final class ReaderRuleWorkspace: ObservableObject {
         }
     }
     func retireReplacementReader() {
+        editorPresentation = UUID()
         replacementReaderObservation?.cancel(); replacementReaderObservation = nil
         replacementContext = nil
         invalidateReplacementPreview()
@@ -170,9 +183,41 @@ final class ReaderRuleWorkspace: ObservableObject {
 
     func setReplacementContext(_ context: ReplacementContext?) {
         guard replacementContext != context else { return }
+        editorPresentation = UUID()
         replacementContext = context
         invalidateReplacementPreview()
         retireDictionaryQuery(); retireHierarchyRead()
+    }
+
+    /// UI editor identity only. The existing action owner retains the original
+    /// mutation; neither a list refresh nor an unknown outcome retires an ID.
+    func captureRuleDeletion(kind: Kind, id: Int64) -> RuleDeletionInput {
+        let editing = kind == .replace ? editingReplace : editingTXT
+        return .init(kind: kind, ruleID: id, presentation: editorPresentation,
+            editorRevision: kind == .replace ? replacementEditorRevision : txtEditorRevision,
+            context: replacementContext,
+            wasEditing: self.kind == kind && editing == id && replacementContext != nil)
+    }
+
+    func deleteRule(_ input: RuleDeletionInput, actions: ReaderLibraryActionOwner, scope: String, label: String,
+                    delete: @escaping (Kind, Int64, String) async throws -> Bool) async -> Bool {
+        guard input.kind == .replace || input.kind == .txt else { return false }
+        var deleted = false
+        return await actions.perform(label, scope: scope, ended: { [weak self] _, confirmed in
+            if confirmed, deleted { self?.finishRuleDeletion(input) }
+        }) { operationID in
+            deleted = try await delete(input.kind, input.ruleID, operationID)
+        }
+    }
+
+    private func finishRuleDeletion(_ input: RuleDeletionInput) {
+        guard input.wasEditing, kind == input.kind,
+              editorPresentation == input.presentation, replacementContext == input.context,
+              (input.kind == .replace ? replacementEditorRevision : txtEditorRevision) == input.editorRevision,
+              (input.kind == .replace ? editingReplace : editingTXT) == input.ruleID else { return }
+        // Keep even edits made while deletion awaited its ACK. Only explicit
+        // editor selection/reselection changes ownership of these draft bytes.
+        if input.kind == .replace { editingReplace = nil } else { editingTXT = nil }
     }
 
     private func invalidateDictionaryQuery() {
@@ -526,7 +571,8 @@ struct ReaderRuleToolsPanel: View {
                         .accessibilityLabel("启用规则：\(rule.name.isEmpty ? rule.pattern : rule.name)")
                         .accessibilityIdentifier("enable-replace-rule-\(rule.id)")
                     Button("删除", role: .destructive) {
-                        confirmDelete(rule.name) { mutate("删除替换规则") { id, service in _ = try await service.deleteReplaceRule(id: rule.id, operationID: id) } }
+                        let input = state.captureRuleDeletion(kind: .replace, id: rule.id), scope = book.id
+                        confirmDelete(rule.name) { deleteRule(input, scope: scope, label: "删除替换规则") }
                     }.disabled(model.actions.hasPending)
                         .accessibilityIdentifier("delete-replace-rule-\(rule.id)")
                 }.frame(minHeight: 44)
@@ -603,10 +649,12 @@ struct ReaderRuleToolsPanel: View {
                         mutate("保存目录识别规则") { id, service in _ = try await service.updateTXTTOCRule(id: rule.id, draft: draft, operationID: id) }
                     })).labelsHidden().disabled(model.actions.hasPending)
                     Button("删除", role: .destructive) {
-                        confirmDelete(rule.name) { mutate("删除目录识别规则") { id, service in _ = try await service.deleteTXTTOCRule(id: rule.id, operationID: id) } }
+                        let input = state.captureRuleDeletion(kind: .txt, id: rule.id), scope = book.id
+                        confirmDelete(rule.name) { deleteRule(input, scope: scope, label: "删除目录识别规则") }
                     }.disabled(model.actions.hasPending)
                 }.frame(minHeight: 44)
             }
+            Text(state.editingTXT == nil ? "新 TXT 目录规则" : "编辑 TXT 目录规则").font(ReaderTypography.font(.controlHeader))
             TextField("规则名称", text: $state.txtDraft.name).readerField()
             TextField("章节识别表达式", text: $state.txtDraft.rule, axis: .vertical).readerField()
                 .accessibilityIdentifier("txt-toc-draft-pattern")
@@ -795,6 +843,17 @@ struct ReaderRuleToolsPanel: View {
         state.invalidateRuleReadsForMutation()
         Task {
             if await model.actions.perform(label, scope: book.id, action: { id in try await action(id, service) }) { await load() }
+        }
+    }
+    private func deleteRule(_ input: ReaderRuleWorkspace.RuleDeletionInput, scope: String, label: String) {
+        guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
+        state.invalidateRuleReadsForMutation()
+        Task {
+            let confirmed = await state.deleteRule(input, actions: model.actions, scope: scope, label: label) { kind, ruleID, operationID in
+                if kind == .replace { return try await service.deleteReplaceRule(id: ruleID, operationID: operationID) }
+                return try await service.deleteTXTTOCRule(id: ruleID, operationID: operationID)
+            }
+            if confirmed { await load() }
         }
     }
     private func confirmDelete(_ name: String, action: @escaping () -> Void) {

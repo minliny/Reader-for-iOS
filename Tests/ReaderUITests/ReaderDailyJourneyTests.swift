@@ -2,8 +2,8 @@ import XCTest
 import UIKit
 import Vision
 
-/// Select explicitly after the two original TXT files have been imported by the
-/// real system picker. These methods never call Runtime or inject book data.
+/// Select explicitly after the required original books have been imported by
+/// the real system picker. These methods never call Runtime or inject book data.
 final class ReaderDailyJourneyTests: XCTestCase {
     private let firstID = "book-local:aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5"
     private let secondID = "book-local:ebe4b6535def1853e2d4d039f14981035fbfba8dcd6864fa6d0ecb2174e23952"
@@ -12,6 +12,126 @@ final class ReaderDailyJourneyTests: XCTestCase {
     private enum Prerequisite: Error { case removalOwnershipMissing }
 
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    /// Existing-book continuation only. This does not complete the two-TXT
+    /// journey, create bookmarks, change preferences or move either position.
+    func testExistingRealTXTAndEPUBAlternateAndColdReopenPreserveIndependentVisibleAnchors() throws {
+        executionTimeAllowance = 240
+        let app = XCUIApplication()
+        let epubID = "book-local:5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67"
+        app.launch()
+        assertContinuationShelf(app)
+
+        openContinuationBook(firstID, title: firstTitle, ebook: false, app: app)
+        let txt = try captureContinuation(firstID, ebook: false, app: app, name: "txt-original-position")
+        leaveContinuation(ebook: false, app: app)
+        openContinuationBook(epubID, title: "终宋", ebook: true, app: app)
+        let epub = try captureContinuation(epubID, ebook: true, app: app, name: "epub-original-position")
+        XCTAssertNotEqual(txt.passage, epub.passage, "The two original books require independent visible prose anchors")
+        leaveContinuation(ebook: true, app: app)
+
+        openContinuationBook(firstID, title: firstTitle, ebook: false, app: app)
+        try assertContinuation(txt, ebook: false, app: app, name: "txt-after-alternating")
+        leaveContinuation(ebook: false, app: app)
+        app.terminate()
+        app.launch()
+        assertContinuationShelf(app)
+        openContinuationBook(epubID, title: "终宋", ebook: true, app: app)
+        try assertContinuation(epub, ebook: true, app: app, name: "epub-after-one-cold-reopen")
+        leaveContinuation(ebook: true, app: app)
+        openContinuationBook(firstID, title: firstTitle, ebook: false, app: app)
+        try assertContinuation(txt, ebook: false, app: app, name: "txt-after-one-cold-reopen")
+        leaveContinuation(ebook: false, app: app)
+        assertContinuationShelf(app)
+    }
+
+    private struct ContinuationAnchor {
+        let shelfID: String
+        let chapterID: String
+        let chapterLabel: String
+        let passage: String
+    }
+
+    private func assertContinuationShelf(_ app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.textFields["shelf-filter"].exists, "Retain the original closed shelf search")
+        XCTAssertTrue(app.buttons["全部分组"].exists, "This narrow method requires the original all-groups shelf")
+    }
+
+    private func continuationBody(ebook: Bool, app: XCUIApplication) -> XCUIElement {
+        ebook ? app.descendants(matching: .any).matching(identifier: "reading-ebook-body").firstMatch
+            : app.textViews["reading-body"]
+    }
+
+    private func openContinuationBook(_ id: String, title: String, ebook: Bool, app: XCUIApplication) {
+        assertContinuationShelf(app)
+        filterShelf(title, app: app)
+        let books = app.buttons.matching(identifier: id)
+        XCTAssertTrue(books.firstMatch.waitForExistence(timeout: 15)); XCTAssertEqual(books.count, 1)
+        XCTAssertTrue(books.firstMatch.isEnabled && books.firstMatch.isHittable); books.firstMatch.tap()
+        let body = continuationBody(ebook: ebook, app: app)
+        XCTAssertTrue(body.waitForExistence(timeout: 20))
+        waitUntil("The exact existing book has a ready, unobscured native body", timeout: 20) {
+            body.isHittable && !app.buttons["阅读控制"].exists && !app.buttons["control-grabber"].isHittable
+        }
+    }
+
+    private func continuationHome(ebook: Bool, app: XCUIApplication) {
+        let home = app.buttons["control-module-home"]
+        if !home.isHittable {
+            continuationBody(ebook: ebook, app: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+        }
+        XCTAssertTrue(home.waitForExistence(timeout: 5)); XCTAssertTrue(home.isHittable); home.tap()
+    }
+
+    private func continuationChapter(_ id: String, ebook: Bool, app: XCUIApplication, name: String) -> (String, String) {
+        continuationHome(ebook: ebook, app: app)
+        let bookID = "reading-book:local|" + String(id.dropFirst("book-".count))
+        XCTAssertTrue(app.staticTexts[bookID].waitForExistence(timeout: 5), "The reading header must bind the exact original book")
+        let chapters = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+        XCTAssertEqual(chapters.count, 1)
+        let chapter = chapters.firstMatch
+        let result = (chapter.identifier, chapter.label)
+        let binding = XCTAttachment(string: "book=\(bookID)\nchapter=\(result.0)\ntitle=\(result.1)\nscalar/bodyVersion/processingVersion=NOT_CAPTURED_BY_NATIVE_AX; no percent-to-scalar inference")
+        binding.name = name + "-native-book-and-chapter"; binding.lifetime = .keepAlways; add(binding)
+        hideControls(app)
+        return result
+    }
+
+    private func captureContinuation(_ id: String, ebook: Bool, app: XCUIApplication, name: String) throws -> ContinuationAnchor {
+        let chapter = continuationChapter(id, ebook: ebook, app: app, name: name)
+        let lines = try ocr(app: app, wholeAppScreenshot: true)
+        XCTAssertGreaterThanOrEqual(lines.count, 4, "A full native prose viewport is required")
+        // Controls are hidden. A long actual OCR line excludes status-clock,
+        // progress and short book/chapter labels without cropping live AX frames.
+        let passage = try XCTUnwrap(lines.map(normalized).first(where: { $0.count >= 18 }))
+        let anchor = String(passage.prefix(24))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
+        let text = XCTAttachment(string: anchor)
+        text.name = name + "-actual-native-prose-anchor"; text.lifetime = .keepAlways; add(text)
+        return ContinuationAnchor(shelfID: id, chapterID: chapter.0, chapterLabel: chapter.1, passage: anchor)
+    }
+
+    private func assertContinuation(_ expected: ContinuationAnchor, ebook: Bool, app: XCUIApplication, name: String) throws {
+        let chapter = continuationChapter(expected.shelfID, ebook: ebook, app: app, name: name)
+        XCTAssertEqual(chapter.0, expected.chapterID); XCTAssertEqual(chapter.1, expected.chapterLabel)
+        waitUntil("The same original visible prose must return: " + name, timeout: 15) {
+            guard let lines = try? self.ocr(app: app, wholeAppScreenshot: true) else { return false }
+            return self.normalized(lines.joined()).contains(expected.passage)
+        }
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
+    }
+
+    private func leaveContinuation(ebook: Bool, app: XCUIApplication) {
+        continuationHome(ebook: ebook, app: app)
+        let leave = app.buttons["leave-reader"]
+        XCTAssertTrue(leave.isEnabled && leave.isHittable); leave.tap()
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+        clearShelfFilter(app)
+        assertContinuationShelf(app)
+    }
 
     func testATwoOriginalTXTBookmarksReflowAlternationAndColdVisibleAnchors() throws {
         let app = XCUIApplication()
@@ -387,16 +507,20 @@ final class ReaderDailyJourneyTests: XCTestCase {
         String(String.UnicodeScalarView(value.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }))
     }
 
-    private func ocr(app: XCUIApplication) throws -> [String] {
-        let body = app.textViews["reading-body"]
+    private func ocr(app: XCUIApplication, wholeAppScreenshot: Bool = false) throws -> [String] {
         let source = try XCTUnwrap(app.screenshot().image.cgImage)
-        let window = app.frame
-        let frame = body.frame.intersection(window).insetBy(dx: 6, dy: 6)
-        let rect = CGRect(x: (frame.minX - window.minX) * CGFloat(source.width) / window.width,
-            y: (frame.minY - window.minY) * CGFloat(source.height) / window.height,
-            width: frame.width * CGFloat(source.width) / window.width,
-            height: frame.height * CGFloat(source.height) / window.height).integral
-        let image = try XCTUnwrap(source.cropping(to: rect))
+        let image: CGImage
+        if wholeAppScreenshot { image = source }
+        else {
+            let body = app.textViews["reading-body"]
+            let window = app.frame
+            let frame = body.frame.intersection(window).insetBy(dx: 6, dy: 6)
+            let rect = CGRect(x: (frame.minX - window.minX) * CGFloat(source.width) / window.width,
+                y: (frame.minY - window.minY) * CGFloat(source.height) / window.height,
+                width: frame.width * CGFloat(source.width) / window.width,
+                height: frame.height * CGFloat(source.height) / window.height).integral
+            image = try XCTUnwrap(source.cropping(to: rect))
+        }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate; request.recognitionLanguages = ["zh-Hans", "en-US"]
         request.usesLanguageCorrection = false
