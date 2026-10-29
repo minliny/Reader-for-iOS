@@ -97,7 +97,7 @@ final class ReaderDailyJourneyTests: XCTestCase {
         XCTAssertEqual(editing.value as? String, draft)
         let remove = app.buttons.matching(NSPredicate(format: "label == '删除'"))
         XCTAssertEqual(remove.count, 1); XCTAssertTrue(remove.element.isEnabled); remove.element.tap()
-        XCTAssertTrue(app.staticTexts["请先保存或取消当前笔记编辑"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["请先保存或取消当前笔记编辑"].exists)
         XCTAssertFalse(app.alerts["删除笔记"].exists)
         XCTAssertTrue(app.buttons[ownedID].exists); XCTAssertEqual(editing.value as? String, draft)
         app.buttons["取消编辑"].tap()
@@ -113,6 +113,75 @@ final class ReaderDailyJourneyTests: XCTestCase {
         facts.name = "actual-annotation-draft-delete-guard-and-owned-cleanup"; facts.lifetime = .keepAlways; self.add(facts)
         hideControls(app)
         leaveContinuation(ebook: false, app: app)
+    }
+
+    /// Continue only the actual annotation created by retained run 3e42a2198e.
+    /// The exact native ID, original book and marker bind this cleanup owner.
+    func testExistingOwnedRealTXTAnnotationDraftDeleteTailAndCleanup() throws {
+        executionTimeAllowance = 150
+        let app = XCUIApplication(), ownedID = "annotation-1", marker = "原书笔记验证-011B4987"
+        app.launch()
+        openContinuationBook(firstID, title: firstTitle, ebook: false, app: app)
+        openModule("settings", app: app); app.buttons["高亮与笔记"].tap()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'annotation-'"))
+        waitUntil("The exact retained owned note is loaded", timeout: 15) {
+            !app.staticTexts["正在读取笔记"].exists && rows.count == 1 && app.buttons[ownedID].exists
+        }
+        XCTAssertTrue(app.buttons[ownedID].label.contains(marker), "Never substitute another note for the actual native ownership attachment")
+        func input() -> XCUIElement {
+            app.textFields["annotation-note"].exists ? app.textFields["annotation-note"] : app.textViews["annotation-note"]
+        }
+        let edit = app.buttons.matching(NSPredicate(format: "label == '编辑'"))
+        XCTAssertEqual(edit.count, 1); XCTAssertTrue(edit.element.isEnabled); edit.element.tap()
+        let field = input(), draft = marker + "-未保存"
+        XCTAssertEqual(field.value as? String, marker)
+        field.tap(); field.typeText("-未保存")
+        XCTAssertEqual(field.value as? String, draft)
+        XCTAssertEqual(app.buttons["save-annotation"].label, "保存笔记")
+        let remove = app.buttons.matching(NSPredicate(format: "label == '删除'"))
+        XCTAssertEqual(remove.count, 1)
+        func clearOfModuleBar() -> Bool {
+            let frame = remove.element.frame.insetBy(dx: -4, dy: -4)
+            return !app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'control-module-'"))
+                .allElementsBoundByIndex.contains { $0.frame.intersects(frame) }
+        }
+        if !clearOfModuleBar() {
+            // Use the ordinary Full/Quick handle to dismiss the keyboard and
+            // reveal the entire row, preserving this same unsaved draft.
+            let grabber = app.buttons["control-grabber"]
+            XCTAssertTrue(grabber.label.hasPrefix("完整控制栏")); grabber.tap()
+            waitUntil("Actual Quick endpoint", timeout: 5) { grabber.label.hasPrefix("快捷控制栏") }
+            grabber.tap()
+            waitUntil("Actual Full endpoint", timeout: 5) { grabber.label.hasPrefix("完整控制栏") }
+            XCTAssertEqual(input().value as? String, draft)
+        }
+        XCTAssertTrue(clearOfModuleBar(), "The actual Delete control must clear the later-drawn module bar")
+        let list = app.scrollViews.containing(.button, identifier: ownedID)
+        XCTAssertEqual(list.count, 1)
+        XCTAssertTrue(list.element.frame.contains(remove.element.frame))
+        XCTAssertTrue(remove.element.isEnabled && remove.element.isHittable); remove.element.tap()
+        let feedbackSeen = app.staticTexts["请先保存或取消当前笔记编辑"].exists
+        let unexpectedConfirmation = app.alerts["删除笔记"]
+        let noConfirmation = !unexpectedConfirmation.exists
+        if !noConfirmation { unexpectedConfirmation.buttons["取消"].tap() }
+        let draftRetained = input().value as? String == draft
+        let savedRowRetained = app.buttons[ownedID].exists && app.buttons[ownedID].label.contains(marker)
+        // Finish only this already-owned test entity before reporting the
+        // observations; a transient-message assertion must not strand it.
+        app.buttons["取消编辑"].tap()
+        XCTAssertEqual(app.buttons["save-annotation"].label, "高亮并保存笔记")
+        XCTAssertEqual(rows.count, 1); XCTAssertTrue(app.buttons[ownedID].label.contains(marker))
+        remove.element.tap()
+        let confirmation = app.alerts["删除笔记"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5)); confirmation.buttons["删除"].tap()
+        waitUntil("Only the original run's owned annotation is removed", timeout: 15) {
+            !app.buttons[ownedID].exists && rows.count == 0 && app.staticTexts["暂无笔记"].exists
+        }
+        let facts = XCTAttachment(string: "ownedCreateRun=3e42a2198e\nbook=\(firstID)\nownedID=\(ownedID)\nmarker=\(marker)\nnewCreates=0\noriginalUserNotesRemoved=0\nfeedbackSeen=\(feedbackSeen)\nnoDeleteConfirmationWhileEditing=\(noConfirmation)\nunsavedDraftRetained=\(draftRetained)\nsavedRowRetained=\(savedRowRetained)\nownedNoteRemoved=true")
+        facts.name = "actual-owned-note-delete-tail-and-cleanup"; facts.lifetime = .keepAlways; self.add(facts)
+        hideControls(app); leaveContinuation(ebook: false, app: app)
+        XCTAssertTrue(feedbackSeen); XCTAssertTrue(noConfirmation)
+        XCTAssertTrue(draftRetained); XCTAssertTrue(savedRowRetained)
     }
 
     /// One existing original TXT. Only an actually empty bookmark list permits
