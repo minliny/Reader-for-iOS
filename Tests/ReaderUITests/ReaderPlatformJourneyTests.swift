@@ -195,8 +195,10 @@ final class ReaderPlatformJourneyTests: XCTestCase {
                 return nil
             }
             let sliders = settings.sliders
+            let switchRows = settings.cells.matching(identifier: "LARGER_DYNAMIC_TYPE_SWITCH")
             guard let switchValue = binary(owner.value), binary(toggle.value) == switchValue, sliders.count == 1,
-                  toggle.isEnabled, toggle.frame.width > 0, toggle.frame.height > 0, owner.frame.contains(toggle.frame) else { return nil }
+                  switchRows.count == 1, toggle.isEnabled, toggle.frame.width > 0, toggle.frame.height > 0,
+                  switchRows.element.frame.contains(owner.frame), switchRows.element.frame.contains(toggle.frame) else { return nil }
             let slider = sliders.element
             guard slider.isEnabled, slider.frame.width > 0, slider.frame.height > 0, let raw = slider.value as? String else { return nil }
             let position = slider.normalizedSliderPosition
