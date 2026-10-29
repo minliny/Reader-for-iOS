@@ -118,7 +118,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
             settings.activate()
             try observed("Settings-foreground", owner: settings) { settings.state == .runningForeground }
             if onPage(largerTitles) { return }
-            let backLabels = ["设置", "Settings", "辅助功能", "Accessibility", "显示与文字大小", "Display & Text Size", "返回", "Back"]
+            let backLabels = ["设置", "Settings", "无障碍", "Accessibility", "显示与文字大小", "Display & Text Size", "返回", "Back"]
             for _ in 0..<6 {
                 if onPage(["设置", "Settings"]) { break }
                 let back = settings.navigationBars.buttons.matching(NSPredicate(format: "label IN %@ OR identifier == 'BackButton'", backLabels as NSArray))
@@ -127,7 +127,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
                 back[0].tap()
             }
             try require(onPage(["设置", "Settings"]), "Settings-root-before-change", settings)
-            for labels in [["辅助功能", "Accessibility"], ["显示与文字大小", "Display & Text Size"], largerTitles] {
+            for labels in [["无障碍", "Accessibility"], ["显示与文字大小", "Display & Text Size"], largerTitles] {
                 let deadline = ProcessInfo.processInfo.systemUptime + 15
                 var row: XCUIElement?
                 for step in 0...6 {
