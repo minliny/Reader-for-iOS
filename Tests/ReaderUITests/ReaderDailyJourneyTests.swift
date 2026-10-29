@@ -360,8 +360,41 @@ final class ReaderDailyJourneyTests: XCTestCase {
             let files = app.cells.containing(NSPredicate(format: "label == 'pg25332.txt' OR label == 'pg25332'"))
             if !files.firstMatch.waitForExistence(timeout: 3) {
                 let folders = app.cells.matching(NSPredicate(format: "identifier == 'Reader, Container' OR label BEGINSWITH 'Reader,'"))
-                try require(folders.count == 1 && folders.element.isHittable, "actual Reader Documents folder")
-                folders.element.tap()
+                let backID = "DOC.navBarButton.backInHistory"
+                let navigationDeadline = ProcessInfo.processInfo.systemUptime + 8
+                func navigationSignature() -> String? {
+                    let bars = app.navigationBars.containing(.button, identifier: backID)
+                    guard bars.count == 1, let snapshot = try? bars.element.snapshot() else { return nil }
+                    var nodes = [snapshot], fields = [String]()
+                    while let node = nodes.popLast() {
+                        fields.append("\(node.elementType.rawValue)|\(node.identifier)|\(node.label)")
+                        nodes.append(contentsOf: node.children)
+                    }
+                    return fields.joined(separator: "\n")
+                }
+                for _ in 0..<3 {
+                    if files.firstMatch.exists || (folders.count == 1 && folders.element.isEnabled && folders.element.isHittable) { break }
+                    try require(folders.count <= 1 && ProcessInfo.processInfo.systemUptime < navigationDeadline,
+                                "bounded original picker route to Reader Documents")
+                    let backs = app.navigationBars.buttons.matching(identifier: backID).allElementsBoundByIndex.filter {
+                        $0.isEnabled && $0.isHittable && $0.frame.width > 0 && $0.frame.height > 0 && app.frame.contains($0.frame)
+                    }
+                    try require(backs.count == 1, "one actual visible enabled picker Back; no unknown provider fallback")
+                    guard let before = navigationSignature() else { throw Prerequisite.twoRealTXT(stage + ": native picker navigation owner unreadable") }
+                    try require(ProcessInfo.processInfo.systemUptime < navigationDeadline, "picker Back deadline before native tap")
+                    backs[0].tap()
+                    try observe("native picker Back transition", timeout: max(0, navigationDeadline - ProcessInfo.processInfo.systemUptime)) {
+                        if (files.firstMatch.exists && files.firstMatch.isHittable)
+                            || (folders.count == 1 && folders.element.isEnabled && folders.element.isHittable) { return true }
+                        guard let after = navigationSignature(), after != before else { return false }
+                        return app.navigationBars.buttons.matching(identifier: backID).allElementsBoundByIndex.contains { $0.isEnabled && $0.isHittable }
+                    }
+                }
+                if !files.firstMatch.exists {
+                    try require(folders.count == 1 && folders.element.isEnabled && folders.element.isHittable,
+                                "actual Reader Documents folder after bounded native history")
+                    folders.element.tap()
+                }
             }
             try observe("one actual untouched pg25332.txt", timeout: 15) { files.count == 1 && files.element.isHittable }
             let picker = XCTAttachment(string: app.debugDescription)
