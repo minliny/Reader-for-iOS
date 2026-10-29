@@ -33,6 +33,7 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
         var activeModel: ReaderApplicationModel?
         var waitingLayout: XCTestExpectation?, waitingPage: XCTestExpectation?
         var positions: [UInt64] = [], commits: [(UUID, ReaderNativePageOutcome)] = []
+        var layoutReadyCount = 0
         func unmount() {
             waitingLayout = nil; waitingPage = nil
             host.rootView = AnyView(EmptyView()); host.view.layoutIfNeeded()
@@ -58,6 +59,7 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
                     commits.append((id, outcome))
                     let pending = waitingPage; waitingPage = nil; pending?.fulfill()
                 }, layoutReady: {
+                    layoutReadyCount += 1
                     let pending = waitingLayout; waitingLayout = nil; pending?.fulfill()
                 }, reducePageMotion: true)
             host.rootView = AnyView(surface.frame(width: width, height: window.bounds.height).ignoresSafeArea())
@@ -66,6 +68,22 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
         func textView(_ view: UIView) -> UITextView? {
             if let text = view as? UITextView { return text }
             return view.subviews.lazy.compactMap { textView($0) }.first
+        }
+        func layoutEvidence(_ text: UITextView?, body: ReaderChapterContent, stage: String) {
+            var facts = "stage=\(stage) chapter=\(body.chapterIndex) scalars=\(body.scalarCount)\n"
+                + "layoutReadyCount=\(layoutReadyCount) waitingLayout=\(waitingLayout != nil) positions=\(positions)\n"
+                + "waitingPage=\(waitingPage != nil) commits=\(commits)\n"
+                + "scene=\(scene.coordinateSpace.bounds) activation=\(scene.activationState.rawValue)\n"
+                + "windowFrame=\(window.frame) windowBounds=\(window.bounds)\n"
+                + "hostFrame=\(host.view.frame) hostBounds=\(host.view.bounds) safeArea=\(host.view.safeAreaInsets)\n"
+            if let text {
+                facts += "textFrame=\(text.frame) textBounds=\(text.bounds) mounted=\(text.window === window)\n"
+                    + "contentSize=\(text.contentSize) contentOffset=\(text.contentOffset)\n"
+                    + "contentInset=\(text.contentInset) adjustedInset=\(text.adjustedContentInset) textInset=\(text.textContainerInset)\n"
+                    + "textContainer=\(text.textContainer.size) utf16=\(text.textStorage.length)\n"
+            } else { facts += "UITextView=missing\n" }
+            let attachment = XCTAttachment(string: facts)
+            attachment.name = "native-scalar-layout-" + stage; attachment.lifetime = .keepAlways; add(attachment)
         }
         func nativeAnchor(_ scalar: UInt64, body: ReaderChapterContent, font: CGFloat, stage: String) throws {
             let text = try XCTUnwrap(textView(host.view))
@@ -117,17 +135,37 @@ final class ReaderNativeScalarContinuationTests: XCTestCase {
             let width = window.bounds.width
             mount(model, session: session, width: width, font: 18)
             await fulfillment(of: [initialLayout], timeout: 8)
-            let text = try XCTUnwrap(textView(host.view))
+            let initialText = textView(host.view)
+            layoutEvidence(initialText, body: body, stage: "initial")
+            try require(waitingLayout == nil, "Production must report its initial native layout before a page request")
+            try require(positions.isEmpty, "Initial native restoration cannot publish a synthetic position")
+            let text = try XCTUnwrap(initialText)
             let originalWidth = text.bounds.width
-            try require(waitingLayout == nil && positions.isEmpty && text.bounds.height > 0
-                        && text.contentSize.height > text.bounds.height * 2, "Real native layout must offer a full next page")
+            try require(text.window === window && text.bounds.width.isFinite && text.bounds.height.isFinite
+                        && text.bounds.width > 0 && text.bounds.height > 0,
+                        "The real native layout needs a mounted, nonempty viewport; see initial layout attachment")
+            let initialPageY = text.contentOffset.y
+            let lastPageY = max(0, text.contentSize.height - text.bounds.height)
+            // Production also advances a final partial page. Admit its real measured
+            // travel, then prove the actual request reaches the native page target.
+            let expectedPageY = min(lastPageY, initialPageY + max(1, text.bounds.height - 16))
+            try require(initialPageY.isFinite && text.contentSize.height.isFinite && lastPageY.isFinite
+                        && lastPageY - initialPageY > 0.5,
+                        "The real chapter must offer native page travel: y=\(initialPageY) last=\(lastPageY); see initial layout attachment")
             let turn = UUID(), page = expectation(description: "production automatic native page committed")
             waitingPage = page
             mount(model, session: session, width: width, font: 18, turn: turn)
             await fulfillment(of: [page], timeout: 8)
-            try require(textView(host.view) === text, "The production page request must advance the mounted UITextView")
+            let committedText = textView(host.view)
+            layoutEvidence(committedText, body: body, stage: "page-committed")
+            try require(committedText === text, "The production page request must advance the mounted UITextView")
             try require(waitingPage == nil && commits.count == 1 && commits[0].0 == turn, "The exact production turn must commit once")
-            guard case .advanced = commits[0].1 else { throw EvidenceError.mismatch }
+            guard case .advanced = commits[0].1 else {
+                XCTFail("The real native page must advance, received \(commits[0].1)")
+                throw EvidenceError.mismatch
+            }
+            try require(text.contentOffset.y > initialPageY && abs(text.contentOffset.y - expectedPageY) < 0.5,
+                        "Production must move the native viewport to its measured page target: before=\(initialPageY) expected=\(expectedPageY) actual=\(text.contentOffset.y)")
             let scalar = try XCTUnwrap(positions.last)
             try require(scalar > 0 && scalar < body.scalarCount && model.reader?.scalarOffset == scalar,
                         "Only the production surface event may supply this real nonzero scalar")
