@@ -569,6 +569,8 @@ final class ReaderApplicationModel: ObservableObject {
                 showFeedback("本章未替换，已保留原正文与位置")
             } else if result.positionMigration.isPartial {
                 showFeedback("正文已更新，部分位置未能恢复，请检查书签与笔记")
+            } else if result.positionMigration.status == "unchanged" {
+                showFeedback("本章正文未变，阅读位置已保留")
             } else {
                 showFeedback("本章已更新")
             }
