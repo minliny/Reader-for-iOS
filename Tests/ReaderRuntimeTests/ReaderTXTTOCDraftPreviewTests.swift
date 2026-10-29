@@ -283,7 +283,12 @@ final class ReaderTXTTOCDraftPreviewTests: XCTestCase {
             try require(try await cold.listBooks().map(\.id) == [book.id], "the independent shelf contains only the real imported book")
             try require(try await cold.chapters(for: book) == chapters, "cold original directory")
             try require(try canonicalJSON(await cold.coreRead("local_book.toc", ["bookId": book.bookId])) == toc, "cold complete TOC")
-            try require(try await observe(cold) == restoredProgress, "cold complete real progress must remain unchanged")
+            let coldProgress = try await observe(cold)
+            // The CAS revision includes SqliteStorage's per-open epoch. Its
+            // current token is distinct from the complete persisted position.
+            try require(coldProgress.found == restoredProgress.found && coldProgress.progress == restoredProgress.progress,
+                        "cold complete persisted progress row must remain unchanged")
+            try require(coldProgress.progressRevision?.isEmpty == false, "cold current Core CAS token must be available")
             try require(try await cold.txtTOCRules().isEmpty, "deleted rule stays absent after reopening")
             try require(try await cold.pendingImports().isEmpty, "cold import pending must be empty")
             try require(try await cold.pendingFeatureOperations().isEmpty, "cold feature pending must be empty")
