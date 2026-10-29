@@ -13,6 +13,7 @@ struct ReaderReadingView: View {
     @ObservedObject var preferences: ReaderPreferences
     let session: ReaderActiveSession
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var motion = ReaderControlMotionDriver()
     @StateObject private var brightness = ReaderBrightnessOwner()
     @StateObject private var textTools = ReaderTextToolsState()
@@ -55,7 +56,6 @@ struct ReaderReadingView: View {
     @StateObject private var dockHitDiagnostics = ReaderDockHitDiagnostics()
     #endif
     @ScaledMetric(relativeTo: .body) private var footerHeight: CGFloat = 24
-    @ScaledMetric(relativeTo: .body) private var controlBodyScale: CGFloat = 1
 
     init(model: ReaderApplicationModel, preferences: ReaderPreferences, session: ReaderActiveSession) {
         self.model = model; self.preferences = preferences; self.session = session
@@ -66,7 +66,9 @@ struct ReaderReadingView: View {
     private var palette: ReaderPalette { ReaderPalette(preferences.appDark ? .dark : .light) }
     private var controlsVisible: Bool { motion.isPresented }
     private var fullProgress: CGFloat { motion.expansion }
-    private var controlContentLayout: ReaderControlContentLayout { ReaderMetrics.controlContent(bodyScale: controlBodyScale) }
+    private var controlContentLayout: ReaderControlContentLayout {
+        ReaderMetrics.controlContent(category: ReaderMetrics.controlContentCategory(for: dynamicTypeSize))
+    }
     private var effectiveReduceMotion: Bool { reduceMotion || preferences.reduceMotion }
     private var surfaceIdentity: String {
         "\(session.book.id)|\(session.content.chapterIndex)|\(session.content.bodyVersion ?? "")|\(session.content.processingVersion ?? "")"
@@ -154,7 +156,7 @@ struct ReaderReadingView: View {
                 .onChange(of: geometry.size) { _, size in configureMotion(size: size, safe: geometry.safeAreaInsets) }
                 .onChange(of: geometry.safeAreaInsets) { _, safe in configureMotion(size: geometry.size, safe: safe) }
                 .onChange(of: module) { _, _ in configureMotion(size: geometry.size, safe: geometry.safeAreaInsets) }
-                .onChange(of: controlBodyScale) { _, _ in configureMotion(size: geometry.size, safe: geometry.safeAreaInsets) }
+                .onChange(of: dynamicTypeSize) { _, _ in configureMotion(size: geometry.size, safe: geometry.safeAreaInsets) }
                 .onPreferenceChange(ReaderReadingHeaderHeightKey.self) { height in
                     // A hidden/unmounted header contributes the empty preference.
                     // Retain its last real measurement for the next presentation.

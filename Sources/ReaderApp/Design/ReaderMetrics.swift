@@ -89,13 +89,31 @@ enum ReaderMetrics {
             quickHeight: min(expanded ? Self.wideQuickHeight : Self.quickHeight, full))
     }
 
-    static func controlContent(bodyScale: CGFloat) -> ReaderControlContentLayout {
-        ReaderControlContentLayout(bodyScale: bodyScale)
+    static func controlContentCategory(for size: DynamicTypeSize) -> UIContentSizeCategory {
+        switch size {
+        case .xSmall: return .extraSmall
+        case .small: return .small
+        case .medium: return .medium
+        case .large: return .large
+        case .xLarge: return .extraLarge
+        case .xxLarge: return .extraExtraLarge
+        case .xxxLarge: return .extraExtraExtraLarge
+        case .accessibility1: return .accessibilityMedium
+        case .accessibility2: return .accessibilityLarge
+        case .accessibility3: return .accessibilityExtraLarge
+        case .accessibility4: return .accessibilityExtraExtraLarge
+        case .accessibility5: return .accessibilityExtraExtraExtraLarge
+        @unknown default: return .accessibilityExtraExtraExtraLarge
+        }
+    }
+
+    static func controlContent(category: UIContentSizeCategory) -> ReaderControlContentLayout {
+        ReaderControlContentLayout(category: category)
     }
 }
 
 /// One content budget for the dock. The frozen <= Large path keeps authored
-/// points; larger text uses the same Body scale as ReaderTextStyle's fonts.
+/// points; larger text measures the registered fonts at the actual category.
 struct ReaderControlContentLayout {
     let adaptsText: Bool
     let actionLabelHeight: CGFloat
@@ -106,14 +124,17 @@ struct ReaderControlContentLayout {
     let collapseLabelHeight: CGFloat
     let moduleMinimumWidth: CGFloat
 
-    init(bodyScale: CGFloat) {
-        let scale = bodyScale.isFinite ? max(1, bodyScale) : 1
-        adaptsText = scale > 1.0001
+    init(category: UIContentSizeCategory) {
+        adaptsText = ![UIContentSizeCategory.extraSmall, .small, .medium, .large].contains(category)
+        let traits = UITraitCollection(preferredContentSizeCategory: category)
+        let metrics = UIFontMetrics(forTextStyle: .body)
+        func scaledFont(_ face: ReaderTypeface, _ size: CGFloat, _ weight: CGFloat = 400) -> UIFont {
+            metrics.scaledFont(for: ReaderFonts.uiFont(face, size: size, weight: weight), compatibleWith: traits)
+        }
         func line(_ face: ReaderTypeface, _ size: CGFloat, _ weight: CGFloat = 400) -> CGFloat {
             // Include the registered CJK face in the budget for labels whose
             // Latin font delegates Chinese glyphs to a fallback.
-            ceil(max(ReaderFonts.uiFont(face, size: size * scale, weight: weight).lineHeight,
-                     ReaderFonts.uiFont(.ui, size: size * scale).lineHeight))
+            ceil(max(scaledFont(face, size, weight).lineHeight, scaledFont(.ui, size).lineHeight))
         }
         actionLabelHeight = adaptsText ? max(13, line(.inter, 11, 800)) : 13
         moduleLabelHeight = adaptsText ? max(15, line(.uiBold, 10, 700)) : 15
@@ -121,11 +142,11 @@ struct ReaderControlContentLayout {
         progressLabelHeight = adaptsText ? max(30, line(.inter, 9)) : 30
         headerLabelHeight = adaptsText ? max(20, line(.uiBold, 14, 700)) : 20
         collapseLabelHeight = adaptsText ? max(14, line(.uiBold, 10, 700)) : 14
-        let font = ReaderFonts.uiFont(.uiBold, size: 10 * scale)
-        moduleMinimumWidth = adaptsText
-            ? max(ReaderMetrics.minimumHitSize,
-                  ceil(["阅读", "目录", "外观", "设置"].map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0) + 20)
-            : 0
+        if adaptsText {
+            let font = scaledFont(.uiBold, 10, 700)
+            moduleMinimumWidth = max(ReaderMetrics.minimumHitSize,
+                ceil(["阅读", "目录", "外观", "设置"].map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0) + 20)
+        } else { moduleMinimumWidth = 0 }
     }
 
     let quickTop: CGFloat = 29

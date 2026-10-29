@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import UIKit
+import SwiftUI
 import XCTest
 @testable import Reader
 
@@ -231,17 +232,19 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
 /// of whole-reader rendering, physical touch, or accessibility acceptance.
 @MainActor
 final class ReaderControlAccessibilityLayoutTests: XCTestCase {
-    private let categories: [UIContentSizeCategory] = [
-        .extraSmall, .small, .medium, .large, .extraLarge, .extraExtraLarge, .extraExtraExtraLarge,
-        .accessibilityMedium, .accessibilityLarge, .accessibilityExtraLarge,
-        .accessibilityExtraExtraLarge, .accessibilityExtraExtraExtraLarge
+    private let categories: [(DynamicTypeSize, UIContentSizeCategory)] = [
+        (.xSmall, .extraSmall), (.small, .small), (.medium, .medium), (.large, .large),
+        (.xLarge, .extraLarge), (.xxLarge, .extraExtraLarge), (.xxxLarge, .extraExtraExtraLarge),
+        (.accessibility1, .accessibilityMedium), (.accessibility2, .accessibilityLarge),
+        (.accessibility3, .accessibilityExtraLarge), (.accessibility4, .accessibilityExtraExtraLarge),
+        (.accessibility5, .accessibilityExtraExtraExtraLarge)
     ]
 
     func testDefaultAndSmallerControlGeometryKeepsFrozenHostMetrics() {
-        for category in categories.prefix(4) {
-            let traits = UITraitCollection(preferredContentSizeCategory: category)
-            let scale = UIFontMetrics(forTextStyle: .body).scaledValue(for: 1, compatibleWith: traits)
-            let layout = ReaderMetrics.controlContent(bodyScale: scale)
+        for (size, category) in categories.prefix(4) {
+            let mapped = ReaderMetrics.controlContentCategory(for: size)
+            XCTAssertEqual(mapped, category)
+            let layout = ReaderMetrics.controlContent(category: mapped)
             XCTAssertFalse(layout.adaptsText, category.rawValue)
             XCTAssertEqual(layout.actionLabelHeight, 13)
             XCTAssertEqual(layout.actionHeight, 55.438, accuracy: 0.0001)
@@ -265,11 +268,12 @@ final class ReaderControlAccessibilityLayoutTests: XCTestCase {
     func testLargerControlBudgetsFitRegisteredNativeFontsForEveryContentSizeCategory() throws {
         ReaderFonts.registerBundledFonts()
         var observations: [[String: Any]] = []
-        for category in categories.dropFirst(4) {
+        for (size, category) in categories.dropFirst(4) {
+            let mapped = ReaderMetrics.controlContentCategory(for: size)
+            XCTAssertEqual(mapped, category)
             let traits = UITraitCollection(preferredContentSizeCategory: category)
             let metrics = UIFontMetrics(forTextStyle: .body)
-            let scale = metrics.scaledValue(for: 1, compatibleWith: traits)
-            let layout = ReaderMetrics.controlContent(bodyScale: scale)
+            let layout = ReaderMetrics.controlContent(category: mapped)
             XCTAssertTrue(layout.adaptsText, category.rawValue)
             XCTAssertGreaterThanOrEqual(layout.moduleMinimumWidth, ReaderMetrics.minimumHitSize)
             let labels: [(ReaderTypeface, CGFloat, CGFloat, CGFloat)] = [
@@ -285,7 +289,7 @@ final class ReaderControlAccessibilityLayoutTests: XCTestCase {
                 XCTAssertGreaterThan(native.pointSize, registered.pointSize)
                 XCTAssertGreaterThanOrEqual(budget, native.lineHeight, "\(category.rawValue): \(native.fontName)")
                 XCTAssertGreaterThanOrEqual(budget, cjk.lineHeight, "\(category.rawValue): registered CJK fallback budget")
-                observations.append(["category": category.rawValue, "bodyScale": scale,
+                observations.append(["category": category.rawValue, "swiftUIDynamicType": String(describing: size),
                     "font": native.fontName, "pointSize": native.pointSize,
                     "nativeLineHeight": native.lineHeight, "cjkLineHeight": cjk.lineHeight, "budget": budget])
             }
@@ -296,10 +300,10 @@ final class ReaderControlAccessibilityLayoutTests: XCTestCase {
     }
 
     func testShortControlViewportUsesOneScrollableBudgetIncludingNavigation() {
-        for category in categories {
-            let traits = UITraitCollection(preferredContentSizeCategory: category)
-            let scale = UIFontMetrics(forTextStyle: .body).scaledValue(for: 1, compatibleWith: traits)
-            let layout = ReaderMetrics.controlContent(bodyScale: scale)
+        for (size, category) in categories {
+            let mapped = ReaderMetrics.controlContentCategory(for: size)
+            XCTAssertEqual(mapped, category)
+            let layout = ReaderMetrics.controlContent(category: mapped)
             for height in [CGFloat(80), 120, 160] {
                 let quick = layout.quickDockHeight(baseline: 252, fullHeight: height)
                 XCTAssertEqual(quick, height)
