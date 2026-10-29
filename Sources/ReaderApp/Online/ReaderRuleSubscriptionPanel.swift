@@ -409,7 +409,19 @@ final class ReaderRuleSubscriptionPanelModel: ObservableObject {
                        saveDraft: ReaderSubscriptionDraft? = nil) {
         guard canMutate else { return }
         invalidateDraftReview()
-        stopCheck()
+        switch mutation {
+        case .apply:
+            // Applying the captured plan is the one mutation that owns this
+            // preview. Keep it available until the typed apply receipt or
+            // rejection retires it.
+            stopCheck()
+        case .save, .delete:
+            // A configuration mutation changes the lineage used by the
+            // preview. Retain the plan for inspection, but make it inert
+            // immediately; a save/delete conflict must never leave an old
+            // plan looking applicable after the action settles.
+            invalidatePreview("订阅配置已变化，请重新检查订阅。")
+        }
         let savingDraftRevision = draftRevision
         let acceptedDraftRevision = saveDraft == nil ? nil : persistedDraftRevision
         Task {

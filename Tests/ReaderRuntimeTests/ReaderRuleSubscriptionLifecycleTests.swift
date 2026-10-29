@@ -791,6 +791,40 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
         XCTAssertEqual(service.checks, 3); XCTAssertEqual(service.writes.count, 1)
     }
 
+    func testConfigurationConflictRetiresOldPreviewBeforeSaveCanSettle() async throws {
+        let service = SubscriptionLifecycleService()
+        let domain = "ReaderSubscriptionConfigurationConflict-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain); service.release() }
+        let state = ReaderRuleSubscriptionPanelModel(service: service, defaults: defaults)
+        let scheduler = ReaderRuleSubscriptionScheduler(checkDue: { [] })
+        let mount = try mountPanel(state: state, scheduler: scheduler)
+        defer { mount.unmount() }
+        await waitUntil("Production Panel active before configuration conflict", { state.loaded && state.canCheckPreview })
+
+        state.check(service.subscription)
+        await waitUntil("Preview check entered", { service.checks == 1 })
+        let plan = service.plan("before-save-conflict")
+        try service.completeCheck(0, plan: plan)
+        await waitUntil("Preview published", { state.plan == plan && state.canApplyPreview })
+
+        var draft = ReaderSubscriptionDraft(service.subscription)
+        draft.name = "Changed after preview"
+        state.draft = draft
+        state.editorPresented = true
+        service.rejectSave = true
+        state.saveDraft()
+
+        await waitUntil("Save conflict settled", {
+            state.draftFailure != nil && !state.actions.busy && !state.actions.hasPending
+        })
+        XCTAssertEqual(state.plan, plan, "The old plan remains inspectable")
+        XCTAssertNotNil(state.previewInvalidation)
+        XCTAssertFalse(state.canApplyPreview, "A configuration conflict must retire the old plan")
+        XCTAssertTrue(service.writes.isEmpty, "The controlled conflict rejects before allocating a write")
+        XCTAssertEqual(state.draft.name, "Changed after preview")
+    }
+
     func testPreviewLifecycleDoesNotReplaceAcceptedSaveOrUnknownApplyIdentity() async throws {
         for isApply in [false, true] {
             let service = SubscriptionLifecycleService()
