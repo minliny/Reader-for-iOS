@@ -920,13 +920,17 @@ final class ReaderDailyJourneyTests: XCTestCase {
     }
 
     private func filterShelf(_ title: String, app: XCUIApplication) {
-        if !app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if !app.textFields["shelf-filter"].exists {
+            app.buttons["更多书架操作"].tap()
+            let openFilter = app.buttons["bookshelf-filter-open"]
+            XCTAssertTrue(openFilter.waitForExistence(timeout: 5)); openFilter.tap()
+        }
         let field = app.textFields["shelf-filter"]
         XCTAssertTrue(field.waitForExistence(timeout: 5)); replace(field, text: title)
     }
 
     private func clearShelfFilter(_ app: XCUIApplication) {
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
     }
 
     private func replace(_ field: XCUIElement, text: String) {

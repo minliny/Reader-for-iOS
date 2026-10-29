@@ -13,6 +13,7 @@ import WebKit
     @Published var stopped = false
     @Published var searched = false
     @Published var currentResultIDs = Set<String>()
+    @Published private(set) var searchSourceCount = 0
     @Published var sourceLoading = false
     @Published private(set) var sourceReadRevision = 0
     @Published var sourceReadFailure: String?
@@ -38,6 +39,14 @@ import WebKit
     private var discoveryPresentationID: UUID?
     private var discoverySourcesTask: Task<[ReaderOnlineSource], Error>?
     private var lastKeyword = ""
+    private var lastSourceVersions: [String: String] = [:]
+    private struct SuccessfulSearchSource {
+        let keyword: String
+        let version: String
+        let resultIDs: Set<String>
+        let elapsedMilliseconds: Int
+    }
+    private var successfulSearchSources: [String: SuccessfulSearchSource] = [:]
     private var announcedSourceFailure: UUID?
     deinit { searchTask?.cancel(); detailTask?.cancel(); discoverySourcesTask?.cancel() }
 
@@ -139,32 +148,60 @@ import WebKit
     }
     func stop() {
         searchTrace?.emit(.generationStopped, outcome: .cancelled); searchTrace = nil
-        stopped = searching; searchTask?.cancel(); searchID = UUID(); searching = false
+        stopped = searching; searchTask?.cancel(); searchTask = nil; searchID = UUID(); searching = false
     }
-    func search() { startSearch(retainCandidates: false) }
-    func researchCandidates() { startSearch(retainCandidates: true) }
-    private func startSearch(retainCandidates: Bool) {
+    private enum SearchMode: Equatable { case newSearch, refreshCandidates, retryIncomplete }
+    func search() { startSearch(.newSearch) }
+    // Explicit refresh searches every enabled source, retaining prior rows as
+    // unconfirmed until the new generation actually returns their identities.
+    func researchCandidates() { startSearch(.refreshCandidates) }
+    func retryIncompleteSources() { startSearch(.retryIncomplete) }
+    private func startSearch(_ mode: SearchMode) {
         let presentationID = discoveryPresentationID
         guard let service, searchPresentationIsCurrent(presentationID),
               !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         stop()
+        let keyword = query
         let enabled = sources.filter(\.enabled)
-        guard !enabled.isEmpty else { return }
+        let versions = Dictionary(uniqueKeysWithValues: enabled.map { ($0.id, $0.version) })
+        let sameKeyword = Data(keyword.utf8) == Data(lastKeyword.utf8)
+        if mode == .newSearch || !sameKeyword {
+            results = []; scrollAnchor = nil
+        } else {
+            // A registry change cannot carry an old rule's rows into recovery
+            // or a refresh, including rows retained by an earlier refresh.
+            results.removeAll { candidate in
+                guard let version = versions[candidate.sourceId] else { return true }
+                return lastSourceVersions[candidate.sourceId] != version
+            }
+            if let anchor = scrollAnchor, !results.contains(where: { $0.id == anchor }) { scrollAnchor = nil }
+        }
+        let retained = mode == .retryIncomplete && sameKeyword
+            ? successfulSearchSources.filter { sourceID, success in
+                Data(success.keyword.utf8) == Data(keyword.utf8) && versions[sourceID] == success.version
+            } : [:]
+        successfulSearchSources = retained
+        currentResultIDs = retained.values.reduce(into: Set<String>()) { $0.formUnion($1.resultIDs) }
+        timings = retained.mapValues(\.elapsedMilliseconds)
+        failures = [:]; searched = true; stopped = false; error = nil
+        lastKeyword = keyword; lastSourceVersions = versions
+        searchSourceCount = enabled.count
+        let pending = enabled.filter { retained[$0.id] == nil }
+        guard !pending.isEmpty else { return }
         let generation = UUID(); searchID = generation
         let trace = searchTraceSink.map { ReaderSearchTraceRecording(searchID: generation, sink: $0) }
         searchTrace = trace
-        trace?.emit(.generationStarted, count: enabled.count)
-        let keyword = query
-        if !retainCandidates || keyword != lastKeyword { results = []; scrollAnchor = nil }
-        lastKeyword = keyword; currentResultIDs = []
-        timings = [:]; failures = [:]; searched = true; stopped = false; searching = true; error = nil
+        // The trace describes only newly dispatched work. Retained successes
+        // contribute to presentation progress, never to this request generation.
+        trace?.emit(.generationStarted, count: pending.count)
+        searching = true
         searchTask = Task {
             guard !Task.isCancelled, generation == searchID,
                   searchPresentationIsCurrent(presentationID) else {
                 trace?.emit(.generationFinished, outcome: .superseded); return
             }
             await withTaskGroup(of: (String, UInt32, ReaderSourceSearchResult?, String?).self) { group in
-                var remaining = enabled.enumerated().makeIterator()
+                var remaining = pending.enumerated().makeIterator()
                 var unapplied = Set<UInt32>()
                 defer {
                     // Returning from the original stale-generation guard also
@@ -214,6 +251,10 @@ import WebKit
                             currentResultIDs.insert(book.id)
                         }
                         timings[sourceID] = response.elapsedMilliseconds
+                        if let version = versions[sourceID] {
+                            successfulSearchSources[sourceID] = .init(keyword: keyword, version: version,
+                                resultIDs: Set(response.books.map(\.id)), elapsedMilliseconds: response.elapsedMilliseconds)
+                        }
                         trace?.emit(.sourceResultApplied, sourceOrdinal: ordinal, outcome: .succeeded,
                                     count: response.books.count, durationMilliseconds: response.elapsedMilliseconds)
                     } else if let failure {
@@ -374,17 +415,20 @@ struct ReaderOnlineWorkspace: View {
                         .focused($focusedSearchField, equals: .filter)
                     Text("\(state.results.count) 项").font(ReaderTypography.font(.caption))
                 }.padding(.horizontal, 20)
-                if state.searching { ProgressView("正在搜索 · 已返回 \(state.timings.count + state.failures.count)/\(state.sources.filter(\.enabled).count) 个书源").font(ReaderTypography.font(.caption)) }
+                if state.searching { ProgressView("正在搜索 · 已返回 \(state.timings.count + state.failures.count)/\(state.searchSourceCount) 个书源").font(ReaderTypography.font(.caption)) }
                 if !state.searching && !state.results.isEmpty && (state.stopped || !state.failures.isEmpty) {
                     HStack(spacing: 8) {
                         Text(state.stopped ? "搜索已停止，可保留已有结果并重新搜索" : "\(state.failures.count) 个书源未完成，可保留已有结果并重新搜索")
                             .font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
-                        Button("重新搜索", action: state.researchCandidates)
+                        Button("重新搜索", action: state.retryIncompleteSources)
                             .accessibilityIdentifier("online-research-failed")
                     }.padding(.horizontal, 20)
                 }
                 if state.results.isEmpty, state.searched, !state.searching {
-                    ReaderPageState(title: state.stopped ? "搜索已停止" : state.timings.isEmpty ? "搜索未完成" : !state.failures.isEmpty ? "部分书源未完成" : "没有找到相关书籍", detail: state.stopped ? "可重新搜索，已有书架和阅读位置保留。" : state.timings.isEmpty ? "所有书源均未返回有效结果，请检查书源或网络。" : !state.failures.isEmpty ? "已返回的书源中没有匹配项，可重新搜索未完成的书源。" : "可更换关键词或书源。", actionTitle: "重新搜索", action: state.researchCandidates)
+                    ReaderPageState(title: state.stopped ? "搜索已停止" : state.timings.isEmpty ? "搜索未完成" : !state.failures.isEmpty ? "部分书源未完成" : "没有找到相关书籍", detail: state.stopped ? "可重新搜索，已有书架和阅读位置保留。" : state.timings.isEmpty ? "所有书源均未返回有效结果，请检查书源或网络。" : !state.failures.isEmpty ? "已返回的书源中没有匹配项，可重新搜索未完成的书源。" : "可更换关键词或书源。", actionTitle: "重新搜索") {
+                        if state.stopped || !state.failures.isEmpty { state.retryIncompleteSources() }
+                        else { state.researchCandidates() }
+                    }
                 } else if !state.results.isEmpty, filteredResults.isEmpty {
                     ReaderPageState(title: "没有符合筛选的书籍", detail: "清除筛选可查看已有搜索结果。", actionTitle: "清除筛选") { state.sourceFilter = "" }
                 } else {

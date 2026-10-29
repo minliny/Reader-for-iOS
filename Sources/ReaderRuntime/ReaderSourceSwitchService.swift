@@ -78,6 +78,7 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
             parameters = ["operationId": coreLineageID(operationID, sequence: sequence + 1), "sequence": sequence + 1,
                 "from": ["sourceId": book.sourceId, "bookId": book.bookId], "target": target, "newToc": toc,
                 "currentChapterTitle": currentChapterTitle, "currentChapterIndex": currentChapterIndex,
+                "strictCandidateAdmission": true,
                 "updatedAt": Int64(Date().timeIntervalSince1970)]
         }
 

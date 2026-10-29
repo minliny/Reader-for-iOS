@@ -342,7 +342,7 @@ final class ReaderEbookJourneyTests: XCTestCase {
         // their existing UI before looking up the exact SHA book button.
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 15), app.debugDescription)
         if app.textFields["shelf-filter"].exists {
-            app.buttons["搜索本地书架"].tap()
+            app.buttons["bookshelf-filter-close"].tap()
             waitUntil("The native title/author shelf filter is cleared", timeout: 5) {
                 !app.textFields["shelf-filter"].exists
             }

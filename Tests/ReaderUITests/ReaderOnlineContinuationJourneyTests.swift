@@ -123,7 +123,9 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             XCTFail("Preserve an already-open user shelf query instead of replacing it")
             throw Prerequisite.invalid("original closed shelf search required")
         }
-        app.buttons["搜索本地书架"].tap()
+        app.buttons["更多书架操作"].tap()
+        let openFilter = app.buttons["bookshelf-filter-open"]
+        XCTAssertTrue(openFilter.waitForExistence(timeout: 5)); openFilter.tap()
         let query = app.textFields["shelf-filter"]
         XCTAssertTrue(query.waitForExistence(timeout: 5)); query.tap(); query.typeText(book.title + "\n")
         let books = app.buttons.matching(NSPredicate(format: "identifier == %@", book.shelfID))
@@ -188,7 +190,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             uniformTypeIdentifier: "public.json")
         evidence.name = "actual-existing-uncached-offline-failure-and-visible-body-retention"; evidence.lifetime = .keepAlways; add(evidence)
         leave(app)
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 10))
         XCTAssertEqual(retainedChapter, originalChapter); XCTAssertEqual(retainedProgress, originalProgress)
         XCTAssertTrue(feedbackObserved, "Actual failure feedback must be seen; unchanged body alone does not prove a failed tap/request")
@@ -963,7 +965,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
     }
     private func open(_ book: Book, app: XCUIApplication) {
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 25))
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
         // SwiftUI can expose the exact shelf button under a nested accessibility
         // container after a cold launch. Direct identifier lookup traverses that
         // container reliably and keeps the original source identity exact.

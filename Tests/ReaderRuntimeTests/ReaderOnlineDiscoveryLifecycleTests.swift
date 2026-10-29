@@ -568,7 +568,7 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         state.service = service
         state.sources = DiscoveryControlledService.sources(2)
         state.query = "retained search"
-        let retained = ReaderOnlineCandidate(sourceId: "retained-source", bookId: "retained-book", title: "Retained candidate")
+        let retained = ReaderOnlineCandidate(sourceId: state.sources[0].id, bookId: "retained-book", title: "Retained candidate")
         state.results = [retained]
         state.currentResultIDs = [retained.id]
         state.timings = [retained.sourceId: 23]
@@ -707,6 +707,119 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         XCTAssertTrue(service.writeCalls.isEmpty)
     }
 
+    // Controlled continuations below establish only Host owner boundaries.
+    // They do not represent source availability, HTTP failures or device acceptance.
+    func testRecoveryRetriesOnlyIncompleteSourcesAndKeepsSuccessfulFactsOwnerBoundary() async throws {
+        let service = DiscoveryControlledService()
+        let state = ReaderOnlineWorkspaceModel()
+        let trace = RecoverySearchTraceCapture()
+        defer { state.retireCachedDiscovery(); service.releaseAll() }
+        state.service = service; state.sources = DiscoveryControlledService.sources(4)
+        state.query = "recovery owner boundary"
+        state.searchTraceSink = { trace.receive($0) }
+        let sourceIDs = state.sources.map(\.id)
+        let candidate = ReaderOnlineCandidate(sourceId: sourceIDs[0], bookId: "retained-identity", title: "Host candidate identity")
+        func waitFor(_ condition: @escaping () -> Bool) async {
+            let reached = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            await fulfillment(of: [reached], timeout: 2)
+        }
+        func call(_ sourceID: String, from start: Int) throws -> Int {
+            try XCTUnwrap(service.searchCalls.indices.dropFirst(start).first { service.searchCalls[$0].sourceID == sourceID })
+        }
+
+        state.search()
+        await waitFor { service.searchCalls.count == 4 }
+        try service.completeSearch(call(sourceIDs[0], from: 0), books: [candidate], elapsedMilliseconds: 17)
+        try service.completeSearch(call(sourceIDs[1], from: 0), books: [], elapsedMilliseconds: 23)
+        try service.failSearch(call(sourceIDs[2], from: 0))
+        await waitFor { state.timings.count == 2 && state.failures.count == 1 }
+        state.scrollAnchor = candidate.id
+        state.stop()
+        state.retryIncompleteSources()
+        await waitFor { service.searchCalls.count == 6 }
+
+        XCTAssertEqual(Set(service.searchCalls.dropFirst(4).map(\.sourceID)), Set(sourceIDs.suffix(2)))
+        XCTAssertEqual(state.results, [candidate])
+        XCTAssertEqual(state.scrollAnchor, candidate.id)
+        XCTAssertEqual(state.currentResultIDs, [candidate.id])
+        XCTAssertEqual(state.timings, [sourceIDs[0]: 17, sourceIDs[1]: 23], "Confirmed empty sources are successful buckets too")
+        XCTAssertNil(state.candidateSearchStatus(candidate))
+        XCTAssertEqual(state.searchSourceCount, 4)
+        XCTAssertTrue(state.failures.isEmpty)
+        try service.completeSearch(call(sourceIDs[3], from: 0), elapsedMilliseconds: 99)
+        try service.completeSearch(call(sourceIDs[2], from: 4), elapsedMilliseconds: 91)
+        try service.completeSearch(call(sourceIDs[3], from: 4), elapsedMilliseconds: 92)
+        await waitFor { !state.searching }
+        XCTAssertEqual(state.candidateElapsedMilliseconds(candidate), 17)
+        XCTAssertEqual(state.results.count, 3, "The stopped generation cannot publish its late candidate")
+        let generations = trace.events.filter { $0.stage == .generationStarted }
+        XCTAssertEqual(generations.map(\.count), [4, 2])
+        let recoveryID = try XCTUnwrap(generations.last?.searchID)
+        let recoveryEvents = trace.events.filter { $0.searchID == recoveryID }
+        XCTAssertEqual(Set(recoveryEvents.filter { $0.stage == .sourceAttemptStarted }.compactMap(\.sourceOrdinal)), [1, 2])
+        XCTAssertEqual(recoveryEvents.filter { $0.stage == .sourceResultApplied }.count, 2)
+        XCTAssertEqual(Set(recoveryEvents.filter { $0.stage == .sourceResultApplied }.compactMap(\.durationMilliseconds)), [91, 92], "Retained timings must not masquerade as new request observations")
+        state.retryIncompleteSources()
+        XCTAssertFalse(state.searching)
+        XCTAssertEqual(service.searchCalls.count, 6, "A fully completed recovery has no remaining requests")
+        XCTAssertEqual(trace.events.filter { $0.stage == .generationStarted }.count, 2, "Reused successes do not create an empty request generation")
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
+    func testRecoveryInvalidatesChangedRegistryAndExactKeywordOwnerBoundary() async throws {
+        let service = DiscoveryControlledService()
+        let state = ReaderOnlineWorkspaceModel()
+        defer { state.retireCachedDiscovery(); service.releaseAll() }
+        state.service = service; state.sources = DiscoveryControlledService.sources(4)
+        state.query = "Caf\u{00E9}"
+        let original = state.sources
+        func waitFor(_ condition: @escaping () -> Bool) async {
+            let reached = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            await fulfillment(of: [reached], timeout: 2)
+        }
+        func changed(_ source: ReaderOnlineSource, enabled: Bool = true, version: String) -> ReaderOnlineSource {
+            .init(sourceId: source.id, name: source.name, baseURL: source.baseURL, enabled: enabled,
+                  version: version, group: source.group, definition: source.definition)
+        }
+        state.search(); await waitFor { service.searchCalls.count == 4 }
+        try service.completeRemainingSearches()
+        await waitFor { !state.searching }
+        let retained = try XCTUnwrap(state.results.first { $0.sourceId == original[0].id })
+        let invalidated = try XCTUnwrap(state.results.first { $0.sourceId == original[1].id })
+        let retainedTiming = try XCTUnwrap(state.timings[retained.sourceId])
+        state.scrollAnchor = invalidated.id
+        let added = ReaderOnlineSource(sourceId: "added-recovery-owner", name: "Added owner identity", baseURL: "",
+                                       enabled: true, version: "contract-1", group: "", definition: Data())
+        state.sources = [original[0], changed(original[1], version: "contract-2"),
+                         changed(original[2], enabled: false, version: original[2].version), added]
+        state.retryIncompleteSources()
+        await waitFor { service.searchCalls.count == 6 }
+        XCTAssertEqual(Set(service.searchCalls.dropFirst(4).map(\.sourceID)), [original[1].id, added.id])
+        XCTAssertEqual(state.results, [retained], "Changed, disabled and deleted source rows are invalidated")
+        XCTAssertEqual(state.currentResultIDs, [retained.id])
+        XCTAssertEqual(state.timings, [retained.sourceId: retainedTiming])
+        XCTAssertNil(state.scrollAnchor)
+        XCTAssertEqual(state.searchSourceCount, 3)
+        try service.completeRemainingSearches()
+        await waitFor { !state.searching }
+
+        let originalKeyword = state.query
+        state.query = "Cafe\u{0301}"
+        XCTAssertEqual(state.query, originalKeyword, "Swift text equality alone merges these distinct request bytes")
+        XCTAssertNotEqual(Data(state.query.utf8), Data(originalKeyword.utf8))
+        state.retryIncompleteSources()
+        await waitFor { service.searchCalls.count == 9 }
+        XCTAssertEqual(Set(service.searchCalls.dropFirst(6).map(\.sourceID)), [original[0].id, original[1].id, added.id])
+        XCTAssertTrue(state.results.isEmpty, "Only the exact keyword can retain successful buckets")
+        XCTAssertTrue(state.currentResultIDs.isEmpty)
+        XCTAssertTrue(state.timings.isEmpty)
+        XCTAssertEqual(state.searchSourceCount, 3)
+        state.sources = []
+        XCTAssertEqual(state.searchSourceCount, 3, "A later registry observation cannot alter the active run's denominator")
+        state.stop()
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
     func testRetiredProductionWorkspaceIgnoresOpportunityAndDrainsLateSourceRefresh() async throws {
         let service = DiscoveryControlledService()
         let gate = DiscoverySubscriptionOpportunityGate()
@@ -797,6 +910,13 @@ final class ReaderOnlineDiscoveryLifecycleTests: XCTestCase {
         return (unmount, host)
     }
 
+}
+
+private final class RecoverySearchTraceCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [ReaderSearchTraceEvent] = []
+    func receive(_ event: ReaderSearchTraceEvent) { lock.withLock { recorded.append(event) } }
+    var events: [ReaderSearchTraceEvent] { lock.withLock { recorded } }
 }
 
 private struct DiscoverySnapshot: Equatable {
@@ -894,6 +1014,12 @@ private final class DiscoveryControlledService: ReaderOnlineServing {
             elapsedMilliseconds: elapsedMilliseconds ?? 10 + index, timing: nil))
     }
     func completeRemainingSearches() throws { for index in searches.keys.sorted() { try completeSearch(index) } }
+    func failSearch(_ index: Int) throws {
+        guard let continuation = searches.removeValue(forKey: index) else {
+            XCTFail("The exact search read has not entered"); throw Failure.missingContinuation
+        }
+        continuation.resume(throwing: Failure.lateRead)
+    }
     func failDetail(_ index: Int) throws {
         guard let continuation = details.removeValue(forKey: index) else {
             XCTFail("The exact detail read has not entered"); throw Failure.missingContinuation
@@ -980,4 +1106,269 @@ private final class DiscoverySubscriptionOpportunityGate {
         let current = continuation; continuation = nil
         current?.resume(throwing: DiscoveryControlledService.Failure.teardown)
     }
+}
+
+/// These continuations exercise only the Host's use of Core admission results.
+/// They do not implement matching or prove any source, Core query or device path.
+@MainActor
+final class ReaderSwitchCandidateAdmissionTests: XCTestCase {
+    func testOnlyCoreAdmittedSnapshotIsSelectableAfterCoalescedWorkspaceChanges() async throws {
+        let state = ReaderOnlineWorkspaceModel(), service = SwitchAdmissionControlledService()
+        let owner = ReaderSwitchCandidateAdmission(state: state)
+        let presentation = UUID(), session = UUID()
+        let book = ReaderBook(sourceId: "origin|source", bookId: "original|book", title: "Current title", author: "Current author")
+        let admitted = ReaderOnlineCandidate(sourceId: "admitted-source", bookId: "admitted-book", title: "Current title", author: "Current author")
+        let unrelated = ReaderOnlineCandidate(sourceId: "other-source", bookId: "other-book", title: "Different title", author: "Different author")
+        state.activateDiscoveryPresentation(presentation)
+        defer { owner.retire(presentationID: presentation); state.retireCachedDiscovery(); service.releaseAll() }
+        let entered = expectation(description: "One coalesced admission read entered")
+        service.onEntered = { index in
+            XCTAssertEqual(index, 0, "Batched workspace publications must not start per-row reads")
+            entered.fulfill()
+        }
+        owner.activate(book: book, sessionID: session, presentationID: presentation, service: service)
+        state.query = "the retained query"
+        state.sources = DiscoveryControlledService.sources(2)
+        state.results = [admitted]
+        state.results = [admitted, unrelated]
+        await fulfillment(of: [entered], timeout: 2)
+        XCTAssertEqual(owner.currentPhase, .pending)
+        XCTAssertNil(owner.currentSnapshot, "Unfiltered search rows cannot be a pending-admission fallback")
+        XCTAssertEqual(service.calls.count, 1)
+        XCTAssertEqual(service.calls[0].book, book, "Use the actual ReaderBook rather than parsing its joined ID")
+        XCTAssertEqual(service.calls[0].candidates, [admitted, unrelated])
+        try service.complete(0, with: .success([admitted]))
+        await waitForAdmission(owner) { $0?.candidates == [admitted] }
+        let snapshot = try XCTUnwrap(owner.currentSnapshot)
+        XCTAssertEqual(owner.currentPhase, .ready)
+        XCTAssertEqual(owner.candidate(admitted, generation: snapshot.generation), admitted)
+        XCTAssertNil(owner.candidate(unrelated, generation: snapshot.generation), "A raw result absent from Core admission is never selectable")
+        let changedRow = ReaderOnlineCandidate(sourceId: admitted.sourceId, bookId: admitted.bookId,
+            title: "A later rendered title", author: admitted.author)
+        XCTAssertNil(owner.candidate(changedRow, generation: snapshot.generation), "An ID alone cannot adopt a different rendered snapshot")
+        XCTAssertNil(owner.candidate(admitted, generation: UUID()), "A row must retain its admission generation")
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
+    func testResultAndSourceChangesInvalidateAdmissionAndRejectCancelledLateReads() async throws {
+        let state = ReaderOnlineWorkspaceModel(), service = SwitchAdmissionControlledService()
+        let owner = ReaderSwitchCandidateAdmission(state: state)
+        let presentation = UUID(), book = ReaderBook(sourceId: "origin", bookId: "book", title: "Current")
+        let first = ReaderOnlineCandidate(sourceId: "candidate-source", bookId: "first", title: "Current")
+        let replacement = ReaderOnlineCandidate(sourceId: "candidate-source", bookId: "replacement", title: "Current")
+        let source = ReaderOnlineSource(sourceId: "candidate-source", name: "Source", baseURL: "", enabled: true,
+            version: "version-1", group: "", definition: Data())
+        state.sources = [source]; state.results = [first]
+        state.activateDiscoveryPresentation(presentation)
+        defer { owner.retire(presentationID: presentation); state.retireCachedDiscovery(); service.releaseAll() }
+        let firstRead = expectation(description: "Original admission entered")
+        let changedResultsRead = expectation(description: "Changed candidate snapshot entered")
+        let changedSourceRead = expectation(description: "Changed source version entered")
+        let staleReadCancelled = expectation(description: "Superseded candidate read observed cancellation")
+        service.onEntered = { index in
+            if index == 0 { firstRead.fulfill() }
+            else if index == 1 { changedResultsRead.fulfill() }
+            else if index == 2 { changedSourceRead.fulfill() }
+            else { XCTFail("Only the three selected input snapshots may read admission") }
+        }
+        service.onCancelled = { index in if index == 1 { staleReadCancelled.fulfill() } }
+        owner.activate(book: book, sessionID: UUID(), presentationID: presentation, service: service)
+        await fulfillment(of: [firstRead], timeout: 2)
+        try service.complete(0, with: .success([first]))
+        await waitForAdmission(owner) { $0?.candidates == [first] }
+        let original = try XCTUnwrap(owner.currentSnapshot)
+        state.results = [replacement]
+        XCTAssertNil(owner.currentSnapshot, "The live input must close the old click gate before deferred reconciliation")
+        XCTAssertNil(owner.candidate(first, generation: original.generation))
+        await fulfillment(of: [changedResultsRead], timeout: 2)
+        state.sources = [.init(sourceId: source.sourceId, name: source.name, baseURL: source.baseURL,
+            enabled: source.enabled, version: "version-2", group: source.group, definition: source.definition)]
+        XCTAssertNil(owner.currentSnapshot)
+        await fulfillment(of: [staleReadCancelled, changedSourceRead], timeout: 2)
+        try service.complete(1, with: .success([first]))
+        XCTAssertNil(owner.candidate(first, generation: original.generation))
+        try service.complete(2, with: .success([replacement]))
+        await waitForAdmission(owner) { $0?.candidates == [replacement] }
+        let current = try XCTUnwrap(owner.currentSnapshot)
+        XCTAssertNotEqual(current.generation, original.generation)
+        XCTAssertEqual(owner.candidate(replacement, generation: current.generation), replacement)
+        XCTAssertNil(owner.candidate(first, generation: original.generation))
+        XCTAssertEqual(service.calls.count, 3)
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
+    func testReopenedActualBookScopeAndRetirementRejectOldReadsWithoutTouchingAcceptedAction() async throws {
+        let state = ReaderOnlineWorkspaceModel(), service = SwitchAdmissionControlledService()
+        let owner = ReaderSwitchCandidateAdmission(state: state)
+        let originalPresentation = UUID(), reopenedPresentation = UUID(), session = UUID()
+        let originalBook = ReaderBook(sourceId: "origin|part", bookId: "book", title: "Current", author: "Author")
+        let reopenedBook = ReaderBook(sourceId: "origin", bookId: "part|book", title: "Current", author: "Author")
+        XCTAssertEqual(originalBook.id, reopenedBook.id, "The DTO's joined ID does not replace its separate canonical fields")
+        let candidate = ReaderOnlineCandidate(sourceId: "candidate", bookId: "other", title: "Current", author: "Author")
+        state.results = [candidate]
+        state.activateDiscoveryPresentation(originalPresentation)
+        defer { owner.retire(presentationID: reopenedPresentation); state.retireCachedDiscovery(); service.releaseAll() }
+        let firstRead = expectation(description: "Original book admission entered")
+        let reopenedRead = expectation(description: "Reopened actual book admission entered")
+        let retiredReadCancelled = expectation(description: "Retirement cancelled only the active admission read")
+        service.onEntered = { index in
+            if index == 0 { firstRead.fulfill() }
+            else if index == 1 { reopenedRead.fulfill() }
+            else { XCTFail("Only the two selected presentation scopes may read admission") }
+        }
+        service.onCancelled = { index in if index == 1 { retiredReadCancelled.fulfill() } }
+        owner.activate(book: originalBook, sessionID: session, presentationID: originalPresentation, service: service)
+        await fulfillment(of: [firstRead], timeout: 2)
+        try service.complete(0, with: .success([candidate]))
+        await waitForAdmission(owner) { $0?.candidates == [candidate] }
+        let original = try XCTUnwrap(owner.currentSnapshot)
+        state.retireDiscoveryPresentation(originalPresentation)
+        state.activateDiscoveryPresentation(reopenedPresentation)
+        owner.activate(book: reopenedBook, sessionID: UUID(), presentationID: reopenedPresentation, service: service)
+        XCTAssertNil(owner.currentSnapshot)
+        XCTAssertNil(owner.candidate(candidate, generation: original.generation))
+        await fulfillment(of: [reopenedRead], timeout: 2)
+        XCTAssertEqual(service.calls[1].book.sourceId, reopenedBook.sourceId)
+        XCTAssertEqual(service.calls[1].book.bookId, reopenedBook.bookId)
+        let acceptedID = "bb0d0fdc-32bd-48d6-9b6b-51416922132c"
+        var acceptedWriteExecutions = 0
+        XCTAssertTrue(state.actions.restoreAccepted(id: acceptedID, label: "原换源操作", scope: reopenedBook.id) { _ in
+            acceptedWriteExecutions += 1
+            XCTFail("Admission retirement must not execute or replay an accepted write")
+            throw SwitchAdmissionControlledService.Failure.unsupported
+        })
+        owner.retire(presentationID: originalPresentation)
+        XCTAssertEqual(owner.currentPhase, .pending, "A retired old presentation cannot close the reopened read")
+        owner.retire(presentationID: reopenedPresentation)
+        await fulfillment(of: [retiredReadCancelled], timeout: 2)
+        try service.complete(1, with: .success([candidate]))
+        await Task.yield()
+        XCTAssertEqual(owner.currentPhase, .inactive)
+        XCTAssertNil(owner.currentSnapshot)
+        XCTAssertNil(owner.candidate(candidate, generation: original.generation))
+        XCTAssertEqual(state.actions.pendingOperationID, acceptedID)
+        XCTAssertEqual(state.actions.scope, reopenedBook.id)
+        XCTAssertTrue(state.actions.hasPending); XCTAssertFalse(state.actions.busy)
+        XCTAssertEqual(acceptedWriteExecutions, 0)
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
+    func testLegacyServiceWithoutCoreCandidateAdmissionFailsClosedAndRetryRemainsReadOnly() async throws {
+        let state = ReaderOnlineWorkspaceModel(), legacy = DiscoveryControlledService()
+        let owner = ReaderSwitchCandidateAdmission(state: state)
+        let presentation = UUID()
+        let raw = ReaderOnlineCandidate(sourceId: "legacy-source", bookId: "raw-result", title: "Current")
+        state.results = [raw]; state.activateDiscoveryPresentation(presentation)
+        defer { owner.retire(presentationID: presentation); state.retireCachedDiscovery(); legacy.releaseAll() }
+        owner.activate(book: ReaderBook(sourceId: "origin", bookId: "book", title: "Current"), sessionID: UUID(),
+            presentationID: presentation, service: legacy)
+        await waitForFailure(owner)
+        XCTAssertNil(owner.currentSnapshot, "Legacy search support cannot supply selectable raw fallback candidates")
+        XCTAssertNil(owner.candidate(raw, generation: UUID()))
+        owner.retry()
+        await waitForFailure(owner)
+        XCTAssertNil(owner.currentSnapshot)
+        XCTAssertEqual(legacy.sourceReadCount, 0); XCTAssertTrue(legacy.searchCalls.isEmpty)
+        XCTAssertTrue(legacy.writeCalls.isEmpty)
+    }
+
+    func testAdmissionReadFailureIsNotConfirmedEmptyAndRetryUsesOnlyTheSameReadScope() async throws {
+        let state = ReaderOnlineWorkspaceModel(), service = SwitchAdmissionControlledService()
+        let owner = ReaderSwitchCandidateAdmission(state: state)
+        let presentation = UUID(), book = ReaderBook(sourceId: "origin", bookId: "book", title: "Current")
+        let candidate = ReaderOnlineCandidate(sourceId: "candidate", bookId: "other", title: "Current")
+        state.results = [candidate]; state.activateDiscoveryPresentation(presentation)
+        defer { owner.retire(presentationID: presentation); state.retireCachedDiscovery(); service.releaseAll() }
+        let originalRead = expectation(description: "Original admission read entered")
+        let retryRead = expectation(description: "Only the original admission read was retried")
+        service.onEntered = { index in
+            if index == 0 { originalRead.fulfill() }
+            else if index == 1 { retryRead.fulfill() }
+            else { XCTFail("Local retry cannot create additional discovery or write work") }
+        }
+        owner.activate(book: book, sessionID: UUID(), presentationID: presentation, service: service)
+        await fulfillment(of: [originalRead], timeout: 2)
+        try service.complete(0, with: .failure(SwitchAdmissionControlledService.Failure.unsupported))
+        await waitForFailure(owner)
+        XCTAssertNil(owner.currentSnapshot, "An admission error cannot become a confirmed empty candidate list")
+        owner.retry()
+        XCTAssertEqual(owner.currentPhase, .pending); XCTAssertNil(owner.currentSnapshot)
+        await fulfillment(of: [retryRead], timeout: 2)
+        XCTAssertEqual(service.calls[1].book, service.calls[0].book)
+        XCTAssertEqual(service.calls[1].candidates, service.calls[0].candidates)
+        try service.complete(1, with: .success([]))
+        await waitForAdmission(owner) { $0?.candidates.isEmpty == true }
+        XCTAssertEqual(owner.currentPhase, .ready, "Only a successful Core read can confirm an empty admitted relation")
+        XCTAssertEqual(state.results, [candidate], "A local admission retry does not rewrite the retained discovery rows")
+        XCTAssertTrue(service.writeCalls.isEmpty)
+    }
+
+    private func waitForAdmission(_ owner: ReaderSwitchCandidateAdmission,
+                                  matching condition: @escaping (ReaderSwitchCandidateAdmission.Snapshot?) -> Bool) async {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition(owner.currentSnapshot) }, object: nil)
+        await fulfillment(of: [ready], timeout: 2)
+    }
+    private func waitForFailure(_ owner: ReaderSwitchCandidateAdmission) async {
+        let failed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            if case .failed = owner.currentPhase { return true }; return false
+        }, object: nil)
+        await fulfillment(of: [failed], timeout: 2)
+    }
+}
+
+@MainActor
+private final class SwitchAdmissionControlledService: ReaderSourceSwitchCandidateServing {
+    enum Failure: Error { case unsupported, teardown, missingContinuation }
+    struct Call { let book: ReaderBook; let candidates: [ReaderOnlineCandidate] }
+    private(set) var calls: [Call] = []
+    private(set) var cancelled = Set<Int>()
+    private(set) var writeCalls: [String] = []
+    var onEntered: ((Int) -> Void)?
+    var onCancelled: ((Int) -> Void)?
+    private var reads: [Int: CheckedContinuation<[ReaderOnlineCandidate], Error>] = [:]
+    private var closed = false
+
+    func sourceSwitchCandidates(for book: ReaderBook, among candidates: [ReaderOnlineCandidate]) async throws -> [ReaderOnlineCandidate] {
+        guard !closed else { throw Failure.teardown }
+        let index = calls.count; calls.append(.init(book: book, candidates: candidates))
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                reads[index] = continuation; onEntered?(index)
+            }
+        }, onCancel: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.cancelled.insert(index).inserted else { return }
+                self.onCancelled?(index)
+            }
+        })
+    }
+    func complete(_ index: Int, with result: Result<[ReaderOnlineCandidate], Error>) throws {
+        guard let continuation = reads.removeValue(forKey: index) else {
+            XCTFail("The selected admission read has not entered"); throw Failure.missingContinuation
+        }
+        continuation.resume(with: result)
+    }
+    func releaseAll() {
+        closed = true; onEntered = nil; onCancelled = nil
+        let pending = reads; reads.removeAll()
+        for continuation in pending.values { continuation.resume(throwing: Failure.teardown) }
+    }
+    private func unexpectedRead<T>(_ name: String) throws -> T {
+        XCTFail("Unselected admission read boundary: \(name)"); throw Failure.unsupported
+    }
+    private func forbiddenWrite<T>(_ name: String) throws -> T {
+        writeCalls.append(name); XCTFail("Candidate admission crossed write boundary: \(name)"); throw Failure.unsupported
+    }
+    func listBooks() async throws -> [ReaderBook] { try unexpectedRead("listBooks") }
+    func chapters(for book: ReaderBook) async throws -> [ReaderChapter] { try unexpectedRead("chapters") }
+    func content(for book: ReaderBook, chapterIndex: UInt32) async throws -> ReaderChapterContent { try unexpectedRead("content") }
+    func progress(for book: ReaderBook) async throws -> ReaderProgressSnapshot { try unexpectedRead("progress") }
+    func pendingImports() async throws -> [ReaderPendingImport] { try unexpectedRead("pendingImports") }
+    func importBook(at url: URL) async throws -> ReaderImportResult { try forbiddenWrite("importBook") }
+    func reconcilePendingProgress(for book: ReaderBook) async throws -> ReaderProgressSnapshot? { try forbiddenWrite("reconcilePendingProgress") }
+    func saveProgress(for book: ReaderBook, content: ReaderChapterContent, scalarOffset: UInt64,
+                      expectedRevision: String?) async throws -> ReaderProgressSnapshot { try forbiddenWrite("saveProgress") }
+    func flush() async throws { let _: Void = try forbiddenWrite("flush") }
+    func close() async throws { let _: Void = try forbiddenWrite("close") }
+    func recoverPendingImports() async throws -> [ReaderPendingImport] { try forbiddenWrite("recoverPendingImports") }
 }

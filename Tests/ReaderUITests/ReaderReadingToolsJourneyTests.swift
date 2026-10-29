@@ -2925,7 +2925,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     }
     private func neutralShelf(_ app: XCUIApplication) {
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
         if !app.buttons["全部分组"].exists {
             let sorts = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '默认顺序' OR label BEGINSWITH '加入时间' OR label BEGINSWITH '最近阅读' OR label BEGINSWITH '书名' OR label BEGINSWITH '作者'"))
             let sort = sorts.allElementsBoundByIndex.filter(\.isHittable).sorted {

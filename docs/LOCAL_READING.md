@@ -4,9 +4,9 @@
 V2–V8 的必做范围、顺序与状态统一见工作区唯一待办
 [iOS V2–V8 版本要求](../../DEVELOPMENT_BACKLOG.md#ios-version-requirements)。
 `SOURCE_READY` 表示源码交接就绪；方法测试、App 构建、安装、原生交互和用户验收分别成立。
-源码 Core pin 为 `f3227e30d1022d6d0984fbfadcb1e3cf5679c6a7`，本地导入原始阶段回执的存储、协议注册及 Runtime 共 23 个准确方法通过，iOS17 arm64 device Framework 已构建。首次配套 `4fa3a27` 的编译、安装与 13 PASS / 2 FAIL 隔离方法保留其原候选和结果；两处最窄测试修订已在63575d6配套准确方法中分别通过，原13项按实际不受影响路径REUSED，原失败批次不改写。该轮原库保护、786 条操作与原书数据的核对也只属于原回执。
+源码 Core pin 为 `58a0d4597f7f2dfba3773f34c753c1cc82de7961`，新增当前同书候选查询及写前原子准入；device-only Framework 已构建，Host 方法及新 App 尚待本轮准确结果。此前 `f3227e3` 本地导入原始阶段回执的存储、协议注册及 Runtime 共 23 个准确方法通过；首次配套 `4fa3a27` 的编译、安装与 13 PASS / 2 FAIL 隔离方法保留其原候选和结果；两处最窄测试修订已在63575d6配套准确方法中分别通过，原13项按实际不受影响路径REUSED，原失败批次不改写。该轮原库保护、786 条操作与原书数据的核对也只属于原回执。
 
-当前实体 iPhone 的免费普通 App为 `fa58ca5`（连续正文布局生产修复 `2d34f65`；独立普通构建，不含测试bundle；包含字典HTML/内置UI字体；其他准确结果按实际影响复用），实际 UI Runner仍为 `d2a67e0`，Core pin 不变。百度源修订候选未自动应用。真实 TXT、EPUB、MOBI 阅读与正常返回、TXT/EPUB 交替及一次冷重开已有各自准确原生结果；书签和笔记未保存编辑的删除保护与仅清本次测试实体也已通过。字体列表读取失败时的排序保护、目录显示标题及来源标记的字段链、笔记与书签原保存核对成功后的编辑收尾、书架原移除确认后的选择退役另由定向隔离方法验证。这些方法不是完整设置界面、真实付费来源视觉或原生未决笔记整流程验收，实际产物、安装和方法回执以唯一待办中对应记录为准。
+当前实体 iPhone 的免费普通 App为 `fa58ca5`（连续正文布局生产修复 `2d34f65`；独立普通构建，不含测试bundle；包含字典HTML/内置UI字体；其他准确结果按实际影响复用），实际 UI Runner仍为 `d2a67e0`，安装包 Core 仍为 `f3227e3`。百度源修订候选未自动应用。真实 TXT、EPUB、MOBI 阅读与正常返回、TXT/EPUB 交替及一次冷重开已有各自准确原生结果；书签和笔记未保存编辑的删除保护与仅清本次测试实体也已通过。字体列表读取失败时的排序保护、目录显示标题及来源标记的字段链、笔记与书签原保存核对成功后的编辑收尾、书架原移除确认后的选择退役另由定向隔离方法验证。这些方法不是完整设置界面、真实付费来源视觉或原生未决笔记整流程验收，实际产物、安装和方法回执以唯一待办中对应记录为准。
 
 真实pg25332的原生位置链已补齐：连续正文创建时选定TextKit1，完成原生布局后才读取滚动范围和恢复scalar，重入仍核对原视图及generation。准确实体机方法PASS0.414秒，实际430×932视口/3501正文高度、翻页y916→scalar469→生产Model原ACK及完整Core持久位置一致；同UITextView字号23/宽374重排、新Core/Model重开均保留原文段落/line/caret可见，原书与保留副本字节相同。scalar-only的locationRevision按固定合同为nil，重开采用新实例CAS。真实书架格式读取自然完成后各只关闭Core一次，成功私有UUID库移除，四次原失败保留。此项不能替代物理手势、全阅读界面或OS进程冷启动；IOS-V2-05及整版仍OPEN。普通包另PASS75.925秒构建、签名、同免费身份保数据覆盖和正常五书书架静态启动。详细回执见唯一待办与工作区native-scalar记录。
 
@@ -51,7 +51,7 @@ UI `95366cd93775ea0ad3ecbc0f60e8882717f93169`、
 本轮 V2–V4 扩展增加了目录/电子书展示、规则订阅、下载及换源恢复等配套合同；
 旧 Framework 不会因为 Host 源码出现新入口就获得这些能力。
 最终升级须明确协议/schema、位置和历史未决操作的边界，保留原书与原 journal，
-重新构建并绑定准确产物。当前源码固定 pin 为 `f3227e30d1022d6d0984fbfadcb1e3cf5679c6a7`，Swift binding SHA-256 为
+重新构建并绑定准确产物。当前源码固定 pin 为 `58a0d4597f7f2dfba3773f34c753c1cc82de7961`，Swift binding SHA-256 为
 `e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0`。
 此前 Core141 与 e978 的模拟器 Framework 构建及字节回执保留；历史 `b6a5bb9` 入架计数修复的 Framework 已实际从干净固定提交重建（`reader-document-admission-b6-framework-build-exit.json`），393个对象的最低版本核验符合17声明，C ABI 和 Swift binding 未变。e978 的只读调试能力保持，Core141 补齐的 V1 TXT 旧格式事实及原书SHA/字节识别保持；对应原书方法与Host原生消费者各自绑定原结果，不因本次打包重复计为新验证。
 最终 App、安装与交互结果仍须分别绑定实际回执，Framework 通过不替代 App 交付。
@@ -171,6 +171,7 @@ TextKit 的 UTF-16 下标与 WebKit 的 DOM 下标只用于平台布局，必须
 | 在线阅读显式本章更新 | 阅读加载态；终态短反馈 `ReaderTransientFeedback`；未决 `ReaderRecoveryNotice` | 原 session/restoration、章及正文/处理 scope；唯一前置保存后冻结旧写入。Core 原迁移回包与 fresh progress 配对后才采用；部分恢复单列。未知请求须先确认终态或取消成功并经同发布锁的 cacheOnly 核对，不能重发网络或拿新观察冒充原 ACK；核对失败保留同一冻结意图。Core required 标志只提示显式更新，不按短文本判断完整性；控制栏展开后仍可正常返回/打开更多 |
 | 在线阅读相邻章节自动缓存的已确认部分失败 | `ReaderTransientFeedback` | 仅当前前台阅读 session、书/章、正文/处理版本与窗口 generation 匹配且 `failedIndexes` 非空时展示；每 session 最多一次，已有其他操作反馈优先。窗口退役只清自己的展示 token，不改当前正文/位置，不把顶层 busy、取消或未确认抛错称为邻章失败 |
 | 在线搜索/换源的来源读取、无结果与筛选空 | `ReaderPageState` | 原来源读取 generation 与当次搜索事实；缺来源、读取失败、停止、部分失败与确认空分开。筛选空只清展示条件，不重新搜索 |
+| 换源候选的同书核对 | 局部加载/失败/确认空 `ReaderPageState`；已确认的新换源拒绝沿既有 ActionOwner/反馈入口 | Core 完整快照与精确原书身份，绑定 session/presentation、查询、结果、来源版本及核对代次；未确认候选隐藏且不可操作。离页/换上下文只退休读取，不取消已受理换源；游标或元数据失效仅重新核对，不重派原写入。原书信息不足、目标准入改变保持不同事实；关闭页面不表示已取消业务 |
 | 已有书源的读回失败 | `ReaderTransientFeedback`，`ReaderOnlineSourceRefreshNotice` 仅作宿主投影 | 原读取失败 UUID，每次最多消费一次；保留已有来源，成功读回清除失败，前台显示两秒，离页/后台取消展示，旧展示不清新代；不确认或重派原写 |
 | 本地批次导入的逐项结果 | 专用任务宿主 `ReaderImportResultView` | 原 import/batch UUID；关闭展示不结束原写入 |
 | 进度、通用操作、订阅和冷恢复待核对 | 原操作未决 `ReaderRecoveryNotice` 与既有恢复适配 | 原 owner/operation ID；读取成功不清除未知写入 |

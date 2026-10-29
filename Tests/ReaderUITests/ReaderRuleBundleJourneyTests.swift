@@ -374,7 +374,7 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
 
     private func openOriginal(_ app: XCUIApplication) throws {
         try require(app.buttons["更多书架操作"].waitForExistence(timeout: 25), "The exact original must already be picker-imported")
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
         let book = app.buttons.matching(NSPredicate(format: "identifier == %@", "book-" + originalID))
         try require(book.firstMatch.waitForExistence(timeout: 20) && book.count == 1 && book.element.isHittable,
                     "Use the existing exact real TXT shelf item without importing or replacing it")

@@ -16,7 +16,7 @@ final class ReaderTXTTOCPreviewJourneyTests: XCTestCase {
     func testExistingRealTXTDraftPreviewInvalidatesEditedResultAndPreservesReadingAndDirectory() throws {
         let app = XCUIApplication(); app.launch()
         try require(app.buttons["更多书架操作"].waitForExistence(timeout: 25), "Start from the real existing shelf")
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
         let book = app.buttons.matching(NSPredicate(format: "identifier == %@", "book-" + originalID))
         try require(book.firstMatch.waitForExistence(timeout: 20) && book.count == 1 && book.firstMatch.isHittable,
                     "The existing byte-bound Downloads 仙子 book is required; no import or generated replacement")

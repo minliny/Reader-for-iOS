@@ -911,18 +911,33 @@ final class ReaderApplicationModel: ObservableObject {
               let current = reader, current.book.sourceId != "local", !chapterLoading, !closingReader else {
             throw ReaderLibraryError.busy
         }
+        sourceSwitchInFlight = true
+        defer { sourceSwitchInFlight = false }
         if let original = sourceSwitchIntent {
             guard original.id == operationID, original.original.id == current.id,
                   original.candidate == candidate else { throw ReaderLibraryError.busy }
         } else {
             guard current.book.id != candidate.id else { throw ReaderLibraryError.invalidPosition }
+            guard let admission = service as? any ReaderSourceSwitchCandidateServing else {
+                throw ReaderLibraryError.core(code: "INVALID_PARAMS", message: "暂时无法核对同书来源，原书已保留。",
+                                              retryable: false, reason: "SOURCE_SWITCH_CANDIDATE_ADMISSION_FAILED")
+            }
+            let admitted = try await admission.sourceSwitchCandidates(for: current.book, among: [candidate])
+            guard reader?.id == current.id, reader?.restorationID == current.restorationID,
+                  !chapterLoading, !closingReader, localReprocessIntent == nil, onlineChapterRefreshIntent == nil else {
+                throw ReaderLibraryError.busy
+            }
+            guard admitted.contains(where: {
+                Data($0.sourceId.utf8) == Data(candidate.sourceId.utf8) && Data($0.bookId.utf8) == Data(candidate.bookId.utf8)
+            }) else {
+                throw ReaderLibraryError.core(code: "INVALID_PARAMS", message: "该候选未通过同书核对，原书与阅读位置已保留。",
+                                              retryable: false, reason: "SOURCE_SWITCH_CANDIDATE_ADMISSION_FAILED")
+            }
             sourceSwitchIntent = SourceSwitchIntent(id: operationID, original: current, candidate: candidate)
             selection = nil
             saveDebounce?.cancel(); saveDebounce = nil
             cancelReadingCacheWindow()
         }
-        sourceSwitchInFlight = true
-        defer { sourceSwitchInFlight = false }
         if let restoredBook = sourceSwitchIntent?.rollbackBook {
             if sourceSwitchIntent?.rollbackNeedsTerminal == true, let intent = sourceSwitchIntent {
                 do {

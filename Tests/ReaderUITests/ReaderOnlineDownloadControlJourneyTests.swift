@@ -1962,7 +1962,7 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
     }
     private func open(_ book: Book, app: XCUIApplication) {
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 25))
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
         let rows = app.buttons.matching(NSPredicate(format: "identifier == %@", "book-" + book.id))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 20)); XCTAssertEqual(rows.count, 1)
         XCTAssertTrue(rows.firstMatch.isHittable); rows.firstMatch.tap()

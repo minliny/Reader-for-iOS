@@ -1,5 +1,7 @@
+import Combine
 import SwiftUI
 import UIKit
+import Combine
 #if DEBUG
 import OSLog
 import CryptoKit
@@ -47,6 +49,162 @@ import CryptoKit
             }
         }
         return entry
+    }
+}
+
+/// A presentation read of Core's candidate relation. Search results are input
+/// only; this owner never decides whether two books are the same work.
+@MainActor final class ReaderSwitchCandidateAdmission: ObservableObject {
+    enum Phase: Equatable { case inactive, pending, ready, failed(String) }
+    struct Context: Hashable {
+        let book: ReaderBook
+        let sessionID: UUID
+        let presentationID: UUID
+        // Swift String equality is not a byte identity for a Core input.
+        private let bookBytes: [Data]
+        init(book: ReaderBook, sessionID: UUID, presentationID: UUID) {
+            self.book = book; self.sessionID = sessionID; self.presentationID = presentationID
+            bookBytes = [book.sourceId, book.bookId, book.title, book.author].map { Data($0.utf8) }
+        }
+        func matches(_ other: ReaderBook) -> Bool {
+            book == other && bookBytes == [other.sourceId, other.bookId, other.title, other.author].map { Data($0.utf8) }
+        }
+    }
+    fileprivate struct Input: Equatable {
+        let context: Context
+        let query: Data
+        let results: [ReaderOnlineCandidate]
+        let resultBytes: [[Data?]]
+        let sourceBytes: [[Data]]
+        let sourceReadRevision: Int
+        let sourceLoading: Bool
+    }
+    struct Snapshot: Equatable {
+        let generation: UUID
+        let candidates: [ReaderOnlineCandidate]
+        fileprivate let input: Input
+    }
+    @Published private(set) var phase: Phase = .inactive
+    @Published private(set) var snapshot: Snapshot?
+    private weak var state: ReaderOnlineWorkspaceModel?
+    private var context: Context?
+    private var service: (any ReaderSourceSwitchCandidateServing)?
+    private var observation: AnyCancellable?
+    private var coalescing: Task<Void, Never>?
+    private var read: Task<Void, Never>?
+    private var readGeneration = UUID()
+    private var requestedInput: Input?
+    private var inputMayHaveChanged = false
+
+    init(state: ReaderOnlineWorkspaceModel) {
+        self.state = state
+        observation = state.objectWillChange.sink { [weak self] in self?.scheduleRefresh() }
+    }
+    deinit { coalescing?.cancel(); read?.cancel() }
+
+    func activate(book: ReaderBook, sessionID: UUID, presentationID: UUID, service: any ReaderLibraryServing) {
+        let next = Context(book: book, sessionID: sessionID, presentationID: presentationID)
+        cancelRead(); requestedInput = nil; snapshot = nil
+        context = next
+        self.service = service as? any ReaderSourceSwitchCandidateServing
+        phase = .pending
+        scheduleRefresh()
+    }
+    func retire(presentationID: UUID) {
+        guard context?.presentationID == presentationID else { return }
+        context = nil; service = nil; requestedInput = nil; inputMayHaveChanged = false
+        coalescing?.cancel(); coalescing = nil; cancelRead()
+        snapshot = nil; phase = .inactive
+    }
+    func retire() {
+        if let context { retire(presentationID: context.presentationID) }
+    }
+    func retry() {
+        guard context != nil else { return }
+        cancelRead(); requestedInput = nil; snapshot = nil; phase = .pending
+        scheduleRefresh()
+    }
+    var currentPhase: Phase {
+        guard context != nil else { return .inactive }
+        guard let input = currentInput(), !input.sourceLoading, input == requestedInput else { return .pending }
+        return phase
+    }
+    var currentSnapshot: Snapshot? {
+        guard currentPhase == .ready, let snapshot, snapshot.input == currentInput() else { return nil }
+        return snapshot
+    }
+    func snapshot(for expected: Context) -> Snapshot? {
+        context == expected ? currentSnapshot : nil
+    }
+    func presentationPhase(for expected: Context) -> Phase {
+        context == expected ? currentPhase : .pending
+    }
+    func candidate(_ rendered: ReaderOnlineCandidate, generation: UUID) -> ReaderOnlineCandidate? {
+        guard !inputMayHaveChanged, let snapshot = currentSnapshot, snapshot.generation == generation,
+              let current = snapshot.candidates.first(where: { Self.sameCandidate($0, rendered) }) else { return nil }
+        return current
+    }
+    private static func candidateBytes(_ candidate: ReaderOnlineCandidate) -> [Data?] {
+        [Data(candidate.sourceId.utf8), Data(candidate.bookId.utf8), Data(candidate.title.utf8),
+         Data(candidate.author.utf8), candidate.coverUrl.map { Data($0.utf8) }, candidate.coreBook]
+    }
+    private static func sameCandidate(_ lhs: ReaderOnlineCandidate, _ rhs: ReaderOnlineCandidate) -> Bool {
+        candidateBytes(lhs) == candidateBytes(rhs)
+    }
+    private func currentInput() -> Input? {
+        guard let state, let context, state.isCurrentDiscoveryPresentation(context.presentationID) else { return nil }
+        return Input(context: context, query: Data(state.query.utf8), results: state.results,
+            resultBytes: state.results.map(Self.candidateBytes),
+            sourceBytes: state.sources.map {
+                [Data($0.sourceId.utf8), Data($0.version.utf8), Data([$0.enabled ? 1 : 0]), $0.definition]
+            }, sourceReadRevision: state.sourceReadRevision, sourceLoading: state.sourceLoading)
+    }
+    private func scheduleRefresh() {
+        guard context != nil else { return }
+        // objectWillChange precedes storage. Close the click gate immediately,
+        // then sample the whole updated workspace once on the next actor turn.
+        inputMayHaveChanged = true
+        guard coalescing == nil else { return }
+        coalescing = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled, let self else { return }
+            self.coalescing = nil
+            self.refresh()
+        }
+    }
+    private func cancelRead() {
+        readGeneration = UUID(); read?.cancel(); read = nil
+    }
+    private func refresh() {
+        guard let input = currentInput() else {
+            if let context { retire(presentationID: context.presentationID) }
+            return
+        }
+        inputMayHaveChanged = false
+        if requestedInput == input { return }
+        cancelRead(); requestedInput = input; snapshot = nil; phase = .pending
+        guard !input.sourceLoading else { return }
+        guard let service else {
+            phase = .failed("当前服务尚未提供候选来源核对，已有正文和阅读位置保留。")
+            return
+        }
+        let generation = readGeneration
+        read = Task { @MainActor [weak self, service] in
+            do {
+                let admitted = try await service.sourceSwitchCandidates(for: input.context.book, among: input.results)
+                guard !Task.isCancelled, let self, self.readGeneration == generation,
+                      self.currentInput() == input else { return }
+                self.snapshot = Snapshot(generation: generation, candidates: admitted, input: input)
+                self.phase = .ready; self.read = nil
+            } catch {
+                guard !Task.isCancelled, let self, self.readGeneration == generation,
+                      self.currentInput() == input else { return }
+                if case ReaderLibraryError.core(_, _, _, let reason) = error, reason == "CURSOR_STALE" {
+                    self.phase = .failed("书源或候选信息已更新，请重新核对。")
+                } else { self.phase = .failed(error.localizedDescription) }
+                self.read = nil
+            }
+        }
     }
 }
 
@@ -315,6 +473,7 @@ struct ReaderOnlineSwitchPanel: View {
     @StateObject private var state: ReaderOnlineWorkspaceModel
     @State private var discoveryPresentationID = UUID()
     @State private var candidateHost: ReaderSwitchCandidateHost
+    @ObservedObject private var admission: ReaderSwitchCandidateAdmission
     #if DEBUG
     @ObservedObject private var searchEvidence: ReaderOnlineSearchEvidence
     #endif
@@ -325,13 +484,17 @@ struct ReaderOnlineSwitchPanel: View {
         self.model = model; self.preferences = preferences; self.session = session
         let cache = ReaderSwitchPresentationCache.shared
         _state = StateObject(wrappedValue: cache.state(for: session.book.id, initialQuery: session.book.title))
-        _candidateHost = State(initialValue: cache.candidateHost(for: session.book.id, initialQuery: session.book.title))
+        let host = cache.candidateHost(for: session.book.id, initialQuery: session.book.title)
+        _candidateHost = State(initialValue: host)
+        _admission = ObservedObject(wrappedValue: host.admission)
         #if DEBUG
         _searchEvidence = ObservedObject(wrappedValue: cache.searchEvidence(for: session.book.id, initialQuery: session.book.title))
         #endif
     }
     var body: some View {
         let presentationID = discoveryPresentationID
+        let context = ReaderSwitchCandidateAdmission.Context(book: session.book, sessionID: session.id, presentationID: presentationID)
+        let admitted = admission.snapshot(for: context)
         let queryFocus = $queryFocused
         let dismissAction = dismiss
         VStack(spacing: 12) {
@@ -351,28 +514,47 @@ struct ReaderOnlineSwitchPanel: View {
             Text("当前：\(session.book.sourceName ?? state.sourceName(session.book.sourceId))").font(ReaderTypography.font(.caption)).foregroundStyle(ReaderPalette(scheme).muted)
             if state.searching { ProgressView("正在查找其他来源") }
             if !state.failures.isEmpty { Text("\(state.failures.count) 个来源未完成").font(ReaderTypography.font(.caption)) }
-            if candidates.isEmpty, !state.searching {
-                emptyCandidates
-            } else {
+            ZStack {
                 ReaderSwitchCandidateViewport(owner: candidateHost, state: state,
                     actions: model.actions, model: model, sessionID: session.id,
-                    bookID: session.book.id, presentationID: presentationID,
+                    bookID: session.book.id, book: session.book, presentationID: presentationID,
                     clearQueryFocus: { queryFocus.wrappedValue = false }, dismissPanel: { dismissAction() })
+                    .id(context)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Keep the cached native scroll graph while a fresh Core
+                    // read is pending, without exposing its previous rows.
+                    .opacity(admitted?.candidates.isEmpty == false ? 1 : 0)
+                    .allowsHitTesting(admitted?.candidates.isEmpty == false)
+                    .accessibilityHidden(admitted?.candidates.isEmpty != false)
+                switch admission.presentationPhase(for: context) {
+                case .failed(let message):
+                    ReaderPageState(title: "候选来源核对未完成", detail: message,
+                        actionTitle: "重试核对", action: admission.retry)
+                case .inactive, .pending:
+                    ReaderPageState(title: "正在核对候选来源", loading: true)
+                case .ready:
+                    if admitted?.candidates.isEmpty != false {
+                        if state.searching { ReaderPageState(title: "正在查找其他来源", loading: true) }
+                        else { emptyCandidates }
+                    }
+                }
             }
             ReaderOnlineSourceRefreshNotice(state: state)
             ReaderOperationStatus(owner: model.actions, scope: session.book.id)
                 .accessibilityIdentifier("online-switch-outcome")
         }.padding(.vertical, 20).background(ReaderPalette(scheme).paper)
-            .task {
+            .task(id: context) {
                 guard !Task.isCancelled else { return }
                 state.activateDiscoveryPresentation(presentationID)
                 state.service = model.libraryService as? any ReaderOnlineServing
+                admission.activate(book: session.book, sessionID: session.id,
+                    presentationID: presentationID, service: model.libraryService)
                 await state.refreshDiscoverySources(presentationID: presentationID)
             }
             .onDisappear {
                 queryFocused = false
                 candidateHost.endPresentation(presentationID)
+                admission.retire(presentationID: presentationID)
                 state.retireDiscoveryPresentation(presentationID)
             }
     }
@@ -389,21 +571,21 @@ struct ReaderOnlineSwitchPanel: View {
                 Task { await state.refreshDiscoverySources(presentationID: presentationID) }
             }
         } else if state.stopped {
-            ReaderPageState(title: "查找已停止", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重新搜索", action: state.researchCandidates)
+            ReaderPageState(title: "查找已停止", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重试未完成来源", action: state.retryIncompleteSources)
         } else if !state.failures.isEmpty {
-            ReaderPageState(title: state.timings.isEmpty ? "查找来源失败" : "部分来源未完成", detail: "尚不能确认没有其他来源，已有正文和阅读位置保留。", actionTitle: "重新搜索", action: state.researchCandidates)
+            ReaderPageState(title: state.timings.isEmpty ? "查找来源失败" : "部分来源未完成", detail: "尚不能确认没有其他来源，已有正文和阅读位置保留。", actionTitle: "重试未完成来源", action: state.retryIncompleteSources)
         } else if !state.searched || state.timings.isEmpty {
             ReaderPageState(title: "尚未取得来源结果", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重新搜索", action: state.researchCandidates)
         } else {
             ReaderPageState(title: "没有其他来源", detail: "已有正文和阅读位置保留，可重新搜索。", actionTitle: "重新搜索", action: state.researchCandidates)
         }
     }
-    private var candidates: [ReaderOnlineCandidate] { state.results.filter { $0.id != session.book.id } }
 }
 
 // Only the candidate list survives dismissal. Header/focus/status/dismissal stay
 // in the new sheet, and a cached graph never owns an application/session closure.
 @MainActor final class ReaderSwitchCandidateHost {
+    let admission: ReaderSwitchCandidateAdmission
     private let state: ReaderOnlineWorkspaceModel
     private let currentBookID: String
     private var hosting: ReaderSwitchCandidateHostingController?
@@ -611,6 +793,7 @@ struct ReaderOnlineSwitchPanel: View {
     #endif
     init(state: ReaderOnlineWorkspaceModel, currentBookID: String) {
         self.state = state; self.currentBookID = currentBookID
+        admission = ReaderSwitchCandidateAdmission(state: state)
     }
     func beginAttachment(_ container: ReaderSwitchCandidateViewportController) {
         guard !retired else { return }
@@ -634,7 +817,8 @@ struct ReaderOnlineSwitchPanel: View {
                 environment: ReaderSwitchCandidateEnvironment) {
         guard isAttached(container) else { return }
         let configuration = ReaderSwitchCandidatePresentationInput.Configuration(
-            attachmentID: container.attachmentID, disabled: disabled, environment: environment)
+            attachmentID: container.attachmentID, disabled: disabled, environment: environment,
+            admission: admission.currentSnapshot ?? rootConfiguration?.admission)
         if let presentationInput {
             // Update the stable root's observed platform input. Assigning a new
             // UIHostingController.rootView across attachments can recreate its
@@ -654,9 +838,9 @@ struct ReaderOnlineSwitchPanel: View {
             #endif
             let input = ReaderSwitchCandidatePresentationInput(configuration)
             presentationInput = input
-            let root = ReaderSwitchCandidateList(state: state, currentBookID: currentBookID,
-                input: input, select: { [weak self] candidate, renderedAttachmentID in
-                    self?.select(candidate, renderedAttachmentID: renderedAttachmentID)
+            let root = ReaderSwitchCandidateList(state: state,
+                input: input, select: { [weak self] candidate, renderedAttachmentID, generation in
+                    self?.select(candidate, renderedAttachmentID: renderedAttachmentID, generation: generation)
                 })
             let child = ReaderSwitchCandidateHostingController(rootView: root)
             child.viewportOwner = self
@@ -671,6 +855,7 @@ struct ReaderOnlineSwitchPanel: View {
             #endif
         }
         invalidateChangedViewportDisplay()
+        updatePresentationVisibility(container)
         mountIfSized(container)
     }
     /// The same gate is consumed by the real row action and the finite
@@ -685,18 +870,28 @@ struct ReaderOnlineSwitchPanel: View {
               state.isCurrentDiscoveryPresentation(container.presentationID) else { return false }
         return true
     }
-    private func select(_ candidate: ReaderOnlineCandidate, renderedAttachmentID: UUID) {
+    private func select(_ candidate: ReaderOnlineCandidate, renderedAttachmentID: UUID, generation: UUID) {
         guard isCurrentRenderedAttachment(renderedAttachmentID), let container = attachment,
               container.acceptsCurrentReaderInput,
-              let current = state.results.first(where: { $0.id == candidate.id }),
-              current.id != currentBookID else { return }
-        container.select(current)
+              let current = admission.candidate(candidate, generation: generation) else { return }
+        container.select(current, admissionGeneration: generation)
     }
     func mountIfSized(_ container: ReaderSwitchCandidateViewportController) {
         guard isAttached(container), let hosting,
               container.isViewLoaded, container.view.bounds.width > 0,
               container.view.bounds.height > 0 else { return }
         container.mount(hosting)
+        updatePresentationVisibility(container)
+    }
+    private func updatePresentationVisibility(_ container: ReaderSwitchCandidateViewportController) {
+        guard isAttached(container) else { return }
+        // The deferred SwiftUI input commit must not briefly reveal a previous
+        // admitted generation when the outer panel receives the new result.
+        let current = admission.currentSnapshot?.generation
+        let rendered = rootConfiguration?.admission?.generation
+        let visible = current == rendered
+        container.viewIfLoaded?.alpha = visible ? 1 : 0
+        container.viewIfLoaded?.accessibilityElementsHidden = !visible
     }
     func detach(_ container: ReaderSwitchCandidateViewportController) {
         // An obsolete dismantle must never remove a newly attached child.
@@ -713,7 +908,7 @@ struct ReaderOnlineSwitchPanel: View {
                 // UIKit dismantling; the next attachment will submit its own
                 // configuration through scheduleConfiguration.
                 requestedConfiguration = .init(attachmentID: container.attachmentID,
-                    disabled: true, environment: current.environment)
+                    disabled: true, environment: current.environment, admission: current.admission)
             }
             cancelConfigurationCommit()
             attachment = nil
@@ -723,11 +918,12 @@ struct ReaderOnlineSwitchPanel: View {
         #endif
     }
     func endPresentation(_ identity: UUID) {
-        guard let attachment, attachment.presentationID == identity else { return }
-        detach(attachment)
+        if let attachment, attachment.presentationID == identity { detach(attachment) }
+        admission.retire(presentationID: identity)
     }
     func retire() {
         retired = true
+        admission.retire()
         cancelConfigurationCommit()
         requestedConfiguration = nil
         discardViewport("retire")
@@ -758,14 +954,16 @@ struct ReaderOnlineSwitchPanel: View {
                   self.presentationInput === input,
                   self.requestedConfiguration == configuration else { return }
             input.update(configuration)
+            if let container = self.attachment { self.updatePresentationVisibility(container) }
             if self.configurationGeneration == generation { self.configurationCommit = nil }
         }
     }
     private func viewportDisplay() -> ViewportDisplay {
-        let rows = state.results.filter { $0.id != currentBookID }
+        let rows = rootConfiguration?.admission?.candidates ?? []
         return ViewportDisplay(query: state.query, candidates: rows,
             sourceNames: rows.map { state.sourceName($0.sourceId) },
-            timings: rows.map { state.candidateElapsedMilliseconds($0) }, currentIDs: state.currentResultIDs,
+            timings: rows.map { state.candidateElapsedMilliseconds($0) },
+            currentIDs: Set(rows.map(\.id)).intersection(state.currentResultIDs),
             searching: state.searching)
     }
     private func invalidateChangedViewportDisplay() {
@@ -920,6 +1118,12 @@ struct ReaderOnlineSwitchPanel: View {
         let attachmentID: UUID
         let disabled: Bool
         let environment: ReaderSwitchCandidateEnvironment
+        let admission: ReaderSwitchCandidateAdmission.Snapshot?
+        init(attachmentID: UUID, disabled: Bool, environment: ReaderSwitchCandidateEnvironment,
+             admission: ReaderSwitchCandidateAdmission.Snapshot? = nil) {
+            self.attachmentID = attachmentID; self.disabled = disabled
+            self.environment = environment; self.admission = admission
+        }
     }
     @Published private(set) var configuration: Configuration
     init(_ configuration: Configuration) { self.configuration = configuration }
@@ -929,7 +1133,7 @@ struct ReaderOnlineSwitchPanel: View {
     func disable(attachmentID: UUID) {
         guard configuration.attachmentID == attachmentID, !configuration.disabled else { return }
         configuration = Configuration(attachmentID: attachmentID, disabled: true,
-            environment: configuration.environment)
+            environment: configuration.environment, admission: configuration.admission)
     }
 }
 
@@ -949,6 +1153,7 @@ struct ReaderSwitchCandidateViewport: UIViewControllerRepresentable {
     let model: ReaderApplicationModel
     let sessionID: UUID
     let bookID: String
+    let book: ReaderBook
     let presentationID: UUID
     let clearQueryFocus: () -> Void
     let dismissPanel: () -> Void
@@ -960,7 +1165,7 @@ struct ReaderSwitchCandidateViewport: UIViewControllerRepresentable {
     @Environment(\.legibilityWeight) private var legibilityWeight
     func makeUIViewController(context: Context) -> ReaderSwitchCandidateViewportController {
         let controller = ReaderSwitchCandidateViewportController(owner: owner, state: state,
-            sessionID: sessionID, bookID: bookID, presentationID: presentationID)
+            sessionID: sessionID, bookID: bookID, book: book, presentationID: presentationID)
         owner.beginAttachment(controller)
         updateUIViewController(controller, context: context)
         return controller
@@ -983,6 +1188,7 @@ struct ReaderSwitchCandidateViewport: UIViewControllerRepresentable {
     private let state: ReaderOnlineWorkspaceModel
     let sessionID: UUID
     let bookID: String
+    private let book: ReaderBook?
     let presentationID: UUID
     private weak var model: ReaderApplicationModel?
     private var clearQueryFocus: (() -> Void)?
@@ -990,9 +1196,9 @@ struct ReaderSwitchCandidateViewport: UIViewControllerRepresentable {
     private weak var hostedChild: UIViewController?
     private var childConstraints: [NSLayoutConstraint] = []
     init(owner: ReaderSwitchCandidateHost, state: ReaderOnlineWorkspaceModel,
-         sessionID: UUID, bookID: String, presentationID: UUID) {
+         sessionID: UUID, bookID: String, book: ReaderBook? = nil, presentationID: UUID) {
         self.owner = owner; self.state = state; self.sessionID = sessionID
-        self.bookID = bookID; self.presentationID = presentationID
+        self.bookID = bookID; self.book = book; self.presentationID = presentationID
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -1076,18 +1282,27 @@ struct ReaderSwitchCandidateViewport: UIViewControllerRepresentable {
     }
     fileprivate var acceptsCurrentReaderInput: Bool {
         guard let model else { return false }
-        return model.reader?.id == sessionID && model.reader?.book.id == bookID && !model.actions.hasPending
+        return matchesCurrentReader(model) && !model.actions.hasPending
     }
-    func select(_ candidate: ReaderOnlineCandidate) {
+    private func matchesCurrentReader(_ model: ReaderApplicationModel) -> Bool {
+        guard let reader = model.reader, reader.id == sessionID, reader.book.id == bookID else { return false }
+        guard let book else { return false }
+        return ReaderSwitchCandidateAdmission.Context(book: book, sessionID: sessionID,
+            presentationID: presentationID).matches(reader.book)
+    }
+    func select(_ candidate: ReaderOnlineCandidate, admissionGeneration: UUID) {
         guard owner.isAttached(self), viewIfLoaded?.window != nil,
               state.isCurrentDiscoveryPresentation(presentationID), let model,
-              model.reader?.id == sessionID, model.reader?.book.id == bookID,
+              matchesCurrentReader(model),
+              owner.admission.candidate(candidate, generation: admissionGeneration) != nil,
               !model.actions.hasPending else { return }
         clearQueryFocus?()
         let originalSessionID = sessionID, originalBookID = bookID
         Task { [weak self, model] in
             guard self?.selectionIsCurrent == true, model.reader?.id == originalSessionID,
-                  model.reader?.book.id == originalBookID else { return }
+                  model.reader?.book.id == originalBookID,
+                  self?.matchesCurrentReader(model) == true,
+                  self?.owner.admission.candidate(candidate, generation: admissionGeneration) != nil else { return }
             // Acceptance is still owned by the original model/ActionOwner. A
             // sheet dismissal or cache eviction must not cancel/replay it.
             let completed = await model.actions.perform("切换书源", scope: originalBookID) { [model] id in
@@ -1138,19 +1353,20 @@ struct ReaderSwitchCandidateViewport: UIViewControllerRepresentable {
 
 struct ReaderSwitchCandidateList: View {
     @ObservedObject var state: ReaderOnlineWorkspaceModel
-    let currentBookID: String
     @ObservedObject var input: ReaderSwitchCandidatePresentationInput
-    let select: (ReaderOnlineCandidate, UUID) -> Void
-    private var candidates: [ReaderOnlineCandidate] { state.results.filter { $0.id != currentBookID } }
+    let select: (ReaderOnlineCandidate, UUID, UUID) -> Void
     var body: some View {
         // Value snapshot for this render. In particular, the action must not
         // read input.configuration at tap time and adopt a new attachment.
         let configuration = input.configuration
         let appearance = configuration.environment
+        let admitted = configuration.admission
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(candidates) { candidate in
-                    Button { select(candidate, configuration.attachmentID) } label: {
+                ForEach(admitted?.candidates ?? []) { candidate in
+                    Button {
+                        if let admitted { select(candidate, configuration.attachmentID, admitted.generation) }
+                    } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(candidate.title).font(ReaderTypography.font(.controlHeader))

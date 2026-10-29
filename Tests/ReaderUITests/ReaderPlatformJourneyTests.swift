@@ -132,9 +132,12 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         app.launch()
         try observed("normal-original-library", timeout: 20, owner: app) { app.buttons["更多书架操作"].isHittable }
         try require(app.frame.height > app.frame.width, "portrait-window-required-no-rotation", app)
-        try require(!app.textFields["shelf-filter"].exists && app.buttons["搜索本地书架"].isHittable,
+        try require(!app.textFields["shelf-filter"].exists && app.buttons["更多书架操作"].isHittable,
                     "this-journey-requires-a-new-closed-shelf-query", app)
-        app.buttons["搜索本地书架"].tap()
+        app.buttons["更多书架操作"].tap()
+        let openFilter = app.buttons["bookshelf-filter-open"]
+        try require(openFilter.waitForExistence(timeout: 5) && openFilter.isHittable, "this-shelf-query-open", app)
+        openFilter.tap()
         let filter = app.textFields["shelf-filter"]
         try require(filter.waitForExistence(timeout: 5) && filter.isHittable, "shelf-query-owner", app)
         evidence(app, name: "physical-system-text-before-native-shelf-query")
@@ -473,8 +476,8 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         let leave = app.buttons["leave-reader"]
         try require(leave.isHittable && leave.isEnabled, "normal-original-reader-exit", app); leave.tap()
         try observed("normal-original-library-return", timeout: 20, owner: app) { app.buttons["更多书架操作"].isHittable }
-        try require(filter.exists && app.buttons["搜索本地书架"].isHittable, "this-shelf-query-normal-close", app)
-        app.buttons["搜索本地书架"].tap()
+        try require(filter.exists && app.buttons["bookshelf-filter-close"].isHittable, "this-shelf-query-normal-close", app)
+        app.buttons["bookshelf-filter-close"].tap()
         try observed("this-shelf-query-closed", owner: app) { !filter.exists }
         evidence(app, name: "physical-system-text-original-library-and-system-values-restored")
     }
@@ -518,7 +521,11 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         establishOrientationInput(app, desired: .portrait, stage: "initial-portrait")
         let baseline = XCTAttachment(string: "initialOrientationGetterRawValue=\(originalOrientation.rawValue); originalDirectionKnown=\(originalOrientation.isValidInterfaceOrientation); initialForegroundAppFrame=\(initialAppFrame); requestedBaseline=portrait-after-new-App-shelf-ready; actualAppFrame=\(app.frame); cleanupDirectionRawValue=\(cleanupOrientation.rawValue); cleanupChecksActualWindowClass=true; readerDirectionPreferenceUnchanged=true")
         baseline.name = "ipad-real-orientation-baseline"; baseline.lifetime = .keepAlways; add(baseline)
-        if !app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if !app.textFields["shelf-filter"].exists {
+            app.buttons["更多书架操作"].tap()
+            let openFilter = app.buttons["bookshelf-filter-open"]
+            XCTAssertTrue(openFilter.waitForExistence(timeout: 5)); openFilter.tap()
+        }
         let filter = app.textFields["shelf-filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 5))
         replace(filter, text: "仙子请听我解释")
@@ -588,8 +595,13 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         let app = XCUIApplication(); app.launch()
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
         showAllShelfGroups(app)
-        if !app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if !app.textFields["shelf-filter"].exists {
+            app.buttons["更多书架操作"].tap()
+            let openFilter = app.buttons["bookshelf-filter-open"]
+            XCTAssertTrue(openFilter.waitForExistence(timeout: 5)); openFilter.tap()
+        }
         let filter = app.textFields["shelf-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
         assertInteractiveWithinWindow(filter, app: app, label: "actual shelf title field")
         replace(filter, text: "仙子请听我解释")
         waitUntil("The actual shelf keyboard closes after Return", timeout: 5) { !app.keyboards.firstMatch.exists }
@@ -664,7 +676,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
         assertInteractiveWithinWindow(leave, app: app, label: "normal reader exit"); leave.tap()
         XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
         if app.textFields["shelf-filter"].exists {
-            let closeSearch = app.buttons["搜索本地书架"]
+            let closeSearch = app.buttons["bookshelf-filter-close"]
             assertInteractiveWithinWindow(closeSearch, app: app, label: "normal shelf filter close"); closeSearch.tap()
             waitUntil("The actual shelf title filter closes", timeout: 5) { !app.textFields["shelf-filter"].exists }
         }
@@ -714,7 +726,7 @@ final class ReaderPlatformJourneyTests: XCTestCase {
     }
 
     private func showAllShelfGroups(_ app: XCUIApplication) {
-        if app.textFields["shelf-filter"].exists { app.buttons["搜索本地书架"].tap() }
+        if app.textFields["shelf-filter"].exists { app.buttons["bookshelf-filter-close"].tap() }
         if app.buttons["全部分组"].exists { return }
         let sorts = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '默认顺序' OR label BEGINSWITH '加入时间' OR label BEGINSWITH '最近阅读' OR label BEGINSWITH '书名' OR label BEGINSWITH '作者'"))
         let sort = sorts.allElementsBoundByIndex.filter(\.isHittable).sorted {

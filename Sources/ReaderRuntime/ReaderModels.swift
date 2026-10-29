@@ -205,6 +205,10 @@ public enum ReaderLibraryError: Error, Sendable, Equatable, LocalizedError {
         case .unsupportedFile: return "请选择支持的 TXT、EPUB 或 MOBI 家族文件"
         case .invalidPosition: return "阅读位置已失效，请重新打开章节"
         case .invalidResponse: return "阅读数据暂时不可用"
+        case .core(_, _, _, let reason) where reason == "SOURCE_SWITCH_CANDIDATE_SCOPE_INVALID":
+            return "原书信息尚无法用于同书核对，已有正文和阅读位置保留。"
+        case .core(_, _, _, let reason) where reason == "SOURCE_SWITCH_CANDIDATE_ADMISSION_FAILED":
+            return "书源或书籍信息已变化，换源尚未执行，原书与阅读位置已保留。"
         case .core(_, let message, _, _): return message
         case .operationPending: return "操作结果仍在确认，请保留文件并稍后重试"
         }

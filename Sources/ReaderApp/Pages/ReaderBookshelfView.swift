@@ -25,7 +25,7 @@ struct ReaderBookshelfView: View {
     @State private var catalogTask: Task<Void, Never>?
     @StateObject private var confirmation = ReaderNativeAlertOwner()
     @Environment(\.colorScheme) private var scheme
-    private enum MoreAction { case importFile, layout(Bool), manage, groups, results, online, downloads }
+    private enum MoreAction { case importFile, layout(Bool), manage, groups, results, shelfFilter, online, downloads }
     private struct BookManagementPresentation: Identifiable {
         let id = UUID()
         let book: ReaderBook
@@ -70,8 +70,15 @@ struct ReaderBookshelfView: View {
                 header
                 if searching {
                     TextField("筛选书架标题或作者", text: $query).font(ReaderTypography.font(.body))
+                        .accessibilityIdentifier("shelf-filter")
+                        .padding(.trailing, 44)
                         .padding(14).background(palette.field, in: RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal, 19).accessibilityIdentifier("shelf-filter")
+                        .overlay(alignment: .trailing) {
+                            ReaderIconAction(icon: .close, label: "关闭书架筛选") { setShelfFilterVisible(false) }
+                                .accessibilityIdentifier("bookshelf-filter-close")
+                                .padding(.trailing, 6)
+                        }
+                        .padding(.horizontal, 19)
                         .onChange(of: query) { _, _ in shelfAnchor = nil }
                 }
                 filterBar
@@ -226,12 +233,8 @@ struct ReaderBookshelfView: View {
         ZStack {
             Text("书架").font(ReaderTypography.font(.appTitle))
             HStack {
-                ReaderIconAction(icon: .search, label: "搜索本地书架", selected: searching) {
-                    presentation.traceSearchPresentation("action.before", searching: searching, key: projectionKey)
-                    searching.toggle()
-                    if !searching { query = ""; shelfAnchor = nil }
-                    presentation.traceSearchPresentation("action.after", searching: searching, key: projectionKey)
-                }
+                ReaderIconAction(icon: .search, label: "搜索书籍", action: online)
+                    .accessibilityIdentifier("bookshelf-search")
                 Spacer(minLength: 0)
                 ReaderIconAction(icon: .more, label: "更多书架操作") { showingMore = true }
                     .popover(isPresented: $showingMore, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
@@ -263,6 +266,8 @@ struct ReaderBookshelfView: View {
             }
             moreAction("批量管理", icon: .check, action: .manage)
             moreAction("管理分组", icon: .filter, action: .groups)
+            moreAction("筛选书架", icon: .filter, action: .shelfFilter)
+                .accessibilityIdentifier("bookshelf-filter-open")
             moreAction("下载管理", icon: .directory, action: .downloads)
                 .accessibilityIdentifier("bookshelf-download-management")
             if model.importOperation != nil { moreAction("查看导入结果", icon: .importFile, action: .results) }
@@ -287,9 +292,17 @@ struct ReaderBookshelfView: View {
         case .manage: presentation.selecting = true
         case .groups: showingGroups = true
         case .results: model.importResultVisible = true
+        case .shelfFilter: setShelfFilterVisible(true)
         case .online: online()
         case .downloads: downloads()
         }
+    }
+
+    private func setShelfFilterVisible(_ visible: Bool) {
+        presentation.traceSearchPresentation("action.before", searching: searching, key: projectionKey)
+        searching = visible
+        if !visible { query = ""; shelfAnchor = nil }
+        presentation.traceSearchPresentation("action.after", searching: searching, key: projectionKey)
     }
 
     private func content(width: CGFloat, expanded: Bool) -> some View {

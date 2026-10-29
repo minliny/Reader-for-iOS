@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/minliny/Reader-Core",
-  "commit": "f3227e30d1022d6d0984fbfadcb1e3cf5679c6a7",
+  "commit": "58a0d4597f7f2dfba3773f34c753c1cc82de7961",
   "license": "MIT OR Apache-2.0",
   "minimumDeploymentTarget": "17.0",
   "files": [
@@ -11,12 +11,12 @@
       "sha256": "e503d27a66db701d85a6c55e76051617a0878b0e39707400dc6ddbd73452bdc0"
     }
   ],
-  "previousCommit": "8e242a9371086a1dfc1d72fdbe468b61d52a11aa",
+  "previousCommit": "f3227e30d1022d6d0984fbfadcb1e3cf5679c6a7",
   "upgrade": {
     "cABI": "Unchanged C ABI, protocol v1, runtime-config v1, public headers and exact e503d27a Swift binding. New local-import v2 commands use the existing generic JSON bus.",
     "storageSchema": "Explicit physical local-import extension schema2 on base SQLite user_version38; portable snapshot16 and global migration cursor unchanged. Independent reader_local_import_* tables retain local epoch/head, original Applied/Rejected receipts and heavy journals outside portable snapshots and legacy cache cleanup. This is a schema extension, not no-DDL compatibility.",
     "terminalDownloadCancel": "Completed and Cancelled chapter tasks remain unchanged when a stale or repeated cancel arrives; exact cancel still creates, settles and replays its own receipt without changing a later generation.",
-    "scope": "Extends 8e242a93 only with the complete staged local-import original-receipt authority/protocol and its shared import preparation provenance/mode/terminal guards. Existing 8e behavior remains independently covered; unrelated main Core dirty migrations are excluded. SwiftHost, package and physical UI acceptance remain separate.",
+    "scope": "Extends f3227e30 only with Core-owned current-book source-switch candidate admission and opt-in atomic forward-commit admission. Main Core dirty migrations and later Harmony features are excluded.",
     "storageCleanupCompletedRetention": "iOS storage summary and cleanup explicitly request retainCompletedQueue; Core inventories current body-complete tasks within the publication guard. Omission retains generic Core cleanup semantics; explicit chapter clear remains destructive.",
     "sourceBookDiscovery": "Unchanged source-book JSON now skips duplicate SQLite writes; metadata changes use UPDATE, and title changes keep the existing derived-document invalidation trigger. Search acquisition still publishes its own timing/discovery facts.",
     "subscriptionPreviewAdmission": "iOS sends the complete subscription snapshot and rules mutation head; Core checks both inside the publication guard before replacing the single preview plan. Older callers may omit expected and retain existing Core semantics.",
@@ -24,6 +24,8 @@
     "sourceExecutionObservation": "runtime.status includeSourceExecution is explicit opt-in; default wire remains closed. Tracks actual queued/running/continuation/callback ownership by requestId and generation, retains bounded retired snapshots, and treats missing/evicted generations as unknown. No C ABI, DDL or cancellation/terminal semantic changes.",
     "globalDownloadInventory": "cache.download.books.list reads all retained queue states by exact source/book BINARY keyset in one page transaction, including off-shelf/bodyless failures. Bounded metadata and typed media provenance only; no body/TOC/admission/network work, DDL or original write/ACK changes.",
     "localImportOriginalReceipts": "Authority/persist/publish/finalize/rollback/query/settle v2 bind one epoch/sequence/original transaction and frozen source semantics; business and original positive/negative ACK commit together. Historical query/replay precedes mutable state checks, eight unsettled slots are never evicted, terminal is durable before journal retirement and exact settlement. Legacy unknown outcomes are not promoted into v2.",
-    "localImportPersistenceMode": "Local authority and Host snapshot-only persistence are mutually exclusive under one mode owner; unsupported restore is rejected before business replacement. Generic source IO/commit uncertainty remains Unknown, not a fabricated permanent refusal."
+    "localImportPersistenceMode": "Local authority and Host snapshot-only persistence are mutually exclusive under one mode owner; unsupported restore is rejected before business replacement. Generic source IO/commit uncertainty remains Unknown, not a fabricated permanent refusal.",
+    "sourceSwitchCandidateAdmission": "search-book.related mode sourceSwitchCandidates uses exact retained indexed or shelved text identity, existing Core label and author-proof logic, bounded full-row pagination, and current enabled target evidence. New source.switch.commit strictCandidateAdmission=true is checked under the writer after original lineage replay and before mutation; omitted/false retains legacy serialized fingerprints, ACK replay and compensation.",
+    "sourceSwitchCompatibility": "No C ABI, public Swift binding, protocol bus, product version, SQLite base/schema cursor, local import schema2 or portable snapshot generation changes. The new query mode and strict flag require this exact Core. Older strict DTOs cannot interpret new parameters; no downgrade promise is made for newly accepted operations/records. Existing flag-free original operations remain readable and replayable without adopting the new admission policy."
   }
 }
