@@ -164,7 +164,25 @@ extension ReaderLibraryService: ReaderOnlineServing {
         }
     }
     func onlineContent(for book: ReaderBook, chapterIndex: UInt32, directoryTargetProof: [String: Any]? = nil, preparationRevision: Int64? = nil) async throws -> ReaderChapterContent {
+        let result = try await onlineContentResult(for: book, chapterIndex: chapterIndex,
+            directoryTargetProof: directoryTargetProof, preparationRevision: preparationRevision)
+        return try onlineContentProjection(result, for: book, chapterIndex: chapterIndex)
+    }
+    /// All indexed reads and explicit refreshes use the same installed chapter
+    /// identity and continuation variables. Cache-only reconciliation never
+    /// substitutes a fresh source execution for a missing canonical body.
+    func onlineContentResult(for book: ReaderBook, chapterIndex: UInt32,
+                             directoryTargetProof: [String: Any]? = nil, preparationRevision: Int64? = nil,
+                             cacheOnly: Bool = false, forceRefresh: Bool = false,
+                             upgradeCachedContent: Bool = false, positionContext: [String: Any]? = nil,
+                             onSendAttempt: (() -> Void)? = nil,
+                             onReadPublicationFence: ((Bool) -> Void)? = nil) async throws -> [String: Any] {
         let status = try await readerDownloadStatus(book)
+        if cacheOnly || forceRefresh || upgradeCachedContent {
+            let identity = ReaderOnlineContentRefreshIdentity(sourceId: book.sourceId, bookId: book.bookId,
+                chapterIndex: chapterIndex)
+            guard !unfencedOnlineContentRefreshes.contains(identity) else { throw ReaderLibraryError.busy }
+        }
         guard let chapter = status.chapters.first(where: { $0.chapterIndex == chapterIndex }), !chapter.url.isEmpty else { throw ReaderLibraryError.invalidPosition }
         if let url = directoryTargetProof?["url"] as? String, url != chapter.url { throw ReaderLibraryError.invalidPosition }
         var variables = status.continuationVariables ?? [:]
@@ -173,13 +191,22 @@ extension ReaderLibraryService: ReaderOnlineServing {
             "chapterTitle": chapter.title, "chapterUrl": chapter.url, "variables": variables]
         if let directoryTargetProof { params["directoryTargetProof"] = directoryTargetProof }
         if let preparationRevision { params["preparationRevision"] = preparationRevision }
-        let result = try object(await coreRead("chapter.content", params))
+        if cacheOnly { params["cacheOnly"] = true }
+        if forceRefresh { params["forceRefresh"] = true }
+        if upgradeCachedContent { params["upgradeCachedContent"] = true }
+        if let positionContext { params["positionContext"] = positionContext }
+        return try object(await coreRead("chapter.content", params, onSendAttempt: onSendAttempt,
+            onReadPublicationFence: onReadPublicationFence))
+    }
+    func onlineContentProjection(_ result: [String: Any], for book: ReaderBook, chapterIndex: UInt32) throws -> ReaderChapterContent {
         guard result["sourceId"] as? String == book.sourceId, result["bookId"] as? String == book.bookId,
-              let text = result["content"] as? String else { throw ReaderLibraryError.invalidResponse("online content identity") }
-        let blocks = try (result["blocks"] as? [[String: Any]]).map { try decode([ReaderContentBlock].self, JSONSerialization.data(withJSONObject: $0)) } ?? []
-        return .init(sourceId: book.sourceId, bookId: book.bookId, chapterIndex: chapterIndex,
-            chapterTitle: result["chapterTitle"] as? String ?? "", content: text, bodyVersion: result["bodyVersion"] as? String,
-            processingVersion: result["processingVersion"] as? String, blocks: blocks)
+              result["content"] is String else { throw ReaderLibraryError.invalidResponse("online content identity") }
+        var projected = result
+        // chapter.content identifies the chapter through its exact request;
+        // its result DTO intentionally has no chapterIndex field.
+        projected["chapterIndex"] = chapterIndex
+        if projected["chapterTitle"] == nil { projected["chapterTitle"] = "" }
+        return try decode(ReaderChapterContent.self, JSONSerialization.data(withJSONObject: projected))
     }
     private func onlineChapterRows(_ result: [String: Any]) throws -> [ReaderChapter] {
         let rows = result["toc"] as? [[String: Any]] ?? []

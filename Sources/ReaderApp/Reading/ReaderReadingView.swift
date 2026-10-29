@@ -70,6 +70,12 @@ struct ReaderReadingView: View {
         ReaderMetrics.controlContent(category: ReaderMetrics.controlContentCategory(for: dynamicTypeSize))
     }
     private var effectiveReduceMotion: Bool { reduceMotion || preferences.reduceMotion }
+    private var canRefreshOnlineChapter: Bool {
+        session.book.sourceId != "local" && model.libraryService is any ReaderOnlineContentRefreshing
+    }
+    private var onlineChapterNeedsRefresh: Bool {
+        canRefreshOnlineChapter && (session.content.contentRefreshRequired == true || session.content.sourceCorrectionRequired == true)
+    }
     private var surfaceIdentity: String {
         "\(session.book.id)|\(session.content.chapterIndex)|\(session.content.bodyVersion ?? "")|\(session.content.processingVersion ?? "")"
     }
@@ -100,7 +106,8 @@ struct ReaderReadingView: View {
                     readerSurface(geometry: geometry, margin: margin, footerSpace: footerSpace)
                         .clipped()
                         .padding(.bottom, footerSpace)
-                        .accessibilityHidden(controlsVisible)
+                        .allowsHitTesting(!model.sourceSwitchFrozen)
+                        .accessibilityHidden(controlsVisible || model.sourceSwitchFrozen)
                     if !controlsVisible {
                         VStack {
                             Spacer()
@@ -118,10 +125,13 @@ struct ReaderReadingView: View {
                 if controlsVisible {
                     Color.black.opacity(0.07 * motion.visibility).ignoresSafeArea().contentShape(Rectangle())
                         .onTapGesture { dismissControls() }
+                        .allowsHitTesting(!model.sourceSwitchFrozen)
                     controlDock(layout: controlLayout)
                         .environment(\.colorScheme, preferences.appDark ? .dark : .light)
                         .offset(x: controlLayout.dockOffsetX)
                         .padding(.bottom, controlLayout.dockBottomPadding)
+                        .allowsHitTesting(!model.sourceSwitchFrozen)
+                        .accessibilityHidden(model.sourceSwitchFrozen)
                 }
                 if let message = model.recoveryMessage {
                     VStack {
@@ -132,14 +142,35 @@ struct ReaderReadingView: View {
                             .padding(.horizontal, 16).padding(.top, 8)
                         Spacer()
                     }
-                }
-                if controlsVisible, model.recoveryMessage == nil {
+                } else if model.onlineChapterRefreshPending {
+                    VStack {
+                        ReaderRecoveryNotice(message: "正在核对本章正文与阅读位置", busy: model.onlineChapterRefreshBusy,
+                                             title: "正文待核对", actionTitle: "核对正文") {
+                            automaticPage.pause()
+                            Task { await model.reconcileOnlineChapterRefresh() }
+                        }.environment(\.colorScheme, preferences.appDark ? .dark : .light)
+                            .padding(.horizontal, 16).padding(.top, 8)
+                            .accessibilityIdentifier("reader-content-refresh-pending")
+                        Spacer()
+                    }
+                } else if onlineChapterNeedsRefresh && !controlsVisible {
+                    VStack {
+                        ReaderRecoveryNotice(message: "本章正文需要更新，当前正文与阅读位置已保留", busy: model.onlineChapterRefreshBusy,
+                                             title: "正文需要更新", actionTitle: "更新本章", retry: requestOnlineChapterRefresh)
+                            .environment(\.colorScheme, preferences.appDark ? .dark : .light)
+                            .disabled(model.sourceSwitchFrozen || model.chapterLoading || model.closingReader)
+                            .padding(.horizontal, 16).padding(.top, 8)
+                            .accessibilityIdentifier("reader-content-refresh-required")
+                        Spacer()
+                    }
+                } else if controlsVisible {
                     VStack {
                         readingHeader.frame(width: controlLayout.topBarWidth)
+                            .disabled(model.sourceSwitchFrozen)
                             .offset(x: controlLayout.topBarOffsetX,
                                     y: -8 * (1 - motion.visibility))
                             .opacity(motion.visibility)
-                            .allowsHitTesting(motion.visibility > 0)
+                            .allowsHitTesting(motion.visibility > 0 && !model.sourceSwitchFrozen)
                             .padding(.top, controlLayout.topBarPadding)
                         Spacer()
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -147,6 +178,7 @@ struct ReaderReadingView: View {
                 if model.chapterLoading || model.closingReader {
                     ProgressView().tint(palette.green).padding(18).background(palette.card, in: Capsule())
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)
                 }
             }.onAppear {
                 configureMotion(size: geometry.size, safe: geometry.safeAreaInsets); brightness.enterReader(); reportFontFallback()
@@ -197,7 +229,13 @@ struct ReaderReadingView: View {
         }
         .onChange(of: preferences.autoPageSeconds) { _, value in automaticPage.setSpeed(value) }
         .onChange(of: model.selection) { _, value in if value != nil { automaticPage.pause() } }
-        .onChange(of: model.sourceSwitchFrozen) { _, frozen in if frozen { automaticPage.pause() }; updateReadingTimeVisibility() }
+        .onChange(of: model.sourceSwitchFrozen) { _, frozen in
+            if frozen {
+                automaticPage.pause(); moreVisible = false; pendingSheet = nil; pointerHeld = false
+                motion.cancelDrag(reduceMotion: effectiveReduceMotion); scrubFraction = nil
+            }
+            updateReadingTimeVisibility()
+        }
         .onChange(of: controlsVisible) { _, _ in updateReadingTimeVisibility() }
         .onChange(of: model.foreground) { _, _ in updateReadingTimeVisibility() }
         .onChange(of: model.chapterLoading) { _, _ in updateReadingTimeVisibility() }
@@ -1004,11 +1042,28 @@ struct ReaderReadingView: View {
         VStack(spacing: 0) {
             Button("书籍信息") { pendingSheet = .info; moreVisible = false }.frame(minHeight: 44)
             if session.book.sourceId != "local" {
+                if canRefreshOnlineChapter {
+                    Button("重新获取本章", action: requestOnlineChapterRefresh).frame(minHeight: 44)
+                        .disabled(model.chapterLoading || model.closingReader || model.sourceSwitchFrozen)
+                        .accessibilityIdentifier("reader-refresh-online-chapter")
+                }
                 Button("切换书源") { pendingSheet = .sourceSwitch; moreVisible = false }.frame(minHeight: 44)
                 Button("下载管理") { pendingSheet = .downloads; moreVisible = false }.frame(minHeight: 44)
             }
         }.font(ReaderTypography.font(.body)).padding(12).frame(width: 196)
             .foregroundStyle(palette.ink).background(palette.card).buttonStyle(ReaderPressFeedback())
+    }
+    private func requestOnlineChapterRefresh() {
+        let sessionID = session.id
+        let restorationID = session.restorationID
+        guard canRefreshOnlineChapter, model.foreground, model.reader?.id == sessionID,
+              model.reader?.restorationID == restorationID,
+              !model.chapterLoading, !model.closingReader, !model.sourceSwitchFrozen else { return }
+        automaticPage.pause()
+        pendingSheet = nil
+        moreVisible = false
+        dismissControls()
+        Task { await model.refreshOnlineChapter(sessionID: sessionID, restorationID: restorationID) }
     }
     private func dispatchMoreAction() {
         guard let target = pendingSheet, model.reader?.id == session.id, model.foreground else { pendingSheet = nil; return }

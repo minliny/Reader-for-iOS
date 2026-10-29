@@ -287,6 +287,60 @@ final class ReaderReadCancellationTraceTests: XCTestCase {
         }
     }
 
+    /// The actual request/coreRead publication gate, with controlled protocol
+    /// events only. Observer retirement does not prove native cancellation,
+    /// worker exit, provider completion, or HTTP closure.
+    func testReadPublicationFenceRequiresOriginalTerminalOrSuccessfulCancelAndRejectsRetirementAlone() async throws {
+        for boundary in 0..<4 {
+            let originalTerminal = boundary == 0
+            let terminalOnSend = originalTerminal || boundary == 3
+            let cancelFails = boundary == 2
+            let expectedFence = boundary < 2
+            let timedOut = boundary == 1 || boundary == 2
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderPublicationFence-" + UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let sent = expectation(description: "Publication fence read was dispatched at boundary \(boundary)")
+            let client = CancellationTraceCoreBoundary(cancelFails: cancelFails, terminalOnSend: terminalOnSend,
+                terminalRequestIDOffset: boundary == 3 ? 1 : 0) { sent.fulfill() }
+            let capture = CancellationTraceCapture()
+            let clock = SourceExecutionTraceClock()
+            let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+                sourceURL: root.appendingPathComponent("Sources"), client: client,
+                timing: .init(now: { clock.now }, suspend: { await Task.yield() }))
+            do {
+                _ = try await service.coreRead("book.search", ["sourceId": "publication-fence-method"], timeout: 0,
+                    onReadPublicationFence: { fenced in
+                        capture.receivePublicationFence(fenced)
+                        XCTAssertEqual(client.originalTerminalsPolled, originalTerminal ? 1 : 0,
+                            "Publication cannot precede consumption of the exact original terminal")
+                        XCTAssertEqual(client.successfulCancelCount, boundary == 1 ? 1 : 0,
+                            "A cancellation attempt cannot stand in for its successful return")
+                    })
+                XCTAssertTrue(originalTerminal, "Only the exact original terminal may return a new business result")
+            } catch ReaderLibraryError.invalidResponse(let reason) {
+                XCTAssertFalse(originalTerminal)
+                XCTAssertEqual(reason, boundary == 3 ? "reply request identity" : "timeout: book.search")
+            } catch {
+                XCTFail("Unexpected publication-fence boundary error: \(error)")
+            }
+            await fulfillment(of: [sent], timeout: 2)
+            let original = try XCTUnwrap(client.requestID)
+            XCTAssertEqual(capture.publicationFences, [expectedFence], "One exact read owns one publication-fence result")
+            XCTAssertEqual(client.cancelCount, timedOut ? 1 : 0)
+            XCTAssertEqual(client.retiredIDs, originalTerminal ? [] : [original])
+            if cancelFails {
+                XCTAssertEqual(capture.publicationFences, [false],
+                    "The read observer was retired, but a throwing cancel cannot permit cache reconciliation")
+            }
+            if boundary == 3 {
+                XCTAssertEqual(capture.publicationFences, [false],
+                    "A terminal for a different request cannot fence the original publication")
+            }
+            try await service.close()
+            XCTAssertEqual(capture.publicationFences, [expectedFence], "An independent close flush cannot change the original read's fence")
+        }
+    }
+
     /// Real Core supplies the Host envelope; the HTTP runner is deliberately
     /// held before returning. This is a registration/worker method, with no
     /// URLSession transfer, real source, Keychain or production library.
@@ -359,10 +413,13 @@ private func cancellationHostEnvelope(_ client: ReaderCoreClient, requestID: UIn
 private final class CancellationTraceCapture: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [ReaderSearchTraceEvent] = []
+    private var fences: [Bool] = []
     private let onEvent: @Sendable (ReaderSearchTraceEvent) -> Void
     init(onEvent: @escaping @Sendable (ReaderSearchTraceEvent) -> Void = { _ in }) { self.onEvent = onEvent }
     func receive(_ event: ReaderSearchTraceEvent) { lock.withLock { values.append(event) }; onEvent(event) }
     var events: [ReaderSearchTraceEvent] { lock.withLock { values.sorted { $0.sequence < $1.sequence } } }
+    func receivePublicationFence(_ fenced: Bool) { lock.withLock { fences.append(fenced) } }
+    var publicationFences: [Bool] { lock.withLock { fences } }
 }
 
 private func sourceExecutionRow(_ requestID: UInt64, generation: UInt64, retired: Bool) -> [String: Any] {
@@ -478,21 +535,38 @@ private final class SourceExecutionTraceCoreBoundary: ReaderCoreEventClient, @un
 private final class CancellationTraceCoreBoundary: ReaderCoreEventClient, @unchecked Sendable {
     private let lock = NSLock()
     private let cancelFails: Bool
+    private let terminalOnSend: Bool
+    private let terminalRequestIDOffset: UInt64
     private let onSend: @Sendable () -> Void
     private var selectedRequestID: UInt64?
     private var cancellations = 0
+    private var successfulCancellations = 0
+    private var terminalConsumptions = 0
     private var retirements: [UInt64] = []
     private var terminal: ReaderCoreEvent?
     private var flushTerminals: [UInt64: ReaderCoreEvent] = [:]
-    init(cancelFails: Bool, onSend: @escaping @Sendable () -> Void) { self.cancelFails = cancelFails; self.onSend = onSend }
+    init(cancelFails: Bool, terminalOnSend: Bool = false, terminalRequestIDOffset: UInt64 = 0,
+         onSend: @escaping @Sendable () -> Void) {
+        self.cancelFails = cancelFails; self.terminalOnSend = terminalOnSend
+        self.terminalRequestIDOffset = terminalRequestIDOffset; self.onSend = onSend
+    }
     var requestID: UInt64? { lock.withLock { selectedRequestID } }
     var cancelCount: Int { lock.withLock { cancellations } }
+    var successfulCancelCount: Int { lock.withLock { successfulCancellations } }
+    var originalTerminalsPolled: Int { lock.withLock { terminalConsumptions } }
     var retiredIDs: [UInt64] { lock.withLock { retirements } }
     @discardableResult
     func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
         switch method {
         case "book.search":
-            lock.withLock { selectedRequestID = requestId }
+            let result: ReaderCoreEvent?
+            if terminalOnSend {
+                result = try ReaderCoreEvent(data: JSONSerialization.data(withJSONObject: [
+                    "protocolVersion": ReaderCoreClient.protocolVersion, "requestId": requestId + terminalRequestIDOffset,
+                    "type": "result", "data": [String: Any]()
+                ]))
+            } else { result = nil }
+            lock.withLock { selectedRequestID = requestId; terminal = result }
             onSend()
         case "runtime.storage.flush":
             let flushed = try ReaderCoreEvent(data: JSONSerialization.data(withJSONObject: [
@@ -510,6 +584,7 @@ private final class CancellationTraceCoreBoundary: ReaderCoreEventClient, @unche
             if let flushed = flushTerminals.removeValue(forKey: requestId) { return .success(flushed) }
             guard requestId == selectedRequestID, let event = terminal else { return nil }
             terminal = nil
+            if event.requestId == requestId { terminalConsumptions += 1 }
             return .success(event)
         }
     }
@@ -521,6 +596,7 @@ private final class CancellationTraceCoreBoundary: ReaderCoreEventClient, @unche
             "protocolVersion": ReaderCoreClient.protocolVersion, "requestId": requestId, "type": "error",
             "error": ["code": "CANCELLED", "message": "Controlled original read cancellation", "retryable": false]
         ]))
+        successfulCancellations += 1
     }
     func retireReadRequest(requestId: UInt64) { lock.withLock { retirements.append(requestId); terminal = nil } }
     func destroy() {}

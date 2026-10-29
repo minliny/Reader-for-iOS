@@ -79,6 +79,7 @@ final class ReaderApplicationModel: ObservableObject {
     @Published private(set) var reader: ReaderActiveSession?
     @Published private(set) var openingBookID: String?
     @Published private(set) var chapterLoading = false
+    @Published private(set) var onlineChapterRefreshBusy = false
     @Published private(set) var closingReader = false
     @Published private(set) var importOperation: ReaderImportPresentation?
     @Published var importResultVisible = false
@@ -149,7 +150,14 @@ final class ReaderApplicationModel: ObservableObject {
     private var cacheWindowGeneration = UUID()
     private var cacheWindowFailureReportedSessionID: UUID?
     private var cacheWindowFeedbackGeneration: UUID?
-    var sourceSwitchFrozen: Bool { sourceSwitchIntent != nil || localReprocessIntent != nil }
+    private struct OnlineChapterRefreshIntent {
+        let original: ReaderActiveSession
+    }
+    @Published private var onlineChapterRefreshIntent: OnlineChapterRefreshIntent?
+    var onlineChapterRefreshPending: Bool { onlineChapterRefreshIntent != nil }
+    var sourceSwitchFrozen: Bool {
+        sourceSwitchIntent != nil || localReprocessIntent != nil || onlineChapterRefreshIntent != nil
+    }
 
 
     /// Read-only feature boundary shared by local tools and online adapters.
@@ -527,6 +535,119 @@ final class ReaderApplicationModel: ObservableObject {
         await changeChapter(to: current.chapters[target].index, landingAtEnd: landingAtEnd)
     }
 
+    /// Core owns replacement and position migration. Freeze the old scope
+    /// until a terminal plus its fresh CAS observation can be adopted together.
+    func refreshOnlineChapter(sessionID: UUID, restorationID: UUID) async {
+        guard let current = reader, current.id == sessionID, current.restorationID == restorationID,
+              current.book.sourceId != "local", !chapterLoading, !closingReader, !sourceSwitchFrozen,
+              let adapter = service as? any ReaderOnlineContentRefreshing else { return }
+        onlineChapterRefreshIntent = .init(original: current)
+        onlineChapterRefreshBusy = true
+        chapterLoading = true
+        selection = nil
+        saveDebounce?.cancel(); saveDebounce = nil
+        cancelReadingCacheWindow()
+        defer { onlineChapterRefreshBusy = false; chapterLoading = false }
+
+        // This is the sole old-scope flush. No background edge or stale native
+        // callback may enqueue that scope after the request starts.
+        sourceSwitchFlushing = true
+        let saved = await flushReading(onlineRefreshFlush: true)
+        sourceSwitchFlushing = false
+        guard saved, reader?.id == current.id, saveDrain == nil else {
+            onlineChapterRefreshIntent = nil
+            return
+        }
+        do {
+            let result = try await adapter.refreshOnlineContent(for: current.book, current: current.content,
+                scalarOffset: current.scalarOffset, upgradeCachedContent: current.content.sourceCorrectionRequired)
+            let anchor = result.positionMigration.anchors.first { $0.id == "viewport" }
+            guard let anchor, anchor.previousOffset == current.scalarOffset else { throw ReaderLibraryError.invalidPosition }
+            try adoptOnlineChapterSnapshot(.init(content: result.content, progressSnapshot: result.progressSnapshot),
+                original: current, viewportOffset: anchor.offset)
+            if result.positionMigration.status == "preserved" {
+                showFeedback("本章未替换，已保留原正文与位置")
+            } else if result.positionMigration.isPartial {
+                showFeedback("正文已更新，部分位置未能恢复，请检查书签与笔记")
+            } else {
+                showFeedback("本章已更新")
+            }
+            await reloadHighlights()
+        } catch {
+            // A new observation is recovery of the displayed scope, never an
+            // acknowledgement of the lost request. Runtime must first fence
+            // that original request before permitting this cache-only read.
+            do {
+                let observed = try await adapter.reconcileOnlineContent(for: current.book,
+                    chapterIndex: current.content.chapterIndex)
+                let sameScope = observed.content.bodyVersion == current.content.bodyVersion &&
+                    observed.content.processingVersion == current.content.processingVersion &&
+                    observed.progressSnapshot.progress?.chapterOffset == current.scalarOffset
+                try adoptOnlineChapterSnapshot(observed, original: current)
+                if sameScope {
+                    if case ReaderLibraryError.core(_, let message, _, let reason) = error,
+                       reason == "SOURCE_RULE_FAILED" {
+                        showFeedback(message + "，已保留当前正文")
+                    } else {
+                        showFeedback("本章重新获取未完成，已保留当前正文与位置")
+                    }
+                } else {
+                    showFeedback("重新获取的结果未确认，已按当前正文与位置恢复阅读")
+                }
+                await reloadHighlights()
+            } catch {
+                // Keep the old session visible and frozen. The existing
+                // recovery surface offers only reconciliation, never replay.
+            }
+        }
+    }
+
+    func reconcileOnlineChapterRefresh() async {
+        guard let intent = onlineChapterRefreshIntent, !onlineChapterRefreshBusy,
+              reader?.id == intent.original.id,
+              let adapter = service as? any ReaderOnlineContentRefreshing else { return }
+        onlineChapterRefreshBusy = true; chapterLoading = true
+        defer { onlineChapterRefreshBusy = false; chapterLoading = false }
+        do {
+            let observed = try await adapter.reconcileOnlineContent(for: intent.original.book,
+                chapterIndex: intent.original.content.chapterIndex)
+            try adoptOnlineChapterSnapshot(observed, original: intent.original)
+            showFeedback("已核对当前正文与阅读位置")
+            await reloadHighlights()
+        } catch {
+            // Retain the same frozen intent. Closing a message cannot authorize
+            // old-body writes or a second HTTP request.
+        }
+    }
+
+    private func adoptOnlineChapterSnapshot(_ snapshot: ReaderOnlineContentSnapshot,
+                                           original: ReaderActiveSession, viewportOffset: UInt64? = nil) throws {
+        let content = snapshot.content, observed = snapshot.progressSnapshot
+        guard onlineChapterRefreshIntent?.original.id == original.id, reader?.id == original.id,
+              content.sourceId == original.book.sourceId, content.bookId == original.book.bookId,
+              content.chapterIndex == original.content.chapterIndex,
+              let body = content.bodyVersion, !body.isEmpty,
+              let processing = content.processingVersion, !processing.isEmpty,
+              let revision = observed.progressRevision, !revision.isEmpty, observed.found,
+              let position = observed.progress, position.sourceId == content.sourceId,
+              position.bookId == content.bookId, position.chapterIndex == content.chapterIndex,
+              position.bodyVersion == body, position.processingVersion == processing,
+              position.chapterOffset <= content.scalarCount,
+              (viewportOffset ?? position.chapterOffset) <= content.scalarCount else {
+            throw ReaderLibraryError.invalidPosition
+        }
+        saveDebounce?.cancel(); saveDebounce = nil; pendingLocation = nil
+        chapterGeneration = UUID(); navigationGeneration = UUID()
+        reader = ReaderActiveSession(id: UUID(), book: original.book, chapters: original.chapters,
+            catalogGeneration: original.catalogGeneration, content: content,
+            scalarOffset: viewportOffset ?? position.chapterOffset, progressRevision: revision, restorationID: UUID())
+        selection = nil; highlights = []
+        lastConfirmedLocation = locationKey(content: content, offset: position.chapterOffset)
+        locationSaveFailed = false; recoveryMessage = nil
+        onlineChapterRefreshIntent = nil
+        scheduleReadingCacheWindow()
+    }
+
     func recordVisibleOffset(_ offset: UInt64, sessionID: UUID, restorationID: UUID) {
         guard reader?.id == sessionID, reader?.restorationID == restorationID, !chapterLoading, !closingReader, !sourceSwitchFrozen,
               let count = reader?.content.scalarCount else { return }
@@ -695,6 +816,11 @@ final class ReaderApplicationModel: ObservableObject {
 
     @discardableResult
     func flushReading() async -> Bool {
+        await flushReading(onlineRefreshFlush: false)
+    }
+
+    private func flushReading(onlineRefreshFlush: Bool) async -> Bool {
+        guard onlineChapterRefreshIntent == nil || onlineRefreshFlush else { return false }
         guard !sourceSwitchFrozen || sourceSwitchFlushing else { return false }
         let sessionID = reader?.id
         let navigation = navigationGeneration
@@ -778,7 +904,7 @@ final class ReaderApplicationModel: ObservableObject {
     /// An acknowledged target is retained across later Host catalog failures;
     /// retrying that adoption never sends a second switch intent.
     func switchOnlineSource(_ candidate: ReaderOnlineCandidate, operationID: String) async throws {
-        guard !operationID.isEmpty, !sourceSwitchInFlight, localReprocessIntent == nil,
+        guard !operationID.isEmpty, !sourceSwitchInFlight, localReprocessIntent == nil, onlineChapterRefreshIntent == nil,
               let adapter = service as? any ReaderSourceSwitchServing,
               let current = reader, current.book.sourceId != "local", !chapterLoading, !closingReader else {
             throw ReaderLibraryError.busy

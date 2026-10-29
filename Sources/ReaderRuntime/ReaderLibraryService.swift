@@ -38,6 +38,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     var sourceSwitchInFlight = false
     var readingCacheWindowInFlight: Set<String> = []
     var onlineAdmissionContinuationsInFlight: Set<String> = []
+    var unfencedOnlineContentRefreshes: Set<ReaderOnlineContentRefreshIdentity> = []
+    var onlineContentRefreshesInFlight: Set<ReaderOnlineContentRefreshIdentity> = []
     var recovering = false
 
     public init(storageURL: URL, sourceURL: URL) throws {
@@ -1026,6 +1028,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     func request(_ method: String, _ params: [String: Any], mutation: Bool = false,
                          timeout: TimeInterval = 30, owner: PendingMutationOwner? = nil,
                          onSendAttempt: (() -> Void)? = nil,
+                         onReadPublicationFence: ((Bool) -> Void)? = nil,
                          localImportV2Replay: Bool = false,
                          searchTraceAttempt: ReaderSearchTraceAttempt? = nil,
                          sourceExecutionObservationID: UUID? = nil) async throws -> Data {
@@ -1074,6 +1077,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
         }
         activeRequests.insert(id)
         var terminalSeen = false
+        var cancellationConfirmed = false
         defer {
             searchTrace?.emit(.coreObservationEnded, outcome: Task.isCancelled ? .cancelled : nil)
             activeRequests.remove(id)
@@ -1087,6 +1091,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 hostTransport?.retireRead(requestID: id)
             } else if terminalSeen { hostTransport?.finish(requestID: id) }
             else { startPendingHostPump(requestID: id) }
+            if !mutation { onReadPublicationFence?(terminalSeen || cancellationConfirmed) }
             if let searchTrace { startSourceExecutionObservation(searchTrace) }
         }
         let deadline = timing.now() + timeout
@@ -1097,6 +1102,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             if mutation && timing.now() >= deadline { throw ReaderLibraryError.operationPending(method) }
             if !mutation && Task.isCancelled && !cancellationSent {
                 try cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
+                cancellationConfirmed = true
                 hostTransport?.cancel(requestID: id)
                 cancellationSent = true
             }
@@ -1108,7 +1114,8 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                     searchTrace?.emit(.coreTerminal, outcome: outcome)
                     invalidateDownloadStatus(downloadIdentity, phase: .terminal)
                 }
-                if case .success(let event) = result, ["result", "error"].contains(event.type) { terminalSeen = true }
+                if case .success(let event) = result, event.requestId == id,
+                   ["result", "error"].contains(event.type) { terminalSeen = true }
                 if cancellationSent { throw CancellationError() }
                 if case .success(let event) = result, event.type == "host.request" {
                     if mutation {
@@ -1132,7 +1139,10 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                             // in-flight Host request and Core read together;
                             // unlike a mutation this cannot discard an
                             // unknown durable write.
-                            try? cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
+                            do {
+                                try cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
+                                cancellationConfirmed = true
+                            } catch { }
                             hostTransport?.cancel(requestID: id)
                             throw ReaderLibraryError.invalidResponse("timeout: " + method)
                         }
@@ -1159,6 +1169,7 @@ public actor ReaderLibraryService: ReaderLibraryServing {
             }
             if !mutation && Task.isCancelled && !cancellationSent {
                 try cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
+                cancellationConfirmed = true
                 hostTransport?.cancel(requestID: id)
                 cancellationSent = true
             }
@@ -1166,7 +1177,10 @@ public actor ReaderLibraryService: ReaderLibraryServing {
                 // A timeout after dispatch is not a write rejection. Do not cancel,
                 // delete assets, or report rollback without an authoritative receipt.
                 if mutation { throw ReaderLibraryError.operationPending(method) }
-                try? cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
+                do {
+                    try cancelObservedRead(client: client, requestID: id, searchTrace: searchTrace)
+                    cancellationConfirmed = true
+                } catch { }
                 hostTransport?.cancel(requestID: id)
                 throw ReaderLibraryError.invalidResponse("timeout: " + method)
             }

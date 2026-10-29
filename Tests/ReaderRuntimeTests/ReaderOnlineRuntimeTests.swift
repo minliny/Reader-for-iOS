@@ -500,6 +500,16 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
     /// remain real failures and cannot be replaced by an in-process response.
     @MainActor
     func testRealBaiduCandidateRejectsDeclaredPreviewAndPreservesFreeBodyWithoutShelfAdmission() async throws {
+        try await runRealBaiduCandidate(explicitRefresh: false)
+    }
+
+    @MainActor
+    func testRealBaiduExplicitChapterRefreshUsesCoreMigrationAndFreshProgressBeforePreviewRefusal() async throws {
+        try await runRealBaiduCandidate(explicitRefresh: true)
+    }
+
+    @MainActor
+    private func runRealBaiduCandidate(explicitRefresh: Bool) async throws {
         executionTimeAllowance = 90
         let start = ContinuousClock.now, initialFailures = testRun?.failureCount ?? 0
         let expectedSHA = "1344379b0583a11d00320d56e1f1167cfeed258c54f689c888b1f68e3bd02d37"
@@ -521,7 +531,7 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
             var facts: [String: Any] = ["status": status, "stage": stage, "temporaryRoot": root.path,
                 "candidateSha256": candidateSHA, "expectedCandidateSha256": expectedSHA,
                 "elapsedSeconds": Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
-                "observations": observations, "shelfAdmission": "NOT_PERFORMED",
+                "observations": observations, "shelfAdmission": explicitRefresh ? "ISOLATED_EXPLICIT_ADMISSION" : "NOT_PERFORMED",
                 "scope": "REAL_NETWORK_ISOLATED_CORE_HOST_ONLY_NOT_NATIVE_UI_OR_ENTITLEMENT"]
             if let error {
                 facts["errorType"] = String(reflecting: type(of: error))
@@ -583,7 +593,8 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                 }
                 try require(matches.count == 1, "one actual exact-title/book4345127024 search candidate")
                 let candidate = try XCTUnwrap(matches.first)
-                let detail = try await active.onlineDetail(candidate), book = detail.book
+                let detail = try await active.onlineDetail(candidate)
+                var book = detail.book
                 try require(book.sourceId == sourceID && book.bookId == candidate.bookId && detail.chapters.count == 50,
                             "actual matching50-chapter directory")
                 for (index, vip) in [(UInt32(0), false), (19, false), (20, true), (36, true)] {
@@ -591,6 +602,11 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                     try require(chapter.isVip == vip && !chapter.url.isEmpty,
                                 "source fee metadata must preserve the real row's navigation")
                     observations.append(["stage": stage, "chapterIndex": index, "isVip": vip, "navigable": true])
+                }
+                if explicitRefresh {
+                    stage = "explicit-isolated-admission"
+                    book = try await active.addOnlineBook(detail, chapterIndex: 0, operationID: UUID().uuidString)
+                    try require(try await active.listBooks().map(\.id) == [book.id], "only the actual admitted book may enter this isolated shelf")
                 }
                 stage = "real-free-chapter0"
                 let free = try await active.content(for: book, chapterIndex: 0)
@@ -604,6 +620,30 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                     free.bodyVersion == "37a89892948c700d4a228a2ef9c12ca45d8f98e698d79f553341b1b05e983fe5" &&
                     free.processingVersion == "41ea864565d336ab3cd3f22dc4f3051e0389041238618bbeb52054431657adfa",
                     "the actual visible body and blocks must match the retained Core visible-document versions")
+                if explicitRefresh {
+                    stage = "explicit-current-chapter-refresh"
+                    let before = try await active.progress(for: book)
+                    _ = try await active.saveProgress(for: book, content: free, scalarOffset: 37,
+                        expectedRevision: before.progressRevision)
+                    let refreshed = try await active.refreshOnlineContent(for: book, current: free,
+                        scalarOffset: 37, upgradeCachedContent: false)
+                    try require(refreshed.content == free, "an actual unchanged free response retains its complete visible body/scope")
+                    try require(refreshed.positionMigration.status == "unchanged" && !refreshed.positionMigration.isPartial,
+                                "Core must report the actual unchanged-body migration")
+                    try require(refreshed.positionMigration.anchors == [.init(id: "viewport", previousOffset: 37, offset: 37)],
+                                "the original viewport anchor must come from Core")
+                    let currentProgress = try await active.progress(for: book)
+                    try require(refreshed.progressSnapshot.progress?.chapterOffset == 37 &&
+                        refreshed.progressSnapshot == currentProgress,
+                        "the adopted observation must be Core's current complete progress snapshot")
+                    let reconciled = try await active.reconcileOnlineContent(for: book, chapterIndex: 0)
+                    try require(reconciled.content == free && reconciled.progressSnapshot == refreshed.progressSnapshot,
+                                "cache-only reconciliation must return the exact admitted scope and current CAS")
+                    observations.append(["stage": stage, "migrationStatus": refreshed.positionMigration.status,
+                        "anchorOffset": 37, "bodyVersion": refreshed.content.bodyVersion ?? "",
+                        "processingVersion": refreshed.content.processingVersion ?? "", "freshProgressPaired": true,
+                        "cacheOnlyReconciled": true, "fullBodyChanged": false])
+                }
                 let progress = try await active.progress(for: book)
                 let cache = try canonical(await active.coreRead("cache.book.status", ["sourceId": sourceID, "bookId": book.bookId]))
                 observations.append(["stage": stage, "bookIdSha256": hash(Data(book.bookId.utf8)),
@@ -631,7 +671,9 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
                 try require(try canonical(await active.coreRead("cache.book.status", ["sourceId": sourceID, "bookId": book.bookId])) == cache,
                             "failed preview must not change the original cache inventory")
                 try require(try await active.content(for: book, chapterIndex: 0) == free, "the original free body and versions must remain exact")
-                try require(try await active.listBooks().isEmpty, "the method must never admit a shelf book")
+                let finalBooks = try await active.listBooks()
+                try require(explicitRefresh ? finalBooks.map(\.id) == [book.id] : finalBooks.isEmpty,
+                            "the method may retain only its own explicitly admitted shelf book")
                 try require(try await active.pendingFeatureOperations().isEmpty, "no original feature mutation may remain pending")
                 try require(hash(Data(contentsOf: input)) == expectedSHA, "candidate input bytes must remain unchanged")
             }

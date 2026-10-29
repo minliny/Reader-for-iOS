@@ -54,8 +54,10 @@ private struct ReaderOriginalCommandRejection: Error { let error: ReaderLibraryE
 struct ReaderCoreOriginalOperationPending: Error {}
 
 extension ReaderLibraryService {
-    func coreRead(_ method: String, _ parameters: [String: Any], timeout: TimeInterval = 30) async throws -> Data {
-        try await request(method, parameters, timeout: timeout)
+    func coreRead(_ method: String, _ parameters: [String: Any], timeout: TimeInterval = 30,
+                  onSendAttempt: (() -> Void)? = nil, onReadPublicationFence: ((Bool) -> Void)? = nil) async throws -> Data {
+        try await request(method, parameters, timeout: timeout,
+            onSendAttempt: onSendAttempt, onReadPublicationFence: onReadPublicationFence)
     }
 
     func coreMutation(_ method: String, _ parameters: [String: Any], operationID: String, scope: String,

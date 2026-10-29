@@ -106,17 +106,22 @@ public struct ReaderChapterContent: Codable, Hashable, Sendable {
     public let bodyVersion: String?
     public let processingVersion: String?
     public let blocks: [ReaderContentBlock]
+    public let contentRefreshRequired: Bool
+    public let sourceCorrectionRequired: Bool
     public var scalarCount: UInt64 { UInt64(content.unicodeScalars.count) }
 
     public init(sourceId: String = "local", bookId: String, chapterIndex: UInt32,
                 chapterTitle: String, content: String, bodyVersion: String? = nil,
-                processingVersion: String? = nil, blocks: [ReaderContentBlock] = []) {
+                processingVersion: String? = nil, blocks: [ReaderContentBlock] = [],
+                contentRefreshRequired: Bool = false, sourceCorrectionRequired: Bool = false) {
         self.sourceId = sourceId; self.bookId = bookId; self.chapterIndex = chapterIndex
         self.chapterTitle = chapterTitle; self.content = content
         self.bodyVersion = bodyVersion; self.processingVersion = processingVersion; self.blocks = blocks
+        self.contentRefreshRequired = contentRefreshRequired; self.sourceCorrectionRequired = sourceCorrectionRequired
     }
     private enum CodingKeys: String, CodingKey {
         case sourceId, bookId, chapterIndex, chapterTitle, content, bodyVersion, processingVersion, blocks
+        case contentRefreshRequired, sourceCorrectionRequired
     }
     public init(from decoder: Decoder) throws {
         let v = try decoder.container(keyedBy: CodingKeys.self)
@@ -128,6 +133,8 @@ public struct ReaderChapterContent: Codable, Hashable, Sendable {
         bodyVersion = try v.decodeIfPresent(String.self, forKey: .bodyVersion)
         processingVersion = try v.decodeIfPresent(String.self, forKey: .processingVersion)
         blocks = try v.decodeIfPresent([ReaderContentBlock].self, forKey: .blocks) ?? []
+        contentRefreshRequired = try v.decodeIfPresent(Bool.self, forKey: .contentRefreshRequired) ?? false
+        sourceCorrectionRequired = try v.decodeIfPresent(Bool.self, forKey: .sourceCorrectionRequired) ?? false
     }
 }
 

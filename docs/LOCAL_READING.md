@@ -161,6 +161,7 @@ TextKit 的 UTF-16 下标与 WebKit 的 DOM 下标只用于平台布局，必须
 | 书架筛选、分组与排序投影 | 页面或局部状态 `ReaderPageState` | 完整查询条件与已确认书库快照；不同身份不展示旧子集，同条件刷新保留已确认内容 |
 | TXT 当前草稿识别预览 | 局部加载/失败 `ReaderPageState`；诊断与目录为工具正文 | 当前书与原书 SHA、阅读会话、草稿、编辑 ID、全部已保存规则快照及 generation；编辑、换书/会话、离页立即失效，不保存或确认规则写入 |
 | 已有内容刷新失败和普通操作反馈 | `ReaderTransientFeedback` 或局部页面状态 | 保留已有内容，由原请求/当前前台宿主控制展示与失效 |
+| 在线阅读显式本章更新 | 阅读加载态；终态短反馈 `ReaderTransientFeedback`；未决 `ReaderRecoveryNotice` | 原 session/restoration、章及正文/处理 scope；唯一前置保存后冻结旧写入。Core 原迁移回包与 fresh progress 配对后才采用；部分恢复单列。未知请求须先确认终态或取消成功并经同发布锁的 cacheOnly 核对，不能重发网络或拿新观察冒充原 ACK；核对失败保留同一冻结意图。Core required 标志只提示显式更新，不按短文本判断完整性；控制栏展开后仍可正常返回/打开更多 |
 | 在线阅读相邻章节自动缓存的已确认部分失败 | `ReaderTransientFeedback` | 仅当前前台阅读 session、书/章、正文/处理版本与窗口 generation 匹配且 `failedIndexes` 非空时展示；每 session 最多一次，已有其他操作反馈优先。窗口退役只清自己的展示 token，不改当前正文/位置，不把顶层 busy、取消或未确认抛错称为邻章失败 |
 | 在线搜索/换源的来源读取、无结果与筛选空 | `ReaderPageState` | 原来源读取 generation 与当次搜索事实；缺来源、读取失败、停止、部分失败与确认空分开。筛选空只清展示条件，不重新搜索 |
 | 已有书源的读回失败 | `ReaderTransientFeedback`，`ReaderOnlineSourceRefreshNotice` 仅作宿主投影 | 原读取失败 UUID，每次最多消费一次；保留已有来源，成功读回清除失败，前台显示两秒，离页/后台取消展示，旧展示不清新代；不确认或重派原写 |
