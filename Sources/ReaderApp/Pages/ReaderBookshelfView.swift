@@ -212,10 +212,9 @@ struct ReaderBookshelfView: View {
         confirmation.confirm("移出书架", message: message,
             actionTitle: "移除", destructive: true) {
             Task {
-                if await model.actions.perform("移出书架", scope: "shelf", action: { id in
+                if await presentation.removeSelectedBooks(targets, using: model.actions, action: { id in
                     _ = try await service.removeBooks(targets, operationID: id)
                 }) {
-                    presentation.selection.subtract(targets.map(\.id))
                     await model.reloadLibrary()
                     await presentation.reload(model: model, keyword: query)
                 }

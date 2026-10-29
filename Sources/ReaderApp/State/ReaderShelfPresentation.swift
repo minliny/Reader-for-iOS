@@ -175,4 +175,16 @@ final class ReaderShelfPresentation: ObservableObject {
     func toggle(_ book: ReaderBook) {
         if selection.contains(book.id) { selection.remove(book.id) } else { selection.insert(book.id) }
     }
+
+    /// Selection follows the original removal's confirmed completion, including
+    /// a later resume. Other selected books do not belong to this operation.
+    func removeSelectedBooks(_ targets: [ReaderBook], using actions: ReaderLibraryActionOwner,
+                             action: @escaping (String) async throws -> Void) async -> Bool {
+        let targetIDs = Set(targets.map(\.id))
+        guard !targetIDs.isEmpty else { return false }
+        return await actions.perform("移出书架", scope: "shelf", ended: { [weak self] _, confirmed in
+            guard confirmed else { return }
+            self?.selection.subtract(targetIDs)
+        }, action: action)
+    }
 }

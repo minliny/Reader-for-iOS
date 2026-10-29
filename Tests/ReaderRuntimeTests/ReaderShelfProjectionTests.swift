@@ -11,6 +11,73 @@ import ReaderCoreClient
 
 @MainActor
 final class ReaderShelfProjectionTests: XCTestCase {
+    /// Controlled completion at the production presentation/action-owner seam;
+    /// these DTOs do not establish Core ACKs, removal effects or native UI.
+    func testRemovalSelectionRetiresOnlyOriginalTargetsAfterDirectOrSameOwnerRecoveryConfirmation() async throws {
+        let removed = ReaderBook(sourceId: "removal-owner", bookId: "target", title: "Removed target")
+        let hidden = ReaderBook(sourceId: "removal-owner", bookId: "hidden", title: "Hidden selection")
+        let added = ReaderBook(sourceId: "another-source", bookId: "target", title: "Later selection")
+        for recovering in [false, true] {
+            let presentation = ReaderShelfPresentation(), actions = ReaderLibraryActionOwner()
+            presentation.selecting = true
+            presentation.selection = [removed.id, hidden.id]
+            var needsRecovery = recovering
+            var actionOperationIDs: [String] = []
+            let completed = await presentation.removeSelectedBooks([removed], using: actions) { id in
+                actionOperationIDs.append(id)
+                presentation.selection.insert(added.id)
+                if needsRecovery {
+                    needsRecovery = false
+                    throw ReaderLibraryError.operationPending(id)
+                }
+            }
+            XCTAssertEqual(completed, !recovering)
+            if recovering {
+                let originalID = try XCTUnwrap(actions.pendingOperationID)
+                XCTAssertEqual(presentation.selection, [removed.id, hidden.id, added.id])
+                XCTAssertEqual(actionOperationIDs, [originalID])
+                let recovered = await actions.resumeOriginal()
+                XCTAssertTrue(recovered)
+                XCTAssertEqual(actionOperationIDs, [originalID, originalID])
+            }
+            XCTAssertFalse(actions.hasPending)
+            XCTAssertEqual(presentation.selection, [hidden.id, added.id],
+                           "Only the frozen removal targets retire; hidden and later selections remain")
+            XCTAssertTrue(presentation.selecting)
+            let repeated = await actions.resumeOriginal()
+            XCTAssertFalse(repeated)
+            XCTAssertEqual(presentation.selection, [hidden.id, added.id])
+            XCTAssertEqual(actionOperationIDs.count, recovering ? 2 : 1)
+        }
+    }
+
+    func testRemovalSelectionKeepsTargetsForUnknownAndDefiniteFailure() async throws {
+        enum Failure: Error { case rejected }
+        let removed = ReaderBook(sourceId: "removal-owner", bookId: "target", title: "Retained target")
+        let hidden = ReaderBook(sourceId: "removal-owner", bookId: "hidden", title: "Hidden selection")
+        let added = ReaderBook(sourceId: "another-source", bookId: "target", title: "Later selection")
+        let presentation = ReaderShelfPresentation(), actions = ReaderLibraryActionOwner()
+        presentation.selection = [removed.id, hidden.id]
+        var pending: Bool? = nil
+        actions.pendingChecker = { _ in pending }
+        var actionOperationIDs: [String] = []
+        let completed = await presentation.removeSelectedBooks([removed], using: actions) { id in
+            actionOperationIDs.append(id)
+            throw Failure.rejected
+        }
+        XCTAssertFalse(completed)
+        let originalID = try XCTUnwrap(actions.pendingOperationID)
+        XCTAssertNotNil(actions.recovery)
+        XCTAssertEqual(presentation.selection, [removed.id, hidden.id])
+        presentation.selection.insert(added.id)
+        pending = false // A definitive original failure is not a removal confirmation.
+        let recovered = await actions.resumeOriginal()
+        XCTAssertFalse(recovered)
+        XCTAssertFalse(actions.hasPending)
+        XCTAssertEqual(actionOperationIDs, [originalID, originalID])
+        XCTAssertEqual(presentation.selection, [removed.id, hidden.id, added.id])
+    }
+
     /// Actual Core/service metadata CRUD in a private store. These rows have
     /// no body and establish filter semantics, not real-novel acceptance.
     func testShelfGroupOptionsRetainActualLabelsAcrossDefinitionCRUDWithoutInventingGroups() async throws {
