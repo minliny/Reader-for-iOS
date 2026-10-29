@@ -680,20 +680,32 @@ struct ReaderReadingView: View {
         }.buttonStyle(ReaderPressFeedback())
     }
 
-    private var directoryContent: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Button("目录") { directoryBookmarks = false }
-                    .accessibilityAddTraits(directoryBookmarks ? [] : .isSelected)
-                Button("书签") { directoryBookmarks = true }.accessibilityIdentifier("directory-bookmarks")
-                    .accessibilityAddTraits(directoryBookmarks ? .isSelected : [])
-                Spacer()
-                Button("章首") { model.seek(toScalar: 0) }
-                Button("章尾") { model.seek(toScalar: session.content.scalarCount) }
-            }.font(ReaderTypography.font(.caption)).frame(minHeight: 44).padding(.horizontal, 12)
-            if directoryBookmarks { ReaderBookmarkPanel(model: model, state: bookmarks, book: session.book, presentationActive: controlsVisible) }
-            else { chapterDirectory }
+    private var directoryContent: AnyView {
+        AnyView(VStack(spacing: 6) {
+            directoryHeader
+            directoryBody
+        })
+    }
+
+    // Fixed internal type boundaries keep the directory's large conditional
+    // view metadata off the containing integrated dock's main-thread stack.
+    private var directoryHeader: AnyView {
+        AnyView(HStack {
+            Button("目录") { directoryBookmarks = false }
+                .accessibilityAddTraits(directoryBookmarks ? [] : .isSelected)
+            Button("书签") { directoryBookmarks = true }.accessibilityIdentifier("directory-bookmarks")
+                .accessibilityAddTraits(directoryBookmarks ? .isSelected : [])
+            Spacer()
+            Button("章首") { model.seek(toScalar: 0) }
+            Button("章尾") { model.seek(toScalar: session.content.scalarCount) }
+        }.font(ReaderTypography.font(.caption)).frame(minHeight: 44).padding(.horizontal, 12))
+    }
+
+    private var directoryBody: AnyView {
+        if directoryBookmarks {
+            return AnyView(ReaderBookmarkPanel(model: model, state: bookmarks, book: session.book, presentationActive: controlsVisible))
         }
+        return chapterDirectory
     }
 
     private struct DirectoryReadIdentity: Equatable {
@@ -722,66 +734,70 @@ struct ReaderReadingView: View {
             directorySnapshot?.bookId == session.book.bookId
     }
 
-    private var chapterDirectory: some View {
-        ScrollViewReader { proxy in
+    private var chapterDirectory: AnyView {
+        AnyView(ScrollViewReader { proxy in
             VStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    TextField("筛选目录标题", text: $directoryQuery).readerField().accessibilityIdentifier("directory-query")
-                    Button(directoryDescending ? "正序" : "倒序") { directoryDescending.toggle() }
-                        .frame(minWidth: 44, minHeight: 44)
-                    Button("定位") {
-                        directoryLocatePending = true
-                        directoryQuery = ""; directoryCollapsed.removeAll()
-                        if canonicalDirectoryEnabled {
-                            let expectedSession = session.id
-                            let expectedBook = session.book.id
-                            Task { @MainActor in
-                                await Task.yield()
-                                guard canonicalDirectoryEnabled, model.reader?.id == expectedSession,
-                                      model.reader?.book.id == expectedBook else { return }
-                                proxy.scrollTo("canonical-\(session.content.chapterIndex)", anchor: .center)
-                                directoryLocatePending = false
-                            }
-                        } else {
-                            Task { await loadDirectory() }
-                        }
-                    }.frame(minWidth: 44, minHeight: 44).accessibilityIdentifier("locate-current-chapter")
-                }.font(ReaderTypography.font(.caption)).padding(.horizontal, 12)
-                if model.libraryService is any ReaderLibraryFeatures {
-                    projectedDirectory(proxy: proxy)
-                } else { canonicalDirectory(proxy: proxy) }
+                chapterDirectoryControls(proxy: proxy)
+                chapterDirectoryBody(proxy: proxy)
             }
-        }.task(id: directoryReadIdentity) { await loadDirectory() }
+        }.task(id: directoryReadIdentity) { await loadDirectory() })
     }
 
-    @ViewBuilder
-    private func canonicalDirectory(proxy: ScrollViewProxy) -> some View {
-        if directoryChapters.isEmpty { ReaderPageState(title: "没有符合条件的章节") }
-        else {
-            ScrollView {
-                LazyVStack(spacing: 4) {
-                    ForEach(directoryChapters) { chapter in
-                        canonicalChapterRow(chapter)
+    private func chapterDirectoryControls(proxy: ScrollViewProxy) -> AnyView {
+        AnyView(HStack(spacing: 6) {
+            TextField("筛选目录标题", text: $directoryQuery).readerField().accessibilityIdentifier("directory-query")
+            Button(directoryDescending ? "正序" : "倒序") { directoryDescending.toggle() }
+                .frame(minWidth: 44, minHeight: 44)
+            Button("定位") {
+                directoryLocatePending = true
+                directoryQuery = ""; directoryCollapsed.removeAll()
+                if canonicalDirectoryEnabled {
+                    let expectedSession = session.id
+                    let expectedBook = session.book.id
+                    Task { @MainActor in
+                        await Task.yield()
+                        guard canonicalDirectoryEnabled, model.reader?.id == expectedSession,
+                              model.reader?.book.id == expectedBook else { return }
+                        proxy.scrollTo("canonical-\(session.content.chapterIndex)", anchor: .center)
+                        directoryLocatePending = false
                     }
-                }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 12)
-            }.scrollPosition(id: $directoryAnchor, anchor: .top).onAppear {
-                if directoryAnchor == nil || directoryLocatePending {
-                    proxy.scrollTo("canonical-\(session.content.chapterIndex)", anchor: .center)
-                    directoryLocatePending = false
+                } else {
+                    Task { await loadDirectory() }
                 }
-            }.onChange(of: directoryLoadedGeneration) { _, _ in
-                if directoryLocatePending, canonicalDirectoryEnabled,
-                   model.reader?.id == session.id, model.reader?.book.id == session.book.id {
-                    proxy.scrollTo("canonical-\(session.content.chapterIndex)", anchor: .center)
-                    directoryLocatePending = false
+            }.frame(minWidth: 44, minHeight: 44).accessibilityIdentifier("locate-current-chapter")
+        }.font(ReaderTypography.font(.caption)).padding(.horizontal, 12))
+    }
+
+    private func chapterDirectoryBody(proxy: ScrollViewProxy) -> AnyView {
+        if model.libraryService is any ReaderLibraryFeatures { return projectedDirectory(proxy: proxy) }
+        return canonicalDirectory(proxy: proxy)
+    }
+
+    private func canonicalDirectory(proxy: ScrollViewProxy) -> AnyView {
+        if directoryChapters.isEmpty { return AnyView(ReaderPageState(title: "没有符合条件的章节")) }
+        return AnyView(ScrollView {
+            LazyVStack(spacing: 4) {
+                ForEach(directoryChapters) { chapter in
+                    canonicalChapterRow(chapter)
                 }
+            }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 12)
+        }.scrollPosition(id: $directoryAnchor, anchor: .top).onAppear {
+            if directoryAnchor == nil || directoryLocatePending {
+                proxy.scrollTo("canonical-\(session.content.chapterIndex)", anchor: .center)
+                directoryLocatePending = false
             }
-        }
+        }.onChange(of: directoryLoadedGeneration) { _, _ in
+            if directoryLocatePending, canonicalDirectoryEnabled,
+               model.reader?.id == session.id, model.reader?.book.id == session.book.id {
+                proxy.scrollTo("canonical-\(session.content.chapterIndex)", anchor: .center)
+                directoryLocatePending = false
+            }
+        })
     }
 
     private func canonicalChapterRow(_ chapter: ReaderChapter) -> some View {
         let selected = chapter.index == session.content.chapterIndex
-        return Button { openCanonicalChapter(chapter.index) } label: {
+        return AnyView(Button { openCanonicalChapter(chapter.index) } label: {
             HStack(spacing: 12) {
                 Text(chapter.displayTitle ?? chapter.title).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
                 ReaderChapterSourceLabel(isVip: chapter.isVip, isPay: chapter.isPay)
@@ -792,7 +808,7 @@ struct ReaderReadingView: View {
                 .background(selected ? palette.primarySoft : .clear, in: RoundedRectangle(cornerRadius: 12))
         }.buttonStyle(ReaderPressFeedback())
             .disabled(model.chapterLoading || model.closingReader)
-            .accessibilityAddTraits(selected ? .isSelected : [])
+            .accessibilityAddTraits(selected ? .isSelected : []))
             .id("canonical-\(chapter.index)").accessibilityIdentifier("chapter-\(chapter.index)")
     }
 
@@ -806,56 +822,65 @@ struct ReaderReadingView: View {
         }
     }
 
-    @ViewBuilder
-    private func projectedDirectory(proxy: ScrollViewProxy) -> some View {
-        if directoryLoading, directorySnapshot == nil { ReaderPageState(title: "正在读取目录", loading: true) }
-        else if let directoryFailure, directorySnapshot == nil {
-            ReaderPageState(title: directoryFailure, actionTitle: "重试") { Task { await loadDirectory() } }
+    private func projectedDirectory(proxy: ScrollViewProxy) -> AnyView {
+        if directoryLoading, directorySnapshot == nil {
+            return AnyView(ReaderPageState(title: "正在读取目录", loading: true))
+        } else if let directoryFailure, directorySnapshot == nil {
+            return AnyView(ReaderPageState(title: directoryFailure, actionTitle: "重试") { Task { await loadDirectory() } })
         } else if let snapshot = directorySnapshot {
             if snapshot.sourceId != session.book.sourceId || snapshot.bookId != session.book.bookId {
-                ReaderPageState(title: "目录暂不可用", actionTitle: "重试") { Task { await loadDirectory() } }
+                return AnyView(ReaderPageState(title: "目录暂不可用", actionTitle: "重试") { Task { await loadDirectory() } })
             } else if snapshot.status == "canonical" {
-                canonicalDirectory(proxy: proxy)
+                return canonicalDirectory(proxy: proxy)
             } else if snapshot.status != "ready" {
-                ReaderPageState(title: "目录暂不可用", detail: snapshot.reason ?? "", actionTitle: "重试") { Task { await loadDirectory() } }
-            } else if snapshot.nodes.isEmpty { ReaderPageState(title: directoryQuery.isEmpty ? "目录为空" : "没有符合条件的章节") }
-            else {
-                ScrollView {
-                    LazyVStack(spacing: 4) {
-                        ForEach(snapshot.nodes) { node in
-                            Button {
-                                if node.hasChildren && !node.navigable {
-                                    if directoryCollapsed.contains(node.id) { directoryCollapsed.remove(node.id) }
-                                    else { directoryCollapsed.insert(node.id) }
-                                } else if node.navigable { Task { await model.jump(node: node, snapshot: snapshot) } }
-                            } label: {
-                                HStack(spacing: 8) {
-                                    if node.hasChildren { ReaderIcon(.chevronDown, size: 14).rotationEffect(.degrees(node.expanded ? 0 : -90)) }
-                                    Text(node.displayTitle ?? node.title).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
-                                    ReaderChapterSourceLabel(isVip: node.isVip, isPay: node.isPay)
-                                    Spacer(minLength: 0)
-                                    if node.navigable, node.chapterIndex == session.content.chapterIndex { ReaderIcon(.check, size: 18) }
-                                }.padding(.leading, 14 + CGFloat(min(node.depth, 6)) * 12).padding(.trailing, 14).frame(minHeight: 48)
-                                    .background(node.navigable && node.chapterIndex == session.content.chapterIndex ? palette.primarySoft : .clear,
-                                        in: RoundedRectangle(cornerRadius: 12))
-                            }.buttonStyle(ReaderPressFeedback())
-                                .disabled((!node.navigable && !node.hasChildren) || model.chapterLoading || model.closingReader)
-                                .accessibilityAddTraits(node.navigable && node.chapterIndex == session.content.chapterIndex ? .isSelected : [])
-                                .accessibilityIdentifier(node.navigable ? "chapter-\(node.chapterIndex ?? 0)" : "directory-node-\(node.id)")
-                                .id(node.id)
-                        }
-                    }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 12)
-                }.scrollPosition(id: $directoryAnchor, anchor: .top).onAppear {
-                    if directoryAnchor == nil, let node = snapshot.nodes.first(where: { $0.navigable && $0.chapterIndex == session.content.chapterIndex }) {
-                        proxy.scrollTo(node.id, anchor: .center)
-                    }
-                }.onChange(of: directoryLoadedGeneration) { _, _ in
-                    if directoryLocatePending, let node = snapshot.nodes.first(where: { $0.navigable && $0.chapterIndex == session.content.chapterIndex }) {
-                        proxy.scrollTo(node.id, anchor: .center); directoryLocatePending = false
-                    }
-                }
+                return AnyView(ReaderPageState(title: "目录暂不可用", detail: snapshot.reason ?? "", actionTitle: "重试") { Task { await loadDirectory() } })
+            } else if snapshot.nodes.isEmpty {
+                return AnyView(ReaderPageState(title: directoryQuery.isEmpty ? "目录为空" : "没有符合条件的章节"))
             }
+            return projectedDirectoryList(snapshot: snapshot, proxy: proxy)
         }
+        return AnyView(EmptyView())
+    }
+
+    private func projectedDirectoryList(snapshot: ReaderDirectorySnapshot, proxy: ScrollViewProxy) -> AnyView {
+        AnyView(ScrollView {
+            LazyVStack(spacing: 4) {
+                ForEach(snapshot.nodes) { node in
+                    projectedDirectoryRow(node, snapshot: snapshot)
+                }
+            }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 12)
+        }.scrollPosition(id: $directoryAnchor, anchor: .top).onAppear {
+            if directoryAnchor == nil, let node = snapshot.nodes.first(where: { $0.navigable && $0.chapterIndex == session.content.chapterIndex }) {
+                proxy.scrollTo(node.id, anchor: .center)
+            }
+        }.onChange(of: directoryLoadedGeneration) { _, _ in
+            if directoryLocatePending, let node = snapshot.nodes.first(where: { $0.navigable && $0.chapterIndex == session.content.chapterIndex }) {
+                proxy.scrollTo(node.id, anchor: .center); directoryLocatePending = false
+            }
+        })
+    }
+
+    private func projectedDirectoryRow(_ node: ReaderDirectoryNode, snapshot: ReaderDirectorySnapshot) -> some View {
+        AnyView(Button {
+            if node.hasChildren && !node.navigable {
+                if directoryCollapsed.contains(node.id) { directoryCollapsed.remove(node.id) }
+                else { directoryCollapsed.insert(node.id) }
+            } else if node.navigable { Task { await model.jump(node: node, snapshot: snapshot) } }
+        } label: {
+            HStack(spacing: 8) {
+                if node.hasChildren { ReaderIcon(.chevronDown, size: 14).rotationEffect(.degrees(node.expanded ? 0 : -90)) }
+                Text(node.displayTitle ?? node.title).font(ReaderTypography.font(.caption)).multilineTextAlignment(.leading)
+                ReaderChapterSourceLabel(isVip: node.isVip, isPay: node.isPay)
+                Spacer(minLength: 0)
+                if node.navigable, node.chapterIndex == session.content.chapterIndex { ReaderIcon(.check, size: 18) }
+            }.padding(.leading, 14 + CGFloat(min(node.depth, 6)) * 12).padding(.trailing, 14).frame(minHeight: 48)
+                .background(node.navigable && node.chapterIndex == session.content.chapterIndex ? palette.primarySoft : .clear,
+                    in: RoundedRectangle(cornerRadius: 12))
+        }.buttonStyle(ReaderPressFeedback())
+            .disabled((!node.navigable && !node.hasChildren) || model.chapterLoading || model.closingReader)
+            .accessibilityAddTraits(node.navigable && node.chapterIndex == session.content.chapterIndex ? .isSelected : []))
+            .accessibilityIdentifier(node.navigable ? "chapter-\(node.chapterIndex ?? 0)" : "directory-node-\(node.id)")
+            .id(node.id)
     }
 
     private func loadDirectory() async {
