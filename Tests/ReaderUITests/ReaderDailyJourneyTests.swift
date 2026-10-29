@@ -9,7 +9,7 @@ final class ReaderDailyJourneyTests: XCTestCase {
     private let secondID = "book-local:ebe4b6535def1853e2d4d039f14981035fbfba8dcd6864fa6d0ecb2174e23952"
     private let firstTitle = "仙子请听我解释"
     private let secondTitle = "湛蓝权杖"
-    private enum Prerequisite: Error { case removalOwnershipMissing }
+    private enum Prerequisite: Error { case removalOwnershipMissing, twoRealTXT(String) }
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
@@ -272,6 +272,156 @@ final class ReaderDailyJourneyTests: XCTestCase {
         try assertContinuation(txt, ebook: false, app: app, name: "txt-after-one-cold-reopen")
         leaveContinuation(ebook: false, app: app)
         assertContinuationShelf(app)
+    }
+
+    /// The Gutenberg original keeps its downloaded basename and bytes. This
+    /// physical journey retains both books; it is not the missing 湛蓝 fixture.
+    func testPhysicalTwoRealTXTFirstImportIndependentColdPositionsAndDuplicatePreservation() throws {
+        executionTimeAllowance = 360
+        let app = XCUIApplication()
+        let pgID = "book-local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let firstProseTitle = "第一章　序"
+        let deadline = ProcessInfo.processInfo.systemUptime + 340
+        var stage = "entry", completed = false
+        addTeardownBlock {
+            if !completed {
+                let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                screen.name = "two-real-TXT-failure-" + stage; screen.lifetime = .keepAlways; self.add(screen)
+                let ax = XCTAttachment(string: app.debugDescription)
+                ax.name = "two-real-TXT-failure-actual-AX"; ax.lifetime = .keepAlways; self.add(ax)
+            }
+        }
+        func require(_ condition: Bool, _ fact: String) throws {
+            guard condition, ProcessInfo.processInfo.systemUptime < deadline else {
+                throw Prerequisite.twoRealTXT(stage + ": " + fact)
+            }
+        }
+        func observe(_ fact: String, timeout: TimeInterval = 15, _ condition: @escaping () -> Bool) throws {
+            let remaining = min(timeout, deadline - ProcessInfo.processInfo.systemUptime)
+            try require(remaining > 0, "method deadline")
+            let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            try require(XCTWaiter.wait(for: [expectation], timeout: remaining) == .completed, fact)
+        }
+        func shelf() throws {
+            try observe("normal original shelf") { app.buttons["更多书架操作"].isHittable }
+            // Never clear or overwrite an existing user's query. A different
+            // initial presentation is a prerequisite failure before import.
+            try require(!app.textFields["shelf-filter"].exists && app.buttons["全部分组"].exists,
+                        "retain original closed shelf query and all-groups presentation")
+        }
+        func open(_ id: String) throws {
+            try shelf()
+            let books = app.buttons.matching(identifier: id)
+            try observe("exact SHA book is visible") { books.count == 1 && books.element.isHittable }
+            try require(books.element.isEnabled, "exact book enabled"); books.element.tap()
+            try observe("unobscured native TXT body", timeout: 20) {
+                app.textViews["reading-body"].isHittable && !app.buttons["control-grabber"].isHittable
+            }
+        }
+        func leave() throws {
+            continuationHome(ebook: false, app: app)
+            let back = app.buttons["leave-reader"]
+            try require(back.isEnabled && back.isHittable, "normal reader Back"); back.tap()
+            try shelf()
+        }
+        struct NativePosition {
+            let book: String, chapter: String, label: String, progress: String, anchor: String
+        }
+        func capture(_ id: String, name: String) throws -> NativePosition {
+            let chapter = continuationChapter(id, ebook: false, app: app, name: name)
+            let progress = app.staticTexts["reading-progress"]
+            try require(progress.exists && !progress.label.isEmpty, "actual native progress")
+            let lines = try ocr(app: app, wholeAppScreenshot: true).map(normalized)
+            let anchor = try XCTUnwrap(lines.map { String($0.prefix(24)) }.first {
+                $0.count >= 18 && $0.unicodeScalars.filter { (0x3400...0x9FFF).contains($0.value) }.count >= 18
+            }, "Require real visible Chinese prose, not Gutenberg publication text")
+            let facts = XCTAttachment(string: "book=\(id)\nchapter=\(chapter.0)\nlabel=\(chapter.1)\nnativeProgress=\(progress.label)\nactualVisibleAnchor=\(anchor)\nscalar/bodyVersion/processingVersion=NOT_CAPTURED_BY_NATIVE_AX")
+            facts.name = name + "-native-position"; facts.lifetime = .keepAlways; add(facts)
+            let image = XCTAttachment(screenshot: app.screenshot())
+            image.name = name; image.lifetime = .keepAlways; add(image)
+            return NativePosition(book: id, chapter: chapter.0, label: chapter.1, progress: progress.label, anchor: anchor)
+        }
+        func verify(_ position: NativePosition, name: String) throws {
+            let chapter = continuationChapter(position.book, ebook: false, app: app, name: name)
+            try require(chapter.0 == position.chapter && chapter.1 == position.label, "same original book/chapter")
+            try observe("same visible prose and native progress") {
+                guard app.staticTexts["reading-progress"].label == position.progress,
+                      let lines = try? self.ocr(app: app, wholeAppScreenshot: true) else { return false }
+                return self.normalized(lines.joined()).contains(position.anchor)
+            }
+            let image = XCTAttachment(screenshot: app.screenshot())
+            image.name = name; image.lifetime = .keepAlways; add(image)
+        }
+        func pickerImport(created: Bool) throws {
+            try shelf()
+            app.buttons["更多书架操作"].tap()
+            let action = app.buttons["import-book"]
+            try require(action.waitForExistence(timeout: 5) && action.isHittable, "normal local picker entry"); action.tap()
+            let files = app.cells.containing(NSPredicate(format: "label == 'pg25332.txt' OR label == 'pg25332'"))
+            if !files.firstMatch.waitForExistence(timeout: 3) {
+                let folders = app.cells.matching(NSPredicate(format: "identifier == 'Reader, Container' OR label BEGINSWITH 'Reader,'"))
+                try require(folders.count == 1 && folders.element.isHittable, "actual Reader Documents folder")
+                folders.element.tap()
+            }
+            try observe("one actual untouched pg25332.txt", timeout: 15) { files.count == 1 && files.element.isHittable }
+            let picker = XCTAttachment(string: app.debugDescription)
+            picker.name = stage + "-actual-system-picker"; picker.lifetime = .keepAlways; add(picker)
+            files.element.tap()
+            let select = app.buttons["打开"]
+            if select.waitForExistence(timeout: 2) {
+                try require(select.isEnabled && select.isHittable, "single original selection Open"); select.tap()
+            }
+            let close = app.buttons["关闭导入结果"]
+            try require(close.waitForExistence(timeout: 20), "actual local import result")
+            let expected = created ? "已导入书架" : "这本书已在书架中"
+            let wrong = created ? "这本书已在书架中" : "已导入书架"
+            let failed = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^已完成 [0-9]+ 项，失败 [1-9][0-9]* 项，未执行 [0-9]+ 项$"))
+            try observe("original import terminal, no reconcile or retry", timeout: 120) {
+                app.staticTexts[expected].exists || app.staticTexts[wrong].exists || failed.count > 0
+                    || app.staticTexts["原导入结果待核对"].exists || app.staticTexts["导入结果仍在确认，请保留文件"].exists
+            }
+            try require(app.staticTexts[expected].exists && !app.staticTexts[wrong].exists && failed.count == 0
+                        && !app.staticTexts["原导入结果待核对"].exists
+                        && !app.staticTexts["导入结果仍在确认，请保留文件"].exists, "require exact " + expected)
+            let result = XCTAttachment(screenshot: app.screenshot())
+            result.name = stage + "-exact-import-result"; result.lifetime = .keepAlways; add(result)
+            try require(close.isHittable, "normal import result close"); close.tap()
+            try shelf()
+            try observe("one retained SHA shelf row") { app.buttons.matching(identifier: pgID).count == 1 }
+        }
+        #if targetEnvironment(simulator)
+        throw Prerequisite.twoRealTXT("physical iPhone required")
+        #else
+        try require(UIDevice.current.userInterfaceIdiom == .phone
+                    && ProcessInfo.processInfo.environment["READER_PHYSICAL_TWO_REAL_TXT_AUTHORIZED"] == "1",
+                    "physical phone and explicit Runner-only authorization required")
+        #endif
+        app.launch(); try shelf()
+        try require(app.buttons.matching(identifier: pgID).count == 0, "B must not already be on the original shelf")
+        stage = "A-original"; try open(firstID)
+        let a = try capture(firstID, name: stage); try leave()
+        stage = "B-first-import"; try pickerImport(created: true)
+        try open(pgID); openModule("directory", app: app)
+        let directory = app.buttons.matching(NSPredicate(format: "label == '目录' AND identifier != 'control-module-directory'"))
+        try require(directory.count == 1 && directory.element.isHittable, "actual chapter directory tab"); directory.element.tap()
+        let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'chapter-' AND label == %@", firstProseTitle))
+        try observe("real first prose title, not a hardcoded chapter index") { first.count == 1 && first.element.isHittable }
+        let index = String(first.element.identifier.dropFirst("chapter-".count))
+        try require(UInt32(index) != nil && first.element.isEnabled, "actual canonical chapter identity"); first.element.tap()
+        try observe("actual selected first prose") { first.count == 1 && first.element.isSelected }
+        hideControls(app)
+        let b = try capture(pgID, name: "B-first-real-prose")
+        try require(b.chapter == "reading-chapter:" + index && b.label.hasPrefix(firstProseTitle + " · ")
+                    && b.anchor != a.anchor, "distinct real prose bound to the actual directory row")
+        try leave()
+        stage = "A-after-B"; try open(firstID); try verify(a, name: stage); try leave()
+        stage = "one-cold-reopen"; app.terminate(); app.launch(); try shelf()
+        stage = "B-after-cold"; try open(pgID); try verify(b, name: stage); try leave()
+        stage = "A-after-cold"; try open(firstID); try verify(a, name: stage); try leave()
+        stage = "B-same-original-duplicate"; try pickerImport(created: false)
+        stage = "B-after-duplicate"; try open(pgID); try verify(b, name: stage); try leave()
+        stage = "A-after-duplicate"; try open(firstID); try verify(a, name: stage); try leave()
+        completed = true
     }
 
     private struct ContinuationAnchor {
