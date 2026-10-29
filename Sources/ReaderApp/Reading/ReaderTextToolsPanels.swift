@@ -463,11 +463,13 @@ struct ReaderAnnotationsPanel: View {
                                 }.accessibilityIdentifier("annotation-\(mark.id)")
                                 HStack {
                                     Button("编辑") { state.editingNote = mark; state.note = mark.note }
+                                        .disabled(model.actions.hasPending || state.notesLoading)
                                     Spacer()
                                     Button("删除", role: .destructive) {
+                                        guard acceptsRemoval(mark) else { return }
                                         confirmation.confirm("删除笔记", message: mark.chapterName,
                                             actionTitle: "删除", destructive: true) { remove(mark) }
-                                    }
+                                    }.disabled(model.actions.hasPending || state.notesLoading)
                                 }.frame(minHeight: 44)
                             }.padding(12).background(ReaderPalette(scheme).readElevated, in: RoundedRectangle(cornerRadius: 8))
                         }
@@ -522,9 +524,18 @@ struct ReaderAnnotationsPanel: View {
             }
         }
     }
+    private func acceptsRemoval(_ mark: ReaderHighlight) -> Bool {
+        guard state.editingNote?.id != mark.id else {
+            model.showFeedback("请先保存或取消当前笔记编辑")
+            return false
+        }
+        return true
+    }
     private func remove(_ mark: ReaderHighlight) {
-        guard let service = model.libraryService as? any ReaderReadingToolsServing else { return }
+        guard acceptsRemoval(mark),
+              let service = model.libraryService as? any ReaderReadingToolsServing else { return }
         Task {
+            guard acceptsRemoval(mark) else { return }
             if await model.actions.perform("删除笔记", scope: book.id, action: { id in
                 _ = try await service.deleteHighlight(mark, operationID: id)
             }) { await load(); await model.reloadHighlights() }

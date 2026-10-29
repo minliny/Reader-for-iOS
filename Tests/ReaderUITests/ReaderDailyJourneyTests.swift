@@ -13,6 +13,83 @@ final class ReaderDailyJourneyTests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// Real native text selection and one owned annotation; never change an
+    /// existing note, inject a range or manufacture an empty original list.
+    func testExistingRealTXTAnnotationDraftBlocksDeletionAndOwnedNoteCanBeRemoved() throws {
+        executionTimeAllowance = 180
+        let app = XCUIApplication()
+        app.launch()
+        openContinuationBook(firstID, title: firstTitle, ebook: false, app: app)
+        openModule("settings", app: app)
+        app.buttons["高亮与笔记"].tap()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'annotation-'"))
+        waitUntil("The original note list has actually loaded", timeout: 10) {
+            !app.staticTexts["正在读取笔记"].exists && (app.staticTexts["暂无笔记"].exists || rows.count > 0)
+        }
+        guard app.staticTexts["暂无笔记"].exists, rows.count == 0 else {
+            XCTFail("Require an actually empty original note list; never remove existing user annotations")
+            return
+        }
+        hideControls(app)
+        app.textViews["reading-body"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).press(forDuration: 0.8)
+        var action: XCUIElement?
+        for _ in 0..<4 {
+            action = [app.buttons["高亮与笔记"], app.menuItems["高亮与笔记"]].first {
+                $0.waitForExistence(timeout: 0.5) && $0.isHittable
+            }
+            if action != nil { break }
+            let more = ["前进", "显示更多项目", "Show more items", "更多", "More"]
+                .map { app.buttons[$0] }.first { $0.exists && $0.isHittable }
+            guard let more else { break }; more.tap()
+        }
+        try XCTUnwrap(action, "Require the actual native selection menu; never inject selected text").tap()
+        let selected = app.staticTexts["annotation-selected-text"]
+        XCTAssertTrue(selected.waitForExistence(timeout: 10)); XCTAssertFalse(selected.label.isEmpty)
+        let selectedText = selected.label
+        func input() -> XCUIElement {
+            app.textFields["annotation-note"].exists ? app.textFields["annotation-note"] : app.textViews["annotation-note"]
+        }
+        let field = input()
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let original = field.value as? String ?? ""
+        XCTAssertTrue(original.isEmpty || original == field.placeholderValue)
+        let marker = "原书笔记验证-" + String(UUID().uuidString.prefix(8))
+        field.tap(); field.typeText(marker)
+        XCTAssertEqual(field.value as? String, marker)
+        let save = app.buttons["save-annotation"]
+        XCTAssertEqual(save.label, "高亮并保存笔记"); XCTAssertTrue(save.isEnabled); save.tap()
+        waitUntil("One real owned annotation has actually been saved", timeout: 15) {
+            rows.count == 1 && rows.element.label.contains(marker)
+        }
+        let ownedID = rows.element.identifier
+        let ownership = XCTAttachment(string: "originalBook=\(firstID)\ninitialNotes=0\nownedAnnotation=\(ownedID)\nmarker=\(marker)\nactualSelectedText=\(selectedText)")
+        ownership.name = "actual-created-annotation-ownership-before-editor"; ownership.lifetime = .keepAlways; self.add(ownership)
+        let edit = app.buttons.matching(NSPredicate(format: "label == '编辑'"))
+        XCTAssertEqual(edit.count, 1); XCTAssertTrue(edit.element.isEnabled); edit.element.tap()
+        let editing = input(), draft = marker + "-未保存"
+        XCTAssertEqual(editing.value as? String, marker)
+        editing.tap(); editing.typeText("-未保存")
+        XCTAssertEqual(editing.value as? String, draft)
+        let remove = app.buttons.matching(NSPredicate(format: "label == '删除'"))
+        XCTAssertEqual(remove.count, 1); XCTAssertTrue(remove.element.isEnabled); remove.element.tap()
+        XCTAssertTrue(app.staticTexts["请先保存或取消当前笔记编辑"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.alerts["删除笔记"].exists)
+        XCTAssertTrue(app.buttons[ownedID].exists); XCTAssertEqual(editing.value as? String, draft)
+        app.buttons["取消编辑"].tap()
+        XCTAssertEqual(save.label, "高亮并保存笔记")
+        XCTAssertTrue(app.buttons[ownedID].exists); XCTAssertEqual(rows.count, 1)
+        remove.element.tap()
+        let confirmation = app.alerts["删除笔记"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5)); confirmation.buttons["删除"].tap()
+        waitUntil("Only the one owned real annotation is removed", timeout: 15) {
+            !app.buttons[ownedID].exists && rows.count == 0 && app.staticTexts["暂无笔记"].exists
+        }
+        let facts = XCTAttachment(string: "originalBook=\(firstID)\nownedAnnotationRemoved=\(ownedID)\nblockedDeleteRetainedUnsavedDraft=true\noriginalUserNotesRemoved=0\nNative owned ID and actual UI effect are not fabricated Core ACKs")
+        facts.name = "actual-annotation-draft-delete-guard-and-owned-cleanup"; facts.lifetime = .keepAlways; self.add(facts)
+        hideControls(app)
+        leaveContinuation(ebook: false, app: app)
+    }
+
     /// One existing original TXT. Only an actually empty bookmark list permits
     /// creation and removal of this method's one new native bookmark.
     func testExistingRealTXTBookmarkDraftBlocksDeletionAndOwnedBookmarkCanBeRemoved() throws {
