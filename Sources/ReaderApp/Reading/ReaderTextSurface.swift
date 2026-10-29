@@ -39,7 +39,9 @@ struct ReaderTextSurface: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeUIView(context: Context) -> UITextView {
-        let view = ReaderMeasuredTextView()
+        // Scalar projection uses NSLayoutManager throughout; choose TextKit 1
+        // before installing text rather than falling back during restoration.
+        let view = ReaderMeasuredTextView(usingTextLayoutManager: false)
         view.isEditable = false
         view.isSelectable = longPressSelectText
         view.backgroundColor = .clear
@@ -205,9 +207,17 @@ struct ReaderTextSurface: UIViewRepresentable {
             restorationGeneration = generation
             DispatchQueue.main.async { [weak self, weak view] in
                 guard let self, let view, !self.retired, view === self.activeView,
-                      let projection = self.projection, self.restorationGeneration == generation,
-                      view.bounds.width > 0 else { return }
+                      self.restorationGeneration == generation,
+                      view.bounds.width > 0, view.bounds.height > 0 else { return }
                 view.layoutManager.ensureLayout(for: view.textContainer)
+                // TextKit layout does not finish UITextView's scroll geometry.
+                // afterLayout can replace text after super.layoutSubviews, so
+                // flush the native layout before clamping to its contentSize.
+                view.setNeedsLayout()
+                view.layoutIfNeeded()
+                guard !self.retired, view === self.activeView,
+                      self.restorationGeneration == generation, let projection = self.projection,
+                      view.bounds.width > 0, view.bounds.height > 0 else { return }
                 let offset = self.pendingOffset ?? self.parent.scalarOffset
                 let anchor = projection.anchor(forSourceScalar: offset)
                 self.visibleAnchor = anchor
@@ -223,7 +233,8 @@ struct ReaderTextSurface: UIViewRepresentable {
                 self.pendingOffset = nil
                 DispatchQueue.main.async { [weak self, weak view] in
                     guard let self, let view, !self.retired, view === self.activeView,
-                          self.restorationGeneration == generation else { return }
+                          self.restorationGeneration == generation,
+                          view.bounds.width > 0, view.bounds.height > 0 else { return }
                     self.restoring = false
                     if self.parent.imageAssets.settled(for: self.parent.content) {
                         self.parent.layoutReady()
