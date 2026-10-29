@@ -536,6 +536,70 @@ final class ReaderDailyJourneyTests: XCTestCase {
         completed = true
     }
 
+    func testPhysicalRealTXTUnchangedPositionsUpdateRecentCardAndSurviveColdLaunch() throws {
+        executionTimeAllowance = 240
+        struct Observation: Decodable {
+            let shelfID: String, title: String, chapterID: String, chapterLabel: String
+            let passage: String, progress: String
+        }
+        let app = XCUIApplication()
+        var completed = false
+        addTeardownBlock {
+            guard !completed else { return }
+            let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screen.name = "real-TXT-recency-failure-screen"; screen.lifetime = .keepAlways; self.add(screen)
+            let ax = XCTAttachment(string: app.debugDescription)
+            ax.name = "real-TXT-recency-failure-AX"; ax.lifetime = .keepAlways; self.add(ax)
+        }
+        func require(_ fact: Bool, _ description: String) throws {
+            guard fact else { throw Prerequisite.twoRealTXT("recent visit: " + description) }
+        }
+        #if targetEnvironment(simulator)
+        throw Prerequisite.twoRealTXT("physical iPhone required")
+        #endif
+        let environment = ProcessInfo.processInfo.environment
+        try require(UIDevice.current.userInterfaceIdiom == .phone && environment["READER_PHYSICAL_RECENT_VISIT_AUTHORIZED"] == "1",
+                    "physical target and explicit Runner authorization")
+        let raw = try XCTUnwrap(environment["READER_PHYSICAL_RECENT_VISIT_OBSERVATIONS_JSON"])
+        let data = Data(raw.utf8)
+        let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        try require(sha == environment["READER_PHYSICAL_RECENT_VISIT_OBSERVATIONS_SHA256"], "exact retained native observations")
+        let positions = try JSONDecoder().decode([Observation].self, from: data)
+        let pgID = "book-local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        try require(positions.count == 2 && positions[0].shelfID == firstID && positions[1].shelfID == pgID
+                    && positions.allSatisfy { (18...24).contains($0.passage.count) && !$0.progress.isEmpty },
+                    "two existing exact originals and retained visible positions")
+        let binding = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+        binding.name = "real-TXT-recency-retained-native-observations"; binding.lifetime = .keepAlways; add(binding)
+        func recentCard(_ observation: Observation, name: String) throws {
+            let card = app.buttons["shelf-continue-card"]
+            let expected = "继续阅读，" + observation.title
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                card.exists && card.label == expected && card.isHittable
+            }, object: nil)
+            try require(XCTWaiter.wait(for: [ready], timeout: 10) == .completed, "Core-backed recent card " + name)
+            let text = XCTAttachment(string: "expectedBook=\(observation.shelfID); actualCard=\(card.label); no Core timestamp/scalar inferred")
+            text.name = name + "-actual-recent-card"; text.lifetime = .keepAlways; add(text)
+            let screen = XCTAttachment(screenshot: app.screenshot())
+            screen.name = name; screen.lifetime = .keepAlways; add(screen)
+        }
+        app.launch(); assertContinuationShelf(app)
+        for (step, index) in [0, 1, 0].enumerated() {
+            let position = positions[index], name = "real-TXT-recency-\(step)"
+            openContinuationBook(position.shelfID, title: position.title, ebook: false, app: app)
+            try require(app.textViews["reading-body"].isHittable, "actual original body ready")
+            let anchor = ContinuationAnchor(shelfID: position.shelfID, chapterID: position.chapterID,
+                chapterLabel: position.chapterLabel, passage: position.passage)
+            try assertContinuation(anchor, ebook: false, app: app, name: name + "-original-position")
+            try require(app.staticTexts["reading-progress"].label == position.progress, "retained native progress")
+            leaveContinuation(ebook: false, app: app)
+            try recentCard(position, name: name)
+        }
+        app.terminate(); app.launch(); assertContinuationShelf(app)
+        try recentCard(positions[0], name: "real-TXT-recency-after-one-cold-launch")
+        completed = true
+    }
+
     private struct ContinuationAnchor {
         let shelfID: String
         let chapterID: String

@@ -784,6 +784,85 @@ final class ReaderApplicationModelTests: XCTestCase {
         XCTAssertNil(model.recoveryMessage)
     }
 
+    /// Protocol-owner evidence only. Native original-book recency is separate.
+    func testVisibleRestoredBodyRecordsOneVisitWithoutMovingItsConfirmedPosition() async throws {
+        let service = ApplicationModelServiceFake()
+        let model = try await openedModel(service)
+        let session = try XCTUnwrap(model.reader)
+        let dispatched = expectation(description: "One visible-body visit reaches the canonical queue")
+        service.onSave = { count in if count == 1 { dispatched.fulfill() } }
+        model.setReadingBodyVisible(true, sessionID: UUID())
+        XCTAssertTrue(service.saves.isEmpty, "A retired layout cannot register this session's visit")
+        model.setReadingBodyVisible(true, sessionID: session.id)
+        await fulfillment(of: [dispatched], timeout: 2)
+        let confirmed = await model.flushReading()
+        XCTAssertTrue(confirmed)
+        XCTAssertEqual(service.saves.count, 1)
+        XCTAssertEqual(service.saves[0].offset, session.scalarOffset)
+        XCTAssertEqual(service.saves[0].expectedRevision, session.progressRevision)
+        XCTAssertEqual(model.reader?.scalarOffset, session.scalarOffset)
+        model.setReadingBodyVisible(false, sessionID: session.id)
+        model.setReadingBodyVisible(true, sessionID: session.id)
+        let repeated = await model.flushReading()
+        XCTAssertTrue(repeated)
+        XCTAssertEqual(service.saves.count, 1, "Controls and repeated layout readiness do not create another visit")
+    }
+
+    func testCloseDuringOriginalVisibleVisitWaitsForOneACKWithoutDuplicatePositionWrite() async throws {
+        let service = ApplicationModelServiceFake()
+        service.holdSaves = true
+        defer { service.releasePendingRequests() }
+        let model = try await openedModel(service)
+        let session = try XCTUnwrap(model.reader)
+        let dispatched = expectation(description: "Original visible visit remains in flight")
+        service.onSave = { count in if count == 1 { dispatched.fulfill() } }
+        model.setReadingBodyVisible(true, sessionID: session.id)
+        await fulfillment(of: [dispatched], timeout: 2)
+        let closing = expectation(description: "Normal Back waits for that visit")
+        let observation = model.$closingReader.first(where: { $0 }).sink { _ in closing.fulfill() }
+        defer { observation.cancel() }
+        let close = Task { await model.closeReader() }
+        await fulfillment(of: [closing], timeout: 2)
+        XCTAssertEqual(model.reader?.id, session.id)
+        XCTAssertEqual(service.saves.count, 1)
+        service.completeSave(0, revision: "original-visible-visit-ack")
+        await close.value
+        XCTAssertNil(model.reader)
+        XCTAssertEqual(service.saves.count, 1, "The queued flush duplicate is retired by the original ACK")
+        XCTAssertNil(model.recoveryMessage)
+    }
+
+    func testUnknownVisibleVisitRequiresItsOriginalACKAndDoesNotReplayAtSameLocation() async throws {
+        let service = ApplicationModelServiceFake()
+        service.holdSaves = true
+        defer { service.releasePendingRequests() }
+        let model = try await openedModel(service)
+        let session = try XCTUnwrap(model.reader)
+        let dispatched = expectation(description: "Original visit dispatched")
+        service.onSave = { count in if count == 1 { dispatched.fulfill() } }
+        let unresolved = expectation(description: "Original visit outcome is unknown")
+        let observation = model.$recoveryMessage.compactMap { $0 }.first().sink { _ in unresolved.fulfill() }
+        defer { observation.cancel() }
+        model.setReadingBodyVisible(true, sessionID: session.id)
+        await fulfillment(of: [dispatched], timeout: 2)
+        service.failSave(0, error: ReaderLibraryError.operationPending("original-visit"))
+        await fulfillment(of: [unresolved], timeout: 2)
+        service.openingProgress = service.receipt(forSave: 0, revision: "fresh-read-is-not-the-visit-ack")
+        service.progressReconciliationError = ReaderLibraryError.operationPending("original-visit")
+        let pending = await model.flushReading()
+        XCTAssertFalse(pending)
+        XCTAssertEqual(service.saves.count, 1)
+        XCTAssertEqual(model.reader?.progressRevision, session.progressRevision)
+        service.progressReconciliationError = nil
+        service.progressReconciliationResult = service.receipt(forSave: 0, revision: "exact-visible-visit-ack")
+        let confirmed = await model.flushReading()
+        XCTAssertTrue(confirmed)
+        XCTAssertEqual(service.saves.count, 1, "The exact original visit ACK must not cause a second mutation")
+        XCTAssertEqual(model.reader?.progressRevision, "exact-visible-visit-ack")
+        XCTAssertEqual(model.reader?.scalarOffset, session.scalarOffset)
+        XCTAssertEqual(service.progressReadCount, 1)
+    }
+
     func testFreshReadMatchingPendingPositionCannotReplaceMissingACKAndExactACKAvoidsAReplay() async throws {
         let service = ApplicationModelServiceFake()
         service.holdSaves = true

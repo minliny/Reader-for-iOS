@@ -100,6 +100,11 @@ final class ReaderApplicationModel: ObservableObject {
     private var saveDrain: Task<Void, Never>?
     private var pendingLocation: (session: UUID, content: ReaderChapterContent, offset: UInt64)?
     private var lastConfirmedLocation: String?
+    // A real visible body records one visit even when its restored position
+    // has not moved. The canonical progress ACK also owns Core's lastReadAt.
+    private var observedReadingVisit: UUID?
+    private var pendingReadingVisit: UUID?
+    private var dispatchedReadingVisit: UUID?
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
     private var backgroundLeaseGeneration: UUID?
     private var backgroundFlush: Task<Void, Never>?
@@ -611,6 +616,9 @@ final class ReaderApplicationModel: ObservableObject {
         selection = nil
         highlights = []
         lastConfirmedLocation = nil
+        observedReadingVisit = nil
+        pendingReadingVisit = nil
+        dispatchedReadingVisit = nil
         recoveryMessage = nil
         resetFeedback()
         await reloadLibrary()
@@ -642,7 +650,7 @@ final class ReaderApplicationModel: ObservableObject {
     private func enqueueCurrentLocation() {
         guard let current = reader, !sourceSwitchFrozen || sourceSwitchFlushing else { return }
         let key = locationKey(content: current.content, offset: current.scalarOffset)
-        guard key != lastConfirmedLocation else { return }
+        guard key != lastConfirmedLocation || pendingReadingVisit == current.id else { return }
         pendingLocation = (current.id, current.content, current.scalarOffset)
         guard saveDrain == nil else { return }
         saveDrain = Task { [weak self] in
@@ -650,6 +658,10 @@ final class ReaderApplicationModel: ObservableObject {
             while let next = pendingLocation {
                 pendingLocation = nil
                 guard let current = reader, current.id == next.session else { continue }
+                let targetKey = locationKey(content: next.content, offset: next.offset)
+                // A flush may have queued the same location while its original
+                // write was in flight. Its ACK must retire that duplicate too.
+                guard targetKey != lastConfirmedLocation || pendingReadingVisit == next.session else { continue }
                 do {
                     if let originalReceipt = try await service.reconcilePendingProgress(for: current.book) {
                         guard reader?.id == next.session else { continue }
@@ -657,18 +669,27 @@ final class ReaderApplicationModel: ObservableObject {
                         if let progress = originalReceipt.progress {
                             lastConfirmedLocation = "\(progress.chapterIndex):\(progress.bodyVersion ?? ""):\(progress.processingVersion ?? ""):\(progress.chapterOffset)"
                         }
-                        if lastConfirmedLocation == locationKey(content: next.content, offset: next.offset) {
-                            locationSaveFailed = false
-                            recoveryMessage = nil
-                            continue
+                        if lastConfirmedLocation == targetKey {
+                            if pendingReadingVisit == next.session, dispatchedReadingVisit == next.session {
+                                pendingReadingVisit = nil
+                                dispatchedReadingVisit = nil
+                            }
+                            if pendingReadingVisit != next.session {
+                                locationSaveFailed = false
+                                recoveryMessage = nil
+                                continue
+                            }
                         }
                     }
                     guard reader?.id == next.session else { continue }
+                    if pendingReadingVisit == next.session { dispatchedReadingVisit = next.session }
                     let receipt = try await service.saveProgress(for: current.book, content: next.content,
                         scalarOffset: next.offset, expectedRevision: reader?.progressRevision)
                     guard reader?.id == next.session else { continue }
                     reader?.progressRevision = receipt.progressRevision
                     lastConfirmedLocation = locationKey(content: next.content, offset: next.offset)
+                    if pendingReadingVisit == next.session { pendingReadingVisit = nil }
+                    if dispatchedReadingVisit == next.session { dispatchedReadingVisit = nil }
                     locationSaveFailed = false
                     recoveryMessage = nil
                 } catch {
@@ -1000,10 +1021,15 @@ final class ReaderApplicationModel: ObservableObject {
     /// Visibility is a session lease, so an old reader's disappearance cannot
     /// end a newly adopted book's interval. Native layout supplies readiness.
     func setReadingBodyVisible(_ visible: Bool, sessionID: UUID) {
-        guard service is any ReaderReadingToolsServing else { return }
         if visible {
             guard foreground, let current = reader, current.id == sessionID,
                   !chapterLoading, !closingReader, !sourceSwitchFrozen else { return }
+            if observedReadingVisit != sessionID {
+                observedReadingVisit = sessionID
+                pendingReadingVisit = sessionID
+                enqueueCurrentLocation()
+            }
+            guard service is any ReaderReadingToolsServing else { return }
             visibleReadingTimeSession = sessionID
             readingTime.setActive(true, book: current.book)
         } else if visibleReadingTimeSession == sessionID {
