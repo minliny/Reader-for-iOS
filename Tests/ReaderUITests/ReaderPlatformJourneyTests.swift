@@ -3,6 +3,7 @@ import Vision
 import XCTest
 import CoreImage
 import ImageIO
+import CryptoKit
 
 /// Use the explicitly owned platform and an unchanged, real picker-imported
 /// Downloads original. No Runtime call or generated reading fixture participates.
@@ -14,6 +15,84 @@ final class ReaderPlatformJourneyTests: XCTestCase {
     private var lastOCRImage: UIImage?
 
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    @MainActor
+    func testRestorePhysicalSystemTextFromRecordedOriginal() throws {
+        executionTimeAllowance = 60
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        let env = ProcessInfo.processInfo.environment
+        var finished = false
+        func attach(_ name: String) {
+            let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screen.name = name; screen.lifetime = .keepAlways; add(screen)
+            let text = settings.state == .runningForeground || settings.state == .runningBackground
+                ? settings.debugDescription : "Settings AX unavailable; actual state=\(settings.state.rawValue)"
+            let ax = XCTAttachment(string: text)
+            ax.name = name + "-Settings-AX"; ax.lifetime = .keepAlways; add(ax)
+        }
+        addTeardownBlock { @MainActor in if !finished { attach("system-text-restore-failure") } }
+        func require(_ value: Bool, _ fact: String) throws {
+            guard value else { throw Prerequisite.physicalTextSize("Settings-only restore: " + fact) }
+        }
+        func observe(_ fact: String, _ condition: @escaping () -> Bool) throws {
+            let e = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            try require(XCTWaiter.wait(for: [e], timeout: 5) == .completed, fact)
+        }
+        #if targetEnvironment(simulator)
+        throw Prerequisite.physicalTextSize("Settings-only restore requires physical iPhone")
+        #endif
+        let raw = env["READER_PHYSICAL_SYSTEM_TEXT_RESTORE_PROOF_JSON"] ?? ""
+        let sha = env["READER_PHYSICAL_SYSTEM_TEXT_RESTORE_PROOF_SHA256"] ?? ""
+        try require(UIDevice.current.userInterfaceIdiom == .phone && env["READER_PHYSICAL_SYSTEM_TEXT_RESTORE_AUTHORIZED"] == "1"
+                    && raw.utf8.count <= 4096 && sha.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
+                    "explicit authorization and original proof required")
+        try require(SHA256.hash(data: Data(raw.utf8)).map { String(format: "%02x", $0) }.joined() == sha, "original proof SHA")
+        let proof = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+        try require(proof["largerAccessibilitySwitch"] as? Int == 0 && proof["sliderActualValue"] as? String == "50%"
+                    && proof["sliderNormalizedPosition"] as? Double == 0.5, "recorded original must be 0/50%/0.5")
+        settings.activate()
+        func read() -> (Int, String, CGFloat, XCUIElement, XCUIElement)? {
+            guard settings.state == .runningForeground,
+                  settings.navigationBars.matching(NSPredicate(format: "label IN %@ OR identifier IN %@", ["更大字体", "Larger Text"] as NSArray, ["更大字体", "Larger Text"] as NSArray)).count == 1 else { return nil }
+            let parents = settings.switches.matching(identifier: "LARGER_DYNAMIC_TYPE_SWITCH").allElementsBoundByIndex
+                .filter { $0.descendants(matching: .switch).count == 1 }
+            let cells = settings.cells.matching(identifier: "LARGER_DYNAMIC_TYPE_SWITCH")
+            guard parents.count == 1, cells.count == 1, settings.sliders.count == 1 else { return nil }
+            let parent = parents[0], child = parent.descendants(matching: .switch).element, slider = settings.sliders.element
+            func binary(_ value: Any?) -> Int? {
+                if let text = value as? String, text == "0" || text == "1" { return Int(text) }
+                if let number = value as? NSNumber, number == 0 || number == 1 { return number.intValue }
+                return nil
+            }
+            let position = slider.normalizedSliderPosition
+            guard let value = binary(parent.value), binary(child.value) == value,
+                  cells.element.frame.contains(parent.frame), cells.element.frame.contains(child.frame),
+                  child.isEnabled, child.frame.width > 0, child.frame.height > 0,
+                  slider.isEnabled, slider.frame.width > 0, slider.frame.height > 0,
+                  let rawValue = slider.value as? String, position.isFinite, (0...1).contains(position) else { return nil }
+            return (value, rawValue, position, child, slider)
+        }
+        var current = try XCTUnwrap(read(), "Require the already open, exactly observed Settings page and owners")
+        attach("system-text-restore-before-native-actions")
+        if current.0 != 0 {
+            try require(current.3.isHittable && settings.frame.contains(current.3.frame), "actual switch child hittable")
+            current.3.tap(); try observe("native switch restored to zero") { read()?.0 == 0 }
+        }
+        current = try XCTUnwrap(read())
+        if current.2 != 0.5 {
+            try require(current.4.isHittable && settings.frame.contains(current.4.frame), "actual slider hittable")
+            current.4.adjust(toNormalizedSliderPosition: 0.5)
+        }
+        try observe("exact original switch/raw/native slider readback") { guard let v = read() else { return false }; return v.0 == 0 && v.1 == "50%" && v.2 == 0.5 }
+        let actual = try XCTUnwrap(read())
+        let facts: [String: Any] = ["originalProofSHA256": sha, "largerAccessibilitySwitch": actual.0,
+            "sliderActualValue": actual.1, "sliderNativeNormalizedPosition": Double(actual.2),
+            "runnerCategoryObservationOnly": UIApplication.shared.preferredContentSizeCategory.rawValue,
+            "runnerLargeObserved": UIApplication.shared.preferredContentSizeCategory == .large, "ReaderActivated": false]
+        let json = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+        json.name = "system-text-restored-exact-original"; json.lifetime = .keepAlways; add(json)
+        attach("system-text-restored-exact-original"); finished = true
+    }
 
     /// Physical portrait only. Settings owns the system value; the Runner's
     /// category is an observation, never a substitute for Reader's real UI.
