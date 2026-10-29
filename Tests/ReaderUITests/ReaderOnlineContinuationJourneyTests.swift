@@ -162,7 +162,7 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             "网络未完成，已保留当前正文", "网络请求未完成，已保留当前正文",
             "本章尚未缓存，已保留当前正文", "章节加载失败，已保留当前正文"
         ] as NSArray)).firstMatch
-        let feedbackObserved = error.waitForExistence(timeout: 15)
+        let feedbackObserved = error.exists || error.waitForExistence(timeout: 15)
         let attemptedRow = app.buttons["chapter-\(missing)"]
         wait("The original directory must become usable after the failed request", timeout: 20) {
             attemptedRow.isEnabled && !attemptedRow.isSelected
@@ -191,25 +191,28 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
 
     private func observeExistingMissingChapter(_ book: Book, outside current: UInt32, app: XCUIApplication) throws -> UInt32 {
         let scroll = app.scrollViews["online-download-scroll"]
-        let prefix = "online-download-state:" + book.identity + ":"
-        for step in 0..<6 {
-            let viewport = scroll.frame.intersection(app.frame)
-            let snapshot = try scroll.snapshot()
-            var pending: [XCUIElementSnapshot] = [snapshot]
-            var missing: [(UInt32, CGFloat)] = []
-            while let node = pending.popLast() {
-                pending.append(contentsOf: node.children.reversed())
-                if node.identifier.hasPrefix(prefix), node.label == "未下载", viewport.contains(node.frame),
-                   let index = UInt32(node.identifier.dropFirst(prefix.count)), abs(Int64(index) - Int64(current)) > 2 {
-                    missing.append((index, node.frame.minY))
-                }
-            }
-            if let actual = missing.sorted(by: { $0.1 < $1.1 }).first { return actual.0 }
-            if step < 5 { scroll.swipeUp() }
+        let observedIndex = try required("READER_ONLINE_UNCACHED_CHAPTER_INDEX")
+        let auditSHA = try required("READER_ONLINE_UNCACHED_INPUT_AUDIT_SHA256")
+        guard let index = UInt32(observedIndex), abs(Int64(index) - Int64(current)) > 2,
+              auditSHA.count == 64, auditSHA.allSatisfy({ "0123456789abcdef".contains($0) }) else {
+            throw Prerequisite.invalid("require an observed original missing chapter and its actual metadata audit")
         }
-        keep(app, name: "real-existing-book-has-no-observed-missing-chapter")
-        XCTFail("No actual reachable missing chapter was observed; do not clear cache or invent an index")
-        throw Prerequisite.invalid("actual missing chapter prerequisite absent")
+        // The audit selects an input, never supplies App data. Recheck the
+        // actual visible state before changing the system network.
+        let row = element("online-download-select:" + book.identity + ":" + observedIndex, app: app)
+        try reveal(row, in: scroll, app: app)
+        let state = element("online-download-state:" + book.identity + ":" + observedIndex, app: app)
+        guard state.exists, state.label == "未下载",
+              scroll.frame.intersection(app.frame).contains(state.frame) else {
+            keep(app, name: "real-missing-chapter-precondition-changed-before-offline")
+            throw Prerequisite.invalid("the observed original chapter is no longer visibly missing")
+        }
+        let evidence = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
+            "sourceId": book.source, "bookId": book.id, "chapterIndex": index,
+            "metadataAuditSHA256": auditSHA, "actualNativeState": state.label
+        ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+        evidence.name = "actual-original-uncached-chapter-input-rechecked"; evidence.lifetime = .keepAlways; add(evidence)
+        return index
     }
 
     @MainActor
