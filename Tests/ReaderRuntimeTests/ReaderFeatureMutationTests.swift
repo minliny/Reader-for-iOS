@@ -94,46 +94,8 @@ final class ReaderFeatureMutationTests: XCTestCase {
 }
 
 /// Changes scheduling only, retaining a real terminal payload produced by Core.
-private final class FeatureReplyGate: ReaderCoreEventClient, @unchecked Sendable {
-    private let client: ReaderCoreClient
-    private let lock = NSLock()
-    private var methods: [String: Int] = [:]
-    private var heldMethod: String?
-    private var heldID: UInt64?
-    private var held: Result<ReaderCoreEvent, ReaderCoreClientError>?
-    private var ready = false
-    private var clock: TimeInterval = 0
+private final class FeatureReplyGate: ReaderHeldTerminalClient, @unchecked Sendable {
     init(storage: URL) throws {
-        client = try ReaderCoreClient(configJSON: JSONSerialization.data(withJSONObject: ["dataDirectory": storage.path]))
+        super.init(base: try ReaderCoreClient(configJSON: JSONSerialization.data(withJSONObject: ["dataDirectory": storage.path])))
     }
-    var now: TimeInterval { lock.lock(); defer { lock.unlock() }; return clock }
-    var terminal: ReaderCoreEvent? {
-        lock.lock(); defer { lock.unlock() }
-        if case .success(let event)? = held { return event }; return nil
-    }
-    func hold(_ method: String) { lock.lock(); defer { lock.unlock() }; heldMethod = method }
-    func release() { lock.lock(); defer { lock.unlock() }; ready = true }
-    func count(_ method: String) -> Int { lock.lock(); defer { lock.unlock() }; return methods[method, default: 0] }
-    @discardableResult
-    func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
-        lock.lock(); defer { lock.unlock() }
-        let result = try client.send(method: method, requestId: requestId, params: params)
-        methods[method, default: 0] += 1
-        if method == heldMethod && heldID == nil { heldID = requestId }
-        return result
-    }
-    func pollEvent(requestId: UInt64) -> Result<ReaderCoreEvent, ReaderCoreClientError>? {
-        lock.lock(); defer { lock.unlock() }
-        guard requestId == heldID else { return client.pollEvent(requestId: requestId) }
-        if held == nil, let reply = client.pollEvent(requestId: requestId) {
-            if case .success(let event) = reply, ["result", "error"].contains(event.type) {
-                held = reply; clock += 200
-            } else { return reply }
-        }
-        guard ready, let result = held else { return nil }
-        held = nil; heldID = nil; heldMethod = nil; ready = false
-        return result
-    }
-    func cancel(requestId: UInt64) throws { lock.lock(); defer { lock.unlock() }; try client.cancel(requestId: requestId) }
-    func destroy() { lock.lock(); defer { lock.unlock() }; client.destroy() }
 }

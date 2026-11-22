@@ -357,79 +357,12 @@ private final class LateMutationClock: @unchecked Sendable {
 
 /// Only scheduling changes: the original Core client still executes every
 /// production command with unchanged params and produces every terminal payload.
-private final class DelayedOriginalReplyClient: ReaderCoreEventClient, @unchecked Sendable {
-    private let base: ReaderCoreClient
-    private let clock: LateMutationClock
-    private let lock = NSLock()
-    private var counts: [String: Int] = [:]
-    private var heldMethod: String?
-    private var heldID: UInt64?
-    private var heldReply: Result<ReaderCoreEvent, ReaderCoreClientError>?
-    private var released = false
-
-    init(base: ReaderCoreClient, clock: LateMutationClock) { self.base = base; self.clock = clock }
-
-    func holdFirstReply(for method: String) {
-        lock.lock(); defer { lock.unlock() }
-        precondition(heldID == nil && heldReply == nil)
-        heldMethod = method
-        released = false
+private final class DelayedOriginalReplyClient: ReaderHeldTerminalClient, @unchecked Sendable {
+    init(base: ReaderCoreClient, clock: LateMutationClock) {
+        super.init(base: base, onTerminalHeld: { clock.advancePastDeadline() })
     }
-
-    func releaseOriginalReply() {
-        lock.lock(); defer { lock.unlock() }
-        precondition(heldReply != nil, "The test must first capture an actual terminal reply")
-        released = true
-    }
-
-    var heldTerminalData: Data? {
-        lock.lock(); defer { lock.unlock() }
-        if case .success(let event)? = heldReply { return event.rawData }
-        return nil
-    }
-
-    func dispatchCount(_ method: String) -> Int {
-        lock.lock(); defer { lock.unlock() }
-        return counts[method, default: 0]
-    }
-
-    @discardableResult
-    func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
-        lock.lock(); defer { lock.unlock() }
-        let result = try base.send(method: method, requestId: requestId, params: params)
-        counts[method, default: 0] += 1
-        if method == heldMethod && heldID == nil { heldID = requestId }
-        return result
-    }
-
-    func pollEvent(requestId: UInt64) -> Result<ReaderCoreEvent, ReaderCoreClientError>? {
-        lock.lock(); defer { lock.unlock() }
-        guard requestId == heldID else { return base.pollEvent(requestId: requestId) }
-        if heldReply == nil, let reply = base.pollEvent(requestId: requestId) {
-            if case .success(let event) = reply, ["result", "error"].contains(event.type) {
-                heldReply = reply
-                // This occurs only after Core has produced its real reply. The
-                // original request observes a soft deadline before seeing it.
-                clock.advancePastDeadline()
-            } else {
-                return reply
-            }
-        }
-        guard released, let reply = heldReply else { return nil }
-        heldReply = nil
-        heldID = nil
-        heldMethod = nil
-        released = false
-        return reply
-    }
-
-    func cancel(requestId: UInt64) throws {
-        lock.lock(); defer { lock.unlock() }
-        try base.cancel(requestId: requestId)
-    }
-
-    func destroy() {
-        lock.lock(); defer { lock.unlock() }
-        base.destroy()
-    }
+    func holdFirstReply(for method: String) { hold(method, requireEmpty: true) }
+    func releaseOriginalReply() { release(requireHeld: true) }
+    var heldTerminalData: Data? { terminal?.rawData }
+    func dispatchCount(_ method: String) -> Int { count(method) }
 }

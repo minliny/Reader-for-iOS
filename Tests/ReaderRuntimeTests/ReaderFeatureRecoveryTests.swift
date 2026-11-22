@@ -506,45 +506,19 @@ private final class FeatureRecoveryFixture {
     func cleanUp() { client.destroy(); try? FileManager.default.removeItem(at: root) }
 }
 
-private final class FeatureRecoveryGate: ReaderCoreEventClient, @unchecked Sendable {
-    private let native: ReaderCoreClient
-    private let lock = NSLock()
-    private var counts: [String: Int] = [:]
-    private var parameters: [String: [String: Any]] = [:]
-    private var method: String?
-    private var heldID: UInt64?
-    private var held: Result<ReaderCoreEvent, ReaderCoreClientError>?
-    private var clock: TimeInterval = 0
+private final class FeatureRecoveryGate: ReaderHeldTerminalClient, @unchecked Sendable {
     private var invalidQuery = false
-    init(storage: URL) throws { native = try ReaderCoreClient(configJSON: JSONSerialization.data(withJSONObject: ["dataDirectory": storage.path])) }
-    var now: TimeInterval { lock.lock(); defer { lock.unlock() }; return clock }
-    func count(_ method: String) -> Int { lock.lock(); defer { lock.unlock() }; return counts[method, default: 0] }
-    func lastParameters(_ method: String) -> [String: Any]? { lock.lock(); defer { lock.unlock() }; return parameters[method] }
-    func hold(_ method: String) { lock.lock(); defer { lock.unlock() }; self.method = method }
-    func invalidateNextReceiptQuery() { lock.lock(); defer { lock.unlock() }; invalidQuery = true }
-    @discardableResult
-    func send(method: String, requestId: UInt64, params: [String: Any]) throws -> UInt64 {
-        lock.lock(); defer { lock.unlock() }
+    init(storage: URL) throws {
+        super.init(base: try ReaderCoreClient(configJSON: JSONSerialization.data(withJSONObject: ["dataDirectory": storage.path])))
+    }
+    func invalidateNextReceiptQuery() { withHeldLock { invalidQuery = true } }
+    override func forwardedParameters(method: String, params: [String: Any]) -> [String: Any] {
         var forwarded = params
         if method == "bookshelf.management.mutation.query", invalidQuery, var expected = params["expected"] as? [String: Any] {
             expected["sequence"] = ((expected["sequence"] as? NSNumber)?.uint64Value ?? 0) + 1
             forwarded["expected"] = expected
             invalidQuery = false
         }
-        let id = try native.send(method: method, requestId: requestId, params: forwarded)
-        counts[method, default: 0] += 1; parameters[method] = params
-        if method == self.method && heldID == nil { heldID = requestId }
-        return id
+        return forwarded
     }
-    func pollEvent(requestId: UInt64) -> Result<ReaderCoreEvent, ReaderCoreClientError>? {
-        lock.lock(); defer { lock.unlock() }
-        guard requestId == heldID else { return native.pollEvent(requestId: requestId) }
-        if held == nil, let reply = native.pollEvent(requestId: requestId) {
-            if case .success(let event) = reply, ["result", "error"].contains(event.type) { held = reply; clock += 200 }
-            else { return reply }
-        }
-        return nil
-    }
-    func cancel(requestId: UInt64) throws { lock.lock(); defer { lock.unlock() }; try native.cancel(requestId: requestId) }
-    func destroy() { lock.lock(); defer { lock.unlock() }; native.destroy() }
 }
