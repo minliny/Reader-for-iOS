@@ -3,7 +3,16 @@ import UniformTypeIdentifiers
 import WebKit
 
 @MainActor final class ReaderOnlineWorkspaceModel: ObservableObject {
-    @Published var query = ""
+    @Published var query = "" {
+        didSet {
+            #if DEBUG && targetEnvironment(simulator)
+            if query != oldValue, ReaderUIVerificationJournal.observes(ReaderUIVerificationJournal.search) {
+                ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.search, "search-edit",
+                    values: ["utf16Length": Double(query.utf16.count)])
+            }
+            #endif
+        }
+    }
     @Published var sourceFilter = ""
     @Published var sources: [ReaderOnlineSource] = []
     @Published var results: [ReaderOnlineCandidate] = []
@@ -54,6 +63,10 @@ import WebKit
         guard !Task.isCancelled, discoveryPresentationID != identity else { return }
         retireDiscoveryReads()
         discoveryManaged = true; discoveryPresentationID = identity
+        #if DEBUG && targetEnvironment(simulator)
+        ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.search, "search-entry",
+            tags: ["presentationID": identity.uuidString])
+        #endif
     }
 
     func isCurrentDiscoveryPresentation(_ identity: UUID) -> Bool {
@@ -187,8 +200,19 @@ import WebKit
         lastKeyword = keyword; lastSourceVersions = versions
         searchSourceCount = enabled.count
         let pending = enabled.filter { retained[$0.id] == nil }
-        guard !pending.isEmpty else { return }
+        guard !pending.isEmpty else {
+            #if DEBUG && targetEnvironment(simulator)
+            ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.search, "search-no-work",
+                values: ["utf16Length": Double(keyword.utf16.count), "sourceCount": Double(enabled.count)])
+            #endif
+            return
+        }
         let generation = UUID(); searchID = generation
+        #if DEBUG && targetEnvironment(simulator)
+        ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.search, "search-accepted",
+            tags: ["generation": generation.uuidString],
+            values: ["utf16Length": Double(keyword.utf16.count), "sourceCount": Double(pending.count)])
+        #endif
         let trace = searchTraceSink.map { ReaderSearchTraceRecording(searchID: generation, sink: $0) }
         searchTrace = trace
         // The trace describes only newly dispatched work. Retained successes
@@ -268,6 +292,12 @@ import WebKit
                 searching = false; searchTask = nil
                 searchTrace = nil
                 trace?.emit(.generationFinished)
+                #if DEBUG && targetEnvironment(simulator)
+                ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.search, "search-settled",
+                    tags: ["generation": generation.uuidString],
+                    values: ["resultCount": Double(results.count), "successfulSources": Double(timings.count),
+                             "failedSources": Double(failures.count)])
+                #endif
             } else {
                 trace?.emit(.generationFinished, outcome: .superseded)
             }
@@ -396,13 +426,13 @@ struct ReaderOnlineWorkspace: View {
     private var searchPage: some View {
         VStack(spacing: 12) {
             HStack {
-                TextField("书名或作者", text: $state.query).submitLabel(.search).onSubmit(submitSearch).readerField()
+                TextField("书名或作者", text: $state.query).submitLabel(.search).onSubmit { submitSearch(origin: "ime") }.readerField()
                     .focused($focusedSearchField, equals: .query)
                     .accessibilityIdentifier("online-search-query")
                 if state.searching {
                     Button("停止") { focusedSearchField = nil; state.stop() }
                         .accessibilityIdentifier("online-search-stop")
-                } else { Button("搜索", action: submitSearch).accessibilityIdentifier("online-search-submit") }
+                } else { Button("搜索") { submitSearch(origin: "button") }.accessibilityIdentifier("online-search-submit") }
             }.padding(.horizontal, 20)
             if state.sources.filter(\.enabled).isEmpty {
                 ReaderPageState(title: state.sourceLoading ? "正在加载书源" : state.sourceReadFailure == nil ? "还没有启用的书源" : "书源加载失败", detail: state.sourceReadFailure ?? "导入书源后即可搜索。", loading: state.sourceLoading, actionTitle: state.sourceReadFailure == nil ? "管理书源" : "重试") {
@@ -462,7 +492,12 @@ struct ReaderOnlineWorkspace: View {
             }
         }
     }
-    private func submitSearch() {
+    private func submitSearch(origin: String) {
+        #if DEBUG && targetEnvironment(simulator)
+        ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.search, "search-submit",
+            tags: ["origin": origin], values: ["utf16Length": Double(state.query.utf16.count)],
+            flags: ["queryFocused": focusedSearchField == .query])
+        #endif
         focusedSearchField = nil
         state.search()
     }

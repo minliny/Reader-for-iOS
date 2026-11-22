@@ -1108,11 +1108,19 @@ struct ReaderReadingView: View {
         automaticPage.pause()
         moduleParents.removeAll()
         module = .home
+        #if DEBUG && targetEnvironment(simulator)
+        ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.reading, "control-intent",
+            tags: ["direction": "open", "module": "home"], flags: ["reduceMotion": effectiveReduceMotion])
+        #endif
         motion.move(to: .quick, reduceMotion: effectiveReduceMotion)
     }
     private func dismissControls() {
         traceGesture("dismiss-controls")
         scrubFraction = nil
+        #if DEBUG && targetEnvironment(simulator)
+        ReaderUIVerificationJournal.record(ReaderUIVerificationJournal.reading, "control-intent",
+            tags: ["direction": "dismiss"], flags: ["reduceMotion": effectiveReduceMotion])
+        #endif
         motion.move(to: .hidden, reduceMotion: effectiveReduceMotion)
     }
     private func traceGesture(_ event: String) {

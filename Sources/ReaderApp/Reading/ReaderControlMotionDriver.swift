@@ -99,6 +99,9 @@ final class ReaderControlMotionDriver: ObservableObject {
         let destination = endpoint(position)
         if reduceMotion {
             settle(at: position, frame: destination)
+            #if DEBUG && targetEnvironment(simulator)
+            recordVerificationFrame("control-immediate-endpoint", timestamp: nil)
+            #endif
             return
         }
         let frame = currentFrame
@@ -380,6 +383,19 @@ final class ReaderControlMotionDriver: ObservableObject {
     }
 
     private func stopDisplayLink() { displayLink?.invalidate(); displayLink = nil }
+
+    #if DEBUG && targetEnvironment(simulator)
+    private func recordVerificationFrame(_ kind: String, timestamp: TimeInterval?) {
+        let caseID = ReaderUIVerificationJournal.reading
+        guard ReaderUIVerificationJournal.observes(caseID) else { return }
+        var values = ["visibility": Double(visibility), "expansion": Double(expansion),
+                      "dockHeightPt": Double(dockHeight), "offsetYPt": Double(offsetY)]
+        values["displayLinkTimestampSeconds"] = timestamp
+        ReaderUIVerificationJournal.record(caseID, kind, tags: ["target": target.rawValue], values: values,
+            flags: ["presented": isPresented, "committed": !isAnimating])
+    }
+    #endif
+
     private static func unit(_ value: CGFloat) -> CGFloat { value.isFinite ? max(0, min(1, value)) : 0 }
     private static func slope(_ value: CGFloat) -> CGFloat { value.isFinite ? max(0, min(3, value)) : 0 }
     private func sameSign(_ lhs: CGFloat, _ rhs: CGFloat) -> Bool { lhs != 0 && (lhs > 0) == (rhs > 0) }
@@ -435,6 +451,9 @@ final class ReaderControlMotionDriver: ObservableObject {
         @objc func tick(_ link: CADisplayLink) {
             guard let owner else { link.invalidate(); return }
             owner.advance(to: link.timestamp)
+            #if DEBUG && targetEnvironment(simulator)
+            owner.recordVerificationFrame("control-display-link", timestamp: link.timestamp)
+            #endif
         }
     }
 }
