@@ -2,6 +2,21 @@ import XCTest
 import UIKit
 import CryptoKit
 
+/// Wire shape of the runtime receipt's pending operations, shared by the
+/// online journey and download-control preproofs.
+struct PendingOperation: Decodable {
+    let operationID: String
+    let method: String
+    let scope: String
+    let commandSHA256: String
+    let completed: Bool
+    let resultPresent: Bool
+    let failurePresent: Bool
+    let sourceId: String
+    let bookId: String
+    let title: String
+}
+
 final class ReaderOnlineJourneyTests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
@@ -344,18 +359,6 @@ final class ReaderOnlineJourneyTests: XCTestCase {
 #endif
         try sourceToolsRequire(UIDevice.current.userInterfaceIdiom == .phone,
             "Require the original physical phone and its existing source library", app: nil)
-        struct PendingOperation: Decodable {
-            let operationID: String
-            let method: String
-            let scope: String
-            let commandSHA256: String
-            let completed: Bool
-            let resultPresent: Bool
-            let failurePresent: Bool
-            let sourceId: String
-            let bookId: String
-            let title: String
-        }
         struct Preproof: Decodable {
             let schemaVersion: Int
             let policy: String
@@ -1876,18 +1879,6 @@ final class ReaderOnlineJourneyTests: XCTestCase {
     /// real acquisition and persisted source versions still require external proof.
     func testPhysicalExistingRealBaiduSwitchSheetResearchPreservesScrolledCandidateTerminalProjection() throws {
         struct Source: Decodable { let id: String; let name: String; let enabled: Bool }
-        struct PendingOperation: Decodable {
-            let operationID: String
-            let method: String
-            let scope: String
-            let commandSHA256: String
-            let completed: Bool
-            let resultPresent: Bool
-            let failurePresent: Bool
-            let sourceId: String
-            let bookId: String
-            let title: String
-        }
         struct Preproof: Decodable {
             let schemaVersion: Int
             let policy: String

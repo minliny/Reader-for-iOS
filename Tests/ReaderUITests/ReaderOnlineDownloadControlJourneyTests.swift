@@ -408,18 +408,6 @@ final class ReaderOnlineDownloadControlJourneyTests: XCTestCase {
     /// genuine data in a UUID library; the runner alone taps the production
     /// native confirmation. This is not permission to clean the original data.
     func testPhysicalIsolatedRealNativeCleanupConfirmExecutionAndResult() throws {
-        struct PendingOperation: Decodable {
-            let operationID: String
-            let method: String
-            let scope: String
-            let commandSHA256: String
-            let completed: Bool
-            let resultPresent: Bool
-            let failurePresent: Bool
-            let sourceId: String
-            let bookId: String
-            let title: String
-        }
         struct Preproof: Decodable {
             let schemaVersion: Int
             let policy: String
