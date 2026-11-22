@@ -37,7 +37,7 @@ def files_under(path):
             for file in sorted(path.rglob("*")) if file.is_file()}
 
 
-def inputs():
+def inputs(local_core_manifest=None):
     result = {}
     for directory in ("Sources", "Resources", "Configuration", "Vendor"):
         for name, digest in files_under(ROOT / directory).items():
@@ -49,6 +49,17 @@ def inputs():
         result[name] = sha256((ROOT / name).read_bytes())
     for name in ("scripts/verify-simulator-identity.py", "scripts/build-paths.py"):
         result[name] = sha256((ROOT / name).read_bytes())
+    core = json.loads(CORE_RECEIPT.read_text())
+    if local_core_manifest is not None:
+        manifest_bytes = Path(local_core_manifest).read_bytes()
+        if (core.get("schemaVersion") != 3 or core.get("mode") != "local-development"
+                or core.get("localManifestSha256") != sha256(manifest_bytes)
+                or (ROOT / ".build/core-local-input.json").read_bytes() != manifest_bytes):
+            raise RuntimeError("App local Core manifest does not match the recorded Native build")
+        for name in (".build/core-local-input.json", "scripts/core-dependency.py", "scripts/generate-project.sh"):
+            result[name] = sha256((ROOT / name).read_bytes())
+    elif core.get("schemaVersion") != 2:
+        raise RuntimeError("Local Core App builds require explicit --local-core-manifest")
     return result
 
 
@@ -113,20 +124,21 @@ def git_identity():
     return {"commit": git("rev-parse", "HEAD"), "dirty": bool(git("status", "--porcelain"))}
 
 
-def capture(configuration):
+def capture(configuration, local_core_manifest=None):
     run_id = str(uuid.uuid4())
     directory = run_directory(run_id)
     directory.mkdir(parents=True, exist_ok=False)
-    captured = inputs()
+    captured = inputs(local_core_manifest)
     snapshot = directory / "inputs"
     for name in captured:
         destination = snapshot / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, destination)
-    if files_under(snapshot) != captured or inputs() != captured:
+    if files_under(snapshot) != captured or inputs(local_core_manifest) != captured:
         raise RuntimeError("Inputs changed while capturing this App build")
     document = {"schemaVersion": 2, "runId": run_id, "configuration": configuration,
-                "gitIdentity": git_identity(), "files": captured}
+                "gitIdentity": git_identity(), "files": captured,
+                "coreMode": "local-development" if local_core_manifest is not None else "pinned"}
     (directory / "capture.json").write_text(json.dumps(document, indent=2) + "\n")
     return run_id
 
@@ -148,13 +160,16 @@ def atomic_latest(data):
         temporary.unlink(missing_ok=True)
 
 
-def record(configuration, run_id):
+def record(configuration, run_id, local_core_manifest=None):
     directory = run_directory(run_id)
     capture_document = json.loads((directory / "capture.json").read_text())
     if capture_document.get("configuration") != configuration or capture_document.get("runId") != run_id:
         raise RuntimeError("App capture does not belong to this build")
+    expected_mode = "local-development" if local_core_manifest is not None else "pinned"
+    if capture_document.get("coreMode", "pinned") != expected_mode:
+        raise RuntimeError("App local/pinned Core mode changed during compilation")
     captured = capture_document["files"]
-    if captured != inputs() or captured != files_under(directory / "inputs"):
+    if captured != inputs(local_core_manifest) or captured != files_under(directory / "inputs"):
         raise RuntimeError("App inputs changed during compilation; finish source changes before rebuilding")
     source = build_app_path(configuration, run_id)
     source_files = check_app(source)
@@ -169,7 +184,7 @@ def record(configuration, run_id):
     copied_files = check_app(artifact)
     if copied_files != source_files or files_under(source) != source_files:
         raise RuntimeError("App changed while copying its delivery artifact")
-    if inputs() != captured:
+    if inputs(local_core_manifest) != captured:
         raise RuntimeError("App inputs changed while publishing the artifact")
     core_bytes = (directory / "inputs/.build/core-build.json").read_bytes()
     shutil.copy2(directory / "inputs/.build/core-build.json", directory / "core-build.json")
@@ -182,6 +197,7 @@ def record(configuration, run_id):
                 "buildEndGitIdentity": git_identity(),
                 "inputFingerprint": json_hash(captured), "inputs": captured,
                 "coreReceiptSha256": sha256(core_bytes), "coreBuild": json.loads(core_bytes),
+                "coreMode": expected_mode,
                 "simulatorIdentity": copied_identity,
                 "appFiles": copied_files}
     data = (json.dumps(document, indent=2) + "\n").encode()
@@ -221,12 +237,29 @@ def load_and_verify(receipt_path):
             raise RuntimeError("Immutable Simulator identity changed")
     core = json.loads(core_bytes)
     dependency = json.loads((directory / "inputs/scripts/core-dependency.json").read_text())
-    if (document.get("coreReceiptSha256") != sha256(core_bytes)
-            or document["inputs"].get(".build/core-build.json") != sha256(core_bytes)
-            or document.get("coreBuild") != core
-            or core.get("schemaVersion") != 2
-            or core.get("dependencyCommit") != dependency["commit"]
-            or core.get("deploymentTarget") != "17.0"):
+    paired = (document.get("coreReceiptSha256") == sha256(core_bytes)
+              and document["inputs"].get(".build/core-build.json") == sha256(core_bytes)
+              and document.get("coreBuild") == core and core.get("deploymentTarget") == "17.0")
+    if core.get("schemaVersion") == 2:
+        paired = paired and document.get("coreMode", "pinned") == "pinned" and core.get("dependencyCommit") == dependency["commit"]
+    elif core.get("schemaVersion") == 3:
+        manifest_bytes = (directory / "inputs/.build/core-local-input.json").read_bytes()
+        local = json.loads(manifest_bytes)
+        paired = (paired and document.get("coreMode") == "local-development"
+                  and core.get("mode") == "local-development"
+                  and core.get("pinnedBindingCommit") == dependency["commit"]
+                  and core.get("bindingSha256") == dependency["files"][0]["sha256"]
+                  and core.get("localManifestSha256") == sha256(manifest_bytes)
+                  and local.get("schemaVersion") == 1 and local.get("mode") == "local-development"
+                  and local.get("pinnedBindingCommit") == dependency["commit"]
+                  and local.get("bindingSha256") == core.get("bindingSha256")
+                  and local.get("minimumDeploymentTarget") == "17.0"
+                  and local.get("sourceSnapshot", {}).get("fingerprint") == core.get("sourceFingerprint")
+                  and local.get("sourceSnapshot", {}).get("gitIdentity", {}).get("gitCommit") == core.get("buildSourceHead")
+                  and local.get("sourceSnapshot", {}).get("gitIdentity", {}).get("gitDirty") == core.get("buildSourceDirty"))
+    else:
+        paired = False
+    if not paired:
         raise RuntimeError("The immutable App is not paired with its captured Core build")
     return document, receipt_bytes
 
@@ -237,13 +270,14 @@ def main():
     parser.add_argument("--configuration", choices=["Debug", "Release"], default="Debug")
     parser.add_argument("--run-id", help="Run returned by capture; required for record")
     parser.add_argument("--receipt", type=Path, default=LATEST)
+    parser.add_argument("--local-core-manifest", type=Path, help="Explicit source manifest for local development Core only")
     args = parser.parse_args()
     if args.action == "capture":
-        print(capture(args.configuration))
+        print(capture(args.configuration, args.local_core_manifest))
     elif args.action == "record":
         if args.run_id is None:
             parser.error("record requires --run-id returned by capture")
-        print("Immutable App artifact: " + str(record(args.configuration, args.run_id)))
+        print("Immutable App artifact: " + str(record(args.configuration, args.run_id, args.local_core_manifest)))
     else:
         document, _ = load_and_verify(args.receipt)
         if document.get("configuration") != args.configuration:
