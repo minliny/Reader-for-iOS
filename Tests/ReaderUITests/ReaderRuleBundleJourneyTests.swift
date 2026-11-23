@@ -17,6 +17,73 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testOriginalGutenbergDictionaryLookupOpensActualDetailLink() throws {
+        #if targetEnvironment(simulator)
+        guard ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Reader-iPhone-Daily-External-20261123" else {
+            XCTFail("Select the dedicated original-rule simulator")
+            return
+        }
+        executionTimeAllowance = 180
+        let expectedBook = "local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let app = XCUIApplication()
+        app.launch()
+        let book = app.buttons["book-" + expectedBook]
+        try require(book.waitForExistence(timeout: 20) && book.isHittable, "Require the real original already in the isolated shelf")
+        book.tap()
+        try require(app.textViews["reading-body"].waitForExistence(timeout: 20), "Require the actual TXT reading surface")
+        try openRules(app, expectedBookID: expectedBook)
+        let kind = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '规则类型'")).firstMatch
+        try require(kind.waitForExistence(timeout: 5) && kind.isHittable, "Require the actual rule type picker")
+        kind.tap()
+        let dictionary = app.buttons["字典"].firstMatch
+        try require(dictionary.waitForExistence(timeout: 5) && dictionary.isHittable, "Require the real dictionary route")
+        dictionary.tap()
+        let originalRule = app.buttons["海词英文"]
+        try require(originalRule.waitForExistence(timeout: 15) && originalRule.isHittable,
+                    "Require the enabled exact original rule saved in this simulator")
+        originalRule.tap()
+        let word = app.textFields["查词"]
+        for _ in 0..<3 where !word.isHittable { app.swipeUp() }
+        try require(word.isHittable, "Require the actual dictionary text input")
+        word.tap()
+        word.typeText("Project")
+        if app.keyboards.firstMatch.exists {
+            // The rule tools scroll view dismisses the system keyboard on
+            // scroll. Start just above its focused lookup row.
+            let start = word.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: -12))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -96)))
+            try wait("The dictionary panel's native scroll dismisses the keyboard", timeout: 8) {
+                !app.keyboards.firstMatch.exists
+            }
+        }
+        try require(word.value as? String == "Project", "Retain the original lookup after closing the keyboard")
+        let query = app.buttons["查询"]
+        for _ in 0..<2 where !query.isHittable { app.swipeUp() }
+        if !query.isHittable {
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "dictionary-query-ready-actual-AX"; tree.lifetime = .keepAlways; add(tree)
+        }
+        try require(query.isHittable && query.isEnabled, "Require the original dictionary query button")
+        query.tap()
+        let link = app.links.matching(NSPredicate(format: "label CONTAINS %@", "查看详细解释"))
+        try require(link.firstMatch.waitForExistence(timeout: 45) && link.count == 1,
+                    "Core and WebKit must publish this original definition's actual detail link")
+        for _ in 0..<3 where !link.element.isHittable { app.swipeUp() }
+        try require(link.element.isHittable, "The real WebKit link must accept a user tap")
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        XCTAssertNotEqual(safari.state, .runningForeground)
+        link.element.tap()
+        try wait("The actual detail tap hands off to Safari", timeout: 20) { safari.state == .runningForeground }
+        let domain = safari.descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", "dict.cn", "dict.cn"))
+        try require(domain.firstMatch.waitForExistence(timeout: 20), "Safari must show the original dictionary domain after receiving the link")
+        let shot = XCTAttachment(screenshot: safari.screenshot())
+        shot.name = "gutenberg-dictionary-native-detail-handoff"; shot.lifetime = .keepAlways; add(shot)
+        #else
+        throw XCTSkip("This dictionary journey uses a dedicated simulator")
+        #endif
+    }
+
     func testActualCoreRuleBundleNativeExportAndSameFileMergeImportPreservesOriginalReading() throws {
         let checkpoints = try NativeRuleFileCheckpoints()
         let app = XCUIApplication(); app.launch()
@@ -381,20 +448,20 @@ final class ReaderRuleBundleJourneyTests: XCTestCase {
         book.element.tap()
         try require(app.textViews["reading-body"].waitForExistence(timeout: 30), "Read the actual original native body")
     }
-    private func controls(_ app: XCUIApplication) throws {
+    private func controls(_ app: XCUIApplication, expectedBookID: String? = nil) throws {
         if !app.buttons["reader-more"].isHittable {
             app.textViews["reading-body"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
         }
         try wait("Actual reading controls", timeout: 10) { app.buttons["reader-more"].isHittable }
-        let book = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:local|" + originalID)).element
+        let book = app.staticTexts.matching(NSPredicate(format: "identifier == %@", "reading-book:local|" + (expectedBookID ?? originalID))).element
         try require(book.exists, "Keep the same real book identity")
     }
     private func hide(_ app: XCUIApplication) throws {
         if app.buttons["收起阅读控制"].isHittable { app.buttons["收起阅读控制"].tap() }
         try wait("Actual reader control dismissal", timeout: 10) { !app.buttons["control-grabber"].isHittable }
     }
-    private func openRules(_ app: XCUIApplication) throws {
-        try hide(app); try controls(app)
+    private func openRules(_ app: XCUIApplication, expectedBookID: String? = nil) throws {
+        try hide(app); try controls(app, expectedBookID: expectedBookID)
         app.buttons["control-module-settings"].tap(); try expand(app)
         let rules = app.buttons["替换、字典与目录规则"]
         try require(rules.waitForExistence(timeout: 5) && rules.isHittable, "Use the existing nested rule tools entry")

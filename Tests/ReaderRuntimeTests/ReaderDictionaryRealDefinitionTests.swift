@@ -12,6 +12,36 @@ import XCTest
 
 @MainActor
 final class ReaderDictionaryRealDefinitionTests: XCTestCase {
+    func testPrepareOriginalDictionaryForDedicatedNativeJourney() async throws {
+        #if targetEnvironment(simulator)
+        guard ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Reader-iPhone-Daily-External-20261123" else {
+            XCTFail("Dictionary journey setup requires the dedicated simulator")
+            return
+        }
+        let rulesURL = try ReaderLocalFormatsTests.originalURL(format: "json", byteCount: 6_531,
+            digest: "664149381e86b68f388a127c9f8531bf1753d0388f5d8c453375a322437a0734")
+        let rules = try JSONDecoder().decode([ReaderDictionaryRule].self, from: Data(contentsOf: rulesURL))
+        let rule = try XCTUnwrap(rules.first { $0.name == "海词英文" && $0.enabled })
+        let service = try await ReaderAppRuntimeStore.shared.library()
+        let books = try await service.listBooks()
+        let existing = try await service.dictionaryRules()
+        let expectedBook = "local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        guard books.map(\.bookId) == [expectedBook], existing.isEmpty || existing == [rule] else {
+            XCTFail("Expected only the admitted TXT and at most its exact original dictionary rule")
+            return
+        }
+        if existing.isEmpty {
+            let operationID = UUID().uuidString
+            let saved = try await service.putDictionaryRule(rule, operationID: operationID)
+            let confirmed = try await service.isCoreOperationCompleted(operationID)
+            XCTAssertEqual(saved, rule)
+            XCTAssertTrue(confirmed)
+        }
+        #else
+        throw XCTSkip("Dictionary journey setup is simulator-only")
+        #endif
+    }
+
     /// The delivery owner provisions the unchanged upstream rule array and
     /// Gutenberg original into Documents. Neither rules nor HTTP responses are
     /// embedded here. This method uses the normal Core + native HTTP path once.
