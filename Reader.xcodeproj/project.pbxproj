@@ -47,6 +47,7 @@
 		2866E73FBC2215DE517CEE19 /* rc_palette_theme_night.svg in Resources */ = {isa = PBXBuildFile; fileRef = E60AAC045665279CE24BE3D5 /* rc_palette_theme_night.svg */; };
 		2908233C0847E4953C003B4E /* ReaderSourceLoginLifetimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80CB3AAEEE9C413ADCCDE39 /* ReaderSourceLoginLifetimeTests.swift */; };
 		29EEABFB99618926D798D74A /* rc_dots_theme_night.svg in Resources */ = {isa = PBXBuildFile; fileRef = 0F6698280AF29CDC4C776578 /* rc_dots_theme_night.svg */; };
+		2A99C37C7CA670067E3BC4D0 /* ReaderUIVerificationJourneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9322AC9DAA616903E5309CF /* ReaderUIVerificationJourneyTests.swift */; };
 		2BE28D4C7572FD4589BFF01D /* ReaderReadingToolsJourneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF519112C6057D26EFB74480 /* ReaderReadingToolsJourneyTests.swift */; };
 		2C3DE3FF4A4532A5679DADBA /* ReaderOnlineDownloadControlJourneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9148A66EFB31546019338B05 /* ReaderOnlineDownloadControlJourneyTests.swift */; };
 		2CA92465C9669A39458558D5 /* NotoSansSC-UIBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 30E1B62B0E03F98F136D99C4 /* NotoSansSC-UIBold.otf */; };
@@ -212,6 +213,7 @@
 		EA41FEDFE5DA67245B2FEDB2 /* bookshelf_filter.svg in Resources */ = {isa = PBXBuildFile; fileRef = D365C7C08B74E4B13F5E4881 /* bookshelf_filter.svg */; };
 		EBE0E63A65F29F6A81B7FF8F /* ReaderDownloadManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F243B39FDE63E25743AD2F54 /* ReaderDownloadManagementView.swift */; };
 		EBF3C88819F6685895DC640C /* NotoSansSC-VF.otf in Resources */ = {isa = PBXBuildFile; fileRef = 05D20CC5F029D91D2B6A556D /* NotoSansSC-VF.otf */; };
+		ED0C3C8E93B52C23AE221692 /* ReaderUIVerificationJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06F44AB64F2400855E756DB /* ReaderUIVerificationJournal.swift */; };
 		ED9B4B1B5EE67F09C3DB96BE /* ReaderOnlineDiscoveryLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B998F23FD749CD331FA9AB9D /* ReaderOnlineDiscoveryLifecycleTests.swift */; };
 		EE2CDC871DCAC9140C0F9F59 /* ReaderSourceEditorDraftOwnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 976AC307C224B210C03BFD71 /* ReaderSourceEditorDraftOwnerTests.swift */; };
 		F067C5D9E4557DD1CC61AC76 /* ReaderControlMotionDriverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE593EC19D77DA3A80DCA48 /* ReaderControlMotionDriverTests.swift */; };
@@ -403,6 +405,7 @@
 		B752E901179024B85EF6D958 /* ReaderLibraryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderLibraryServiceTests.swift; sourceTree = "<group>"; };
 		B79CB7DE251973E9809281E8 /* ZhuqueFangsong-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ZhuqueFangsong-OFL.txt"; sourceTree = "<group>"; };
 		B876D98D10C432C1A2B98A67 /* bookshelf_filter_active.svg */ = {isa = PBXFileReference; path = bookshelf_filter_active.svg; sourceTree = "<group>"; };
+		B9322AC9DAA616903E5309CF /* ReaderUIVerificationJourneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderUIVerificationJourneyTests.swift; sourceTree = "<group>"; };
 		B998F23FD749CD331FA9AB9D /* ReaderOnlineDiscoveryLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderOnlineDiscoveryLifecycleTests.swift; sourceTree = "<group>"; };
 		B9DECEF3ABADC996CA6274F5 /* ReaderFontLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderFontLibrary.swift; sourceTree = "<group>"; };
 		BAC3A2914D07549C03A1CC7A /* bookshelf_search_theme_night.svg */ = {isa = PBXFileReference; path = bookshelf_search_theme_night.svg; sourceTree = "<group>"; };
@@ -423,6 +426,7 @@
 		CAB7C33E6BC58E8744DACCED /* ReaderImportStaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderImportStaging.swift; sourceTree = "<group>"; };
 		CF519112C6057D26EFB74480 /* ReaderReadingToolsJourneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderReadingToolsJourneyTests.swift; sourceTree = "<group>"; };
 		CF9693713BDF11EDD9E0BC49 /* ReaderImportStagingOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderImportStagingOwnershipTests.swift; sourceTree = "<group>"; };
+		D06F44AB64F2400855E756DB /* ReaderUIVerificationJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderUIVerificationJournal.swift; sourceTree = "<group>"; };
 		D0CA56BE43355036F0D2046F /* NotoSerifSC-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NotoSerifSC-Bold.ttf"; sourceTree = "<group>"; };
 		D20172DC3D70DE1486EBDE09 /* rc_chevron_left_theme_night.svg */ = {isa = PBXFileReference; path = rc_chevron_left_theme_night.svg; sourceTree = "<group>"; };
 		D365C7C08B74E4B13F5E4881 /* bookshelf_filter.svg */ = {isa = PBXFileReference; path = bookshelf_filter.svg; sourceTree = "<group>"; };
@@ -489,13 +493,6 @@
 				C42C764585F70DAF525EFE41 /* ReaderNativeCleanupHarness.swift */,
 			);
 			path = Debug;
-			sourceTree = "<group>";
-		};
-		0B4BAB9B1AA857B658142087 /* fontTools */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = fontTools;
 			sourceTree = "<group>";
 		};
 		0E6F23C986FD9F16734E2591 /* Reading */ = {
@@ -583,6 +580,7 @@
 				97EBE470FE0A9B2A224C40D9 /* Components */,
 				05E7D18371123A336B35329A /* Debug */,
 				2BFE41F357BD6D91E38FC910 /* Design */,
+				B8D66B28DE4EEAA44234CD51 /* Diagnostics */,
 				4DEAE35DC45ACE6C0F09F288 /* Online */,
 				B00C2ADF56E5B5A417043DD9 /* Pages */,
 				0E6F23C986FD9F16734E2591 /* Reading */,
@@ -706,14 +704,6 @@
 			path = PaperSources;
 			sourceTree = "<group>";
 		};
-		9ABA8786284ADC3756F78F83 /* .fonttools-tool */ = {
-			isa = PBXGroup;
-			children = (
-				0B4BAB9B1AA857B658142087 /* fontTools */,
-			);
-			path = ".fonttools-tool";
-			sourceTree = "<group>";
-		};
 		A97F85522AF62C54C5BF2D39 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -748,6 +738,14 @@
 				0A652A274868FABA7B6906D9 /* ZhuqueFangsong-Regular.ttf */,
 			);
 			path = Fonts;
+			sourceTree = "<group>";
+		};
+		B8D66B28DE4EEAA44234CD51 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				D06F44AB64F2400855E756DB /* ReaderUIVerificationJournal.swift */,
+			);
+			path = Diagnostics;
 			sourceTree = "<group>";
 		};
 		BBBE336CCEA4C1FBA1AE989C /* Frameworks */ = {
@@ -800,7 +798,6 @@
 				4EA258EB98F4996B419D8A82 /* manifest.json */,
 				2DA28A54207A306DDCC40723 /* source-font-provenance.json */,
 				466980F2807696FC733BD11B /* theme-registry.json */,
-				9ABA8786284ADC3756F78F83 /* .fonttools-tool */,
 				9A5373F3F7C9F51DFA44E77E /* PaperSources */,
 				DE93CE634C6AB1C1338E7415 /* SVG */,
 			);
@@ -872,6 +869,7 @@
 				79EC30DC6DD0F8F8A972415B /* ReaderRuleBundleJourneyTests.swift */,
 				925FAEBDD0F722343D6ED0B3 /* ReaderRuleSubscriptionJourneyTests.swift */,
 				719A57BA1B7A28A48FEF7E1C /* ReaderTXTTOCPreviewJourneyTests.swift */,
+				B9322AC9DAA616903E5309CF /* ReaderUIVerificationJourneyTests.swift */,
 				FB6D2E5FBF56985AB70CD5D5 /* Fixtures */,
 			);
 			path = ReaderUITests;
@@ -1205,6 +1203,7 @@
 				BEAA294E94A402825A85FA5B /* ReaderTextSurface.swift in Sources */,
 				A913AB896A36C6F1C74A3241 /* ReaderTextToolsPanels.swift in Sources */,
 				9EFC44F0B318D2B8049098B6 /* ReaderTypography.swift in Sources */,
+				ED0C3C8E93B52C23AE221692 /* ReaderUIVerificationJournal.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1276,6 +1275,7 @@
 				DD10AAB706B09AE6AA6E38EF /* ReaderRuleBundleJourneyTests.swift in Sources */,
 				806927DC4D40EB179D17D252 /* ReaderRuleSubscriptionJourneyTests.swift in Sources */,
 				AD09C8A3A99BF22F6655B26C /* ReaderTXTTOCPreviewJourneyTests.swift in Sources */,
+				2A99C37C7CA670067E3BC4D0 /* ReaderUIVerificationJourneyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
