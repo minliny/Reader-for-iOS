@@ -1038,8 +1038,9 @@ final class ReaderApplicationModel: ObservableObject {
             saveDebounce?.cancel(); saveDebounce = nil
             pendingLocation = nil
             chapterGeneration = UUID(); navigationGeneration = UUID()
+            let restorationID = UUID()
             reader = ReaderActiveSession(id: UUID(), book: result.book, chapters: chapters, content: result.content,
-                scalarOffset: offset, progressRevision: result.progressSnapshot.progressRevision, restorationID: UUID())
+                scalarOffset: offset, progressRevision: result.progressSnapshot.progressRevision, restorationID: restorationID)
             selection = nil; highlights = []
             lastConfirmedLocation = result.progressSnapshot.found && matching ? locationKey(content: result.content, offset: offset) : nil
             locationSaveFailed = false; recoveryMessage = nil
@@ -1047,7 +1048,7 @@ final class ReaderApplicationModel: ObservableObject {
             scheduleReadingCacheWindow()
             await reloadHighlights()
             await reloadLibrary()
-            if reader?.book.id == result.book.id, let notice = result.positionNotice { showFeedback(notice) }
+            if reader?.restorationID == restorationID, let notice = result.positionNotice { showFeedback(notice) }
         } catch {
             sourceSwitchFlushing = false
             if let rollback = error as? ReaderSourceSwitchRolledBack {

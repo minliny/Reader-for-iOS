@@ -21,7 +21,7 @@ public struct ReaderOnlineSwitchResult: Sendable {
 struct ReaderSourceSwitchAnchor: Codable {
     let offset: UInt64
     let bodyDigest: Data
-    let context: String
+    let context: String?
     let leadingUTF16Count: Int
 
     init(content: String, offset: UInt64) {
@@ -31,21 +31,26 @@ struct ReaderSourceSwitchAnchor: Codable {
         let position = scalars.index(scalars.startIndex, offsetBy: Int(offset))
         let start = scalars.index(position, offsetBy: -24, limitedBy: scalars.startIndex) ?? scalars.startIndex
         let end = scalars.index(position, offsetBy: 24, limitedBy: scalars.endIndex) ?? scalars.endIndex
-        context = String(scalars[start..<end])
+        let excerpt = String(scalars[start..<end])
+        context = Self.uniqueMatch(of: excerpt, in: content) == nil ? nil : excerpt
         leadingUTF16Count = String(scalars[start..<position]).utf16.count
     }
 
     func resolve(in content: ReaderChapterContent) -> UInt64 {
         if offset <= content.scalarCount, bodyDigest == Self.digest(content.content) { return offset }
-        guard context.unicodeScalars.count >= 16, leadingUTF16Count > 0,
-              leadingUTF16Count <= context.utf16.count else { return 0 }
-        let target = content.content as NSString
-        let match = target.range(of: context, options: .literal)
-        guard match.location != NSNotFound else { return 0 }
-        // Search from the next code unit so overlapping occurrences count too.
-        let remainder = NSRange(location: match.location + 1, length: target.length - match.location - 1)
-        guard target.range(of: context, options: .literal, range: remainder).location == NSNotFound else { return 0 }
+        guard let context, leadingUTF16Count > 0, leadingUTF16Count <= context.utf16.count,
+              let match = Self.uniqueMatch(of: context, in: content.content) else { return 0 }
         return ReaderTextCoordinates.scalarOffset(in: content.content, utf16Offset: match.location + leadingUTF16Count)
+    }
+
+    private static func uniqueMatch(of context: String, in body: String) -> NSRange? {
+        guard context.unicodeScalars.filter({ CharacterSet.alphanumerics.contains($0) }).count >= 16 else { return nil }
+        let text = body as NSString
+        let match = text.range(of: context, options: .literal)
+        guard match.location != NSNotFound else { return nil }
+        // Search from the next code unit so overlapping occurrences count too.
+        let remainder = NSRange(location: match.location + 1, length: text.length - match.location - 1)
+        return text.range(of: context, options: .literal, range: remainder).location == NSNotFound ? match : nil
     }
 
     private static func digest(_ text: String) -> Data { Data(SHA256.hash(data: Data(text.utf8))) }
@@ -236,8 +241,11 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
             }
         } else { sessionContent = content }
         try await finishCoreOperation(operationID)
-        let notice = originalAnchor != nil && canonicalOffset == 0
-            ? "无法在新书源确认原阅读位置，已从匹配章节的开头继续。" : nil
+        let position = snapshot.progress
+        let fellBackToStart = originalAnchor != nil && canonicalOffset == 0 &&
+            position?.chapterIndex == chapterIndex && position?.chapterOffset == 0 &&
+            position?.bodyVersion == content.bodyVersion && position?.processingVersion == content.processingVersion
+        let notice = fellBackToStart ? "无法在新书源确认原阅读位置，已从目标章节的开头继续。" : nil
         return .init(book: commit.book, content: sessionContent, progressSnapshot: snapshot, positionNotice: notice)
     }
 

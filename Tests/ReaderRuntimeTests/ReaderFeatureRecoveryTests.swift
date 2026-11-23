@@ -345,9 +345,9 @@ final class ReaderFeatureRecoveryTests: XCTestCase {
     func testMatchedSourceSwitchRelocatesUniqueAnchorInChangedBody() async throws {
         let fixture = try FeatureRecoveryFixture.gutenberg()
         defer { fixture.cleanUp() }
-        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true) { excerpt in
+        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true, targetBody: { excerpt in
             String(excerpt.unicodeScalars.dropFirst(250).prefix(80)) + "\n" + excerpt
-        }
+        })
         let original = try await fixture.service.content(for: intent.original, chapterIndex: 0)
         let switched = try await fixture.switchSeededBook(from: intent.original, to: intent.target,
             content: original, operationID: intent.operation)
@@ -366,9 +366,9 @@ final class ReaderFeatureRecoveryTests: XCTestCase {
     func testMatchedSourceSwitchUsesChapterStartForAmbiguousAnchor() async throws {
         let fixture = try FeatureRecoveryFixture.gutenberg()
         defer { fixture.cleanUp() }
-        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true) { excerpt in
+        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true, targetBody: { excerpt in
             excerpt + "\n" + excerpt
-        }
+        })
         let original = try await fixture.service.content(for: intent.original, chapterIndex: 0)
         let switched = try await fixture.switchSeededBook(from: intent.original, to: intent.target,
             content: original, operationID: intent.operation)
@@ -377,7 +377,28 @@ final class ReaderFeatureRecoveryTests: XCTestCase {
         let originalLeadingText = String(original.content.unicodeScalars.prefix(44))
         let first = try XCTUnwrap(newText.range(of: originalLeadingText, options: .literal))
         XCTAssertNotNil(newText.range(of: originalLeadingText, options: .literal, range: first.upperBound..<newText.endIndex))
-        XCTAssertEqual(switched.positionNotice, "无法在新书源确认原阅读位置，已从匹配章节的开头继续。")
+        XCTAssertEqual(switched.positionNotice, "无法在新书源确认原阅读位置，已从目标章节的开头继续。")
+        try await verifyTargetSwitchPosition(switched, target: intent.target, offset: 0, service: fixture.service)
+        try await fixture.service.close()
+    }
+
+    func testMatchedSourceSwitchUsesChapterStartWhenOnlyOriginalAnchorIsAmbiguous() async throws {
+        let fixture = try FeatureRecoveryFixture.gutenberg()
+        defer { fixture.cleanUp() }
+        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true, originalBody: { excerpt in
+            excerpt + "\n" + excerpt
+        })
+        let original = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+        let switched = try await fixture.switchSeededBook(from: intent.original, to: intent.target,
+            content: original, operationID: intent.operation)
+        let context = String(original.content.unicodeScalars.prefix(44))
+        let oldOccurrence = try XCTUnwrap(original.content.range(of: context, options: .literal))
+        XCTAssertNotNil(original.content.range(of: context, options: .literal,
+                                               range: oldOccurrence.upperBound..<original.content.endIndex))
+        let targetText = switched.content.content
+        let targetOccurrence = try XCTUnwrap(targetText.range(of: context, options: .literal))
+        XCTAssertNil(targetText.range(of: context, options: .literal, range: targetOccurrence.upperBound..<targetText.endIndex))
+        XCTAssertEqual(switched.positionNotice, "无法在新书源确认原阅读位置，已从目标章节的开头继续。")
         try await verifyTargetSwitchPosition(switched, target: intent.target, offset: 0, service: fixture.service)
         try await fixture.service.close()
     }
@@ -689,7 +710,8 @@ private final class FeatureRecoveryFixture {
         if replayCatalog { client.replayCatalog(sourceID: source, bookID: bookID, detail: detailResponse, toc: tocResponse) }
         return (.init(sourceId: source, bookId: bookID, title: title, author: author, chapterCount: 1), chapter)
     }
-    func seedOriginalSwitch(replayTargetCatalog: Bool = false, targetBody: (String) -> String = { $0 }) async throws
+    func seedOriginalSwitch(replayTargetCatalog: Bool = false, originalBody: (String) -> String = { $0 },
+                            targetBody: (String) -> String = { $0 }) async throws
         -> (operation: String, parameters: [String: Any], original: ReaderBook, target: ReaderBook) {
         let local = try await service.importBook(at: input).book
         let chapters = try await service.chapters(for: local)
@@ -697,7 +719,7 @@ private final class FeatureRecoveryFixture {
         let genuine = try await service.content(for: local, chapterIndex: chapter.index)
         let excerpt = String(genuine.content.unicodeScalars.prefix(500))
         let first = try await seedCachedRemote(source: "https://reader-stage-a.invalid", title: local.title,
-            author: local.author, chapterTitle: chapter.title, body: excerpt)
+            author: local.author, chapterTitle: chapter.title, body: originalBody(excerpt))
         let second = try await seedCachedRemote(source: "https://reader-stage-b.invalid", title: local.title,
             author: local.author, chapterTitle: chapter.title, body: targetBody(excerpt), replayCatalog: replayTargetCatalog)
         _ = try await service.beginOnlineAdmission(.init(book: first.book, chapters: [first.chapter], firstReadableIndex: first.chapter.index),
