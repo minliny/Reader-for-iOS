@@ -20,6 +20,217 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     private var displayRestored = false
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testCompactGutenbergReadingPreferencesReflowAndColdPersistence() throws {
+        executionTimeAllowance = 300
+        let app = try launchCompactGutenbergReader()
+        let languages = ["zh-Hant", "en-US"]
+        let mode = app.buttons["reading-page-mode"]
+        let modes = ["滚动", "分页"]
+        let font = app.steppers["reading-font-size"]
+        let spacing = app.steppers.matching(NSPredicate(format: "label CONTAINS '行距'")).firstMatch
+        let progress = app.staticTexts["reading-progress"]
+        let chapter = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'reading-chapter:'"))
+
+        func measurements(_ name: String) throws -> (height: CGFloat, gap: CGFloat, paper: [Int]) {
+            let capture = try screen(app, languages: languages)
+            let lines = capture.lines.filter { normalized($0.text).count >= 8 }
+            XCTAssertGreaterThanOrEqual(lines.count, 4, "Require rendered prose in the real text viewport")
+            let heights = lines.map { $0.box.height * capture.viewport.height }.sorted()
+            let gaps = zip(lines, lines.dropFirst()).map { ($0.0.box.midY - $0.1.box.midY) * capture.viewport.height }
+                .filter { $0 > 0 }.sorted()
+            let line = try XCTUnwrap(lines.dropFirst().first { $0.box.minX * capture.viewport.width >= 12 })
+            let paper = try backgroundColour(capture.paperMarginImage(near: line))
+            let height = try XCTUnwrap(heights.dropFirst(heights.count / 2).first)
+            let gap = try XCTUnwrap(gaps.dropFirst(gaps.count / 2).first)
+            let facts = XCTAttachment(string: "viewport=\(capture.viewport) glyphHeight=\(height) typicalLineGap=\(gap) paperRGB=\(paper)")
+            facts.name = name + "-body-metrics"; facts.lifetime = .keepAlways; add(facts)
+            evidence(app, name)
+            return (height, gap, paper)
+        }
+
+        let baseline = try measurements("compact-TXT-original-setting-consumers")
+        openModule("appearance", app: app)
+        XCTAssertEqual(chapter.count, 1)
+        let originalChapter = chapter.element.identifier
+        reveal(font, towardBottom: true, app: app)
+        let oldFont = try XCTUnwrap(compactStepperValue(font))
+        let grow = oldFont <= 36
+        let newFont = try stepCompactMetric(font, increasing: grow, count: 4, app: app)
+        XCTAssertEqual(newFont, oldFont + (grow ? 4 : -4), accuracy: 0.01)
+        hideControls(app)
+        let afterFont = try measurements("compact-TXT-font-reflow")
+        XCTAssertGreaterThan(grow ? afterFont.height - baseline.height : baseline.height - afterFont.height, 0.75,
+                             "Native body glyph height must consume the font choice")
+
+        openModule("appearance", app: app)
+        reveal(spacing, towardBottom: true, app: app)
+        let oldSpacing = try XCTUnwrap(compactStepperValue(spacing))
+        let spread = oldSpacing <= 2.5
+        let newSpacing = try stepCompactMetric(spacing, increasing: spread, count: 5, app: app)
+        XCTAssertEqual(newSpacing, oldSpacing + (spread ? 0.25 : -0.25), accuracy: 0.015)
+        hideControls(app)
+        let afterSpacing = try measurements("compact-TXT-line-spacing")
+        XCTAssertGreaterThan(spread ? afterSpacing.gap - afterFont.gap : afterFont.gap - afterSpacing.gap, 0.75,
+                             "Native prose line positions must consume the spacing choice")
+
+        openModule("appearance", app: app)
+        let day = try originalPaperControl("日间", app: app)
+        XCTAssertTrue(day.isSelected, "Use the dedicated simulator's original daytime paper for this colour comparison")
+        let warm = try originalPaperControl("暖白", app: app)
+        warm.tap()
+        XCTAssertTrue(warm.isSelected)
+        hideControls(app)
+        let afterPaper = try measurements("compact-TXT-paper-rendered")
+        XCTAssertNotEqual(afterPaper.paper, afterSpacing.paper, "The visible paper margin must change with the selected paper")
+
+        openModule("appearance", app: app)
+        reveal(mode, towardBottom: true, app: app)
+        let oldMode = try menuValue(mode, choices: modes)
+        let requestedMode = oldMode == "分页" ? "滚动" : "分页"
+        choose(requestedMode, picker: mode, app: app)
+        hideControls(app)
+        let originalProgress = progress.label
+        let originalProse = normalized(try screen(app, languages: languages).text)
+        if requestedMode == "滚动" { body(app).swipeUp() } else { body(app).swipeLeft() }
+        waitUntil("The chosen reader mode consumes its normal native gesture", timeout: 12) {
+            progress.exists && progress.label != originalProgress
+        }
+        let changedProse = normalized(try screen(app, languages: languages).text)
+        XCTAssertNotEqual(changedProse, originalProse)
+        evidence(app, "compact-TXT-native-mode-consumer")
+
+        openModule("home", app: app)
+        XCTAssertEqual(chapter.element.identifier, originalChapter)
+        leaveReader(app)
+        app.terminate()
+        XCTAssertEqual(app.state, .notRunning)
+        app.launch()
+        openCompactGutenbergBook(app)
+        let coldBody = try measurements("compact-TXT-cold-setting-consumers")
+        XCTAssertEqual(coldBody.paper, afterPaper.paper)
+        openModule("appearance", app: app)
+        XCTAssertEqual(chapter.element.identifier, originalChapter)
+        XCTAssertTrue(try originalPaperControl("暖白", app: app).isSelected)
+        reveal(font, towardBottom: true, app: app)
+        XCTAssertEqual(compactStepperValue(font), newFont)
+        reveal(spacing, towardBottom: true, app: app)
+        XCTAssertEqual(compactStepperValue(spacing), newSpacing)
+        reveal(mode, towardBottom: true, app: app)
+        XCTAssertEqual(try menuValue(mode, choices: modes), requestedMode)
+        evidence(app, "compact-TXT-cold-preference-readback")
+        hideControls(app)
+        leaveReader(app)
+    }
+
+    func testCompactGutenbergAutomaticPagingStopsWhenLeavingReader() throws {
+        executionTimeAllowance = 150
+        let app = try launchCompactGutenbergReader()
+        let progress = app.staticTexts["reading-progress"]
+        let languages = ["zh-Hant", "en-US"]
+        let beforeProgress = progress.label
+        let beforeProse = normalized(try screen(app, languages: languages).text)
+        XCTAssertGreaterThan(beforeProse.count, 40)
+
+        openTool("自动翻页", app: app)
+        let toggle = app.buttons["auto-page-toggle"], stop = app.buttons["auto-page-stop"]
+        XCTAssertEqual(toggle.label, "开始自动翻页")
+        XCTAssertFalse(stop.isEnabled)
+        try quickAutomaticPage(app)
+        let speed = try XCTUnwrap(observedQuickAutomaticSpeed(app))
+        try fullAutomaticPage(app)
+        reveal(toggle, towardBottom: false, app: app)
+        XCTAssertTrue(toggle.isEnabled && toggle.isHittable)
+        toggle.tap()
+        waitUntil("Automatic paging changes the original native reader position", timeout: Double(speed) + 12) {
+            progress.exists && progress.label != beforeProgress
+        }
+        let pagedProse = normalized(try screen(app, languages: languages).text)
+        XCTAssertNotEqual(pagedProse, beforeProse)
+        evidence(app, "compact-TXT-real-auto-page-before-leaving")
+
+        // Normal Back requires showing the reading controls, which pauses the
+        // old owner. Reopening must start with a separate, stopped owner.
+        leaveReader(app)
+        openCompactGutenbergBook(app)
+        openTool("自动翻页", app: app)
+        XCTAssertEqual(toggle.label, "开始自动翻页")
+        XCTAssertFalse(stop.isEnabled)
+        evidence(app, "compact-TXT-auto-page-stopped-after-leaving")
+        hideControls(app)
+        let reopenedProgress = progress.label
+        let reopenedProse = normalized(try screen(app, languages: languages).text)
+        XCTAssertGreaterThan(reopenedProse.count, 40)
+        let change = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            progress.exists && progress.label != reopenedProgress
+        }, object: nil)
+        change.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [change], timeout: Double(speed) + 1), .completed)
+        XCTAssertEqual(progress.label, reopenedProgress)
+        XCTAssertEqual(normalized(try screen(app, languages: languages).text), reopenedProse)
+        evidence(app, "compact-TXT-auto-page-does-not-advance-reopened-reader")
+        leaveReader(app)
+    }
+
+    private func launchCompactGutenbergReader() throws -> XCUIApplication {
+        #if !targetEnvironment(simulator)
+        throw XCTSkip("Use the dedicated iPhone simulator")
+        #endif
+        guard ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Reader-iPhone-Daily-Closeout-20261123",
+              UIDevice.current.userInterfaceIdiom == .phone else {
+            XCTFail("Only the dedicated iPhone simulator is eligible")
+            throw JourneyError.prerequisite
+        }
+        let app = XCUIApplication()
+        app.launch()
+        openCompactGutenbergBook(app)
+        return app
+    }
+
+    private func openCompactGutenbergBook(_ app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+        let book = app.buttons.matching(identifier: "book-local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38")
+        XCTAssertEqual(book.count, 1, "Use the already admitted byte-identical Gutenberg original")
+        XCTAssertTrue(book.element.isHittable)
+        book.element.tap()
+        XCTAssertTrue(body(app).waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["reading-progress"].waitForExistence(timeout: 5))
+    }
+
+    private func compactStepperValue(_ stepper: XCUIElement) -> Double? {
+        let text = stepper.label + " " + (stepper.value as? String ?? "")
+        let numbers = Set(text.split { !$0.isNumber && $0 != "." && $0 != "," }
+            .compactMap { Double($0.replacingOccurrences(of: ",", with: ".")) })
+        return numbers.count == 1 ? numbers.first : nil
+    }
+
+    private func stepCompactMetric(_ stepper: XCUIElement, increasing: Bool, count: Int, app: XCUIApplication) throws -> Double {
+        for _ in 0..<count {
+            let before = try XCTUnwrap(compactStepperValue(stepper))
+            let direction = increasing ? "increment|increase|增加|递增" : "decrement|decrease|减少|递减"
+            let action = stepper.buttons.matching(NSPredicate(format: "label MATCHES[c] %@", ".*(" + direction + ").*")).firstMatch
+            if action.exists && action.isEnabled && action.isHittable {
+                action.tap()
+            } else {
+                // The compact recording shows both native segments even when
+                // the surrounding Stepper's AX group is clipped. Validate the
+                // particular touch point against its real scroll viewport.
+                XCTAssertTrue(stepper.exists && stepper.isEnabled)
+                let frame = stepper.frame
+                let viewport = try XCTUnwrap(containingScrollViewport(stepper, app: app))
+                let point = CGPoint(x: frame.maxX - (increasing ? 22 : 66), y: frame.midY)
+                XCTAssertGreaterThanOrEqual(frame.width, 88)
+                XCTAssertTrue(viewport.insetBy(dx: 2, dy: 2).contains(point),
+                    "Native metric segment must be inside its actual viewport: frame=\(frame), viewport=\(viewport), point=\(point)")
+                coordinate(point, app: app).tap()
+            }
+            waitUntil("The native metric accepts one step", timeout: 5) {
+                guard let current = self.compactStepperValue(stepper) else { return false }
+                return increasing ? current > before : current < before
+            }
+        }
+        return try XCTUnwrap(compactStepperValue(stepper))
+    }
+
     /// Only the existing registered bundled faces and existing real TXT.
     /// Root independently binds raw preferences, original scope and products;
     /// this zero-environment method records actual public UI observations.
@@ -3383,7 +3594,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             return String(normal.prefix(count))
         }
     }
-    private func screen(_ app: XCUIApplication) throws -> Screen {
+    private func screen(_ app: XCUIApplication, languages: [String] = ["zh-Hans", "en-US"]) throws -> Screen {
         XCTAssertTrue(body(app).exists)
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
         let viewport = body(app).frame.intersection(app.frame).insetBy(dx: 6, dy: 6)
@@ -3394,7 +3605,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             height: viewport.height * CGFloat(image.height) / app.frame.height).integral
         let crop = try XCTUnwrap(image.cropping(to: pixel))
         let request = VNRecognizeTextRequest(); request.recognitionLevel = .accurate
-        request.recognitionLanguages = ["zh-Hans", "en-US"]; request.usesLanguageCorrection = false
+        request.recognitionLanguages = languages; request.usesLanguageCorrection = false
         try VNImageRequestHandler(cgImage: crop).perform([request])
         let lines = (request.results ?? []).sorted {
             abs($0.boundingBox.midY - $1.boundingBox.midY) > 0.01 ? $0.boundingBox.midY > $1.boundingBox.midY : $0.boundingBox.minX < $1.boundingBox.minX
