@@ -96,4 +96,37 @@ final class ReaderLibraryFeatureTests: XCTestCase {
         XCTAssertEqual(groups.map(\.groupName), ["原操作"])
         try await service.close()
     }
+
+    func testGutenbergBatchKeepsCreatedBookAcrossPartialFailureAndDuplicate() async throws {
+        let digest = "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let input = try ReaderLocalFormatsTests.originalURL(format: "txt", byteCount: 99_898, digest: digest)
+        let original = try Data(contentsOf: input)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderGutenbergBatch-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+            sourceURL: root.appendingPathComponent("Sources"))
+        do {
+            let batch = await service.importBooks(at: [input, root.appendingPathComponent("missing.txt"), input])
+            guard batch.count == 3 else { XCTFail("Expected the outcome of each original selection"); try await service.close(); return }
+            let created = try XCTUnwrap(batch[0].result)
+            XCTAssertTrue(created.created)
+            XCTAssertNil(batch[1].result)
+            XCTAssertNotNil(batch[1].failure)
+            let duplicate = try XCTUnwrap(batch[2].result)
+            XCTAssertFalse(duplicate.created)
+            XCTAssertEqual(created.book.bookId, "local:" + digest)
+            XCTAssertEqual(duplicate.book.bookId, created.book.bookId)
+            let shelf = try await service.listBooks(query: ReaderShelfQuery())
+            XCTAssertEqual(shelf.map(\.bookId), [created.book.bookId])
+            let retained = try await service.retainedSourceURL(for: created.book)
+            XCTAssertEqual(try Data(contentsOf: retained), original)
+            XCTAssertEqual(try Data(contentsOf: input), original)
+            let pending = try await service.pendingImports()
+            XCTAssertTrue(pending.isEmpty)
+            try await service.close()
+        } catch {
+            try? await service.close()
+            throw error
+        }
+    }
 }

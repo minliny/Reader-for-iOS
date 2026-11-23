@@ -252,8 +252,16 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
     }
 
     func testRealOriginalColdV2LostPublishRefusalRollsBackInOnePassAfterExactMetadataRestore() async throws {
+        try await verifyColdV2LostPublishRefusal(original: .xianzi)
+    }
+
+    func testRealGutenbergColdV2LostPublishRefusalRollsBackInOnePassAfterExactMetadataRestore() async throws {
+        try await verifyColdV2LostPublishRefusal(original: .gutenberg)
+    }
+
+    private func verifyColdV2LostPublishRefusal(original: StagingFixture.Original) async throws {
         let terminalCapture = StagingJournalCapture(point: .localV2TerminalDurable)
-        let fixture = try StagingFixture()
+        let fixture = try StagingFixture(original: original)
         defer { fixture.cleanUp() }
         let fault = StagingMetadataCapture()
         fixture.client.beforeFirstSend("import.local.publish.v2") { try fault.change(fixture) }
@@ -280,8 +288,16 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
     }
 
     func testRealOriginalV2TerminalDurableColdRecoveryUsesRetiredSettleWithoutReplayingBusiness() async throws {
+        try await verifyV2TerminalDurableColdRecovery(original: .xianzi)
+    }
+
+    func testRealGutenbergV2TerminalDurableColdRecoveryUsesRetiredSettleWithoutReplayingBusiness() async throws {
+        try await verifyV2TerminalDurableColdRecovery(original: .gutenberg)
+    }
+
+    private func verifyV2TerminalDurableColdRecovery(original: StagingFixture.Original) async throws {
         let capture = StagingJournalCapture(point: .localV2TerminalDurable, stopOnce: true)
-        let fixture = try StagingFixture(observer: { try capture.observe($0, url: $1) })
+        let fixture = try StagingFixture(original: original, observer: { try capture.observe($0, url: $1) })
         defer { fixture.cleanUp() }
         let imported = try await fixture.service.importBook(at: fixture.input)
         XCTAssertTrue(imported.finalizationPending)
@@ -573,9 +589,17 @@ final class ReaderImportStagingOwnershipTests: XCTestCase {
     }
 
     func testActualTaskCancellationBeforeFirstCopiedByteReleasesOwnedStageLeaseAndBothFDs() async throws {
+        try await verifyCancellationBeforeFirstCopiedByte(original: .xianzi)
+    }
+
+    func testGutenbergCancellationBeforeFirstCopiedByteReleasesOwnedStageLeaseAndBothFDs() async throws {
+        try await verifyCancellationBeforeFirstCopiedByte(original: .gutenberg)
+    }
+
+    private func verifyCancellationBeforeFirstCopiedByte(original: StagingFixture.Original) async throws {
         let reached = expectation(description: "Actual durable owner and payload inode exist before byte one")
         let gate = StagingCopyCancellationGate(reached: { reached.fulfill() })
-        let fixture = try StagingFixture(observer: { try gate.observe($0, url: $1) })
+        let fixture = try StagingFixture(original: original, observer: { try gate.observe($0, url: $1) })
         defer { gate.release(); fixture.cleanUp() }
         let copy = try fixture.copyInput("actual-original-task-cancellation.txt")
         let importing = Task { try await fixture.service.importBook(at: copy) }
@@ -855,18 +879,29 @@ private func stagingCorruptOwnedPayload(_ capture: StagingHandoffCapture, source
 
 @MainActor
 private final class StagingFixture {
+    enum Original {
+        case xianzi
+        case gutenberg
+    }
+
     let input: URL
     let original: Data
     let root: URL
     let sources: URL
     let client: StagingCoreGate
     let service: ReaderLibraryService
-    init(observer: @escaping ReaderImportStagingObserver = { _, _ in },
+    init(original fixture: Original = .xianzi,
+         observer: @escaping ReaderImportStagingObserver = { _, _ in },
          directorySync: @escaping @Sendable (URL) throws -> Void = { try ReaderImportStagingLease.synchronizeDirectory($0) }) throws {
         let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
-        input = documents.appendingPathComponent("仙子请听我解释.txt")
+        if fixture == .gutenberg {
+            input = try ReaderLocalFormatsTests.originalURL(format: "txt", byteCount: 99_898,
+                digest: "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38")
+        } else {
+            input = documents.appendingPathComponent("仙子请听我解释.txt")
+        }
         original = try Data(contentsOf: input) // Absence fails; never XCTSkip or invented prose.
-        guard original.count == 8_871_723, Self.sha(original) == "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5" else {
+        guard fixture == .gutenberg || (original.count == 8_871_723 && Self.sha(original) == "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5") else {
             throw ReaderLibraryError.invalidResponse("real original fixture identity")
         }
         root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderImportOwner-" + UUID().uuidString)

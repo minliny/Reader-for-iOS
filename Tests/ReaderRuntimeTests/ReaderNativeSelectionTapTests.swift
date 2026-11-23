@@ -55,8 +55,63 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
         }
     }
 
+    /// Exercises mounted TextKit selection, UIKit clipboard actions and the
+    /// gesture delegate. The system menu and finger input are UI journeys.
+    func testGutenbergCrossParagraphSelectionKeepsCoreScalarsAndRejectsReaderPagePan() async throws {
+        let digest = "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let input = try ReaderLocalFormatsTests.originalURL(format: "txt", byteCount: 99_898, digest: digest)
+        let original = try Data(contentsOf: input)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderCrossParagraph-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+                                               sourceURL: root.appendingPathComponent("Sources"))
+        do {
+            let imported = try await service.importBook(at: input)
+            XCTAssertTrue(imported.created)
+            XCTAssertEqual(imported.book.bookId, "local:" + digest)
+            let chapters = try await service.chapters(for: imported.book)
+            let chapter = try XCTUnwrap(chapters.first { $0.title.hasPrefix("第一章") })
+            let body = try await service.content(for: imported.book, chapterIndex: chapter.index)
+            let projection = ReaderParagraphProjection(content: body.content)
+            let first = try XCTUnwrap(projection.paragraphs.firstIndex { $0.text.contains("我要給阿Ｑ做正傳") })
+            let second = try XCTUnwrap(projection.paragraphs.dropFirst(first + 1).first)
+            XCTAssertTrue(second.text.contains("然而要做這一篇速朽的文章"))
+            let paragraph = projection.paragraphs[first]
+            let tail = String(paragraph.text.suffix(5))
+            let head = String(second.text.prefix(8))
+            let start = paragraph.sourceScalarRange.upperBound - UInt64(tail.unicodeScalars.count)
+            let end = second.sourceScalarRange.lowerBound + UInt64(head.unicodeScalars.count)
+            let prefix = (body.chapterTitle + "\n").utf16.count
+            let displayStart = prefix + NSMaxRange(paragraph.displayUTF16Range) - tail.utf16.count
+            let displayEnd = prefix + second.displayUTF16Range.location + head.utf16.count
+            let selection = NSRange(location: displayStart, length: displayEnd - displayStart)
+            let expectedText = tail + "\n" + head
+            let mark = try await service.createHighlight(for: imported.book, content: body,
+                range: ReaderScalarRange(lowerBound: start, upperBound: end), style: "highlight",
+                note: "跨段選文", operationID: UUID().uuidString)
+            XCTAssertEqual(mark.positionScope, try ReaderContentPositionScope(book: imported.book, content: body))
+            let before = try await service.progress(for: imported.book)
+            try await verifyScroll(body, selection: selection, sourceStart: start, sourceEnd: end,
+                                   marks: [mark], expectedText: expectedText)
+            try await verifyPaged(body, selection: selection, sourceStart: start, sourceEnd: end,
+                                  marks: [mark], expectedText: expectedText, transition: .cover)
+            let after = try await service.progress(for: imported.book)
+            let marks = try await service.highlights(for: imported.book)
+            XCTAssertEqual(after, before)
+            XCTAssertEqual(marks, [mark])
+            let retained = try await service.retainedSourceURL(for: imported.book)
+            XCTAssertEqual(try Data(contentsOf: retained), original)
+            XCTAssertEqual(try Data(contentsOf: input), original)
+            try await service.close()
+        } catch {
+            try? await service.close()
+            throw error
+        }
+    }
+
     private func verifyScroll(_ body: ReaderChapterContent, selection: NSRange,
-                              sourceStart: UInt64, sourceEnd: UInt64, marks: [ReaderHighlight]) async throws {
+                              sourceStart: UInt64, sourceEnd: UInt64, marks: [ReaderHighlight],
+                              expectedText: String? = nil) async throws {
         let observed = Observation()
         let firstLayout = expectation(description: "real scroll body layout")
         var firstReady = false
@@ -78,6 +133,9 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
         text.selectedRange = selection
         coordinator.textViewDidChangeSelection(text)
         XCTAssertEqual(observed.selections.last?.0, sourceStart); XCTAssertEqual(observed.selections.last?.1, sourceEnd)
+        if let expectedText {
+            try verifySelectedText(expectedText, in: text, observed: observed)
+        }
 
         let highlightedLayout = expectation(description: "real saved highlight scroll reflow")
         var highlightedReady = false
@@ -101,7 +159,8 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
     }
 
     private func verifyPaged(_ body: ReaderChapterContent, selection: NSRange,
-                             sourceStart: UInt64, sourceEnd: UInt64, marks: [ReaderHighlight]) async throws {
+                             sourceStart: UInt64, sourceEnd: UInt64, marks: [ReaderHighlight],
+                             expectedText: String? = nil, transition: ReaderPageTransition = .slide) async throws {
         let observed = Observation()
         let firstLayout = expectation(description: "real paged body layout")
         var firstReady = false
@@ -110,7 +169,7 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
             positionChanged: { _ in observed.positions += 1 }, centerTapped: { observed.centers += 1 },
             selectionChanged: { observed.selections.append(($0, $1, $2)) },
             layoutReady: { if !firstReady { firstReady = true; firstLayout.fulfill() } },
-            transition: .slide)
+            transition: transition)
         let coordinator = surface.makeCoordinator()
         let controller = ReaderPagedContainerController()
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
@@ -129,6 +188,10 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
         var text = try committedText(in: controller.view)
         text.selectedRange = selection; coordinator.textViewDidChangeSelection(text)
         XCTAssertEqual(observed.selections.last?.0, sourceStart); XCTAssertEqual(observed.selections.last?.1, sourceEnd)
+        if let expectedText {
+            try verifySelectedText(expectedText, in: text, observed: observed)
+            try await verifyNativeCopyPaste(expectedText, from: text, in: window)
+        }
 
         let highlightedLayout = expectation(description: "real saved highlight paged reflow")
         var highlightedReady = false
@@ -144,7 +207,16 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
             complete: { coordinator.completePaperTap(at: $0, in: text) })
         XCTAssertEqual(observed.positions, 0, "Clearing selection and then opening controls must not turn the native page")
         XCTAssertTrue(try committedText(in: controller.view) === text, "The same committed page remains visible after the center tap")
-        let nativePan = UIPanGestureRecognizer()
+        let nativePan: UIPanGestureRecognizer
+        if transition == .cover {
+            nativePan = try XCTUnwrap(controller.view.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer }
+                .first { $0.delegate === coordinator })
+            XCTAssertTrue(nativePan.isEnabled)
+            XCTAssertTrue(coordinator.gestureRecognizerShouldBegin(nativePan),
+                          "The mounted Reader page pan is admitted after selection ends")
+        } else {
+            nativePan = UIPanGestureRecognizer()
+        }
         text.selectedRange = selection
         XCTAssertFalse(coordinator.gestureRecognizerShouldBegin(nativePan), "A selected page still rejects Reader page pans")
         let outside = try paperCenter(in: text, paper: controller.view)
@@ -155,6 +227,63 @@ final class ReaderNativeSelectionTapTests: XCTestCase {
         coordinator.completePaperTap(at: outside, in: text)
         XCTAssertEqual(text.selectedRange, retiredSelection, "A retired owner's late tap cannot change native selection")
         XCTAssertEqual(observed.centers, 1)
+    }
+
+    private func verifySelectedText(_ expected: String, in text: UITextView, observed: Observation) throws {
+        text.layoutManager.ensureLayout(for: text.textContainer)
+        let range = try XCTUnwrap(text.selectedTextRange)
+        let start = text.caretRect(for: range.start)
+        let end = text.caretRect(for: range.end)
+        XCTAssertGreaterThan(end.midY, start.midY, "The native selection must span visible text lines")
+        XCTAssertTrue(text.bounds.intersects(start) && text.bounds.intersects(end))
+        XCTAssertEqual(text.text(in: range), expected)
+        XCTAssertEqual(observed.selections.last?.2, expected)
+    }
+
+    private func verifyNativeCopyPaste(_ expected: String, from source: UITextView, in window: UIWindow) async throws {
+        #if targetEnvironment(simulator)
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ==
+                          "Reader-iPhone-Daily-Closeout-20261123", "Clipboard use requires the dedicated iPhone simulator")
+        let host = try XCTUnwrap(window.rootViewController?.view)
+        let previousKeyWindow = window.windowScene?.windows.first(where: \.isKeyWindow)
+        let selected = source.selectedRange
+        let pasteboard = UIPasteboard.general
+        let priorItems = pasteboard.items
+        let receiver = UITextView(frame: CGRect(x: 12, y: 12, width: 200, height: 72))
+        host.addSubview(receiver)
+        window.makeKey()
+        defer {
+            receiver.resignFirstResponder()
+            receiver.removeFromSuperview()
+            source.resignFirstResponder()
+            source.selectedRange = selected
+            previousKeyWindow?.makeKey()
+            pasteboard.items = priorItems
+        }
+
+        // Start with an unrelated value so a no-op copy cannot pass using
+        // clipboard content from an earlier attempt.
+        pasteboard.string = UUID().uuidString
+        let beforeCopy = pasteboard.changeCount
+        XCTAssertTrue(source.becomeFirstResponder())
+        source.selectedRange = selected
+        let application = UIApplication.shared
+        XCTAssertTrue(application.sendAction(#selector(UIResponderStandardEditActions.copy(_:)),
+                                             to: source, from: nil, for: nil))
+        XCTAssertNotEqual(pasteboard.changeCount, beforeCopy, "The UIKit copy action must update the pasteboard")
+
+        XCTAssertTrue(receiver.becomeFirstResponder())
+        let pasted = expectation(for: NSPredicate { object, _ in
+            (object as? UITextView)?.hasText == true
+        }, evaluatedWith: receiver)
+        XCTAssertTrue(application.sendAction(#selector(UIResponderStandardEditActions.paste(_:)),
+                                             to: receiver, from: nil, for: nil))
+        await fulfillment(of: [pasted], timeout: 5)
+        XCTAssertTrue(receiver.text?.utf8.elementsEqual(expected.utf8) == true,
+                      "UIKit paste must reproduce the exact selected paragraphs and newline")
+        #else
+        throw XCTSkip("Clipboard use requires the dedicated iPhone simulator")
+        #endif
     }
 
     private func verifyPaperBoundary(_ text: UITextView, paper: UIView, selection: NSRange, observed: Observation,

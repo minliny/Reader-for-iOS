@@ -455,12 +455,99 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
     /// external-open success or an App picker/URL-injection substitute.
     func testExistingRealTXTExternalFilesReaderActivityRecognizesDuplicateWithoutLibraryMutation() throws {
         let app = XCUIApplication()
-        let files = XCUIApplication(bundleIdentifier: "com.apple.DocumentsApp")
         let filename = "仙子请听我解释.txt"
         guard !realEpubJourney, app.state == .notRunning else {
             XCTFail("Require Root's actual original TXT/no-Reader premise; never stop a live session")
             throw JourneyError.prerequisite
         }
+        let handoff = try handOffExternalTXTFromFiles(app, filename: filename, fileTitle: title) {
+            $0 == "文本文稿 · 8.9 MB"
+        }
+        let close = externalTXTImportResult(in: app, filename: filename)
+        let duplicate = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "这本书已在书架中")).firstMatch
+        XCTAssertTrue(duplicate.waitForExistence(timeout: 120),
+            "Require the real existing-SHA duplicate result; pending/error/new import cannot pass")
+        evidence(app, "external-TXT-actual-existing-SHA-duplicate-result")
+        close.tap()
+        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
+        XCTAssertFalse(app.textFields["shelf-filter"].exists, "Preserve any original shelf filter")
+        XCTAssertTrue(app.buttons["全部分组"].exists, "Preserve the original group selection")
+        let existingBook = app.buttons.matching(NSPredicate(format: "identifier == %@", bookID))
+        XCTAssertEqual(existingBook.count, 1)
+        XCTAssertTrue(existingBook.element.isHittable && existingBook.element.isEnabled)
+        evidence(app, "external-TXT-duplicate-dismissed-original-bookshelf")
+        var facts = handoff
+        facts["duplicateResultObserved"] = true
+        facts["bookAXID"] = bookID
+        facts["normalReturnToShelfObserved"] = true
+        facts["AppLaunchesRequested"] = 0
+        facts["boundary"] = "Root must bind actual Documents original8871723B/aac01d… and preserve all64tables/cache/heads/history/read_records/ledger/oldcommands/files/prefs plus complete .staging manifest. UI batch UUIDs are not Core ACKs; existing-SHA created:false returns before import.parse/persist. Only actual cold bootstrap and an exact new OS Inbox copy, if present, are separately reviewed. No reading session is opened."
+        try attachExternalTXTHandoff(facts, name: "external-real-TXT-Files-Reader-duplicate-and-shelf-facts.json")
+    }
+
+    /// The delivery owner provides the untouched public original in Files and
+    /// an isolated simulator with an empty shelf. Files owns the sole import.
+    func testGutenbergTXTExternalFilesReaderActivityAddsOriginalToEmptyShelf() throws {
+        #if !targetEnvironment(simulator)
+        throw XCTSkip("This verification uses the dedicated external-import simulator")
+        #else
+        let simulator = "Reader-iPhone-Daily-External-20261123"
+        let osVersion = UIDevice.current.systemVersion
+        guard ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == simulator,
+              UIDevice.current.userInterfaceIdiom == .phone, osVersion == "26.5" else {
+            XCTFail("Select the dedicated iOS 26.5 iPhone simulator \(simulator)")
+            throw JourneyError.prerequisite
+        }
+        executionTimeAllowance = 300
+        let app = XCUIApplication()
+        guard app.state == .notRunning else {
+            XCTFail("The fixture preflight must start with Reader stopped")
+            throw JourneyError.prerequisite
+        }
+        let filename = "pg25332.txt"
+        let originalSHA = "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let expectedBookID = "book-local:" + originalSHA
+        let books = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'book-'"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["书架还是空的"].waitForExistence(timeout: 20),
+                      "Require the actual empty bookshelf before starting the Files handoff")
+        XCTAssertEqual(books.count, 0)
+        evidence(app, "external-Gutenberg-confirmed-empty-bookshelf")
+        app.terminate()
+        XCTAssertEqual(app.state, .notRunning)
+
+        var facts = try handOffExternalTXTFromFiles(app, filename: filename, fileTitle: "pg25332") { metadata in
+            // Native file size formatting varies by locale. The source bytes
+            // are verified separately and supply the exact admitted book ID.
+            ["文本文稿", "纯文本", "Plain Text", "Text Document"].contains { metadata.hasPrefix($0) }
+        }
+        let close = externalTXTImportResult(in: app, filename: filename)
+        XCTAssertTrue(app.staticTexts["已导入书架"].firstMatch.waitForExistence(timeout: 120),
+                      "Require a first admission rather than duplicate, pending or failure")
+        XCTAssertFalse(app.staticTexts["这本书已在书架中"].firstMatch.exists)
+        evidence(app, "external-Gutenberg-real-first-admission-result")
+        close.tap()
+        let admittedBook = app.buttons[expectedBookID]
+        XCTAssertTrue(admittedBook.waitForExistence(timeout: 20))
+        XCTAssertEqual(books.allElementsBoundByIndex.map(\.identifier), [expectedBookID])
+        XCTAssertTrue(admittedBook.isHittable && admittedBook.isEnabled)
+        evidence(app, "external-Gutenberg-exact-SHA-bookshelf-entry")
+        facts["simulator"] = simulator
+        facts["osVersion"] = osVersion
+        facts["emptyBookshelfObserved"] = true
+        facts["newAdmissionObserved"] = true
+        facts["bookAXID"] = expectedBookID
+        facts["expectedOriginalSHA256"] = originalSHA
+        facts["expectedOriginalBytes"] = 99_898
+        facts["AppLaunchesRequested"] = 1
+        facts["normalReturnToShelfObserved"] = true
+        try attachExternalTXTHandoff(facts, name: "external-real-Gutenberg-TXT-Files-Reader-first-admission-facts.json")
+        #endif
+    }
+
+    private func handOffExternalTXTFromFiles(_ app: XCUIApplication, filename: String, fileTitle: String,
+                                             matchesShareMetadata: (String) -> Bool) throws -> [String: Any] {
+        let files = XCUIApplication(bundleIdentifier: "com.apple.DocumentsApp")
         var readerActivityTaps = 0
         func systemEvidence(_ name: String) {
             let ax = XCTAttachment(string: files.debugDescription)
@@ -515,7 +602,7 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
             try unavailable("The real Files Browse → On My iPhone → Reader path was not uniquely exposed",
                 name: "external-TXT-native-Files-location-unavailable")
         }
-        let names = [filename, title]
+        let names = [filename, fileTitle]
         let originals = files.cells.containing(NSPredicate(format: "label IN %@", names))
         guard originals.firstMatch.waitForExistence(timeout: 10) else {
             try unavailable("The original exact TXT item is not present in this actual Reader folder",
@@ -552,8 +639,8 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 let bottoms = bars.element.otherElements.matching(identifier: "LP.CaptionBar.BottomCaption")
                 guard tops.firstMatch.waitForExistence(timeout: 5), bottoms.firstMatch.waitForExistence(timeout: 5),
                       tops.count == 1, bottoms.count == 1,
-                      tops.element.label == title,
-                      bottoms.element.label == "文本文稿 · 8.9 MB" else {
+                      tops.element.label == fileTitle,
+                      matchesShareMetadata(bottoms.element.label) else {
                     try unavailable("The real share captions must identify this exact original TXT title, kind and observed size",
                         name: "external-TXT-native-share-file-identity-unconfirmed")
                 }
@@ -695,39 +782,32 @@ final class ReaderReadingToolsJourneyTests: XCTestCase {
                 name: "external-TXT-native-Reader-activity-ambiguous-or-absent")
         }
         let actualActivityLabel = activity.label
-        activity.tap(); readerActivityTaps += 1 // Exactly one normal system handoff; never activate/launch Reader here.
+        activity.tap(); readerActivityTaps += 1 // Exactly one normal system handoff; never activate or launch Reader here.
         waitUntil("The one actual Files Reader activity foregrounds Reader", timeout: 30) {
             app.state == .runningForeground
         }
         XCTAssertEqual(readerActivityTaps, 1)
+        return ["fileName": filename, "originalFilesCellLabel": originalCellLabel,
+            "enteredActualLocalReaderFolder": enteredLocal && enteredReader, "shareActionTapped": shareTapped,
+            "actualReaderActivityLabel": actualActivityLabel, "readerActivityTaps": readerActivityTaps,
+            "actualShareCaption": actualShareCaption.map { $0 as Any } ?? NSNull(),
+            "actualShareMetadata": actualShareMetadata.map { $0 as Any } ?? NSNull(),
+            "URLInjectionsRequested": 0, "fileWritesRequested": 0, "bookOpensRequested": 0]
+    }
+
+    private func externalTXTImportResult(in app: XCUIApplication, filename: String) -> XCUIElement {
         let close = app.buttons["关闭导入结果"]
         XCTAssertTrue(close.waitForExistence(timeout: 30))
         XCTAssertTrue(app.staticTexts["本地导入"].exists)
         XCTAssertGreaterThan(app.staticTexts.matching(NSPredicate(format: "label == %@", filename)).count, 0,
             "The actual import owner must identify the original filename; its header and item may both expose that same text")
-        let duplicate = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "这本书已在书架中")).firstMatch
-        XCTAssertTrue(duplicate.waitForExistence(timeout: 120),
-            "Require the real existing-SHA duplicate result; pending/error/new import cannot pass")
-        evidence(app, "external-TXT-actual-existing-SHA-duplicate-result")
-        close.tap()
-        XCTAssertTrue(app.buttons["更多书架操作"].waitForExistence(timeout: 20))
-        XCTAssertFalse(app.textFields["shelf-filter"].exists, "Preserve any original shelf filter")
-        XCTAssertTrue(app.buttons["全部分组"].exists, "Preserve the original group selection")
-        let existingBook = app.buttons.matching(NSPredicate(format: "identifier == %@", bookID))
-        XCTAssertEqual(existingBook.count, 1)
-        XCTAssertTrue(existingBook.element.isHittable && existingBook.element.isEnabled)
-        evidence(app, "external-TXT-duplicate-dismissed-original-bookshelf")
-        let facts: [String: Any] = ["fileName":filename,"originalFilesCellLabel":originalCellLabel,
-            "enteredActualLocalReaderFolder":enteredLocal && enteredReader,"shareActionTapped":shareTapped,
-            "actualReaderActivityLabel":actualActivityLabel,"readerActivityTaps":readerActivityTaps,
-            "actualShareCaption":actualShareCaption.map { $0 as Any } ?? NSNull(),
-            "actualShareMetadata":actualShareMetadata.map { $0 as Any } ?? NSNull(),
-            "duplicateResultObserved":true,"bookAXID":bookID,"normalReturnToShelfObserved":true,
-            "AppLaunchesRequested":0,"URLInjectionsRequested":0,"fileWritesRequested":0,"bookOpensRequested":0,
-            "boundary":"Root must bind actual Documents original8871723B/aac01d… and preserve all64tables/cache/heads/history/read_records/ledger/oldcommands/files/prefs plus complete .staging manifest. UI batch UUIDs are not Core ACKs; existing-SHA created:false returns before import.parse/persist. Only actual cold bootstrap and an exact new OS Inbox copy, if present, are separately reviewed. No reading session is opened."]
+        return close
+    }
+
+    private func attachExternalTXTHandoff(_ facts: [String: Any], name: String) throws {
         let result = XCTAttachment(data: try JSONSerialization.data(withJSONObject: facts,
             options: [.sortedKeys,.prettyPrinted]), uniformTypeIdentifier: "public.json")
-        result.name = "external-real-TXT-Files-Reader-duplicate-and-shelf-facts.json"
+        result.name = name
         result.lifetime = .keepAlways; add(result)
     }
 

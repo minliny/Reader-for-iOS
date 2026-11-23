@@ -487,9 +487,9 @@ final class ReaderApplicationModelTests: XCTestCase {
             ReaderPendingImport(id: "cleanup-only", fileName: "already-imported.txt", requiresReconciliation: false)
         ]
         let unresolved = expectation(description: "The original operation keeps its Core ID")
-        let observe = model.$importOperation.compactMap { $0 }.sink { value in
-            if value.items.contains(where: { $0.originalOperationID == originalID && $0.phase == .unresolved }) { unresolved.fulfill() }
-        }
+        let observe = model.$importOperation.compactMap { $0 }
+            .first(where: { $0.items.contains { $0.originalOperationID == originalID && $0.phase == .unresolved } })
+            .sink { _ in unresolved.fulfill() }
         defer { observe.cancel(); service.releasePendingRequests() }
         service.completeImport(.failure(ReaderLibraryError.operationPending(originalID)))
         await fulfillment(of: [unresolved], timeout: 2)
@@ -531,9 +531,9 @@ final class ReaderApplicationModelTests: XCTestCase {
         await fulfillment(of: [dispatched], timeout: 2)
         let originalID = "unknown-import"
         let unresolved = expectation(description: "Unknown outcome is projected")
-        let observe = model.$importOperation.compactMap { $0 }.sink { value in
-            if value.items.contains(where: { $0.originalOperationID == originalID && $0.phase == .unresolved }) { unresolved.fulfill() }
-        }
+        let observe = model.$importOperation.compactMap { $0 }
+            .first(where: { $0.items.contains { $0.originalOperationID == originalID && $0.phase == .unresolved } })
+            .sink { _ in unresolved.fulfill() }
         defer { observe.cancel(); service.releasePendingRequests() }
         service.pending = [ReaderPendingImport(id: originalID, fileName: "unknown.txt", requiresReconciliation: true)]
         service.completeImport(.failure(ReaderLibraryError.operationPending(originalID)))
