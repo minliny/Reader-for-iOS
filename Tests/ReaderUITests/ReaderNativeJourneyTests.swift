@@ -499,10 +499,85 @@ final class ReaderNativeJourneyTests: XCTestCase {
         completed = true
     }
 
+    /// Run against the installed ordinary App using destination artifacts.
+    /// Expected progress and prose come from the pre-install evidence.
+    func testOrdinaryAppColdContinuePreservesExistingGutenbergAnchor() throws {
+        #if !targetEnvironment(simulator)
+        throw XCTSkip("This verification uses the dedicated compact iPhone simulator")
+        #endif
+        let environment = ProcessInfo.processInfo.environment
+        let simulator = "Reader-iPhone-Daily-Closeout-20261123"
+        XCTAssertEqual(environment["SIMULATOR_DEVICE_NAME"], simulator)
+        XCTAssertEqual(UIDevice.current.userInterfaceIdiom, .phone)
+        executionTimeAllowance = 90
+
+        func normalized(_ value: String) -> String {
+            let folded = value.folding(options: [.widthInsensitive], locale: Locale(identifier: "zh-Hant"))
+            return String(String.UnicodeScalarView(folded.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }))
+        }
+        let expectedPassage = normalized(try XCTUnwrap(environment["READER_ORDINARY_EXPECTED_ANCHOR"],
+            "Require the old prose witness taken independently of this launch"))
+        XCTAssertGreaterThanOrEqual(expectedPassage.count, 18)
+        let expectedProgress = try XCTUnwrap(environment["READER_ORDINARY_EXPECTED_PROGRESS"],
+            "Require the independently recorded, nonzero reading footer value")
+        XCTAssertTrue(expectedProgress.hasSuffix("%"))
+        let percent = try XCTUnwrap(Int(expectedProgress.dropLast()))
+        XCTAssertTrue((1...99).contains(percent))
+
+        let app = XCUIApplication(bundleIdentifier: "io.reader.minliny")
+        let bookID = "local:997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let shelf = app.buttons["更多书架操作"]
+        let book = app.buttons["book-" + bookID]
+        let card = app.buttons["shelf-continue-card"]
+        let body = app.textViews["reading-body"]
+        let progress = app.staticTexts["reading-progress"]
+        if app.state != .notRunning { app.terminate() }
+        XCTAssertEqual(app.state, .notRunning)
+        app.launch()
+        XCTAssertTrue(shelf.waitForExistence(timeout: 20))
+        XCTAssertTrue(book.waitForExistence(timeout: 15), "Shelf must retain the original by its SHA identity")
+        XCTAssertTrue(card.waitForExistence(timeout: 15) && card.isHittable)
+        XCTAssertEqual(card.label, "继续阅读，pg25332")
+        let shelfEvidence = XCTAttachment(screenshot: app.screenshot())
+        shelfEvidence.name = "ordinary-app-cold-shelf-with-original"
+        shelfEvidence.lifetime = .keepAlways
+        add(shelfEvidence)
+
+        card.tap()
+        XCTAssertTrue(body.waitForExistence(timeout: 20))
+        let correctProgress = expectation(for: NSPredicate(format: "label == %@", expectedProgress), evaluatedWith: progress)
+        wait(for: [correctProgress], timeout: 10)
+        let observed = try renderedAnchor(in: body, app: app, languages: ["zh-Hant", "en-US"], characterLimit: 256)
+        let anchorEvidence = XCTAttachment(string: "book=local|\(bookID)\nchapter=1\nprogress=\(progress.label)"
+            + "\nexpectedPassage=\(expectedPassage)\nrecognizedViewport=\(observed)")
+        anchorEvidence.name = "ordinary-app-existing-anchor-and-progress"
+        anchorEvidence.lifetime = .keepAlways
+        add(anchorEvidence)
+        let bodyEvidence = XCTAttachment(screenshot: app.screenshot())
+        bodyEvidence.name = "ordinary-app-cold-existing-anchor"
+        bodyEvidence.lifetime = .keepAlways
+        add(bodyEvidence)
+        XCTAssertTrue(normalized(observed).contains(expectedPassage), "The old passage must already be visible without scrolling")
+
+        body.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+        let identity = app.staticTexts["reading-book:local|" + bookID]
+        let chapter = app.staticTexts["reading-chapter:1"]
+        XCTAssertTrue(identity.waitForExistence(timeout: 10))
+        XCTAssertTrue(chapter.waitForExistence(timeout: 5))
+        let headingEvidence = XCTAttachment(screenshot: app.screenshot())
+        headingEvidence.name = "ordinary-app-existing-book-and-chapter"
+        headingEvidence.lifetime = .keepAlways
+        add(headingEvidence)
+        let leave = app.buttons["leave-reader"]
+        XCTAssertTrue(leave.isHittable)
+        leave.tap()
+        XCTAssertTrue(shelf.waitForExistence(timeout: 15))
+    }
+
     /// OCR reads the actual native viewport, independent of model offsets and
     /// progress labels. Retain screenshot evidence separately from this check.
     private func renderedAnchor(in body: XCUIElement, app: XCUIApplication,
-                                languages: [String] = ["zh-Hans", "en-US"]) throws -> String {
+                                languages: [String] = ["zh-Hans", "en-US"], characterLimit: Int = 64) throws -> String {
         let screenshot = app.screenshot().image
         let source = try XCTUnwrap(screenshot.cgImage)
         let window = app.frame
@@ -527,7 +602,7 @@ final class ReaderNativeJourneyTests: XCTestCase {
         // contain short dialogue and ellipsis-only paragraphs, so consume a
         // bounded span of the actual visible lines rather than exactly two.
         XCTAssertGreaterThanOrEqual(lines.count, 4, "No attributable native text anchor")
-        let anchor = String(lines.dropFirst().joined(separator: "\n").prefix(64))
+        let anchor = String(lines.dropFirst().joined(separator: "\n").prefix(characterLimit))
         XCTAssertGreaterThan(anchor.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.count, 15)
         return anchor
     }

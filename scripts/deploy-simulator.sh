@@ -27,11 +27,15 @@ python3 - "$ios_root" "$udid" "$configuration" "$launch" <<'PY'
 import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import runpy
+import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
+import tempfile
 
 root, udid, configuration, launch = Path(sys.argv[1]), sys.argv[2].upper(), sys.argv[3], sys.argv[4] == "1"
 bundle = "io.reader.minliny"
@@ -40,6 +44,21 @@ document, receipt_bytes = artifact["load_and_verify"](root / ".build/app-build.j
 if document.get("configuration") != configuration:
     raise SystemExit("The selected immutable artifact has a different build configuration")
 app = Path(document["appPath"])
+identity_helper = Path(document["inputSnapshotPath"]) / "scripts/verify-simulator-identity.py"
+if not identity_helper.is_file():
+    identity_helper = root / "scripts/verify-simulator-identity.py"
+expected_identity = document.get("simulatorIdentity")
+if expected_identity is None:
+    expected_identity = artifact["verify_simulator_identity"](app, identity_helper)
+
+def verify_app_copy(candidate):
+    if artifact["check_app"](candidate) != document["appFiles"]:
+        raise RuntimeError("Simulator App copy does not match the sealed file hashes: " + str(candidate))
+    identity = artifact["verify_simulator_identity"](candidate, identity_helper)
+    if identity != expected_identity:
+        raise RuntimeError("Simulator App copy does not match the sealed signing identity: " + str(candidate))
+    return {"status": "PASS", "verifiedFileCount": len(document["appFiles"]), "simulatorIdentity": identity}
+
 def simctl(*arguments):
     return subprocess.check_output(["xcrun", "simctl", *arguments])
 inventory = json.loads(simctl("list", "devices", "available", "--json"))
@@ -127,6 +146,8 @@ receipt = {
     "dataContainerMigrated": None, "dataPreservationPolicy": "protected-files-v1",
     "protectedDataBefore": None, "protectedDataAfter": None, "protectedDataComparison": None,
     "protectedDataPreserved": None,
+    "installTransport": {"mode": "verified-staging-copy", "verification": {"status": "NOT_RUN"}},
+    "installedPackageVerification": {"status": "NOT_RUN"},
     "preInstallVerification": "NOT_RUN", "install": "NOT_RUN",
     "postInstallVerification": "NOT_RUN", "launch": "NOT_RUN",
 }
@@ -134,12 +155,23 @@ failure = None
 try:
     before_snapshot = protected_snapshot(before_data) if before_data else None
     receipt["protectedDataBefore"] = before_snapshot
-    receipt["preInstallVerification"] = "PASS"
-    install_result = subprocess.run(["xcrun", "simctl", "install", udid, str(app)], capture_output=True, text=True)
-    receipt["install"] = "PASS" if install_result.returncode == 0 else "FAIL"
-    receipt["installExitCode"] = install_result.returncode
-    receipt["installOutput"] = install_result.stdout.strip()
-    receipt["installError"] = install_result.stderr.strip()
+    # InstallCoordination copies directory modes and can fail to populate a
+    # staged 0555 directory. Give only this private transport copy writable
+    # directories, and verify each file and the captured signature before use.
+    with tempfile.TemporaryDirectory(prefix="reader-ios-sim-deploy-", dir=Path("/tmp").resolve()) as directory:
+        staged_app = Path(directory) / "Reader.app"
+        receipt["installTransport"]["verification"]["status"] = "FAIL"
+        shutil.copytree(app, staged_app, symlinks=True)
+        for name, _, _ in os.walk(staged_app, followlinks=False):
+            path = Path(name)
+            path.chmod(stat.S_IMODE(path.stat().st_mode) | stat.S_IWUSR)
+        receipt["installTransport"]["verification"] = verify_app_copy(staged_app)
+        receipt["preInstallVerification"] = "PASS"
+        install_result = subprocess.run(["xcrun", "simctl", "install", udid, str(staged_app)], capture_output=True, text=True)
+        receipt["install"] = "PASS" if install_result.returncode == 0 else "FAIL"
+        receipt["installExitCode"] = install_result.returncode
+        receipt["installOutput"] = install_result.stdout.strip()
+        receipt["installError"] = install_result.stderr.strip()
     if install_result.returncode != 0:
         failure = "Installation failed; no cleanup was attempted"
     else:
@@ -155,10 +187,17 @@ try:
         receipt["protectedDataComparison"] = comparison
         preserved = after is not None and comparison["status"] in ("PASS", "NOT_APPLICABLE")
         receipt["protectedDataPreserved"] = preserved if before_snapshot is not None else None
-        receipt["postInstallVerification"] = "PASS" if preserved else "FAIL"
         if not preserved:
+            receipt["postInstallVerification"] = "FAIL"
             failure = "Installation did not retain the protected data; launch was skipped and no cleanup was attempted"
-        elif launch:
+        else:
+            receipt["installedPackageVerification"]["status"] = "FAIL"
+            installed_app = simctl("get_app_container", udid, bundle, "app").decode().strip()
+            if not installed_app:
+                raise RuntimeError("The installed Simulator App path is unavailable")
+            receipt["installedPackageVerification"] = verify_app_copy(Path(installed_app))
+            receipt["postInstallVerification"] = "PASS"
+        if preserved and launch:
             launch_result = subprocess.run(["xcrun", "simctl", "launch", udid, bundle], capture_output=True, text=True)
             receipt["launch"] = "PASS" if launch_result.returncode == 0 else "FAIL"
             receipt["launchOutput"] = launch_result.stdout.strip()
@@ -173,8 +212,8 @@ except (OSError, RuntimeError, ValueError, sqlite3.Error, subprocess.CalledProce
         receipt["install"] = "FAIL"
     elif receipt["postInstallVerification"] == "NOT_RUN":
         receipt["postInstallVerification"] = "FAIL"
-        receipt["protectedDataPreserved"] = False
         if receipt["protectedDataComparison"] is None:
+            receipt["protectedDataPreserved"] = False
             receipt["protectedDataComparison"] = {"status": "FAIL", "reason": "snapshot-unavailable"}
     elif launch and receipt["launch"] == "NOT_RUN":
         receipt["launch"] = "FAIL"

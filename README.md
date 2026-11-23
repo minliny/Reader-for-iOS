@@ -117,8 +117,9 @@ UI Runner 未进入时先查本次 `xcresult/Staging` 的 session/testmanagerd �
 
 该入口只接受显式 UDID，要求目标已启动；安装前退出 App 并停止并行数据写入。
 它只读取一次 `.build/app-build.json`，核对其中
-固定目录的 App、输入快照与 Core 回执后，使用同一份只读 App 调用 `simctl install`
-覆盖同一 bundle；后续构建更新最新回执不会改变本次安装来源。
+固定目录的 App、输入快照与 Core 回执后，将同一 App 复制到私有临时目录。仅为临时副本的目录
+增加所有者写权限，核对全部文件 SHA 和签名身份后调用 `simctl install` 覆盖同一 bundle。
+启动前再次核对已安装包的全部文件与签名。后续构建更新最新回执不会改变本次安装来源。
 安装前及安装后启动前，比较受保护相对文件的摘要：`Documents`、`Library/Application Support`
 递归文件及存在时的 `Library/Preferences/io.reader.minliny.plist`。普通文件逐字节核对 SHA-256；
 SQLite 主库使用 Python sqlite3 只读连接的 `iterdump` 语义 SHA，不输出内容，配套 `-wal`/`-shm`
