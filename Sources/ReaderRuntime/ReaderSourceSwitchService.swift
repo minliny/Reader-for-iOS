@@ -1,9 +1,54 @@
 import Foundation
+import CryptoKit
 
 public struct ReaderOnlineSwitchResult: Sendable {
     public let book: ReaderBook
     public let content: ReaderChapterContent
     public let progressSnapshot: ReaderProgressSnapshot
+    public let positionNotice: String?
+
+    init(book: ReaderBook, content: ReaderChapterContent, progressSnapshot: ReaderProgressSnapshot,
+         positionNotice: String? = nil) {
+        self.book = book
+        self.content = content
+        self.progressSnapshot = progressSnapshot
+        self.positionNotice = positionNotice
+    }
+}
+
+/// Host-only intent captured before Core removes the original shelf position.
+/// Keep a digest and a bounded literal context, never a second copy of the chapter.
+struct ReaderSourceSwitchAnchor: Codable {
+    let offset: UInt64
+    let bodyDigest: Data
+    let context: String
+    let leadingUTF16Count: Int
+
+    init(content: String, offset: UInt64) {
+        self.offset = offset
+        bodyDigest = Self.digest(content)
+        let scalars = content.unicodeScalars
+        let position = scalars.index(scalars.startIndex, offsetBy: Int(offset))
+        let start = scalars.index(position, offsetBy: -24, limitedBy: scalars.startIndex) ?? scalars.startIndex
+        let end = scalars.index(position, offsetBy: 24, limitedBy: scalars.endIndex) ?? scalars.endIndex
+        context = String(scalars[start..<end])
+        leadingUTF16Count = String(scalars[start..<position]).utf16.count
+    }
+
+    func resolve(in content: ReaderChapterContent) -> UInt64 {
+        if offset <= content.scalarCount, bodyDigest == Self.digest(content.content) { return offset }
+        guard context.unicodeScalars.count >= 16, leadingUTF16Count > 0,
+              leadingUTF16Count <= context.utf16.count else { return 0 }
+        let target = content.content as NSString
+        let match = target.range(of: context, options: .literal)
+        guard match.location != NSNotFound else { return 0 }
+        // Search from the next code unit so overlapping occurrences count too.
+        let remainder = NSRange(location: match.location + 1, length: target.length - match.location - 1)
+        guard target.range(of: context, options: .literal, range: remainder).location == NSNotFound else { return 0 }
+        return ReaderTextCoordinates.scalarOffset(in: content.content, utf16Offset: match.location + leadingUTF16Count)
+    }
+
+    private static func digest(_ text: String) -> Data { Data(SHA256.hash(data: Data(text.utf8))) }
 }
 
 /// Emitted only after the original rollback terminal confirmed the restored
@@ -34,6 +79,7 @@ private struct ReaderSwitchCommit: Decodable {
     let phase: String
     let book: ReaderBook
     let matchedChapter: Chapter
+    let strategy: String
 }
 
 extension ReaderLibraryService: ReaderSourceSwitchServing {
@@ -47,6 +93,7 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
         defer { sourceSwitchInFlight = false }
 
         let parameters: [String: Any]
+        let originalAnchor: ReaderSourceSwitchAnchor?
         if let original = try existingCoreParameters(operationID: operationID, method: "source.switch.commit") {
             guard let from = original["from"] as? [String: Any],
                   from["sourceId"] as? String == book.sourceId, from["bookId"] as? String == book.bookId,
@@ -57,6 +104,7 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
                 throw ReaderLibraryError.invalidResponse("source switch operation reused")
             }
             parameters = original
+            originalAnchor = try recordedSourceSwitchAnchor(operationID: operationID)
         } else {
             // Admission installs the target's actual Core-owned catalog. Core
             // performs all title/order/fuzzy matching; Host supplies no matcher.
@@ -80,10 +128,11 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
                 "currentChapterTitle": currentChapterTitle, "currentChapterIndex": currentChapterIndex,
                 "strictCandidateAdmission": true,
                 "updatedAt": Int64(Date().timeIntervalSince1970)]
+            originalAnchor = try await confirmedSourceSwitchAnchor(for: book, chapterIndex: currentChapterIndex)
         }
 
         let commit = try decode(ReaderSwitchCommit.self, await coreMutation("source.switch.commit", parameters,
-            operationID: operationID, scope: "source-switch"))
+            operationID: operationID, scope: "source-switch", sourceSwitchAnchor: originalAnchor))
         guard commit.transactionId == parameters["operationId"] as? String, commit.phase == "pending",
               commit.book.sourceId == candidate.sourceId, commit.book.bookId == candidate.bookId,
               let chapterIndex = UInt32(exactly: commit.matchedChapter.order) else {
@@ -109,6 +158,7 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
         }
         var canonicalAcknowledged = false
         let originalCanonical = try existingCoreParameters(operationID: canonicalID, method: "reading.progress.update")
+        var canonicalOffset = (originalCanonical?["chapterOffset"] as? NSNumber)?.uint64Value
         let content: ReaderChapterContent
         do {
             if let originalCanonical {
@@ -126,19 +176,25 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
             if !canonicalAcknowledged {
                 let observed = try await progress(for: commit.book)
                 guard let revision = observed.progressRevision, !revision.isEmpty else { throw ReaderLibraryError.invalidPosition }
-                let offset: UInt64
                 if let position = observed.progress {
                     guard observed.found, position.sourceId == commit.book.sourceId, position.bookId == commit.book.bookId,
                           position.chapterIndex == chapterIndex, position.chapterOffset <= content.scalarCount else {
                         throw ReaderLibraryError.invalidPosition
                     }
-                    offset = position.chapterOffset
                 } else {
                     guard !observed.found else { throw ReaderLibraryError.invalidPosition }
+                }
+                let offset: UInt64
+                if let originalAnchor {
+                    offset = commit.strategy == "lastReadFallback" ? 0 : originalAnchor.resolve(in: content)
+                } else if let position = observed.progress, position.bodyVersion == bodyVersion,
+                          position.processingVersion == processingVersion {
+                    // A legacy unfinished switch may already have a versioned target remap.
+                    offset = position.chapterOffset
+                } else {
                     offset = 0
                 }
-                // Core resets the migrated scalar to zero. Preserve its actual
-                // target position and validate it against the real prepared body.
+                canonicalOffset = offset
                 let canonical: [String: Any] = ["transactionId": commit.transactionId,
                     "sourceId": commit.book.sourceId, "bookId": commit.book.bookId,
                     "chapterIndex": chapterIndex, "chapterOffset": offset,
@@ -180,7 +236,17 @@ extension ReaderLibraryService: ReaderSourceSwitchServing {
             }
         } else { sessionContent = content }
         try await finishCoreOperation(operationID)
-        return .init(book: commit.book, content: sessionContent, progressSnapshot: snapshot)
+        let notice = originalAnchor != nil && canonicalOffset == 0
+            ? "无法在新书源确认原阅读位置，已从匹配章节的开头继续。" : nil
+        return .init(book: commit.book, content: sessionContent, progressSnapshot: snapshot, positionNotice: notice)
+    }
+
+    private func confirmedSourceSwitchAnchor(for book: ReaderBook, chapterIndex: UInt32) async throws -> ReaderSourceSwitchAnchor? {
+        let saved = try await progress(for: book)
+        guard let position = saved.progress, position.chapterIndex == chapterIndex, position.chapterOffset > 0 else { return nil }
+        let original = try await reconcileOnlineContent(for: book, chapterIndex: chapterIndex)
+        guard original.progressSnapshot == saved else { throw ReaderLibraryError.invalidPosition }
+        return ReaderSourceSwitchAnchor(content: original.content.content, offset: position.chapterOffset)
     }
 
     private func sourceSwitchStageParameters(transactionID: String, operationID: String,

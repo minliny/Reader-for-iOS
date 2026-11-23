@@ -15,19 +15,23 @@ private struct ReaderHostCommand: Codable {
     let method: String
     let scope: String
     let parameters: Data
+    let sourceSwitchAnchor: ReaderSourceSwitchAnchor?
     var result: Data?
     var completed: Bool = false
     var failure: ReaderHostCommandFailure? = nil
-    init(id: String, method: String, scope: String, parameters: Data, result: Data?) {
+    init(id: String, method: String, scope: String, parameters: Data, result: Data?,
+         sourceSwitchAnchor: ReaderSourceSwitchAnchor?) {
         self.id = id; self.method = method; self.scope = scope; self.parameters = parameters; self.result = result
+        self.sourceSwitchAnchor = sourceSwitchAnchor
     }
-    private enum CodingKeys: String, CodingKey { case id, method, scope, parameters, result, completed, failure }
+    private enum CodingKeys: String, CodingKey { case id, method, scope, parameters, sourceSwitchAnchor, result, completed, failure }
     init(from decoder: Decoder) throws {
         let v = try decoder.container(keyedBy: CodingKeys.self)
         id = try v.decode(String.self, forKey: .id)
         method = try v.decode(String.self, forKey: .method)
         scope = try v.decode(String.self, forKey: .scope)
         parameters = try v.decode(Data.self, forKey: .parameters)
+        sourceSwitchAnchor = try v.decodeIfPresent(ReaderSourceSwitchAnchor.self, forKey: .sourceSwitchAnchor)
         result = try v.decodeIfPresent(Data.self, forKey: .result)
         completed = try v.decodeIfPresent(Bool.self, forKey: .completed) ?? false
         failure = try v.decodeIfPresent(ReaderHostCommandFailure.self, forKey: .failure)
@@ -61,7 +65,7 @@ extension ReaderLibraryService {
     }
 
     func coreMutation(_ method: String, _ parameters: [String: Any], operationID: String, scope: String,
-                      timeout: TimeInterval = 30) async throws -> Data {
+                      timeout: TimeInterval = 30, sourceSwitchAnchor: ReaderSourceSwitchAnchor? = nil) async throws -> Data {
         guard !operationID.isEmpty, !scope.isEmpty else { throw ReaderLibraryError.invalidResponse("mutation identity") }
         let encoded = try JSONSerialization.data(withJSONObject: parameters, options: [.sortedKeys])
         if let original = try commandRecord(operationID) {
@@ -78,7 +82,8 @@ extension ReaderLibraryService {
             try requireOnlineAdmissionDispatchOwner(operationID: operationID, parameters: encoded, scope: scope)
         }
         try Task.checkCancellation()
-        var record = ReaderHostCommand(id: operationID, method: method, scope: scope, parameters: encoded, result: nil)
+        var record = ReaderHostCommand(id: operationID, method: method, scope: scope, parameters: encoded, result: nil,
+            sourceSwitchAnchor: sourceSwitchAnchor)
         try storeCommand(record)
         do {
             let result = try await request(method, parameters, mutation: true, timeout: timeout, owner: .command(operationID))
@@ -158,8 +163,8 @@ extension ReaderLibraryService {
             return .init(operationID: operationID, status: .completed)
         }
         do {
-            try await resumeRegisteredFeature(original)
-            return .init(operationID: operationID, status: .completed)
+            let message = try await resumeRegisteredFeature(original)
+            return .init(operationID: operationID, status: .completed, message: message)
         } catch let error as ReaderSourceSwitchRolledBack {
             return .init(operationID: operationID, status: .rejected, message: error.localizedDescription)
         } catch let error as ReaderSourceSwitchRefreshRequired {
@@ -217,7 +222,7 @@ extension ReaderLibraryService {
                 "cache.download.resume", "cache.download.cancel", "cache.clear"].contains(record.method)
     }
 
-    private func resumeRegisteredFeature(_ record: ReaderHostCommand) async throws {
+    private func resumeRegisteredFeature(_ record: ReaderHostCommand) async throws -> String? {
         let params = try object(record.parameters)
         switch record.method {
         case "bookshelf.management.mutation.apply":
@@ -257,38 +262,39 @@ extension ReaderLibraryService {
             }
             let origin = try recoveryBookIdentity(from)
             let destination = try recoveryBookIdentity(target)
-            _ = try await switchOnlineBook(from: ReaderBook(sourceId: origin.sourceId, bookId: origin.bookId, title: ""),
+            let switched = try await switchOnlineBook(from: ReaderBook(sourceId: origin.sourceId, bookId: origin.bookId, title: ""),
                 currentChapterIndex: chapter, currentChapterTitle: title,
                 candidate: ReaderOnlineCandidate(sourceId: destination.sourceId, bookId: destination.bookId,
                     title: targetTitle, author: target["author"] as? String ?? "", coverUrl: target["coverUrl"] as? String), operationID: record.id)
-            return
+            return switched.positionNotice
         case "cache.book.prefetch":
             let book = try recoveryBook(params)
             guard let range = params["chapterRange"] as? [UInt32], range.count == 2, range[0] < range[1] else {
                 throw ReaderLibraryError.operationPending(record.id)
             }
             _ = try await downloadChapters(book, range: range[0]..<range[1], operationID: record.id)
-            return
+            return nil
         case "cache.download.pause", "cache.download.resume", "cache.download.cancel":
             let book = try recoveryBook(params)
             guard let chapter = (params["chapterIndex"] as? NSNumber)?.uint32Value else { throw ReaderLibraryError.operationPending(record.id) }
             if record.method == "cache.download.pause" { _ = try await pauseDownload(book, chapterIndex: chapter, operationID: record.id) }
             else if record.method == "cache.download.resume" { _ = try await resumeDownload(book, chapterIndex: chapter, operationID: record.id) }
             else { _ = try await cancelDownload(book, chapterIndex: chapter, operationID: record.id) }
-            return
+            return nil
         case "cache.clear":
             let book = try recoveryBook(params)
             guard params["scope"] as? String == "chapter", let chapter = (params["chapterIndex"] as? NSNumber)?.uint32Value else {
                 throw ReaderLibraryError.operationPending(record.id)
             }
             try await clearDownloadedChapter(book, chapterIndex: chapter, operationID: record.id)
-            return
+            return nil
         default:
             // Registered metadata-only owners have no Host asset side effect.
             // Receipt reconciliation itself never redispatches an unknown write.
             _ = try await reconcileCoreCommand(operationID: record.id)
         }
         try await finishCoreOperation(record.id)
+        return nil
     }
 
     private func recoveryBookIdentity(_ params: [String: Any]) throws -> ReaderBookIdentity {
@@ -350,6 +356,10 @@ extension ReaderLibraryService {
         guard let record = try commandRecord(operationID) else { return nil }
         guard record.method == method else { throw ReaderLibraryError.invalidResponse("operation method identity") }
         return try object(record.parameters)
+    }
+
+    func recordedSourceSwitchAnchor(operationID: String) throws -> ReaderSourceSwitchAnchor? {
+        try commandRecord(operationID)?.sourceSwitchAnchor
     }
 
     /// Continuation is allowed only after the old runtime/request owner is gone.

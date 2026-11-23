@@ -1047,6 +1047,7 @@ final class ReaderApplicationModel: ObservableObject {
             scheduleReadingCacheWindow()
             await reloadHighlights()
             await reloadLibrary()
+            if reader?.book.id == result.book.id, let notice = result.positionNotice { showFeedback(notice) }
         } catch {
             sourceSwitchFlushing = false
             if let rollback = error as? ReaderSourceSwitchRolledBack {

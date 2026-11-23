@@ -319,6 +319,176 @@ final class ReaderFeatureRecoveryTests: XCTestCase {
         }
     }
 
+    func testMatchedSourceSwitchKeepsNonzeroAnchorForIdenticalBodies() async throws {
+        let fixture = try FeatureRecoveryFixture.gutenberg()
+        defer { fixture.cleanUp() }
+        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true)
+        let original = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+        let before = try await fixture.service.progress(for: intent.original)
+        let originalOffset = try XCTUnwrap(before.progress?.chapterOffset)
+        XCTAssertEqual(originalOffset, 20)
+
+        let switched = try await fixture.switchSeededBook(from: intent.original, to: intent.target,
+            content: original, operationID: intent.operation)
+        XCTAssertEqual(switched.content.chapterTitle, original.chapterTitle)
+        XCTAssertEqual(Data(switched.content.content.utf8), Data(original.content.utf8))
+        let targetOffset = try XCTUnwrap(switched.progressSnapshot.progress?.chapterOffset)
+        let status = XCTAttachment(string: "identicalBody=true\nmatchedChapter=\(switched.content.chapterIndex)\noriginalScalar=\(originalOffset)\ntargetScalar=\(targetOffset)")
+        status.name = "identical-body-nonzero-source-switch"
+        status.lifetime = .keepAlways
+        add(status)
+        XCTAssertNil(switched.positionNotice)
+        try await verifyTargetSwitchPosition(switched, target: intent.target, offset: originalOffset, service: fixture.service)
+        try await fixture.service.close()
+    }
+
+    func testMatchedSourceSwitchRelocatesUniqueAnchorInChangedBody() async throws {
+        let fixture = try FeatureRecoveryFixture.gutenberg()
+        defer { fixture.cleanUp() }
+        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true) { excerpt in
+            String(excerpt.unicodeScalars.dropFirst(250).prefix(80)) + "\n" + excerpt
+        }
+        let original = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+        let switched = try await fixture.switchSeededBook(from: intent.original, to: intent.target,
+            content: original, operationID: intent.operation)
+        let newText = switched.content.content
+        XCTAssertNotEqual(newText, original.content)
+        let originalLeadingText = String(original.content.unicodeScalars.prefix(44))
+        let insertedPrefix = try XCTUnwrap(newText.range(of: originalLeadingText, options: .literal))
+        XCTAssertNil(newText.range(of: originalLeadingText, options: .literal, range: insertedPrefix.upperBound..<newText.endIndex))
+        let distance = newText.unicodeScalars.distance(from: newText.unicodeScalars.startIndex, to: insertedPrefix.lowerBound)
+        XCTAssertGreaterThan(distance, 0)
+        XCTAssertNil(switched.positionNotice)
+        try await verifyTargetSwitchPosition(switched, target: intent.target, offset: UInt64(distance) + 20, service: fixture.service)
+        try await fixture.service.close()
+    }
+
+    func testMatchedSourceSwitchUsesChapterStartForAmbiguousAnchor() async throws {
+        let fixture = try FeatureRecoveryFixture.gutenberg()
+        defer { fixture.cleanUp() }
+        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true) { excerpt in
+            excerpt + "\n" + excerpt
+        }
+        let original = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+        let switched = try await fixture.switchSeededBook(from: intent.original, to: intent.target,
+            content: original, operationID: intent.operation)
+        let newText = switched.content.content
+        XCTAssertNotEqual(newText, original.content)
+        let originalLeadingText = String(original.content.unicodeScalars.prefix(44))
+        let first = try XCTUnwrap(newText.range(of: originalLeadingText, options: .literal))
+        XCTAssertNotNil(newText.range(of: originalLeadingText, options: .literal, range: first.upperBound..<newText.endIndex))
+        XCTAssertEqual(switched.positionNotice, "无法在新书源确认原阅读位置，已从匹配章节的开头继续。")
+        try await verifyTargetSwitchPosition(switched, target: intent.target, offset: 0, service: fixture.service)
+        try await fixture.service.close()
+    }
+
+    func testColdMatchedSourceSwitchRecoversOriginalCommitACKAndKeepsAnchor() async throws {
+        try await verifyColdMatchedSourceSwitch(holdingCanonicalACK: false)
+    }
+
+    func testColdMatchedSourceSwitchRecoversOriginalCanonicalACKAndKeepsAnchor() async throws {
+        try await verifyColdMatchedSourceSwitch(holdingCanonicalACK: true)
+    }
+
+    private func verifyTargetSwitchPosition(_ switched: ReaderOnlineSwitchResult, target: ReaderBook,
+                                            offset: UInt64, service: ReaderLibraryService) async throws {
+        XCTAssertEqual(switched.book.id, target.id)
+        XCTAssertEqual(switched.content.sourceId, target.sourceId)
+        XCTAssertEqual(switched.content.bookId, target.bookId)
+        XCTAssertEqual(switched.content.chapterIndex, 0)
+        let progress = try XCTUnwrap(switched.progressSnapshot.progress)
+        XCTAssertTrue(switched.progressSnapshot.found)
+        XCTAssertEqual(progress.sourceId, target.sourceId)
+        XCTAssertEqual(progress.bookId, target.bookId)
+        XCTAssertEqual(progress.chapterIndex, switched.content.chapterIndex)
+        XCTAssertEqual(progress.chapterOffset, offset)
+        XCTAssertEqual(progress.chapterProgress, Double(offset) / Double(switched.content.scalarCount), accuracy: 0.000_001)
+        XCTAssertEqual(progress.bodyVersion, try XCTUnwrap(switched.content.bodyVersion))
+        XCTAssertEqual(progress.processingVersion, try XCTUnwrap(switched.content.processingVersion))
+        let persisted = try await service.progress(for: target)
+        XCTAssertEqual(persisted, switched.progressSnapshot)
+    }
+
+    private func verifyColdMatchedSourceSwitch(holdingCanonicalACK: Bool) async throws {
+        let fixture = try FeatureRecoveryFixture.gutenberg()
+        defer { fixture.cleanUp() }
+        let intent = try await fixture.seedOriginalSwitch(replayTargetCatalog: true)
+        let original = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+        let before = try await fixture.service.progress(for: intent.original)
+        XCTAssertEqual(before.progress?.chapterOffset, 20)
+        let heldMethod = holdingCanonicalACK ? "reading.progress.update" : "source.switch.commit"
+        let priorWrites = fixture.client.count("reading.progress.update")
+        fixture.client.hold(heldMethod)
+        do {
+            _ = try await fixture.switchSeededBook(from: intent.original, to: intent.target,
+                content: original, operationID: intent.operation)
+            XCTFail("The actual Core terminal for \(heldMethod) was withheld")
+        } catch ReaderLibraryError.operationPending(let operationID) {
+            XCTAssertEqual(operationID, intent.operation)
+        }
+        XCTAssertEqual(fixture.client.count("source.switch.commit"), 1)
+        XCTAssertEqual(fixture.client.count("source.switch.finalize"), 0)
+        XCTAssertEqual(fixture.client.count("reading.progress.update"), priorWrites + (holdingCanonicalACK ? 1 : 0))
+        let commit = try XCTUnwrap(fixture.client.lastParameters("source.switch.commit"))
+        let transactionID = try XCTUnwrap(commit["operationId"] as? String)
+        let held = try XCTUnwrap(fixture.client.terminal)
+        XCTAssertEqual(held.type, "result")
+        let terminal = try XCTUnwrap(held.data)
+        XCTAssertEqual(terminal["transactionId"] as? String, transactionID)
+        let originalCanonical: [String: Any]?
+        if holdingCanonicalACK {
+            originalCanonical = try XCTUnwrap(fixture.client.lastParameters("reading.progress.update"))
+            XCTAssertEqual((originalCanonical?["chapterOffset"] as? NSNumber)?.uint64Value, 20)
+            XCTAssertEqual((terminal["chapterOffset"] as? NSNumber)?.uint64Value, 20)
+            XCTAssertEqual(terminal["sourceSwitchFinalized"] as? Bool, true)
+        } else {
+            originalCanonical = nil
+            XCTAssertEqual(terminal["phase"] as? String, "pending")
+        }
+
+        try fixture.reopen()
+        let recovered = try await fixture.service.resumePendingFeatureOperation(intent.operation)
+        XCTAssertEqual(recovered.status, .completed, recovered.message ?? heldMethod)
+        XCTAssertEqual(fixture.client.count("source.switch.commit"), 0)
+        XCTAssertEqual(fixture.client.count("reading.progress.update"), holdingCanonicalACK ? 0 : 1)
+        XCTAssertEqual(fixture.client.count("source.switch.finalize"), 1)
+        XCTAssertEqual(fixture.client.count("source.switch.rollback"), 0)
+        XCTAssertEqual(fixture.client.count("book.detail"), 0)
+        XCTAssertEqual(fixture.client.count("book.toc"), 0)
+        if let originalCanonical {
+            let queried = try XCTUnwrap(fixture.client.canonicalQuery)
+            XCTAssertEqual(try JSONSerialization.data(withJSONObject: queried, options: .sortedKeys),
+                           try JSONSerialization.data(withJSONObject: originalCanonical, options: .sortedKeys))
+        }
+        let body = try await fixture.service.content(for: intent.target, chapterIndex: 0)
+        XCTAssertEqual(Data(body.content.utf8), Data(original.content.utf8))
+        let position = try await fixture.service.progress(for: intent.target)
+        try await verifyTargetSwitchPosition(.init(book: intent.target, content: body, progressSnapshot: position),
+            target: intent.target, offset: 20, service: fixture.service)
+
+        let later = try await fixture.service.saveProgress(for: intent.target, content: body, scalarOffset: 31,
+            expectedRevision: position.progressRevision)
+        XCTAssertEqual(later.progress?.chapterOffset, 31)
+        let repeated = try await fixture.service.resumePendingFeatureOperation(intent.operation)
+        XCTAssertEqual(repeated.status, .completed, repeated.message ?? heldMethod)
+        XCTAssertEqual(fixture.client.count("source.switch.commit"), 0)
+        XCTAssertEqual(fixture.client.count("reading.progress.update"), holdingCanonicalACK ? 1 : 2)
+        XCTAssertEqual(fixture.client.count("source.switch.finalize"), 1)
+        let positionAfterRepeat = try await fixture.service.progress(for: intent.target)
+        XCTAssertEqual(positionAfterRepeat, later)
+        if let originalCanonical {
+            let data = try await fixture.service.coreRead("source.switch.transaction.query", [
+                "operationId": transactionID, "expectedCanonical": originalCanonical
+            ])
+            let query = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let transaction = try XCTUnwrap(query["transaction"] as? [String: Any])
+            let originalReceipt = try XCTUnwrap(transaction["canonicalProgress"] as? [String: Any])
+            XCTAssertEqual(try JSONSerialization.data(withJSONObject: originalReceipt, options: .sortedKeys),
+                           try JSONSerialization.data(withJSONObject: terminal, options: .sortedKeys))
+        }
+        try await fixture.service.close()
+    }
+
     func testColdSwitchRollbackRecoversOriginalStageACKAndRefreshesRestoredRevision() async throws {
         try await verifyColdSwitchRollback(FeatureRecoveryFixture(), checkInitialRestoration: false)
     }
@@ -469,6 +639,10 @@ private final class FeatureRecoveryFixture {
     let original: Data
     var client: FeatureRecoveryGate
     var service: ReaderLibraryService
+    static func gutenberg() throws -> FeatureRecoveryFixture {
+        try FeatureRecoveryFixture(name: "pg25332.txt", bytes: 99_898,
+            digest: "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38")
+    }
     init(name: String = "仙子请听我解释.txt", bytes: Int = 8_871_723,
          digest: String = "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5") throws {
         let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
@@ -492,7 +666,7 @@ private final class FeatureRecoveryFixture {
             timing: ReaderRequestTiming(now: { gate.now }, suspend: { await Task.yield() }))
     }
     func seedCachedRemote(source: String, title: String, author: String, chapterTitle: String,
-                          body: String) async throws -> (book: ReaderBook, chapter: ReaderChapter) {
+                          body: String, replayCatalog: Bool = false) async throws -> (book: ReaderBook, chapter: ReaderChapter) {
         let definition: [String: Any] = ["bookSourceUrl": source, "bookSourceName": "Core恢复方法测试", "bookSourceType": 0, "enabled": true,
             "ruleBookInfo": ["name": "h1@text", "author": "span.author@text", "tocUrl": "a.toc@href"],
             "ruleToc": ["chapterList": "ol.toc li", "chapterName": "a@text", "chapterUrl": "a@href"],
@@ -501,18 +675,22 @@ private final class FeatureRecoveryFixture {
         _ = try await service.rulesMutation("source.import", ["sourceId": source, "bookSource": definition], operationID: importID)
         try await service.finishCoreOperation(importID)
         let bookID = source + "/book/real-downloads"
+        let detailResponse = "<h1>\(html(title))</h1><span class='author'>\(html(author))</span><a class='toc' href='\(source)/toc'>目录</a>"
+        let tocResponse = "<ol class='toc'><li><a href='\(source)/chapter/0'>\(html(chapterTitle))</a></li></ol>"
         _ = try await service.coreRead("book.detail", ["sourceId": source,
             "book": ["bookId": bookID, "title": title, "author": author],
-            "detailResponse": "<h1>\(html(title))</h1><span class='author'>\(html(author))</span><a class='toc' href='\(source)/toc'>目录</a>"])
+            "detailResponse": detailResponse])
         let tocData = try await service.coreRead("book.toc", ["sourceId": source, "bookId": bookID,
-            "tocResponse": "<ol class='toc'><li><a href='\(source)/chapter/0'>\(html(chapterTitle))</a></li></ol>"])
+            "tocResponse": tocResponse])
         struct Toc: Decodable { let toc: [ReaderChapter] }
         let chapter = try XCTUnwrap(JSONDecoder().decode(Toc.self, from: tocData).toc.first)
         _ = try await service.coreRead("chapter.content", ["sourceId": source, "bookId": bookID, "chapterIndex": chapter.index,
             "chapterTitle": chapter.title, "chapterUrl": chapter.url, "chapterResponse": "<div class='content'>\(html(body))</div>"])
+        if replayCatalog { client.replayCatalog(sourceID: source, bookID: bookID, detail: detailResponse, toc: tocResponse) }
         return (.init(sourceId: source, bookId: bookID, title: title, author: author, chapterCount: 1), chapter)
     }
-    func seedOriginalSwitch() async throws -> (operation: String, parameters: [String: Any], original: ReaderBook, target: ReaderBook) {
+    func seedOriginalSwitch(replayTargetCatalog: Bool = false, targetBody: (String) -> String = { $0 }) async throws
+        -> (operation: String, parameters: [String: Any], original: ReaderBook, target: ReaderBook) {
         let local = try await service.importBook(at: input).book
         let chapters = try await service.chapters(for: local)
         let chapter = try XCTUnwrap(chapters.first { $0.title.hasPrefix("第一章") })
@@ -521,7 +699,7 @@ private final class FeatureRecoveryFixture {
         let first = try await seedCachedRemote(source: "https://reader-stage-a.invalid", title: local.title,
             author: local.author, chapterTitle: chapter.title, body: excerpt)
         let second = try await seedCachedRemote(source: "https://reader-stage-b.invalid", title: local.title,
-            author: local.author, chapterTitle: chapter.title, body: excerpt)
+            author: local.author, chapterTitle: chapter.title, body: targetBody(excerpt), replayCatalog: replayTargetCatalog)
         _ = try await service.beginOnlineAdmission(.init(book: first.book, chapters: [first.chapter], firstReadableIndex: first.chapter.index),
             chapterIndex: first.chapter.index, operationID: UUID().uuidString)
         let body = try await service.content(for: first.book, chapterIndex: first.chapter.index)
@@ -538,6 +716,13 @@ private final class FeatureRecoveryFixture {
             "updatedAt": Int64(Date().timeIntervalSince1970)], first.book, second.book)
     }
 
+    func switchSeededBook(from original: ReaderBook, to target: ReaderBook, content: ReaderChapterContent,
+                          operationID: String) async throws -> ReaderOnlineSwitchResult {
+        try await service.switchOnlineBook(from: original, currentChapterIndex: content.chapterIndex,
+            currentChapterTitle: content.chapterTitle, candidate: .init(sourceId: target.sourceId, bookId: target.bookId,
+                title: target.title, author: target.author), operationID: operationID)
+    }
+
     private func html(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
     }
@@ -546,16 +731,37 @@ private final class FeatureRecoveryFixture {
 
 private final class FeatureRecoveryGate: ReaderHeldTerminalClient, @unchecked Sendable {
     private var invalidQuery = false
+    private var catalog: (sourceID: String, bookID: String, detail: String, toc: String)?
+    private var queriedCanonical: [String: Any]?
+    var canonicalQuery: [String: Any]? { withHeldLock { queriedCanonical } }
     init(storage: URL) throws {
         super.init(base: try ReaderCoreClient(configJSON: JSONSerialization.data(withJSONObject: ["dataDirectory": storage.path])))
     }
     func invalidateNextReceiptQuery() { withHeldLock { invalidQuery = true } }
+    // Only supply the private target's saved HTTP input. Core still performs
+    // the real detail, catalog, chapter, and source-switch operations.
+    func replayCatalog(sourceID: String, bookID: String, detail: String, toc: String) {
+        withHeldLock { catalog = (sourceID, bookID, detail, toc) }
+    }
     override func forwardedParameters(method: String, params: [String: Any]) -> [String: Any] {
         var forwarded = params
+        if method == "source.switch.transaction.query", let expected = params["expectedCanonical"] as? [String: Any] {
+            queriedCanonical = expected
+        }
         if method == "bookshelf.management.mutation.query", invalidQuery, var expected = params["expected"] as? [String: Any] {
             expected["sequence"] = ((expected["sequence"] as? NSNumber)?.uint64Value ?? 0) + 1
             forwarded["expected"] = expected
             invalidQuery = false
+        }
+        if let catalog, params["sourceId"] as? String == catalog.sourceID {
+            switch method {
+            case "book.detail" where (params["book"] as? [String: Any])?["bookId"] as? String == catalog.bookID
+                && params["detailResponse"] == nil:
+                forwarded["detailResponse"] = catalog.detail
+            case "book.toc" where params["bookId"] as? String == catalog.bookID && params["tocResponse"] == nil:
+                forwarded["tocResponse"] = catalog.toc
+            default: break
+            }
         }
         return forwarded
     }
