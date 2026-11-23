@@ -67,7 +67,64 @@ enum ReaderEbookRealWebKitProbe {
         } catch { try? await library.close(); throw error }
     }
 
-    static func verify(in test: XCTestCase, format: String, byteCount: Int, digest: String) async throws {
+    /// Mount the very long first chapter that reproduced the Host edit limit.
+    /// The existing format verifier covers the separate close/reopen proof.
+    static func verifyLongOriginalMobi(in test: XCTestCase, byteCount: Int, digest: String) async throws {
+        let original = try ReaderLocalFormatsTests.originalURL(format: "mobi", byteCount: byteCount, digest: digest)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealWK.LongMobi-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+                                              sourceURL: root.appendingPathComponent("Sources"))
+        do {
+            let imported = try await library.importBook(at: original)
+            XCTAssertTrue(imported.created)
+            XCTAssertFalse(imported.finalizationPending)
+            let book = imported.book
+            XCTAssertEqual(book.bookId, "local:" + digest)
+            let kind = try await library.localPresentationKind(for: book)
+            XCTAssertEqual(kind.kind, .ebook)
+            XCTAssertEqual(kind.format, "mobi")
+            XCTAssertFalse(kind.reimportRequired)
+            let chapters = try await library.chapters(for: book)
+            let chapter = try XCTUnwrap(chapters.first { !$0.url.isEmpty })
+            XCTAssertEqual(chapter.index, 0)
+            let content = try await library.content(for: book, chapterIndex: chapter.index)
+            let document = try await library.ebookPresentation(for: book, chapterIndex: chapter.index)
+            try document.validate(content: content)
+            let sourceCount = document.chapterEndScalar - document.chapterStartScalar
+            XCTAssertGreaterThan(sourceCount, 32_768)
+            XCTAssertGreaterThan(content.scalarCount, 32_768)
+            let anchor = try XCTUnwrap(content.content.unicodeScalars.enumerated().first {
+                $0.offset >= 2_048 && !$0.element.properties.isWhitespace && $0.element.value != 0xfffc
+            }?.offset)
+            let observed = try await library.progress(for: book)
+            let saved = try await library.saveProgress(for: book, content: content, scalarOffset: UInt64(anchor),
+                                                       expectedRevision: observed.progressRevision)
+            let position = try XCTUnwrap(saved.progress)
+            XCTAssertEqual(position.chapterIndex, chapter.index)
+            XCTAssertEqual(position.chapterOffset, UInt64(anchor))
+            XCTAssertEqual(position.bodyVersion, content.bodyVersion)
+            XCTAssertEqual(position.processingVersion, content.processingVersion)
+
+            let retained = try await library.retainedSourceURL(for: book)
+            let reader = ReaderEbookArchiveReader(sourceURL: retained, bookID: book.bookId)
+            let serif = ReaderTypography.readingFont(size: 26)
+            try await render(in: test, document: document, content: content, reader: reader,
+                offset: position.chapterOffset, fonts: [serif], label: "mobi-original-long-chapter",
+                originalImageEntry: nil)
+            let after = try await library.progress(for: book)
+            XCTAssertEqual(after, saved, "Native WebKit restoration must preserve the original Core progress snapshot")
+            XCTAssertEqual(sha(try Data(contentsOf: retained, options: .mappedIfSafe)), digest)
+            XCTAssertEqual(sha(try Data(contentsOf: original, options: .mappedIfSafe)), digest)
+            try await library.close()
+        } catch {
+            try? await library.close()
+            throw error
+        }
+    }
+
+    static func verify(in test: XCTestCase, format: String, byteCount: Int, digest: String,
+                       checkMissingImage: Bool = false) async throws {
         let original = try ReaderLocalFormatsTests.originalURL(format: format, byteCount: byteCount, digest: digest)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderRealWK-" + UUID().uuidString)
         let defaultsName = "ReaderRealWK.Fonts." + UUID().uuidString
@@ -145,7 +202,9 @@ enum ReaderEbookRealWebKitProbe {
             XCTAssertEqual(saved.progress?.chapterOffset, UInt64(anchor))
             try printInput(phase: format + "-original", document: document, content: content, entryBytes: entry.count)
             try await render(in: test, document: document, content: content, reader: reader,
-                offset: UInt64(anchor), fonts: [serif, sans], label: format + "-original", originalImageEntry: originalImageEntry)
+                offset: UInt64(anchor), fonts: [serif, sans], label: format + "-original",
+                originalImageEntry: originalImageEntry, checkMissingImage: checkMissingImage,
+                awaitInitialPresentation: checkMissingImage)
             let afterLayout = try await library.progress(for: book)
             XCTAssertEqual(afterLayout, saved, "Rendering, selection and font reflow cannot move Core progress")
             let progressParameters: [String: Any] = ["sourceId": book.sourceId, "bookId": book.bookId]
@@ -196,7 +255,8 @@ enum ReaderEbookRealWebKitProbe {
             try printInput(phase: format + "-runtime-reopened", document: restoredDocument,
                 content: restoredContent, entryBytes: coldEntry.count)
             try await render(in: test, document: restoredDocument, content: restoredContent, reader: coldReader,
-                offset: position.chapterOffset, fonts: [sans], label: format + "-runtime-reopened", originalImageEntry: originalImageEntry)
+                offset: position.chapterOffset, fonts: [sans], label: format + "-runtime-reopened",
+                originalImageEntry: originalImageEntry, awaitInitialPresentation: checkMissingImage)
             let afterColdLayout = try await reopened.progress(for: book)
             XCTAssertEqual(afterColdLayout, restored)
             XCTAssertEqual(sha(try Data(contentsOf: coldSource, options: .mappedIfSafe)), digest)
@@ -416,7 +476,8 @@ enum ReaderEbookRealWebKitProbe {
 
     private static func render(in test: XCTestCase, document: ReaderEbookDocument, content: ReaderChapterContent,
                                reader: ReaderEbookArchiveReader, offset: UInt64, fonts: [UIFont], label: String,
-                               originalImageEntry: String?, lineHeights: [CGFloat] = []) async throws {
+                               originalImageEntry: String?, lineHeights: [CGFloat] = [],
+                               checkMissingImage: Bool = false, awaitInitialPresentation: Bool = false) async throws {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = try XCTUnwrap(scenes.first { $0.activationState == .foregroundActive }
             ?? scenes.first { $0.activationState == .foregroundInactive }, "Real WebKit display requires the test host's foreground UIWindowScene")
@@ -456,6 +517,14 @@ enum ReaderEbookRealWebKitProbe {
         let web = try XCTUnwrap(container.webView)
         defer { web.stopLoading() }
         XCTAssertEqual(web.url.flatMap { try? ReaderEbookResourcePath.entry(url: $0, origin: $0.host ?? "") }, document.entryPath)
+        if awaitInitialPresentation {
+            // The ready delivery can precede UIKit's scroll commit. Use the
+            // observed two-frame presentation boundary without scrolling or
+            // issuing another restore, then apply the same geometry checks.
+            _ = try await web.callAsyncJavaScript(
+                "await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+                arguments: [:], in: nil, contentWorld: .defaultClient)
+        }
         try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
             font: try XCTUnwrap(fonts.first), phase: label + "/initial")
         for font in fonts.dropFirst() {
@@ -514,6 +583,13 @@ enum ReaderEbookRealWebKitProbe {
             try await assertOriginalImage(in: test, web: web, content: content, offset: offset, entry: originalImageEntry, label: label)
             try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
                 font: try XCTUnwrap(fonts.last), phase: label + "/after-original-image")
+        }
+        if checkMissingImage {
+            try await assertMissingOriginalImage(in: test, web: web, reader: reader, entry: try XCTUnwrap(originalImageEntry))
+            if let failure { throw failure }
+            XCTAssertTrue(container.webView === web, "A failed image must leave the same production WebKit readable")
+            try await assertVisible(in: test, web: web, document: document, content: content, offset: offset,
+                font: try XCTUnwrap(fonts.last), phase: label + "/after-missing-original-image")
         }
         XCTAssertTrue(unsolicitedPositions.isEmpty, "Restoration and font reflow must retain the exact source anchor without an unsolicited write")
         let configuration = WKSnapshotConfiguration()
@@ -653,6 +729,60 @@ enum ReaderEbookRealWebKitProbe {
         attachment.name = "actual-scalar-geometry-" + (identity["phase"] as? String ?? "unknown") + "-" + phase
         attachment.lifetime = .keepAlways
         test.add(attachment)
+    }
+
+    private static func assertMissingOriginalImage(in test: XCTestCase, web: WKWebView,
+                                                   reader: ReaderEbookArchiveReader, entry: String) async throws {
+        let origin = try XCTUnwrap(web.url?.host)
+        let missingEntry = "OEBPS/Images/reader-missing-" + UUID().uuidString + ".png"
+        let missing = try ReaderEbookResourcePath.url(entry: missingEntry, origin: origin)
+        do {
+            _ = try await reader.readEntry(missingEntry, maximumBytes: 8 * 1024 * 1024)
+            XCTFail("The isolated failure probe must reference an absent archive entry")
+            throw ReaderEbookError.invalidDocument
+        } catch ReaderEbookError.archiveRead(_) {}
+
+        // Redirect only the already decoded original image in this test view.
+        // WebKit and the production scheme handler own the real missing entry,
+        // error event, placeholder CSS and original prose restoration.
+        let value = try await web.callAsyncJavaScript(#"""
+            const image=document.body.querySelector('img');
+            if(!image||!image.complete||!image.naturalWidth||image.hasAttribute('data-reader-missing')){
+              throw Error('original-image-must-load-before-resource-failure');
+            }
+            const originalURL=image.currentSrc;
+            const originalAlt=image.getAttribute('alt');
+            let timeout;
+            try {
+              await new Promise((resolve,reject)=>{
+                timeout=setTimeout(()=>reject(Error('missing-image-error-not-observed')),10000);
+                image.addEventListener('load',()=>reject(Error('absent-image-loaded')),{once:true});
+                image.addEventListener('error',resolve,{once:true});
+                image.setAttribute('src',missingURL);
+              });
+            } finally { clearTimeout(timeout); }
+            await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+            const style=getComputedStyle(image);
+            return {originalURL,src:image.getAttribute('src'),naturalWidth:image.naturalWidth,complete:image.complete,
+              marked:image.hasAttribute('data-reader-missing'),alt:image.getAttribute('alt'),
+              expectedAlt:originalAlt||'插图暂不可用',display:style.display,minHeight:parseFloat(style.minHeight)};
+            """#, arguments: ["missingURL": missing.absoluteString],
+            in: nil, contentWorld: .defaultClient) as? [String: Any]
+        let result = try XCTUnwrap(value)
+        let originalURL = try XCTUnwrap(URL(string: try XCTUnwrap(result["originalURL"] as? String)))
+        XCTAssertEqual(try ReaderEbookResourcePath.entry(url: originalURL, origin: origin), entry)
+        XCTAssertEqual(result["src"] as? String, missing.absoluteString)
+        XCTAssertEqual(result["naturalWidth"] as? Int, 0)
+        XCTAssertEqual(result["complete"] as? Bool, true)
+        XCTAssertEqual(result["marked"] as? Bool, true)
+        XCTAssertEqual(result["alt"] as? String, result["expectedAlt"] as? String)
+        XCTAssertEqual(result["display"] as? String, "block")
+        XCTAssertEqual(result["minHeight"] as? Int, 96)
+        let diagnostic = XCTAttachment(data: try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys]),
+                                       uniformTypeIdentifier: "public.json")
+        diagnostic.name = "actual-original-EPUB-missing-resource-placeholder"
+        diagnostic.lifetime = .keepAlways
+        test.add(diagnostic)
     }
 
     private static func assertOriginalImage(in test: XCTestCase, web: WKWebView, content: ReaderChapterContent,

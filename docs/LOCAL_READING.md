@@ -85,14 +85,28 @@ Host 持久保存完整 terminal 后才 settle、退休原资源并移除自己�
 
 正文搜索 UI 使用 Core 的版本游标，按原书源/书籍、检索词和页面参数续页与精确重试；显式 offset 方法仅保留独立旧读取用途，不作为 UI 分页回退。搜索依据变化或会话失效时保留已确认结果并要求重搜，单条命中跳转仍核正文与处理版本。Stop 保留已确认的续页会话，退出或换查询只关闭原已知 token；被丢弃的初页若晚到已知 token，也关闭其自身。新初页先等待已捕获的清理回执再核本次代次，回执不证明旧在途 reservation 已退出；未取得 token 的取消仍受 Core 初始取消守卫、预算与 TTL 约束，不能宣称 Host 立即释放。关闭展示或读会话不会重放、确认或取消用户已接受的业务写入。
 
-AZW、AZW3、KF8 仍属既定 V3 格式范围；用户明确暂跳过这些格式的真实原书验证，
-其证据保持 OPEN，不通过改后缀或生成文件补齐。真实 EPUB/MOBI 已进入方法验证，
-下述失败结果仍保留。DRM、固定版式、字典型或 Core 未准入内容按实际结果拒绝，不能冒充空书。
-
 文字中的插图与在线小说图片资源不代表漫画产品已实现。
 V5 系统听书/媒体会话和 V6 漫画尚未支持；V7 备份恢复与同步也未在本客户端开放。
 阅读设置对缺失字体、不支持的版式/硬件控制和其他尚未接入项目保留明确状态，
 不能把可保存的选项或占位说明视为真实消费者已生效。
+
+## iPhone 日用版格式支持表
+
+V2–V4 固定 Core `58a0d459`。文件选择器接收对应后缀，Core 根据实际字节、容器结构与解析结果确定准入。书架格式来自 Core 解析事实。 [固定依赖](../scripts/core-dependency.json) · [导入入口](../Sources/ReaderRuntime/ReaderLibraryService.swift)
+
+| 格式 | 支持范围 | 代表原书与证据 |
+| --- | --- | --- |
+| TXT（`.txt`） | Core 能解码的纯文本。可导入、分章、阅读、从进度续读。实际没有匹配章结构时可用可读正文，识别或重新处理可使用 TXT 目录规则。TextKit 负责显示，Core 保留章节及 Unicode scalar 位置。 | 《仙子请听我解释》历史真实系统导入及阅读。官方《阿Ｑ正傳》`pg25332.txt` 参与本轮当前配对的导入、目录及可见锚点验证。 [真实 TXT 定向用例](../Tests/ReaderUITests/ReaderNativeJourneyTests.swift) |
+| EPUB（`.epub`） | 无 DRM、可重排的文字书。Core 读取可用包元数据、封面、nav／NCX 或 spine 目录及可导航目标。Host 用原包 XHTML 及可读的本地资源展示正文，位置以章节及 scalar 绑定。个别插图缺失时可显示占位并继续读正文。固定版式、媒体叠加及任意 XHTML/CSS 效果不在支持范围。 | 《终宋》历史原生 `large-original-epub-4` 覆盖系统选择、层级目录、翻页、字号重排和冷启动。本轮原书 WebKit 行距与 scalar 方法通过（2.405 秒），缺图、正文和位置方法首轮通过（4.763 秒）。后续复跑记录了首样本早于滚动提交的失败。按同一容差在两帧呈现后定向复核通过（4.527 秒）。 [历史原生回执摘要](#已有结果与尚未闭合的证据) · [首轮定向回执](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch2-unit.log) · [后续复跑](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch2-mobi-regression.log) · [同容差复验](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch2-epub-presentation-recheck.log) |
+| MOBI（`.mobi`） | 无 DRM、可重排且 Core 能重构的 Mobipocket 文字书。使用 Core 恢复的包结构和导航，Host 读取可用正文与原包资源。可读取的元数据、封面及目录由文件实际内容决定。DRM、字典和固定版式副本不在支持范围。 | 《覆汉》历史原生 `large-original-mobi-5` 覆盖目录往返、翻页、字号重排及冷启动可见锚点。本轮用 2,118,430 字节的公开《西遊記》MOBI 原件，按 SHA 确认输入后，Core 导入、原包资源定位及冷开通过（1.258 秒），实际 WebKit 长章节与保存 scalar 通过（2.945 秒）。 [历史原生回执摘要](#已有结果与尚未闭合的证据) · [本轮真实 MOBI 回执](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch2-mobi-regression.log) |
+
+相同原书 SHA 的重复导入复用既有书架条目和进度，已确认重复时显示「这本书已在书架中」。空文件、损坏、解码失败或 Core 明确拒绝时按单文件报告失败。若外部文件交接将范围外的后缀交给导入器，导入器返回格式提示。其他已导入书籍与原件继续保留。DRM、固定版式和字典型电子书属于未准入内容。对应错误以实际解析结果为准。 [导入逐项反馈](../Sources/ReaderApp/State/ReaderApplicationModel.swift) · [格式错误提示](../Sources/ReaderRuntime/ReaderModels.swift) · [原书与回执所有权](#原书移除与重新处理)
+
+本轮导入反馈方法用真实 EPUB 与 MOBI 的截断副本及真实不支持的 JSON 文件确认逐项失败信息、空书架、无未决导入和原件 SHA 保持。资产方法首轮覆盖旧章节回调隔离、退出时排队取消和活动读取终止后释放预算。以上是点名方法回执。 [导入与资产回执](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch2-unit.log)
+
+长章节的原包文本与 Core 处理正文有小范围差异时，Host 先找相同前后缀，再对剩余区间计算 DOM 编辑。《西遊記》初次命中的资源上限失败保留，修复后两个真实方法通过。剩余变更区间的源端或目标端超过 32,768 个 Unicode scalar 时仍按资源上限处理。 [原失败回执](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch2-mobi-limit-reproducer.log) · [编辑范围实现](../Sources/ReaderApp/Reading/ReaderEbookTextEdits.swift)
+
+AZW、AZW3、KF8 保留在既定 V3 规格中，真实原书验收经用户批准列为 `DEFERRED`。同一家族的解析入口和 MOBI 回执仅覆盖各自的原件与格式。
 
 ## Core、Host 与原操作所有权
 

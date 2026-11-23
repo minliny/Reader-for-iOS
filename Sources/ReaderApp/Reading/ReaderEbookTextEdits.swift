@@ -12,9 +12,25 @@ enum ReaderEbookTextEdits {
 
     static func changes(original: String, processed: String) throws -> [Edit] {
         guard original != processed else { return [] }
-        let source = Array(original.unicodeScalars)
-        let target = Array(processed.unicodeScalars)
-        guard source.count <= 32_768, target.count <= 32_768 else { throw ReaderEbookError.resourceLimit }
+        let maximumDifferenceScalars = 32_768
+        var sourceWindow = original.unicodeScalars[...]
+        var targetWindow = processed.unicodeScalars[...]
+        var scalarBase = 0
+        if sourceWindow.count > maximumDifferenceScalars || targetWindow.count > maximumDifferenceScalars {
+            // A long chapter can differ only at a trimmed boundary. Compare
+            // the shared text in place before allocating the bounded diff.
+            scalarBase = zip(sourceWindow, targetWindow).prefix { $0.0 == $0.1 }.count
+            sourceWindow = sourceWindow.dropFirst(scalarBase)
+            targetWindow = targetWindow.dropFirst(scalarBase)
+            let commonSuffix = zip(sourceWindow.reversed(), targetWindow.reversed()).prefix { $0.0 == $0.1 }.count
+            sourceWindow = sourceWindow.dropLast(commonSuffix)
+            targetWindow = targetWindow.dropLast(commonSuffix)
+        }
+        guard sourceWindow.count <= maximumDifferenceScalars, targetWindow.count <= maximumDifferenceScalars else {
+            throw ReaderEbookError.resourceLimit
+        }
+        let source = Array(sourceWindow)
+        let target = Array(targetWindow)
         let difference = target.difference(from: source)
         guard difference.count <= 100_000 else { throw ReaderEbookError.resourceLimit }
         var removals: Set<Int> = []
@@ -40,7 +56,7 @@ enum ReaderEbookTextEdits {
                 guard !text.unicodeScalars.contains(where: { $0.value == 0xfffc }) else {
                     throw ReaderEbookError.positionMismatch
                 }
-                edits.append(Edit(startScalar: UInt64(start), endScalar: UInt64(old), text: text))
+                edits.append(Edit(startScalar: UInt64(scalarBase + start), endScalar: UInt64(scalarBase + old), text: text))
             } else {
                 guard old < source.count, new < target.count, source[old] == target[new] else {
                     throw ReaderEbookError.positionMismatch

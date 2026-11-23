@@ -384,6 +384,18 @@ final class ReaderEbookSurfaceTests: XCTestCase {
         XCTAssertThrowsError(try ReaderEbookTextEdits.changes(original: "甲", processed: "甲\u{fffc}"))
     }
 
+    func testLongEbookDiffKeepsAbsoluteOffsetsAndBoundsTheChangedWindow() throws {
+        let prefix = String(repeating: "甲", count: 32_768) + "😀"
+        let suffix = String(repeating: "丁", count: 32_769)
+        let edits = try ReaderEbookTextEdits.changes(original: prefix + "乙" + suffix, processed: prefix + "丙" + suffix)
+        XCTAssertEqual(edits, [.init(startScalar: 32_769, endScalar: 32_770, text: "丙")])
+
+        let largeChange = String(repeating: "乙", count: 32_769)
+        XCTAssertThrowsError(try ReaderEbookTextEdits.changes(original: prefix + largeChange + suffix, processed: prefix + suffix)) {
+            guard case ReaderEbookError.resourceLimit = $0 else { return XCTFail("Expected the existing changed-window limit") }
+        }
+    }
+
     func testArchiveURLBoundaryIsOriginBoundAndNeverTraverses() throws {
         let origin = "session-a"
         let entry = "OPS/插图 1#%.png"

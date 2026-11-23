@@ -1,3 +1,4 @@
+import Combine
 import CryptoKit
 import Foundation
 import XCTest
@@ -7,6 +8,8 @@ import XCTest
 /// delivery owner. Missing or changed input fails; no generated format fixture
 /// or renamed substitute can satisfy its original-format SHA identity.
 final class ReaderLocalFormatsTests: XCTestCase {
+    private static let xiYouJiMobiSHA = "38291a2da031cfeeedb8fd39edf53a41fd3603fdf5ca8d0428f6f3a4fb2267a7"
+
     @MainActor
     func testRealZhongSongEpubUserLineHeightOverridesOriginalParagraphsAndPreservesScalar() async throws {
         try await ReaderEbookRealWebKitProbe.verifyLineHeight(in: self)
@@ -37,6 +40,86 @@ final class ReaderLocalFormatsTests: XCTestCase {
     func testRealHongYueMobiOriginalPresentationAndColdRecovery() async throws {
         try await verifyOriginal(format: "mobi", byteCount: 8_916_557,
             digest: "96a6a97444428ff61fed1b5144ade91b45b66f5492dfaa4caa6a6a1a0fe0d0f3")
+    }
+
+    func testRealGutenbergXiYouJiMobiOriginalPresentationAndColdRecovery() async throws {
+        // Public Gutenberg original retained by Eruditio at c5175043.
+        try await verifyOriginal(format: "mobi", byteCount: 2_118_430, digest: Self.xiYouJiMobiSHA)
+    }
+
+    @MainActor
+    func testRealGutenbergXiYouJiMobiWebKitShowsLongOriginalAtSavedScalar() async throws {
+        try await ReaderEbookRealWebKitProbe.verifyLongOriginalMobi(in: self, byteCount: 2_118_430,
+            digest: Self.xiYouJiMobiSHA)
+    }
+
+    @MainActor
+    func testRealEbookTruncationAndUnsupportedFileReachImportFeedback() async throws {
+        let epubSHA = "5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67"
+        let rulesSHA = "664149381e86b68f388a127c9f8531bf1753d0388f5d8c453375a322437a0734"
+        let epub = try Self.originalURL(format: "epub", byteCount: 7_406_795, digest: epubSHA)
+        let mobi = try Self.originalURL(format: "mobi", byteCount: 2_118_430, digest: Self.xiYouJiMobiSHA)
+        let unsupported = try Self.originalURL(format: "json", byteCount: 6_531, digest: rulesSHA)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderFormatFeedback-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let truncatedEpub = root.appendingPathComponent("truncated.epub")
+        let truncatedMobi = root.appendingPathComponent("truncated.mobi")
+
+        // Keep the original signatures to select the real format parsers.
+        // Only the two disposable copies are truncated.
+        let epubPrefix = try Data(contentsOf: epub, options: .mappedIfSafe).prefix(160)
+        let mobiPrefix = try Data(contentsOf: mobi, options: .mappedIfSafe).prefix(108)
+        XCTAssertTrue(epubPrefix.starts(with: [0x50, 0x4b, 0x03, 0x04]))
+        XCTAssertEqual(Data(mobiPrefix.dropFirst(60).prefix(8)), Data("BOOKMOBI".utf8))
+        try epubPrefix.write(to: truncatedEpub)
+        try mobiPrefix.write(to: truncatedMobi)
+
+        let library = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+                                               sourceURL: root.appendingPathComponent("Sources"))
+        let model = ReaderApplicationModel(service: library, readingTimeStorageURL: root.appendingPathComponent("reading-time.json"))
+        let rejected = expectation(description: "Production import result displays the three rejected inputs")
+        let emptyShelf = expectation(description: "The empty shelf reloads without any failed input")
+        let resultObservation = model.$importOperation.compactMap { $0 }.first(where: { $0.phase == .failed })
+            .sink { _ in rejected.fulfill() }
+        let shelfObservation = model.$libraryState.first(where: { $0 == .empty }).sink { _ in emptyShelf.fulfill() }
+        defer {
+            resultObservation.cancel()
+            shelfObservation.cancel()
+        }
+        let selected = [truncatedEpub, truncatedMobi, unsupported]
+        do {
+            model.importFiles(selected)
+            await fulfillment(of: [rejected, emptyShelf], timeout: 30)
+            let result = try XCTUnwrap(model.importOperation)
+            XCTAssertEqual(result.phase, .failed)
+            XCTAssertEqual(result.message, "已完成 0 项，失败 3 项，未执行 0 项")
+            XCTAssertEqual(result.items.map(\.filename), selected.map(\.lastPathComponent))
+            XCTAssertTrue(result.items.allSatisfy { $0.phase == .failed && $0.originalOperationID == nil })
+            let messages = result.items.map(\.message)
+            XCTAssertEqual(messages.count, 3)
+            XCTAssertTrue(messages.first?.contains("epub_zip_open") == true, "The actual EPUB parser error must reach import feedback")
+            XCTAssertTrue(messages.dropFirst().first?.contains("libmobi_decode_failed") == true,
+                          "The actual MOBI parser error must reach import feedback")
+            XCTAssertEqual(messages.last, ReaderLibraryError.unsupportedFile.localizedDescription)
+            let shelf = try await library.listBooks()
+            let pending = try await library.pendingImports()
+            XCTAssertTrue(shelf.isEmpty)
+            XCTAssertTrue(pending.isEmpty)
+            XCTAssertEqual(try Self.digest(Data(contentsOf: epub, options: .mappedIfSafe)), epubSHA)
+            XCTAssertEqual(try Self.digest(Data(contentsOf: mobi, options: .mappedIfSafe)), Self.xiYouJiMobiSHA)
+            XCTAssertEqual(try Self.digest(Data(contentsOf: unsupported)), rulesSHA)
+            try await library.close()
+        } catch {
+            try? await library.close()
+            throw error
+        }
+    }
+
+    @MainActor
+    func testRealZhongSongEpubMissingImageKeepsOriginalProseAndPosition() async throws {
+        try await ReaderEbookRealWebKitProbe.verify(in: self, format: "epub", byteCount: 7_406_795,
+            digest: "5d6d9dd26bbea9ed0db4e4f7a127a538dfe439f5694c3370a30ac33503db9d67", checkMissingImage: true)
     }
 
     private struct Evidence: Equatable {
@@ -141,7 +224,19 @@ final class ReaderLocalFormatsTests: XCTestCase {
         // content has already passed Core's processing pipeline (including
         // normalization and user rules), and owns the returned scalar scope.
         let original = String(reference[lower..<upper])
-        let edits = try ReaderEbookTextEdits.changes(original: original, processed: content.content)
+        let edits: [ReaderEbookTextEdits.Edit]
+        do {
+            edits = try ReaderEbookTextEdits.changes(original: original, processed: content.content)
+        } catch ReaderEbookError.resourceLimit {
+            let source = original.unicodeScalars
+            let target = content.content.unicodeScalars
+            let prefix = zip(source, target).prefix { $0.0 == $0.1 }.count
+            let sourceTail = source.reversed().prefix(source.count - prefix)
+            let targetTail = target.reversed().prefix(target.count - prefix)
+            let suffix = zip(sourceTail, targetTail).prefix { $0.0 == $0.1 }.count
+            XCTFail("DOM edit limit for chapter \(index): indexed=\(source.count), processed=\(target.count), commonPrefix=\(prefix), commonSuffix=\(suffix)")
+            throw ReaderEbookError.resourceLimit
+        }
         var processed = Array(original.unicodeScalars)
         for edit in edits.reversed() {
             XCTAssertLessThanOrEqual(edit.startScalar, edit.endScalar)
