@@ -8,6 +8,7 @@ import ReaderCoreClient
 /// owns one runtime and serializes FFI send/cancel/destroy. Polling suspends the
 /// actor instead of blocking MainActor or a cooperative executor in request().
 public actor ReaderLibraryService: ReaderLibraryServing {
+    public static let requiredCoreABIVersion: UInt32 = 1
     public static let coreBaseline = "58a0d4597f7f2dfba3773f34c753c1cc82de7961"
     let client: any ReaderCoreEventClient
     let hostTransport: ReaderIOSHostTransport?
@@ -43,6 +44,9 @@ public actor ReaderLibraryService: ReaderLibraryServing {
     var recovering = false
 
     public init(storageURL: URL, sourceURL: URL) throws {
+        guard ReaderCoreRuntime.abiVersion == Self.requiredCoreABIVersion else {
+            throw ReaderLibraryError.invalidResponse("incompatible Core C ABI")
+        }
         let manager = FileManager.default
         try manager.createDirectory(at: storageURL, withIntermediateDirectories: true)
         try manager.createDirectory(at: sourceURL, withIntermediateDirectories: true)
