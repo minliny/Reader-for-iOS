@@ -813,6 +813,13 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
         state.draft = draft
         state.editorPresented = true
         service.rejectSave = true
+        state.actions.pendingChecker = { [weak state] operationID in
+            // This fixture rejects before dispatch. Match that fact to the
+            // accepted Host intent before reporting its write as absent.
+            guard state?.pendingIntent?.operationID == operationID,
+                  service.guardedSaveAttempts == 1, service.writes.isEmpty else { return nil }
+            return false
+        }
         state.saveDraft()
 
         await waitUntil("Save conflict settled", {
@@ -821,6 +828,7 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
         XCTAssertEqual(state.plan, plan, "The old plan remains inspectable")
         XCTAssertNotNil(state.previewInvalidation)
         XCTAssertFalse(state.canApplyPreview, "A configuration conflict must retire the old plan")
+        XCTAssertEqual(service.guardedSaveAttempts, 1)
         XCTAssertTrue(service.writes.isEmpty, "The controlled conflict rejects before allocating a write")
         XCTAssertEqual(state.draft.name, "Changed after preview")
     }
@@ -955,27 +963,41 @@ final class ReaderRuleSubscriptionLifecycleTests: XCTestCase {
         XCTAssertTrue(predicate(), message)
     }
 
+    private final class PanelPhase: ObservableObject {
+        @Published var value = ScenePhase.active
+    }
+
+    private struct PanelHost: View {
+        @ObservedObject var phase: PanelPhase
+        let state: ReaderRuleSubscriptionPanelModel
+        let scheduler: ReaderRuleSubscriptionScheduler
+
+        var body: some View {
+            ReaderRuleSubscriptionPanel(state: state, subscriptionScheduler: scheduler)
+                .environment(\.scenePhase, phase.value)
+        }
+    }
+
     private func mountPanel(state: ReaderRuleSubscriptionPanelModel, scheduler: ReaderRuleSubscriptionScheduler) throws
         -> (setPhase: @MainActor (ScenePhase) -> Void, unmount: @MainActor () -> Void) {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let window = try XCTUnwrap(scenes.flatMap(\.windows).first {
+        let previousKeyWindow = try XCTUnwrap(scenes.flatMap(\.windows).first {
             $0.isKeyWindow && !$0.isHidden && $0.windowLevel == .normal
         }, "This Host method requires the actual foreground test App window")
-        var parent = try XCTUnwrap(window.rootViewController)
-        while let presented = parent.presentedViewController { parent = presented }
-        func content(_ phase: ScenePhase) -> AnyView {
-            AnyView(ReaderRuleSubscriptionPanel(state: state, subscriptionScheduler: scheduler).environment(\.scenePhase, phase))
-        }
-        let host = UIHostingController(rootView: content(.active))
-        parent.addChild(host); host.view.frame = parent.view.bounds
-        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        host.beginAppearanceTransition(true, animated: false)
-        parent.view.addSubview(host.view); host.didMove(toParent: parent); host.endAppearanceTransition()
-        host.view.layoutIfNeeded(); XCTAssertTrue(host.view.window === window)
-        return ({ phase in host.rootView = content(phase) }, {
-            guard host.parent != nil else { return }
-            host.beginAppearanceTransition(false, animated: false)
-            host.willMove(toParent: nil); host.view.removeFromSuperview(); host.removeFromParent(); host.endAppearanceTransition()
+        let scene = try XCTUnwrap(previousKeyWindow.windowScene)
+        let phase = PanelPhase()
+        let host = UIHostingController(rootView: PanelHost(phase: phase, state: state, scheduler: scheduler))
+        let window = UIWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        host.view.layoutIfNeeded()
+        XCTAssertTrue(host.view.window === window)
+        return ({ phase.value = $0 }, {
+            guard window.rootViewController === host else { return }
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow.makeKey()
         })
     }
 }
