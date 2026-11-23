@@ -320,14 +320,33 @@ final class ReaderFeatureRecoveryTests: XCTestCase {
     }
 
     func testColdSwitchRollbackRecoversOriginalStageACKAndRefreshesRestoredRevision() async throws {
+        try await verifyColdSwitchRollback(FeatureRecoveryFixture(), checkInitialRestoration: false)
+    }
+
+    /// Uses an unchanged public original through the real Core, with
+    /// isolated surrogate sources and an intentionally withheld transport ACK.
+    func testColdSwitchRollbackWithGutenbergOriginalRestoresExactBodyAndPosition() async throws {
+        let fixture = try FeatureRecoveryFixture(name: "pg25332.txt", bytes: 99_898,
+            digest: "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38")
+        try await verifyColdSwitchRollback(fixture, checkInitialRestoration: true)
+    }
+
+    private func verifyColdSwitchRollback(_ fixture: FeatureRecoveryFixture, checkInitialRestoration: Bool) async throws {
         let exactRow: (Data) throws -> Data = { data in
             var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
             object.removeValue(forKey: "progressRevision")
             return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         }
-        let fixture = try FeatureRecoveryFixture()
         defer { fixture.cleanUp() }
         let intent = try await fixture.seedOriginalSwitch()
+        let identifiers = ["sourceId": intent.original.sourceId, "bookId": intent.original.bookId]
+        var beforeRollback: (body: ReaderChapterContent, position: Data)?
+        if checkInitialRestoration {
+            let body = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+            XCTAssertGreaterThan(body.scalarCount, 31)
+            let position = try exactRow(await fixture.service.coreRead("reading.progress.get", identifiers))
+            beforeRollback = (body, position)
+        }
         _ = try await fixture.service.coreMutation("source.switch.commit", intent.parameters,
             operationID: intent.operation, scope: "source-switch")
         let rollbackID = intent.operation + ":rollback"
@@ -341,6 +360,24 @@ final class ReaderFeatureRecoveryTests: XCTestCase {
         } catch ReaderLibraryError.operationPending(_) {}
         let observed = try await fixture.service.progress(for: intent.original)
         let body = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+        if let beforeRollback {
+            let terminal = try XCTUnwrap(fixture.client.terminal, "Hold an actual Core terminal rather than injecting a result")
+            let receipt = try XCTUnwrap(terminal.data)
+            let restoredBook = try XCTUnwrap(receipt["restoredBook"] as? [String: Any])
+            XCTAssertEqual(terminal.type, "result")
+            XCTAssertEqual(receipt["phase"] as? String, "rolledBack")
+            XCTAssertEqual(receipt["transactionId"] as? String, intent.parameters["operationId"] as? String)
+            XCTAssertEqual(receipt["changed"] as? Bool, true)
+            XCTAssertEqual(restoredBook["sourceId"] as? String, intent.original.sourceId)
+            XCTAssertEqual(restoredBook["bookId"] as? String, intent.original.bookId)
+            XCTAssertEqual(body, beforeRollback.body)
+            XCTAssertEqual(observed.progress?.chapterOffset, 20)
+            let restoredPosition = try exactRow(await fixture.service.coreRead("reading.progress.get", identifiers))
+            XCTAssertEqual(restoredPosition, beforeRollback.position, "The original rollback restores the complete pre-switch position")
+            let shelf = try await fixture.service.listBooks()
+            XCTAssertTrue(shelf.contains { $0.id == intent.original.id })
+            XCTAssertFalse(shelf.contains { $0.id == intent.target.id })
+        }
         _ = try await fixture.service.saveProgress(for: intent.original, content: body, scalarOffset: 30,
             expectedRevision: observed.progressRevision)
         let newer = try await fixture.service.progress(for: intent.original)
@@ -364,6 +401,7 @@ final class ReaderFeatureRecoveryTests: XCTestCase {
         let freshRevision = try XCTUnwrap(restored.progressRevision)
         XCTAssertNotEqual(freshRevision, newer.progressRevision, "Core's new-runtime epoch invalidates the old observer, not its persisted row")
         let currentBody = try await fixture.service.content(for: intent.original, chapterIndex: 0)
+        if let beforeRollback { XCTAssertEqual(currentBody, beforeRollback.body) }
         let saved = try await fixture.service.saveProgress(for: intent.original, content: currentBody,
             scalarOffset: 31, expectedRevision: freshRevision)
         XCTAssertTrue(saved.found)
@@ -431,13 +469,13 @@ private final class FeatureRecoveryFixture {
     let original: Data
     var client: FeatureRecoveryGate
     var service: ReaderLibraryService
-    init() throws {
+    init(name: String = "仙子请听我解释.txt", bytes: Int = 8_871_723,
+         digest: String = "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5") throws {
         let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
-        input = documents.appendingPathComponent("仙子请听我解释.txt")
+        input = documents.appendingPathComponent(name)
         original = try Data(contentsOf: input)
-        XCTAssertEqual(original.count, 8_871_723)
-        XCTAssertEqual(SHA256.hash(data: original).map { String(format: "%02x", $0) }.joined(),
-            "aac01dbeb5e10710ee802466f077889f5b83d27db70a69e68a33af9ac51658a5")
+        XCTAssertEqual(original.count, bytes)
+        XCTAssertEqual(SHA256.hash(data: original).map { String(format: "%02x", $0) }.joined(), digest)
         root = FileManager.default.temporaryDirectory.appendingPathComponent("ReaderFeatureRecovery-" + UUID().uuidString)
         let core = root.appendingPathComponent("Core")
         try FileManager.default.createDirectory(at: core, withIntermediateDirectories: true)

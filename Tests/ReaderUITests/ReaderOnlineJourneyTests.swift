@@ -2349,7 +2349,9 @@ final class ReaderOnlineJourneyTests: XCTestCase {
     private func selectProvisionedSourcePackage(in app: XCUIApplication) {
         // Use only the system browser's App Documents location. Locale aliases
         // below identify native controls, never alternative source inputs.
-        if !app.navigationBars["Reader"].waitForExistence(timeout: 3) {
+        let picker = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"]
+        let readerFolderTitle = picker.buttons.matching(NSPredicate(format: "label == 'Reader' OR label BEGINSWITH 'Reader,'")).firstMatch
+        if !app.navigationBars["Reader"].waitForExistence(timeout: 3) && !readerFolderTitle.exists {
             let browse = firstExistingButton(in: app, labels: ["浏览", "Browse"], timeout: 3)
             if let browse { browse.tap() }
             let deviceNames = ["我的 iPhone", "我的iPhone", "On My iPhone", "我的 iPad", "我的iPad", "On My iPad"]

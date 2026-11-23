@@ -26,6 +26,8 @@ V2–V8 的必做范围、顺序与状态统一见工作区唯一待办
 
 Reader自有百度源的[试读识别修订候选](../source-updates/baidu-novel-preview-guard.json)已通过真实网络/独立Core方法（2.863秒）：真实目录VIP三态与导航保持，免费正文仍为原visible2098及完整版本；实际100scalar/声明2037字的付费预览返回原来源拒绝，原progress、缓存清单及免费正文严格保持。Core以INTERNAL/SOURCE_RULE_FAILED、retryable=true返回，未新增权限类型。源码规则仅对已确认的四事实组合拒绝，不解码opaque内容，也不按VIP或字数单独禁读。两次原失败分别是候选boxed String比较和Root raw-cache/visible基线错层，均保留，完整耗时见唯一待办。候选尚未导入用户日用库，旧试读缓存未迁移或删除；这些后续动作、完整内容取得、真实账户权限和原生UI仍OPEN，不能称当前书源已经现场修复。
 
+**iPhone 日用准入源为得间小说。** [单源导入文件](../source-updates/idejian-daily-source.json)供用户手动从“搜索与书源 → 书源 → 文件”导入。它保留已验证两源包（5,606 字节，SHA-256 `f26fa3bd2c9928f8a40a374e5af09dd747a484ff5094f8baf19b880c6f8ea322`）中得间小说对象的原字节，并添加文件末尾换行。单源文件 SHA-256 为 `c28a6006d978e677eda522375afbeffc04f966dce30c30845040cc864a7365f0`。Batch 3 的 iOS 26.5 模拟器原生方法实际通过（123.944 秒），经 Files 导入和真实网络搜索《剑来》，打开得间的同一候选 `https://m.idejian.com/book/13256174`，入架阅读、返回搜索并冷启动续读。该次隔离库快照中的得间配置与单源文件逐字段一致。目录有 1,279 条可读索引，所取样的第 1、2 章免费正文分别为 3,031、3,270 个 Unicode scalar，均有持久版本且未出现试读或待纠正标记。准入依据限于当次实际取得的章节。百度试读回执单独沿用，原书源与缓存保持原状。[模拟器回执](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch3-source-admission-ui-r2.log) · [隔离库快照](../../.reader-artifacts/ios-iphone-daily-closeout-20261123/batch3-verified-source-state/)
+
 在线阅读“更多 → 重新获取本章”已接入固定Core的显式刷新与位置迁移，并在required标志时给更新提示；失败不清缓存，未知结果只核对而不重发。c47的三个Host owner方法、publication fence四边界、真实百度显式免费章更新及隔离宿主自检实际6/6通过；真实章0正文与版本未变、scalar37及fresh progress严格配对，随后paid36原拒绝不改免费正文/缓存清单/进度。方法2.149秒、client5.016秒，协议fake仅使用Downloads真实pg25332原文，不能充当Core迁移证明。f9独立普通App build69.660秒，零测试bundle、同免费身份保数据覆盖和正常书架静态实屏通过；原生刷新点击、真正变正文的现场迁移、旧试读缓存处理及整版验收仍OPEN。回执见唯一待办。
 
 V4 当前仍为 OPEN。最新实际证据与复用范围统一见上述唯一待办中的 2026-10-27 复用索引和后续记录；

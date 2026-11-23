@@ -1,6 +1,10 @@
+import Combine
 import CryptoKit
 import Foundation
+import Network
 import Security
+import SwiftUI
+import UIKit
 import XCTest
 #if canImport(ReaderCoreClient)
 import ReaderCoreClient
@@ -10,6 +14,93 @@ import ReaderCoreClient
 #else
 @testable import Reader
 #endif
+
+/// A real HTTP endpoint scoped to this App-hosted XCTest and IPv4 loopback.
+private final class ReaderRefreshLoopbackProvider: @unchecked Sendable {
+    struct Hit {
+        let path: String
+        let digest: String
+    }
+
+    private let listener: NWListener
+    private let queue = DispatchQueue(label: "ReaderRefreshLoopbackProvider")
+    private var chapter: String
+    private var received: [Hit] = []
+
+    init(chapter: String) throws {
+        self.chapter = chapter
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+        listener = try NWListener(using: parameters)
+    }
+
+    var port: UInt16? { listener.port?.rawValue }
+    var hits: [Hit] { queue.sync { received } }
+
+    func setChapter(_ response: String) { queue.sync { chapter = response } }
+    func stop() { listener.cancel() }
+
+    func start(ready: XCTestExpectation) {
+        listener.stateUpdateHandler = { [weak self] state in
+            if case .ready = state {
+                self?.listener.stateUpdateHandler = nil
+                ready.fulfill()
+            }
+        }
+        listener.newConnectionHandler = { [weak self] connection in
+            guard let self else { connection.cancel(); return }
+            connection.start(queue: self.queue)
+            self.queue.asyncAfter(deadline: .now() + 5) { connection.cancel() }
+            self.receive(on: connection)
+        }
+        listener.start(queue: queue)
+    }
+
+    static func hash(_ body: String) -> String {
+        SHA256.hash(data: Data(body.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func receive(on connection: NWConnection, buffered: Data = Data()) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 8_192) { [weak self] data, _, complete, error in
+            guard let self, let data, error == nil else { connection.cancel(); return }
+            let bytes = buffered + data
+            guard bytes.count <= 16_384 else { connection.cancel(); return }
+            let headerEnd = Data("\r\n\r\n".utf8)
+            guard let end = bytes.range(of: headerEnd) else {
+                if complete { connection.cancel() }
+                else { self.receive(on: connection, buffered: bytes) }
+                return
+            }
+            let headers = String(decoding: bytes[..<end.lowerBound], as: UTF8.self)
+            let request = headers.components(separatedBy: "\r\n")[0].split(separator: " ")
+            guard request.count == 3, request[0] == "GET" else { connection.cancel(); return }
+            self.respond(on: connection, path: String(request[1]))
+        }
+    }
+
+    private func respond(on connection: NWConnection, path: String) {
+        let body: String
+        let status: String
+        switch path {
+        case "/book":
+            status = "200 OK"
+            body = "<h1>阿Ｑ正傳</h1><span class='author'>魯迅</span><a class='toc' href='/toc'>目录</a>"
+        case "/toc":
+            status = "200 OK"
+            body = "<ol class='toc'><li><a href='/chapter/0'>優勝記略</a></li></ol>"
+        case "/chapter/0":
+            status = "200 OK"
+            body = chapter
+        default:
+            status = "404 Not Found"
+            body = ""
+        }
+        received.append(Hit(path: path, digest: Self.hash(body)))
+        let response = "HTTP/1.1 \(status)\r\nContent-Type: text/html; charset=utf-8\r\n"
+            + "Cache-Control: no-store\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n" + body
+        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel() })
+    }
+}
 
 final class ReaderOnlineRuntimeTests: XCTestCase {
     /// Anonymous live response only: no account, submitted form, fabricated
@@ -493,6 +584,203 @@ final class ReaderOnlineRuntimeTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: documents.appendingPathComponent("Reader-real-sources.json")), package)
             try await service.close()
         } catch { try? await service.close(); throw error }
+    }
+
+    @MainActor
+    func testLoopbackChangedChapterRefreshRemapsNativeAnchorAndExplicitRetry() async throws {
+        executionTimeAllowance = 90
+        let manager = FileManager.default
+        let originalDigest = "997442c1d041cc731d57bd164078a1dd6e98a5fe0eb9b6ec8b202edc3d0a5a38"
+        let input = try ReaderLocalFormatsTests.originalURL(format: "txt", byteCount: 99_898, digest: originalDigest)
+        let original = try Data(contentsOf: input)
+        let paragraphs = try XCTUnwrap(String(data: original, encoding: .utf8))
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let first = try XCTUnwrap(paragraphs.firstIndex { $0.hasPrefix("阿Ｑ不獨是姓名籍貫有些渺茫") })
+        let inserted = try XCTUnwrap(paragraphs.first { $0.hasPrefix("我要給阿Ｑ做正傳") })
+        let passage = "在阿Ｑ耳朵裡彷彿在十里之外"
+        let originalParagraphs = Array(paragraphs[first...].prefix(30))
+        func html(_ prose: [String]) -> String {
+            "<div class='content'>" + prose.map { paragraph in
+                let escaped = paragraph.replacingOccurrences(of: "&", with: "&amp;")
+                    .replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+                return "<p>" + escaped + "</p>"
+            }.joined() + "</div>"
+        }
+        let initialHTML = html(originalParagraphs)
+        let rejectedHTML = "<html><body><div class='unavailable'>本章暂时不可用</div></body></html>"
+        let updatedHTML = html([inserted] + originalParagraphs)
+        let provider = try ReaderRefreshLoopbackProvider(chapter: initialHTML)
+        defer { provider.stop() }
+        let ready = expectation(description: "ephemeral IPv4 loopback listener ready")
+        provider.start(ready: ready)
+        await fulfillment(of: [ready], timeout: 5)
+        let port = try XCTUnwrap(provider.port, "Loopback listener must be bound before Core starts")
+        let sourceID = "http://127.0.0.1:\(port)"
+        let bookID = sourceID + "/book"
+        let root = manager.temporaryDirectory.appendingPathComponent("ReaderRefreshLoopback-" + UUID().uuidString)
+        let service = try ReaderLibraryService(storageURL: root.appendingPathComponent("Core"),
+            sourceURL: root.appendingPathComponent("Sources"))
+        let model = ReaderApplicationModel(service: service, readingTimeStorageURL: root.appendingPathComponent("Time.json"))
+        var evidence: [String: Any] = ["scope": "loopback HTTP to production iOS Host/Core/Model and mounted TextKit",
+                                      "originalTXTSha256": originalDigest, "temporaryRoot": root.path]
+        defer {
+            evidence["http"] = provider.hits.map { ["path": $0.path, "responseSHA256": $0.digest] }
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.sortedKeys]) {
+                let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+                attachment.name = "Loopback-explicit-refresh-failure-retry-and-native-anchor"
+                attachment.lifetime = .keepAlways; add(attachment)
+            }
+        }
+        func require(_ condition: @autoclosure () throws -> Bool, _ detail: String) throws {
+            guard try condition() else { throw ReaderLibraryError.invalidResponse(detail) }
+        }
+        func scalar(in content: ReaderChapterContent) throws -> UInt64 {
+            let match = try XCTUnwrap(content.content.range(of: passage))
+            try require(!content.content[match.upperBound...].contains(passage), "The visible Core passage must be unique")
+            return UInt64(content.content[..<match.lowerBound].unicodeScalars.count)
+        }
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive })
+        let previousWindow = scene.windows.first { $0.isKeyWindow }
+        let window = UIWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+        let host = UIHostingController(rootView: AnyView(EmptyView()))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        host.view.frame = window.bounds
+        defer { window.isHidden = true; window.rootViewController = nil; previousWindow?.makeKey() }
+        var publishedPositions: [UInt64] = []
+        func textView(in view: UIView) -> UITextView? {
+            if let text = view as? UITextView { return text }
+            return view.subviews.lazy.compactMap { textView(in: $0) }.first
+        }
+        func mountAndVerify(_ session: ReaderActiveSession, stage: String) async throws {
+            let ready = expectation(description: stage + " native TextKit position restored")
+            var pending: XCTestExpectation? = ready
+            let surface = ReaderTextSurface(content: session.content, scalarOffset: session.scalarOffset,
+                restorationID: session.restorationID, fontSize: 18, lineHeight: 1.96,
+                horizontalInset: 20, bottomInset: 24, paper: ReaderPaperPalette(theme: .day),
+                positionChanged: { offset in
+                    publishedPositions.append(offset)
+                    model.recordVisibleOffset(offset, sessionID: session.id, restorationID: session.restorationID)
+                }, centerTapped: {}, layoutReady: { pending?.fulfill(); pending = nil }, reducePageMotion: true)
+            host.rootView = AnyView(surface.frame(width: window.bounds.width, height: window.bounds.height).ignoresSafeArea())
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            window.layoutIfNeeded()
+            await fulfillment(of: [ready], timeout: 8)
+            let text = try XCTUnwrap(textView(in: host.view))
+            let projection = ReaderParagraphProjection(content: session.content.content)
+            let displayed = (session.content.chapterTitle + "\n").utf16.count
+                + projection.displayUTF16Offset(forSourceScalar: session.scalarOffset)
+            let displayedPassage = NSRange(location: displayed, length: passage.utf16.count)
+            try require(text.window === window && text.contentOffset.y > 0
+                && NSMaxRange(displayedPassage) <= text.textStorage.length
+                && (text.text as NSString).substring(with: displayedPassage) == passage,
+                "The production UITextView must contain the exact mapped original prose off the first screen")
+            let position = try XCTUnwrap(text.position(from: text.beginningOfDocument, offset: displayed))
+            let caret = text.caretRect(for: position)
+            let glyph = text.layoutManager.glyphIndexForCharacter(at: displayed)
+            let line = text.layoutManager.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil)
+                .offsetBy(dx: text.textContainerInset.left, dy: text.textContainerInset.top)
+            try require(caret.height > 0 && line.height > 0 && text.bounds.intersects(caret)
+                && text.bounds.intersects(line) && window.bounds.intersects(text.convert(caret, to: window)),
+                "The Core scalar caret and TextKit line must be on screen after " + stage)
+            evidence[stage + "Native"] = ["scalar": session.scalarOffset, "viewport": String(describing: text.bounds),
+                "caret": String(describing: caret), "line": String(describing: line)]
+        }
+        do {
+            let definition: [String: Any] = ["bookSourceUrl": sourceID, "bookSourceName": "本地刷新验证",
+                "bookSourceType": 0, "enabled": true,
+                "ruleBookInfo": ["name": "h1@text", "author": "span.author@text", "tocUrl": "a.toc@href"],
+                "ruleToc": ["chapterList": "ol.toc li", "chapterName": "a@text", "chapterUrl": "a@href"],
+                "ruleContent": ["content": "div.content@html"]]
+            let imports = try await service.importSources(JSONSerialization.data(withJSONObject: definition),
+                operationID: UUID().uuidString)
+            try require(imports.count == 1 && imports[0].succeeded, "The isolated loopback source must import")
+            let detail = try await service.onlineDetail(.init(sourceId: sourceID, bookId: bookID, title: "阿Ｑ正傳"))
+            try require(detail.chapters.count == 1 && detail.chapters.first?.url == sourceID + "/chapter/0",
+                "The sole real HTTP TOC chapter must identify the requested loopback path")
+            let book = try await service.addOnlineBook(detail, chapterIndex: detail.firstReadableIndex, operationID: UUID().uuidString)
+            let oldContent = try await service.content(for: book, chapterIndex: detail.firstReadableIndex)
+            let oldOffset = try scalar(in: oldContent)
+            try require(oldOffset > 0 && oldContent.bodyVersion?.isEmpty == false && oldContent.processingVersion?.isEmpty == false,
+                "Original Core document must provide a versioned, nonzero scalar position")
+            let existing = try await service.progress(for: book)
+            _ = try await service.saveProgress(for: book, content: oldContent, scalarOffset: oldOffset,
+                expectedRevision: existing.progressRevision)
+            let before = try await service.progress(for: book)
+            let opened = expectation(description: "production Model reads the original stored Core scalar")
+            let observation = model.$reader.compactMap { $0 }.first().sink { _ in opened.fulfill() }
+            defer { observation.cancel() }
+            model.open(book)
+            await fulfillment(of: [opened], timeout: 15)
+            let old = try XCTUnwrap(model.reader)
+            try require(old.content == oldContent && old.scalarOffset == oldOffset && old.progressRevision == before.progressRevision
+                && old.progressRevision?.isEmpty == false, "Production Model must adopt the original Core position and revision")
+            try await mountAndVerify(old, stage: "original")
+            let initialHits = provider.hits
+            let initialChapterHits = initialHits.filter { $0.path == "/chapter/0" }
+            try require(initialHits.contains { $0.path == "/book" } && initialHits.contains { $0.path == "/toc" }
+                && !initialChapterHits.isEmpty && initialChapterHits.allSatisfy { $0.digest == ReaderRefreshLoopbackProvider.hash(initialHTML) },
+                "Original detail, TOC and chapter must come from actual local HTTP responses")
+
+            provider.setChapter(rejectedHTML)
+            await model.refreshOnlineChapter(sessionID: old.id, restorationID: old.restorationID)
+            let retained = try XCTUnwrap(model.reader)
+            let protected = try await service.reconcileOnlineContent(for: book, chapterIndex: old.content.chapterIndex)
+            let failedHits = provider.hits.filter { $0.path == "/chapter/0" }
+            try require(failedHits.count == initialChapterHits.count + 1
+                && failedHits.last?.digest == ReaderRefreshLoopbackProvider.hash(rejectedHTML),
+                "One explicit failed HTTP response and cache-only reconciliation must never replay acquisition")
+            try require(retained.id != old.id && retained.content == old.content && retained.scalarOffset == oldOffset
+                && retained.progressRevision == before.progressRevision && protected.content == old.content
+                && protected.progressSnapshot == before && !model.onlineChapterRefreshPending && !model.sourceSwitchFrozen
+                && model.feedback?.contains("已保留当前正文") == true,
+                "A definite failed refresh must preserve the old body, exact progress and usable session")
+            try await mountAndVerify(retained, stage: "retained")
+            evidence["failureFeedback"] = model.feedback
+
+            provider.setChapter(updatedHTML)
+            await model.refreshOnlineChapter(sessionID: retained.id, restorationID: retained.restorationID)
+            let updated = try XCTUnwrap(model.reader)
+            let remapped = try scalar(in: updated.content)
+            let after = try await service.progress(for: book)
+            let persisted = try XCTUnwrap(after.progress)
+            let finalHits = provider.hits.filter { $0.path == "/chapter/0" }
+            try require(finalHits.count == failedHits.count + 1
+                && finalHits.last?.digest == ReaderRefreshLoopbackProvider.hash(updatedHTML),
+                "One explicit retry must consume the different real HTTP response")
+            try require(updated.id != retained.id && updated.content.chapterIndex == old.content.chapterIndex
+                && updated.content.bodyVersion != old.content.bodyVersion && updated.content.bodyVersion?.isEmpty == false
+                && updated.content.processingVersion?.isEmpty == false && updated.content.content != old.content.content
+                && remapped > oldOffset && updated.scalarOffset == remapped,
+                "The production replacement must install a new version and migrate to the same original prose")
+            try require(persisted.chapterIndex == old.content.chapterIndex && persisted.chapterOffset == remapped
+                && persisted.bodyVersion == updated.content.bodyVersion && persisted.processingVersion == updated.content.processingVersion
+                && after.progressRevision == updated.progressRevision && after.progressRevision?.isEmpty == false
+                && after.progressRevision != before.progressRevision && model.feedback == "本章已更新",
+                "The visible Model session must carry the committed Core position and fresh progress revision")
+            try await mountAndVerify(updated, stage: "updated")
+            try require(publishedPositions.isEmpty, "Native restoration must not overwrite the Core remap")
+            try require(try Data(contentsOf: input) == original, "The provisioned original must remain byte-identical")
+            evidence["versions"] = ["beforeBody": old.content.bodyVersion ?? "", "afterBody": updated.content.bodyVersion ?? "",
+                "beforeProcessing": old.content.processingVersion ?? "", "afterProcessing": updated.content.processingVersion ?? ""]
+            evidence["status"] = "verified"
+            host.rootView = AnyView(EmptyView())
+            await model.closeReader()
+            try await service.close()
+            try manager.removeItem(at: root)
+        } catch {
+            evidence["status"] = "failed"
+            evidence["error"] = String(describing: error)
+            host.rootView = AnyView(EmptyView())
+            await model.closeReader()
+            try? await service.close()
+            throw error
+        }
     }
 
     /// These are original source definitions selected from the frozen real

@@ -1,0 +1,71 @@
+{
+    "bookSourceGroup": "Reader 内置 · 已验证书源",
+    "bookSourceName": "得间小说",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://m.idejian.com",
+    "builtinId": "reader-builtin-dejian",
+    "builtinVersion": 6,
+    "capabilities": [
+      "import",
+      "search",
+      "detail",
+      "toc",
+      "content"
+    ],
+    "defaultEnabled": true,
+    "enabled": true,
+    "enabledCookieJar": false,
+    "enabledExplore": false,
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Mobile Safari/537.36\"}",
+    "provenance": {
+      "evidence": "evidence/2026-08-31-five-line/supply-admission-results.json",
+      "evidenceSha256": "bec0e4368e9c817acc1163515d0077dec4f242b21ce1af774c0da6e68b0f24f9",
+      "notes": "Chapter-list API requires the fixed route param p4 (non-credential app route tag); the API 302-redirects to book.d.ireader.com over http (server-side, https available on target). Recorded as admission warning.",
+      "origin": "reader-project-authored",
+      "upstreamSite": "https://m.idejian.com"
+    },
+    "readerHistoricalTest": {
+      "booksVerified": 3,
+      "generatedAt": "2026-09-04T23:25:56.450Z",
+      "mode": "live",
+      "schemaVersion": 1,
+      "verdict": "admitted",
+      "warnings": [
+        "server redirect to http:// during 重生 chain: http://book.d.ireader.com/group7/M00/E9/6A/CmQUimEZ2zmEP1-2AAAAAE5n8tM151726479.xml?v=CB31Rwfx&t=CmQUimF1NqE.",
+        "server redirect to http:// during 都市 chain: http://bookbk.d.ireader.com/group71/pf/Dc/576471eb14a4c62a2f9f67f54773ece7.xml?v=Pf6k2lPk&t=fwAAAWTQlhk.",
+        "server redirect to http:// during 青春 chain: http://book.d.ireader.com/group7/M00/6C/E1/CmQUimBZCniEDjfoAAAAAB1FhpE082840781.xml?v=a3h971dP&t=fwAAAWV2fcQ."
+      ]
+    },
+    "ruleBookInfo": {
+      "author": "class.author.0@text",
+      "coverUrl": ".bookcover@src",
+      "intro": "[property=og:description]@content\n<js>result.replace(/(.*)/,' ○○○STORY:\\n$1')</js>",
+      "kind": "class.author.1@text",
+      "lastChapter": "class.title.1@textNodes",
+      "name": ".main dt@text",
+      "tocUrl": "@js:\"https://dj.palmestore.com/zybook/u/p/api.php?Act=getChapterListVersion&bid=\"+java.put('bid',baseUrl.match(/(\\d+)/)[1])+\"&p4=501656\"",
+      "wordCount": ".font_num@text"
+    },
+    "ruleContent": {
+      "content": ".h5_mainbody@p@html"
+    },
+    "ruleFingerprint": "b1e1d5c6cbd82fa706395419817a2fbcdec2342c7974c8a220c32ffb44214ca6",
+    "ruleSearch": {
+      "author": "class.book_author.0@text",
+      "bookList": ".v_list li",
+      "bookUrl": "tag.a.0@href",
+      "checkKeyWord": "青春",
+      "coverUrl": "img@src",
+      "intro": ".book_info@text\n<js>result.replace(/(.*)/,' ○○○STORY:\\n$1')</js>",
+      "kind": "class.book_author.2@text",
+      "name": ".book_name@text"
+    },
+    "ruleToc": {
+      "chapterList": "cp",
+      "chapterName": "cn@text",
+      "chapterUrl": "https://m.idejian.com/book/@get:{bid}/{{@css:id@text}}.html"
+    },
+    "searchUrl": "/search/do?keyword={{key}}&page={{page}}",
+    "verificationSuiteVersion": "reader-source-admission/1",
+    "verifiedAt": "2026-09-04T23:25:56.450Z"
+  }

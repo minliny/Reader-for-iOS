@@ -704,6 +704,23 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
     /// observed. Missing candidates or an unexpected outcome FAIL; a bad source
     /// is never manufactured to make the rollback branch run.
     func testActualSelectableSourceSwitchConfirmsTheSelectedOutcomeAndRetainsOriginalIdentityOnFailure() throws {
+        try verifySelectedSourceSwitch(checkMatchedPosition: false)
+    }
+
+    func testActualSelectedSourceSwitchPersistsTheMatchedChapterAndVisiblePosition() throws {
+        #if !targetEnvironment(simulator)
+        throw XCTSkip("Use the dedicated online iPhone simulator")
+        #endif
+        guard ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Reader-iPhone-Daily-External-20261123",
+              UIDevice.current.userInterfaceIdiom == .phone else {
+            XCTFail("The real online closeout needs its dedicated iPhone simulator")
+            throw Prerequisite.invalid("source-switch simulator")
+        }
+        executionTimeAllowance = 540
+        try verifySelectedSourceSwitch(checkMatchedPosition: true)
+    }
+
+    private func verifySelectedSourceSwitch(checkMatchedPosition: Bool) throws {
         let original = try originalBook()
         let target = Book(source: try required("READER_ONLINE_SWITCH_TARGET_SOURCE_ID"),
                           id: try required("READER_ONLINE_SWITCH_TARGET_BOOK_ID"),
@@ -715,34 +732,68 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
         }
         let app = XCUIApplication(); app.launch(); open(original, app: app)
         let originalChapter = try currentChapter(original, app: app)
+        let originalTitle = checkMatchedPosition ? try switchChapterTitle(originalChapter, app: app) : nil
         hideControls(app)
-        let originalProgress = app.staticTexts["reading-progress"].label
-        let originalAnchor = try anchor(app, name: "real-online-original-before-switch")
+        let progress = app.staticTexts["reading-progress"]
+        let originalProgress = progress.label
+        let originalAnchor = try anchor(app, name: "real-online-original-before-switch", completeVisibleBody: checkMatchedPosition)
         controls(app)
         app.buttons["reader-more"].tap(); app.buttons["切换书源"].tap()
         let owner = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "online-switch-owner:")).firstMatch
         XCTAssertTrue(owner.waitForExistence(timeout: 15))
-        let candidate = app.buttons.matching(NSPredicate(format: "identifier == %@", "online-switch-candidate:" + target.identity)).firstMatch
+        let candidateRows = app.buttons.matching(NSPredicate(format: "identifier == %@", "online-switch-candidate:" + target.identity))
+        let candidate = candidateRows.firstMatch
         XCTAssertTrue(candidate.waitForExistence(timeout: 180),
                       "A real selectable candidate is required; no-candidate is an OPEN prerequisite, not a simulated rollback.\n" + app.debugDescription)
+        if checkMatchedPosition {
+            wait("The exact live candidate must be settled, enabled, and visibly selectable", timeout: 20) {
+                owner.identifier.hasSuffix(":settled") && candidateRows.count == 1 && candidate.isEnabled && candidate.isHittable
+            }
+            keep(app, name: "real-online-exact-selectable-source-switch-target")
+        }
         let evidence = XCTAttachment(string: "original=" + original.identity + "\ntarget=" + target.identity + "\nexpected=" + expected)
         evidence.name = "actual-source-switch-identity"; evidence.lifetime = .keepAlways; add(evidence)
         candidate.tap()
         if expected == "success" {
             wait("The original switch must finish and close its sheet", timeout: 300) { !owner.exists }
             XCTAssertTrue(app.textViews["reading-body"].waitForExistence(timeout: 20))
-            _ = try currentChapter(target, app: app)
+            let targetChapter = try currentChapter(target, app: app)
+            let targetTitle = checkMatchedPosition ? try switchChapterTitle(targetChapter, app: app) : nil
+            if let originalTitle, let targetTitle {
+                XCTAssertEqual(normalize(targetTitle), normalize(originalTitle),
+                               "The selected real source must open the same chapter title in its own catalog")
+            }
             hideControls(app)
-            _ = try anchor(app, name: "real-online-target-body-after-direct-source-selection")
+            let targetAnchor = try anchor(app, name: "real-online-target-body-after-direct-source-selection",
+                                          completeVisibleBody: checkMatchedPosition)
+            let targetProgress = checkMatchedPosition ? progress.label : nil
+            if checkMatchedPosition {
+                XCTAssertEqual(targetProgress, "0%", "Core opens the matched target chapter at its canonical start")
+                let position = XCTAttachment(string: "originalChapter=\(originalChapter)\noriginalHeading=\(originalTitle ?? "")\noriginalProgress=\(originalProgress)\ntargetChapter=\(targetChapter)\ntargetHeading=\(targetTitle ?? "")\ntargetProgress=\(targetProgress ?? "")")
+                position.name = "real-online-matched-chapter-and-native-position"
+                position.lifetime = .keepAlways
+                add(position)
+            }
             leave(app)
             // A source switch changes the active source of the admitted shelf
             // book; it does not create a second shelf row for the alternate
             // source. Reopen the persisted continue card, then assert that the
             // selected target identity survived the cold launch.
-            app.terminate(); app.launch(); openContinue(app: app)
-            _ = try currentChapter(target, app: app)
+            app.terminate()
+            if checkMatchedPosition { XCTAssertEqual(app.state, .notRunning) }
+            app.launch(); openContinue(app: app)
+            let coldChapter = try currentChapter(target, app: app)
+            if checkMatchedPosition {
+                XCTAssertEqual(coldChapter, targetChapter)
+                XCTAssertEqual(try switchChapterTitle(coldChapter, app: app), targetTitle)
+            }
             hideControls(app)
-            _ = try anchor(app, name: "real-online-selected-source-after-cold-reopen")
+            if checkMatchedPosition {
+                try visible(targetAnchor, app: app, name: "real-online-target-body-position-after-cold-reopen")
+                XCTAssertEqual(progress.label, targetProgress)
+            } else {
+                _ = try anchor(app, name: "real-online-selected-source-after-cold-reopen")
+            }
             leave(app)
         } else {
             let outcome = element("online-switch-outcome", app: app)
@@ -754,14 +805,26 @@ final class ReaderOnlineContinuationJourneyTests: XCTestCase {
             XCTAssertEqual(try currentChapter(original, app: app), originalChapter)
             hideControls(app)
             try visible(originalAnchor, app: app, name: "real-online-old-source-body-preserved-after-actual-switch-failure")
-            XCTAssertEqual(app.staticTexts["reading-progress"].label, originalProgress)
+            XCTAssertEqual(progress.label, originalProgress)
             leave(app)
             app.terminate(); app.launch(); open(original, app: app)
             XCTAssertEqual(try currentChapter(original, app: app), originalChapter)
             hideControls(app)
             try visible(originalAnchor, app: app, name: "real-online-original-source-after-failed-switch-and-cold-reopen")
+            if checkMatchedPosition { XCTAssertEqual(progress.label, originalProgress) }
             leave(app)
         }
+    }
+
+    private func switchChapterTitle(_ index: UInt32, app: XCUIApplication) throws -> String {
+        let heading = app.staticTexts.matching(identifier: "reading-chapter:\(index)")
+        XCTAssertEqual(heading.count, 1)
+        let label = heading.element.label
+        let separator = try XCTUnwrap(label.range(of: " · ", options: .backwards),
+                                     "Read the title before the source label in the actual chapter header")
+        let title = String(label[..<separator.lowerBound])
+        XCTAssertFalse(normalize(title).isEmpty)
+        return title
     }
 
     /// Real discovery reads only. The same observed candidate identities,
