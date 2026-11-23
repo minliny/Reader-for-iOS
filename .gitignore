@@ -27,5 +27,6 @@ SKILL.md
 **/.github/copilot-instructions.md
 /branch-archives/
 /.build/
+.DS_Store
 **/xcuserdata/
 *.xcuserstate

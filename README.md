@@ -130,11 +130,10 @@ SQLite 主库使用 Python sqlite3 只读连接的 `iterdump` 语义 SHA，不�
 
 固定视觉/交互参考与当前运行依赖分开：参考仍使用 `Resources/Reference/manifest.json`
 登记的冻结 Git 对象；当前 Core pin 和 wrapper SHA 以 `scripts/core-dependency.json` 为准。
-V2–V4 的新目录/电子书、规则订阅及原操作恢复合同需要配套 Core 升级，不能仅凭 Swift 接线
-就让旧 Framework 获得新能力。当前源码 pin 为 `f3227e30d1022d6d0984fbfadcb1e3cf5679c6a7`，
-新增本地导入原始阶段回执；其 device Framework 已构建，配套 Host/App 和真机行为仍须分别验证。
-SQLite 的兼容元组为 base `38` / 本地导入物理扩展 `2`，portable snapshot 仍为 `16`；
-原未知操作保留，不能从现有书架行推断其原 ACK。
+V2–V4 iPhone 日用版固定 Core `58a0d4597f7f2dfba3773f34c753c1cc82de7961`。
+使用与该对象配对的 Framework，覆盖本地导入原始阶段回执、同书换源准入和严格提交。
+SQLite 的兼容元组为 base `38` / 本地导入物理扩展 `2`，portable snapshot 为 `16`。
+原未知操作继续按原回执核对。Core 合流和存量 v38 库的 Release 显式升级列为 V7 启动前置。
 此前 `b6a5bb9` 在线入架文档计数修复的模拟器 Framework 构建与 Core141、e978 只读调试结果作为历史证据保留，具体方法及原生结果见 [能力与证据边界](docs/LOCAL_READING.md#已有结果与尚未闭合的证据)。
 最终交付 App 和保数据安装另行绑定，测试宿主不充当交付 App。
 
