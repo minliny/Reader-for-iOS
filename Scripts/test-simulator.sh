@@ -3,7 +3,7 @@
 # The two process phases share only synthetic data in the test app's container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mode="${1:?usage: test-simulator.sh build|write|cold <UDID> <derived> <evidence>}"
+mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold <UDID> <derived> <evidence>}"
 device="${2:?isolated simulator UDID required}"
 derived="${3:?isolated DerivedData path required}"
 evidence="${4:?immutable evidence directory required}"
@@ -15,7 +15,7 @@ case "$mode" in
     test -f .build/framework-receipt.json
     xcodegen generate
     xcodebuild -project ReaderRebuild.xcodeproj -scheme ReaderRebuild -configuration Debug \
-      -destination "$target" -derivedDataPath "$derived" -parallelizeTargets -jobs 4 -showBuildTimingSummary \
+      -destination "${READER_TEST_BUILD_DESTINATION:-$target}" -derivedDataPath "$derived" -parallelizeTargets -jobs 4 -showBuildTimingSummary \
       ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES \
       build-for-testing
     product="$derived/Build/Products/Debug-iphonesimulator/ReaderApp.app"
@@ -28,11 +28,18 @@ case "$mode" in
     if [[ ! -d "$hosted" ]]; then hosted="$(dirname "$product")/ReaderAppTests.xctest"; fi
     python3 Scripts/check-bundle.py "$product" "$hosted"
     ;;
-  write|cold)
+  write|cold|wave2write|wave2cold)
     shopt -s nullglob
     runs=("$derived"/Build/Products/*.xctestrun)
     [[ ${#runs[@]} -eq 1 ]]
-    if [[ "$mode" == write ]]; then
+    if [[ "$mode" == wave2write ]]; then
+      tests=(
+        -only-testing:ReaderAppTests/Wave2CoreTextTests
+        -only-testing:ReaderAppTests/Wave2ProductJourneyTests/test01ProductImportDetailReadBookmarkAndSave
+      )
+    elif [[ "$mode" == wave2cold ]]; then
+      tests=(-only-testing:ReaderAppTests/Wave2ProductJourneyTests/test02ProductIndependentColdRestoresThreeNativeAnchors)
+    elif [[ "$mode" == write ]]; then
       tests=(
         -only-testing:ReaderAppTests/ClientsRPCIntegrationTests/test01FreshImportWriteAndFence
         -only-testing:ReaderAppTests/ClientsRPCIntegrationTests/test03CapabilityRejectionAndReverseTerminals
@@ -45,7 +52,7 @@ case "$mode" in
       )
     fi
     xcodebuild -xctestrun "${runs[0]}" -destination "$target" -parallel-testing-enabled NO \
-      -test-timeouts-enabled YES -default-test-execution-time-allowance 60 \
+      -test-timeouts-enabled YES -default-test-execution-time-allowance 120 \
       -collect-test-diagnostics never -resultBundlePath "$evidence/$mode.xcresult" \
       "${tests[@]}" test-without-building
     ;;

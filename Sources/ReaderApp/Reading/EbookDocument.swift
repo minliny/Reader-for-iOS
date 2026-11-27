@@ -49,12 +49,19 @@ struct EbookDocument: Sendable {
 struct EbookStyle: Encodable, Sendable {
     let fontSize: Double
     let lineHeight: Double
+    let paper: String?
+    let ink: String?
+    let dark: Bool
     let paragraphSpacing = ReaderDesignMetrics.readerParagraphSpacing
 
-    init(fontSize: Double = ReaderDesignMetrics.readerBody.fontSize) {
+    init(fontSize: Double = ReaderDesignMetrics.readerBody.fontSize, lineHeight: Double? = nil,
+         background: String? = nil, foreground: String? = nil, dark: Bool = false) {
         self.fontSize = fontSize
         let body = ReaderDesignMetrics.readerBody
-        self.lineHeight = fontSize * body.lineHeight / body.fontSize
+        self.lineHeight = lineHeight ?? (fontSize * body.lineHeight / body.fontSize)
+        paper = background
+        ink = foreground
+        self.dark = dark
     }
 }
 
@@ -74,6 +81,24 @@ struct EbookScriptEvent: Decodable, Sendable {
         let code: String?
         let path: String?
         let fragment: String?
+
+        init(scalar: Int? = nil, text: String? = nil, loadedImageCount: Int? = nil,
+             startScalar: Int? = nil, endScalar: Int? = nil, code: String? = nil,
+             path: String? = nil, fragment: String? = nil) {
+            self.scalar = scalar
+            self.text = text
+            self.loadedImageCount = loadedImageCount
+            self.startScalar = startScalar
+            self.endScalar = endScalar
+            self.code = code
+            self.path = path
+            self.fragment = fragment
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case scalar, text, loadedImageCount, startScalar, endScalar, code, fragment
+            case path = "entryPath"
+        }
     }
 
     let version: Int

@@ -115,6 +115,24 @@ final class EbookReadingSurface: NSObject, ReadingSurface, WKNavigationDelegate,
         try await readValue("return ReaderEbookRuntime.restore(scalar);", args: ["scalar": scalar])
     }
 
+    func moveViewport(_ direction: Int) async throws -> Bool {
+        guard identity != nil else { return false }
+        let previous = identity
+        let moved = try await webView.callAsyncJavaScript(
+            """
+            const frame = document.querySelector('iframe');
+            const viewport = frame?.contentWindow;
+            if (!viewport) return false;
+            const before = viewport.scrollY;
+            viewport.scrollBy(0, direction * viewport.innerHeight * 0.83);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return Math.abs(viewport.scrollY - before) > 1;
+            """,
+            arguments: ["direction": direction], contentWorld: world
+        )
+        return previous == identity && (moved as? Bool ?? false)
+    }
+
     func retire() async {
         guard let previous = identity else { return }
         identity = nil
@@ -187,7 +205,7 @@ final class EbookReadingSurface: NSObject, ReadingSurface, WKNavigationDelegate,
             if let value = event.value { finish(.success(value)) }
         case "failure":
             finish(.failure(EbookSurfaceFailure.unavailable(event.value?.code ?? "EBOOK_UNAVAILABLE")))
-        case "position", "selection", "link", "turn": break
+        case "position", "selection", "link", "tap": break
         default: return
         }
         onEvent?(event)

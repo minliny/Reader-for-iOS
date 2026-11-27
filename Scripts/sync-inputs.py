@@ -53,6 +53,21 @@ def main():
         source = f"protocol/fixtures/m1/{name}"
         paths[f"Tests/Fixtures/{name}"] = ("Reader-Core", "core", source, None)
 
+    # The iOS asset compiler consumes the authoritative SVG bytes. Font licensing
+    # follows the two Noto faces into ReaderDesign's resource bundle.
+    for name in ("reader_control_header_chevron", "settings_gen_navigation"):
+        source = f"theme/icons/{name}.svg"
+        paths[f"Resources/reader_design/Icons.xcassets/{name}.imageset/{name}.svg"] = (
+            ui_repo, "ui", source, manifest["designInputs"][source]
+        )
+    for name in ("NotoSansSC-VF.otf", "NotoSerifSC-Regular.ttf", "OFL.txt"):
+        paths[f"Resources/reader_design/Fonts/{name}"] = (ui_repo, "ui", f"fonts/{name}", None)
+    # The pinned libmobi NCX sample is the readable, synthetic upstream book
+    # exercised by Core's existing integration tests, scoped here to XCTest.
+    paths["Tests/Fixtures/sample-ncx.mobi"] = (
+        "Reader-Core", "core", "third_party/libmobi-0.12/tests/samples/sample-ncx.mobi", None
+    )
+
     library_fixture = "crates/reader-storage/tests/fixtures/library47-schema.sql"
 
     stale = []
@@ -99,7 +114,7 @@ def main():
                 target.write_bytes(content)
         receipt["files"][destination] = {"source": source, "sha256": digest}
 
-    for directory in ("Resources/reader_ebook_runtime", "Tests/Fixtures"):
+    for directory in ("Resources/reader_ebook_runtime", "Resources/reader_design/Fonts", "Tests/Fixtures"):
         actual = {str(path.relative_to(project))
                   for path in (project / directory).rglob("*") if path.is_file()}
         extra = actual - inputs.keys()

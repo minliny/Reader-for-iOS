@@ -23,6 +23,26 @@
     "crates/reader-storage/tests/fixtures/library47-schema.sql": "c7b3bca4ecbe4ef44ab653b0620f45152022ee61fec4a7a758c2bc46e848c097"
   },
   "files": {
+    "Resources/reader_design/Fonts/NotoSansSC-VF.otf": {
+      "source": "fonts/NotoSansSC-VF.otf",
+      "sha256": "d13ed01ec8aa45d6178999b648e96fb92150683e9f8e2a581f2acf208dcbe44b"
+    },
+    "Resources/reader_design/Fonts/NotoSerifSC-Regular.ttf": {
+      "source": "fonts/NotoSerifSC-Regular.ttf",
+      "sha256": "9502147ceba7b5bc7fd3415083f6a5d133f22d8f9efb4974d4b85f3a97ea2d3a"
+    },
+    "Resources/reader_design/Fonts/OFL.txt": {
+      "source": "fonts/OFL.txt",
+      "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6"
+    },
+    "Resources/reader_design/Icons.xcassets/reader_control_header_chevron.imageset/reader_control_header_chevron.svg": {
+      "source": "theme/icons/reader_control_header_chevron.svg",
+      "sha256": "176f7ea3416d297cf7437ff30b40877e7dc54aeb0fe492153930cb29e2aa1caa"
+    },
+    "Resources/reader_design/Icons.xcassets/settings_gen_navigation.imageset/settings_gen_navigation.svg": {
+      "source": "theme/icons/settings_gen_navigation.svg",
+      "sha256": "ef696bb6844746dd733207c0e436be713ad1eda666681a137dc141ede0440f5d"
+    },
     "Resources/reader_ebook_runtime/reader-ebook-dom.js": {
       "source": "reader_ebook_runtime/reader-ebook-dom.js",
       "sha256": "013f16e5f39bda18d3aa3175bd1c16442a6130a7f80107db1211061744927f66"
@@ -70,6 +90,10 @@
     "Tests/Fixtures/reading-lifecycle.json": {
       "source": "protocol/fixtures/m1/reading-lifecycle.json",
       "sha256": "985924832803518b5162d27e90e0d063d54bd4e33e6d44d28d64d97484b26499"
+    },
+    "Tests/Fixtures/sample-ncx.mobi": {
+      "source": "third_party/libmobi-0.12/tests/samples/sample-ncx.mobi",
+      "sha256": "bb33217f3369d8ca6c5a373ca8e21a151be5494f5de6623aa9e7f42fb5fed743"
     },
     "Tests/Fixtures/scalar-selection.json": {
       "source": "protocol/fixtures/m1/scalar-selection.json",

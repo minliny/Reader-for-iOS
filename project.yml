@@ -34,7 +34,13 @@ targets:
   ReaderDesign:
     type: framework
     platform: iOS
-    sources: [Sources/ReaderDesign]
+    sources:
+      - Sources/ReaderDesign
+      - path: Resources/reader_design/Fonts
+        type: folder
+        buildPhase: resources
+      - path: Resources/reader_design/Icons.xcassets
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.reader.minliny.rebuild.m1.design
@@ -58,11 +64,17 @@ targets:
   ReaderAppTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [Tests]
+    sources:
+      - path: Tests
+        excludes: [Goldens/Baselines]
+      - path: Tests/Goldens/Baselines
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: ReaderApp
       - target: ReaderCoreBridge
       - target: ReaderHost
+      - target: ReaderDesign
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.reader.minliny.rebuild.m1.tests

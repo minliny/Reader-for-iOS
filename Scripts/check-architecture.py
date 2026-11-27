@@ -11,7 +11,7 @@ graph = {
     "ReaderHost": {"ReaderCoreBridge"},
     "ReaderDesign": set(),
     "ReaderApp": {"ReaderCoreBridge", "ReaderHost", "ReaderDesign"},
-    "ReaderAppTests": {"ReaderCoreBridge", "ReaderHost", "ReaderApp"},
+    "ReaderAppTests": {"ReaderCoreBridge", "ReaderHost", "ReaderApp", "ReaderDesign"},
 }
 swift_import = re.compile(r"^(?:@testable )?import (Reader\w+)\s*$", re.MULTILINE)
 actual = dict.fromkeys(graph)
@@ -21,7 +21,10 @@ for group, base in [(group, root / "Sources" / group) for group in graph if grou
 ]:
     imports = set()
     for file in base.rglob("*.swift"):
-        imports.update(swift_import.findall(file.read_text()))
+        source = file.read_text()
+        imports.update(swift_import.findall(source))
+        if group == "ReaderApp":
+            assert not re.search(r"\bReaderAppRole\b", source), file
     assert imports <= graph[group], (group, imports - graph[group])
     actual[group] = sorted(imports)
 
@@ -29,13 +32,13 @@ folders = ["Sources", "Scripts", "Tests", "Resources"]
 inputs = [f for name in folders for f in (root / name).rglob("*") if f.is_file()]
 inputs += [root / "project.yml", root / "README.md"]
 for file in inputs:
-    if file.suffix == ".epub":
+    if file.suffix in {".epub", ".mobi", ".otf", ".ttf", ".png"}:
         continue
     ref = str(file.relative_to(root))
     count = len(file.read_bytes().splitlines())
-    if ref not in synced:
+    if "Generated" not in file.parts:
         assert count <= 800, (ref, count)
     kind = "pinned" if ref in synced else "authored"
     maxima[kind] = max(maxima[kind], (count, ref))
-assert all(path.startswith("Tests/Fixtures/") for path in synced if Path(path).suffix == ".epub")
+assert all(path.startswith("Tests/Fixtures/") for path in synced if Path(path).suffix in {".epub", ".mobi"})
 print(json.dumps({"imports": actual, "maxLines": maxima, "scope": folders, "archCheck": "PASS"}, indent=2))

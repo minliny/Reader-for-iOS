@@ -88,6 +88,19 @@ final class EbookRuntimeIntegrationTests: XCTestCase {
         try await deliverStaleEvent(prior, surface: surface)
         try await deliverStaleEvent(current, surface: surface, generation: 0)
         XCTAssertFalse(events.contains { $0.kind == "ready" && $0.value?.scalar == 999_999 })
+        _ = try await surface.webView.callAsyncJavaScript(
+            """
+            window.webkit.messageHandlers.readerEbook.postMessage(JSON.stringify({
+                version: 1, session, documentId, layoutGeneration, kind: 'tap', value: null
+            }));
+            return true;
+            """,
+            arguments: [
+                "session": current.session, "documentId": current.documentId,
+                "layoutGeneration": current.layoutGeneration
+            ], contentWorld: .world(name: "ReaderEbookRuntime")
+        )
+        XCTAssertEqual(events.filter { $0.kind == "tap" }.count, 1, "Current trusted shell tap reaches the product receiver")
         let measured = try await surface.position()
         XCTAssertEqual(measured?.scalar, 27)
 

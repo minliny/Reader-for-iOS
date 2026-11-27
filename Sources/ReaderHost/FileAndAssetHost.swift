@@ -97,6 +97,43 @@ public actor FileAndAssetHost {
         try FileManager.default.removeItem(at: staged.path)
     }
 
+    public func discardJournalStage(path: String) throws {
+        let directory = try folder("staging").resolvingSymlinksInPath().standardizedFileURL
+        let original = URL(fileURLWithPath: path).standardizedFileURL
+        let name = original.lastPathComponent
+        guard original.deletingLastPathComponent().lastPathComponent == "staging",
+              UUID(uuidString: name) != nil else { throw FileAndAssetFailure.unauthorized }
+        // iOS can move its private application container between launches.
+        // Only the journal's generated staging UUID is usable in the live root.
+        let candidate = directory.appending(path: name)
+        if FileManager.default.fileExists(atPath: candidate.path) {
+            try FileManager.default.removeItem(at: candidate)
+        }
+    }
+
+    public func pendingBookmark() throws -> BookmarkOperationExpected? {
+        let url = root.appending(path: "BookmarkOperation.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try JSONDecoder().decode(BookmarkOperationExpected.self, from: Data(contentsOf: url))
+    }
+
+    public func recordBookmark(_ operation: BookmarkOperationExpected) throws {
+        guard try pendingBookmark() == nil else { throw FileAndAssetFailure.unauthorized }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let bytes = try JSONEncoder().encode(operation)
+        try bytes.write(to: root.appending(path: "BookmarkOperation.json"), options: .atomic)
+    }
+
+    public func clearBookmark(_ operationID: String) throws {
+        guard let pending = try pendingBookmark() else { return }
+        let id = switch pending {
+        case .create(let create): create.params.operationId
+        case .delete(let delete): delete.params.operationId
+        }
+        guard id == operationID else { throw FileAndAssetFailure.unauthorized }
+        try FileManager.default.removeItem(at: root.appending(path: "BookmarkOperation.json"))
+    }
+
     private func folder(_ name: String) throws -> URL {
         let path = root.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
