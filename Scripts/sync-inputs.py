@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -55,10 +56,14 @@ def main():
 
     # The iOS asset compiler consumes the authoritative SVG bytes. Font licensing
     # follows the two Noto faces into ReaderDesign's resource bundle.
-    for name in ("reader_control_header_chevron", "settings_gen_navigation"):
-        source = f"theme/icons/{name}.svg"
-        paths[f"Resources/reader_design/Icons.xcassets/{name}.imageset/{name}.svg"] = (
-            ui_repo, "ui", source, manifest["designInputs"][source]
+    icon_inputs = {
+        path: expected for path, expected in manifest["designInputs"].items()
+        if path.startswith("theme/icons/") and path.endswith(".svg")
+    }
+    for source, expected in icon_inputs.items():
+        icon = Path(source)
+        paths[f"Resources/reader_design/Icons.xcassets/{icon.stem}.imageset/{icon.name}"] = (
+            ui_repo, "ui", source, expected
         )
     for name in ("NotoSansSC-VF.otf", "NotoSerifSC-Regular.ttf", "OFL.txt"):
         paths[f"Resources/reader_design/Fonts/{name}"] = (ui_repo, "ui", f"fonts/{name}", None)
@@ -71,13 +76,24 @@ def main():
     library_fixture = "crates/reader-storage/tests/fixtures/library47-schema.sql"
 
     stale = []
-    authority = {
-        path: sha(object_bytes("Reader-Core", "core", path))
-        for path in (
-            "protocol/reader-command.schema.json", "protocol/reader-event.schema.json",
-            "protocol/reader-runtime-config.schema.json", "include/reader_core.h",
-        )
+    core_generated = object_bytes("Reader-Core", "core", core_path)
+    protocol_inputs = dict(re.findall(
+        r"^//   (protocol/[\w.-]+\.schema\.json)  ([a-f0-9]{64})$",
+        core_generated.decode(), re.MULTILINE,
+    ))
+    required_protocol_inputs = {
+        "reader-command", "reader-event", "reader-runtime-config", "reader-m2-bindings",
+        "reader-m2-host", "reader-m2-sources", "reader-m2-source-receipts",
+        "reader-m2-search", "reader-m2-download", "reader-m2-reading",
     }
+    if not {f"protocol/{name}.schema.json" for name in required_protocol_inputs} <= protocol_inputs.keys():
+        raise SystemExit("Generated Swift bindings omit required Core schema input fingerprints")
+    for path, expected in protocol_inputs.items():
+        if sha(object_bytes("Reader-Core", "core", path)) != expected:
+            raise SystemExit(f"authority SHA-256 mismatch: {path}")
+    authority = {**protocol_inputs, "include/reader_core.h": sha(object_bytes(
+        "Reader-Core", "core", "include/reader_core.h"
+    ))}
     for path, expected in (manifest["designInputs"] | manifest["toolInputs"]).items():
         if sha(object_bytes(ui_repo, "ui", path)) != expected:
             raise SystemExit(f"authority SHA-256 mismatch: {path}")
@@ -95,6 +111,17 @@ def main():
         destination: (source, object_bytes(repo, role, source), expected)
         for destination, (repo, role, source, expected) in paths.items()
     }
+    for source in icon_inputs:
+        icon = Path(source)
+        contents = (
+            '{\n'
+            f'  "images": [{{ "filename": "{icon.name}", "idiom": "universal" }}],\n'
+            '  "info": { "author": "xcode", "version": 1 },\n'
+            '  "properties": { "preserves-vector-representation": true, "template-rendering-intent": "template" }\n'
+            '}\n'
+        )
+        destination = f"Resources/reader_design/Icons.xcassets/{icon.stem}.imageset/Contents.json"
+        inputs[destination] = (f"Scripts/sync-inputs.py + {source}", contents.encode(), None)
     # Keep each test-only text input under the repository's 800-line limit.
     schema = object_bytes("Reader-Core", "core", library_fixture)
     receipt["authoritySHA256"][library_fixture] = sha(schema)
@@ -120,6 +147,11 @@ def main():
         extra = actual - inputs.keys()
         if extra:
             raise SystemExit(f"Unexpected files: {sorted(extra)}")
+    icon_root = project / "Resources/reader_design/Icons.xcassets"
+    extra_icons = {str(file.relative_to(project)) for file in icon_root.glob("*.imageset/*")
+                   if file.is_file()} - inputs.keys()
+    if extra_icons:
+        raise SystemExit(f"Unexpected icon files: {sorted(extra_icons)}")
 
     target = project / "Scripts/input-receipt.json"
     data = (json.dumps(receipt, ensure_ascii=False, indent=2) + "\n").encode()

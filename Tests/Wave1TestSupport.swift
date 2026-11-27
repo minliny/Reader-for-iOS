@@ -59,18 +59,27 @@ extension XCTestCase {
         return receipt
     }
 
-    func assertLibrary47(_ library: LibraryHost, fresh: Bool) {
+    func assertLibrary47(_ library: LibraryHost, fresh: Bool, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(library.probe.observation.freshStorage, fresh)
         XCTAssertEqual(library.info.sqliteUserVersion, 47)
         XCTAssertEqual(library.info.storageFormat?.format, .library47)
         XCTAssertEqual(library.info.abiVersion, 1)
         XCTAssertFalse(library.info.buildIdentity.gitDirty)
-        XCTAssertEqual(library.info.buildIdentity.gitCommit, "fa536a10c31ab5a35df2e2c1c1fbf70ebf3e1be9")
+        do {
+            let pins = try decodeFixture("pins") as BuildPins
+            XCTAssertEqual(library.info.buildIdentity.gitCommit, pins.core, file: file, line: line)
+        } catch {
+            XCTFail("Could not read the paired test build pins: \(error)", file: file, line: line)
+        }
         XCTAssertEqual(library.info.storageFormat?.capabilities?.physicalBackup, true)
         XCTAssertEqual(library.info.storageFormat?.capabilities?.physicalRestore, true)
         XCTAssertEqual(library.info.storageFormat?.capabilities?.activeLibrarySync, false)
         XCTAssertEqual(library.info.storageFormat?.capabilities?.logicalRestoreRequiresCompleteCoverage, true)
     }
+}
+
+private struct BuildPins: Decodable {
+    let core: String
 }
 
 struct LifeFixture: Decodable {

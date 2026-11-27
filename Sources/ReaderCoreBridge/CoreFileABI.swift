@@ -15,6 +15,18 @@ public struct LibraryProbe: Decodable, Sendable {
 }
 
 public enum CoreFileABI {
+    public static func encodeText(_ text: String, charset: String, maximumBytes: Int) throws -> Data {
+        let input = Array(text.utf8)
+        let label = Array(charset.utf8)
+        var out = rc_owned_bytes_t()
+        try CoreTransport.check(rc_text_encode(input, input.count, label, label.count, maximumBytes, &out),
+                                "rc_text_encode")
+        defer { rc_owned_bytes_free(&out) }
+        guard out.length > 0 else { return Data() }
+        guard let bytes = out.data else { throw CoreBridgeFailure.invalidEvent }
+        return Data(bytes: bytes, count: out.length)
+    }
+
     public static func probe(_ directory: URL) throws -> LibraryProbe {
         let path = Array(directory.path.utf8)
         var out = rc_owned_bytes_t()

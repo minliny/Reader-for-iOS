@@ -37,7 +37,7 @@ test_names = {Path(path).name for path in files if path.startswith("Tests/Fixtur
 for path in app.rglob("*"):
     if test_bundle is not None and (path == test_bundle or test_bundle in path.parents):
         continue
-    assert path.name not in test_names | golden_names | {"Baselines"}, path
+    assert path.name not in test_names | golden_names | {"Baselines", "pins.json", "Loopback", "serve.py"}, path
     assert path.suffix not in (".epub", ".mobi", ".xctest"), path
 if test_bundle:
     expected_tests = {Path(path).name: facts["sha256"] for path, facts in files.items() if path.startswith("Tests/Fixtures/")}
@@ -46,6 +46,8 @@ if test_bundle:
         for p in test_bundle.rglob("*") if p.name in test_names
     }
     assert actual_tests == expected_tests
+    assert (test_bundle / "pins.json").read_bytes() == (project / "Scripts/pins.json").read_bytes()
+    assert not any(path.name in {"Loopback", "serve.py"} for path in test_bundle.rglob("*"))
     baselines = test_bundle / "Baselines"
     assert (baselines / "manifest.json").read_bytes() == golden_source.read_bytes()
     for scene in golden_manifest["scenes"]:

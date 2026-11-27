@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 Scripts/sync-inputs.py --check
-test -f .build/framework-receipt.json
+python3 Scripts/framework-receipt.py "$PWD" --check
 xcodegen generate
 derived="${1:-$PWD/.build/app-derived}"
 xcodebuild -project ReaderRebuild.xcodeproj -scheme ReaderRebuild -configuration Debug \

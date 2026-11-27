@@ -3,7 +3,7 @@
 # The two process phases share only synthetic data in the test app's container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold <UDID> <derived> <evidence>}"
+mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold <UDID> <derived> <evidence>}"
 device="${2:?isolated simulator UDID required}"
 derived="${3:?isolated DerivedData path required}"
 evidence="${4:?immutable evidence directory required}"
@@ -12,7 +12,7 @@ target="platform=iOS Simulator,id=$device"
 case "$mode" in
   build)
     python3 Scripts/sync-inputs.py --check
-    test -f .build/framework-receipt.json
+    python3 Scripts/framework-receipt.py "$PWD" --check
     xcodegen generate
     xcodebuild -project ReaderRebuild.xcodeproj -scheme ReaderRebuild -configuration Debug \
       -destination "${READER_TEST_BUILD_DESTINATION:-$target}" -derivedDataPath "$derived" -parallelizeTargets -jobs 4 -showBuildTimingSummary \
@@ -28,7 +28,7 @@ case "$mode" in
     if [[ ! -d "$hosted" ]]; then hosted="$(dirname "$product")/ReaderAppTests.xctest"; fi
     python3 Scripts/check-bundle.py "$product" "$hosted"
     ;;
-  write|cold|wave2write|wave2cold)
+  write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold)
     shopt -s nullglob
     runs=("$derived"/Build/Products/*.xctestrun)
     [[ ${#runs[@]} -eq 1 ]]
@@ -45,11 +45,25 @@ case "$mode" in
         -only-testing:ReaderAppTests/ClientsRPCIntegrationTests/test03CapabilityRejectionAndReverseTerminals
         -only-testing:ReaderAppTests/EbookRuntimeIntegrationTests/test04WebKitImportSelectReflowSaveAndRejectOldDocument
       )
-    else
+    elif [[ "$mode" == cold ]]; then
       tests=(
         -only-testing:ReaderAppTests/ClientsRPCIntegrationTests/test02ColdProcessReadAndExisting47
         -only-testing:ReaderAppTests/EbookRuntimeIntegrationTests/test05ColdProcessRestoresVisibleEpubAnchor
       )
+    elif [[ "$mode" == design ]]; then
+      tests=(-only-testing:ReaderAppTests/DesignContractTests)
+    elif [[ "$mode" == m2host ]]; then
+      tests=(-only-testing:ReaderAppTests/M2NetworkHostTests)
+    elif [[ "$mode" == m2edit ]]; then
+      tests=(-only-testing:ReaderAppTests/M2BusinessJourneyTests/test05ConditionalSourceEditConflictsAndPreservesRules)
+    elif [[ "$mode" == m2write ]]; then
+      tests=(
+        -only-testing:ReaderAppTests/M2BusinessJourneyTests/test01SourceManagementV9Transactions
+        -only-testing:ReaderAppTests/M2BusinessJourneyTests/test02SearchOnlineReadingAndSourceSwitch
+        -only-testing:ReaderAppTests/M2BusinessJourneyTests/test03DownloadControlsAndWriteColdReceipt
+      )
+    else
+      tests=(-only-testing:ReaderAppTests/M2BusinessJourneyTests/test04ColdProcessRecoversOriginalDownload)
     fi
     xcodebuild -xctestrun "${runs[0]}" -destination "$target" -parallel-testing-enabled NO \
       -test-timeouts-enabled YES -default-test-execution-time-allowance 120 \

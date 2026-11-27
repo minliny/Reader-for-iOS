@@ -37,6 +37,7 @@ final class ShelfModel {
     private(set) var recovery: ShelfRecovery?
     private(set) var task: ImportProgress?
     private(set) var library: LibraryHost?
+    private(set) var online: M2AppSession?
     private(set) var files: FileAndAssetHost?
     private var journal: ImportJournal?
     private var booting = false
@@ -63,10 +64,13 @@ final class ShelfModel {
             let assets = root.appending(path: "Assets", directoryHint: .isDirectory)
             let library = try await LibraryHost.open(directory: root.appending(path: "Library", directoryHint: .isDirectory))
             self.library = library
+            let online = M2AppSession(library: library, root: root)
+            self.online = online
             files = FileAndAssetHost(root: assets, sandboxRoots: sandboxRoots)
             journal = ImportJournal(root: assets)
             await reload()
             await checkRecovery()
+            await online.recoverDownloads()
         } catch {
             self.error = "无法打开本地书库，请重试。"
         }

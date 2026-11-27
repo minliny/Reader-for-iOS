@@ -1,23 +1,37 @@
 {
   "pins": {
-    "core": "fa536a10c31ab5a35df2e2c1c1fbf70ebf3e1be9",
-    "ui": "1e652fcc5653a8b6f2b04560784cbee9fcfaf01c",
-    "harmony": "4acfefc1a71f62572f653cc9a5e79162a2d347f9"
+    "core": "4a840493d0a39f8771adb631c3dce490a365d915",
+    "ui": "4b096fe058731afe791747007f428182784d1592",
+    "harmony": "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef"
   },
   "harmonyPairedCore": "f9c06b68166fe71970b6b458d14fcddf0ca588cd",
   "harmonyDependencySHA256": "9ed0ba36d22e3cbfa3971a0b85ea7bc8d7500f13899dcc84c10634372a1489bd",
-  "uiManifestSHA256": "db5eaef68a49e7215b471d8b396b04f3e9f81e31ad1eb07931f4f5a378d28702",
+  "uiManifestSHA256": "78f606fddce507d66639bbba8dbced5b3d2d1f07cf8bfef8b1b83cddf73ee0d7",
   "authoritySHA256": {
-    "protocol/reader-command.schema.json": "ee756bfe7985af16beb3712fd9449ce5a690374285ec300b853a1a7c4d5177bb",
-    "protocol/reader-event.schema.json": "42a2f08a71f67f30e55bda18ca129651e02ed841769255c284822f5ad08ea56b",
+    "protocol/reader-command.schema.json": "0ba9a587929fe7612886bc54fd463ba1cea382cf9cb0a979b37e96c0cd7fbad0",
+    "protocol/reader-event.schema.json": "e0a79f46acfa62370dcc48311c03636e3b034c8e9207e6d176450bf65f45c695",
     "protocol/reader-runtime-config.schema.json": "7f80c3a548f71ab2b5d4415af83579f03c725cb0bec0fc72a1e7dc6e91368afa",
+    "protocol/reader-m2-bindings.schema.json": "ec399b07871736546c2d0277ee9f9dda42b98229b978624c705e9b783b907716",
+    "protocol/reader-m2-host.schema.json": "bc2232be1379902bdb1b56313f301e1f23454c3d7f67980b5e7b8028d48ad8b5",
+    "protocol/reader-m2-sources.schema.json": "9c18d4b3f6f9d69fa1bfbc2652afca6d247b1f4660dce8a9afc766d041786e60",
+    "protocol/reader-m2-source-receipts.schema.json": "ec7eb3696e653992272bd7cbf8117fa525704a73ec384e2183dbec716aa786cc",
+    "protocol/reader-m2-search.schema.json": "64f69b9b22522f5af679db85e0510f7779cffcfddbd294b7c52408bde5accd81",
+    "protocol/reader-m2-download.schema.json": "ad1dcd655280eff33ad53c099fa5a8d4a670e76306f0472243465408cf108554",
+    "protocol/reader-m2-reading.schema.json": "8add0b72bea24ee8aa696684b219f1a931ab869691154ee80e601fb5c675650c",
     "include/reader_core.h": "39bccdedd75e5a81c66053e93f79c23e486e91ef126cc2cb83bea5146d614c99",
     "theme/registry.json": "17339c9c8d876989575894e4a1f3c5a6b229cf72748d6398963c681820bda1df",
-    "theme/design-metrics.json": "625cd2861d568f1f8ebd63c1a58a46cf677d43dbfd8cbcf4b6d71ef33d1502ae",
-    "theme/icon-registry.json": "074f22c1db2ccbf48826723625e4dd1ffb3ac59fa9fd34bef46ed7b573ce80b7",
+    "theme/design-metrics.json": "ee9faa0aed4f7daab49744cacb248ebd1ecbc5c244bc553be95423990d5dbbfd",
+    "theme/icon-registry.json": "9ab2d1fc4817be591e444749ef85865491464a948214b6f9a7cf2e6ad642ab94",
+    "design/source-switch/source-switch.visual.json": "205de7f89121243e6ef4490f4863c6f4874e928a7eb5a66f52b41f0275c8d977",
     "theme/icons/reader_control_header_chevron.svg": "176f7ea3416d297cf7437ff30b40877e7dc54aeb0fe492153930cb29e2aa1caa",
     "theme/icons/settings_gen_navigation.svg": "ef696bb6844746dd733207c0e436be713ad1eda666681a137dc141ede0440f5d",
-    "scripts/generate-m1-ui.mjs": "f8f632d733eb6d840db0825e6b77f56e124e14f69a19997f71fda9ca6014287b",
+    "theme/icons/source_v9_wave.svg": "8bbb986a14152df870b29e30aab9522dc22e6f8656c8bf0516b69f20748bcaa2",
+    "theme/icons/source_v9_cloud.svg": "027c8a09d12cb498291107595883aa7b9b781f1efd97cecd144fbcd7cea407bd",
+    "theme/icons/source_v9_upload.svg": "f94e36c05543543260798135dfd21e9aea03422852ee034763949a4cb4a40da6",
+    "theme/icons/source_v9_question.svg": "abd067b653830c57b76d4e05d0977eaa876bb6642ddbf4c8f943c56e07bed29f",
+    "theme/icons/source_login_lock.svg": "89bf510744936a1a6512692b30e59e2b9530b60c5381c914a5d8dc9b8fd14c4a",
+    "theme/icons/source_switch.svg": "045b598535fb93042437ef023c59b7a86541d6641eb00b4ca78c03ec5aeb1226",
+    "scripts/generate-m1-ui.mjs": "036ed5d7e75f57db709e86b4bd67356a74d8aa37e40d6d786f357c4a645cba86",
     "scripts/generate-theme-tokens.mjs": "d1d45e180ea1392d9e2b9420d81abe5711ed91f69e8a8e79fbd81ec183a01ed5",
     "reader_ebook_runtime/fixtures/generate-m1-window.py": "dad21aeb7fab6e4c83caaecbb3513a696084646319710b978a16fbe4eb631d78",
     "crates/reader-storage/tests/fixtures/library47-schema.sql": "c7b3bca4ecbe4ef44ab653b0620f45152022ee61fec4a7a758c2bc46e848c097"
@@ -35,13 +49,69 @@
       "source": "fonts/OFL.txt",
       "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6"
     },
+    "Resources/reader_design/Icons.xcassets/reader_control_header_chevron.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/reader_control_header_chevron.svg",
+      "sha256": "e819162373662d9a4809095b670ad0920bdec57726c028c5cb9b19eb0a932aec"
+    },
     "Resources/reader_design/Icons.xcassets/reader_control_header_chevron.imageset/reader_control_header_chevron.svg": {
       "source": "theme/icons/reader_control_header_chevron.svg",
       "sha256": "176f7ea3416d297cf7437ff30b40877e7dc54aeb0fe492153930cb29e2aa1caa"
     },
+    "Resources/reader_design/Icons.xcassets/settings_gen_navigation.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/settings_gen_navigation.svg",
+      "sha256": "a7a3be2d9d23bbde5b4190115372acba1b0310f2ce7639c159d6be3098f1cb92"
+    },
     "Resources/reader_design/Icons.xcassets/settings_gen_navigation.imageset/settings_gen_navigation.svg": {
       "source": "theme/icons/settings_gen_navigation.svg",
       "sha256": "ef696bb6844746dd733207c0e436be713ad1eda666681a137dc141ede0440f5d"
+    },
+    "Resources/reader_design/Icons.xcassets/source_login_lock.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/source_login_lock.svg",
+      "sha256": "5dd8fd15c1ff9e64362336c5d415abb6aa2e6fc9af7324fe15b03437d692aa1c"
+    },
+    "Resources/reader_design/Icons.xcassets/source_login_lock.imageset/source_login_lock.svg": {
+      "source": "theme/icons/source_login_lock.svg",
+      "sha256": "89bf510744936a1a6512692b30e59e2b9530b60c5381c914a5d8dc9b8fd14c4a"
+    },
+    "Resources/reader_design/Icons.xcassets/source_switch.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/source_switch.svg",
+      "sha256": "926997bea37afd2a0081d8ef436149bddc5f0565664d9d18da2b1f94bce986cb"
+    },
+    "Resources/reader_design/Icons.xcassets/source_switch.imageset/source_switch.svg": {
+      "source": "theme/icons/source_switch.svg",
+      "sha256": "045b598535fb93042437ef023c59b7a86541d6641eb00b4ca78c03ec5aeb1226"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_cloud.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/source_v9_cloud.svg",
+      "sha256": "c5c6795c761fcf149cab5242f5c38a3a1527da89d7b529106ea782bd6160c9fb"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_cloud.imageset/source_v9_cloud.svg": {
+      "source": "theme/icons/source_v9_cloud.svg",
+      "sha256": "027c8a09d12cb498291107595883aa7b9b781f1efd97cecd144fbcd7cea407bd"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_question.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/source_v9_question.svg",
+      "sha256": "6c3d7c2ff51ae57e9d1be9bea60f0604144a983b2256eb947cb7d63e0ef699e4"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_question.imageset/source_v9_question.svg": {
+      "source": "theme/icons/source_v9_question.svg",
+      "sha256": "abd067b653830c57b76d4e05d0977eaa876bb6642ddbf4c8f943c56e07bed29f"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_upload.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/source_v9_upload.svg",
+      "sha256": "9b80b0c889a500d0385ed3ea53f3f69d742a4524af5a9b70a59bd2a5e3b54b50"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_upload.imageset/source_v9_upload.svg": {
+      "source": "theme/icons/source_v9_upload.svg",
+      "sha256": "f94e36c05543543260798135dfd21e9aea03422852ee034763949a4cb4a40da6"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_wave.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/source_v9_wave.svg",
+      "sha256": "081d10f499f1261ba905faf3d1f6875d75ce3c131ab28c20d78a7dc506082348"
+    },
+    "Resources/reader_design/Icons.xcassets/source_v9_wave.imageset/source_v9_wave.svg": {
+      "source": "theme/icons/source_v9_wave.svg",
+      "sha256": "8bbb986a14152df870b29e30aab9522dc22e6f8656c8bf0516b69f20748bcaa2"
     },
     "Resources/reader_ebook_runtime/reader-ebook-dom.js": {
       "source": "reader_ebook_runtime/reader-ebook-dom.js",
@@ -57,15 +127,15 @@
     },
     "Sources/ReaderCoreBridge/Generated/ReaderProtocolModels.swift": {
       "source": "bindings/ios/Sources/ReaderCoreClient/Generated/ReaderProtocolModels.swift",
-      "sha256": "7af6860b74e9963fe38d7cf2c8f22678f43f27243e0f903dee9d9e8afa5e8ab7"
+      "sha256": "59380f67b2db35be4960fa4542db928236a312e6ed693420675d200a4e83511a"
     },
     "Sources/ReaderDesign/Generated/ReaderDesignMetrics.swift": {
       "source": "theme/generated/ios/ReaderDesignMetrics.swift",
-      "sha256": "61ec5348d21fef2c9cc0f1b54a5a93ec754c8033dcd4c9cc701a4a426fab0e3f"
+      "sha256": "d3aba0e33bc803de258eb03a2ac67856369f9bdb548df8341cb094275b5369cc"
     },
     "Sources/ReaderDesign/Generated/ReaderIconRegistry.swift": {
       "source": "theme/generated/ios/ReaderIconRegistry.swift",
-      "sha256": "550a32adba298eece788818a9c052c6b502940630a827d1926365ac3575da850"
+      "sha256": "83cb32a87b090e3cd3d0a1e47e73427fd480c324a42db9028ec219d1bfa8c162"
     },
     "Sources/ReaderDesign/Generated/ReaderThemeTokens.swift": {
       "source": "theme/generated/ios/ReaderThemeTokens.swift",

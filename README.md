@@ -5,9 +5,9 @@ M1 本地阅读包含书架、文件导入、详情与目录、统一阅读器�
 | 目录 | 职责 |
 | --- | --- |
 | `Sources/ReaderCoreBridge` | 从固定协议生成物消费 DTO，持有 Core 运行时并路由原请求与 ACK |
-| `Sources/ReaderHost` | Library47 准入、文件授权与原书留存、导入 journal、System Host 插槽 |
+| `Sources/ReaderHost` | Library47 准入、文件授权与原书留存、导入 journal、系统能力及网络／WebKit 能力 |
 | `Sources/ReaderDesign` | 业务语义色、五类消息投影、固定度量、字体与图标 |
-| `Sources/ReaderApp` | 书架与导入、详情、阅读会话及原生表面、设置 |
+| `Sources/ReaderApp` | 书架、详情、阅读会话及原生表面、设置，以及搜索、书源、在线阅读和下载协调器 |
 | `Resources/reader_ebook_runtime` | 固定 Reader-UI 的三个生产电子书资源 |
 | `Tests` | 独立 XCTest 宿主、TXT/EPUB/MOBI 与存储夹具、黄金快照 |
 
@@ -43,3 +43,15 @@ Scripts/test-simulator.sh wave2cold "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE
 ```
 
 黄金视图使用固定 iOS 26.5 视口和字体离线生成。逐张状态、产品参考、输入身份和像素 SHA-256 登记于 `Tests/Goldens/Baselines/manifest.json`。正式产品包核对同时检验原生字体与图标，并检查测试原书和快照未混入。
+
+M2 协调层测试使用仅接受本机回环连接的独立夹具。先在宿主运行
+`python3 -u Tests/Loopback/serve.py`，等待 `M2_FIXTURE_READY`。再使用同一测试包依次执行：
+
+```sh
+Scripts/test-simulator.sh m2host "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE_DIR"
+Scripts/test-simulator.sh m2edit "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE_DIR"
+Scripts/test-simulator.sh m2write "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE_DIR"
+Scripts/test-simulator.sh m2cold "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE_DIR"
+```
+
+`m2cold` 使用独立 XCTest 进程读取上一步写入的库和原操作身份。夹具服务进程在三段测试期间保持运行，服务源码和夹具数据均由测试入口持有。

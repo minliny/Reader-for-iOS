@@ -13,6 +13,7 @@ public struct CoreOperation<Value: Sendable>: Sendable {
 public struct CoreRequestFailure: Error, Sendable {
     public let id: CoreOperationID
     public let value: ReaderM1Error
+    public let m2Value: M2ProtocolError
 }
 
 public struct CoreHostControlRejection: Error, Sendable {
@@ -25,11 +26,32 @@ public enum CoreHostReply: Sendable {
     case echo(M1HostEchoData)
     case time(HostTimeNowResponse)
     case failure(HostErrorParams)
+    case http(M2HostHttpResponse)
+    case cookieGet(M2HostCookieGetResponse)
+    case cookieSet(M2HostCookieSetResponse)
+    case webView(M2HostWebViewEvaluateJavaScriptResponse)
+    case media(M2HostMediaDownloadResponse)
+    case networkFailure(M2HostErrorParams)
 }
 
 public protocol CoreHost: Sendable {
     var capabilities: [ReaderHostCapability] { get }
+    var protocolExtensions: [String] { get }
     func execute(_ request: ReaderHostRequestEvent) async -> CoreHostReply
+    func executeNetwork(_ request: CoreNetworkHostRequest, operationId: Int64) async -> CoreHostReply
+    func discardUnsent(_ reply: CoreHostReply) async
+}
+
+public extension CoreHost {
+    var protocolExtensions: [String] { [] }
+
+    func executeNetwork(_ request: CoreNetworkHostRequest, operationId: Int64) async -> CoreHostReply {
+        .networkFailure(.init(operationId: operationId,
+                              error: .init(code: .internal, message: "Network capability is unavailable", retryable: false),
+                              diagnostics: .init(code: .capabilityUnavailable, phase: .request)))
+    }
+
+    func discardUnsent(_ reply: CoreHostReply) async {}
 }
 
 public struct CoreDeliveryTotals: Sendable {
@@ -55,6 +77,12 @@ public actor CoreRuntimeActor {
         let finish: @Sendable (Terminal) -> Void
     }
 
+    private struct HostWork {
+        let owner: CoreOperationID
+        let deliveryId: Int64
+        let task: Task<Void, Never>
+    }
+
     public nonisolated let runtimeId = UUID()
     private var transport: CoreTransport?
     private let host: any CoreHost
@@ -62,6 +90,8 @@ public actor CoreRuntimeActor {
     private var followingRequestId: Int64 = 1
     private var pending: [CoreOperationID: Pending] = [:]
     private var hostControls: [CoreOperationID: CoreOperationID] = [:]
+    private var hostWork: [Int64: HostWork] = [:]
+    private var cancelled: Set<CoreOperationID> = []
     private var totals = CoreDeliveryTotals()
     private var closing = false
     private var closeDeadline: Task<Void, Never>?
@@ -76,8 +106,9 @@ public actor CoreRuntimeActor {
         do {
             let advertised = host.capabilities
             let applied = try await runtime.request(
-                ReaderM1.runtimeSetHostCapabilities,
-                RuntimeSetHostCapabilitiesParams(capabilities: advertised, lanes: [], platform: "ios")
+                ReaderM2.runtimeSetHostCapabilities,
+                M2RuntimeSetHostCapabilitiesParams(extensions: host.protocolExtensions,
+                                                   capabilities: advertised, lanes: [], platform: "ios")
             ).value
             guard applied.applied, applied.capabilities == advertised.count, applied.lanes == 0 else {
                 throw CoreBridgeFailure.endpointMismatch
@@ -146,6 +177,10 @@ public actor CoreRuntimeActor {
         guard id.runtimeId == runtimeId, id.requestId > 0 else { throw CoreBridgeFailure.endpointMismatch }
         guard let transport else { throw CoreBridgeFailure.closed }
         try transport.cancel(id.requestId)
+        if pending[id] != nil {
+            cancelled.insert(id)
+            cancelHostWork(owner: id)
+        }
     }
 
     public func deliveries() -> CoreDeliveryTotals { totals }
@@ -159,7 +194,7 @@ public actor CoreRuntimeActor {
                 await self?.stop(fault: CoreBridgeFailure.closed)
             }
         }
-        if pending.isEmpty {
+        if pending.isEmpty && hostWork.isEmpty {
             stop(fault: nil)
             return
         }
@@ -186,15 +221,26 @@ public actor CoreRuntimeActor {
                     throw CoreBridgeFailure.invalidEvent
                 }
                 let event = try decoder.decode(ReaderHostRequestEvent.self, from: bytes)
-                guard pending[operationID(event.requestId)] != nil else {
+                let owner = operationID(event.requestId)
+                guard pending[owner] != nil, !cancelled.contains(owner) else {
                     try transport.acknowledge(deliveryId)
                     totals.acknowledgementCount += 1
                     return
                 }
-                Task { [weak self, host] in
-                    let reply = await host.execute(event)
-                    await self?.respond(event: event, deliveryId: deliveryId, reply: reply)
+                guard hostWork[event.operationId] == nil else { throw CoreBridgeFailure.invalidEvent }
+                let networkRequest = try CoreNetworkHostRequest(capability: event.capability, bytes: bytes)
+                let task = Task { [weak self, host] in
+                    let reply: CoreHostReply
+                    if let networkRequest {
+                        reply = await host.executeNetwork(networkRequest, operationId: event.operationId)
+                    } else {
+                        reply = await host.execute(event)
+                    }
+                    if await self?.respond(operationId: event.operationId, reply: reply) != true {
+                        await host.discardUnsent(reply)
+                    }
                 }
+                hostWork[event.operationId] = HostWork(owner: owner, deliveryId: deliveryId, task: task)
                 return
             }
             let id = operationID(route.requestId)
@@ -214,14 +260,16 @@ public actor CoreRuntimeActor {
             switch route.type {
             case "result": terminal = .result(bytes)
             case "error":
-                let error = try decoder.decode(ReaderM1ErrorEvent.self, from: bytes)
-                terminal = .failure(CoreRequestFailure(id: id, value: error.error))
+                let error = CoreRequestFailure(id: id,
+                    value: try decoder.decode(ReaderM1ErrorEvent.self, from: bytes).error,
+                    m2Value: try decoder.decode(M2ProtocolErrorEvent.self, from: bytes).error)
+                terminal = .failure(error)
                 if route.requestId == 0 {
                     if let deliveryId = route.deliveryId, deliveryId > 0 {
                         try transport.acknowledge(deliveryId)
                         totals.acknowledgementCount += 1
                     }
-                    stop(fault: CoreRequestFailure(id: id, value: error.error))
+                    stop(fault: error)
                     return
                 }
             default: throw CoreBridgeFailure.invalidEvent
@@ -232,46 +280,47 @@ public actor CoreRuntimeActor {
             // Consume and decode using the request's own codec before returning
             // the original runtime's delivery credit.
             if let original = pending.removeValue(forKey: id) {
+                cancelled.remove(id)
+                cancelHostWork(owner: id)
                 hostControls = hostControls.filter { $0.value != id }
                 original.finish(terminal)
                 totals.terminalCount += 1
             }
             try transport.acknowledge(deliveryId)
             totals.acknowledgementCount += 1
-            if closing && pending.isEmpty { stop(fault: nil) }
+            finishCloseIfDrained()
         } catch {
             stop(fault: error)
         }
     }
 
-    private func respond(event: ReaderHostRequestEvent, deliveryId: Int64, reply: CoreHostReply) {
-        guard let transport else { return }
+    private func respond(operationId: Int64, reply: CoreHostReply) -> Bool {
+        guard let transport, let work = hostWork.removeValue(forKey: operationId) else { return false }
+        defer { finishCloseIfDrained() }
         do {
             // The physical slot consumed the typed request on this runtime.
-            try transport.acknowledge(deliveryId)
+            try transport.acknowledge(work.deliveryId)
             totals.acknowledgementCount += 1
-            let owner = operationID(event.requestId)
-            guard pending[owner] != nil else { return }
+            guard pending[work.owner] != nil, !cancelled.contains(work.owner) else { return false }
             let control = allocateOperationID()
-            let encoded: Data
-            switch reply {
-            case .echo(let response):
-                encoded = try ReaderM1.hostComplete.encode(requestId: control.requestId,
-                    params: M1HostCompleteParams(operationId: event.operationId, result: response))
-            case .time(let response):
-                encoded = try ReaderM1.hostCompleteTimeNow.encode(requestId: control.requestId,
-                    params: M1HostTimeCompleteParams(operationId: event.operationId, result: response))
-            case .failure(let response):
-                guard response.operationId == event.operationId else { throw CoreBridgeFailure.endpointMismatch }
-                encoded = try ReaderM1.hostError.encode(requestId: control.requestId, params: response)
-            }
+            let encoded = try reply.encode(requestId: control.requestId, operationId: operationId)
             // Accepted control commands emit only the original request's
             // terminal. A rejected control can emit its own error receipt.
-            hostControls[control] = owner
+            hostControls[control] = work.owner
             try transport.send(encoded)
+            return true
         } catch {
             stop(fault: error)
+            return false
         }
+    }
+
+    private func cancelHostWork(owner: CoreOperationID) {
+        for work in hostWork.values where work.owner == owner { work.task.cancel() }
+    }
+
+    private func finishCloseIfDrained() {
+        if transport != nil, closing, pending.isEmpty, hostWork.isEmpty { stop(fault: nil) }
     }
 
     private func stop(fault: (any Error)?) {
@@ -280,6 +329,9 @@ public actor CoreRuntimeActor {
         closeDeadline = nil
         consumer?.cancel()
         consumer = nil
+        for work in hostWork.values { work.task.cancel() }
+        hostWork.removeAll()
+        cancelled.removeAll()
         transport?.destroy()
         transport = nil
         let originalRequests = pending.values

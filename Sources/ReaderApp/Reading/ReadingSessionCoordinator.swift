@@ -31,6 +31,8 @@ final class ReadingSessionCoordinator {
     private var book: BookshelfEntryData?
     private var catalog: [BookTocEntryData] = []
     private var original: LocalBookOriginalData?
+    private var online: OnlineReadingCoordinator?
+    private var onlineDirectoryRevision: String?
     private var presentation: LocalBookPresentationKindData?
     private var files: FileAndAssetHost?
     private var positionRevision: String?
@@ -41,6 +43,7 @@ final class ReadingSessionCoordinator {
     private var bookmarkRecovery = false
     private var ready = false
 
+    private(set) var onlineFailure: (any Error)?
     private(set) var chapter: ReadingChapter?
     private(set) var position: Int = 0
     private(set) var pageState = ReaderPageState.loading
@@ -66,6 +69,16 @@ final class ReadingSessionCoordinator {
         await verifyBookmarkJournal()
     }
 
+    func beginOnline(book: BookshelfEntryData, files: FileAndAssetHost, startChapter: Int64? = nil) async {
+        guard entity == nil else { return }
+        entity = BookIdentity(book)
+        self.book = book
+        self.files = files
+        online = OnlineReadingCoordinator(runtime: runtime)
+        await reopen(startChapter: startChapter)
+        await verifyBookmarkJournal()
+    }
+
     func reopen(startChapter: Int64? = nil) async {
         guard let entity else { return }
         pageGeneration += 1
@@ -76,13 +89,26 @@ final class ReadingSessionCoordinator {
                 .init(bookId: entity.bookId, sourceId: entity.sourceId)).value
             guard generation == expected else { return }
             positionRevision = data.progressRevision
-            let kind = try await runtime.request(ReaderM1.localBookPresentationKindV1,
-                .init(bookId: entity.bookId)).value
-            guard generation == expected, kind.bookId == entity.bookId,
-                  kind.sourceId.rawValue == entity.sourceId else { return }
-            presentation = kind
-            if kind.kind == .ebook, kind.reimportRequired {
-                feedback("已打开可核对的正文版式", key: "verified-projection")
+            if let online {
+                let directory: OnlineDirectory
+                if let cached = try await online.cachedDirectory(sourceId: entity.sourceId, bookId: entity.bookId) {
+                    directory = cached
+                } else {
+                    directory = try await fetchDirectory(online, entity: entity)
+                }
+                guard generation == expected else { return }
+                catalog = directory.chapters
+                onlineDirectoryRevision = directory.revision
+                onlineFailure = nil
+            } else {
+                let kind = try await runtime.request(ReaderM1.localBookPresentationKindV1,
+                    .init(bookId: entity.bookId)).value
+                guard generation == expected, kind.bookId == entity.bookId,
+                      kind.sourceId.rawValue == entity.sourceId else { return }
+                presentation = kind
+                if kind.kind == .ebook, kind.reimportRequired {
+                    feedback("已打开可核对的正文版式", key: "verified-projection")
+                }
             }
             let initial = startChapter ?? data.progress?.chapterIndex ?? catalog.first?.index ?? 0
             let stored = startChapter == nil ? data.progress : nil
@@ -93,6 +119,7 @@ final class ReadingSessionCoordinator {
             try await load(index: initial, expected: expected, stored: stored)
         } catch {
             guard generation == expected else { return }
+            if online != nil { onlineFailure = error }
             if chapter == nil {
                 pageState = .failed("暂时无法打开章节。", actionGeneration: expected)
             } else {
@@ -121,6 +148,7 @@ final class ReadingSessionCoordinator {
         } catch {
             if generation == expected {
                 retainPresentedChapter()
+                if online != nil { onlineFailure = error }
                 feedback("无法打开该章节", key: "open-chapter")
             }
         }
@@ -142,8 +170,14 @@ final class ReadingSessionCoordinator {
     private func load(index: Int64, expected: Int, stored: ReadingProgressData? = nil,
                       bookmark: BookmarkData? = nil) async throws {
         guard let entity else { throw ReadingProjectionFailure.invalidChapter }
-        let content = try await runtime.request(ReaderM1.localBookChapterContent,
-            .init(bookId: entity.bookId, chapterIndex: index)).value
+        let content: LocalBookChapterContentData
+        if let online {
+            let result = try await onlineChapter(online, entity: entity, index: index)
+            content = try OnlineReadingCoordinator.projection(result, chapterIndex: index)
+        } else {
+            content = try await runtime.request(ReaderM1.localBookChapterContent,
+                .init(bookId: entity.bookId, chapterIndex: index)).value
+        }
         guard content.sourceId == entity.sourceId, content.bookId == entity.bookId,
               content.chapterIndex == index else { throw CoreBridgeFailure.endpointMismatch }
         guard !content.content.isEmpty else { throw ReadingProjectionFailure.emptyContent }
@@ -181,6 +215,7 @@ final class ReadingSessionCoordinator {
         guard expected == generation else { throw ReadingProjectionFailure.obsolete }
         ready = false
         position = anchor
+        onlineFailure = nil
         chapter = ReadingChapter(projection: content, ebook: ebook, anchor: anchor, generation: expected)
     }
 
@@ -367,4 +402,212 @@ extension ReadingSessionCoordinator {
         await verifyBookmarkJournal()
         if !bookmarkRecovery { feedback("暂时无法确认书签结果", key: "bookmark-write-error") }
     }
+}
+
+extension ReadingSessionCoordinator {
+    private func fetchDirectory(_ online: OnlineReadingCoordinator, entity: BookIdentity) async throws -> OnlineDirectory {
+        let snapshot = book
+        let detail = try await online.detail(.init(
+            sourceId: entity.sourceId, book: .init(bookId: entity.bookId, title: snapshot?.title, author: snapshot?.author),
+            bookUrl: entity.bookId
+        ))
+        return try await online.refreshDirectory(.init(sourceId: entity.sourceId, bookId: entity.bookId,
+                                                       tocUrl: detail.tocUrl, variables: detail.variables))
+    }
+
+    private func onlineChapter(_ online: OnlineReadingCoordinator, entity: BookIdentity,
+                               index: Int64, proof: M2DirectoryTargetProof? = nil) async throws -> M2ChapterContentData {
+        let entry = catalog.first(where: { $0.index == index })
+        let current = try await online.cachedDirectory(sourceId: entity.sourceId, bookId: entity.bookId)
+        guard current?.revision == onlineDirectoryRevision,
+              current?.chapters.first(where: { $0.index == index })?.url == entry?.url else {
+            throw OnlineReadingCoordinator.Failure.directoryChanged
+        }
+        do {
+            return try await online.chapter(.init(directoryTargetProof: proof, cacheOnly: true,
+                sourceId: entity.sourceId, bookId: entity.bookId, chapterTitle: entry?.title, chapterIndex: index))
+        } catch let error as CoreRequestFailure where error.m2Value.details?.category == "CACHE_MISSING" {
+            return try await online.chapter(.init(directoryTargetProof: proof, sourceId: entity.sourceId,
+                bookId: entity.bookId, chapterTitle: entry?.title, chapterIndex: index,
+                chapterUrl: entry?.url, variables: entry?.variables))
+        }
+    }
+
+    @discardableResult
+    func refreshOnlineDirectory() async -> Bool {
+        guard !activeCommand, let online, let entity else { return false }
+        activeCommand = true
+        defer { activeCommand = false }
+        let expected = generation
+        do {
+            let result = try await fetchDirectory(online, entity: entity)
+            guard generation == expected else { return false }
+            catalog = result.chapters
+            onlineDirectoryRevision = result.revision
+            onlineFailure = nil
+            return true
+        } catch {
+            if generation == expected { onlineFailure = error }
+            return false
+        }
+    }
+
+    @discardableResult
+    func refreshOnlineChapter() async -> Bool {
+        guard !activeCommand, let online, let entity, let chapter,
+              let previousBody = chapter.projection.bodyVersion,
+              let previousProcessing = chapter.projection.processingVersion else { return false }
+        activeCommand = true
+        defer { activeCommand = false }
+        guard await drain() else { return false }
+        let expected = generation
+        let oldPosition = position
+        let entry = catalog.first(where: { $0.index == chapter.index })
+        do {
+            guard try await online.cachedDirectory(sourceId: entity.sourceId, bookId: entity.bookId)?.revision
+                    == onlineDirectoryRevision else { throw OnlineReadingCoordinator.Failure.directoryChanged }
+            let refreshed = try await online.chapter(.init(
+                forceRefresh: true, sourceId: entity.sourceId, bookId: entity.bookId,
+                chapterTitle: chapter.title, chapterIndex: chapter.index, chapterUrl: entry?.url,
+                variables: entry?.variables, positionContext: .init(
+                    bodyVersion: previousBody, processingVersion: previousProcessing,
+                    anchors: [.init(id: "visible", offset: Int64(oldPosition))]
+                )
+            ))
+            let projection = try OnlineReadingCoordinator.projection(refreshed, chapterIndex: chapter.index)
+            guard generation == expected, position == oldPosition else { return false }
+            let anchor: Int
+            if projection.bodyVersion == previousBody, projection.processingVersion == previousProcessing {
+                anchor = oldPosition
+            } else {
+                guard let migrated = refreshed.positionMigration, migrated.status == .committed,
+                      migrated.previousBodyVersion == previousBody,
+                      migrated.previousProcessingVersion == previousProcessing,
+                      migrated.bodyVersion == projection.bodyVersion,
+                      migrated.processingVersion == projection.processingVersion,
+                      let mapped = migrated.anchors.first(where: { $0.id == "visible" &&
+                          $0.previousOffset == Int64(oldPosition) }) else {
+                    throw OnlineReadingCoordinator.Failure.refreshCannotProvePosition
+                }
+                guard (0..<Int64(projection.content.unicodeScalars.count)).contains(mapped.offset) else {
+                    throw OnlineReadingCoordinator.Failure.refreshCannotProvePosition
+                }
+                anchor = Int(mapped.offset)
+            }
+            let progress = try await runtime.request(ReaderM1.readingProgressGet, entity.queryAsProgress).value
+            guard generation == expected, position == oldPosition else { return false }
+            pageGeneration += 1
+            positionRevision = progress.progressRevision
+            lastSaved = progress.progress.map { ($0.chapterIndex, Int($0.chapterOffset)) }
+            position = anchor
+            ready = false
+            self.chapter = .init(projection: projection, ebook: nil, anchor: anchor, generation: generation)
+            onlineFailure = nil
+            return true
+        } catch {
+            if generation == expected { onlineFailure = error }
+            return false
+        }
+    }
+
+    @discardableResult
+    func chooseOnlineTarget(_ params: M2DirectoryTargetResolveParamsV2) async -> Bool {
+        guard !activeCommand, let online, let entity, params.sourceId == entity.sourceId, params.bookId == entity.bookId
+        else { return false }
+        activeCommand = true
+        defer { activeCommand = false }
+        guard await drain() else { return false }
+        let expected = generation
+        do {
+            let target = try await online.resolveTarget(params)
+            let rendered = try await onlineChapter(online, entity: entity, index: target.chapterIndex,
+                                                   proof: target.directoryTargetProof)
+            let projection = try OnlineReadingCoordinator.projection(rendered, chapterIndex: target.chapterIndex)
+            let requested = target.chapterOffsetScalar ?? 0
+            if let scope = target.positionScope {
+                guard scope.bodyVersion == projection.bodyVersion, scope.processingVersion == projection.processingVersion
+                else { throw ReadingProjectionFailure.positionNotProven }
+            }
+            guard generation == expected, (0..<Int64(projection.content.unicodeScalars.count)).contains(requested)
+            else { return false }
+            pageGeneration += 1
+            position = Int(requested)
+            ready = false
+            chapter = .init(projection: projection, ebook: nil, anchor: position, generation: generation)
+            onlineFailure = nil
+            return true
+        } catch {
+            if generation == expected { onlineFailure = error }
+            return false
+        }
+    }
+
+    func switchOnlineSource(_ draft: M2SourceSwitchCommitParams) async throws -> M2SourceSwitchCommitData {
+        guard !activeCommand, let online, let entity, let chapter, draft.from.sourceId == entity.sourceId,
+              draft.from.bookId == entity.bookId, draft.currentChapterIndex == chapter.index else {
+            throw ReadingProjectionFailure.invalidChapter
+        }
+        activeCommand = true
+        defer { activeCommand = false }
+        guard await drain() else { throw ReadingProjectionFailure.positionNotProven }
+        let expected = generation
+        let oldPosition = position
+        let original = try await online.bindSwitch(draft)
+        let commit = try await online.switchSource(original)
+        guard commit.phase == .pending else { throw CoreBridgeFailure.endpointMismatch }
+        let target = commit.book
+        let index = commit.matchedChapter.order
+        let query = TextReadingProgressGetParams(bookId: target.bookId, sourceId: target.sourceId)
+        let staged: (OnlineDirectory, BookshelfEntryData, LocalBookChapterContentData, String, Int)
+        do {
+            guard let directory = try await online.cachedDirectory(sourceId: target.sourceId, bookId: target.bookId),
+                  let entry = directory.chapters.first(where: { $0.index == index }),
+                  entry.url == commit.matchedChapter.chapterUrl else {
+                throw OnlineReadingCoordinator.Failure.directoryChanged
+            }
+            let data = try await online.chapter(.init(sourceId: target.sourceId, bookId: target.bookId,
+                chapterTitle: entry.title, chapterIndex: index, chapterUrl: entry.url, variables: entry.variables))
+            let projection = try OnlineReadingCoordinator.projection(data, chapterIndex: index)
+            let progress = try await runtime.request(ReaderM1.readingProgressGet, query).value
+            let shelf = try await runtime.request(ReaderM1.bookshelfGet,
+                .init(sourceId: target.sourceId, bookId: target.bookId)).value
+            guard let revision = progress.progressRevision, let book = shelf.book else {
+                throw ReadingProjectionFailure.positionNotProven
+            }
+            // Identical canonical text has identical scalar coordinates. A different
+            // body only inherits the chapter chosen by Core, at its opening scalar.
+            let sameText = projection.content.utf8.elementsEqual(chapter.projection.content.utf8)
+            let anchor = sameText && index == chapter.index ? oldPosition : 0
+            staged = (directory, book, projection, revision, anchor)
+        } catch {
+            do {
+                _ = try await online.rollbackSwitch(.init(transactionId: commit.transactionId))
+            } catch {
+                throw OnlineReadingCoordinator.Failure.switchUnresolved(.init(
+                    operationId: commit.transactionId, expected: original
+                ))
+            }
+            throw error
+        }
+        let revision = try await online.confirmSwitchPosition(original: original, target: staged.2,
+                                                              position: staged.4, revision: staged.3)
+        if generation == expected {
+            pageGeneration += 1
+            book = staged.1
+            self.entity = BookIdentity(staged.1)
+            catalog = staged.0.chapters
+            onlineDirectoryRevision = staged.0.revision
+            positionRevision = revision
+            lastSaved = (index, staged.4)
+            position = staged.4
+            ready = false
+            onlineFailure = nil
+            self.chapter = .init(projection: staged.2, ebook: nil, anchor: staged.4, generation: generation)
+        }
+        return commit
+    }
+}
+
+private extension BookIdentity {
+    var queryAsProgress: TextReadingProgressGetParams { .init(bookId: bookId, sourceId: sourceId) }
 }
