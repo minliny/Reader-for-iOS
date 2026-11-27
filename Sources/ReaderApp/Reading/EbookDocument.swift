@@ -9,6 +9,23 @@ struct EbookDocument: Sendable {
     let source: RetainedSource
     let xhtml: String
 
+    var authorizedImagePaths: [String] {
+        let prefix = "reader-local-epub://"
+        return Set((chapter.blocks ?? []).compactMap { block -> String? in
+            guard case .image(let image) = block, image.source.hasPrefix(prefix) else { return nil }
+            let parts = image.source.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            guard parts.count == 2, Self.decodeLocator(parts[0]) == descriptor.bookId,
+                  let entry = Self.decodeLocator(parts[1]), RetainedSource.isArchivePath(entry) else { return nil }
+            return entry
+        }).sorted()
+    }
+
+    private static func decodeLocator(_ part: Substring) -> String? {
+        let base64 = part.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        guard let bytes = Data(base64Encoded: base64) else { return nil }
+        return String(data: bytes, encoding: .utf8)
+    }
+
     static func open(
         descriptor: LocalBookChapterPresentationData,
         chapter: LocalBookChapterContentData,

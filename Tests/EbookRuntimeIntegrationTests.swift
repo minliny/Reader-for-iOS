@@ -39,13 +39,32 @@ final class EbookRuntimeIntegrationTests: XCTestCase {
         let session = UUID().uuidString
         var events: [EbookScriptEvent] = []
         surface.onEvent = { events.append($0) }
+        defer {
+            let observed = events.map {
+                "\($0.kind):\($0.layoutGeneration):\($0.value?.scalar ?? -1):\($0.value?.code ?? "-")"
+            }
+            print("M1_WEBKIT_EVENTS \(observed)")
+        }
+        print("M1_WEBKIT_STAGE first")
         _ = try await surface.open(first, session: session, anchor: 0)
+        print("M1_WEBKIT_STAGE second")
         let prior = try XCTUnwrap(events.last(where: { $0.kind == "ready" }))
         let ready = try await surface.open(second, session: session, anchor: 27, style: EbookStyle(fontSize: 18))
         XCTAssertEqual(ready.scalar, 27)
         XCTAssertEqual(ready.text, "𠀀")
         let images = try XCTUnwrap(ready.loadedImageCount)
         XCTAssertGreaterThanOrEqual(images, 1)
+        let nativeImage = try await surface.webView.callAsyncJavaScript(
+            """
+            const frame = document.querySelector('iframe');
+            const image = frame.contentDocument.images[0];
+            return frame.getAttribute('sandbox') === 'allow-same-origin' &&
+              image?.complete === true && image.naturalWidth > 0;
+            """,
+            arguments: [:], contentWorld: .world(name: "ReaderEbookRuntime")
+        )
+        XCTAssertEqual(nativeImage as? Bool, true)
+        print("M1_WEBKIT_STAGE selection")
         let selected = try await surface.select(start: 27, end: 34)
         XCTAssertEqual(selected?.startScalar, 27)
         XCTAssertEqual(selected?.endScalar, 34)
@@ -59,17 +78,20 @@ final class EbookRuntimeIntegrationTests: XCTestCase {
         let originalText = try XCTUnwrap(original as? String)
         XCTAssertEqual(originalText.unicodeScalars.map(\.value), "𠀀与Café".unicodeScalars.map(\.value))
 
+        print("M1_WEBKIT_STAGE reflow")
         let reflowed = try await surface.reflow(style: EbookStyle(fontSize: 23))
         XCTAssertEqual(reflowed.scalar, 27)
         XCTAssertEqual(reflowed.text, "𠀀")
         let current = try XCTUnwrap(events.last(where: { $0.kind == "ready" }))
         XCTAssertEqual(current.layoutGeneration, 1)
+        print("M1_WEBKIT_STAGE stale proof")
         try await deliverStaleEvent(prior, surface: surface)
         try await deliverStaleEvent(current, surface: surface, generation: 0)
         XCTAssertFalse(events.contains { $0.kind == "ready" && $0.value?.scalar == 999_999 })
         let measured = try await surface.position()
         XCTAssertEqual(measured?.scalar, 27)
 
+        print("M1_WEBKIT_STAGE save")
         let coordinator = ReadingSessionCoordinator(runtime: core)
         let before = try await core.request(ReaderM1.readingProgressGet, .init(bookId: book, sourceId: "local")).value
         let pending = coordinator.save(.init(
@@ -83,6 +105,7 @@ final class EbookRuntimeIntegrationTests: XCTestCase {
         XCTAssertEqual(persisted.value.chapterOffset, 27)
         await core.close()
 
+        print("M1_WEBKIT_STAGE invalid window")
         let invalid = EbookDocument(
             descriptor: LocalBookChapterPresentationData(
                 sourceId: second.descriptor.sourceId, bookId: book, chapterIndex: 1,
@@ -95,7 +118,7 @@ final class EbookRuntimeIntegrationTests: XCTestCase {
             _ = try await surface.open(invalid, session: session, anchor: 27)
             XCTFail("WebKit accepted a mismatched Core window")
         } catch EbookSurfaceFailure.unavailable(let code) {
-            XCTAssertTrue(code.contains("CHAPTER") || code.contains("CANONICAL"), code)
+            XCTAssertEqual(code, "CORE_PROCESSED_MAPPING_UNPROVEN")
         }
         let unavailable = try await surface.position()
         XCTAssertNil(unavailable)
@@ -168,6 +191,7 @@ final class EbookRuntimeIntegrationTests: XCTestCase {
                 version: 1, session, documentId, layoutGeneration, kind: 'ready',
                 value: {scalar: 999999, text: 'STALE'}
             }));
+            return true;
             """,
             arguments: [
                 "session": event.session, "documentId": event.documentId,

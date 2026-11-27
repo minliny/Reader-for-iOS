@@ -11,7 +11,12 @@ final class EbookSchemeHandler: NSObject, WKURLSchemeHandler {
 
     private let shellHTML: Data
     private var source: (documentId: String, book: RetainedSource)?
-    private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    private struct Read {
+        let request: any WKURLSchemeTask
+        let worker: Task<Void, Never>
+    }
+
+    private var tasks: [ObjectIdentifier: Read] = [:]
 
     init(shellHTML: Data) { self.shellHTML = shellHTML }
 
@@ -22,8 +27,12 @@ final class EbookSchemeHandler: NSObject, WKURLSchemeHandler {
 
     func retire() {
         source = nil
-        for task in tasks.values { task.cancel() }
+        let outstanding = tasks.values
         tasks.removeAll()
+        for read in outstanding {
+            read.worker.cancel()
+            read.request.didFailWithError(URLError(.cancelled))
+        }
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
@@ -55,7 +64,7 @@ final class EbookSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
         let id = ObjectIdentifier(urlSchemeTask)
-        tasks[id] = Task {
+        let worker = Task {
             let result = await Task.detached {
                 Result { try source.book.readEntry(entry) }
             }.value
@@ -65,10 +74,11 @@ final class EbookSchemeHandler: NSObject, WKURLSchemeHandler {
             case .failure(let error): urlSchemeTask.didFailWithError(error)
             }
         }
+        tasks[id] = Read(request: urlSchemeTask, worker: worker)
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
-        tasks.removeValue(forKey: ObjectIdentifier(urlSchemeTask))?.cancel()
+        tasks.removeValue(forKey: ObjectIdentifier(urlSchemeTask))?.worker.cancel()
     }
 
     private func deliver(_ bytes: Data, mime: String, url: URL, task: any WKURLSchemeTask) {

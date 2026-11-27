@@ -74,6 +74,7 @@ final class EbookReadingSurface: NSObject, ReadingSurface, WKNavigationDelegate,
         )
         _ = try await webView.callAsyncJavaScript(Self.openScript, arguments: [
             "configuration": Self.jsonObject(configuration),
+            "imagePaths": document.authorizedImagePaths,
             "resourceOrigin": "\(EbookSchemeHandler.scheme)://\(EbookSchemeHandler.host)",
             "resourceCSP": "\(EbookSchemeHandler.scheme):"
         ], contentWorld: world)
@@ -92,7 +93,7 @@ final class EbookReadingSurface: NSObject, ReadingSurface, WKNavigationDelegate,
         resetReadiness()
         identity = current
         _ = try await webView.callAsyncJavaScript(
-            "await ReaderEbookRuntime.reflow(session, documentId, generation, style, \(anchor == nil ? "undefined" : "anchor"));",
+            "void ReaderEbookRuntime.reflow(session, documentId, generation, style, \(anchor == nil ? "undefined" : "anchor")); return true;",
             arguments: args, contentWorld: world
         )
         return try await waitForReadiness(current)
@@ -120,7 +121,11 @@ final class EbookReadingSurface: NSObject, ReadingSurface, WKNavigationDelegate,
         resetReadiness()
         schemeHandler.retire()
         _ = try? await webView.callAsyncJavaScript(
-            "ReaderEbookRuntime.retire(session, documentId);",
+            """
+            if (globalThis.readerWebKitDocument === documentId) globalThis.readerWebKitDocument = null;
+            ReaderEbookRuntime.retire(session, documentId);
+            return true;
+            """,
             arguments: ["session": previous.session, "documentId": previous.documentId], contentWorld: world
         )
     }
@@ -229,13 +234,42 @@ final class EbookReadingSurface: NSObject, ReadingSurface, WKNavigationDelegate,
     }
 
     private static let openScript = """
-        await ReaderEbookRuntime.open(configuration, {
-          resourceCSPSource: resourceCSP,
-          resourceURL: path => resourceOrigin + '/archive/' + configuration.documentId + '/' +
-            path.split('/').map(encodeURIComponent).join('/'),
-          postMessage: event => window.webkit.messageHandlers.readerEbook.postMessage(JSON.stringify(event))
+        const documentId = configuration.documentId;
+        globalThis.readerWebKitDocument = documentId;
+        const resourceURL = path => resourceOrigin + '/archive/' + configuration.documentId + '/' +
+          path.split('/').map(encodeURIComponent).join('/');
+        // WebKit may suppress child load listeners in a script-disabled ebook.
+        // Predecode the current Core chapter's admitted images in the shell so
+        // the shared runtime can observe completion on the actual iframe nodes.
+        const images = imagePaths.map(path => {
+          const image = new Image();
+          image.src = resourceURL(path);
+          return image;
         });
+        const postMessage = event => window.webkit.messageHandlers.readerEbook.postMessage(JSON.stringify(event));
+        let timer;
+        try {
+          await Promise.race([
+            Promise.all(images.map(image => image.decode())),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(Error('PUBLICATION_IMAGE_UNAVAILABLE')), 4500); })
+          ]);
+        } catch {
+          if (globalThis.readerWebKitDocument === documentId) {
+            postMessage({version: 1, session: configuration.session, documentId,
+              layoutGeneration: configuration.layoutGeneration, kind: 'failure',
+              value: {code: 'PUBLICATION_IMAGE_UNAVAILABLE'}});
+          }
+          return false;
+        } finally {
+          clearTimeout(timer);
+        }
+        if (globalThis.readerWebKitDocument !== documentId) return false;
+        void ReaderEbookRuntime.open(configuration, {
+          resourceCSPSource: resourceCSP, resourceURL, postMessage
+        }).finally(() => { images.length = 0; });
+        return true;
         """
+
 }
 
 @MainActor
