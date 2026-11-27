@@ -56,7 +56,8 @@ struct BookshelfContent: View {
     private func shelfList(_ entries: [BookshelfEntryData], narrow: Bool, wide: Bool) -> some View {
         ScrollView {
             LazyVStack(spacing: CGFloat(ReaderDesignMetrics.spaceSmall)) {
-                ForEach(entries, id: \.bookId) { entry in
+                ForEach(entries.map(IdentifiedShelfEntry.init)) { item in
+                    let entry = item.entry
                     ShelfBookRow(entry: entry, narrow: narrow, selected: wide && BookIdentity(entry) == selected) {
                         if wide {
                             selected = BookIdentity(entry)
@@ -70,6 +71,11 @@ struct BookshelfContent: View {
         }
         .accessibilityIdentifier("shelf-list")
     }
+}
+
+private struct IdentifiedShelfEntry: Identifiable {
+    let entry: BookshelfEntryData
+    var id: BookIdentity { BookIdentity(entry) }
 }
 
 private struct ShelfSelectionPane: View {

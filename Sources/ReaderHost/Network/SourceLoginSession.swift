@@ -11,9 +11,14 @@ public final class SourceLoginSession: NSObject, WKNavigationDelegate {
 
     public let sourceId: String
     public let webView: WKWebView
-    public private(set) var state: State = .loading
+    public private(set) var state: State = .loading {
+        didSet { onNavigationChange?() }
+    }
+    public var onNavigationChange: (@MainActor () -> Void)?
     private var initialNavigation: WKNavigation?
     private var deadline: Task<Void, Never>?
+    private var loginURL: URL?
+    private var loginTimeout: Duration = .seconds(60)
 
     init(sourceId: String, site: WKWebsiteDataStore) {
         self.sourceId = sourceId
@@ -26,8 +31,26 @@ public final class SourceLoginSession: NSObject, WKNavigationDelegate {
     }
 
     func start(url: URL, timeout: Duration) {
-        initialNavigation = webView.load(URLRequest(url: url))
-        if initialNavigation == nil { state = .failed }
+        loginURL = url
+        loginTimeout = timeout
+        track(webView.load(URLRequest(url: url)))
+    }
+
+    public func reloadPage() {
+        guard state != .revoked else { return }
+        if webView.url != nil {
+            track(webView.reload())
+        } else if let loginURL {
+            start(url: loginURL, timeout: loginTimeout)
+        }
+    }
+
+    private func track(_ navigation: WKNavigation?) {
+        deadline?.cancel()
+        initialNavigation = navigation
+        guard navigation != nil else { state = .failed; return }
+        state = .loading
+        let timeout = loginTimeout
         deadline = Task { [weak self] in
             do { try await Task.sleep(for: timeout) } catch { return }
             guard let self, self.state == .loading else { return }
@@ -54,15 +77,27 @@ public final class SourceLoginSession: NSObject, WKNavigationDelegate {
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         complete(navigation, state: .ready)
+        onNavigationChange?()
+    }
+
+    public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        onNavigationChange?()
+    }
+
+    public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        if state == .ready { track(navigation) }
+        onNavigationChange?()
     }
 
     public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
         complete(navigation, state: .failed)
+        onNavigationChange?()
     }
 
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
                         withError error: any Error) {
         complete(navigation, state: .failed)
+        onNavigationChange?()
     }
 
     private func complete(_ navigation: WKNavigation?, state: State) {

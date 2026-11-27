@@ -10,34 +10,38 @@ struct ReadingScreen: View {
     let original: LocalBookOriginalData?
     let files: FileAndAssetHost
     let startChapter: Int64?
+    let onlineContext: OnlineReadingContext?
     let onExit: () async -> Void
-    @State private var model: ReadingSessionCoordinator
+    @State var model: ReadingSessionCoordinator
     @State private var renderer: ReadingRenderState
     @State private var controls = ReadingControls.hidden
-    @State private var sheet: Sheet?
+    @State var sheet: Sheet?
+    @State var onlineRecovery = OnlineReaderRecovery()
+    @State var failedChapter: FailedOnlineChapter?
     @AppStorage("reader.paper") private var paper = ReaderPaper.all[0].id
     @AppStorage("reader.fontSize") private var font = ReaderDesignMetrics.readerBody.fontSize
     @AppStorage("reader.lineSpacing") private var spacing = ReaderDesignMetrics.readerBody.lineHeight / ReaderDesignMetrics.readerBody.fontSize
     @AppStorage("reader.letterSpacing") private var tracking = 0.0
     @AppStorage("reader.readingMode") private var mode = ReadingMode.pages
     @AppStorage("reader.keepAwake") private var keepAwake = false
-    @Environment(\.scenePhase) private var phase
+    @Environment(\.scenePhase) var phase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private enum Sheet: String, Identifiable {
-        case directory, bookmarks
+    enum Sheet: String, Identifiable {
+        case directory, bookmarks, sourceSwitch, downloads
         var id: String { rawValue }
     }
 
     init(book: BookshelfEntryData, chapters: [BookTocEntryData], original: LocalBookOriginalData?,
          runtime: CoreRuntimeActor, files: FileAndAssetHost, startChapter: Int64?,
          session: ReadingSessionCoordinator? = nil, renderer: ReadingRenderState = ReadingRenderState(),
-         onExit: @escaping () async -> Void) {
+         onlineContext: OnlineReadingContext? = nil, onExit: @escaping () async -> Void) {
         self.book = book
         self.chapters = chapters
         self.original = original
         self.files = files
         self.startChapter = startChapter
+        self.onlineContext = onlineContext
         self.onExit = onExit
         _model = State(initialValue: session ?? ReadingSessionCoordinator(runtime: runtime))
         _renderer = State(initialValue: renderer)
@@ -52,7 +56,9 @@ struct ReadingScreen: View {
         let appearance = preferences
         ReadingPresentation(title: model.chapter?.title ?? book.title, preferences: appearance,
                             controls: controls, onAction: act) {
-            if let chapter = model.chapter {
+            if let failure = failedChapter {
+                unavailableChapterPage(failure)
+            } else if let chapter = model.chapter {
                 GeometryReader { geometry in
                     ReadingChapterSurface(chapter: chapter, preferences: appearance, model: model, renderer: renderer,
                                           onTap: tap)
@@ -75,7 +81,11 @@ struct ReadingScreen: View {
             }
         }
         .overlay(alignment: .top) {
-            if let recovery = model.recovery {
+            if let operation = onlineRecovery.operation {
+                onlineRecoveryNotice(operation, available: controls == .hidden && sheet == nil)
+                    .padding(.horizontal, CGFloat(ReaderDesignMetrics.screenInset))
+                    .padding(.top, 32)
+            } else if let recovery = model.recovery {
                 RecoveryNotice(title: recovery.title, message: recovery.message, generation: recovery.generation,
                                action: recovery.action, availability: controls == .hidden && sheet == nil) { generation, action in
                     Task { await model.verifyPosition(expected: generation, action: action) }
@@ -88,12 +98,15 @@ struct ReadingScreen: View {
                 TransientToast(message: message).padding(16)
             }
         }
-        .navigationTitle(book.title)
+        .navigationTitle(model.onlineBook?.title ?? book.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(appearance.paper.statusBackground, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(appearance.paper.systemStatusBarScheme, for: .navigationBar)
         .toolbar {
+            if onlineContext != nil {
+                ToolbarItem(placement: .topBarTrailing) { onlineToolsMenu }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: tap) { ReaderIcon(ReaderIconRegistry.readingAppearance) }
                     .accessibilityLabel("阅读控制岛")
@@ -103,7 +116,26 @@ struct ReadingScreen: View {
         .sheet(item: $sheet) { sheet in
             switch sheet {
             case .directory:
-                DirectorySheet(chapters: chapters, selected: model.chapter?.index) { choose($0) }
+                if onlineContext != nil, let book = model.onlineBook {
+                    OnlineDirectorySheet(book: book, online: .init(runtime: model.runtime),
+                        selected: model.chapter?.index, refresh: { await model.refreshOnlineDirectory() },
+                        onSelect: chooseOnlineDirectoryItem)
+                } else {
+                    DirectorySheet(chapters: chapters, selected: model.chapter?.index) { choose($0) }
+                }
+            case .sourceSwitch:
+                if let onlineContext, let book = model.onlineBook {
+                    OnlineSourceSwitchSheet(book: book, session: onlineContext.session, onChoose: switchSource)
+                }
+            case .downloads:
+                if let onlineContext, let book = model.onlineBook {
+                    NavigationStack {
+                        DownloadManagementScreen(session: onlineContext.session, book: book)
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) { Button("关闭") { self.sheet = nil } }
+                            }
+                    }
+                }
             case .bookmarks:
                 BookmarkSheet(bookmarks: model.bookmarks, onAdd: addBookmark, onJump: {
                     choose($0.chapterIndex, bookmark: $0)
@@ -111,7 +143,11 @@ struct ReadingScreen: View {
             }
         }
         .task {
-            await model.begin(book: book, chapters: chapters, original: original, files: files, startChapter: startChapter)
+            if let onlineContext {
+                await beginOnline(onlineContext)
+            } else {
+                await model.begin(book: book, chapters: chapters, original: original, files: files, startChapter: startChapter)
+            }
         }
         .onAppear {
             model.frontmost = true
@@ -148,7 +184,7 @@ struct ReadingScreen: View {
         setControls(controls == .hidden ? .quick : .hidden)
     }
 
-    private func setControls(_ state: ReadingControls) {
+    func setControls(_ state: ReadingControls) {
         let millis = reduceMotion ? ReaderDesignMetrics.reducedMotionFadeMillis :
             (state == .hidden ? ReaderDesignMetrics.navigationPopMillis : ReaderDesignMetrics.navigationPushMillis)
         withAnimation(.easeInOut(duration: Double(millis) / 1000)) { controls = state }
@@ -187,16 +223,21 @@ struct ReadingScreen: View {
         }
     }
 
-    private func choose(_ index: Int64, bookmark: BookmarkData? = nil) {
+    func choose(_ index: Int64, bookmark: BookmarkData? = nil) {
         sheet = nil
         setControls(.hidden)
         Task {
             await sampleSurface()
             await model.chooseChapter(index, bookmark: bookmark)
+            if onlineContext != nil, model.onlineUnavailableChapter == index {
+                failedChapter = .init(index: index, title: model.onlineChapterTitle(index), target: nil)
+            } else if model.chapter?.index == index {
+                failedChapter = nil
+            }
         }
     }
 
-    private func sampleSurface() async {
+    func sampleSurface() async {
         let generation = model.generation
         if let measured = await renderer.position() { model.measured(measured, expected: generation) }
     }

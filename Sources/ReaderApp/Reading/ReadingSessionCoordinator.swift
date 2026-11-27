@@ -44,6 +44,9 @@ final class ReadingSessionCoordinator {
     private var ready = false
 
     private(set) var onlineFailure: (any Error)?
+    private(set) var onlineUnavailableChapter: Int64?
+    var onlineBook: OnlineBookReference? { online == nil ? nil : book.map(OnlineBookReference.init(shelfBook:)) }
+    func onlineChapterTitle(_ index: Int64) -> String { catalog.first { $0.index == index }?.title ?? "在线章节" }
     private(set) var chapter: ReadingChapter?
     private(set) var position: Int = 0
     private(set) var pageState = ReaderPageState.loading
@@ -79,10 +82,27 @@ final class ReadingSessionCoordinator {
         await verifyBookmarkJournal()
     }
 
+    func adoptRecoveredOnlineBook(_ entry: BookshelfEntryData) async {
+        guard online != nil else { return }
+        if BookIdentity(entry) != entity {
+            pageGeneration += 1
+            entity = BookIdentity(entry)
+            book = entry
+            catalog = []
+            onlineDirectoryRevision = nil
+            positionRevision = nil
+            lastSaved = nil
+            ready = false
+            chapter = nil
+        }
+        await reopen()
+    }
+
     func reopen(startChapter: Int64? = nil) async {
         guard let entity else { return }
         pageGeneration += 1
         let expected = pageGeneration
+        onlineUnavailableChapter = nil
         if chapter == nil { pageState = .loading }
         do {
             let data = try await runtime.request(ReaderM1.readingProgressGet,
@@ -170,6 +190,7 @@ final class ReadingSessionCoordinator {
     private func load(index: Int64, expected: Int, stored: ReadingProgressData? = nil,
                       bookmark: BookmarkData? = nil) async throws {
         guard let entity else { throw ReadingProjectionFailure.invalidChapter }
+        onlineUnavailableChapter = nil
         let content: LocalBookChapterContentData
         if let online {
             let result = try await onlineChapter(online, entity: entity, index: index)
@@ -427,9 +448,15 @@ extension ReadingSessionCoordinator {
             return try await online.chapter(.init(directoryTargetProof: proof, cacheOnly: true,
                 sourceId: entity.sourceId, bookId: entity.bookId, chapterTitle: entry?.title, chapterIndex: index))
         } catch let error as CoreRequestFailure where error.m2Value.details?.category == "CACHE_MISSING" {
-            return try await online.chapter(.init(directoryTargetProof: proof, sourceId: entity.sourceId,
-                bookId: entity.bookId, chapterTitle: entry?.title, chapterIndex: index,
-                chapterUrl: entry?.url, variables: entry?.variables))
+            let requestGeneration = generation
+            do {
+                return try await online.chapter(.init(directoryTargetProof: proof, sourceId: entity.sourceId,
+                    bookId: entity.bookId, chapterTitle: entry?.title, chapterIndex: index,
+                    chapterUrl: entry?.url, variables: entry?.variables))
+            } catch {
+                if generation == requestGeneration { onlineUnavailableChapter = index }
+                throw error
+            }
         }
     }
 
@@ -518,6 +545,7 @@ extension ReadingSessionCoordinator {
         defer { activeCommand = false }
         guard await drain() else { return false }
         let expected = generation
+        onlineUnavailableChapter = nil
         do {
             let target = try await online.resolveTarget(params)
             let rendered = try await onlineChapter(online, entity: entity, index: target.chapterIndex,
@@ -537,7 +565,13 @@ extension ReadingSessionCoordinator {
             onlineFailure = nil
             return true
         } catch {
-            if generation == expected { onlineFailure = error }
+            if generation == expected {
+                onlineFailure = error
+                if onlineUnavailableChapter != nil {
+                    pageGeneration += 1
+                    retainPresentedChapter()
+                }
+            }
             return false
         }
     }

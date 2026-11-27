@@ -12,12 +12,14 @@ graph = {
     "ReaderDesign": set(),
     "ReaderApp": {"ReaderCoreBridge", "ReaderHost", "ReaderDesign"},
     "ReaderAppTests": {"ReaderCoreBridge", "ReaderHost", "ReaderApp", "ReaderDesign"},
+    "ReaderAppUITests": set(),
 }
 swift_import = re.compile(r"^(?:@testable )?import (Reader\w+)\s*$", re.MULTILINE)
 actual = dict.fromkeys(graph)
 maxima = {"authored": (0, ""), "pinned": (0, "")}
-for group, base in [(group, root / "Sources" / group) for group in graph if group != "ReaderAppTests"] + [
-    ("ReaderAppTests", root / "Tests")
+for group, base in [(group, root / "Sources" / group) for group in graph if not group.endswith("Tests")] + [
+    ("ReaderAppTests", root / "Tests"),
+    ("ReaderAppUITests", root / "UITests"),
 ]:
     imports = set()
     for file in base.rglob("*.swift"):
@@ -28,7 +30,7 @@ for group, base in [(group, root / "Sources" / group) for group in graph if grou
     assert imports <= graph[group], (group, imports - graph[group])
     actual[group] = sorted(imports)
 
-folders = ["Sources", "Scripts", "Tests", "Resources"]
+folders = ["Sources", "Scripts", "Tests", "UITests", "Resources"]
 inputs = [f for name in folders for f in (root / name).rglob("*") if f.is_file()]
 inputs += [root / "project.yml", root / "README.md"]
 for file in inputs:

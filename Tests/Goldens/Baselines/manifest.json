@@ -245,6 +245,177 @@
       "textSize" : "large",
       "theme" : "day",
       "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-source-management",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "ac04c4e253125594c2a12fea72bc791aa307a00a47b33f6fcf159d3ebc5d141d",
+      "platformDifference" : "系统导航、SF Symbols、系统开关",
+      "pngSHA256" : "b0bd77dc37d91676b277e9ecc7b10201d0194284381932df67f530f2b892fa11",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / source/ui/SourceManagementPage.ets",
+      "sample" : "M2GoldenScenes.swift / source list + derived grouping",
+      "state" : "书源管理 v9 列表，显示派生分组与启停状态",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-source-report",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "de57530db68b81e5be30d66c92c27d9b2afd9b995bbcfe4a309ca157144338d3",
+      "platformDifference" : "系统分段选择器与导航列表",
+      "pngSHA256" : "784eda06b626c9f7e627dc859b2941409a8f86a8ae8ce589433f5196f866778d",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / source/ui/SourceV9CheckDialog.ets",
+      "sample" : "M2GoldenScenes.swift / L1–L5 mixed reports",
+      "state" : "批量检测报告的混合结果和状态筛选，夜间",
+      "textSize" : "large",
+      "theme" : "night",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-source-report-detail",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "c4f36b3afd37b503bfc4f703965cef68b134c9b90f25ef1bf188fc4f791bef18",
+      "platformDifference" : "使用 iOS 导航标题和逐层诊断卡片",
+      "pngSHA256" : "b55aaaeb6d5a0b9477cf4903744b076c0cfdb7c6e51870cea69290026c58f04c",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / source/ui/SourceV9CheckDialog.ets",
+      "sample" : "M2GoldenScenes.swift / failed source drill-in with L1–L5",
+      "state" : "从批量报告钻取来源级诊断，L3 超时，后续层级未执行",
+      "textSize" : "large",
+      "theme" : "night",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-subscription-diff",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "c2485085f507f4c3fa46357d9badb50220bb087937638eb3f9ec793262c49c30",
+      "platformDifference" : "系统选择控件与导航列表",
+      "pngSHA256" : "45613a678c39794bb93a99657c929d8fd2e0460481fbd81b5e4782c43a3bce75",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / settings/application/RulesManagementGateway.ts",
+      "sample" : "M2GoldenScenes.swift / subscription rule diff",
+      "state" : "规则订阅差异预览，包含新增、更新与冲突",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-global-search",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "e03a23cb70bec4b2fb847a7a0afe87dba8f96f3064610b45eb03aa8531768761",
+      "platformDifference" : "原生文本输入、列表与键盘承接",
+      "pngSHA256" : "bad188497676f7a1bafc6229cdce74d3e56fd5ebce6aec36757c199aa52a08d2",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / search/ui/SearchPage.ets",
+      "sample" : "M2GoldenScenes.swift / two online result candidates",
+      "state" : "全局书名检索，仍可重试的候选结果",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-online-detail",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "2f398cfd930668d570706efd91e178b048a2329641bf41a60c2b104bed92a668",
+      "platformDifference" : "原生导航标题与系统返回",
+      "pngSHA256" : "72bb34e3fb728bf4aaa86349b1698b7731b1990f25caa2e2cde713247c72a43d",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / reading/ui/LocalBookDetail.ets online state",
+      "sample" : "M2GoldenScenes.swift / online title, author and Core facts",
+      "state" : "在线详情就绪，显示来源和阅读动作",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-source-switch",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "96850e6e0f77d314ce0355701da8747f8886f29b1f2265eea47cfe3bbc1d9815",
+      "platformDifference" : "iOS Sheet 物理交互与分隔",
+      "pngSHA256" : "1ed62758b537bf6ae4378742bf6ed74fa2fc28627730c69fa3299e4a39a23401",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / source/ui/SourceSwitchPanel.ets",
+      "sample" : "M2GoldenScenes.swift / two source candidates",
+      "state" : "换源 Sheet，有当前源与两个候选",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-downloads",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "2c3f973989f9b0e46f9835cd28bd6e77d91088829c3d8b435be37b8e747320b2",
+      "platformDifference" : "系统列表、进度条与任务按钮",
+      "pngSHA256" : "04aaa5a026cf03a0c0cef5f598da6a6242c4fcdac694aa9e9d8993507f61f78f",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / downloads/ui/SharedDownloadPage.ets",
+      "sample" : "M2GoldenScenes.swift / Core chapter queue states",
+      "state" : "下载管理按书显示已完成、失败、进行中和未执行",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "m2-source-login",
+      "milestone" : "M2",
+      "pins" : {
+        "core" : "4a840493d0a39f8771adb631c3dce490a365d915",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "4b096fe058731afe791747007f428182784d1592"
+      },
+      "pixelSHA256" : "46896a61bf98377557df6d24c9df403ca4c80e04d8058b8f43d4feb9c7ad113b",
+      "platformDifference" : "使用原生 WKWebView，采用 iOS 安全区与按钮",
+      "pngSHA256" : "7b3b865134c3a84c8b001e27477ff2214890d88bd8cd1416860af96208187803",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / app/SourceLoginPageProjection.ts",
+      "sample" : "M2GoldenScenes.swift / local WKWebView fixture document",
+      "state" : "浏览器式登录页，顶栏与底栏夹持已加载的网页",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
     }
   ],
   "schemaVersion" : 1

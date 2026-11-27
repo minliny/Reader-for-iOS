@@ -37,7 +37,7 @@ test_names = {Path(path).name for path in files if path.startswith("Tests/Fixtur
 for path in app.rglob("*"):
     if test_bundle is not None and (path == test_bundle or test_bundle in path.parents):
         continue
-    assert path.name not in test_names | golden_names | {"Baselines", "pins.json", "Loopback", "serve.py"}, path
+    assert path.name not in test_names | golden_names | {"Baselines", "pins.json", "Loopback", "serve.py", "contact-sheet.png"}, path
     assert path.suffix not in (".epub", ".mobi", ".xctest"), path
 if test_bundle:
     expected_tests = {Path(path).name: facts["sha256"] for path, facts in files.items() if path.startswith("Tests/Fixtures/")}

@@ -3,7 +3,7 @@
 # The two process phases share only synthetic data in the test app's container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold <UDID> <derived> <evidence>}"
+mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online <UDID> <derived> <evidence>}"
 device="${2:?isolated simulator UDID required}"
 derived="${3:?isolated DerivedData path required}"
 evidence="${4:?immutable evidence directory required}"
@@ -27,11 +27,15 @@ case "$mode" in
     hosted="$product/PlugIns/ReaderAppTests.xctest"
     if [[ ! -d "$hosted" ]]; then hosted="$(dirname "$product")/ReaderAppTests.xctest"; fi
     python3 Scripts/check-bundle.py "$product" "$hosted"
+    ui_runner="$(dirname "$product")/ReaderAppUITests-Runner.app"
+    codesign --verify --deep --strict "$ui_runner"
+    codesign -d -v "$ui_runner"
     ;;
-  write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold)
+  write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online)
     shopt -s nullglob
     runs=("$derived"/Build/Products/*.xctestrun)
     [[ ${#runs[@]} -eq 1 ]]
+    timeout=120
     if [[ "$mode" == wave2write ]]; then
       tests=(
         -only-testing:ReaderAppTests/Wave2CoreTextTests
@@ -62,11 +66,19 @@ case "$mode" in
         -only-testing:ReaderAppTests/M2BusinessJourneyTests/test02SearchOnlineReadingAndSourceSwitch
         -only-testing:ReaderAppTests/M2BusinessJourneyTests/test03DownloadControlsAndWriteColdReceipt
       )
+    elif [[ "$mode" == m2ui* ]]; then
+      selector="-only-testing:ReaderAppUITests/M2ProductUITests"
+      case "$mode" in
+        m2ui-source) selector="$selector/test01SourceV9ThroughProductUI" ;;
+        m2ui-online) selector="$selector/test02SearchReadSwitchAndDownloadThroughProductUI" ;;
+      esac
+      tests=("$selector")
+      timeout=360
     else
       tests=(-only-testing:ReaderAppTests/M2BusinessJourneyTests/test04ColdProcessRecoversOriginalDownload)
     fi
     xcodebuild -xctestrun "${runs[0]}" -destination "$target" -parallel-testing-enabled NO \
-      -test-timeouts-enabled YES -default-test-execution-time-allowance 120 \
+      -test-timeouts-enabled YES -default-test-execution-time-allowance "$timeout" \
       -collect-test-diagnostics never -resultBundlePath "$evidence/$mode.xcresult" \
       "${tests[@]}" test-without-building
     ;;

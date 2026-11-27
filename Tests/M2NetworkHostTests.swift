@@ -44,6 +44,24 @@ final class M2NetworkHostTests: XCTestCase {
             XCTAssertEqual(exposed.value.status, 302)
             XCTAssertEqual(exposed.value.finalUrl, base + "/host/redirect")
 
+            let protected = try await runtime.request(ReaderM2.runtimeHostSmokeHttpExecute, .init(params: .init(
+                url: base + "/host/redirect-cross-origin", headers: [
+                    "Authorization": .string("Basic fixture"),
+                    "Cookie": .string("privateFixture=1"),
+                    "Proxy-Authorization": .string("Basic fixture")
+                ], followRedirects: true, usePlatformCookieJar: false
+            )))
+            XCTAssertEqual(protected.value.body, "0")
+            XCTAssertEqual(protected.value.redirects?.map(\.status), [302])
+
+            do {
+                _ = try await runtime.request(ReaderM2.runtimeHostSmokeHttpExecute,
+                    .init(params: .init(url: base + "/host/body-over-budget")))
+                XCTFail("A response without Content-Length must still respect the running 8 MiB budget")
+            } catch let error as CoreRequestFailure {
+                XCTAssertEqual(error.m2Value.details?.host?.diagnostics?.code, .invalidResponse)
+            }
+
             do {
                 _ = try await runtime.request(ReaderM2.runtimeHostSmokeHttpExecute,
                                               .init(params: .init(url: base + "/host/unavailable")))
@@ -65,7 +83,7 @@ final class M2NetworkHostTests: XCTestCase {
             XCTAssertEqual(cancelled.m2Value.code, .cancelled)
             let after = try await runtime.request(ReaderM1.coreInfo, .init())
             XCTAssertEqual(after.value.sqliteUserVersion, 47)
-            print("M2_HOST_HTTP status=200 gbk=D6D0CEC4 redirect=302/200 hostError=HTTP_ERROR/503 cancelledRequest=\(cancelled.id.requestId) postCancelCoreInfo=47")
+            print("M2_HOST_HTTP status=200 gbk=D6D0CEC4 redirect=302/200 crossOriginCredentials=0 streamedBudget=INVALID_RESPONSE hostError=HTTP_ERROR/503 cancelledRequest=\(cancelled.id.requestId) postCancelCoreInfo=47")
         }
     }
 

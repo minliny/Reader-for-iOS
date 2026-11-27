@@ -34,7 +34,8 @@ struct BookCover: View {
                     .foregroundStyle(theme.accent)
                     .lineLimit(3)
                 Spacer(minLength: 2)
-                Text("本地").font(.system(size: 8, weight: .semibold)).foregroundStyle(theme.accent)
+                Text(entry.sourceId == "local" ? "本地" : "在线")
+                    .font(.system(size: 8, weight: .semibold)).foregroundStyle(theme.accent)
             }
             .padding(.horizontal, 8).padding(.vertical, 8)
         }

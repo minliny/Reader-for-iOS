@@ -34,6 +34,15 @@ final class DownloadCoordinator {
 
     func retirePanel() { panelGeneration += 1 }
 
+    func isWorking(sourceId: String, bookId: String) -> Bool {
+        let scope = Scope(sourceId: sourceId, bookId: bookId)
+        return owners[scope] != nil || recovering.contains(scope)
+    }
+
+    func pendingOperations() throws -> [M2CacheBookPrefetchParams] {
+        try saved().map(\.prefetch)
+    }
+
     func begin(_ draft: M2CacheBookPrefetchParams) throws -> Task<CoreOperation<M2CacheBookPrefetchData>, any Error> {
         let scope = Scope(sourceId: draft.sourceId, bookId: draft.bookId)
         guard owners[scope] == nil, !recovering.contains(scope) else { throw Failure.operationInFlight }

@@ -65,32 +65,16 @@ enum URLSessionNetwork {
     private static func read(_ request: URLRequest, timeout: TimeInterval, jar: HTTPCookieStorage?,
                              followRedirects: Bool, maxRedirects: Int64) async throws -> Response {
         let policy = HostRedirectPolicy(follow: followRedirects, max: maxRedirects)
-        let transport = session(timeout: timeout, jar: jar)
+        let collector = HostResponseCollector(limit: httpBodyLimit, redirects: policy)
+        let transport = session(timeout: timeout, jar: jar, delegate: collector)
         defer { transport.invalidateAndCancel() }
-        let (stream, result) = try await transport.bytes(for: request, delegate: policy)
-        guard let response = result as? HTTPURLResponse else {
-            throw NetworkHostFailure.invalid("Missing HTTP response")
-        }
+        let (data, response) = try await collector.read(request, session: transport)
         let redirects = policy.observations()
-        // A deliberately exposed 3xx is a valid response. An exhausted
-        // redirect allowance is a transport failure.
-        if redirects.limitExceeded {
-            throw NetworkHostFailure(code: .httpError, phase: .transport, message: "HTTP redirect limit exceeded")
-        }
-        if response.expectedContentLength > httpBodyLimit {
-            throw NetworkHostFailure.invalid("HTTP response exceeds byte budget")
-        }
-        var data = Data()
-        if response.statusCode < 400 {
-            for try await byte in stream {
-                guard data.count < httpBodyLimit else { throw NetworkHostFailure.invalid("HTTP response exceeds byte budget") }
-                data.append(byte)
-            }
-        }
         return Response(data: data, response: response, redirects: redirects.responses, redirectReceipts: redirects.receipts)
     }
 
-    static func session(timeout: TimeInterval, jar: HTTPCookieStorage?) -> URLSession {
+    static func session(timeout: TimeInterval, jar: HTTPCookieStorage?,
+                        delegate: (any URLSessionDelegate)? = nil) -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = timeout
         configuration.timeoutIntervalForResource = timeout
@@ -98,7 +82,7 @@ enum URLSessionNetwork {
         configuration.httpCookieStorage = jar
         configuration.httpShouldSetCookies = jar != nil
         configuration.httpCookieAcceptPolicy = .always
-        return URLSession(configuration: configuration)
+        return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
     }
 
     static func receipt(_ payload: Response, params: M2HostHttpRequest) -> M2HostHttpResponse {

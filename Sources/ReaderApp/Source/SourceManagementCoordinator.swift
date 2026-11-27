@@ -29,6 +29,8 @@ final class SourceManagementCoordinator {
 
     let runtime: CoreRuntimeActor
     let network: NetworkAndWebHost?
+    let checkBatch = SourceCheckBatch()
+    let importBatch = SourceImportBatch()
     private var mutating = false
     private(set) var pendingMutation: M2RulesMutationApplyParams?
 
@@ -66,8 +68,28 @@ final class SourceManagementCoordinator {
         }
     }
 
+    /// Library47 derives groups from the existing raw bookSource. Each confirmed
+    /// new entry uses source.import and keeps those bytes without a local group table.
+    func previewUngroupedImport(_ document: Data) async throws -> [SourceImportChoice] {
+        let parsed = try decodeImportCandidates(document)
+        let existing = try await list().sources
+        var seen: Set<String> = []
+        return try parsed.map { candidate in
+            guard let id = candidate.sourceId, seen.insert(id).inserted else { throw Failure.invalidDraft }
+            return .init(id: id, name: candidate.name ?? string(candidate.bookSource?["bookSourceName"]) ?? id,
+                         group: string(candidate.bookSource?["bookSourceGroup"]),
+                         preview: .init(params: candidate, existing: existing.first { $0.sourceId == id }))
+        }
+    }
+
     /// Step one decodes a source document and asks Core for the current group revision.
     func previewGroupedImport(_ document: Data) async throws -> GroupedSourceImportPreview {
+        let candidates = try decodeImportCandidates(document)
+        let existing = Set(try await list().sources.map(\.sourceId))
+        return .init(revision: try await groups().revision, candidates: candidates, existing: existing)
+    }
+
+    private func decodeImportCandidates(_ document: Data) throws -> [M2SourceImportParams] {
         let parsed = try JSONDecoder().decode(ReaderM1JSONValue.self, from: document)
         let items: [ReaderM1JSONValue]
         switch parsed {
@@ -76,12 +98,10 @@ final class SourceManagementCoordinator {
         default: throw Failure.invalidDraft
         }
         guard (1...10_000).contains(items.count) else { throw Failure.invalidDraft }
-        let candidates = try items.map { value in
+        return try items.map { value in
             guard case .object(let source) = value else { throw Failure.invalidDraft }
             return try importCandidate(.init(bookSource: source))
         }
-        let existing = Set(try await list().sources.map(\.sourceId))
-        return .init(revision: try await groups().revision, candidates: candidates, existing: existing)
     }
 
     /// Steps two and three consume the explicit selection and grouping strategy.
@@ -159,7 +179,10 @@ final class SourceManagementCoordinator {
     func delete(_ params: M2SourceDeleteParams) async throws -> M2RulesMutationReceipt {
         let receipt = try await apply(.sourceDelete(.init(params: params)))
         if case .sourceDelete = receipt {
-            for id in params.sourceIds { network?.revokeLogin(sourceId: id) }
+            for id in params.sourceIds {
+                network?.revokeLogin(sourceId: id)
+                checkBatch.forget(id)
+            }
         }
         return receipt
     }
@@ -208,6 +231,7 @@ final class SourceManagementCoordinator {
         } catch {
             throw Failure.loginCleanup(host: hostFailure, report: error)
         }
+        checkBatch.forget(sourceId)
         if let hostFailure { throw Failure.loginCleanup(host: hostFailure, report: nil) }
         return report
     }
@@ -218,6 +242,26 @@ final class SourceManagementCoordinator {
 
     func subscription(_ params: M2RuleSubKeyParams) async throws -> M2RuleSubGetData {
         try await runtime.request(ReaderM2.ruleSubGet, params).value
+    }
+
+    func saveSourceSubscription(name: String, url: URL, existing: M2RuleSubData?) async throws -> M2RulesMutationReceipt {
+        let id = existing?.id ?? Int64.random(in: 1...Int64.max / 1024)
+        let params = M2RuleSubPutParams(
+            id: id, name: name, url: url.absoluteString, type: 3, customOrder: existing?.customOrder,
+            autoUpdate: existing?.autoUpdate, update: existing?.update
+        )
+        return try await apply(.ruleSubPut(.init(params: params))) {
+            let current = try await self.subscription(.init(id: id)).sub
+            if let existing {
+                guard let current, current.type == 3, current.name == existing.name,
+                      current.url == existing.url, current.update == existing.update,
+                      current.customOrder == existing.customOrder, current.autoUpdate == existing.autoUpdate else {
+                    throw Failure.invalidSubscription
+                }
+            } else if current != nil {
+                throw Failure.invalidSubscription
+            }
+        }
     }
 
     func putSubscription(_ params: M2RuleSubPutParams) async throws -> M2RulesMutationReceipt {
@@ -264,9 +308,12 @@ final class SourceManagementCoordinator {
                                   .init(operationId: original.operationId, expected: original)).value
     }
 
-    func verifyPending() async throws -> M2RulesMutationReceipt? {
+    func verifyPending(expectedOperationId: String? = nil) async throws -> M2RulesMutationReceipt? {
         guard !mutating else { throw Failure.operationInFlight }
-        guard let original = pendingMutation else { return nil }
+        guard let original = pendingMutation,
+              expectedOperationId == nil || original.operationId == expectedOperationId else { return nil }
+        mutating = true
+        defer { mutating = false }
         let receipt = try await query(original).receipt
         if receipt != nil { pendingMutation = nil }
         return receipt

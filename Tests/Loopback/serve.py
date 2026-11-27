@@ -154,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/host/"):
             self.host(path, query)
             return
-        if self.books(path, mode):
+        if self.books(path, mode, query):
             return
         self.reply(404, "unknown fixture route")
 
@@ -199,6 +199,23 @@ class Handler(BaseHTTPRequestHandler):
             self.html("<title>M2 loopback document</title><p>Real WebKit loopback fixture.</p>")
         elif path == "/host/redirect":
             self.reply(302, "", Location="/host/document")
+        elif path == "/host/redirect-cross-origin":
+            self.reply(302, "", Location=f"http://localhost:{self.server.server_port}/host/redirect-inspect")
+        elif path == "/host/redirect-inspect":
+            forwarded = sum(name in self.headers for name in ("Authorization", "Cookie", "Proxy-Authorization"))
+            self.reply(200, str(forwarded))
+        elif path == "/host/body-over-budget":
+            # Omit Content-Length to exercise the running budget over many
+            # delegate data callbacks, independent of the early header check.
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.end_headers()
+            block = b"x" * (64 * 1024)
+            try:
+                for _ in range(129):
+                    self.wfile.write(block)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
         elif path == "/host/cookie":
             headers = {}
             if value := query.get("set", [""])[0]:
@@ -225,13 +242,16 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.reply(404, "unknown Host fixture route")
 
-    def books(self, path, mode):
-        match = re.fullmatch(r"/books/([a-z]+)/([a-z]+)/(search|detail|toc|chapter/[1-5]|login|rules|import|package/[12])", path)
+    def books(self, path, mode, query):
+        match = re.fullmatch(r"/books/([a-z0-9]+)/([a-z]+)/(search|detail|toc|chapter/[1-5]|login|rules|import|package/[12])", path)
         if not match:
             return False
         suite, edition, route = match.groups()
         root = f"/books/{suite}/{edition}"
         if route == "search":
+            if suite.startswith("uiflow") and (query.get("q") not in ([suite], [TITLE]) or edition not in ("primary", "other")):
+                self.html('<ul class="results"></ul>')
+                return True
             self.html(f'<ul class="results"><li class="book"><span class="name">{TITLE}</span>'
                       f'<span class="author">{AUTHOR}</span><a class="detail" href="{root}/detail">详情</a></li></ul>')
         elif route == "detail":
@@ -249,13 +269,16 @@ class Handler(BaseHTTPRequestHandler):
             text = CONTENTS[int(route[-1]) - 1]
             self.html(f'<div class="content">{text}</div>')
         elif route == "login":
-            self.html("<title>M2 Source Login</title><p>Controlled test page</p>")
+            self.html("<title>M2 Source Login</title><h1>受控书源登录</h1>"
+                      "<p>此页面用于核验真实浏览器导航。</p>"
+                      f'<a href="{root}/detail">查看书目与登录说明</a>')
         elif route == "rules":
             base = f"http://127.0.0.1:{self.server.server_port}{root}"
             self.json(source_rules(base, name=f"回环来源 {edition}"))
         elif route == "import" and edition == "primary":
             origin = f"http://127.0.0.1:{self.server.server_port}"
-            self.json([source_rules(origin + f"/books/{suite}/{item}", name=f"回环来源 {item}")
+            suffix = f" {suite}" if suite.startswith("uiflow") else ""
+            self.json([source_rules(origin + f"/books/{suite}/{item}", name=f"回环来源 {item}{suffix}")
                        for item in ("primary", "other")])
         elif route.startswith("package/"):
             origin = f"http://127.0.0.1:{self.server.server_port}"

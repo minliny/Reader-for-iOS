@@ -55,3 +55,7 @@ Scripts/test-simulator.sh m2cold "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE_DI
 ```
 
 `m2cold` 使用独立 XCTest 进程读取上一步写入的库和原操作身份。夹具服务进程在三段测试期间保持运行，服务源码和夹具数据均由测试入口持有。
+
+M2 页面回归使用独立的 `ReaderAppUITests` 目标，通过实际页面输入回环网址并驱动生产操作。沿用已启动的回环夹具，执行 `Scripts/test-simulator.sh m2ui "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE_DIR"`。其中 `m2ui-source` 与 `m2ui-online` 可分别复验书源和在线阅读旅程。
+
+使用 `Scripts/test-goldens.sh verify "$SIMULATOR_UDID" "$DERIVED_DATA" "$EVIDENCE_DIR"` 比对两阶段基准。重录 M2 时用 `record-m2` 输出候选，视觉复核后以 `Scripts/golden-baselines.py accept-m2` 更新九张 M2 基准及清单，再重新构建测试包和比对全部基准。总览使用 `Scripts/golden-baselines.py contact-sheet` 输出到证据目录。

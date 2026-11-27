@@ -81,12 +81,23 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.reader.minliny.rebuild.m1.tests
+  ReaderAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: ReaderApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.reader.minliny.rebuild.m1.ui-tests
+        TEST_TARGET_NAME: ReaderApp
 schemes:
   ReaderRebuild:
     build:
       targets:
         ReaderApp: all
         ReaderAppTests: [test]
+        ReaderAppUITests: [test]
     test:
-      targets: [ReaderAppTests]
+      targets: [ReaderAppTests, ReaderAppUITests]
       parallelizable: false

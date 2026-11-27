@@ -3,8 +3,12 @@ import SwiftUI
 public struct ReaderIcon: View {
     @Environment(\.readerTheme) private var theme
     private let mapping: ReaderIconMapping
+    private let squareSize: CGFloat?
 
-    public init(_ mapping: ReaderIconMapping) { self.mapping = mapping }
+    public init(_ mapping: ReaderIconMapping, squareSize: CGFloat? = nil) {
+        self.mapping = mapping
+        self.squareSize = squareSize
+    }
 
     @ViewBuilder
     public var body: some View {
@@ -14,10 +18,17 @@ public struct ReaderIcon: View {
         } else if let assetName = mapping.assetName,
                   let image = UIImage(named: (assetName as NSString).deletingPathExtension,
                                       in: ReaderDesignResources.bundle, compatibleWith: nil) {
-            Image(uiImage: image)
-                .renderingMode(.template)
-                .foregroundStyle(tint)
-                .accessibilityHidden(true)
+            asset(image).foregroundStyle(tint).accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private func asset(_ image: UIImage) -> some View {
+        let template = Image(uiImage: image).renderingMode(.template)
+        if let squareSize {
+            template.resizable().scaledToFit().frame(width: squareSize, height: squareSize)
+        } else {
+            template
         }
     }
 

@@ -104,6 +104,18 @@ public final class NetworkAndWebHost: CoreHost {
         try await profile.pullFromWeb()
     }
 
+    public func finishLogin(_ session: SourceLoginSession) async throws {
+        guard logins[session.sourceId] === session else { throw CancellationError() }
+        try await synchronizeLogin(sourceId: session.sourceId)
+        guard logins[session.sourceId] === session else { throw CancellationError() }
+        revokeLogin(sourceId: session.sourceId)
+    }
+
+    public func closeLogin(_ session: SourceLoginSession) {
+        guard logins[session.sourceId] === session else { return }
+        revokeLogin(sourceId: session.sourceId)
+    }
+
     private func evaluate(_ params: M2HostWebViewEvaluateJavaScriptRequest) async throws -> M2HostWebViewEvaluateJavaScriptResponse {
         var scopedCookies: [HTTPCookie] = []
         if let profileId = params.profileId {

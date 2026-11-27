@@ -95,7 +95,8 @@ final class ShelfModel {
             var offset: Int64 = 0
             while true {
                 let response = try await runtime.request(ReaderM1.bookshelfList, .init(
-                    sourceKind: .local, sortBy: order, sortDirection: sort == .title ? .ascending : .descending,
+                    sourceKind: .all, contentKind: .text, sortBy: order,
+                    sortDirection: sort == .title ? .ascending : .descending,
                     offset: offset, limit: 100
                 )).value
                 guard generation == listGeneration else { return }

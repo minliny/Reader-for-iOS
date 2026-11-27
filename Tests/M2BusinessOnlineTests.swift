@@ -23,9 +23,12 @@ extension M2BusinessJourneyTests {
         let sources = SourceManagementCoordinator(runtime: runtime, network: network)
         let primary = M2BusinessFixture.Source(suite: "online", edition: "primary")
         let secondary = M2BusinessFixture.Source(suite: "online", edition: "secondary")
-        _ = try await m2Import(primary, with: sources)
-        _ = try await m2Import(secondary, with: sources)
-        let result = try await verifySearch(runtime: runtime, primary: primary, secondary: secondary)
+        let additional = ["reservea", "reserveb", "reservec"].map {
+            M2BusinessFixture.Source(suite: "online", edition: $0)
+        }
+        let searchable = [primary, secondary] + additional
+        for source in searchable { _ = try await m2Import(source, with: sources) }
+        let result = try await verifySearch(runtime: runtime, primary: primary, sources: searchable)
         XCTAssertEqual(result.bookId, primary.bookID)
 
         let online = OnlineReadingCoordinator(runtime: runtime)
@@ -178,15 +181,23 @@ extension M2BusinessJourneyTests {
     }
 
     private func verifySearch(
-        runtime: CoreRuntimeActor, primary: M2BusinessFixture.Source, secondary: M2BusinessFixture.Source
+        runtime: CoreRuntimeActor, primary: M2BusinessFixture.Source, sources: [M2BusinessFixture.Source]
     ) async throws -> M2BookSearchBookData {
         let search = SearchCoordinator(runtime: runtime)
-        let paths = [primary.path + "/search", secondary.path + "/search"]
+        let paths = sources.map { $0.path + "/search" }
         let old = try await M2BusinessFixture.state()
         for path in paths { try await M2BusinessFixture.configure(path, "hold") }
         let owner = try search.startGlobal(keyword: M2BusinessFixture.title)
         do {
-            for path in paths { try await M2BusinessFixture.waitForRequest(path, after: old.count(path)) }
+            let deadline = ContinuousClock.now + .seconds(12)
+            var started: Int
+            repeat {
+                let state = try await M2BusinessFixture.state()
+                started = paths.count { state.count($0) > old.count($0) }
+                if started == 4 { break }
+                try await Task.sleep(for: .milliseconds(35))
+            } while ContinuousClock.now < deadline
+            XCTAssertEqual(started, 4)
             search.stopDisplaying()
             XCTAssertTrue(search.inFlight)
             XCTAssertThrowsError(try search.retryGlobal()) {
@@ -195,8 +206,9 @@ extension M2BusinessJourneyTests {
                 }
             }
             let held = try await M2BusinessFixture.state()
+            XCTAssertEqual(paths.count { held.count($0) == old.count($0) }, 1)
             for path in paths {
-                XCTAssertEqual(held.count(path), old.count(path) + 1)
+                XCTAssertLessThanOrEqual(held.count(path), old.count(path) + 1)
                 try await M2BusinessFixture.release(path)
             }
         } catch {
@@ -205,13 +217,13 @@ extension M2BusinessJourneyTests {
         }
         let late = try await owner.value
         let originals = try late.map { try $0.terminal.get() }
-        XCTAssertEqual(Set(late.map(\.sourceId)), Set([primary.id, secondary.id]))
+        XCTAssertEqual(Set(late.map(\.sourceId)), Set(sources.map(\.id)))
         XCTAssertTrue(search.globalResults.isEmpty)
         XCTAssertFalse(search.inFlight)
         let retry = try search.retryGlobal()
         let current = try await retry.value
         XCTAssertEqual(Set(current.map(\.sourceId)), Set(late.map(\.sourceId)))
-        XCTAssertEqual(search.globalResults.count, 2)
+        XCTAssertEqual(search.globalResults.count, sources.count)
         let repeated = try current.map { try $0.terminal.get() }
         XCTAssertTrue(Set(originals.map(\.id)).isDisjoint(with: Set(repeated.map(\.id))))
         let history = try await search.history()

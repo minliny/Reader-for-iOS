@@ -62,7 +62,7 @@ final class SearchCoordinator {
                 // Core deliveries or create an unbounded number of host requests.
                 let parallelism = 4
                 for start in stride(from: 0, to: sources.count, by: parallelism) {
-                    if cancelRequested || generation != observation { break }
+                    if cancelRequested { break }
                     let batch = sources[start..<min(start + parallelism, sources.count)]
                     await withTaskGroup(of: SourceResult.self) { group in
                         for source in batch {
