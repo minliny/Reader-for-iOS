@@ -19,6 +19,9 @@ case "$mode" in
       ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES \
       build-for-testing
     product="$derived/Build/Products/Debug-iphonesimulator/ReaderApp.app"
+    # macOS can attach FinderInfo to generated package folders. Strip
+    # only this metadata on the isolated output before strict validation.
+    xattr -dr com.apple.FinderInfo "$product" 2>/dev/null || true
     codesign --verify --deep --strict "$product"
     codesign -d -v "$product"
     hosted="$product/PlugIns/ReaderAppTests.xctest"
