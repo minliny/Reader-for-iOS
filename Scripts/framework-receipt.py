@@ -12,7 +12,7 @@ archive = framework / "ios-arm64-simulator" / "libreader_core.a"
 load = subprocess.check_output(["xcrun", "otool", "-l", str(archive)], text=True)
 platforms = sorted(set(re.findall(r"^\s+platform (\S+)", load, re.MULTILINE)))
 minimums = sorted(set(re.findall(r"^\s+minos (\S+)", load, re.MULTILINE)))
-if platforms != ["IOSSIMULATOR"] or not minimums or any(
+if platforms not in (["IOSSIMULATOR"], ["7"]) or not minimums or any(
     tuple(map(int, version.split(".")))[:2] > (17, 0) for version in minimums
 ):
     raise SystemExit(f"unexpected platform/deployment versions {platforms} {minimums}")

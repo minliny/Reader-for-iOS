@@ -32,7 +32,7 @@ if test_bundle:
     assert actual_tests == expected_tests
 binary = app / "ReaderApp"
 macho = subprocess.check_output(["xcrun", "vtool", "-show-build", str(binary)], text=True)
-assert "IOSSIMULATOR" in macho and "minos 17.0" in macho
+assert ("IOSSIMULATOR" in macho or "platform 7" in macho) and "minos 17.0" in macho
 print(json.dumps({"application": str(app), "bundleId": info["CFBundleIdentifier"], "minOS": info["MinimumOSVersion"],
                   "appExecutableSHA256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                   "coreExecutableSHA256": hashlib.sha256((app / "Frameworks/ReaderCoreBridge.framework/ReaderCoreBridge").read_bytes()).hexdigest(),
