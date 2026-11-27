@@ -15,6 +15,7 @@ struct ReadingScreen: View {
     @State var model: ReadingSessionCoordinator
     @State private var renderer: ReadingRenderState
     @State private var controls = ReadingControls.hidden
+    @State private var speech = ReadingSpeechInteraction()
     @State var sheet: Sheet?
     @State var onlineRecovery = OnlineReaderRecovery()
     @State var failedChapter: FailedOnlineChapter?
@@ -55,7 +56,7 @@ struct ReadingScreen: View {
     var body: some View {
         let appearance = preferences
         ReadingPresentation(title: model.chapter?.title ?? book.title, preferences: appearance,
-                            controls: controls, onAction: act) {
+                            controls: controls, onAction: act, speechAvailable: model.canStartSpeech) {
             if let failure = failedChapter {
                 unavailableChapterPage(failure)
             } else if let chapter = model.chapter {
@@ -79,6 +80,9 @@ struct ReadingScreen: View {
                     Task { await model.reopen(startChapter: startChapter) }
                 }
             }
+        }
+        .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
+            ReadingSpeechOverlay(model: model, interaction: speech)
         }
         .overlay(alignment: .top) {
             if let operation = onlineRecovery.operation {
@@ -156,6 +160,8 @@ struct ReadingScreen: View {
         .onDisappear {
             model.frontmost = false
             model.toast.dismiss()
+            speech.retirePresentation()
+            model.speechSession?.retire()
             UIApplication.shared.isIdleTimerDisabled = false
             Task {
                 await sampleSurface()
@@ -165,6 +171,7 @@ struct ReadingScreen: View {
                 await onExit()
             }
         }
+        .onChange(of: model.generation) { _, _ in speech.retirePresentation() }
         .onChange(of: keepAwake) { _, value in UIApplication.shared.isIdleTimerDisabled = value }
         .onChange(of: sheet) { _, value in
             model.frontmost = value == nil
@@ -202,6 +209,12 @@ struct ReadingScreen: View {
         case .addBookmark: addBookmark()
         case .previous: if let chapter = model.neighboringChapter(-1) { choose(chapter) }
         case .next: if let chapter = model.neighboringChapter(1) { choose(chapter) }
+        case .speech:
+            setControls(.hidden)
+            Task {
+                await sampleSurface()
+                await speech.openOrStart(model)
+            }
         case .size(let delta): font = min(48, max(12, font + delta))
         case .spacing(let delta): spacing = min(2.6, max(1, spacing + delta))
         case .tracking(let delta): tracking = min(4, max(0, tracking + delta))

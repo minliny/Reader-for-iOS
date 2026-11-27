@@ -7,6 +7,7 @@ public final class NetworkAndWebHost: CoreHost {
     private let system = SystemSurfaceHost()
     let cookies: SourceCookieStore
     public let mangaTransfers: MangaTransferStore
+    public let mangaCompressedCache: MangaCompressedCache
     private let mediaDirectory: URL
     private var logins: [String: SourceLoginSession] = [:]
     private var loginGenerations: [String: UUID] = [:]
@@ -24,6 +25,7 @@ public final class NetworkAndWebHost: CoreHost {
         cookies = SourceCookieStore(directory: directory.appendingPathComponent("cookies", isDirectory: true))
         mediaDirectory = directory.appendingPathComponent("media", isDirectory: true)
         mangaTransfers = MangaTransferStore(directory: directory.appendingPathComponent("manga", isDirectory: true))
+        mangaCompressedCache = MangaCompressedCache(directory: directory.appendingPathComponent("manga-retained", isDirectory: true))
     }
 
     public func execute(_ request: ReaderHostRequestEvent) async -> CoreHostReply {

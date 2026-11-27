@@ -36,7 +36,7 @@ def scene_metadata(scene):
     return {key: value for key, value in scene.items() if key not in ("pixelSHA256", "pngSHA256")}
 
 
-def accept_m2(recording):
+def accept_recording(recording, milestone):
     original = json.loads(manifest_path.read_bytes())
     recorded = json.loads((recording / "manifest.json").read_bytes())
     for key, value in original.items():
@@ -48,23 +48,23 @@ def accept_m2(recording):
     images = {}
     for baseline, output in zip(original["scenes"], recorded["scenes"]):
         scene = baseline["id"]
-        if baseline.get("milestone") != "M2":
-            require(output == baseline, f"Recording changed M1 scene {scene}")
+        if baseline.get("milestone") != milestone:
+            require(output == baseline, f"Recording changed a previously reviewed scene {scene}")
             verify_png(baselines, baseline)
             continue
-        require(baseline["pins"] == pins, f"Stale M2 pins: {scene}")
-        require(scene_metadata(output) == scene_metadata(baseline), f"Recording changed M2 metadata for {scene}")
+        require(baseline["pins"] == pins, f"Stale {milestone} pins: {scene}")
+        require(scene_metadata(output) == scene_metadata(baseline), f"Recording changed {milestone} metadata for {scene}")
         name = scene + ".png"
-        require(name not in images and re.fullmatch(r"m2-[a-z0-9-]+\.png", name), f"Invalid M2 ID: {scene}")
+        require(name not in images and re.fullmatch(rf"{milestone.lower()}-[a-z0-9-]+\.png", name), f"Invalid {milestone} ID: {scene}")
         images[name] = verify_png(recording, output)
     require({path.name for path in recording.iterdir()} == {"manifest.json", *images},
-            "Recording must contain exactly the M2 PNGs and one manifest")
-    require(len(images) >= 7, "Expected at least seven recorded M2 scenes")
+            f"Recording must contain exactly the {milestone} PNGs and one manifest")
+    require(len(images) >= (7 if milestone == "M2" else 5), f"Missing {milestone} scenes")
 
     for name, data in images.items():
         (baselines / name).write_bytes(data)
     manifest_path.write_bytes((recording / "manifest.json").read_bytes())
-    print(f"Accepted {len(images)} M2 scenes and preserved 18 M1 PNGs and scene records")
+    print(f"Accepted {len(images)} {milestone} scenes and preserved {len(original['scenes']) - len(images)} previously reviewed scenes")
 
 
 def contact_sheet(output):
@@ -81,7 +81,8 @@ def contact_sheet(output):
     font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
     title, subtitle, label, detail = (ImageFont.truetype(font_path, size) for size in (28, 16, 14, 12))
     draw.text((pad, 13), "Reader  /  iOS golden snapshots", font=title, fill="#173b30")
-    draw.text((pad, 47), "iPhone 17  /  iOS 26.5  /  M1 + M2", font=subtitle, fill="#445a52")
+    milestones = " + ".join(sorted({scene.get("milestone", "M1") for scene in scenes}))
+    draw.text((pad, 47), f"iPhone 17  /  iOS 26.5  /  {milestones}", font=subtitle, fill="#445a52")
     for index, scene in enumerate(scenes):
         x = pad + index % columns * width
         y = heading + index // columns * height
@@ -106,10 +107,11 @@ def contact_sheet(output):
 
 parser = argparse.ArgumentParser(description=__doc__)
 actions = parser.add_subparsers(dest="action", required=True)
-actions.add_parser("accept-m2").add_argument("recording", type=Path)
+for milestone in ("m2", "m3"):
+    actions.add_parser(f"accept-{milestone}").add_argument("recording", type=Path)
 actions.add_parser("contact-sheet").add_argument("output", type=Path)
 options = parser.parse_args()
-if options.action == "accept-m2":
-    accept_m2(options.recording)
+if options.action.startswith("accept-"):
+    accept_recording(options.recording, options.action.split("-", 1)[1].upper())
 else:
     contact_sheet(options.output)

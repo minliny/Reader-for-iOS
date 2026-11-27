@@ -59,7 +59,11 @@ struct OnlineSourceSwitchSheet: View {
         do {
             let sources = try await session.sources.list(.init(enabledOnly: true)).sources
             let names = Dictionary(sources.map { ($0.sourceId, $0.name) }, uniquingKeysWith: { first, _ in first })
-            let ids = sources.map(\.sourceId).filter { $0 != book.sourceId }
+            let ids = sources.filter { source in
+                guard source.sourceId != book.sourceId else { return false }
+                if case .integer(2) = source.bookSource?["bookSourceType"] { return book.isManga }
+                return !book.isManga
+            }.map(\.sourceId)
             let response: [M2ChangeBookSourceCandidate]
             if ids.isEmpty { response = [] }
             else {
@@ -72,7 +76,7 @@ struct OnlineSourceSwitchSheet: View {
             candidates = response.filter { names[$0.sourceId] != nil }.map { candidate in
                 let reference = OnlineBookReference(sourceId: candidate.sourceId, bookId: candidate.bookUrl,
                     title: candidate.bookName, author: candidate.authorIdentity?.label ?? candidate.author,
-                    coverURL: candidate.coverUrl, sourceName: names[candidate.sourceId])
+                    coverURL: candidate.coverUrl, sourceName: names[candidate.sourceId], isManga: book.isManga)
                 return SourceSwitchCandidate(book: reference)
             }.filter { seen.insert($0.id).inserted }
             hasLoaded = true

@@ -3,7 +3,7 @@
 # The two process phases share only synthetic data in the test app's container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online|m3write|m3cold|m3speech <UDID> <derived> <evidence>}"
+mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online|m3write|m3cold|m3speech|m3ui-manga|m3ui-speech <UDID> <derived> <evidence>}"
 device="${2:?isolated simulator UDID required}"
 derived="${3:?isolated DerivedData path required}"
 evidence="${4:?immutable evidence directory required}"
@@ -32,7 +32,7 @@ case "$mode" in
     codesign --verify --deep --strict "$ui_runner"
     codesign -d -v "$ui_runner"
     ;;
-  write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online|m3write|m3cold|m3speech)
+  write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online|m3write|m3cold|m3speech|m3ui-manga|m3ui-speech)
     shopt -s nullglob
     runs=("$derived"/Build/Products/*.xctestrun)
     [[ ${#runs[@]} -eq 1 ]]
@@ -43,6 +43,12 @@ case "$mode" in
       tests=(-only-testing:ReaderAppTests/M3MangaTests/test02IndependentProcessRestoresLogicalPageAndPoint)
     elif [[ "$mode" == m3speech ]]; then
       tests=(-only-testing:ReaderAppTests/M3SpeechTests)
+    elif [[ "$mode" == m3ui-manga ]]; then
+      tests=(-only-testing:ReaderAppUITests/M3ProductUITests/test01MangaPreviewRetryChaptersAndColdRead)
+      timeout=480
+    elif [[ "$mode" == m3ui-speech ]]; then
+      tests=(-only-testing:ReaderAppUITests/M3ProductUITests/test02SpeechHighlightCapsuleAndConfiguration)
+      timeout=420
     elif [[ "$mode" == wave2write ]]; then
       tests=(
         -only-testing:ReaderAppTests/Wave2CoreTextTests

@@ -12,17 +12,19 @@ final class MangaPageAssets {
 
     private let runtime: CoreRuntimeActor
     private let transfers: MangaTransferStore
+    private let retained: MangaCompressedCache?
     private var cached: [String: Entry] = [:]
     private var order: [String] = []
     private var generation = 0
 
-    init(runtime: CoreRuntimeActor, transfers: MangaTransferStore) {
+    init(runtime: CoreRuntimeActor, transfers: MangaTransferStore, retained: MangaCompressedCache? = nil) {
         self.runtime = runtime
         self.transfers = transfers
+        self.retained = retained
     }
 
     func decode(_ page: M3MangaManifestPage, manifest: M3MangaWindowManifest, preferredWidth: Int)
-    async throws -> (image: MangaTileImage, file: MangaResourceFile) {
+    async throws -> (image: MangaTileImage, file: MangaResourceFile, inspection: M3MangaResourceInspectData) {
         let expected = generation
         let key = manifest.manifestVersion + "/" + page.resourceRef
         if let hit = cached[key] {
@@ -30,7 +32,7 @@ final class MangaPageAssets {
                 let image = try await MangaImageDecoder.shared.decode(hit.file, inspection: hit.inspection,
                                                                      preferredWidth: preferredWidth)
                 guard expected == generation else { throw CancellationError() }
-                return (image, hit.file)
+                return (image, hit.file, hit.inspection)
             } catch MangaImageFailure.pixelBudget {
                 throw MangaImageFailure.pixelBudget
             } catch {
@@ -38,6 +40,21 @@ final class MangaPageAssets {
                 order.removeAll { $0 == key }
                 await transfers.discard(hit.transferID)
                 throw error
+            }
+        }
+
+        if let retained, let cached = try? await retained.record(chapter: manifest.chapter,
+            manifest: manifest.manifestVersion, resource: page.resourceRef) {
+            let chapter = manifest.chapter
+            let status = try await runtime.request(ReaderM3.mangaCacheClassify, .init(
+                chapter: .init(sourceId: chapter.sourceId, bookId: chapter.bookId, chapterId: chapter.chapterId),
+                manifestVersion: manifest.manifestVersion
+            )).value.status
+            if status == .download || status == .cache || status == .protected {
+                let image = try await MangaImageDecoder.shared.decode(cached.file, inspection: cached.inspection,
+                                                                     preferredWidth: preferredWidth)
+                guard expected == generation else { throw CancellationError() }
+                return (image, cached.file, cached.inspection)
             }
         }
 
@@ -69,7 +86,7 @@ final class MangaPageAssets {
             guard expected == generation else { throw CancellationError() }
             cached[key] = Entry(transferID: transfer, file: file, inspection: inspected)
             order.append(key)
-            return (image, file)
+            return (image, file, inspected)
         } catch {
             await transfers.endInspection(inspection)
             await transfers.discard(transfer)

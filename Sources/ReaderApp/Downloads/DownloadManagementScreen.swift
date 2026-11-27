@@ -37,6 +37,12 @@ struct DownloadManagementScreen: View {
             }
         }
         .toolbar {
+            if book == nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink("漫画") { MangaDownloadLibraryScreen(session: session) }
+                        .accessibilityIdentifier("m3-manga-download-library")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Task { await load(includeCatalogue: true, explicit: true) }

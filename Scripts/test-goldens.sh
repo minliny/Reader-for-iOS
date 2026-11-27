@@ -2,7 +2,7 @@
 # All rendering and baseline output belongs to the isolated hosted XCTest app.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mode="${1:?usage: test-goldens.sh record|record-m2|verify|verify-m1|verify-m2 <simulator UDID> <DerivedData> <evidence>}"
+mode="${1:?usage: test-goldens.sh record|record-m2|record-m3|verify|verify-m1|verify-m2|verify-m3 <simulator UDID> <DerivedData> <evidence>}"
 device="${2:?dedicated simulator required}"
 derived="${3:?prepared build-for-testing DerivedData required}"
 evidence="${4:?distinct evidence directory required}"
@@ -11,6 +11,8 @@ record_flag=""
 case "$mode" in
   record)         selector="$selector/testM1Goldens"; record_flag=READER_RECORD_GOLDENS; milestone=M1 ;;
   record-m2)      selector="$selector/testM2Goldens"; record_flag=READER_RECORD_M2_GOLDENS; milestone=M2 ;;
+  record-m3)      selector="$selector/testM3Goldens"; record_flag=READER_RECORD_M3_GOLDENS; milestone=M3 ;;
+  verify-m3)      selector="$selector/testM3Goldens" ;;
   verify-m1)      selector="$selector/testM1Goldens" ;;
   verify-m2)      selector="$selector/testM2Goldens" ;;
   verify) ;;

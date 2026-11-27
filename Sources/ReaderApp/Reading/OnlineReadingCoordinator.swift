@@ -23,7 +23,6 @@ struct OnlineReadingCoordinator: Sendable {
         guard detail.sourceId == params.sourceId, detail.book.bookId == params.book.bookId else {
             throw CoreBridgeFailure.endpointMismatch
         }
-        guard detail.contentKind != .manga else { throw Failure.unsupportedContent }
         return detail
     }
 

@@ -20,6 +20,8 @@ struct OnlineBookReference: Hashable, Identifiable, Sendable {
     var sourceName: String? = nil
     var kind: String? = nil
     var variables: [String: String]? = nil
+    var isManga = false
+    var tocURL: String? = nil
     var id: Identity { .init(sourceId: sourceId, bookId: bookId) }
 
     var displaySource: String {
@@ -40,14 +42,15 @@ extension OnlineBookReference {
     init(shelfBook: BookshelfEntryData) {
         self.init(sourceId: shelfBook.sourceId, bookId: shelfBook.bookId, title: shelfBook.title,
                   author: shelfBook.author, coverURL: shelfBook.coverUrl, intro: shelfBook.intro,
-                  lastChapter: shelfBook.lastChapter, sourceName: shelfBook.sourceName, kind: shelfBook.kind)
+                  lastChapter: shelfBook.lastChapter, sourceName: shelfBook.sourceName, kind: shelfBook.kind,
+                  isManga: shelfBook.contentKind == .manga)
     }
 
     init(detail: M2BookDetailData, sourceName: String?) {
         self.init(sourceId: detail.sourceId, bookId: detail.book.bookId, title: detail.book.title,
                   author: detail.book.authorIdentity?.label ?? detail.book.author, coverURL: detail.book.coverUrl,
                   intro: detail.book.intro, lastChapter: detail.book.lastChapter, sourceName: sourceName,
-                  kind: detail.book.kind, variables: detail.variables)
+                  kind: detail.book.kind, variables: detail.variables, isManga: detail.contentKind == .manga, tocURL: detail.tocUrl)
     }
 }
 

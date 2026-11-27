@@ -19,9 +19,15 @@ public enum SpeechPhysicalFailure: Error {
     case malformedPCM
 }
 
+public struct SystemSpeechVoice: Sendable {
+    public let id: String
+    public let name: String
+    public let language: String
+}
+
 @MainActor
 public final class SpeechAndMediaHost: NSObject {
-    public static let shared = SpeechAndMediaHost()
+    public static let shared = SpeechAndMediaHost(credential: { try SpeechCredentialVault.read($0) })
     private struct Active {
         let token: UUID
         let nativeID: ObjectIdentifier
@@ -74,13 +80,25 @@ public final class SpeechAndMediaHost: NSObject {
     }
     public var systemSessionID: UUID? { session }
 
+    public static func systemVoices() -> [SystemSpeechVoice] {
+        AVSpeechSynthesisVoice.speechVoices().map {
+            SystemSpeechVoice(id: $0.identifier, name: $0.name, language: $0.language)
+        }
+    }
+
     public func speak(session id: UUID, token: UUID, text: String, locale: String?, ratePercent: Int64,
+                      voiceID: String? = nil,
                       receive: @escaping @MainActor (UUID, SpeechPhysicalEvent) -> Void) throws {
         guard id == session, !text.isEmpty else { throw SpeechPhysicalFailure.unavailable }
         stopSlice()
         try AVAudioSession.sharedInstance().setActive(true)
         let utterance = AVSpeechUtterance(string: text)
-        if let locale { utterance.voice = AVSpeechSynthesisVoice(language: locale) }
+        if let voiceID {
+            guard let voice = AVSpeechSynthesisVoice(identifier: voiceID) else { throw SpeechPhysicalFailure.unavailable }
+            utterance.voice = voice
+        } else if let locale {
+            utterance.voice = AVSpeechSynthesisVoice(language: locale)
+        }
         let speed = Float(ratePercent) / 100
         utterance.rate = min(AVSpeechUtteranceMaximumSpeechRate,
                              max(AVSpeechUtteranceMinimumSpeechRate, AVSpeechUtteranceDefaultSpeechRate * speed))

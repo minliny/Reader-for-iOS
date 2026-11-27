@@ -53,6 +53,7 @@ final class TextReadingSurface: NSObject, ReadingSurface, UIScrollViewDelegate {
         coordinates = ScalarCoordinates(document.content)
         self.anchor = bounded(anchor)
         selected = nil
+        canvas.speechHighlight = nil
         rebuild()
         return snapshot()
     }
@@ -89,10 +90,28 @@ final class TextReadingSurface: NSObject, ReadingSurface, UIScrollViewDelegate {
         return snapshot()
     }
 
+    func presentSpeechHighlight(_ range: Range<Int>?) {
+        guard let range, !range.isEmpty, range.lowerBound >= 0, range.upperBound <= coordinates.scalarCount else {
+            canvas.speechHighlight = nil
+            updateSpeechAccessibility()
+            return
+        }
+        guard canvas.speechHighlight != range else { return }
+        canvas.speechHighlight = range
+        if selected == nil, let layout, layout.pages.indices.contains(currentPage),
+           !layout.pages[currentPage].scalars.overlaps(range) {
+            place(range.lowerBound)
+            onPosition?(anchor)
+        }
+        updateSpeechAccessibility()
+    }
+
     func retire() async {
         layout = nil
         canvas.layout = nil
         canvas.selected = nil
+        canvas.speechHighlight = nil
+        updateSpeechAccessibility()
         selected = nil
         selectionOrigin = nil
     }
@@ -105,6 +124,7 @@ final class TextReadingSurface: NSObject, ReadingSurface, UIScrollViewDelegate {
         let y = offset - CGFloat(page) * layout.viewport.height
         let start = layout.baselines(in: page).first(where: { $0.1 >= y })?.0 ?? layout.pages[page].scalars.lowerBound
         currentPage = page
+        updateSpeechAccessibility()
         if start != anchor {
             anchor = bounded(start)
             onPosition?(anchor)
@@ -148,6 +168,7 @@ final class TextReadingSurface: NSObject, ReadingSurface, UIScrollViewDelegate {
         canvas.scroll = scroll
         canvas.selected = selected
         canvas.selectionColor = UIColor(preferences.paper.selection).withAlphaComponent(0.5).cgColor
+        canvas.speechColor = UIColor(preferences.paper.selection).withAlphaComponent(0.36).cgColor
         view.contentSize = CGSize(width: viewport.width, height: height)
         place(anchor)
         programmaticScroll = false
@@ -161,6 +182,7 @@ final class TextReadingSurface: NSObject, ReadingSurface, UIScrollViewDelegate {
         if layout.pages.indices.contains(currentPage) {
             canvas.accessibilityLabel = coordinates.string(layout.pages[currentPage].scalars)
         }
+        updateSpeechAccessibility()
         guard preferences.mode == .scroll else {
             view.setContentOffset(.zero, animated: false)
             setCanvasOrigin(0)
@@ -180,6 +202,16 @@ final class TextReadingSurface: NSObject, ReadingSurface, UIScrollViewDelegate {
         // Draw only the blocks intersecting the viewport without allocating a chapter-height backing layer.
         canvas.frame = CGRect(origin: CGPoint(x: 0, y: offset), size: viewport)
         canvas.offset = offset
+    }
+
+    private func updateSpeechAccessibility() {
+        let visible = canvas.speechHighlight.flatMap { range -> Range<Int>? in
+            guard let layout, layout.pages.indices.contains(currentPage),
+                  layout.pages[currentPage].scalars.overlaps(range) else { return nil }
+            return range
+        }
+        canvas.accessibilityIdentifier = visible == nil ? nil : "reader-tts-highlight"
+        canvas.accessibilityValue = visible.map { "\($0.lowerBound)..<\($0.upperBound)" }
     }
 
     private func bounded(_ scalar: Int) -> Int { min(max(0, coordinates.scalarCount - 1), max(0, scalar)) }

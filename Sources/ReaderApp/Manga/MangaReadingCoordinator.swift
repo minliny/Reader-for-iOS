@@ -32,7 +32,7 @@ final class MangaReadingCoordinator {
 
     init(runtime: CoreRuntimeActor, host: NetworkAndWebHost) {
         self.runtime = runtime
-        assets = MangaPageAssets(runtime: runtime, transfers: host.mangaTransfers)
+        assets = MangaPageAssets(runtime: runtime, transfers: host.mangaTransfers, retained: host.mangaCompressedCache)
     }
 
     func open(sourceId: String, bookId: String, chapterIndex: Int64? = nil) async throws {

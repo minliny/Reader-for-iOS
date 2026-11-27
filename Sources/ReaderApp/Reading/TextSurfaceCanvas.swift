@@ -7,7 +7,9 @@ final class TextSurfaceCanvas: UIView {
     var scroll = false { didSet { setNeedsDisplay() } }
     var offset: CGFloat = 0 { didSet { setNeedsDisplay() } }
     var selected: Range<Int>? { didSet { setNeedsDisplay() } }
+    var speechHighlight: Range<Int>? { didSet { setNeedsDisplay() } }
     var selectionColor = UIColor.clear.cgColor
+    var speechColor = UIColor.clear.cgColor
 
     init() {
         super.init(frame: .zero)
@@ -24,7 +26,8 @@ final class TextSurfaceCanvas: UIView {
     override func draw(_ rect: CGRect) {
         guard let layout, let context = UIGraphicsGetCurrentContext(), !layout.pages.isEmpty else { return }
         if !scroll {
-            layout.draw(page: page, selected: selected, in: context, selectionColor: selectionColor)
+            layout.draw(page: page, selected: selected, in: context, selectionColor: selectionColor,
+                        speech: speechHighlight, speechColor: speechColor)
             return
         }
         let height = layout.viewport.height
@@ -34,7 +37,8 @@ final class TextSurfaceCanvas: UIView {
         for page in lower...upper {
             context.saveGState()
             context.translateBy(x: 0, y: CGFloat(page) * height - offset)
-            layout.draw(page: page, selected: selected, in: context, selectionColor: selectionColor)
+            layout.draw(page: page, selected: selected, in: context, selectionColor: selectionColor,
+                        speech: speechHighlight, speechColor: speechColor)
             context.restoreGState()
         }
     }

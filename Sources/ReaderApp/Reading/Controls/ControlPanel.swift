@@ -14,6 +14,7 @@ enum ReadingControlAction {
     case addBookmark
     case previous
     case next
+    case speech
     case size(Double)
     case spacing(Double)
     case tracking(Double)
@@ -26,6 +27,7 @@ struct ControlPanel: View {
     let title: String
     let preferences: ReadingPreferences
     let onAction: (ReadingControlAction) -> Void
+    var speechAvailable = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -50,7 +52,7 @@ struct ControlPanel: View {
                 if state == .full {
                     AppearanceControls(preferences: preferences, onAction: onAction)
                 }
-                QuickControls(onAction: onAction)
+                QuickControls(onAction: onAction, speechAvailable: speechAvailable)
             }
             .buttonStyle(.plain)
             .foregroundStyle(preferences.paper.foreground)

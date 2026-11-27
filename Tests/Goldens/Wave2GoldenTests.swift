@@ -40,11 +40,24 @@ final class Wave2GoldenTests: XCTestCase {
         try await verify(.online)
     }
 
-    private enum Milestone {
-        case local, online
+    func testM3Goldens() async throws {
+        try await verify(.mangaAndSpeech)
+    }
 
-        var label: String { self == .local ? "M1" : "M2" }
-        var recordFlag: String { self == .local ? "READER_RECORD_GOLDENS" : "READER_RECORD_M2_GOLDENS" }
+    private enum Milestone {
+        case local, online, mangaAndSpeech
+
+        var label: String {
+            switch self {
+            case .local: "M1"
+            case .online: "M2"
+            case .mangaAndSpeech: "M3"
+            }
+        }
+
+        var recordFlag: String {
+            self == .local ? "READER_RECORD_GOLDENS" : "READER_RECORD_\(label)_GOLDENS"
+        }
     }
 
     private func verify(_ milestone: Milestone) async throws {
@@ -55,12 +68,12 @@ final class Wave2GoldenTests: XCTestCase {
         var manifest = try JSONDecoder().decode(GoldenManifest.self, from: Data(contentsOf: manifestURL))
         XCTAssertEqual(manifest.schemaVersion, 1)
         XCTAssertEqual(Set(manifest.scenes.map(\.id)).count, manifest.scenes.count)
-        XCTAssertTrue(manifest.scenes.allSatisfy { $0.milestone == nil || $0.milestone == "M2" })
+        XCTAssertTrue(manifest.scenes.allSatisfy { $0.milestone == nil || ["M2", "M3"].contains($0.milestone ?? "") })
         let group = manifest.scenes.indices.filter { (manifest.scenes[$0].milestone ?? "M1") == milestone.label }
         if milestone == .local {
             XCTAssertEqual(group.count, 18)
             XCTAssertTrue(group.allSatisfy { manifest.scenes[$0].pins == nil })
-        } else {
+        } else if milestone == .online {
             // These images were captured on the audited M2 render inputs.
             // Keep their provenance immutable while newer clients rerun the pixels.
             let pins = [
@@ -69,6 +82,11 @@ final class Wave2GoldenTests: XCTestCase {
                 "harmony": "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
             ]
             XCTAssertEqual(Set(group.map { manifest.scenes[$0].id }), M2GoldenScenes.ids)
+            XCTAssertTrue(group.allSatisfy { manifest.scenes[$0].pins == pins })
+        } else {
+            let inputPins = try XCTUnwrap(source.url(forResource: "pins", withExtension: "json"))
+            let pins = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: inputPins))
+            XCTAssertEqual(Set(group.map { manifest.scenes[$0].id }), M3GoldenScenes.ids)
             XCTAssertTrue(group.allSatisfy { manifest.scenes[$0].pins == pins })
         }
         var evidence = URL(fileURLWithPath: NSHomeDirectory())
@@ -118,6 +136,9 @@ final class Wave2GoldenTests: XCTestCase {
     }
 
     private func render(_ scene: GoldenScene) async throws -> UIImage {
+        if scene.milestone == "M3" {
+            return try await render(scene, content: M3GoldenScenes.view(scene.id))
+        }
         if scene.milestone == "M2" {
             let document = scene.id == "m2-source-login"
                 ? try await GoldenBrowserDocument.render(width: CGFloat(scene.width), height: 430)
@@ -160,7 +181,7 @@ final class Wave2GoldenTests: XCTestCase {
         hosting.view.frame = bounds
         hosting.view.setNeedsLayout()
         hosting.view.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(60))
+        try await Task.sleep(for: .milliseconds(scene.milestone == "M3" ? 220 : 60))
         let nativePresentation = ["message-confirmation", "m2-source-switch"].contains(scene.id)
         if nativePresentation {
             for _ in 0..<16 {
@@ -176,7 +197,7 @@ final class Wave2GoldenTests: XCTestCase {
         format.opaque = true
         format.preferredRange = .standard
         return UIGraphicsImageRenderer(bounds: bounds, format: format).image { renderer in
-            if nativePresentation || scene.milestone == "M2" {
+            if nativePresentation || scene.milestone != nil {
                 XCTAssertTrue(window.drawHierarchy(in: bounds, afterScreenUpdates: true))
             } else {
                 hosting.view.layer.render(in: renderer.cgContext)

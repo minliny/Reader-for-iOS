@@ -3,6 +3,7 @@
 from functools import lru_cache
 import io
 import math
+import re
 import struct
 import wave
 import zlib
@@ -29,6 +30,63 @@ def route(handler, path, query):
         else:
             handler.server.fixture.record_failure("Unexpected M3 TTS request projection")
             handler.reply(422, "Unexpected M3 TTS request projection")
+    else:
+        return product(handler, path, query)
+    return True
+
+
+def product(handler, path, query):
+    match = re.fullmatch(r"/m3/product/([a-z0-9]{12})/(manga|text)/(primary|other)/(.+)", path)
+    if not match:
+        return False
+    suite, kind, source, action = match.groups()
+    is_manga = kind == "manga"
+    root = f"/m3/product/{suite}/{kind}"
+    canonical = f"{root}/{source}"
+    origin = "http://127.0.0.1:18765"
+    title = f"回环{'漫画' if is_manga else '小说'} {suite}"
+    author = "验证作者"
+    if action == "import":
+        package = []
+        for name in ["primary", "other"] if is_manga else ["primary"]:
+            base = origin + root + "/" + name
+            package.append({
+                "bookSourceUrl": base,
+                "bookSourceName": f"回环{'漫画' if is_manga else '朗读'} {name} {suite}",
+                "bookSourceType": 2 if is_manga else 0,
+                "enabled": True,
+                "searchUrl": base + "/search?q={{key}}",
+                "ruleSearch": {"bookList": "ul li", "name": "span.name@text",
+                               "author": "span.author@text", "bookUrl": "a@href"},
+                "ruleBookInfo": {"name": "h1@text", "author": "p.author@text", "tocUrl": "a.toc@href"},
+                "ruleToc": {"chapterList": "ol li", "chapterName": "a@text", "chapterUrl": "a@href"},
+                "ruleContent": {"content": "tag.img@src" if is_manga else "div.content@text"},
+            })
+        handler.json(package)
+    elif action == "search":
+        term = query.get("q", [""])[0]
+        if term not in (suite, title):
+            handler.html("<ul></ul>")
+        else:
+            handler.html(f"<ul><li><span class=name>{title}</span><span class=author>{author}</span>"
+                         f"<a href='{canonical}/detail'>详情</a></li></ul>")
+    elif action == "detail":
+        handler.html(f"<h1>{title}</h1><p class=author>{author}</p><a class=toc href='{canonical}/toc'>目录</a>")
+    elif action == "toc":
+        labels = ["第一话 · 晚钟", "第二话 · 夜渡"] if is_manga else ["晚灯照长街"]
+        rows = "".join(f"<li><a href='{canonical}/chapter/{index}'>{label}</a></li>" for index, label in enumerate(labels))
+        handler.html(f"<ol>{rows}</ol>")
+    elif action == "chapter/0" and is_manga:
+        handler.html("".join(f"<img src='{canonical}/{page}.png'>" for page in ("small", "long", "last")))
+    elif action == "chapter/1" and is_manga:
+        handler.html(f"<img src='{canonical}/last.png'>")
+    elif action == "chapter/0":
+        line = "路灯把落叶照成柔软的金色，桥边的店家正在收起门口的椅子。"
+        handler.html("<div class=content>" + "傍晚的时候，晚风穿过安静的街巷。".join([line] * 18) + "</div>")
+    elif action == "long.png":
+        handler.reply(200, png(96, 22000, 0), "image/png")
+    elif action in {"small.png", "last.png"}:
+        handler.reply(200, png(160, 300, 5), "image/png")
     else:
         return False
     return True

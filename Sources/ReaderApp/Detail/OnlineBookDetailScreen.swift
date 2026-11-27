@@ -62,14 +62,20 @@ struct OnlineBookDetailScreen: View {
     @ViewBuilder private func routeBody(_ target: Route) -> some View {
         switch target {
         case .reading(let chapter, let switchOnOpen):
-            if let entry = model.readerEntry {
+            if let book = model.book, book.isManga {
+                MangaReadingScreen(book: book, session: session, initialChapter: chapter, showSwitch: switchOnOpen,
+                                   onBookChanged: { model.retarget($0) }, onExit: readerExited)
+            } else if let entry = model.readerEntry {
                 let context = OnlineReadingContext(session: session, switchOnOpen: switchOnOpen,
                     initialTarget: initialTarget, onBookChanged: { current in model.retarget(current) })
                 ReadingScreen(book: entry, chapters: [], original: nil, runtime: online.runtime, files: files,
                               startChapter: chapter, onlineContext: context, onExit: readerExited)
             }
         case .downloads:
-            if let book = model.book { DownloadManagementScreen(session: session, book: book) }
+            if let book = model.book {
+                if book.isManga { MangaDownloadScreen(session: session, book: book) }
+                else { DownloadManagementScreen(session: session, book: book) }
+            }
         }
     }
 
@@ -122,7 +128,7 @@ struct OnlineBookDetailScreen: View {
 
     private func add() {
         Task {
-            switch await model.add(online: online) {
+            switch await model.add(online: online, network: session.sources.network) {
             case .added:
                 await refreshShelf()
                 feedback("已加入书架", key: "shelf-add")
@@ -212,13 +218,18 @@ final class OnlineBookDetailModel {
         }
     }
 
-    func add(online: OnlineReadingCoordinator) async -> AddResult {
+    func add(online: OnlineReadingCoordinator, network: NetworkAndWebHost? = nil) async -> AddResult {
         guard !writing, let detail, let book, shelfBook == nil else { return .failed }
         writing = true
         defer { writing = false }
         let observed = generation
         do {
-            _ = try await online.addToShelf(detail)
+            if book.isManga {
+                guard let network else { return .failed }
+                try await MangaShelfAdmission.add(detail: detail, runtime: online.runtime, network: network)
+            } else {
+                _ = try await online.addToShelf(detail)
+            }
         } catch {
             return .failed
         }

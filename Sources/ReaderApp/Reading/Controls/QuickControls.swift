@@ -3,6 +3,7 @@ import SwiftUI
 
 struct QuickControls: View {
     let onAction: (ReadingControlAction) -> Void
+    var speechAvailable = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -10,6 +11,10 @@ struct QuickControls: View {
             item("书签", icon: ReaderIconRegistry.bookmark, action: .bookmarks)
             item("上一章", icon: ReaderIconRegistry.previousChapter, action: .previous)
             item("下一章", icon: ReaderIconRegistry.nextChapter, action: .next)
+            if speechAvailable {
+                item("听书", icon: ReaderIconRegistry.ttsHeadphones, action: .speech)
+                    .accessibilityIdentifier("reader-tts-start")
+            }
         }
     }
 

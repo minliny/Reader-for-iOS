@@ -1,7 +1,9 @@
+import ReaderCoreBridge
 import ReaderDesign
 import SwiftUI
 
 struct SettingsScreen: View {
+    let runtime: CoreRuntimeActor?
     @AppStorage("reader.appearance") private var appearance = ReaderAppearance.system
     @AppStorage("reader.shelf.sort") private var shelfSort = ShelfSort.added
     @AppStorage("reader.keepAwake") private var keepAwake = false
@@ -29,6 +31,20 @@ struct SettingsScreen: View {
                 }
                 Picker("默认阅读纸底", selection: $paper) {
                     ForEach(ReaderPaper.all, id: \.id) { Text($0.name).tag($0.id) }
+                }
+            }
+            if let runtime {
+                Section("朗读") {
+                    NavigationLink {
+                        SpeechConfigurationScreen(configuration: SpeechConfiguration(runtime: runtime))
+                    } label: {
+                        Label {
+                            Text("朗读引擎与音色")
+                        } icon: {
+                            ReaderIcon(ReaderIconRegistry.ttsHeadphones, squareSize: 18)
+                        }
+                    }
+                    .accessibilityIdentifier("reader-settings-tts")
                 }
             }
         }

@@ -33,19 +33,23 @@ assert icon_names <= {record.get("Name") for record in compiled_assets}
 golden_source = project / "Tests/Goldens/Baselines/manifest.json"
 golden_manifest = json.loads(golden_source.read_text())
 golden_names = {scene["id"] + ".png" for scene in golden_manifest["scenes"]}
-test_names = {Path(path).name for path in files if path.startswith("Tests/Fixtures/")}
+test_fixtures = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                 for path in (project / "Tests/Fixtures").rglob("*") if path.is_file()}
+for path, facts in files.items():
+    if path.startswith("Tests/Fixtures/"):
+        assert test_fixtures[Path(path).name] == facts["sha256"], path
+test_names = set(test_fixtures)
 for path in app.rglob("*"):
     if test_bundle is not None and (path == test_bundle or test_bundle in path.parents):
         continue
     assert path.name not in test_names | golden_names | {"Baselines", "pins.json", "Loopback", "serve.py", "contact-sheet.png"}, path
     assert path.suffix not in (".epub", ".mobi", ".xctest"), path
 if test_bundle:
-    expected_tests = {Path(path).name: facts["sha256"] for path, facts in files.items() if path.startswith("Tests/Fixtures/")}
     actual_tests = {
         p.name: hashlib.sha256(p.read_bytes()).hexdigest()
         for p in test_bundle.rglob("*") if p.name in test_names
     }
-    assert actual_tests == expected_tests
+    assert actual_tests == test_fixtures
     assert (test_bundle / "pins.json").read_bytes() == (project / "Scripts/pins.json").read_bytes()
     assert not any(path.name in {"Loopback", "serve.py"} for path in test_bundle.rglob("*"))
     baselines = test_bundle / "Baselines"

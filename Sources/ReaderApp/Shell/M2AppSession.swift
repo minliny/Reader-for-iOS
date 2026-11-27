@@ -6,11 +6,13 @@ final class M2AppSession {
     let search: SearchCoordinator
     let sources: SourceManagementCoordinator
     let downloads: DownloadCoordinator
+    let mangaDownloads: MangaDownloadCoordinator
     private(set) var downloadRecoveryError: (any Error)?
 
     init(library: LibraryHost, root: URL) {
         search = SearchCoordinator(runtime: library.runtime)
         sources = SourceManagementCoordinator(runtime: library.runtime, network: library.network)
+        mangaDownloads = MangaDownloadCoordinator(runtime: library.runtime, network: library.network)
         downloads = DownloadCoordinator(
             runtime: library.runtime,
             journal: root.appending(path: "M2HostOperations/download-prefetch.json")

@@ -416,6 +416,101 @@
       "textSize" : "large",
       "theme" : "day",
       "width" : 402
+    },
+    {
+      "height" : 740,
+      "id" : "m3-manga-reading",
+      "milestone" : "M3",
+      "pins" : {
+        "core" : "14fdd8f91549a30a7b7235088d3c524d128201d1",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "2f09c1855b043608f013da8df666714f387b60c3"
+      },
+      "pixelSHA256" : "a0d602ef9c685f2827ad70e93cd8d0b8d7d5c82862d57fcfaae18b9371329aa9",
+      "platformDifference" : "iOS SwiftUI / 原生分片绘制或系统控件，固定内容视口",
+      "pngSHA256" : "eb97b42f422344943449925a42a66e969c9757d66d669cd254efbb72e1a4b525",
+      "reference" : "Reader-UI M3 manga-reader",
+      "sample" : "测试绘制的蓝色与朱色双段画面",
+      "state" : "漫画条漫和原生分片图页",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 740,
+      "id" : "m3-manga-retry",
+      "milestone" : "M3",
+      "pins" : {
+        "core" : "14fdd8f91549a30a7b7235088d3c524d128201d1",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "2f09c1855b043608f013da8df666714f387b60c3"
+      },
+      "pixelSHA256" : "c928267f0bac3491057ca4254d5dbf3654a224c863725ffe7f218943246f0469",
+      "platformDifference" : "iOS SwiftUI / 原生分片绘制或系统控件，固定内容视口",
+      "pngSHA256" : "a50099b9921492c9ba21611fabfdbb09fcd4260ec09b04eb4c7fe5023023bdeb",
+      "reference" : "Reader-UI M3 manga-resource-unavailable",
+      "sample" : "图页二缺少原图",
+      "state" : "单图失败并保留原有占位",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 740,
+      "id" : "m3-tts-capsule",
+      "milestone" : "M3",
+      "pins" : {
+        "core" : "14fdd8f91549a30a7b7235088d3c524d128201d1",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "2f09c1855b043608f013da8df666714f387b60c3"
+      },
+      "pixelSHA256" : "3d625d2cbc6e9d2a52c9b5c492e60b75fd52b6fdbe68cccf5cd15377ee27f48f",
+      "platformDifference" : "iOS SwiftUI / 原生分片绘制或系统控件，固定内容视口",
+      "pngSHA256" : "4f9c062d01da6fc120bf2e514d4ad2ec0a4ed440feb1a89fc569fe3c2d34317d",
+      "reference" : "Reader-UI M3 speech-capsule",
+      "sample" : "烟青街巷短句",
+      "state" : "阅读页悬浮听书胶囊",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 740,
+      "id" : "m3-tts-playback",
+      "milestone" : "M3",
+      "pins" : {
+        "core" : "14fdd8f91549a30a7b7235088d3c524d128201d1",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "2f09c1855b043608f013da8df666714f387b60c3"
+      },
+      "pixelSHA256" : "4baac3783d664595b08d2430634e11a10c122b775942c5c28a3d78d7073bde0e",
+      "platformDifference" : "iOS SwiftUI / 原生分片绘制或系统控件，固定内容视口",
+      "pngSHA256" : "9b1f39e6a23c7e055102b7d897d92722146ebdc4e34a5012dd4e1ce8a1f6d07c",
+      "reference" : "Reader-UI M3 speech-playback",
+      "sample" : "系统朗读第 3 句，共 12 句，百分之 125",
+      "state" : "朗读播控与语速和定时",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
+    },
+    {
+      "height" : 740,
+      "id" : "m3-tts-engines",
+      "milestone" : "M3",
+      "pins" : {
+        "core" : "14fdd8f91549a30a7b7235088d3c524d128201d1",
+        "harmony" : "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+        "ui" : "2f09c1855b043608f013da8df666714f387b60c3"
+      },
+      "pixelSHA256" : "531c52d65f7472a6f8069867955417aaf5e0e0ace8c05dab681bf6ed36d33ea6",
+      "platformDifference" : "iOS SwiftUI / 原生分片绘制或系统控件，固定内容视口",
+      "pngSHA256" : "8c3eb05e32c758fd750d51294121bcfcdfee7cf855031d488be507a6033d2275",
+      "reference" : "Reader-UI M3 speech-engines",
+      "sample" : "系统默认音色和本机 HTTPS 测试引擎",
+      "state" : "系统音色和 HttpTTS 引擎",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402
     }
   ],
   "schemaVersion" : 1

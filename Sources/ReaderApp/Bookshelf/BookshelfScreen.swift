@@ -89,7 +89,7 @@ struct BookshelfScreen: View {
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
-                case .settings: SettingsScreen()
+                case .settings: SettingsScreen(runtime: model.library?.runtime)
                 case .search:
                     if let session = model.online, let files = model.files {
                         GlobalSearchScreen(session: session, files: files) { await model.reload() }

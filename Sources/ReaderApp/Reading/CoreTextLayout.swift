@@ -70,12 +70,17 @@ struct CoreTextLayout {
         }
     }
 
-    func draw(page: Int, selected: Range<Int>?, in context: CGContext, selectionColor: CGColor) {
+    func draw(page: Int, selected: Range<Int>?, in context: CGContext, selectionColor: CGColor,
+              speech: Range<Int>? = nil, speechColor: CGColor = UIColor.clear.cgColor) {
         guard pages.indices.contains(page) else { return }
         context.saveGState()
         context.textMatrix = .identity
         context.translateBy(x: 0, y: viewport.height)
         context.scaleBy(x: 1, y: -1)
+        if let speech, let start = coordinates.utf16(at: speech.lowerBound),
+           let end = coordinates.utf16(at: speech.upperBound) {
+            drawSelection(page: page, start: start, end: end, context: context, color: speechColor)
+        }
         if let selected, let start = coordinates.utf16(at: selected.lowerBound),
            let end = coordinates.utf16(at: selected.upperBound) {
             drawSelection(page: page, start: start, end: end, context: context, color: selectionColor)

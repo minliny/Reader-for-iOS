@@ -345,7 +345,19 @@ final class ReadingSessionCoordinator {
         speechSession?.retire()
     }
 
-    func startSpeech(engine: SpeechSessionCoordinator.Engine, ratePercent: Int64 = 100) async throws {
+    var canStartSpeech: Bool {
+        guard let chapter, chapter.generation == generation, ready else { return false }
+        return chapter.ebook == nil && chapter.projection.bodyVersion != nil && chapter.projection.processingVersion != nil
+    }
+
+    func speechSentence(for chapter: ReadingChapter) -> Range<Int>? {
+        guard chapter.generation == generation, let entity,
+              let body = chapter.projection.bodyVersion, let processing = chapter.projection.processingVersion else { return nil }
+        return speechSession?.currentSentence(chapter: .init(sourceId: entity.sourceId, bookId: entity.bookId,
+            chapterIndex: chapter.index), bodyVersion: body, processingVersion: processing)
+    }
+
+    func startSpeech(engine: SpeechSessionCoordinator.Engine, ratePercent: Int64 = 100, anchor: Int? = nil) async throws {
         guard let chapter, let entity, chapter.generation == generation, ready,
               let bodyVersion = chapter.projection.bodyVersion,
               let processingVersion = chapter.projection.processingVersion else {
@@ -356,7 +368,7 @@ final class ReadingSessionCoordinator {
         try await coordinator.start(chapter: .init(
             sourceId: entity.sourceId, bookId: entity.bookId, chapterIndex: chapter.index, chapterTitle: chapter.title
         ), content: chapter.projection.content, bodyVersion: bodyVersion, processingVersion: processingVersion,
-           title: book?.title ?? chapter.title, scalar: position, engine: engine, ratePercent: ratePercent)
+           title: book?.title ?? chapter.title, scalar: anchor ?? position, engine: engine, ratePercent: ratePercent)
     }
 }
 

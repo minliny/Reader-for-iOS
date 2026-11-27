@@ -43,7 +43,8 @@ struct ReadingChapterSurface: View {
         Group {
             if let text {
                 TextSurfaceView(surface: text, content: chapter.projection.content, anchor: chapter.anchor,
-                                preferences: preferences, onReady: measured)
+                                preferences: preferences, speechHighlight: model.speechSentence(for: chapter),
+                                onReady: measured)
             } else if let ebook, let document = chapter.ebook {
                 ReaderNativeView(view: ebook.webView)
                     .accessibilityIdentifier("reader-ebook-surface")

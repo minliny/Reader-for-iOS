@@ -13,6 +13,7 @@ struct ReadingPresentation<Content: View>: View {
     let preferences: ReadingPreferences
     let controls: ReadingControls
     let onAction: (ReadingControlAction) -> Void
+    var speechAvailable = false
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -38,7 +39,8 @@ struct ReadingPresentation<Content: View>: View {
                 .ignoresSafeArea()
         }
         .overlay(alignment: .bottom) {
-            ControlPanel(state: controls, title: title, preferences: preferences, onAction: onAction)
+            ControlPanel(state: controls, title: title, preferences: preferences, onAction: onAction,
+                         speechAvailable: speechAvailable)
         }
     }
 }
@@ -64,6 +66,7 @@ struct TextSurfaceView: View {
     let content: String
     let anchor: Int
     let preferences: ReadingPreferences
+    var speechHighlight: Range<Int>?
     var onReady: (Int) -> Void = { _ in }
 
     var body: some View {
@@ -73,9 +76,11 @@ struct TextSurfaceView: View {
                     surface.prepare(preferences: preferences, viewport: geometry.size)
                     let value = surface.load(.init(content: content), anchor: anchor)
                     if let scalar = value.scalar { onReady(scalar) }
+                    surface.presentSpeechHighlight(speechHighlight)
                 }
                 .onChange(of: geometry.size) { _, size in surface.prepare(preferences: preferences, viewport: size) }
                 .onChange(of: preferences) { _, style in surface.prepare(preferences: style, viewport: geometry.size) }
+                .onChange(of: speechHighlight) { _, range in surface.presentSpeechHighlight(range) }
         }
         .padding(.horizontal, CGFloat(ReaderDesignMetrics.screenInset))
         .padding(.top, 12)

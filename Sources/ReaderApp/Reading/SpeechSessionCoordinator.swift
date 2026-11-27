@@ -6,9 +6,17 @@ import ReaderHost
 @MainActor
 @Observable
 final class SpeechSessionCoordinator {
-    enum Engine: Sendable {
+    enum Engine: Sendable, Equatable {
         case system(locale: String?)
+        case systemVoice(id: String)
         case http(id: Int64)
+
+        var isSystem: Bool {
+            switch self {
+            case .system, .systemVoice: true
+            case .http: false
+            }
+        }
     }
 
     enum Failure: Error {
@@ -29,7 +37,7 @@ final class SpeechSessionCoordinator {
         let bodyVersion: String
         let processingVersion: String
         let engine: Engine
-        let ratePercent: Int64
+        var ratePercent: Int64
     }
 
     private struct SliceRun {
@@ -46,11 +54,14 @@ final class SpeechSessionCoordinator {
     private var desired: UUID?
     @ObservationIgnored private var playback: Task<Void, Never>?
     @ObservationIgnored private var tail: Task<Void, Never>?
+    @ObservationIgnored private var timer: Task<Void, Never>?
 
     private(set) var snapshot: M3TtsQueueSnapshot?
     private(set) var highlight: Presentation?
     private(set) var failure: (any Error)?
     private(set) var nativeRangeCount = 0
+    private(set) var timerMinutes: Int?
+    var activeRate: Int64? { session?.ratePercent }
 
     init(runtime: CoreRuntimeActor, media: SpeechAndMediaHost) {
         self.runtime = runtime
@@ -62,6 +73,7 @@ final class SpeechSessionCoordinator {
                ratePercent: Int64 = 100) async throws {
         let generation = UUID()
         desired = generation
+        clearTimer()
         invalidatePhysicalPlayback()
         try await serial { [self] in
             try await stopCoreSession()
@@ -70,7 +82,7 @@ final class SpeechSessionCoordinator {
             nativeRangeCount = 0
             let map = ScalarCoordinates(content)
             guard !bodyVersion.isEmpty, !processingVersion.isEmpty, (0..<map.scalarCount).contains(scalar),
-                  (50...200).contains(ratePercent) else { throw Failure.anchorUnproven }
+                  (50...200).contains(ratePercent), ratePercent.isMultiple(of: 5) else { throw Failure.anchorUnproven }
             let plan = try await runtime.request(ReaderM3.ttsSlice,
                                                  .init(chapter: chapter, content: content, strategy: .sentence)).value.plan
             guard desired == generation else { throw CancellationError() }
@@ -115,8 +127,16 @@ final class SpeechSessionCoordinator {
         return highlight.scalarRange
     }
 
+    func currentSentence(chapter: M3TtsChapterRef, bodyVersion: String, processingVersion: String) -> Range<Int>? {
+        guard let spoken = currentHighlight(chapter: chapter, bodyVersion: bodyVersion, processingVersion: processingVersion),
+              let slice, let lower = Int(exactly: slice.slice.charStart), let upper = Int(exactly: slice.slice.charEnd),
+              lower <= spoken.lowerBound, spoken.upperBound <= upper else { return nil }
+        return lower..<upper
+    }
+
     func retire() {
         desired = nil
+        clearTimer()
         invalidatePhysicalPlayback()
         let previous = tail
         tail = Task { @MainActor in
@@ -129,6 +149,44 @@ final class SpeechSessionCoordinator {
 
     func pause() async throws { try await control(.pause) }
     func resume() async throws { try await control(.play) }
+    func previous() async throws { try await control(.previous) }
+    func next() async throws { try await control(.next) }
+
+    func changeRate(_ percent: Int64) async throws {
+        guard (50...200).contains(percent), percent.isMultiple(of: 5) else { throw Failure.anchorUnproven }
+        let expected = desired
+        try await serial { [self] in
+            guard var session, desired == expected, session.id == expected,
+                  snapshot?.state == .playing || snapshot?.state == .paused else { return }
+            let rate = SpeechConfiguration.legacyRate(percent)
+            let updated = try await runtime.request(ReaderM3.ttsQueueSetRate,
+                                                    .init(chapter: session.plan.chapter, rate: rate)).value
+            guard desired == expected, updated.rate == rate else { return }
+            session.ratePercent = percent
+            self.session = session
+            snapshot = updated.snapshot
+            try playCurrent(preservingHighlight: true)
+        }
+    }
+
+    func armTimer(_ minutes: Int?) {
+        clearTimer()
+        guard let minutes, [15, 30, 45, 60].contains(minutes), let owner = desired,
+              session?.id == owner, snapshot?.state == .playing || snapshot?.state == .paused else { return }
+        timerMinutes = minutes
+        timer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(minutes * 60), clock: .continuous) }
+            catch { return }
+            guard let self, desired == owner else { return }
+            retire()
+        }
+    }
+
+    private func clearTimer() {
+        timer?.cancel()
+        timer = nil
+        timerMinutes = nil
+    }
 
     private func remote(_ action: SpeechRemoteAction, generation: UUID) async {
         guard desired == generation else { return }
@@ -173,16 +231,19 @@ final class SpeechSessionCoordinator {
         }
     }
 
-    private func playCurrent() throws {
+    private func playCurrent(preservingHighlight: Bool = false) throws {
         playback?.cancel()
         playback = nil
         guard let session, session.id == desired else { return }
         media.stopSlice(session: session.id)
         self.slice = nil
-        highlight = nil
+        if !preservingHighlight { highlight = nil }
         guard let snapshot, snapshot.state == .playing, let index = snapshot.currentSliceIndex,
               let selected = session.plan.slices.first(where: { $0.index == index }) else {
-            if snapshot?.state == .completed || snapshot?.state == .stopped { media.retire(session: session.id) }
+            if snapshot?.state == .completed || snapshot?.state == .stopped {
+                clearTimer()
+                media.retire(session: session.id)
+            }
             return
         }
         let ticket = UUID()
@@ -194,6 +255,9 @@ final class SpeechSessionCoordinator {
         case .system(let locale):
             try media.speak(session: session.id, token: ticket, text: selected.text, locale: locale,
                             ratePercent: session.ratePercent, receive: receive)
+        case .systemVoice(let id):
+            try media.speak(session: session.id, token: ticket, text: selected.text, locale: nil,
+                            ratePercent: session.ratePercent, voiceID: id, receive: receive)
         case .http(let id):
             playback = Task { @MainActor [weak self, runtime, media] in
                 do {
@@ -222,7 +286,7 @@ final class SpeechSessionCoordinator {
                   range.length <= slice.map.utf16Count - range.location,
                   let low = slice.map.scalar(at: range.location),
                   let high = slice.map.scalar(at: range.location + range.length), low < high else { return }
-            if case .system = session.engine { nativeRangeCount += 1 }
+            if session.engine.isSystem { nativeRangeCount += 1 }
             let offset = Int(slice.slice.charStart)
             highlight = Presentation(chapter: session.plan.chapter, bodyVersion: session.bodyVersion,
                                      processingVersion: session.processingVersion, scalarRange: (offset + low)..<(offset + high))

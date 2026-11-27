@@ -28,12 +28,12 @@ struct GlobalSearchScreen: View {
         var seen = Set<OnlineBookReference.Identity>()
         return search.globalResults.flatMap { candidate -> [OnlineBookReference] in
             guard case .success(let response) = candidate.terminal,
-                  response.value.contentKind == nil || response.value.contentKind == .text else { return [] }
+                  response.value.contentKind != .audio else { return [] }
             return response.value.books.map { book in
                 .init(sourceId: candidate.sourceId, bookId: book.bookId, title: book.title,
                       author: book.authorIdentity?.label ?? book.author, coverURL: book.coverUrl,
                       intro: book.intro, lastChapter: book.lastChapter, sourceName: sourceNames[candidate.sourceId], kind: book.kind,
-                      variables: book.variables)
+                      variables: book.variables, isManga: response.value.contentKind == .manga)
             }
         }.filter { seen.insert($0.id).inserted }
     }
