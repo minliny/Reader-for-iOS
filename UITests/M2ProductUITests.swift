@@ -172,9 +172,13 @@ final class M2ProductUITests: XCTestCase {
         tap("m2-reader-tools")
         tapLabel("换源")
         wait("m2-switch-sheet")
-        tap("m2-switch-candidate-0", timeout: 25)
+        let primarySource = "回环来源 primary \(suite)"
+        let otherSource = "回环来源 other \(suite)"
+        XCTAssertTrue([primarySource, otherSource].contains(sourceBeforeSwitch))
+        let targetSource = sourceBeforeSwitch == primarySource ? otherSource : primarySource
+        switchToFixtureSource(targetSource)
         let tools = wait("m2-reader-tools", timeout: 25)
-        let changed = NSPredicate(format: "isHittable == true AND value != nil AND value != %@", sourceBeforeSwitch)
+        let changed = NSPredicate(format: "isHittable == true AND value == %@", targetSource)
         let sourceChanged = XCTNSPredicateExpectation(predicate: changed, object: tools)
         XCTAssertEqual(XCTWaiter.wait(for: [sourceChanged], timeout: 25), .completed)
         tap("m2-reader-tools", timeout: 25)
@@ -186,6 +190,24 @@ final class M2ProductUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 25), .completed)
         attach("M2 原生下载状态")
         print("M2_UI_READER refresh=true switch=true downloadCompleted=true")
+    }
+
+    private func switchToFixtureSource(_ name: String) {
+        // Repeated runs keep app data and can contain equally ranked providers
+        // from earlier fixture suites. Identify the intended provider by label.
+        _ = wait("m2-switch-candidate-0", timeout: 25)
+        let match = NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "m2-switch-candidate-", name)
+        let candidate = app.buttons.matching(match).firstMatch
+        let list = app.scrollViews.firstMatch
+        for _ in 0..<12 {
+            if candidate.exists, candidate.isHittable { break }
+            list.swipeUp()
+        }
+        let available = NSPredicate(format: "exists == true AND isHittable == true AND isEnabled == true")
+        let readiness = XCTNSPredicateExpectation(predicate: available, object: candidate)
+        let result = XCTWaiter.wait(for: [readiness], timeout: 15)
+        XCTAssertEqual(result, .completed, "Fixture candidate unavailable: \(name)")
+        if result == .completed { candidate.tap() }
     }
 
     private func verifyReaderOfflineState() async throws {

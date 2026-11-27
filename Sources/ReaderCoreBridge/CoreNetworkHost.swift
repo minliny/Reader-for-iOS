@@ -54,6 +54,12 @@ extension CoreHostReply {
         case .media(let value):
             try ReaderM2.hostCompleteMediaDownload.encode(requestId: requestId,
                                                           params: .init(operationId: operationId, result: value))
+        case .mangaInput(let value):
+            try ReaderM3.hostCompleteMangaTransferInput.encode(requestId: requestId,
+                                                              params: .init(operationId: operationId, result: value))
+        case .mangaOutput(let value):
+            try ReaderM3.hostCompleteMangaTransferOutput.encode(requestId: requestId,
+                                                               params: .init(operationId: operationId, result: value))
         }
     }
 

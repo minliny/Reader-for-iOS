@@ -31,6 +31,8 @@ public enum CoreHostReply: Sendable {
     case cookieSet(M2HostCookieSetResponse)
     case webView(M2HostWebViewEvaluateJavaScriptResponse)
     case media(M2HostMediaDownloadResponse)
+    case mangaInput(M3MangaTransferInputReceipt)
+    case mangaOutput(M3MangaTransferOutputReceipt)
     case networkFailure(M2HostErrorParams)
 }
 
@@ -39,6 +41,7 @@ public protocol CoreHost: Sendable {
     var protocolExtensions: [String] { get }
     func execute(_ request: ReaderHostRequestEvent) async -> CoreHostReply
     func executeNetwork(_ request: CoreNetworkHostRequest, operationId: Int64) async -> CoreHostReply
+    func executeManga(_ request: M3MangaResourceTransferHostRequest, assets: CoreMangaAssets) async -> CoreHostReply
     func discardUnsent(_ reply: CoreHostReply) async
 }
 
@@ -52,6 +55,12 @@ public extension CoreHost {
     }
 
     func discardUnsent(_ reply: CoreHostReply) async {}
+
+    func executeManga(_ request: M3MangaResourceTransferHostRequest, assets: CoreMangaAssets) async -> CoreHostReply {
+        .networkFailure(.init(operationId: request.operationId,
+                              error: .init(code: .internal, message: "Manga transfer is unavailable", retryable: false),
+                              diagnostics: .init(code: .capabilityUnavailable, phase: .request)))
+    }
 }
 
 public struct CoreDeliveryTotals: Sendable {
@@ -229,9 +238,14 @@ public actor CoreRuntimeActor {
                 }
                 guard hostWork[event.operationId] == nil else { throw CoreBridgeFailure.invalidEvent }
                 let networkRequest = try CoreNetworkHostRequest(capability: event.capability, bytes: bytes)
+                let mangaRequest = event.capability == .mangaResourceTransfer
+                    ? try decoder.decode(M3MangaResourceTransferHostRequest.self, from: bytes) : nil
                 let task = Task { [weak self, host] in
                     let reply: CoreHostReply
-                    if let networkRequest {
+                    if let mangaRequest, let self {
+                        let assets = await self.mangaAssets(for: mangaRequest)
+                        reply = await host.executeManga(mangaRequest, assets: assets)
+                    } else if let networkRequest {
                         reply = await host.executeNetwork(networkRequest, operationId: event.operationId)
                     } else {
                         reply = await host.execute(event)
@@ -317,6 +331,25 @@ public actor CoreRuntimeActor {
 
     private func cancelHostWork(owner: CoreOperationID) {
         for work in hostWork.values where work.owner == owner { work.task.cancel() }
+    }
+
+    private func mangaAssets(for request: M3MangaResourceTransferHostRequest) -> CoreMangaAssets {
+        CoreMangaAssets(
+            perform: { [weak self] action in
+                guard let self else { throw CoreBridgeFailure.closed }
+                return try await self.performMangaAsset(action, for: request)
+            }
+        )
+    }
+
+    private func performMangaAsset(_ action: CoreMangaAssets.Action,
+                                   for request: M3MangaResourceTransferHostRequest) throws -> CoreMangaAssets.Result {
+        let owner = operationID(request.requestId)
+        guard let transport, hostWork[request.operationId]?.owner == owner,
+              pending[owner] != nil, !cancelled.contains(owner) else {
+            throw CancellationError()
+        }
+        return try transport.performMangaAsset(action, for: request)
     }
 
     private func finishCloseIfDrained() {

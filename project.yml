@@ -48,6 +48,12 @@ targets:
   ReaderApp:
     type: application
     platform: iOS
+    info:
+      path: .build/ReaderApp-Info.plist
+      properties:
+        UIBackgroundModes: [audio]
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     sources:
       - Sources/ReaderApp
       - path: Resources/reader_ebook_runtime

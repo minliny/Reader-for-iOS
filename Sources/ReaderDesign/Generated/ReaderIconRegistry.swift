@@ -1,6 +1,6 @@
 // GENERATED FILE — DO NOT EDIT.
 // Generator: scripts/generate-m1-ui.mjs
-// Input: theme/icon-registry.json  9ab2d1fc4817be591e444749ef85865491464a948214b6f9a7cf2e6ad642ab94
+// Input: theme/icon-registry.json  09bfc5ea8e27a07a636da6b689eb933f83e48e9e480b1f3812e4cbd9cffd0d53
 
 public struct ReaderIconMapping: Sendable {
     public let systemName: String?
@@ -54,4 +54,26 @@ public enum ReaderIconRegistry {
     public static let sourceLoginUnknown = ReaderIconMapping(systemName: nil, assetName: "source_v9_question.svg", tintRole: "app.sourceUi.muted")
     public static let sourceLoginSecure = ReaderIconMapping(systemName: nil, assetName: "source_login_lock.svg", tintRole: "app.sourceUi.muted")
     public static let sourceSwitch = ReaderIconMapping(systemName: nil, assetName: "source_switch.svg", tintRole: "app.icon.rc_switch_horizontal.1F1B17")
+    public static let mangaImageUnavailable = ReaderIconMapping(systemName: nil, assetName: "manga_image_unavailable.svg", tintRole: "TOK_MUTED")
+    public static let mangaReadingVertical = ReaderIconMapping(systemName: nil, assetName: "manga_reading_vertical.svg", tintRole: "TOK_MUTED")
+    public static let mangaReadingVerticalSelected = ReaderIconMapping(systemName: nil, assetName: "manga_reading_vertical.svg", tintRole: "TOK_ON_PRIMARY")
+    public static let mangaReadingHorizontal = ReaderIconMapping(systemName: nil, assetName: "manga_reading_horizontal.svg", tintRole: "TOK_MUTED")
+    public static let mangaReadingHorizontalSelected = ReaderIconMapping(systemName: nil, assetName: "manga_reading_horizontal.svg", tintRole: "TOK_ON_PRIMARY")
+    public static let mangaPaper = ReaderIconMapping(systemName: nil, assetName: "manga_paper.svg", tintRole: "TOK_MUTED")
+    public static let mangaPaperSelected = ReaderIconMapping(systemName: nil, assetName: "manga_paper.svg", tintRole: "TOK_ON_PRIMARY")
+    public static let mangaInk = ReaderIconMapping(systemName: nil, assetName: "manga_ink.svg", tintRole: "TOK_MUTED")
+    public static let mangaInkSelected = ReaderIconMapping(systemName: nil, assetName: "manga_ink.svg", tintRole: "TOK_ON_PRIMARY")
+    public static let mangaLocate = ReaderIconMapping(systemName: nil, assetName: "manga_locate.svg", tintRole: "TOK_PRIMARY_TEXT")
+    public static let ttsHeadphones = ReaderIconMapping(systemName: nil, assetName: "tts_headphones.svg", tintRole: "app.icon.reader_tts_headphones.2F6373")
+    public static let ttsCapsulePlay = ReaderIconMapping(systemName: nil, assetName: "tts_capsule_play.svg", tintRole: "app.icon.reader_session_play.FFFAF4")
+    public static let ttsCapsulePause = ReaderIconMapping(systemName: nil, assetName: "tts_capsule_pause.svg", tintRole: "app.icon.reader_session_pause.FFFAF4")
+    public static let ttsPrevious = ReaderIconMapping(systemName: nil, assetName: "tts_previous.svg", tintRole: "app.icon.reader_tts_make_previous.332C25")
+    public static let ttsNext = ReaderIconMapping(systemName: nil, assetName: "tts_next.svg", tintRole: "app.icon.reader_tts_make_next.332C25")
+    public static let ttsPlay = ReaderIconMapping(systemName: nil, assetName: "tts_play.svg", tintRole: "app.icon.reader_tts_make_play.FFFAF4")
+    public static let ttsPause = ReaderIconMapping(systemName: nil, assetName: "tts_pause.svg", tintRole: "app.icon.reader_tts_make_pause.FFFAF4")
+    public static let ttsStop = ReaderIconMapping(systemName: nil, assetName: "tts_stop.svg", tintRole: "app.icon.reader_tts_make_stop.A8543A")
+    public static let ttsTimer = ReaderIconMapping(systemName: nil, assetName: "tts_timer.svg", tintRole: "app.icon.reader_tts_clock.2F6373")
+    public static let ttsRate = ReaderIconMapping(systemName: nil, assetName: "tts_rate.svg", tintRole: "app.icon.reader_tts_rate.2F6373")
+    public static let ttsSystemEngine = ReaderIconMapping(systemName: nil, assetName: "tts_system_engine.svg", tintRole: "app.icon.reader_tts_system_engine.1F3528")
+    public static let ttsOnlineEngine = ReaderIconMapping(systemName: nil, assetName: "tts_online_engine.svg", tintRole: "app.icon.reader_tts_online_engine.756F69")
 }

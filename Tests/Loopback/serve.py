@@ -7,8 +7,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import re
 import socket
+import ssl
 from threading import Event, Lock
 from urllib.parse import parse_qs, urlsplit
+
+import m3
 
 
 MEDIA = bytes(range(256)) * (3 * 4096)
@@ -154,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/host/"):
             self.host(path, query)
             return
-        if self.books(path, mode, query):
+        if m3.route(self, path, query) or self.books(path, mode, query):
             return
         self.reply(404, "unknown fixture route")
 
@@ -164,7 +167,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json(fixture.state())
             return
         target = query.get("path", [None])[0]
-        if self.command != "POST" or not target or not target.startswith(("/host/", "/books/")):
+        if self.command != "POST" or not target or not target.startswith(("/host/", "/books/", "/m3/")):
             self.reply(400, "invalid fixture control")
             return
         if path == "/control/release":
@@ -293,10 +296,21 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=18765)
+    parser.add_argument("--tls-cert")
+    parser.add_argument("--tls-key")
     args = parser.parse_args()
+    if bool(args.tls_cert) != bool(args.tls_key):
+        parser.error("TLS requires both fixture certificate and private key")
     with ThreadingHTTPServer(("127.0.0.1", args.port), Handler) as server:
         server.fixture = Fixture()
-        print(f"M2_FIXTURE_READY http://127.0.0.1:{server.server_port}", flush=True)
+        scheme = "http"
+        if args.tls_cert:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(args.tls_cert, args.tls_key)
+            server.socket = context.wrap_socket(server.socket, server_side=True)
+            scheme = "https"
+        print(f"M2_FIXTURE_READY {scheme}://127.0.0.1:{server.server_port}", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

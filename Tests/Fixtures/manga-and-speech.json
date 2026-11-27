@@ -1,0 +1,54 @@
+{
+  "manga": {
+    "sourceId": "m3-shared-manga",
+    "bookId": "m3-manga-book",
+    "baseUrl": "https://m3.fixture.invalid/manga",
+    "catalogHtml": "<ol><li><a href='/manga/chapter'>图页章</a></li></ol>",
+    "chapterHtml": "<img src='/manga/page-one.png'><img src='/manga/page-two.png'><img src='/manga/page-three.png'>",
+    "pageNames": [
+      "page-one.png",
+      "page-two.png",
+      "page-three.png"
+    ],
+    "targetOrdinal": 1,
+    "normalizedX": 0.375,
+    "normalizedY": 0.625,
+    "displayFragments": [
+      {
+        "startY": 0,
+        "endY": 0.5,
+        "logicalOrdinal": 1
+      },
+      {
+        "startY": 0.5,
+        "endY": 1,
+        "logicalOrdinal": 1
+      }
+    ]
+  },
+  "assets": {
+    "byteCount": 1048605,
+    "chunkBytes": 1048576,
+    "sha256": "c09662cb31c62b8d4dbcb4957729d8816d5c0a1a456b9d1c68b842cfd34753a1",
+    "bytePattern": "unsigned byte at index i is (i * 31 + 17) modulo 251"
+  },
+  "speech": {
+    "sourceId": "m3-shared-text",
+    "bookId": "m3-text-book",
+    "baseUrl": "https://m3.fixture.invalid/text",
+    "content": "甲𠀀é。乙🙂！",
+    "sourceScalars": 8,
+    "slices": [
+      {
+        "text": "甲𠀀é。",
+        "startScalar": 0,
+        "endScalar": 5
+      },
+      {
+        "text": "乙🙂！",
+        "startScalar": 5,
+        "endScalar": 8
+      }
+    ]
+  }
+}

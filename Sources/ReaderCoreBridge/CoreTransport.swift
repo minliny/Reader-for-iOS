@@ -37,7 +37,7 @@ private let coreEventCallback: @convention(c) (
 /// Borrowed only by the runtime actor. The raw callback context stays valid
 /// across native destruction, including a callback already in progress.
 final class CoreTransport {
-    private var handle: OpaquePointer?
+    private(set) var handle: OpaquePointer?
     private let sink: CallbackSink
 
     init(config: ReaderRuntimeConfig, sink: CallbackSink) throws {

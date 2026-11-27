@@ -1,12 +1,12 @@
 {
   "pins": {
-    "core": "4a840493d0a39f8771adb631c3dce490a365d915",
-    "ui": "4b096fe058731afe791747007f428182784d1592",
+    "core": "14fdd8f91549a30a7b7235088d3c524d128201d1",
+    "ui": "2f09c1855b043608f013da8df666714f387b60c3",
     "harmony": "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef"
   },
   "harmonyPairedCore": "f9c06b68166fe71970b6b458d14fcddf0ca588cd",
   "harmonyDependencySHA256": "9ed0ba36d22e3cbfa3971a0b85ea7bc8d7500f13899dcc84c10634372a1489bd",
-  "uiManifestSHA256": "78f606fddce507d66639bbba8dbced5b3d2d1f07cf8bfef8b1b83cddf73ee0d7",
+  "uiManifestSHA256": "519c002186501c132d9cf1fa28b287021e894b5303d469eafeff28611faf5b59",
   "authoritySHA256": {
     "protocol/reader-command.schema.json": "0ba9a587929fe7612886bc54fd463ba1cea382cf9cb0a979b37e96c0cd7fbad0",
     "protocol/reader-event.schema.json": "e0a79f46acfa62370dcc48311c03636e3b034c8e9207e6d176450bf65f45c695",
@@ -18,10 +18,14 @@
     "protocol/reader-m2-search.schema.json": "64f69b9b22522f5af679db85e0510f7779cffcfddbd294b7c52408bde5accd81",
     "protocol/reader-m2-download.schema.json": "ad1dcd655280eff33ad53c099fa5a8d4a670e76306f0472243465408cf108554",
     "protocol/reader-m2-reading.schema.json": "8add0b72bea24ee8aa696684b219f1a931ab869691154ee80e601fb5c675650c",
+    "protocol/reader-m3-bindings.schema.json": "57bab07360efa8c8d4b8034ac250d50e3da30058256c7c83d6c926a270ee5bc0",
+    "protocol/reader-m3-manga.schema.json": "6b4f2724126b1beddd69192908ee690aca37f2b9775d2297c98fcabb49d115a7",
+    "protocol/reader-m3-speech.schema.json": "2b4f58a59c1329782fa90bd271217d2187a292171577cc9cb89cac1dbc54fed4",
+    "protocol/reader-m3-reading-entry.schema.json": "cb9f04605baf3975d109703c32da3e955aed6957d0f481757645be7a1691641e",
     "include/reader_core.h": "39bccdedd75e5a81c66053e93f79c23e486e91ef126cc2cb83bea5146d614c99",
     "theme/registry.json": "17339c9c8d876989575894e4a1f3c5a6b229cf72748d6398963c681820bda1df",
-    "theme/design-metrics.json": "ee9faa0aed4f7daab49744cacb248ebd1ecbc5c244bc553be95423990d5dbbfd",
-    "theme/icon-registry.json": "9ab2d1fc4817be591e444749ef85865491464a948214b6f9a7cf2e6ad642ab94",
+    "theme/design-metrics.json": "aef9a0326a1730702c458ddb94e2746928e86fdc9676a64c90bec0aef5afb592",
+    "theme/icon-registry.json": "09bfc5ea8e27a07a636da6b689eb933f83e48e9e480b1f3812e4cbd9cffd0d53",
     "design/source-switch/source-switch.visual.json": "205de7f89121243e6ef4490f4863c6f4874e928a7eb5a66f52b41f0275c8d977",
     "theme/icons/reader_control_header_chevron.svg": "176f7ea3416d297cf7437ff30b40877e7dc54aeb0fe492153930cb29e2aa1caa",
     "theme/icons/settings_gen_navigation.svg": "ef696bb6844746dd733207c0e436be713ad1eda666681a137dc141ede0440f5d",
@@ -31,6 +35,24 @@
     "theme/icons/source_v9_question.svg": "abd067b653830c57b76d4e05d0977eaa876bb6642ddbf4c8f943c56e07bed29f",
     "theme/icons/source_login_lock.svg": "89bf510744936a1a6512692b30e59e2b9530b60c5381c914a5d8dc9b8fd14c4a",
     "theme/icons/source_switch.svg": "045b598535fb93042437ef023c59b7a86541d6641eb00b4ca78c03ec5aeb1226",
+    "theme/icons/manga_image_unavailable.svg": "f80ae0083470362ea15ebb61875fc8492c12c98172f98139f06c355c33c2018c",
+    "theme/icons/manga_reading_vertical.svg": "28a15b4ad6e93e52dc48f0d5a200621e8b89b3b5c3b21f4f582368ad919bcd19",
+    "theme/icons/manga_reading_horizontal.svg": "00f61d684ce357f83b1d8f56849f16bf3b8212d5ce443aec039d69facdda8cd9",
+    "theme/icons/manga_paper.svg": "170e7429dfa24c02d489642ee6bbdc1f7f8a09b62342138ece34293582afa651",
+    "theme/icons/manga_ink.svg": "b1c64c879355fd212da0bdf2857d519b317bd4eb9f18d842b112f37a8e8ba82b",
+    "theme/icons/manga_locate.svg": "72d5743a52b86f7024ae11ca3c27c843d809bbf286f38d88c08a32343c6949c9",
+    "theme/icons/tts_headphones.svg": "0bb91b6e30d5205e324a305595300d4c9bebd10c2c6c1a0ff128c517edece7fc",
+    "theme/icons/tts_capsule_play.svg": "66066bafbf955727a942f159db94f67093cf8697906d94098ff3f9a7b4b9ae3a",
+    "theme/icons/tts_capsule_pause.svg": "ca109c8b77336c05e066837361833758a9836f060ca4e68928de3c80ea6b61a2",
+    "theme/icons/tts_previous.svg": "3cd3d273ee8ef688291991031cfa0bd9c4044f9a480c3e0305761f7acf37a05c",
+    "theme/icons/tts_next.svg": "e425a07bc37bb6b4dcf35ad4e6f873c553a1ce57eb29c367c1b7c58fec28cbdb",
+    "theme/icons/tts_play.svg": "7cfb9f6718efd5dbb3b3e4392288e3d63322150001f147cf5297e5aa25254391",
+    "theme/icons/tts_pause.svg": "e36e12e4e0e8cbf9a1fe9775d4559dd20f9a4ab27b0f5f770118d79f4ea46472",
+    "theme/icons/tts_stop.svg": "8f40a30ec8e2f54c12101137397fb40beadc1cae1bdf05f1a6d100fbddf5803d",
+    "theme/icons/tts_timer.svg": "8f1f5d0fb6fbca54f9fdd358e8b7b26716307f235a35b2878b1c5280c1594340",
+    "theme/icons/tts_rate.svg": "d1dad6ef80f693ae50547ae945cd591e763817244685edb8f93b3d6d20b0e2c5",
+    "theme/icons/tts_system_engine.svg": "2d118efa833f8109307d0aa2f27eb803ea14c4babffcffb0de6aab369a8546b0",
+    "theme/icons/tts_online_engine.svg": "38fba472d24377cd6566cd6f493b2c44a5c08df43a9e849b52e789389fb253e6",
     "scripts/generate-m1-ui.mjs": "036ed5d7e75f57db709e86b4bd67356a74d8aa37e40d6d786f357c4a645cba86",
     "scripts/generate-theme-tokens.mjs": "d1d45e180ea1392d9e2b9420d81abe5711ed91f69e8a8e79fbd81ec183a01ed5",
     "reader_ebook_runtime/fixtures/generate-m1-window.py": "dad21aeb7fab6e4c83caaecbb3513a696084646319710b978a16fbe4eb631d78",
@@ -48,6 +70,54 @@
     "Resources/reader_design/Fonts/OFL.txt": {
       "source": "fonts/OFL.txt",
       "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_image_unavailable.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/manga_image_unavailable.svg",
+      "sha256": "127b1e224e261d534bf2c0c5d159ab2744b0c28027f5b7431ba7b7271eb9b9a6"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_image_unavailable.imageset/manga_image_unavailable.svg": {
+      "source": "theme/icons/manga_image_unavailable.svg",
+      "sha256": "f80ae0083470362ea15ebb61875fc8492c12c98172f98139f06c355c33c2018c"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_ink.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/manga_ink.svg",
+      "sha256": "c09c10faae32e52b8affa5d7487e8f0afb396c5d12494744766418acd6d4e9d5"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_ink.imageset/manga_ink.svg": {
+      "source": "theme/icons/manga_ink.svg",
+      "sha256": "b1c64c879355fd212da0bdf2857d519b317bd4eb9f18d842b112f37a8e8ba82b"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_locate.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/manga_locate.svg",
+      "sha256": "09dc157234dce19dd7a4a5db904b7e5895f1ca208e069abf357f46643f5e74ab"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_locate.imageset/manga_locate.svg": {
+      "source": "theme/icons/manga_locate.svg",
+      "sha256": "72d5743a52b86f7024ae11ca3c27c843d809bbf286f38d88c08a32343c6949c9"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_paper.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/manga_paper.svg",
+      "sha256": "98daf76094bbf758cc2d0b3627b2931e816fe1930a062f604f19f7f6cd5802ef"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_paper.imageset/manga_paper.svg": {
+      "source": "theme/icons/manga_paper.svg",
+      "sha256": "170e7429dfa24c02d489642ee6bbdc1f7f8a09b62342138ece34293582afa651"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_reading_horizontal.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/manga_reading_horizontal.svg",
+      "sha256": "63ed7c5cb5439f0f66e1b791d84c19d3e59e4ef7cb80aa8a43fedda4e62da6e9"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_reading_horizontal.imageset/manga_reading_horizontal.svg": {
+      "source": "theme/icons/manga_reading_horizontal.svg",
+      "sha256": "00f61d684ce357f83b1d8f56849f16bf3b8212d5ce443aec039d69facdda8cd9"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_reading_vertical.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/manga_reading_vertical.svg",
+      "sha256": "55bd3b17635b2d5379db96dc79a89cac79c0144e6d547323cca140d558a4e7aa"
+    },
+    "Resources/reader_design/Icons.xcassets/manga_reading_vertical.imageset/manga_reading_vertical.svg": {
+      "source": "theme/icons/manga_reading_vertical.svg",
+      "sha256": "28a15b4ad6e93e52dc48f0d5a200621e8b89b3b5c3b21f4f582368ad919bcd19"
     },
     "Resources/reader_design/Icons.xcassets/reader_control_header_chevron.imageset/Contents.json": {
       "source": "Scripts/sync-inputs.py + theme/icons/reader_control_header_chevron.svg",
@@ -113,6 +183,102 @@
       "source": "theme/icons/source_v9_wave.svg",
       "sha256": "8bbb986a14152df870b29e30aab9522dc22e6f8656c8bf0516b69f20748bcaa2"
     },
+    "Resources/reader_design/Icons.xcassets/tts_capsule_pause.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_capsule_pause.svg",
+      "sha256": "83e166624c18059cebfb87e6af4e7fa1a87f72e57ae57f67073627f003615816"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_capsule_pause.imageset/tts_capsule_pause.svg": {
+      "source": "theme/icons/tts_capsule_pause.svg",
+      "sha256": "ca109c8b77336c05e066837361833758a9836f060ca4e68928de3c80ea6b61a2"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_capsule_play.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_capsule_play.svg",
+      "sha256": "142aa8b3c32e0ce75ed591e8e26e1c11aade4534144c8c84df287273873b2138"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_capsule_play.imageset/tts_capsule_play.svg": {
+      "source": "theme/icons/tts_capsule_play.svg",
+      "sha256": "66066bafbf955727a942f159db94f67093cf8697906d94098ff3f9a7b4b9ae3a"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_headphones.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_headphones.svg",
+      "sha256": "5fe3c59357c4eaca978cb794dd9619affcd1d87cc6efc6c38d8d5fcef711c26c"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_headphones.imageset/tts_headphones.svg": {
+      "source": "theme/icons/tts_headphones.svg",
+      "sha256": "0bb91b6e30d5205e324a305595300d4c9bebd10c2c6c1a0ff128c517edece7fc"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_next.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_next.svg",
+      "sha256": "cc2b90d902b54fe12fca04494f67d0dd7511422fb4588415ee703a0bccaec0b9"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_next.imageset/tts_next.svg": {
+      "source": "theme/icons/tts_next.svg",
+      "sha256": "e425a07bc37bb6b4dcf35ad4e6f873c553a1ce57eb29c367c1b7c58fec28cbdb"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_online_engine.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_online_engine.svg",
+      "sha256": "57216a768c8cf8f579a0abbb357418badfe350ea58313240bd3f81fbafa590f3"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_online_engine.imageset/tts_online_engine.svg": {
+      "source": "theme/icons/tts_online_engine.svg",
+      "sha256": "38fba472d24377cd6566cd6f493b2c44a5c08df43a9e849b52e789389fb253e6"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_pause.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_pause.svg",
+      "sha256": "1276ee0a8677d3a013a19e2ba691319b0fbc2bb0e69225cb66e6c9f764c64118"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_pause.imageset/tts_pause.svg": {
+      "source": "theme/icons/tts_pause.svg",
+      "sha256": "e36e12e4e0e8cbf9a1fe9775d4559dd20f9a4ab27b0f5f770118d79f4ea46472"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_play.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_play.svg",
+      "sha256": "fb0d769b3b120e1fcbea6ef622651f467ceba83b3a04bdef1d5731b69a1c6179"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_play.imageset/tts_play.svg": {
+      "source": "theme/icons/tts_play.svg",
+      "sha256": "7cfb9f6718efd5dbb3b3e4392288e3d63322150001f147cf5297e5aa25254391"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_previous.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_previous.svg",
+      "sha256": "ae96f38688002081c1fade9586f469948fe10bbf3058ff8d9749a16cf22b2de3"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_previous.imageset/tts_previous.svg": {
+      "source": "theme/icons/tts_previous.svg",
+      "sha256": "3cd3d273ee8ef688291991031cfa0bd9c4044f9a480c3e0305761f7acf37a05c"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_rate.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_rate.svg",
+      "sha256": "087292c1f1f142a2faa8bd3046e8476ed754c505b0b7971d0d96d3c35f83c31e"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_rate.imageset/tts_rate.svg": {
+      "source": "theme/icons/tts_rate.svg",
+      "sha256": "d1dad6ef80f693ae50547ae945cd591e763817244685edb8f93b3d6d20b0e2c5"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_stop.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_stop.svg",
+      "sha256": "d118f8076e1c62042f6869dfae061f1acb447a10c8276f06046d172b03f2e96c"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_stop.imageset/tts_stop.svg": {
+      "source": "theme/icons/tts_stop.svg",
+      "sha256": "8f40a30ec8e2f54c12101137397fb40beadc1cae1bdf05f1a6d100fbddf5803d"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_system_engine.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_system_engine.svg",
+      "sha256": "34139b0885092d0d41a9c2df10b265314ff24b3b2e3114257e478fe3f30e20e6"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_system_engine.imageset/tts_system_engine.svg": {
+      "source": "theme/icons/tts_system_engine.svg",
+      "sha256": "2d118efa833f8109307d0aa2f27eb803ea14c4babffcffb0de6aab369a8546b0"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_timer.imageset/Contents.json": {
+      "source": "Scripts/sync-inputs.py + theme/icons/tts_timer.svg",
+      "sha256": "ae9d753e96a35fbd72c8c1b3534e3906b49ea3f9c4afc38d7c2fab58e0e5f4a1"
+    },
+    "Resources/reader_design/Icons.xcassets/tts_timer.imageset/tts_timer.svg": {
+      "source": "theme/icons/tts_timer.svg",
+      "sha256": "8f1f5d0fb6fbca54f9fdd358e8b7b26716307f235a35b2878b1c5280c1594340"
+    },
     "Resources/reader_ebook_runtime/reader-ebook-dom.js": {
       "source": "reader_ebook_runtime/reader-ebook-dom.js",
       "sha256": "013f16e5f39bda18d3aa3175bd1c16442a6130a7f80107db1211061744927f66"
@@ -127,15 +293,15 @@
     },
     "Sources/ReaderCoreBridge/Generated/ReaderProtocolModels.swift": {
       "source": "bindings/ios/Sources/ReaderCoreClient/Generated/ReaderProtocolModels.swift",
-      "sha256": "59380f67b2db35be4960fa4542db928236a312e6ed693420675d200a4e83511a"
+      "sha256": "d1818901104643aa5c31ce2a51a8ca13a44a73bc98369ffc52f848e023c88af3"
     },
     "Sources/ReaderDesign/Generated/ReaderDesignMetrics.swift": {
       "source": "theme/generated/ios/ReaderDesignMetrics.swift",
-      "sha256": "d3aba0e33bc803de258eb03a2ac67856369f9bdb548df8341cb094275b5369cc"
+      "sha256": "b6fcd8cfa68d78aa61d5099e8f902d70613b25a6f7c974cabfb2c20852695175"
     },
     "Sources/ReaderDesign/Generated/ReaderIconRegistry.swift": {
       "source": "theme/generated/ios/ReaderIconRegistry.swift",
-      "sha256": "83cb32a87b090e3cd3d0a1e47e73427fd480c324a42db9028ec219d1bfa8c162"
+      "sha256": "102c2a0bb201c673ecf6c23f5533221ddb2e2c68300ee257d745ca2bbe576321"
     },
     "Sources/ReaderDesign/Generated/ReaderThemeTokens.swift": {
       "source": "theme/generated/ios/ReaderThemeTokens.swift",
@@ -156,6 +322,10 @@
     "Tests/Fixtures/m1-window.epub": {
       "source": "reader_ebook_runtime/fixtures/m1-window.epub",
       "sha256": "35efc3246026578c8f56ea227964bb05a5d7cd8d49ee0f7794221f9ab3a4481e"
+    },
+    "Tests/Fixtures/manga-and-speech.json": {
+      "source": "protocol/fixtures/m3/manga-and-speech.json",
+      "sha256": "8f2a6841ec0e419489f691ff4447404f3682008bdd771da23349830900299e94"
     },
     "Tests/Fixtures/reading-lifecycle.json": {
       "source": "protocol/fixtures/m1/reading-lifecycle.json",

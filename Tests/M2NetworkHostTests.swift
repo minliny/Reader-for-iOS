@@ -14,7 +14,8 @@ final class M2NetworkHostTests: XCTestCase {
             let runtime = library.runtime
             let network = try XCTUnwrap(library.network)
             XCTAssertEqual(Set(network.capabilities),
-                           [.timeNow, .hostSmokeEcho, .httpExecute, .cookieGet, .cookieSet, .webviewEvaluateJavaScript, .mediaDownload])
+                           [.timeNow, .hostSmokeEcho, .httpExecute, .cookieGet, .cookieSet, .webviewEvaluateJavaScript, .mediaDownload,
+                            .mangaResourceTransfer])
             XCTAssertEqual(network.protocolExtensions, ["http.execute.timeoutMs.v1"])
             let set = try await runtime.request(ReaderM2.runtimeHostSmokeCookieSet, .init(params: .init(
                 cookie: .init(name: "reader_m2", value: "loopback-only", path: "/"),

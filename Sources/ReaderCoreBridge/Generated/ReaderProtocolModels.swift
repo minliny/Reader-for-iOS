@@ -11,6 +11,10 @@
 //   protocol/reader-m2-search.schema.json  64f69b9b22522f5af679db85e0510f7779cffcfddbd294b7c52408bde5accd81
 //   protocol/reader-m2-download.schema.json  ad1dcd655280eff33ad53c099fa5a8d4a670e76306f0472243465408cf108554
 //   protocol/reader-m2-reading.schema.json  8add0b72bea24ee8aa696684b219f1a931ab869691154ee80e601fb5c675650c
+//   protocol/reader-m3-bindings.schema.json  57bab07360efa8c8d4b8034ac250d50e3da30058256c7c83d6c926a270ee5bc0
+//   protocol/reader-m3-manga.schema.json  6b4f2724126b1beddd69192908ee690aca37f2b9775d2297c98fcabb49d115a7
+//   protocol/reader-m3-speech.schema.json  2b4f58a59c1329782fa90bd271217d2187a292171577cc9cb89cac1dbc54fed4
+//   protocol/reader-m3-reading-entry.schema.json  cb9f04605baf3975d109703c32da3e955aed6957d0f481757645be7a1691641e
 // Module: ReaderCoreClient / Generated. Types are Codable + Sendable so a
 // host can hand them between its own queues without shared mutable state.
 
@@ -64,7 +68,7 @@ public enum ReaderJSONValue: Codable, Sendable, Equatable {
     }
 }
 
-/// Every command method declared by reader-command.schema.json (242).
+/// Every command method declared by reader-command.schema.json (247).
 public enum ReaderCommandMethod: String, Codable, Sendable, CaseIterable {
     case bookHighlightCreate = "book-highlight.create"
     case bookHighlightUpdate = "book-highlight.update"
@@ -114,6 +118,11 @@ public enum ReaderCommandMethod: String, Codable, Sendable, CaseIterable {
     case dictRuleQuery = "dict-rule.query"
     case hostComplete = "host.complete"
     case hostError = "host.error"
+    case httpTtsBuildRequest = "http-tts.build-request"
+    case httpTtsDelete = "http-tts.delete"
+    case httpTtsGet = "http-tts.get"
+    case httpTtsList = "http-tts.list"
+    case httpTtsPut = "http-tts.put"
     case importFinalize = "import.finalize"
     case importParse = "import.parse"
     case importPersist = "import.persist"
@@ -11933,4 +11942,3531 @@ public struct M2ProtocolErrorEvent: Codable, Sendable {
 /// Wire values of M2ProtocolErrorEventType.
 public enum M2ProtocolErrorEventType: String, Codable, Sendable, CaseIterable {
     case error = "error"
+}
+
+public enum ReaderM3 {
+    public static let mangaChapterGet = ReaderRPC<M3MangaChapterGetParams, M3MangaChapterData>(method: .mangaChapterGet)
+    public static let mangaResourcePrepare = ReaderRPC<M3MangaResourcePrepareParams, M3MangaResourcePrepareData>(method: .mangaResourcePrepare)
+    public static let mangaEntryGet = ReaderRPC<M3MangaEntryGetParams, M3MangaEntryData>(method: .mangaEntryGet)
+    public static let mangaPagesWindow = ReaderRPC<M3MangaPagesWindowParams, M3MangaChapterWindow>(method: .mangaPagesWindow)
+    public static let mangaSourceSwitchCommit = ReaderRPC<M3MangaSourceSwitchParams, M3MangaSourceSwitchData>(method: .mangaSourceSwitchCommit)
+    public static let mangaResourceInspect = ReaderRPC<M3MangaResourceInspectParams, M3MangaResourceInspectData>(method: .mangaResourceInspect)
+    public static let mangaRetentionSet = ReaderRPC<M3MangaRetentionSetParams, M3MangaRetentionSetResult>(method: .mangaRetentionSet)
+    public static let mangaRetentionGet = ReaderRPC<M3MangaRetentionGetParams, M3MangaRetentionSetResult>(method: .mangaRetentionGet)
+    public static let mangaRetentionList = ReaderRPC<M3MangaRetentionListParams, M3MangaRetentionListResult>(method: .mangaRetentionList)
+    public static let mangaCacheRecordRead = ReaderRPC<M3MangaCacheRecordReadParams, M3MangaCacheRecordReadResult>(method: .mangaCacheRecordRead)
+    public static let mangaCacheEvict = ReaderRPC<M3MangaCacheEvictParams, M3MangaCacheEvictResult>(method: .mangaCacheEvict)
+    public static let mangaSessionProtect = ReaderRPC<M3MangaSessionProtectParams, M3MangaSessionProtectResult>(method: .mangaSessionProtect)
+    public static let mangaSessionRelease = ReaderRPC<M3MangaSessionReleaseParams, M3MangaSessionReleaseResult>(method: .mangaSessionRelease)
+    public static let mangaSessionRuntime = ReaderRPC<M3MangaSessionRuntimeParams, M3MangaSessionRuntimeResult>(method: .mangaSessionRuntime)
+    public static let mangaSessionReplace = ReaderRPC<M3MangaSessionReplaceParams, M3MangaSessionReplaceResult>(method: .mangaSessionReplace)
+    public static let mangaCacheMaterializationPrepare = ReaderRPC<M3MangaCacheMaterializationPrepareParams, M3MangaCacheMaterializationPrepareResult>(method: .mangaCacheMaterializationPrepare)
+    public static let mangaCacheMaterializationComplete = ReaderRPC<M3MangaCacheMaterializationCompleteParams, M3MangaCacheMaterializationCompleteResult>(method: .mangaCacheMaterializationComplete)
+    public static let mangaCacheMaterializationAbort = ReaderRPC<M3MangaCacheMaterializationAbortParams, M3MangaCacheMaterializationAbortResult>(method: .mangaCacheMaterializationAbort)
+    public static let mangaCacheClassify = ReaderRPC<M3MangaCacheVersionParams, M3MangaCacheClassifyResult>(method: .mangaCacheClassify)
+    public static let mangaCacheClassifyBatch = ReaderRPC<M3MangaCacheClassifyBatchParams, M3MangaCacheClassifyBatchResult>(method: .mangaCacheClassifyBatch)
+    public static let mangaCacheEvictionClaim = ReaderRPC<M3MangaCacheEvictionClaimParams, M3MangaCacheEvictionClaimResult>(method: .mangaCacheEvictionClaim)
+    public static let mangaCacheEvictionComplete = ReaderRPC<M3MangaCacheEvictionCompleteParams, M3MangaCacheEvictionCompleteResult>(method: .mangaCacheEvictionComplete)
+    public static let mangaCacheEvictionPending = ReaderRPC<M3MangaCacheEvictionPendingParams, M3MangaCacheEvictionPendingResult>(method: .mangaCacheEvictionPending)
+    public static let mangaSourceSwitchCommitV2 = ReaderRPC<M3MangaSourceSwitchOperationParams, M3MangaSourceSwitchOperationReceipt>(method: .mangaSourceSwitchCommitV2)
+    public static let mangaSourceSwitchOperationQueryV1 = ReaderRPC<M3MangaSourceSwitchOperationQueryParams, M3MangaSourceSwitchOperationQueryData>(method: .mangaSourceSwitchOperationQueryV1)
+    public static let readingProgressGetManga = ReaderRPC<M3MangaProgressGetParams, M3MangaProgressState>(method: .readingProgressGet)
+    public static let readingProgressUpdateManga = ReaderRPC<M3MangaProgressUpdateParams, M3MangaProgressState>(method: .readingProgressUpdate)
+    public static let cacheBookPrefetch = ReaderRPC<M3CacheBookPrefetchParams, M3CacheBookPrefetchData>(method: .cacheBookPrefetch)
+    public static let cacheBookStatus = ReaderRPC<M3CacheBookStatusParams, M3CacheBookStatusData>(method: .cacheBookStatus)
+    public static let cacheDownloadPause = ReaderRPC<M3CacheDownloadTaskParams, M3CacheDownloadTaskResult>(method: .cacheDownloadPause)
+    public static let cacheDownloadResume = ReaderRPC<M3CacheDownloadTaskParams, M3CacheDownloadTaskResult>(method: .cacheDownloadResume)
+    public static let cacheDownloadCancel = ReaderRPC<M3CacheDownloadTaskParams, M3CacheDownloadTaskResult>(method: .cacheDownloadCancel)
+    public static let cacheDownloadOperationQuery = ReaderRPC<M3CacheDownloadOperationQueryParams, M3DownloadOperationQueryData>(method: .cacheDownloadOperationQuery)
+    public static let cacheDownloadOperationSettle = ReaderRPC<M3CacheDownloadOperationSettleParams, M3DownloadOperationReceipt>(method: .cacheDownloadOperationSettle)
+    public static let cacheChapterMaterializationReport = ReaderRPC<M3CacheChapterMaterializationReportParams, M3CacheChapterMaterializationReportData>(method: .cacheChapterMaterializationReport)
+    public static let readingEntryPrepare = ReaderRPC<M3ReadingEntryPrepareParams, M3ReadingEntryPrepareData>(method: .readingEntryPrepare)
+    public static let ttsQueueReportCallback = ReaderRPC<M3TtsQueueReportCallbackParams, M3TtsQueueReportCallbackData>(method: .ttsQueueReportCallback)
+    public static let ttsSlice = ReaderRPC<M3TtsSliceParams, M3TtsSliceData>(method: .ttsSlice)
+    public static let ttsQueueStatus = ReaderRPC<M3TtsQueueStatusParams, M3TtsQueueStatusData>(method: .ttsQueueStatus)
+    public static let ttsChapterPlan = ReaderRPC<M3TtsChapterPlanParams, M3TtsChapterPlanData>(method: .ttsChapterPlan)
+    public static let ttsQueuePlay = ReaderRPC<M3TtsQueuePlayParams, M3TtsQueuePlayData>(method: .ttsQueuePlay)
+    public static let ttsQueuePause = ReaderRPC<M3TtsQueuePauseParams, M3TtsQueuePauseData>(method: .ttsQueuePause)
+    public static let ttsQueueResume = ReaderRPC<M3TtsQueueResumeParams, M3TtsQueueResumeData>(method: .ttsQueueResume)
+    public static let ttsQueueStop = ReaderRPC<M3TtsQueueStopParams, M3TtsQueueStopData>(method: .ttsQueueStop)
+    public static let ttsQueueNext = ReaderRPC<M3TtsQueueNextParams, M3TtsQueueNextData>(method: .ttsQueueNext)
+    public static let ttsQueuePrev = ReaderRPC<M3TtsQueuePrevParams, M3TtsQueuePrevData>(method: .ttsQueuePrev)
+    public static let ttsQueueSeek = ReaderRPC<M3TtsQueueSeekParams, M3TtsQueueSeekData>(method: .ttsQueueSeek)
+    public static let ttsQueueSkip = ReaderRPC<M3TtsQueueSkipParams, M3TtsQueueSkipData>(method: .ttsQueueSkip)
+    public static let ttsQueueSetRate = ReaderRPC<M3TtsQueueSetRateParams, M3TtsQueueSetRateData>(method: .ttsQueueSetRate)
+    public static let ttsQueueReportStatus = ReaderRPC<M3TtsQueueReportStatusParams, M3TtsQueueReportStatusData>(method: .ttsQueueReportStatus)
+    public static let ttsConfigGet = ReaderRPC<M3EmptyParams, M3TtsConfigGetData>(method: .ttsConfigGet)
+    public static let ttsConfigPut = ReaderRPC<M3TtsConfigPutParams, M3TtsConfigPutData>(method: .ttsConfigPut)
+    public static let httpTtsPut = ReaderRPC<M3HttpTtsPutParams, M3HttpTtsPutData>(method: .httpTtsPut)
+    public static let httpTtsGet = ReaderRPC<M3HttpTtsGetParams, M3HttpTtsGetData>(method: .httpTtsGet)
+    public static let httpTtsList = ReaderRPC<M3EmptyParams, M3HttpTtsListData>(method: .httpTtsList)
+    public static let httpTtsDelete = ReaderRPC<M3HttpTtsDeleteParams, M3HttpTtsDeleteData>(method: .httpTtsDelete)
+    public static let httpTtsBuildRequest = ReaderRPC<M3HttpTtsBuildRequestParams, M3HttpTtsBuildRequestData>(method: .httpTtsBuildRequest)
+    public static let hostCompleteMangaTransferInput = ReaderRPC<M3MangaTransferInputCompleteParams, M3EmptyParams>(method: .hostComplete)
+    public static let hostCompleteMangaTransferOutput = ReaderRPC<M3MangaTransferOutputCompleteParams, M3EmptyParams>(method: .hostComplete)
+    /// Codec for rc_runtime_read_prepared_entry. No RPC envelope or requestId.
+    public static func encodePreparedEntryParams(_ params: M3ReadingEntryFirstFrameParams) throws -> Data {
+        try JSONEncoder().encode(params)
+    }
+    public static func decodePreparedEntryResult(_ bytes: Data) throws -> M3ReadingEntryFirstFrameData {
+        try JSONDecoder().decode(M3ReadingEntryFirstFrameData.self, from: bytes)
+    }
+}
+
+public struct M3MangaChapterGetParams: Codable, Sendable {
+    public let directoryTargetProof: M3DirectoryTargetProof?
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let policy: M3MangaChapterGetParamsPolicy?
+    public let expectedManifestVersion: String?
+    public let preparationRevision: Int64?
+    public let anchor: M3MangaChapterAnchor?
+
+    public init(directoryTargetProof: M3DirectoryTargetProof? = nil, sourceId: String, bookId: String, chapterIndex: Int64, policy: M3MangaChapterGetParamsPolicy? = nil, expectedManifestVersion: String? = nil, preparationRevision: Int64? = nil, anchor: M3MangaChapterAnchor? = nil) {
+        self.directoryTargetProof = directoryTargetProof
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.policy = policy
+        self.expectedManifestVersion = expectedManifestVersion
+        self.preparationRevision = preparationRevision
+        self.anchor = anchor
+    }
+}
+
+public struct M3DirectoryTargetProof: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let catalogRevision: String
+    public let structureRevision: String
+    public let nodeId: String
+    public let chapterIndex: Int64
+    public let url: String
+
+    public init(sourceId: String, bookId: String, catalogRevision: String, structureRevision: String, nodeId: String, chapterIndex: Int64, url: String) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.catalogRevision = catalogRevision
+        self.structureRevision = structureRevision
+        self.nodeId = nodeId
+        self.chapterIndex = chapterIndex
+        self.url = url
+    }
+}
+
+/// Wire values of M3MangaChapterGetParamsPolicy.
+public enum M3MangaChapterGetParamsPolicy: String, Codable, Sendable, CaseIterable {
+    case cacheOnly = "cacheOnly"
+    case cacheFirst = "cacheFirst"
+    case refresh = "refresh"
+}
+
+public struct M3MangaChapterAnchor: Codable, Sendable {
+    public let pageId: String
+    public let ordinal: Int64
+
+    public init(pageId: String, ordinal: Int64) {
+        self.pageId = pageId
+        self.ordinal = ordinal
+    }
+}
+
+public struct M3MangaChapterData: Codable, Sendable {
+    public let manifest: M3MangaManifest
+    public let chapterIndex: Int64
+    public let chapterTitle: String
+    public let cached: Bool
+    public let resources: [M3MangaResourceData]
+    public let progressMapping: M3MangaProgressMapping?
+    public let anchorMapping: M3MangaAnchorMapping?
+
+    public init(manifest: M3MangaManifest, chapterIndex: Int64, chapterTitle: String, cached: Bool, resources: [M3MangaResourceData], progressMapping: M3MangaProgressMapping? = nil, anchorMapping: M3MangaAnchorMapping? = nil) {
+        self.manifest = manifest
+        self.chapterIndex = chapterIndex
+        self.chapterTitle = chapterTitle
+        self.cached = cached
+        self.resources = resources
+        self.progressMapping = progressMapping
+        self.anchorMapping = anchorMapping
+    }
+}
+
+public struct M3MangaManifest: Codable, Sendable {
+    public let chapter: M3MangaChapterIdentity
+    public let sourceRuleVersion: String
+    public let manifestVersion: String
+    public let decodeRevision: String
+    public let pages: [M3MangaManifestPage]
+    public let displayHints: M3MangaDisplayHints?
+
+    public init(chapter: M3MangaChapterIdentity, sourceRuleVersion: String, manifestVersion: String, decodeRevision: String, pages: [M3MangaManifestPage], displayHints: M3MangaDisplayHints? = nil) {
+        self.chapter = chapter
+        self.sourceRuleVersion = sourceRuleVersion
+        self.manifestVersion = manifestVersion
+        self.decodeRevision = decodeRevision
+        self.pages = pages
+        self.displayHints = displayHints
+    }
+}
+
+public struct M3MangaChapterIdentity: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterId: String
+
+    public init(sourceId: String, bookId: String, chapterId: String) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterId = chapterId
+    }
+}
+
+public struct M3MangaManifestPage: Codable, Sendable {
+    public let pageId: String
+    public let ordinal: Int64
+    public let resourceRef: String
+    public let identity: M3MangaPageIdentity?
+
+    public init(pageId: String, ordinal: Int64, resourceRef: String, identity: M3MangaPageIdentity? = nil) {
+        self.pageId = pageId
+        self.ordinal = ordinal
+        self.resourceRef = resourceRef
+        self.identity = identity
+    }
+}
+
+public struct M3MangaPageIdentity: Codable, Sendable {
+    public let kind: M3MangaPageIdentityKind
+    public let value: String
+
+    public init(kind: M3MangaPageIdentityKind, value: String) {
+        self.kind = kind
+        self.value = value
+    }
+}
+
+/// Wire values of M3MangaPageIdentityKind.
+public enum M3MangaPageIdentityKind: String, Codable, Sendable, CaseIterable {
+    case sourceId = "sourceId"
+    case request = "request"
+}
+
+public struct M3MangaDisplayHints: Codable, Sendable {
+    public let sourceImageStyle: String
+    public let fit: M3MangaDisplayHintsFit?
+
+    public init(sourceImageStyle: String, fit: M3MangaDisplayHintsFit? = nil) {
+        self.sourceImageStyle = sourceImageStyle
+        self.fit = fit
+    }
+}
+
+/// Wire values of M3MangaDisplayHintsFit.
+public enum M3MangaDisplayHintsFit: String, Codable, Sendable, CaseIterable {
+    case width = "width"
+    case contain = "contain"
+}
+
+public struct M3MangaResourceData: Codable, Sendable {
+    public let resourceRef: String
+    public let request: M3MangaResourceDataRequest
+
+    public init(resourceRef: String, request: M3MangaResourceDataRequest) {
+        self.resourceRef = resourceRef
+        self.request = request
+    }
+}
+
+public struct M3MangaResourceDataRequest: Codable, Sendable {
+    public let url: String
+    public let requestRule: String?
+    public let referrer: String?
+    public let headers: [String: String]?
+    public let sourcePageId: String?
+
+    public init(url: String, requestRule: String? = nil, referrer: String? = nil, headers: [String: String]? = nil, sourcePageId: String? = nil) {
+        self.url = url
+        self.requestRule = requestRule
+        self.referrer = referrer
+        self.headers = headers
+        self.sourcePageId = sourcePageId
+    }
+}
+
+public struct M3MangaProgressMapping: Codable, Sendable {
+    public let status: M3MangaProgressMappingStatus
+    public let reason: String
+    public let fromManifestVersion: String
+    public let fromPageId: String
+    public let progressRevision: Int64
+    public let targetPageId: String?
+    public let targetOrdinal: Int64?
+
+    public init(status: M3MangaProgressMappingStatus, reason: String, fromManifestVersion: String, fromPageId: String, progressRevision: Int64, targetPageId: String? = nil, targetOrdinal: Int64? = nil) {
+        self.status = status
+        self.reason = reason
+        self.fromManifestVersion = fromManifestVersion
+        self.fromPageId = fromPageId
+        self.progressRevision = progressRevision
+        self.targetPageId = targetPageId
+        self.targetOrdinal = targetOrdinal
+    }
+}
+
+/// Wire values of M3MangaProgressMappingStatus.
+public enum M3MangaProgressMappingStatus: String, Codable, Sendable, CaseIterable {
+    case exact = "exact"
+    case approximate = "approximate"
+    case unresolved = "unresolved"
+}
+
+public struct M3MangaAnchorMapping: Codable, Sendable {
+    public let status: M3MangaAnchorMappingStatus
+    public let reason: String
+    public let fromManifestVersion: String
+    public let fromPageId: String
+    public let targetPageId: String?
+    public let targetOrdinal: Int64?
+
+    public init(status: M3MangaAnchorMappingStatus, reason: String, fromManifestVersion: String, fromPageId: String, targetPageId: String? = nil, targetOrdinal: Int64? = nil) {
+        self.status = status
+        self.reason = reason
+        self.fromManifestVersion = fromManifestVersion
+        self.fromPageId = fromPageId
+        self.targetPageId = targetPageId
+        self.targetOrdinal = targetOrdinal
+    }
+}
+
+/// Wire values of M3MangaAnchorMappingStatus.
+public enum M3MangaAnchorMappingStatus: String, Codable, Sendable, CaseIterable {
+    case exact = "exact"
+    case approximate = "approximate"
+    case unresolved = "unresolved"
+}
+
+public struct M3MangaResourcePrepareParams: Codable, Sendable {
+    public let chapter: M3MangaChapterIdentity
+    public let manifestVersion: String
+    public let resourceRef: String
+    public let sourceRuleVersion: String
+    public let transferId: String
+
+    public init(chapter: M3MangaChapterIdentity, manifestVersion: String, resourceRef: String, sourceRuleVersion: String, transferId: String) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.resourceRef = resourceRef
+        self.sourceRuleVersion = sourceRuleVersion
+        self.transferId = transferId
+    }
+}
+
+public struct M3MangaResourcePrepareData: Codable, Sendable {
+    public let prepared: Bool
+    public let resourceRef: String
+    public let transferId: String
+    public let bytes: Int64
+
+    public init(prepared: Bool, resourceRef: String, transferId: String, bytes: Int64) {
+        self.prepared = prepared
+        self.resourceRef = resourceRef
+        self.transferId = transferId
+        self.bytes = bytes
+    }
+}
+
+public struct M3MangaEntryGetParams: Codable, Sendable {
+    public let directoryTargetProof: M3DirectoryTargetProof?
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64?
+
+    public init(directoryTargetProof: M3DirectoryTargetProof? = nil, sourceId: String, bookId: String, chapterIndex: Int64? = nil) {
+        self.directoryTargetProof = directoryTargetProof
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+    }
+}
+
+public struct M3MangaEntryData: Codable, Sendable {
+    public let entry: M3MangaPreparedEntry?
+
+    public init(entry: M3MangaPreparedEntry?) {
+        self.entry = entry
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case entry = "entry"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        entry = try fields.decode(M3MangaPreparedEntry?.self, forKey: .entry)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(entry, forKey: .entry)
+    }
+}
+
+public struct M3MangaPreparedEntry: Codable, Sendable {
+    public let resumeOnly: Bool?
+    public let chapter: M3MangaChapterWindow
+    public let progress: M3MangaProgressState
+    public let targetOrdinal: Int64
+    public let recoveryRequired: Bool
+    public let progressMapping: M3MangaProgressMapping?
+
+    public init(resumeOnly: Bool? = nil, chapter: M3MangaChapterWindow, progress: M3MangaProgressState, targetOrdinal: Int64, recoveryRequired: Bool, progressMapping: M3MangaProgressMapping? = nil) {
+        self.resumeOnly = resumeOnly
+        self.chapter = chapter
+        self.progress = progress
+        self.targetOrdinal = targetOrdinal
+        self.recoveryRequired = recoveryRequired
+        self.progressMapping = progressMapping
+    }
+}
+
+public struct M3MangaChapterWindow: Codable, Sendable {
+    public let resumeOnly: Bool?
+    public let manifest: M3MangaWindowManifest
+    public let chapterIndex: Int64
+    public let chapterTitle: String
+    public let cached: Bool
+    public let resources: [M3MangaResourceData]
+    public let pageStart: Int64
+    public let totalPages: Int64
+    public let progressMapping: M3MangaProgressMapping?
+    public let anchorMapping: M3MangaAnchorMapping?
+
+    public init(resumeOnly: Bool? = nil, manifest: M3MangaWindowManifest, chapterIndex: Int64, chapterTitle: String, cached: Bool, resources: [M3MangaResourceData], pageStart: Int64, totalPages: Int64, progressMapping: M3MangaProgressMapping? = nil, anchorMapping: M3MangaAnchorMapping? = nil) {
+        self.resumeOnly = resumeOnly
+        self.manifest = manifest
+        self.chapterIndex = chapterIndex
+        self.chapterTitle = chapterTitle
+        self.cached = cached
+        self.resources = resources
+        self.pageStart = pageStart
+        self.totalPages = totalPages
+        self.progressMapping = progressMapping
+        self.anchorMapping = anchorMapping
+    }
+}
+
+public struct M3MangaWindowManifest: Codable, Sendable {
+    public let chapter: M3MangaChapterIdentity
+    public let sourceRuleVersion: String
+    public let manifestVersion: String
+    public let decodeRevision: String
+    public let pages: [M3MangaManifestPage]
+
+    public init(chapter: M3MangaChapterIdentity, sourceRuleVersion: String, manifestVersion: String, decodeRevision: String, pages: [M3MangaManifestPage]) {
+        self.chapter = chapter
+        self.sourceRuleVersion = sourceRuleVersion
+        self.manifestVersion = manifestVersion
+        self.decodeRevision = decodeRevision
+        self.pages = pages
+    }
+}
+
+public struct M3MangaProgressState: Codable, Sendable {
+    public let token: M3MangaProgressToken
+    public let location: M3MangaLocation?
+
+    public init(token: M3MangaProgressToken, location: M3MangaLocation?) {
+        self.token = token
+        self.location = location
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case token = "token"
+        case location = "location"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        token = try fields.decode(M3MangaProgressToken.self, forKey: .token)
+        location = try fields.decode(M3MangaLocation?.self, forKey: .location)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(token, forKey: .token)
+        try fields.encode(location, forKey: .location)
+    }
+}
+
+public struct M3MangaProgressToken: Codable, Sendable {
+    public let epoch: Int64
+    public let revision: Int64
+
+    public init(epoch: Int64, revision: Int64) {
+        self.epoch = epoch
+        self.revision = revision
+    }
+}
+
+public struct M3MangaLocation: Codable, Sendable {
+    public let kind: M3MangaLocationKind
+    public let chapter: M3MangaChapterIdentity
+    public let manifestVersion: String
+    public let pageId: String
+    public let pageOrdinalFallback: Int64
+    public let x: Double
+    public let y: Double
+    public let progressRevision: Int64
+
+    public init(kind: M3MangaLocationKind = .manga, chapter: M3MangaChapterIdentity, manifestVersion: String, pageId: String, pageOrdinalFallback: Int64, x: Double, y: Double, progressRevision: Int64) {
+        self.kind = kind
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.pageId = pageId
+        self.pageOrdinalFallback = pageOrdinalFallback
+        self.x = x
+        self.y = y
+        self.progressRevision = progressRevision
+    }
+}
+
+/// Wire values of M3MangaLocationKind.
+public enum M3MangaLocationKind: String, Codable, Sendable, CaseIterable {
+    case manga = "manga"
+}
+
+public struct M3MangaPagesWindowParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterId: String
+    public let manifestVersion: String
+    public let start: Int64
+    public let limit: Int64
+
+    public init(sourceId: String, bookId: String, chapterId: String, manifestVersion: String, start: Int64, limit: Int64) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterId = chapterId
+        self.manifestVersion = manifestVersion
+        self.start = start
+        self.limit = limit
+    }
+}
+
+public struct M3MangaSourceSwitchParams: Codable, Sendable {
+    public let fromSourceId: String
+    public let fromBookId: String
+    public let expectedFrom: M3MangaProgressToken
+    public let expectedTarget: M3MangaProgressToken
+    public let firstImage: M3MangaFirstImageReceipt
+    public let targetPageOrdinal: Int64
+    public let acceptApproximate: Bool
+
+    public init(fromSourceId: String, fromBookId: String, expectedFrom: M3MangaProgressToken, expectedTarget: M3MangaProgressToken, firstImage: M3MangaFirstImageReceipt, targetPageOrdinal: Int64, acceptApproximate: Bool) {
+        self.fromSourceId = fromSourceId
+        self.fromBookId = fromBookId
+        self.expectedFrom = expectedFrom
+        self.expectedTarget = expectedTarget
+        self.firstImage = firstImage
+        self.targetPageOrdinal = targetPageOrdinal
+        self.acceptApproximate = acceptApproximate
+    }
+}
+
+public struct M3MangaFirstImageReceipt: Codable, Sendable {
+    public let chapter: M3MangaChapterIdentity
+    public let chapterIndex: Int64
+    public let width: Int64
+    public let height: Int64
+    public let manifestVersion: String
+    public let sourceRuleVersion: String
+    public let decodeRevision: String
+    public let pageId: String
+    public let resourceRef: String
+    public let imageRevision: String
+
+    public init(chapter: M3MangaChapterIdentity, chapterIndex: Int64, width: Int64, height: Int64, manifestVersion: String, sourceRuleVersion: String, decodeRevision: String, pageId: String, resourceRef: String, imageRevision: String) {
+        self.chapter = chapter
+        self.chapterIndex = chapterIndex
+        self.width = width
+        self.height = height
+        self.manifestVersion = manifestVersion
+        self.sourceRuleVersion = sourceRuleVersion
+        self.decodeRevision = decodeRevision
+        self.pageId = pageId
+        self.resourceRef = resourceRef
+        self.imageRevision = imageRevision
+    }
+}
+
+public struct M3MangaSourceSwitchData: Codable, Sendable {
+    public let mapping: M3MangaSourceSwitchDataMapping
+    public let progress: M3MangaProgressState
+
+    public init(mapping: M3MangaSourceSwitchDataMapping = .approximate, progress: M3MangaProgressState) {
+        self.mapping = mapping
+        self.progress = progress
+    }
+}
+
+/// Wire values of M3MangaSourceSwitchDataMapping.
+public enum M3MangaSourceSwitchDataMapping: String, Codable, Sendable, CaseIterable {
+    case approximate = "approximate"
+}
+
+public struct M3MangaResourceInspectParams: Codable, Sendable {
+    public let transferId: String
+    public let sha256: String
+    public let bytes: Int64
+
+    public init(transferId: String, sha256: String, bytes: Int64) {
+        self.transferId = transferId
+        self.sha256 = sha256
+        self.bytes = bytes
+    }
+}
+
+public enum M3MangaResourceInspectData: Codable, Sendable {
+    case absent(M3MangaResourceInspectDataAbsent)
+    case present(M3MangaResourceInspectDataPresent)
+
+    private enum CodingKeys: String, CodingKey { case status }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let tag = fields.contains(.status) ? try fields.decode(String.self, forKey: .status) : nil
+        switch tag {
+        case "absent": self = .absent(try M3MangaResourceInspectDataAbsent(from: decoder))
+        case "present": self = .present(try M3MangaResourceInspectDataPresent(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .status, in: fields, debugDescription: "Unknown M3MangaResourceInspectData tag")
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .absent(let value): try value.encode(to: encoder)
+        case .present(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct M3MangaResourceInspectDataAbsent: Codable, Sendable {
+    public let transferId: String
+    public let sha256: String
+    public let bytes: Int64
+    public let status: M3MangaResourceInspectDataAbsentStatus
+    public let orientation: M3Null
+    public let decodeProfile: M3MangaImageDecodeProfile
+
+    public init(transferId: String, sha256: String, bytes: Int64, status: M3MangaResourceInspectDataAbsentStatus = .absent, orientation: M3Null, decodeProfile: M3MangaImageDecodeProfile) {
+        self.transferId = transferId
+        self.sha256 = sha256
+        self.bytes = bytes
+        self.status = status
+        self.orientation = orientation
+        self.decodeProfile = decodeProfile
+    }
+}
+
+/// Wire values of M3MangaResourceInspectDataAbsentStatus.
+public enum M3MangaResourceInspectDataAbsentStatus: String, Codable, Sendable, CaseIterable {
+    case absent = "absent"
+}
+
+public struct M3Null: Codable, Sendable {
+    public init() {}
+    public init(from decoder: any Decoder) throws {
+        let value = try decoder.singleValueContainer()
+        guard value.decodeNil() else {
+            throw DecodingError.dataCorruptedError(in: value, debugDescription: "Expected null for M3Null")
+        }
+    }
+    public func encode(to encoder: any Encoder) throws {
+        var value = encoder.singleValueContainer()
+        try value.encodeNil()
+    }
+}
+
+public struct M3MangaImageDecodeProfile: Codable, Sendable {
+    public let format: M3MangaImageDecodeProfileFormat
+    public let encodedWidth: Int64?
+    public let encodedHeight: Int64?
+    public let allocationClass: M3MangaImageDecodeProfileAllocationClass
+
+    public init(format: M3MangaImageDecodeProfileFormat, encodedWidth: Int64? = nil, encodedHeight: Int64? = nil, allocationClass: M3MangaImageDecodeProfileAllocationClass) {
+        self.format = format
+        self.encodedWidth = encodedWidth
+        self.encodedHeight = encodedHeight
+        self.allocationClass = allocationClass
+    }
+}
+
+/// Wire values of M3MangaImageDecodeProfileFormat.
+public enum M3MangaImageDecodeProfileFormat: String, Codable, Sendable, CaseIterable {
+    case jpeg = "jpeg"
+    case png = "png"
+    case webp = "webp"
+}
+
+/// Wire values of M3MangaImageDecodeProfileAllocationClass.
+public enum M3MangaImageDecodeProfileAllocationClass: String, Codable, Sendable, CaseIterable {
+    case scanline = "scanline"
+    case pngInterlaced = "pngInterlaced"
+    case fullFrame = "fullFrame"
+}
+
+public struct M3MangaResourceInspectDataPresent: Codable, Sendable {
+    public let transferId: String
+    public let sha256: String
+    public let bytes: Int64
+    public let status: M3MangaResourceInspectDataPresentStatus
+    public let orientation: Int64
+    public let decodeProfile: M3MangaImageDecodeProfile
+
+    public init(transferId: String, sha256: String, bytes: Int64, status: M3MangaResourceInspectDataPresentStatus = .present, orientation: Int64, decodeProfile: M3MangaImageDecodeProfile) {
+        self.transferId = transferId
+        self.sha256 = sha256
+        self.bytes = bytes
+        self.status = status
+        self.orientation = orientation
+        self.decodeProfile = decodeProfile
+    }
+}
+
+/// Wire values of M3MangaResourceInspectDataPresentStatus.
+public enum M3MangaResourceInspectDataPresentStatus: String, Codable, Sendable, CaseIterable {
+    case present = "present"
+}
+
+public struct M3MangaRetentionSetParams: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let retain: Bool
+    public let retainedAt: Int64?
+
+    public init(chapter: M3MangaRetentionChapterIdentity, retain: Bool, retainedAt: Int64? = nil) {
+        self.chapter = chapter
+        self.retain = retain
+        self.retainedAt = retainedAt
+    }
+}
+
+public struct M3MangaRetentionChapterIdentity: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterId: String
+
+    public init(sourceId: String, bookId: String, chapterId: String) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterId = chapterId
+    }
+}
+
+public struct M3MangaRetentionSetResult: Codable, Sendable {
+    public let retention: M3MangaRetentionData?
+
+    public init(retention: M3MangaRetentionData?) {
+        self.retention = retention
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case retention = "retention"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        retention = try fields.decode(M3MangaRetentionData?.self, forKey: .retention)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(retention, forKey: .retention)
+    }
+}
+
+public struct M3MangaRetentionData: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let retainedAt: Int64
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, retainedAt: Int64) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.retainedAt = retainedAt
+    }
+}
+
+public struct M3MangaRetentionGetParams: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+
+    public init(chapter: M3MangaRetentionChapterIdentity) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3MangaRetentionListParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+
+    public init(sourceId: String, bookId: String) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+    }
+}
+
+public struct M3MangaRetentionListResult: Codable, Sendable {
+    public let retentions: [M3MangaRetentionData]
+
+    public init(retentions: [M3MangaRetentionData]) {
+        self.retentions = retentions
+    }
+}
+
+public struct M3MangaCacheRecordReadParams: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let readAt: Int64
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, readAt: Int64) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.readAt = readAt
+    }
+}
+
+public struct M3MangaCacheRecordReadResult: Codable, Sendable {
+    public let recorded: Bool
+
+    public init(recorded: Bool) {
+        self.recorded = recorded
+    }
+}
+
+public struct M3MangaCacheEvictParams: Codable, Sendable {
+    public let nowSeconds: Int64
+    public let ttlSeconds: Int64
+
+    public init(nowSeconds: Int64, ttlSeconds: Int64) {
+        self.nowSeconds = nowSeconds
+        self.ttlSeconds = ttlSeconds
+    }
+}
+
+public struct M3MangaCacheEvictResult: Codable, Sendable {
+    public let candidates: [M3MangaEvictionCandidateData]
+
+    public init(candidates: [M3MangaEvictionCandidateData]) {
+        self.candidates = candidates
+    }
+}
+
+public struct M3MangaEvictionCandidateData: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let lastReadAt: Int64?
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, lastReadAt: Int64?) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.lastReadAt = lastReadAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case chapter = "chapter"
+        case manifestVersion = "manifestVersion"
+        case lastReadAt = "lastReadAt"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        chapter = try fields.decode(M3MangaRetentionChapterIdentity.self, forKey: .chapter)
+        manifestVersion = try fields.decode(String.self, forKey: .manifestVersion)
+        lastReadAt = try fields.decode(Int64?.self, forKey: .lastReadAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(chapter, forKey: .chapter)
+        try fields.encode(manifestVersion, forKey: .manifestVersion)
+        try fields.encode(lastReadAt, forKey: .lastReadAt)
+    }
+}
+
+public struct M3MangaSessionProtectParams: Codable, Sendable {
+    public let chapters: [M3MangaRetentionChapterIdentity]
+    public let sessionEpoch: Int64
+
+    public init(chapters: [M3MangaRetentionChapterIdentity], sessionEpoch: Int64) {
+        self.chapters = chapters
+        self.sessionEpoch = sessionEpoch
+    }
+}
+
+public struct M3MangaSessionProtectResult: Codable, Sendable {
+    public let protected: Int64
+
+    public init(protected: Int64) {
+        self.protected = protected
+    }
+}
+
+public struct M3MangaSessionReleaseParams: Codable, Sendable {
+    public let sessionEpoch: Int64
+    public let expectedRuntimeEpoch: Int64?
+
+    public init(sessionEpoch: Int64, expectedRuntimeEpoch: Int64? = nil) {
+        self.sessionEpoch = sessionEpoch
+        self.expectedRuntimeEpoch = expectedRuntimeEpoch
+    }
+}
+
+public struct M3MangaSessionReleaseResult: Codable, Sendable {
+    public let released: Bool
+
+    public init(released: Bool) {
+        self.released = released
+    }
+}
+
+public struct M3MangaSessionRuntimeParams: Codable, Sendable {
+    public init() {
+    }
+}
+
+public struct M3MangaSessionRuntimeResult: Codable, Sendable {
+    public let runtimeEpoch: Int64
+
+    public init(runtimeEpoch: Int64) {
+        self.runtimeEpoch = runtimeEpoch
+    }
+}
+
+public struct M3MangaSessionReplaceParams: Codable, Sendable {
+    public let chapters: [M3MangaRetentionChapterIdentity]
+    public let sessionEpoch: Int64
+    public let expectedRuntimeEpoch: Int64
+
+    public init(chapters: [M3MangaRetentionChapterIdentity], sessionEpoch: Int64, expectedRuntimeEpoch: Int64) {
+        self.chapters = chapters
+        self.sessionEpoch = sessionEpoch
+        self.expectedRuntimeEpoch = expectedRuntimeEpoch
+    }
+}
+
+public struct M3MangaSessionReplaceResult: Codable, Sendable {
+    public let protected: Int64
+    public let runtimeEpoch: Int64
+
+    public init(protected: Int64, runtimeEpoch: Int64) {
+        self.protected = protected
+        self.runtimeEpoch = runtimeEpoch
+    }
+}
+
+public struct M3MangaCacheMaterializationPrepareParams: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let intent: M3MangaCacheMaterializationPrepareParamsIntent
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, intent: M3MangaCacheMaterializationPrepareParamsIntent) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.intent = intent
+    }
+}
+
+/// Wire values of M3MangaCacheMaterializationPrepareParamsIntent.
+public enum M3MangaCacheMaterializationPrepareParamsIntent: String, Codable, Sendable, CaseIterable {
+    case cache = "cache"
+    case download = "download"
+}
+
+public struct M3MangaCacheMaterializationPrepareResult: Codable, Sendable {
+    public let token: String
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let intent: M3MangaCacheMaterializationPrepareResultIntent
+
+    public init(token: String, chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, intent: M3MangaCacheMaterializationPrepareResultIntent) {
+        self.token = token
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.intent = intent
+    }
+}
+
+/// Wire values of M3MangaCacheMaterializationPrepareResultIntent.
+public enum M3MangaCacheMaterializationPrepareResultIntent: String, Codable, Sendable, CaseIterable {
+    case cache = "cache"
+    case download = "download"
+}
+
+public struct M3MangaCacheMaterializationCompleteParams: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let token: String
+    public let resourceRefs: [String]
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, token: String, resourceRefs: [String]) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.token = token
+        self.resourceRefs = resourceRefs
+    }
+}
+
+public struct M3MangaCacheMaterializationCompleteResult: Codable, Sendable {
+    public let completed: Bool
+    public let manifestVersion: String
+
+    public init(completed: Bool, manifestVersion: String) {
+        self.completed = completed
+        self.manifestVersion = manifestVersion
+    }
+}
+
+public struct M3MangaCacheMaterializationAbortParams: Codable, Sendable {
+    public let token: String
+
+    public init(token: String) {
+        self.token = token
+    }
+}
+
+public struct M3MangaCacheMaterializationAbortResult: Codable, Sendable {
+    public let aborted: Bool
+
+    public init(aborted: Bool) {
+        self.aborted = aborted
+    }
+}
+
+public struct M3MangaCacheVersionParams: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+    }
+}
+
+public struct M3MangaCacheClassifyResult: Codable, Sendable {
+    public let status: M3MangaCacheClassifyResultStatus
+    public let inUse: Bool
+    public let lastReadAt: Int64?
+
+    public init(status: M3MangaCacheClassifyResultStatus, inUse: Bool, lastReadAt: Int64?) {
+        self.status = status
+        self.inUse = inUse
+        self.lastReadAt = lastReadAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case status = "status"
+        case inUse = "inUse"
+        case lastReadAt = "lastReadAt"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        status = try fields.decode(M3MangaCacheClassifyResultStatus.self, forKey: .status)
+        inUse = try fields.decode(Bool.self, forKey: .inUse)
+        lastReadAt = try fields.decode(Int64?.self, forKey: .lastReadAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(status, forKey: .status)
+        try fields.encode(inUse, forKey: .inUse)
+        try fields.encode(lastReadAt, forKey: .lastReadAt)
+    }
+}
+
+/// Wire values of M3MangaCacheClassifyResultStatus.
+public enum M3MangaCacheClassifyResultStatus: String, Codable, Sendable, CaseIterable {
+    case cache = "cache"
+    case download = "download"
+    case protected = "protected"
+    case unknown = "unknown"
+    case missing = "missing"
+}
+
+public struct M3MangaCacheClassifyBatchParams: Codable, Sendable {
+    public let versions: [M3MangaCacheVersionParams]
+
+    public init(versions: [M3MangaCacheVersionParams]) {
+        self.versions = versions
+    }
+}
+
+public struct M3MangaCacheClassifyBatchResult: Codable, Sendable {
+    public let results: [M3MangaCacheClassifyResult]
+
+    public init(results: [M3MangaCacheClassifyResult]) {
+        self.results = results
+    }
+}
+
+public struct M3MangaCacheEvictionClaimParams: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let nowSeconds: Int64?
+    public let ttlSeconds: Int64?
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, nowSeconds: Int64? = nil, ttlSeconds: Int64? = nil) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.nowSeconds = nowSeconds
+        self.ttlSeconds = ttlSeconds
+    }
+}
+
+public struct M3MangaCacheEvictionClaimResult: Codable, Sendable {
+    public let grant: M3MangaEvictionGrantData?
+
+    public init(grant: M3MangaEvictionGrantData?) {
+        self.grant = grant
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case grant = "grant"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        grant = try fields.decode(M3MangaEvictionGrantData?.self, forKey: .grant)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(grant, forKey: .grant)
+    }
+}
+
+public struct M3MangaEvictionGrantData: Codable, Sendable {
+    public let chapter: M3MangaRetentionChapterIdentity
+    public let manifestVersion: String
+    public let token: String
+
+    public init(chapter: M3MangaRetentionChapterIdentity, manifestVersion: String, token: String) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.token = token
+    }
+}
+
+public struct M3MangaCacheEvictionCompleteParams: Codable, Sendable {
+    public let token: String
+    public let removed: Bool
+
+    public init(token: String, removed: Bool) {
+        self.token = token
+        self.removed = removed
+    }
+}
+
+public struct M3MangaCacheEvictionCompleteResult: Codable, Sendable {
+    public let completed: Bool
+
+    public init(completed: Bool) {
+        self.completed = completed
+    }
+}
+
+public struct M3MangaCacheEvictionPendingParams: Codable, Sendable {
+    public init() {
+    }
+}
+
+public struct M3MangaCacheEvictionPendingResult: Codable, Sendable {
+    public let grants: [M3MangaEvictionGrantData]
+
+    public init(grants: [M3MangaEvictionGrantData]) {
+        self.grants = grants
+    }
+}
+
+public struct M3MangaSourceSwitchOperationParams: Codable, Sendable {
+    public let operationId: String
+    public let sequence: Int64
+    public let fromSourceId: String
+    public let fromBookId: String
+    public let expectedFrom: M3MangaProgressToken
+    public let expectedTarget: M3MangaProgressToken
+    public let firstImage: M3MangaFirstImageReceipt
+    public let targetPageOrdinal: Int64
+    public let acceptApproximate: Bool
+
+    public init(operationId: String, sequence: Int64, fromSourceId: String, fromBookId: String, expectedFrom: M3MangaProgressToken, expectedTarget: M3MangaProgressToken, firstImage: M3MangaFirstImageReceipt, targetPageOrdinal: Int64, acceptApproximate: Bool) {
+        self.operationId = operationId
+        self.sequence = sequence
+        self.fromSourceId = fromSourceId
+        self.fromBookId = fromBookId
+        self.expectedFrom = expectedFrom
+        self.expectedTarget = expectedTarget
+        self.firstImage = firstImage
+        self.targetPageOrdinal = targetPageOrdinal
+        self.acceptApproximate = acceptApproximate
+    }
+}
+
+public struct M3MangaSourceSwitchOperationReceipt: Codable, Sendable {
+    public let binding: M3ReadingOperationBinding
+    public let mapping: M3MangaSourceSwitchOperationReceiptMapping
+    public let progress: M3MangaProgressState
+
+    public init(binding: M3ReadingOperationBinding, mapping: M3MangaSourceSwitchOperationReceiptMapping = .approximate, progress: M3MangaProgressState) {
+        self.binding = binding
+        self.mapping = mapping
+        self.progress = progress
+    }
+}
+
+public struct M3ReadingOperationBinding: Codable, Sendable {
+    public let operationId: String
+    public let sequence: Int64
+    public let payloadFingerprint: String
+
+    public init(operationId: String, sequence: Int64, payloadFingerprint: String) {
+        self.operationId = operationId
+        self.sequence = sequence
+        self.payloadFingerprint = payloadFingerprint
+    }
+}
+
+/// Wire values of M3MangaSourceSwitchOperationReceiptMapping.
+public enum M3MangaSourceSwitchOperationReceiptMapping: String, Codable, Sendable, CaseIterable {
+    case approximate = "approximate"
+}
+
+public struct M3MangaSourceSwitchOperationQueryParams: Codable, Sendable {
+    public let operationId: String?
+    public let expected: M3MangaSourceSwitchOperationParams?
+
+    public init(operationId: String? = nil, expected: M3MangaSourceSwitchOperationParams? = nil) {
+        self.operationId = operationId
+        self.expected = expected
+    }
+}
+
+public struct M3MangaSourceSwitchOperationQueryData: Codable, Sendable {
+    public let head: M3ReadingOperationBinding?
+    public let receipt: M3MangaSourceSwitchOperationReceipt?
+
+    public init(head: M3ReadingOperationBinding?, receipt: M3MangaSourceSwitchOperationReceipt?) {
+        self.head = head
+        self.receipt = receipt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case head = "head"
+        case receipt = "receipt"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        head = try fields.decode(M3ReadingOperationBinding?.self, forKey: .head)
+        receipt = try fields.decode(M3MangaSourceSwitchOperationReceipt?.self, forKey: .receipt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(head, forKey: .head)
+        try fields.encode(receipt, forKey: .receipt)
+    }
+}
+
+public struct M3MangaProgressGetParams: Codable, Sendable {
+    public let kind: M3MangaProgressGetParamsKind
+    public let sourceId: String
+    public let bookId: String
+
+    public init(kind: M3MangaProgressGetParamsKind = .manga, sourceId: String, bookId: String) {
+        self.kind = kind
+        self.sourceId = sourceId
+        self.bookId = bookId
+    }
+}
+
+/// Wire values of M3MangaProgressGetParamsKind.
+public enum M3MangaProgressGetParamsKind: String, Codable, Sendable, CaseIterable {
+    case manga = "manga"
+}
+
+public struct M3MangaProgressUpdateParams: Codable, Sendable {
+    public let kind: M3MangaProgressUpdateParamsKind
+    public let location: M3MangaLocation
+    public let expectedEpoch: Int64
+    public let expectedRevision: Int64
+
+    public init(kind: M3MangaProgressUpdateParamsKind = .manga, location: M3MangaLocation, expectedEpoch: Int64, expectedRevision: Int64) {
+        self.kind = kind
+        self.location = location
+        self.expectedEpoch = expectedEpoch
+        self.expectedRevision = expectedRevision
+    }
+}
+
+/// Wire values of M3MangaProgressUpdateParamsKind.
+public enum M3MangaProgressUpdateParamsKind: String, Codable, Sendable, CaseIterable {
+    case manga = "manga"
+}
+
+public struct M3CacheBookPrefetchParams: Codable, Sendable {
+    public let preparationRevision: Int64?
+    public let sourceId: String
+    public let bookId: String
+    public let chapterRange: [Int64]
+    public let priority: Int64?
+    public let requestedAt: Int64?
+    public let contentKind: M3CacheBookPrefetchParamsContentKind?
+    public let operationId: String?
+    public let sequence: Int64?
+
+    public init(preparationRevision: Int64? = nil, sourceId: String, bookId: String, chapterRange: [Int64], priority: Int64? = nil, requestedAt: Int64? = nil, contentKind: M3CacheBookPrefetchParamsContentKind? = nil, operationId: String? = nil, sequence: Int64? = nil) {
+        self.preparationRevision = preparationRevision
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterRange = chapterRange
+        self.priority = priority
+        self.requestedAt = requestedAt
+        self.contentKind = contentKind
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+/// Wire values of M3CacheBookPrefetchParamsContentKind.
+public enum M3CacheBookPrefetchParamsContentKind: String, Codable, Sendable, CaseIterable {
+    case text = "text"
+    case manga = "manga"
+}
+
+public struct M3CacheBookPrefetchData: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterRange: [Int64]
+    public let chapterCount: Int64
+    public let prefetchedCount: Int64
+    public let queuedIndexes: [Int64]
+    public let alreadyQueuedIndexes: [Int64]
+    public let skippedCachedIndexes: [Int64]
+    public let materializations: [M3CacheChapterMaterializationData]
+
+    public init(sourceId: String, bookId: String, chapterRange: [Int64], chapterCount: Int64, prefetchedCount: Int64, queuedIndexes: [Int64], alreadyQueuedIndexes: [Int64], skippedCachedIndexes: [Int64], materializations: [M3CacheChapterMaterializationData]) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterRange = chapterRange
+        self.chapterCount = chapterCount
+        self.prefetchedCount = prefetchedCount
+        self.queuedIndexes = queuedIndexes
+        self.alreadyQueuedIndexes = alreadyQueuedIndexes
+        self.skippedCachedIndexes = skippedCachedIndexes
+        self.materializations = materializations
+    }
+}
+
+public struct M3CacheChapterMaterializationData: Codable, Sendable {
+    public let chapterIndex: Int64
+    public let token: String
+    public let manga: M3MangaChapterData?
+
+    public init(chapterIndex: Int64, token: String, manga: M3MangaChapterData? = nil) {
+        self.chapterIndex = chapterIndex
+        self.token = token
+        self.manga = manga
+    }
+}
+
+public struct M3CacheBookStatusParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let includeGlobalStats: Bool?
+    public let includeChapterStates: Bool?
+
+    public init(sourceId: String, bookId: String, includeGlobalStats: Bool? = nil, includeChapterStates: Bool? = nil) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.includeGlobalStats = includeGlobalStats
+        self.includeChapterStates = includeChapterStates
+    }
+}
+
+public struct M3CacheBookStatusData: Codable, Sendable {
+    public let sourceVersion: String?
+    public let catalogAt: Int64?
+    public let catalogVersion: String?
+    public let contextVersion: String?
+    public let continuationVariables: [String: String]?
+    public let sourceId: String
+    public let bookId: String
+    public let tocAvailable: Bool
+    public let chapterCount: Int64
+    public let chapters: [M3CacheChapterStatusData]
+    public let cachedCount: Int64
+    public let queuedCount: Int64
+    public let inProgressCount: Int64
+    public let completedCount: Int64
+    public let failedCount: Int64
+    public let cancelledCount: Int64
+    public let missingCount: Int64
+    public let globalStats: M3CacheGlobalStatsData
+    public let readableChapterCount: Int64?
+
+    public init(sourceVersion: String? = nil, catalogAt: Int64? = nil, catalogVersion: String? = nil, contextVersion: String? = nil, continuationVariables: [String: String]? = nil, sourceId: String, bookId: String, tocAvailable: Bool, chapterCount: Int64, chapters: [M3CacheChapterStatusData], cachedCount: Int64, queuedCount: Int64, inProgressCount: Int64, completedCount: Int64, failedCount: Int64, cancelledCount: Int64, missingCount: Int64, globalStats: M3CacheGlobalStatsData, readableChapterCount: Int64? = nil) {
+        self.sourceVersion = sourceVersion
+        self.catalogAt = catalogAt
+        self.catalogVersion = catalogVersion
+        self.contextVersion = contextVersion
+        self.continuationVariables = continuationVariables
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.tocAvailable = tocAvailable
+        self.chapterCount = chapterCount
+        self.chapters = chapters
+        self.cachedCount = cachedCount
+        self.queuedCount = queuedCount
+        self.inProgressCount = inProgressCount
+        self.completedCount = completedCount
+        self.failedCount = failedCount
+        self.cancelledCount = cancelledCount
+        self.missingCount = missingCount
+        self.globalStats = globalStats
+        self.readableChapterCount = readableChapterCount
+    }
+}
+
+public struct M3CacheChapterStatusData: Codable, Sendable {
+    public let level: Int64?
+    public let displayTitle: String?
+    public let contextTitle: String?
+    public let isVip: Bool?
+    public let isPay: Bool?
+    public let chapterIndex: Int64
+    public let title: String
+    public let url: String
+    public let state: M3CacheChapterState
+    public let cachedBytes: Int64
+    public let attempts: Int64
+    public let maxAttempts: Int64
+    public let lastError: String?
+    public let navigable: Bool?
+    public let proofState: M3CacheChapterStatusDataProofState?
+    public let resumeOnly: Bool?
+    public let mangaManifestVersion: String?
+
+    public init(level: Int64? = nil, displayTitle: String? = nil, contextTitle: String? = nil, isVip: Bool? = nil, isPay: Bool? = nil, chapterIndex: Int64, title: String, url: String, state: M3CacheChapterState, cachedBytes: Int64, attempts: Int64, maxAttempts: Int64, lastError: String? = nil, navigable: Bool? = nil, proofState: M3CacheChapterStatusDataProofState? = nil, resumeOnly: Bool? = nil, mangaManifestVersion: String? = nil) {
+        self.level = level
+        self.displayTitle = displayTitle
+        self.contextTitle = contextTitle
+        self.isVip = isVip
+        self.isPay = isPay
+        self.chapterIndex = chapterIndex
+        self.title = title
+        self.url = url
+        self.state = state
+        self.cachedBytes = cachedBytes
+        self.attempts = attempts
+        self.maxAttempts = maxAttempts
+        self.lastError = lastError
+        self.navigable = navigable
+        self.proofState = proofState
+        self.resumeOnly = resumeOnly
+        self.mangaManifestVersion = mangaManifestVersion
+    }
+}
+
+/// Wire values of M3CacheChapterState.
+public enum M3CacheChapterState: String, Codable, Sendable, CaseIterable {
+    case missing = "missing"
+    case queued = "queued"
+    case paused = "paused"
+    case inProgress = "inProgress"
+    case cached = "cached"
+    case completed = "completed"
+    case failed = "failed"
+    case cancelled = "cancelled"
+}
+
+/// Wire values of M3CacheChapterStatusDataProofState.
+public enum M3CacheChapterStatusDataProofState: String, Codable, Sendable, CaseIterable {
+    case verified = "verified"
+    case legacyUnknown = "legacyUnknown"
+    case invalid = "invalid"
+}
+
+public struct M3CacheGlobalStatsData: Codable, Sendable {
+    public let entryCount: Int64
+    public let totalContentBytes: Int64
+    public let oldestCachedAt: Int64?
+    public let newestCachedAt: Int64?
+    public let queueEntryCount: Int64
+    public let queuedCount: Int64
+    public let inProgressCount: Int64
+    public let completedCount: Int64
+    public let failedCount: Int64
+    public let cancelledCount: Int64
+
+    public init(entryCount: Int64, totalContentBytes: Int64, oldestCachedAt: Int64? = nil, newestCachedAt: Int64? = nil, queueEntryCount: Int64, queuedCount: Int64, inProgressCount: Int64, completedCount: Int64, failedCount: Int64, cancelledCount: Int64) {
+        self.entryCount = entryCount
+        self.totalContentBytes = totalContentBytes
+        self.oldestCachedAt = oldestCachedAt
+        self.newestCachedAt = newestCachedAt
+        self.queueEntryCount = queueEntryCount
+        self.queuedCount = queuedCount
+        self.inProgressCount = inProgressCount
+        self.completedCount = completedCount
+        self.failedCount = failedCount
+        self.cancelledCount = cancelledCount
+    }
+}
+
+public struct M3CacheDownloadTaskParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let now: Int64?
+    public let operationId: String?
+    public let sequence: Int64?
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, now: Int64? = nil, operationId: String? = nil, sequence: Int64? = nil) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.now = now
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+public struct M3CacheDownloadTaskResult: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let status: M3CacheDownloadTaskResultStatus
+    public let attempts: Int64
+    public let maxAttempts: Int64
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, status: M3CacheDownloadTaskResultStatus, attempts: Int64, maxAttempts: Int64) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.status = status
+        self.attempts = attempts
+        self.maxAttempts = maxAttempts
+    }
+}
+
+/// Wire values of M3CacheDownloadTaskResultStatus.
+public enum M3CacheDownloadTaskResultStatus: String, Codable, Sendable, CaseIterable {
+    case pending = "pending"
+    case paused = "paused"
+    case inProgress = "inProgress"
+    case completed = "completed"
+    case failed = "failed"
+    case cancelled = "cancelled"
+}
+
+public struct M3CacheDownloadOperationQueryParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let operationId: String?
+    public let expected: M3DownloadOperationExpected?
+    public let action: M3CacheDownloadOperationQueryParamsAction
+    public let chapterIndex: Int64?
+
+    public init(sourceId: String, bookId: String, operationId: String? = nil, expected: M3DownloadOperationExpected? = nil, action: M3CacheDownloadOperationQueryParamsAction, chapterIndex: Int64? = nil) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.operationId = operationId
+        self.expected = expected
+        self.action = action
+        self.chapterIndex = chapterIndex
+    }
+}
+
+public enum M3DownloadOperationExpected: Codable, Sendable {
+    case prefetch(M3DownloadOperationExpectedPrefetch)
+    case pause(M3DownloadOperationExpectedPause)
+    case resume(M3DownloadOperationExpectedResume)
+    case cancel(M3DownloadOperationExpectedCancel)
+    case report(M3DownloadOperationExpectedReport)
+
+    private enum CodingKeys: String, CodingKey { case action }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let tag = fields.contains(.action) ? try fields.decode(String.self, forKey: .action) : nil
+        switch tag {
+        case "prefetch": self = .prefetch(try M3DownloadOperationExpectedPrefetch(from: decoder))
+        case "pause": self = .pause(try M3DownloadOperationExpectedPause(from: decoder))
+        case "resume": self = .resume(try M3DownloadOperationExpectedResume(from: decoder))
+        case "cancel": self = .cancel(try M3DownloadOperationExpectedCancel(from: decoder))
+        case "report": self = .report(try M3DownloadOperationExpectedReport(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .action, in: fields, debugDescription: "Unknown M3DownloadOperationExpected tag")
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .prefetch(let value): try value.encode(to: encoder)
+        case .pause(let value): try value.encode(to: encoder)
+        case .resume(let value): try value.encode(to: encoder)
+        case .cancel(let value): try value.encode(to: encoder)
+        case .report(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct M3DownloadOperationExpectedPrefetch: Codable, Sendable {
+    public let action: M3DownloadOperationExpectedPrefetchAction
+    public let params: M3DownloadOperationExpectedPrefetchParams
+
+    public init(action: M3DownloadOperationExpectedPrefetchAction = .prefetch, params: M3DownloadOperationExpectedPrefetchParams) {
+        self.action = action
+        self.params = params
+    }
+}
+
+/// Wire values of M3DownloadOperationExpectedPrefetchAction.
+public enum M3DownloadOperationExpectedPrefetchAction: String, Codable, Sendable, CaseIterable {
+    case prefetch = "prefetch"
+}
+
+public struct M3DownloadOperationExpectedPrefetchParams: Codable, Sendable {
+    public let preparationRevision: Int64?
+    public let sourceId: String
+    public let bookId: String
+    public let chapterRange: [Int64]
+    public let priority: Int64?
+    public let requestedAt: Int64?
+    public let contentKind: M3DownloadOperationExpectedPrefetchParamsContentKind?
+    public let operationId: String
+    public let sequence: Int64
+
+    public init(preparationRevision: Int64? = nil, sourceId: String, bookId: String, chapterRange: [Int64], priority: Int64? = nil, requestedAt: Int64? = nil, contentKind: M3DownloadOperationExpectedPrefetchParamsContentKind? = nil, operationId: String, sequence: Int64) {
+        self.preparationRevision = preparationRevision
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterRange = chapterRange
+        self.priority = priority
+        self.requestedAt = requestedAt
+        self.contentKind = contentKind
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+/// Wire values of M3DownloadOperationExpectedPrefetchParamsContentKind.
+public enum M3DownloadOperationExpectedPrefetchParamsContentKind: String, Codable, Sendable, CaseIterable {
+    case text = "text"
+    case manga = "manga"
+}
+
+public struct M3DownloadOperationExpectedPause: Codable, Sendable {
+    public let action: M3DownloadOperationExpectedPauseAction
+    public let params: M3DownloadOperationExpectedPauseParams
+
+    public init(action: M3DownloadOperationExpectedPauseAction = .pause, params: M3DownloadOperationExpectedPauseParams) {
+        self.action = action
+        self.params = params
+    }
+}
+
+/// Wire values of M3DownloadOperationExpectedPauseAction.
+public enum M3DownloadOperationExpectedPauseAction: String, Codable, Sendable, CaseIterable {
+    case pause = "pause"
+}
+
+public struct M3DownloadOperationExpectedPauseParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let now: Int64?
+    public let operationId: String
+    public let sequence: Int64
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, now: Int64? = nil, operationId: String, sequence: Int64) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.now = now
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+public struct M3DownloadOperationExpectedResume: Codable, Sendable {
+    public let action: M3DownloadOperationExpectedResumeAction
+    public let params: M3DownloadOperationExpectedResumeParams
+
+    public init(action: M3DownloadOperationExpectedResumeAction = .resume, params: M3DownloadOperationExpectedResumeParams) {
+        self.action = action
+        self.params = params
+    }
+}
+
+/// Wire values of M3DownloadOperationExpectedResumeAction.
+public enum M3DownloadOperationExpectedResumeAction: String, Codable, Sendable, CaseIterable {
+    case resume = "resume"
+}
+
+public struct M3DownloadOperationExpectedResumeParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let now: Int64?
+    public let operationId: String
+    public let sequence: Int64
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, now: Int64? = nil, operationId: String, sequence: Int64) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.now = now
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+public struct M3DownloadOperationExpectedCancel: Codable, Sendable {
+    public let action: M3DownloadOperationExpectedCancelAction
+    public let params: M3DownloadOperationExpectedCancelParams
+
+    public init(action: M3DownloadOperationExpectedCancelAction = .cancel, params: M3DownloadOperationExpectedCancelParams) {
+        self.action = action
+        self.params = params
+    }
+}
+
+/// Wire values of M3DownloadOperationExpectedCancelAction.
+public enum M3DownloadOperationExpectedCancelAction: String, Codable, Sendable, CaseIterable {
+    case cancel = "cancel"
+}
+
+public struct M3DownloadOperationExpectedCancelParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let now: Int64?
+    public let operationId: String
+    public let sequence: Int64
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, now: Int64? = nil, operationId: String, sequence: Int64) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.now = now
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+public struct M3DownloadOperationExpectedReport: Codable, Sendable {
+    public let action: M3DownloadOperationExpectedReportAction
+    public let params: M3DownloadOperationExpectedReportParams
+
+    public init(action: M3DownloadOperationExpectedReportAction = .report, params: M3DownloadOperationExpectedReportParams) {
+        self.action = action
+        self.params = params
+    }
+}
+
+/// Wire values of M3DownloadOperationExpectedReportAction.
+public enum M3DownloadOperationExpectedReportAction: String, Codable, Sendable, CaseIterable {
+    case report = "report"
+}
+
+public struct M3DownloadOperationExpectedReportParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let token: String
+    public let outcome: M3DownloadOperationExpectedReportParamsOutcome
+    public let errorCode: String?
+    public let reportedAt: Int64?
+    public let manga: M3MangaOfflineReceipt?
+    public let operationId: String
+    public let sequence: Int64
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, token: String, outcome: M3DownloadOperationExpectedReportParamsOutcome, errorCode: String? = nil, reportedAt: Int64? = nil, manga: M3MangaOfflineReceipt? = nil, operationId: String, sequence: Int64) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.token = token
+        self.outcome = outcome
+        self.errorCode = errorCode
+        self.reportedAt = reportedAt
+        self.manga = manga
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+/// Wire values of M3DownloadOperationExpectedReportParamsOutcome.
+public enum M3DownloadOperationExpectedReportParamsOutcome: String, Codable, Sendable, CaseIterable {
+    case completed = "completed"
+    case failed = "failed"
+}
+
+public struct M3MangaOfflineReceipt: Codable, Sendable {
+    public let chapter: M3MangaChapterIdentity
+    public let manifestVersion: String
+    public let resourceRefs: [String]
+
+    public init(chapter: M3MangaChapterIdentity, manifestVersion: String, resourceRefs: [String]) {
+        self.chapter = chapter
+        self.manifestVersion = manifestVersion
+        self.resourceRefs = resourceRefs
+    }
+}
+
+/// Wire values of M3CacheDownloadOperationQueryParamsAction.
+public enum M3CacheDownloadOperationQueryParamsAction: String, Codable, Sendable, CaseIterable {
+    case prefetch = "prefetch"
+    case pause = "pause"
+    case resume = "resume"
+    case cancel = "cancel"
+    case report = "report"
+}
+
+public struct M3DownloadOperationQueryData: Codable, Sendable {
+    public let head: M3ReadingOperationBinding?
+    public let receipt: M3DownloadOperationReceipt?
+    public let canResumeOriginal: Bool
+
+    public init(head: M3ReadingOperationBinding?, receipt: M3DownloadOperationReceipt?, canResumeOriginal: Bool) {
+        self.head = head
+        self.receipt = receipt
+        self.canResumeOriginal = canResumeOriginal
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case head = "head"
+        case receipt = "receipt"
+        case canResumeOriginal = "canResumeOriginal"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        head = try fields.decode(M3ReadingOperationBinding?.self, forKey: .head)
+        receipt = try fields.decode(M3DownloadOperationReceipt?.self, forKey: .receipt)
+        canResumeOriginal = try fields.decode(Bool.self, forKey: .canResumeOriginal)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(head, forKey: .head)
+        try fields.encode(receipt, forKey: .receipt)
+        try fields.encode(canResumeOriginal, forKey: .canResumeOriginal)
+    }
+}
+
+public struct M3DownloadOperationReceipt: Codable, Sendable {
+    public let binding: M3ReadingOperationBinding
+    public let phase: M3DownloadOperationReceiptPhase
+    public let action: M3DownloadOperationReceiptAction
+    public let data: M3DownloadOperationData?
+
+    public init(binding: M3ReadingOperationBinding, phase: M3DownloadOperationReceiptPhase, action: M3DownloadOperationReceiptAction, data: M3DownloadOperationData?) {
+        self.binding = binding
+        self.phase = phase
+        self.action = action
+        self.data = data
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case binding = "binding"
+        case phase = "phase"
+        case action = "action"
+        case data = "data"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        binding = try fields.decode(M3ReadingOperationBinding.self, forKey: .binding)
+        phase = try fields.decode(M3DownloadOperationReceiptPhase.self, forKey: .phase)
+        action = try fields.decode(M3DownloadOperationReceiptAction.self, forKey: .action)
+        data = try fields.decode(M3DownloadOperationData?.self, forKey: .data)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(binding, forKey: .binding)
+        try fields.encode(phase, forKey: .phase)
+        try fields.encode(action, forKey: .action)
+        try fields.encode(data, forKey: .data)
+    }
+}
+
+/// Wire values of M3DownloadOperationReceiptPhase.
+public enum M3DownloadOperationReceiptPhase: String, Codable, Sendable, CaseIterable {
+    case pending = "pending"
+    case committed = "committed"
+    case settled = "settled"
+}
+
+/// Wire values of M3DownloadOperationReceiptAction.
+public enum M3DownloadOperationReceiptAction: String, Codable, Sendable, CaseIterable {
+    case prefetch = "prefetch"
+    case pause = "pause"
+    case resume = "resume"
+    case cancel = "cancel"
+    case report = "report"
+}
+
+public enum M3DownloadOperationData: Codable, Sendable {
+    case prefetch(M3CacheBookPrefetchData)
+    case task(M3CacheDownloadTaskResult)
+    case report(M3CacheChapterMaterializationReportData)
+
+    private enum CodingKeys: String, CodingKey { case chapterRange, status, state }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let matches = [
+            fields.contains(.chapterRange),
+            fields.contains(.status),
+            fields.contains(.state),
+        ]
+        guard matches.filter({ $0 }).count == 1, let index = matches.firstIndex(of: true) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown or ambiguous M3DownloadOperationData variant"))
+        }
+        switch index {
+        case 0: self = .prefetch(try M3CacheBookPrefetchData(from: decoder))
+        case 1: self = .task(try M3CacheDownloadTaskResult(from: decoder))
+        case 2: self = .report(try M3CacheChapterMaterializationReportData(from: decoder))
+        default:
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown M3DownloadOperationData variant index"))
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .prefetch(let value): try value.encode(to: encoder)
+        case .task(let value): try value.encode(to: encoder)
+        case .report(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct M3CacheChapterMaterializationReportData: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let state: M3CacheChapterState
+    public let retainedCachedBody: Bool
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, state: M3CacheChapterState, retainedCachedBody: Bool) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.state = state
+        self.retainedCachedBody = retainedCachedBody
+    }
+}
+
+public struct M3CacheDownloadOperationSettleParams: Codable, Sendable {
+    public let operationId: String
+    public let sequence: Int64
+    public let payloadFingerprint: String
+    public let sourceId: String
+    public let bookId: String
+    public let action: M3CacheDownloadOperationSettleParamsAction
+    public let chapterIndex: Int64?
+
+    public init(operationId: String, sequence: Int64, payloadFingerprint: String, sourceId: String, bookId: String, action: M3CacheDownloadOperationSettleParamsAction, chapterIndex: Int64? = nil) {
+        self.operationId = operationId
+        self.sequence = sequence
+        self.payloadFingerprint = payloadFingerprint
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.action = action
+        self.chapterIndex = chapterIndex
+    }
+}
+
+/// Wire values of M3CacheDownloadOperationSettleParamsAction.
+public enum M3CacheDownloadOperationSettleParamsAction: String, Codable, Sendable, CaseIterable {
+    case prefetch = "prefetch"
+    case pause = "pause"
+    case resume = "resume"
+    case cancel = "cancel"
+    case report = "report"
+}
+
+public struct M3CacheChapterMaterializationReportParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let token: String
+    public let outcome: M3CacheChapterMaterializationReportParamsOutcome
+    public let errorCode: String?
+    public let reportedAt: Int64?
+    public let manga: M3MangaOfflineReceipt?
+    public let operationId: String?
+    public let sequence: Int64?
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, token: String, outcome: M3CacheChapterMaterializationReportParamsOutcome, errorCode: String? = nil, reportedAt: Int64? = nil, manga: M3MangaOfflineReceipt? = nil, operationId: String? = nil, sequence: Int64? = nil) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.token = token
+        self.outcome = outcome
+        self.errorCode = errorCode
+        self.reportedAt = reportedAt
+        self.manga = manga
+        self.operationId = operationId
+        self.sequence = sequence
+    }
+}
+
+/// Wire values of M3CacheChapterMaterializationReportParamsOutcome.
+public enum M3CacheChapterMaterializationReportParamsOutcome: String, Codable, Sendable, CaseIterable {
+    case completed = "completed"
+    case failed = "failed"
+}
+
+public struct M3ReadingEntryPrepareParams: Codable, Sendable {
+    public let localSourcePath: String?
+    public let chapterIndex: Int64?
+    public let sourceId: String
+    public let bookId: String
+    public let neighborOffset: Int64
+
+    public init(localSourcePath: String? = nil, chapterIndex: Int64? = nil, sourceId: String, bookId: String, neighborOffset: Int64) {
+        self.localSourcePath = localSourcePath
+        self.chapterIndex = chapterIndex
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.neighborOffset = neighborOffset
+    }
+}
+
+public struct M3ReadingEntryPrepareData: Codable, Sendable {
+    public let kind: String
+    public let reason: String
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64?
+    public let imagePresentationChanged: Bool?
+    public let pendingRestore: M3LocalPositionPendingRestoreData?
+
+    public init(kind: String, reason: String, sourceId: String, bookId: String, chapterIndex: Int64?, imagePresentationChanged: Bool? = nil, pendingRestore: M3LocalPositionPendingRestoreData? = nil) {
+        self.kind = kind
+        self.reason = reason
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.imagePresentationChanged = imagePresentationChanged
+        self.pendingRestore = pendingRestore
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind = "kind"
+        case reason = "reason"
+        case sourceId = "sourceId"
+        case bookId = "bookId"
+        case chapterIndex = "chapterIndex"
+        case imagePresentationChanged = "imagePresentationChanged"
+        case pendingRestore = "pendingRestore"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try fields.decode(String.self, forKey: .kind)
+        reason = try fields.decode(String.self, forKey: .reason)
+        sourceId = try fields.decode(String.self, forKey: .sourceId)
+        bookId = try fields.decode(String.self, forKey: .bookId)
+        chapterIndex = try fields.decode(Int64?.self, forKey: .chapterIndex)
+        imagePresentationChanged = try fields.decodeIfPresent(Bool.self, forKey: .imagePresentationChanged)
+        pendingRestore = try fields.decodeIfPresent(M3LocalPositionPendingRestoreData.self, forKey: .pendingRestore)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(kind, forKey: .kind)
+        try fields.encode(reason, forKey: .reason)
+        try fields.encode(sourceId, forKey: .sourceId)
+        try fields.encode(bookId, forKey: .bookId)
+        try fields.encode(chapterIndex, forKey: .chapterIndex)
+        try fields.encodeIfPresent(imagePresentationChanged, forKey: .imagePresentationChanged)
+        try fields.encodeIfPresent(pendingRestore, forKey: .pendingRestore)
+    }
+}
+
+public struct M3LocalPositionPendingRestoreData: Codable, Sendable {
+    public let archiveIds: [String]
+    public let progressEntries: Int64
+    public let legacyProgressEntries: Int64
+    public let historyEntries: Int64
+    public let bookmarkEntries: Int64
+    public let highlightEntries: Int64
+    public let currentProgressUnverified: Bool
+
+    public init(archiveIds: [String], progressEntries: Int64, legacyProgressEntries: Int64, historyEntries: Int64, bookmarkEntries: Int64, highlightEntries: Int64, currentProgressUnverified: Bool) {
+        self.archiveIds = archiveIds
+        self.progressEntries = progressEntries
+        self.legacyProgressEntries = legacyProgressEntries
+        self.historyEntries = historyEntries
+        self.bookmarkEntries = bookmarkEntries
+        self.highlightEntries = highlightEntries
+        self.currentProgressUnverified = currentProgressUnverified
+    }
+}
+
+public struct M3TtsQueueReportCallbackParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+    public let sliceIndex: Int64
+    public let status: M3TtsSliceStatus
+    public let callbackId: String
+    public let failurePolicy: M3TtsFailurePolicy?
+    public let failureLimit: Int64?
+
+    public init(chapter: M3TtsChapterRef, sliceIndex: Int64, status: M3TtsSliceStatus, callbackId: String, failurePolicy: M3TtsFailurePolicy? = nil, failureLimit: Int64? = nil) {
+        self.chapter = chapter
+        self.sliceIndex = sliceIndex
+        self.status = status
+        self.callbackId = callbackId
+        self.failurePolicy = failurePolicy
+        self.failureLimit = failureLimit
+    }
+}
+
+public struct M3TtsChapterRef: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let chapterTitle: String?
+    public let chapterUrl: String?
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, chapterTitle: String? = nil, chapterUrl: String? = nil) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.chapterTitle = chapterTitle
+        self.chapterUrl = chapterUrl
+    }
+}
+
+/// Wire values of M3TtsSliceStatus.
+public enum M3TtsSliceStatus: String, Codable, Sendable, CaseIterable {
+    case pending = "pending"
+    case speaking = "speaking"
+    case done = "done"
+    case skipped = "skipped"
+    case failed = "failed"
+}
+
+/// Wire values of M3TtsFailurePolicy.
+public enum M3TtsFailurePolicy: String, Codable, Sendable, CaseIterable {
+    case skip = "skip"
+    case stop = "stop"
+}
+
+public struct M3TtsQueueReportCallbackData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+    public let callbackDisposition: M3TtsCallbackDisposition
+    public let failureAction: M3TtsFailureAction?
+
+    public init(snapshot: M3TtsQueueSnapshot, callbackDisposition: M3TtsCallbackDisposition, failureAction: M3TtsFailureAction? = nil) {
+        self.snapshot = snapshot
+        self.callbackDisposition = callbackDisposition
+        self.failureAction = failureAction
+    }
+}
+
+public struct M3TtsQueueSnapshot: Codable, Sendable {
+    public let state: M3TtsQueueState
+    public let currentSliceIndex: Int64?
+    public let totalSlices: Int64
+    public let completedSlices: Int64
+    public let chapter: M3TtsChapterRef
+    public let sliceStatuses: [M3TtsSliceStatus]?
+    public let failurePolicy: M3TtsFailurePolicy?
+    public let consecutiveFailures: Int64?
+    public let failureLimit: Int64?
+    public let drainBehavior: M3TtsQueueDrainBehavior?
+    public let restartPolicy: M3TtsQueueRestartPolicy?
+
+    public init(state: M3TtsQueueState, currentSliceIndex: Int64? = nil, totalSlices: Int64, completedSlices: Int64, chapter: M3TtsChapterRef, sliceStatuses: [M3TtsSliceStatus]? = nil, failurePolicy: M3TtsFailurePolicy? = nil, consecutiveFailures: Int64? = nil, failureLimit: Int64? = nil, drainBehavior: M3TtsQueueDrainBehavior? = nil, restartPolicy: M3TtsQueueRestartPolicy? = nil) {
+        self.state = state
+        self.currentSliceIndex = currentSliceIndex
+        self.totalSlices = totalSlices
+        self.completedSlices = completedSlices
+        self.chapter = chapter
+        self.sliceStatuses = sliceStatuses
+        self.failurePolicy = failurePolicy
+        self.consecutiveFailures = consecutiveFailures
+        self.failureLimit = failureLimit
+        self.drainBehavior = drainBehavior
+        self.restartPolicy = restartPolicy
+    }
+}
+
+/// Wire values of M3TtsQueueState.
+public enum M3TtsQueueState: String, Codable, Sendable, CaseIterable {
+    case idle = "idle"
+    case playing = "playing"
+    case paused = "paused"
+    case completed = "completed"
+    case stopped = "stopped"
+}
+
+/// Wire values of M3TtsQueueDrainBehavior.
+public enum M3TtsQueueDrainBehavior: String, Codable, Sendable, CaseIterable {
+    case stopOnBoundary = "stop-on-boundary"
+    case advanceToNext = "advance-to-next"
+}
+
+/// Wire values of M3TtsQueueRestartPolicy.
+public enum M3TtsQueueRestartPolicy: String, Codable, Sendable, CaseIterable {
+    case resetOnCoreRestart = "reset-on-core-restart"
+}
+
+/// Wire values of M3TtsCallbackDisposition.
+public enum M3TtsCallbackDisposition: String, Codable, Sendable, CaseIterable {
+    case applied = "applied"
+    case duplicate = "duplicate"
+    case stale = "stale"
+}
+
+/// Wire values of M3TtsFailureAction.
+public enum M3TtsFailureAction: String, Codable, Sendable, CaseIterable {
+    case skip = "skip"
+    case stop = "stop"
+}
+
+public struct M3TtsSliceParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+    public let content: String
+    public let strategy: M3TtsSlicingStrategy?
+
+    public init(chapter: M3TtsChapterRef, content: String, strategy: M3TtsSlicingStrategy? = nil) {
+        self.chapter = chapter
+        self.content = content
+        self.strategy = strategy
+    }
+}
+
+/// Wire values of M3TtsSlicingStrategy.
+public enum M3TtsSlicingStrategy: String, Codable, Sendable, CaseIterable {
+    case paragraph = "paragraph"
+    case sentence = "sentence"
+    case paragraphThenSentence = "paragraph-then-sentence"
+    case lineBreak = "line-break"
+}
+
+public struct M3TtsSliceData: Codable, Sendable {
+    public let plan: M3TtsSlicePlan
+
+    public init(plan: M3TtsSlicePlan) {
+        self.plan = plan
+    }
+}
+
+public struct M3TtsSlicePlan: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+    public let strategy: M3TtsSlicingStrategy?
+    public let slices: [M3TtsSlice]
+    public let sourceCharCount: Int64
+
+    public init(chapter: M3TtsChapterRef, strategy: M3TtsSlicingStrategy? = nil, slices: [M3TtsSlice], sourceCharCount: Int64) {
+        self.chapter = chapter
+        self.strategy = strategy
+        self.slices = slices
+        self.sourceCharCount = sourceCharCount
+    }
+}
+
+public struct M3TtsSlice: Codable, Sendable {
+    public let index: Int64
+    public let text: String
+    public let charStart: Int64
+    public let charEnd: Int64
+    public let paragraphIndex: Int64
+
+    public init(index: Int64, text: String, charStart: Int64, charEnd: Int64, paragraphIndex: Int64) {
+        self.index = index
+        self.text = text
+        self.charStart = charStart
+        self.charEnd = charEnd
+        self.paragraphIndex = paragraphIndex
+    }
+}
+
+public struct M3TtsQueueStatusParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+
+    public init(chapter: M3TtsChapterRef) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3TtsQueueStatusData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsChapterPlanParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+    public let drainBehavior: M3TtsQueueDrainBehavior?
+    public let nextChapter: M3TtsChapterRef?
+
+    public init(chapter: M3TtsChapterRef, drainBehavior: M3TtsQueueDrainBehavior? = nil, nextChapter: M3TtsChapterRef? = nil) {
+        self.chapter = chapter
+        self.drainBehavior = drainBehavior
+        self.nextChapter = nextChapter
+    }
+}
+
+public struct M3TtsChapterPlanData: Codable, Sendable {
+    public let transition: M3TtsChapterTransition
+
+    public init(transition: M3TtsChapterTransition) {
+        self.transition = transition
+    }
+}
+
+public struct M3TtsChapterTransition: Codable, Sendable {
+    public let current: M3TtsChapterRef
+    public let next: M3TtsChapterRef?
+    public let drainBehavior: M3TtsQueueDrainBehavior?
+
+    public init(current: M3TtsChapterRef, next: M3TtsChapterRef? = nil, drainBehavior: M3TtsQueueDrainBehavior? = nil) {
+        self.current = current
+        self.next = next
+        self.drainBehavior = drainBehavior
+    }
+}
+
+public struct M3TtsQueuePlayParams: Codable, Sendable {
+    public let plan: M3TtsSlicePlan
+    public let startSliceIndex: Int64?
+
+    public init(plan: M3TtsSlicePlan, startSliceIndex: Int64? = nil) {
+        self.plan = plan
+        self.startSliceIndex = startSliceIndex
+    }
+}
+
+public struct M3TtsQueuePlayData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueuePauseParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+
+    public init(chapter: M3TtsChapterRef) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3TtsQueuePauseData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueueResumeParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+
+    public init(chapter: M3TtsChapterRef) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3TtsQueueResumeData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueueStopParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+
+    public init(chapter: M3TtsChapterRef) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3TtsQueueStopData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueueNextParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+
+    public init(chapter: M3TtsChapterRef) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3TtsQueueNextData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueuePrevParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+
+    public init(chapter: M3TtsChapterRef) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3TtsQueuePrevData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueueSeekParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+    public let sliceIndex: Int64
+
+    public init(chapter: M3TtsChapterRef, sliceIndex: Int64) {
+        self.chapter = chapter
+        self.sliceIndex = sliceIndex
+    }
+}
+
+public struct M3TtsQueueSeekData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueueSkipParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+
+    public init(chapter: M3TtsChapterRef) {
+        self.chapter = chapter
+    }
+}
+
+public struct M3TtsQueueSkipData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3TtsQueueSetRateParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+    public let rate: Int64
+
+    public init(chapter: M3TtsChapterRef, rate: Int64) {
+        self.chapter = chapter
+        self.rate = rate
+    }
+}
+
+public struct M3TtsQueueSetRateData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+    public let rate: Int64
+
+    public init(snapshot: M3TtsQueueSnapshot, rate: Int64) {
+        self.snapshot = snapshot
+        self.rate = rate
+    }
+}
+
+public struct M3TtsQueueReportStatusParams: Codable, Sendable {
+    public let chapter: M3TtsChapterRef
+    public let sliceIndex: Int64
+    public let status: M3TtsSliceStatus
+
+    public init(chapter: M3TtsChapterRef, sliceIndex: Int64, status: M3TtsSliceStatus) {
+        self.chapter = chapter
+        self.sliceIndex = sliceIndex
+        self.status = status
+    }
+}
+
+public struct M3TtsQueueReportStatusData: Codable, Sendable {
+    public let snapshot: M3TtsQueueSnapshot
+
+    public init(snapshot: M3TtsQueueSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+public struct M3EmptyParams: Codable, Sendable {
+    public init() {
+    }
+}
+
+public struct M3TtsConfigGetData: Codable, Sendable {
+    public let config: M3TtsConfigData?
+
+    public init(config: M3TtsConfigData? = nil) {
+        self.config = config
+    }
+}
+
+public struct M3TtsConfigData: Codable, Sendable {
+    public let configId: Int64?
+    public let engine: String?
+    public let rate: Int64
+    public let pitch: Int64
+    public let followSys: Bool
+    public let ratePercent: Int64?
+
+    public init(configId: Int64? = nil, engine: String? = nil, rate: Int64, pitch: Int64, followSys: Bool, ratePercent: Int64? = nil) {
+        self.configId = configId
+        self.engine = engine
+        self.rate = rate
+        self.pitch = pitch
+        self.followSys = followSys
+        self.ratePercent = ratePercent
+    }
+}
+
+public struct M3TtsConfigPutParams: Codable, Sendable {
+    public let engine: String?
+    public let rate: Int64
+    public let pitch: Int64
+    public let followSys: Bool
+    public let ratePercent: Int64?
+
+    public init(engine: String? = nil, rate: Int64, pitch: Int64, followSys: Bool, ratePercent: Int64? = nil) {
+        self.engine = engine
+        self.rate = rate
+        self.pitch = pitch
+        self.followSys = followSys
+        self.ratePercent = ratePercent
+    }
+}
+
+public struct M3TtsConfigPutData: Codable, Sendable {
+    public let config: M3TtsConfigData
+
+    public init(config: M3TtsConfigData) {
+        self.config = config
+    }
+}
+
+public struct M3HttpTtsPutParams: Codable, Sendable {
+    public let id: Int64
+    public let name: String
+    public let url: String
+    public let contentType: String?
+    public let concurrentRate: String?
+    public let loginUrl: String?
+    public let loginUi: String?
+    public let header: String?
+    public let jsLib: String?
+    public let enabledCookieJar: Bool?
+    public let loginCheckJs: String?
+    public let lastUpdateTime: Int64?
+    public let readerProfile: String?
+
+    public init(id: Int64, name: String, url: String, contentType: String? = nil, concurrentRate: String? = nil, loginUrl: String? = nil, loginUi: String? = nil, header: String? = nil, jsLib: String? = nil, enabledCookieJar: Bool? = nil, loginCheckJs: String? = nil, lastUpdateTime: Int64? = nil, readerProfile: String? = nil) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.contentType = contentType
+        self.concurrentRate = concurrentRate
+        self.loginUrl = loginUrl
+        self.loginUi = loginUi
+        self.header = header
+        self.jsLib = jsLib
+        self.enabledCookieJar = enabledCookieJar
+        self.loginCheckJs = loginCheckJs
+        self.lastUpdateTime = lastUpdateTime
+        self.readerProfile = readerProfile
+    }
+}
+
+public struct M3HttpTtsPutData: Codable, Sendable {
+    public let tts: M3HttpTtsData
+
+    public init(tts: M3HttpTtsData) {
+        self.tts = tts
+    }
+}
+
+public struct M3HttpTtsData: Codable, Sendable {
+    public let id: Int64
+    public let name: String
+    public let url: String
+    public let contentType: String?
+    public let concurrentRate: String?
+    public let loginUrl: String?
+    public let loginUi: String?
+    public let header: String?
+    public let jsLib: String?
+    public let enabledCookieJar: Bool?
+    public let loginCheckJs: String?
+    public let lastUpdateTime: Int64
+    public let readerProfile: String?
+
+    public init(id: Int64, name: String, url: String, contentType: String? = nil, concurrentRate: String? = nil, loginUrl: String? = nil, loginUi: String? = nil, header: String? = nil, jsLib: String? = nil, enabledCookieJar: Bool? = nil, loginCheckJs: String? = nil, lastUpdateTime: Int64, readerProfile: String? = nil) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.contentType = contentType
+        self.concurrentRate = concurrentRate
+        self.loginUrl = loginUrl
+        self.loginUi = loginUi
+        self.header = header
+        self.jsLib = jsLib
+        self.enabledCookieJar = enabledCookieJar
+        self.loginCheckJs = loginCheckJs
+        self.lastUpdateTime = lastUpdateTime
+        self.readerProfile = readerProfile
+    }
+}
+
+public struct M3HttpTtsGetParams: Codable, Sendable {
+    public let id: Int64
+
+    public init(id: Int64) {
+        self.id = id
+    }
+}
+
+public struct M3HttpTtsGetData: Codable, Sendable {
+    public let tts: M3HttpTtsData?
+
+    public init(tts: M3HttpTtsData? = nil) {
+        self.tts = tts
+    }
+}
+
+public struct M3HttpTtsListData: Codable, Sendable {
+    public let items: [M3HttpTtsData]
+
+    public init(items: [M3HttpTtsData]) {
+        self.items = items
+    }
+}
+
+public struct M3HttpTtsDeleteParams: Codable, Sendable {
+    public let id: Int64
+
+    public init(id: Int64) {
+        self.id = id
+    }
+}
+
+public struct M3HttpTtsDeleteData: Codable, Sendable {
+    public let id: Int64
+    public let deleted: Bool
+
+    public init(id: Int64, deleted: Bool) {
+        self.id = id
+        self.deleted = deleted
+    }
+}
+
+public struct M3HttpTtsBuildRequestParams: Codable, Sendable {
+    public let id: Int64
+    public let text: String
+    public let ratePercent: Int64?
+
+    public init(id: Int64, text: String, ratePercent: Int64? = nil) {
+        self.id = id
+        self.text = text
+        self.ratePercent = ratePercent
+    }
+}
+
+public struct M3HttpTtsBuildRequestData: Codable, Sendable {
+    public let method: String
+    public let url: String
+    public let headers: [String: String]
+    public let body: String?
+    public let contentType: String?
+    public let concurrentRate: String?
+    public let playback: M3HttpTtsPlayback?
+
+    public init(method: String, url: String, headers: [String: String], body: String? = nil, contentType: String? = nil, concurrentRate: String? = nil, playback: M3HttpTtsPlayback? = nil) {
+        self.method = method
+        self.url = url
+        self.headers = headers
+        self.body = body
+        self.contentType = contentType
+        self.concurrentRate = concurrentRate
+        self.playback = playback
+    }
+}
+
+public struct M3HttpTtsPlayback: Codable, Sendable {
+    public let format: M3HttpTtsPlaybackFormat
+    public let sampleRate: Int64?
+    public let channels: M3HttpTtsPlaybackChannels?
+    public let sampleFormat: M3HttpTtsPlaybackSampleFormat
+    public let credentialRef: String?
+    public let credentialHeader: String?
+    public let credentialPrefix: String
+    public let rateApplied: Bool
+    public let ratePercent: Int64
+
+    public init(format: M3HttpTtsPlaybackFormat, sampleRate: Int64?, channels: M3HttpTtsPlaybackChannels?, sampleFormat: M3HttpTtsPlaybackSampleFormat = .s16le, credentialRef: String?, credentialHeader: String?, credentialPrefix: String, rateApplied: Bool, ratePercent: Int64) {
+        self.format = format
+        self.sampleRate = sampleRate
+        self.channels = channels
+        self.sampleFormat = sampleFormat
+        self.credentialRef = credentialRef
+        self.credentialHeader = credentialHeader
+        self.credentialPrefix = credentialPrefix
+        self.rateApplied = rateApplied
+        self.ratePercent = ratePercent
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case format = "format"
+        case sampleRate = "sampleRate"
+        case channels = "channels"
+        case sampleFormat = "sampleFormat"
+        case credentialRef = "credentialRef"
+        case credentialHeader = "credentialHeader"
+        case credentialPrefix = "credentialPrefix"
+        case rateApplied = "rateApplied"
+        case ratePercent = "ratePercent"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        format = try fields.decode(M3HttpTtsPlaybackFormat.self, forKey: .format)
+        sampleRate = try fields.decode(Int64?.self, forKey: .sampleRate)
+        channels = try fields.decode(M3HttpTtsPlaybackChannels?.self, forKey: .channels)
+        sampleFormat = try fields.decode(M3HttpTtsPlaybackSampleFormat.self, forKey: .sampleFormat)
+        credentialRef = try fields.decode(String?.self, forKey: .credentialRef)
+        credentialHeader = try fields.decode(String?.self, forKey: .credentialHeader)
+        credentialPrefix = try fields.decode(String.self, forKey: .credentialPrefix)
+        rateApplied = try fields.decode(Bool.self, forKey: .rateApplied)
+        ratePercent = try fields.decode(Int64.self, forKey: .ratePercent)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(format, forKey: .format)
+        try fields.encode(sampleRate, forKey: .sampleRate)
+        try fields.encode(channels, forKey: .channels)
+        try fields.encode(sampleFormat, forKey: .sampleFormat)
+        try fields.encode(credentialRef, forKey: .credentialRef)
+        try fields.encode(credentialHeader, forKey: .credentialHeader)
+        try fields.encode(credentialPrefix, forKey: .credentialPrefix)
+        try fields.encode(rateApplied, forKey: .rateApplied)
+        try fields.encode(ratePercent, forKey: .ratePercent)
+    }
+}
+
+/// Wire values of M3HttpTtsPlaybackFormat.
+public enum M3HttpTtsPlaybackFormat: String, Codable, Sendable, CaseIterable {
+    case mp3 = "mp3"
+    case wav = "wav"
+    case pcm = "pcm"
+}
+
+public enum M3HttpTtsPlaybackChannels: Int64, Codable, Sendable, CaseIterable {
+    case v1 = 1
+    case v2 = 2
+}
+
+/// Wire values of M3HttpTtsPlaybackSampleFormat.
+public enum M3HttpTtsPlaybackSampleFormat: String, Codable, Sendable, CaseIterable {
+    case s16le = "s16le"
+}
+
+public struct M3MangaTransferInputCompleteParams: Codable, Sendable {
+    public let operationId: Int64
+    public let result: M3MangaTransferInputReceipt
+
+    public init(operationId: Int64, result: M3MangaTransferInputReceipt) {
+        self.operationId = operationId
+        self.result = result
+    }
+}
+
+public struct M3MangaTransferInputReceipt: Codable, Sendable {
+    public let assetId: Int64
+    public let operationId: Int64
+    public let bytes: Int64
+    public let width: Int64?
+    public let height: Int64?
+
+    public init(assetId: Int64, operationId: Int64, bytes: Int64, width: Int64? = nil, height: Int64? = nil) {
+        self.assetId = assetId
+        self.operationId = operationId
+        self.bytes = bytes
+        self.width = width
+        self.height = height
+    }
+}
+
+public struct M3MangaTransferOutputCompleteParams: Codable, Sendable {
+    public let operationId: Int64
+    public let result: M3MangaTransferOutputReceipt
+
+    public init(operationId: Int64, result: M3MangaTransferOutputReceipt) {
+        self.operationId = operationId
+        self.result = result
+    }
+}
+
+public struct M3MangaTransferOutputReceipt: Codable, Sendable {
+    public let consumed: Bool
+    public let assetId: Int64
+    public let bytes: Int64
+    public let preparedBytes: Int64?
+
+    public init(consumed: Bool, assetId: Int64, bytes: Int64, preparedBytes: Int64? = nil) {
+        self.consumed = consumed
+        self.assetId = assetId
+        self.bytes = bytes
+        self.preparedBytes = preparedBytes
+    }
+}
+
+public struct M3MangaResourceTransferHostRequest: Codable, Sendable {
+    public let type: M3MangaResourceTransferHostRequestType
+    public let protocolVersion: Int64
+    public let requestId: Int64
+    public let operationId: Int64
+    public let capability: M3MangaResourceTransferHostRequestCapability
+    public let params: M3MangaTransferStage
+    public let deliveryId: Int64?
+
+    public init(type: M3MangaResourceTransferHostRequestType = .hostRequest, protocolVersion: Int64, requestId: Int64, operationId: Int64, capability: M3MangaResourceTransferHostRequestCapability = .mangaResourceTransfer, params: M3MangaTransferStage, deliveryId: Int64? = nil) {
+        self.type = type
+        self.protocolVersion = protocolVersion
+        self.requestId = requestId
+        self.operationId = operationId
+        self.capability = capability
+        self.params = params
+        self.deliveryId = deliveryId
+    }
+}
+
+/// Wire values of M3MangaResourceTransferHostRequestType.
+public enum M3MangaResourceTransferHostRequestType: String, Codable, Sendable, CaseIterable {
+    case hostRequest = "host.request"
+}
+
+/// Wire values of M3MangaResourceTransferHostRequestCapability.
+public enum M3MangaResourceTransferHostRequestCapability: String, Codable, Sendable, CaseIterable {
+    case mangaResourceTransfer = "manga.resource.transfer"
+}
+
+public enum M3MangaTransferStage: Codable, Sendable {
+    case input(M3MangaTransferInput)
+    case output(M3MangaTransferOutput)
+    case inspectInput(M3MangaTransferInspectInput)
+
+    private enum CodingKeys: String, CodingKey { case stage }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let tag = fields.contains(.stage) ? try fields.decode(String.self, forKey: .stage) : nil
+        switch tag {
+        case "input": self = .input(try M3MangaTransferInput(from: decoder))
+        case "output": self = .output(try M3MangaTransferOutput(from: decoder))
+        case "inspectInput": self = .inspectInput(try M3MangaTransferInspectInput(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .stage, in: fields, debugDescription: "Unknown M3MangaTransferStage tag")
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .input(let value): try value.encode(to: encoder)
+        case .output(let value): try value.encode(to: encoder)
+        case .inspectInput(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct M3MangaTransferInput: Codable, Sendable {
+    public let stage: M3MangaTransferInputStage
+    public let inspectGraphics: Bool
+    public let transferId: String
+    public let resourceRef: String
+    public let request: M3MangaTransferRequest
+    public let maxBytes: M3MangaTransferInputMaxBytes
+
+    public init(stage: M3MangaTransferInputStage = .input, inspectGraphics: Bool, transferId: String, resourceRef: String, request: M3MangaTransferRequest, maxBytes: M3MangaTransferInputMaxBytes) {
+        self.stage = stage
+        self.inspectGraphics = inspectGraphics
+        self.transferId = transferId
+        self.resourceRef = resourceRef
+        self.request = request
+        self.maxBytes = maxBytes
+    }
+}
+
+/// Wire values of M3MangaTransferInputStage.
+public enum M3MangaTransferInputStage: String, Codable, Sendable, CaseIterable {
+    case input = "input"
+}
+
+public enum M3MangaTransferRequest: Codable, Sendable {
+    case http(M3HostHttpRequest)
+    case dataUri(M3MangaTransferDataUri)
+
+    private enum CodingKeys: String, CodingKey { case url, dataUri }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let matches = [
+            fields.contains(.url),
+            fields.contains(.dataUri),
+        ]
+        guard matches.filter({ $0 }).count == 1, let index = matches.firstIndex(of: true) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown or ambiguous M3MangaTransferRequest variant"))
+        }
+        switch index {
+        case 0: self = .http(try M3HostHttpRequest(from: decoder))
+        case 1: self = .dataUri(try M3MangaTransferDataUri(from: decoder))
+        default:
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown M3MangaTransferRequest variant index"))
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .http(let value): try value.encode(to: encoder)
+        case .dataUri(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct M3HostHttpRequest: Codable, Sendable {
+    public let timeoutMs: Int64?
+    public let url: String
+    public let method: String?
+    public let headers: [String: ReaderM1JSONValue]?
+    public let body: String?
+    public let charset: String?
+    public let followRedirects: Bool?
+    public let maxRedirects: Int64?
+    public let retry: M3HostHttpRetryPolicy?
+    public let usePlatformCookieJar: Bool?
+    public let session: M3HostHttpSession?
+    public let responseAsset: Bool?
+    public let diagnostic: M3HostHttpDiagnostic?
+
+    public init(timeoutMs: Int64? = nil, url: String, method: String? = nil, headers: [String: ReaderM1JSONValue]? = nil, body: String? = nil, charset: String? = nil, followRedirects: Bool? = nil, maxRedirects: Int64? = nil, retry: M3HostHttpRetryPolicy? = nil, usePlatformCookieJar: Bool? = nil, session: M3HostHttpSession? = nil, responseAsset: Bool? = nil, diagnostic: M3HostHttpDiagnostic? = nil) {
+        self.timeoutMs = timeoutMs
+        self.url = url
+        self.method = method
+        self.headers = headers
+        self.body = body
+        self.charset = charset
+        self.followRedirects = followRedirects
+        self.maxRedirects = maxRedirects
+        self.retry = retry
+        self.usePlatformCookieJar = usePlatformCookieJar
+        self.session = session
+        self.responseAsset = responseAsset
+        self.diagnostic = diagnostic
+    }
+}
+
+public struct M3HostHttpRetryPolicy: Codable, Sendable {
+    public let maxAttempts: Int64
+    public let backoffMillis: Int64?
+
+    public init(maxAttempts: Int64, backoffMillis: Int64? = nil) {
+        self.maxAttempts = maxAttempts
+        self.backoffMillis = backoffMillis
+    }
+}
+
+public struct M3HostHttpSession: Codable, Sendable {
+    public let id: String
+
+    public init(id: String) {
+        self.id = id
+    }
+}
+
+public struct M3HostHttpDiagnostic: Codable, Sendable {
+    public let traceId: String
+    public let requestId: Int64
+    public let sourceId: String
+    public let stage: M3HostHttpDiagnosticStage
+
+    public init(traceId: String, requestId: Int64, sourceId: String, stage: M3HostHttpDiagnosticStage) {
+        self.traceId = traceId
+        self.requestId = requestId
+        self.sourceId = sourceId
+        self.stage = stage
+    }
+}
+
+/// Wire values of M3HostHttpDiagnosticStage.
+public enum M3HostHttpDiagnosticStage: String, Codable, Sendable, CaseIterable {
+    case l2 = "L2"
+    case l3 = "L3"
+    case l4 = "L4"
+    case l5 = "L5"
+}
+
+public struct M3MangaTransferDataUri: Codable, Sendable {
+    public let dataUri: String
+
+    public init(dataUri: String) {
+        self.dataUri = dataUri
+    }
+}
+
+public enum M3MangaTransferInputMaxBytes: Int64, Codable, Sendable, CaseIterable {
+    case v8388608 = 8388608
+    case v16777216 = 16777216
+}
+
+public struct M3MangaTransferOutput: Codable, Sendable {
+    public let stage: M3MangaTransferOutputStage
+    public let graphicsPlan: M3MangaGraphicsPlan?
+    public let transferId: String
+    public let resourceRef: String
+    public let assetId: Int64
+    public let operationId: Int64
+    public let bytes: Int64
+
+    public init(stage: M3MangaTransferOutputStage = .output, graphicsPlan: M3MangaGraphicsPlan?, transferId: String, resourceRef: String, assetId: Int64, operationId: Int64, bytes: Int64) {
+        self.stage = stage
+        self.graphicsPlan = graphicsPlan
+        self.transferId = transferId
+        self.resourceRef = resourceRef
+        self.assetId = assetId
+        self.operationId = operationId
+        self.bytes = bytes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case stage = "stage"
+        case graphicsPlan = "graphicsPlan"
+        case transferId = "transferId"
+        case resourceRef = "resourceRef"
+        case assetId = "assetId"
+        case operationId = "operationId"
+        case bytes = "bytes"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        stage = try fields.decode(M3MangaTransferOutputStage.self, forKey: .stage)
+        graphicsPlan = try fields.decode(M3MangaGraphicsPlan?.self, forKey: .graphicsPlan)
+        transferId = try fields.decode(String.self, forKey: .transferId)
+        resourceRef = try fields.decode(String.self, forKey: .resourceRef)
+        assetId = try fields.decode(Int64.self, forKey: .assetId)
+        operationId = try fields.decode(Int64.self, forKey: .operationId)
+        bytes = try fields.decode(Int64.self, forKey: .bytes)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(stage, forKey: .stage)
+        try fields.encode(graphicsPlan, forKey: .graphicsPlan)
+        try fields.encode(transferId, forKey: .transferId)
+        try fields.encode(resourceRef, forKey: .resourceRef)
+        try fields.encode(assetId, forKey: .assetId)
+        try fields.encode(operationId, forKey: .operationId)
+        try fields.encode(bytes, forKey: .bytes)
+    }
+}
+
+/// Wire values of M3MangaTransferOutputStage.
+public enum M3MangaTransferOutputStage: String, Codable, Sendable, CaseIterable {
+    case output = "output"
+}
+
+public struct M3MangaGraphicsPlan: Codable, Sendable {
+    public let readerMangaGraphicsPlan: Bool
+    public let toJson: M3Null
+    public let width: Int64
+    public let height: Int64
+    public let format: M3MangaGraphicsPlanFormat
+    public let quality: M3MangaGraphicsPlanQuality
+    public let pixelFormat: M3MangaGraphicsPlanPixelFormat
+    public let strips: [M3MangaGraphicsPlanStripsItem]
+
+    public init(readerMangaGraphicsPlan: Bool, toJson: M3Null, width: Int64, height: Int64, format: M3MangaGraphicsPlanFormat = .jpeg, quality: M3MangaGraphicsPlanQuality = .v90, pixelFormat: M3MangaGraphicsPlanPixelFormat = .rgb565, strips: [M3MangaGraphicsPlanStripsItem]) {
+        self.readerMangaGraphicsPlan = readerMangaGraphicsPlan
+        self.toJson = toJson
+        self.width = width
+        self.height = height
+        self.format = format
+        self.quality = quality
+        self.pixelFormat = pixelFormat
+        self.strips = strips
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case readerMangaGraphicsPlan = "__readerMangaGraphicsPlan"
+        case toJson = "toJSON"
+        case width = "width"
+        case height = "height"
+        case format = "format"
+        case quality = "quality"
+        case pixelFormat = "pixelFormat"
+        case strips = "strips"
+    }
+}
+
+/// Wire values of M3MangaGraphicsPlanFormat.
+public enum M3MangaGraphicsPlanFormat: String, Codable, Sendable, CaseIterable {
+    case jpeg = "jpeg"
+}
+
+public enum M3MangaGraphicsPlanQuality: Int64, Codable, Sendable, CaseIterable {
+    case v90 = 90
+}
+
+/// Wire values of M3MangaGraphicsPlanPixelFormat.
+public enum M3MangaGraphicsPlanPixelFormat: String, Codable, Sendable, CaseIterable {
+    case rgb565 = "rgb565"
+}
+
+public struct M3MangaGraphicsPlanStripsItem: Codable, Sendable {
+    public let sourceY: Int64
+    public let targetY: Int64
+    public let height: Int64
+
+    public init(sourceY: Int64, targetY: Int64, height: Int64) {
+        self.sourceY = sourceY
+        self.targetY = targetY
+        self.height = height
+    }
+}
+
+public struct M3MangaTransferInspectInput: Codable, Sendable {
+    public let stage: M3MangaTransferInspectInputStage
+    public let transferId: String
+    public let sha256: String
+    public let bytes: Int64
+    public let maxBytes: M3MangaTransferInspectInputMaxBytes
+
+    public init(stage: M3MangaTransferInspectInputStage = .inspectInput, transferId: String, sha256: String, bytes: Int64, maxBytes: M3MangaTransferInspectInputMaxBytes = .v16777216) {
+        self.stage = stage
+        self.transferId = transferId
+        self.sha256 = sha256
+        self.bytes = bytes
+        self.maxBytes = maxBytes
+    }
+}
+
+/// Wire values of M3MangaTransferInspectInputStage.
+public enum M3MangaTransferInspectInputStage: String, Codable, Sendable, CaseIterable {
+    case inspectInput = "inspectInput"
+}
+
+public enum M3MangaTransferInspectInputMaxBytes: Int64, Codable, Sendable, CaseIterable {
+    case v16777216 = 16777216
+}
+
+public struct M3ReadingEntryFirstFrameParams: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64?
+    public let positionContext: M3RemoteContentPositionContext?
+    public let windowScalarLimit: Int64
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64? = nil, positionContext: M3RemoteContentPositionContext? = nil, windowScalarLimit: Int64) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.positionContext = positionContext
+        self.windowScalarLimit = windowScalarLimit
+    }
+}
+
+public struct M3RemoteContentPositionContext: Codable, Sendable {
+    public let bodyVersion: String
+    public let processingVersion: String
+    public let anchors: [M3RemoteContentPositionAnchor]
+
+    public init(bodyVersion: String, processingVersion: String, anchors: [M3RemoteContentPositionAnchor]) {
+        self.bodyVersion = bodyVersion
+        self.processingVersion = processingVersion
+        self.anchors = anchors
+    }
+}
+
+public struct M3RemoteContentPositionAnchor: Codable, Sendable {
+    public let id: String
+    public let offset: Int64
+
+    public init(id: String, offset: Int64) {
+        self.id = id
+        self.offset = offset
+    }
+}
+
+public enum M3ReadingEntryFirstFrameData: Codable, Sendable {
+    case ready(M3ReadingEntryFirstFrameReady)
+    case unavailable(M3ReadingEntryFirstFrameUnavailable)
+
+    private enum CodingKeys: String, CodingKey { case kind }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let tag = fields.contains(.kind) ? try fields.decode(String.self, forKey: .kind) : nil
+        switch tag {
+        case "ready": self = .ready(try M3ReadingEntryFirstFrameReady(from: decoder))
+        case "unavailable": self = .unavailable(try M3ReadingEntryFirstFrameUnavailable(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .kind, in: fields, debugDescription: "Unknown M3ReadingEntryFirstFrameData tag")
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .ready(let value): try value.encode(to: encoder)
+        case .unavailable(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct M3ReadingEntryFirstFrameReady: Codable, Sendable {
+    public let kind: M3ReadingEntryFirstFrameReadyKind
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let chapterTitle: String
+    public let content: String
+    public let blocks: [M3ReadingDocumentBlockData]
+    public let positionScope: M3RemoteContentPositionScope
+    public let progress: M3ReadingProgressData?
+    public let pendingRestore: M3LocalPositionPendingRestoreData?
+    public let baseUrl: String?
+    public let contentFormatVersion: Int64
+    public let contentRefreshRequired: Bool
+    public let sourceCorrectionRequired: Bool
+    public let imagePresentationVersion: String?
+    public let progressRevision: String
+    public let navigation: M3ReadingNavigation
+    public let documentWindow: M3ReadingEntryWindow
+
+    public init(kind: M3ReadingEntryFirstFrameReadyKind = .ready, sourceId: String, bookId: String, chapterIndex: Int64, chapterTitle: String, content: String, blocks: [M3ReadingDocumentBlockData], positionScope: M3RemoteContentPositionScope, progress: M3ReadingProgressData?, pendingRestore: M3LocalPositionPendingRestoreData?, baseUrl: String?, contentFormatVersion: Int64, contentRefreshRequired: Bool, sourceCorrectionRequired: Bool, imagePresentationVersion: String? = nil, progressRevision: String, navigation: M3ReadingNavigation, documentWindow: M3ReadingEntryWindow) {
+        self.kind = kind
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.chapterTitle = chapterTitle
+        self.content = content
+        self.blocks = blocks
+        self.positionScope = positionScope
+        self.progress = progress
+        self.pendingRestore = pendingRestore
+        self.baseUrl = baseUrl
+        self.contentFormatVersion = contentFormatVersion
+        self.contentRefreshRequired = contentRefreshRequired
+        self.sourceCorrectionRequired = sourceCorrectionRequired
+        self.imagePresentationVersion = imagePresentationVersion
+        self.progressRevision = progressRevision
+        self.navigation = navigation
+        self.documentWindow = documentWindow
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind = "kind"
+        case sourceId = "sourceId"
+        case bookId = "bookId"
+        case chapterIndex = "chapterIndex"
+        case chapterTitle = "chapterTitle"
+        case content = "content"
+        case blocks = "blocks"
+        case positionScope = "positionScope"
+        case progress = "progress"
+        case pendingRestore = "pendingRestore"
+        case baseUrl = "baseUrl"
+        case contentFormatVersion = "contentFormatVersion"
+        case contentRefreshRequired = "contentRefreshRequired"
+        case sourceCorrectionRequired = "sourceCorrectionRequired"
+        case imagePresentationVersion = "imagePresentationVersion"
+        case progressRevision = "progressRevision"
+        case navigation = "navigation"
+        case documentWindow = "documentWindow"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try fields.decode(M3ReadingEntryFirstFrameReadyKind.self, forKey: .kind)
+        sourceId = try fields.decode(String.self, forKey: .sourceId)
+        bookId = try fields.decode(String.self, forKey: .bookId)
+        chapterIndex = try fields.decode(Int64.self, forKey: .chapterIndex)
+        chapterTitle = try fields.decode(String.self, forKey: .chapterTitle)
+        content = try fields.decode(String.self, forKey: .content)
+        blocks = try fields.decode([M3ReadingDocumentBlockData].self, forKey: .blocks)
+        positionScope = try fields.decode(M3RemoteContentPositionScope.self, forKey: .positionScope)
+        progress = try fields.decode(M3ReadingProgressData?.self, forKey: .progress)
+        pendingRestore = try fields.decode(M3LocalPositionPendingRestoreData?.self, forKey: .pendingRestore)
+        baseUrl = try fields.decode(String?.self, forKey: .baseUrl)
+        contentFormatVersion = try fields.decode(Int64.self, forKey: .contentFormatVersion)
+        contentRefreshRequired = try fields.decode(Bool.self, forKey: .contentRefreshRequired)
+        sourceCorrectionRequired = try fields.decode(Bool.self, forKey: .sourceCorrectionRequired)
+        imagePresentationVersion = try fields.decodeIfPresent(String.self, forKey: .imagePresentationVersion)
+        progressRevision = try fields.decode(String.self, forKey: .progressRevision)
+        navigation = try fields.decode(M3ReadingNavigation.self, forKey: .navigation)
+        documentWindow = try fields.decode(M3ReadingEntryWindow.self, forKey: .documentWindow)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(kind, forKey: .kind)
+        try fields.encode(sourceId, forKey: .sourceId)
+        try fields.encode(bookId, forKey: .bookId)
+        try fields.encode(chapterIndex, forKey: .chapterIndex)
+        try fields.encode(chapterTitle, forKey: .chapterTitle)
+        try fields.encode(content, forKey: .content)
+        try fields.encode(blocks, forKey: .blocks)
+        try fields.encode(positionScope, forKey: .positionScope)
+        try fields.encode(progress, forKey: .progress)
+        try fields.encode(pendingRestore, forKey: .pendingRestore)
+        try fields.encode(baseUrl, forKey: .baseUrl)
+        try fields.encode(contentFormatVersion, forKey: .contentFormatVersion)
+        try fields.encode(contentRefreshRequired, forKey: .contentRefreshRequired)
+        try fields.encode(sourceCorrectionRequired, forKey: .sourceCorrectionRequired)
+        try fields.encodeIfPresent(imagePresentationVersion, forKey: .imagePresentationVersion)
+        try fields.encode(progressRevision, forKey: .progressRevision)
+        try fields.encode(navigation, forKey: .navigation)
+        try fields.encode(documentWindow, forKey: .documentWindow)
+    }
+}
+
+/// Wire values of M3ReadingEntryFirstFrameReadyKind.
+public enum M3ReadingEntryFirstFrameReadyKind: String, Codable, Sendable, CaseIterable {
+    case ready = "ready"
+}
+
+public enum M3ReadingDocumentBlockData: Codable, Sendable {
+    case text(M3ReadingDocumentBlockDataText)
+    case image(M3ReadingDocumentBlockDataImage)
+
+    private enum CodingKeys: String, CodingKey { case kind }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        let tag = fields.contains(.kind) ? try fields.decode(String.self, forKey: .kind) : nil
+        switch tag {
+        case "text": self = .text(try M3ReadingDocumentBlockDataText(from: decoder))
+        case "image": self = .image(try M3ReadingDocumentBlockDataImage(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .kind, in: fields, debugDescription: "Unknown M3ReadingDocumentBlockData tag")
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .text(let value): try value.encode(to: encoder)
+        case .image(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct M3ReadingDocumentBlockDataText: Codable, Sendable {
+    public let kind: M3ReadingDocumentBlockDataTextKind
+    public let text: String
+    public let startScalar: Int64
+    public let endScalar: Int64
+
+    public init(kind: M3ReadingDocumentBlockDataTextKind = .text, text: String, startScalar: Int64, endScalar: Int64) {
+        self.kind = kind
+        self.text = text
+        self.startScalar = startScalar
+        self.endScalar = endScalar
+    }
+}
+
+/// Wire values of M3ReadingDocumentBlockDataTextKind.
+public enum M3ReadingDocumentBlockDataTextKind: String, Codable, Sendable, CaseIterable {
+    case text = "text"
+}
+
+public struct M3ReadingDocumentBlockDataImage: Codable, Sendable {
+    public let kind: M3ReadingDocumentBlockDataImageKind
+    public let source: String
+    public let imageWidthBasisPoints: Int64?
+    public let imageIntrinsicWidth: Int64?
+    public let imageIntrinsicHeight: Int64?
+    public let startScalar: Int64
+    public let endScalar: Int64
+
+    public init(kind: M3ReadingDocumentBlockDataImageKind = .image, source: String, imageWidthBasisPoints: Int64? = nil, imageIntrinsicWidth: Int64? = nil, imageIntrinsicHeight: Int64? = nil, startScalar: Int64, endScalar: Int64) {
+        self.kind = kind
+        self.source = source
+        self.imageWidthBasisPoints = imageWidthBasisPoints
+        self.imageIntrinsicWidth = imageIntrinsicWidth
+        self.imageIntrinsicHeight = imageIntrinsicHeight
+        self.startScalar = startScalar
+        self.endScalar = endScalar
+    }
+}
+
+/// Wire values of M3ReadingDocumentBlockDataImageKind.
+public enum M3ReadingDocumentBlockDataImageKind: String, Codable, Sendable, CaseIterable {
+    case image = "image"
+}
+
+public struct M3RemoteContentPositionScope: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let bodyVersion: String
+    public let processingVersion: String
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, bodyVersion: String, processingVersion: String) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.bodyVersion = bodyVersion
+        self.processingVersion = processingVersion
+    }
+}
+
+public struct M3ReadingProgressData: Codable, Sendable {
+    public let sourceId: String
+    public let bookId: String
+    public let chapterIndex: Int64
+    public let chapterOffset: Int64
+    public let chapterProgress: Double
+    public let updatedAt: Int64
+    public let deviceId: String?
+    public let locationRevision: String?
+    public let bodyVersion: String?
+    public let processingVersion: String?
+
+    public init(sourceId: String, bookId: String, chapterIndex: Int64, chapterOffset: Int64, chapterProgress: Double, updatedAt: Int64, deviceId: String? = nil, locationRevision: String? = nil, bodyVersion: String? = nil, processingVersion: String? = nil) {
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.chapterIndex = chapterIndex
+        self.chapterOffset = chapterOffset
+        self.chapterProgress = chapterProgress
+        self.updatedAt = updatedAt
+        self.deviceId = deviceId
+        self.locationRevision = locationRevision
+        self.bodyVersion = bodyVersion
+        self.processingVersion = processingVersion
+    }
+}
+
+public struct M3ReadingNavigation: Codable, Sendable {
+    public let revision: String
+    public let chapterCount: Int64
+    public let readableChapterCount: Int64
+    public let current: M3ReadingCatalogChapter
+    public let before: [M3ReadingCatalogChapter]
+    public let after: [M3ReadingCatalogChapter]
+
+    public init(revision: String, chapterCount: Int64, readableChapterCount: Int64, current: M3ReadingCatalogChapter, before: [M3ReadingCatalogChapter], after: [M3ReadingCatalogChapter]) {
+        self.revision = revision
+        self.chapterCount = chapterCount
+        self.readableChapterCount = readableChapterCount
+        self.current = current
+        self.before = before
+        self.after = after
+    }
+}
+
+public struct M3ReadingCatalogChapter: Codable, Sendable {
+    public let index: Int64
+    public let position: Int64
+    public let readablePosition: Int64?
+    public let title: String
+    public let navigable: Bool
+    public let level: Int64?
+
+    public init(index: Int64, position: Int64, readablePosition: Int64?, title: String, navigable: Bool, level: Int64? = nil) {
+        self.index = index
+        self.position = position
+        self.readablePosition = readablePosition
+        self.title = title
+        self.navigable = navigable
+        self.level = level
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case index = "index"
+        case position = "position"
+        case readablePosition = "readablePosition"
+        case title = "title"
+        case navigable = "navigable"
+        case level = "level"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        index = try fields.decode(Int64.self, forKey: .index)
+        position = try fields.decode(Int64.self, forKey: .position)
+        readablePosition = try fields.decode(Int64?.self, forKey: .readablePosition)
+        title = try fields.decode(String.self, forKey: .title)
+        navigable = try fields.decode(Bool.self, forKey: .navigable)
+        level = try fields.decodeIfPresent(Int64.self, forKey: .level)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(index, forKey: .index)
+        try fields.encode(position, forKey: .position)
+        try fields.encode(readablePosition, forKey: .readablePosition)
+        try fields.encode(title, forKey: .title)
+        try fields.encode(navigable, forKey: .navigable)
+        try fields.encodeIfPresent(level, forKey: .level)
+    }
+}
+
+public struct M3ReadingEntryWindow: Codable, Sendable {
+    public let startScalar: Int64
+    public let endScalar: Int64
+    public let totalScalars: Int64
+    public let requestedScalar: Int64
+
+    public init(startScalar: Int64, endScalar: Int64, totalScalars: Int64, requestedScalar: Int64) {
+        self.startScalar = startScalar
+        self.endScalar = endScalar
+        self.totalScalars = totalScalars
+        self.requestedScalar = requestedScalar
+    }
+}
+
+public struct M3ReadingEntryFirstFrameUnavailable: Codable, Sendable {
+    public let kind: M3ReadingEntryFirstFrameUnavailableKind
+    public let sourceId: String
+    public let bookId: String
+    public let reason: String
+
+    public init(kind: M3ReadingEntryFirstFrameUnavailableKind = .unavailable, sourceId: String, bookId: String, reason: String) {
+        self.kind = kind
+        self.sourceId = sourceId
+        self.bookId = bookId
+        self.reason = reason
+    }
+}
+
+/// Wire values of M3ReadingEntryFirstFrameUnavailableKind.
+public enum M3ReadingEntryFirstFrameUnavailableKind: String, Codable, Sendable, CaseIterable {
+    case unavailable = "unavailable"
 }

@@ -53,6 +53,9 @@ def main():
     for name in ("local-reading.txt", "reading-lifecycle.json", "scalar-selection.json"):
         source = f"protocol/fixtures/m1/{name}"
         paths[f"Tests/Fixtures/{name}"] = ("Reader-Core", "core", source, None)
+    paths["Tests/Fixtures/manga-and-speech.json"] = (
+        "Reader-Core", "core", "protocol/fixtures/m3/manga-and-speech.json", None
+    )
 
     # The iOS asset compiler consumes the authoritative SVG bytes. Font licensing
     # follows the two Noto faces into ReaderDesign's resource bundle.
@@ -85,6 +88,7 @@ def main():
         "reader-command", "reader-event", "reader-runtime-config", "reader-m2-bindings",
         "reader-m2-host", "reader-m2-sources", "reader-m2-source-receipts",
         "reader-m2-search", "reader-m2-download", "reader-m2-reading",
+        "reader-m3-bindings", "reader-m3-manga", "reader-m3-reading-entry", "reader-m3-speech",
     }
     if not {f"protocol/{name}.schema.json" for name in required_protocol_inputs} <= protocol_inputs.keys():
         raise SystemExit("Generated Swift bindings omit required Core schema input fingerprints")

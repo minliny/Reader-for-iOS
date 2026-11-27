@@ -1,6 +1,6 @@
 // GENERATED FILE — DO NOT EDIT.
 // Generator: scripts/generate-m1-ui.mjs
-// Input: theme/design-metrics.json  ee9faa0aed4f7daab49744cacb248ebd1ecbc5c244bc553be95423990d5dbbfd
+// Input: theme/design-metrics.json  aef9a0326a1730702c458ddb94e2746928e86fdc9676a64c90bec0aef5afb592
 
 public enum ReaderTypographyFamily: Sendable { case ui, literary }
 public struct ReaderTypographyMetric: Sendable {
@@ -74,6 +74,46 @@ public enum ReaderDesignMetrics {
     public static let downloadCoverRadius: Int = 5
     public static let downloadStatusHeight: Int = 28
     public static let downloadChapterRowHeight: Int = 53
+    public static let mangaToolbarMinHeight: Int = 52
+    public static let mangaToolbarTopInset: Int = 10
+    public static let mangaToolbarActionIconSize: Int = 22
+    public static let mangaDockMaxWidth: Int = 560
+    public static let mangaDockSideGutter: Int = 30
+    public static let mangaDockRadius: Int = 24
+    public static let mangaDockFooterMinHeight: Int = 58
+    public static let mangaDockStepIconSize: Int = 20
+    public static let mangaDockPageLabelMinHeight: Int = 16
+    public static let mangaControlIconSize: Int = 14
+    public static let mangaPageBadgeMaxWidth: Int = 230
+    public static let mangaChapterEndMinHeight: Int = 56
+    public static let mangaUnavailableCornerRadius: Int = 4
+    public static let mangaUnknownImageMinHeight: Int = 160
+    public static let mangaUnknownImageMaxHeight: Int = 220
+    public static let mangaUnknownImageHeightToWidth: Double = 0.5
+    public static let ttsCapsuleMinWidth: Int = 94
+    public static let ttsCapsulePaintMinHeight: Int = 24
+    public static let ttsCapsuleControlDiameter: Int = 16
+    public static let ttsCapsuleHeadphonesSize: Int = 11
+    public static let ttsCapsuleTransportIconSize: Int = 8
+    public static let ttsPlaybackMinHeight: Int = 84
+    public static let ttsPlaybackStatusMinHeight: Int = 22
+    public static let ttsPlaybackInlineInset: Int = 10
+    public static let ttsPlaybackBlockInset: Int = 6
+    public static let ttsPlaybackActionGap: Int = 6
+    public static let ttsPlaybackTransportIconSize: Int = 18
+    public static let ttsPlaybackInlineWaveformWidth: Int = 28
+    public static let ttsPlaybackInlineWaveformHeight: Int = 12
+    public static let ttsPlaybackExpandedWaveformHeight: Int = 28
+    public static let ttsWaveformBarCount: Int = 24
+    public static let ttsWaveformBarWidth: Double = 2.5
+    public static let ttsConfigPanelMaxWidth: Int = 364
+    public static let ttsConfigPanelBorderWidth: Double = 0.5
+    public static let ttsConfigManagerCornerRadius: Int = 22
+    public static let ttsConfigManagerHeaderMinHeight: Int = 58
+    public static let ttsConfigManagerFooterMinHeight: Int = 76
+    public static let ttsConfigChoiceVoiceBadgeWidth: Int = 34
+    public static let ttsConfigFormInlinePadding: Int = 18
+    public static let ttsConfigFormSectionGap: Int = 14
     public static let sourceSwitchDrawerRadius: Int = 22
     public static let sourceSwitchDrawerMaxWidth: Int = 390
     public static let sourceSwitchRowHeight: Int = 50
@@ -81,6 +121,13 @@ public enum ReaderDesignMetrics {
     public static let sourceSwitchNarrowTimingColumnWidth: Int = 64
     public static let downloadProgressTrackHeight: Int = 3
     public static let downloadProgressTrackRadius: Int = 3
+    public static let mangaDockStepTargetSize: Int = 44
+    public static let mangaDockStepPaintSize: Int = 32
+    public static let mangaControlMinHeight: Int = 44
+    public static let mangaUnavailableIconSize: Int = 32
+    public static let ttsCapsuleMinTargetHeight: Int = 44
+    public static let ttsPlaybackMinActionTarget: Int = 44
+    public static let ttsConfigPickerCornerRadius: Int = 14
     public static let appTitle = ReaderTypographyMetric(fontSize: 24.0, lineHeight: 32.0, weight: 700, family: .ui)
     public static let pageTitle = ReaderTypographyMetric(fontSize: 17.0, lineHeight: 24.0, weight: 700, family: .ui)
     public static let sectionHeading = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 18.0, weight: 500, family: .ui)
@@ -122,4 +169,25 @@ public enum ReaderDesignMetrics {
     public static let downloadSectionLabel = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 21.0, weight: 400, family: .ui)
     public static let downloadSheetTitle = ReaderTypographyMetric(fontSize: 18.0, lineHeight: 26.0, weight: 700, family: .ui)
     public static let downloadChapterTitle = ReaderTypographyMetric(fontSize: 12.0, lineHeight: 21.0, weight: 500, family: .ui)
+    public static let mangaToolbarTitle = ReaderTypographyMetric(fontSize: 17.0, lineHeight: 25.5, weight: 700, family: .ui)
+    public static let mangaToolbarChapter = ReaderTypographyMetric(fontSize: 11.0, lineHeight: 16.5, weight: 400, family: .ui)
+    public static let mangaPageIndicator = ReaderTypographyMetric(fontSize: 10.0, lineHeight: 15.0, weight: 400, family: .ui)
+    public static let mangaControlSection = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 21.0, weight: 700, family: .ui)
+    public static let mangaChapterEndLabel = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 20.0, weight: 500, family: .ui)
+    public static let ttsCapsuleLabel = ReaderTypographyMetric(fontSize: 10.0, lineHeight: 12.5, weight: 700, family: .ui)
+    public static let ttsPlaybackQuickLabel = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 16.0, weight: 700, family: .ui)
+    public static let ttsPlaybackVoice = ReaderTypographyMetric(fontSize: 11.0, lineHeight: 16.0, weight: 500, family: .ui)
+    public static let ttsPlaybackStopLabel = ReaderTypographyMetric(fontSize: 11.0, lineHeight: 11.0, weight: 500, family: .ui)
+    public static let ttsPlaybackStatus = ReaderTypographyMetric(fontSize: 10.0, lineHeight: 12.0, weight: 400, family: .ui)
+    public static let ttsPlaybackPreset = ReaderTypographyMetric(fontSize: 12.0, lineHeight: 12.0, weight: 500, family: .ui)
+    public static let ttsConfigPickerTitle = ReaderTypographyMetric(fontSize: 12.0, lineHeight: 18.0, weight: 700, family: .ui)
+    public static let ttsConfigManagerTitle = ReaderTypographyMetric(fontSize: 15.0, lineHeight: 22.5, weight: 700, family: .ui)
+    public static let ttsConfigChoiceLabel = ReaderTypographyMetric(fontSize: 12.0, lineHeight: 17.0, weight: 500, family: .ui)
+    public static let ttsConfigChoiceSelectedLabel = ReaderTypographyMetric(fontSize: 12.0, lineHeight: 17.0, weight: 700, family: .ui)
+    public static let ttsConfigVoiceLabel = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 17.0, weight: 500, family: .ui)
+    public static let ttsConfigVoiceSelectedLabel = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 17.0, weight: 700, family: .ui)
+    public static let ttsConfigVoiceMetadata = ReaderTypographyMetric(fontSize: 10.0, lineHeight: 14.0, weight: 400, family: .ui)
+    public static let ttsConfigFieldLabel = ReaderTypographyMetric(fontSize: 11.0, lineHeight: 16.5, weight: 500, family: .ui)
+    public static let ttsConfigFieldInput = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 19.5, weight: 400, family: .ui)
+    public static let ttsConfigSaveLabel = ReaderTypographyMetric(fontSize: 13.0, lineHeight: 19.5, weight: 700, family: .ui)
 }

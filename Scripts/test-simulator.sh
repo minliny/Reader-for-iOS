@@ -3,7 +3,7 @@
 # The two process phases share only synthetic data in the test app's container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online <UDID> <derived> <evidence>}"
+mode="${1:?usage: test-simulator.sh build|write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online|m3write|m3cold|m3speech <UDID> <derived> <evidence>}"
 device="${2:?isolated simulator UDID required}"
 derived="${3:?isolated DerivedData path required}"
 evidence="${4:?immutable evidence directory required}"
@@ -28,15 +28,22 @@ case "$mode" in
     if [[ ! -d "$hosted" ]]; then hosted="$(dirname "$product")/ReaderAppTests.xctest"; fi
     python3 Scripts/check-bundle.py "$product" "$hosted"
     ui_runner="$(dirname "$product")/ReaderAppUITests-Runner.app"
+    xattr -dr com.apple.FinderInfo "$ui_runner" 2>/dev/null || true
     codesign --verify --deep --strict "$ui_runner"
     codesign -d -v "$ui_runner"
     ;;
-  write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online)
+  write|cold|wave2write|wave2cold|design|m2host|m2edit|m2write|m2cold|m2ui|m2ui-source|m2ui-online|m3write|m3cold|m3speech)
     shopt -s nullglob
     runs=("$derived"/Build/Products/*.xctestrun)
     [[ ${#runs[@]} -eq 1 ]]
     timeout=120
-    if [[ "$mode" == wave2write ]]; then
+    if [[ "$mode" == m3write ]]; then
+      tests=(-only-testing:ReaderAppTests/M3MangaTests/test01LoopbackTransferRetryTilesBudgetAndSave)
+    elif [[ "$mode" == m3cold ]]; then
+      tests=(-only-testing:ReaderAppTests/M3MangaTests/test02IndependentProcessRestoresLogicalPageAndPoint)
+    elif [[ "$mode" == m3speech ]]; then
+      tests=(-only-testing:ReaderAppTests/M3SpeechTests)
+    elif [[ "$mode" == wave2write ]]; then
       tests=(
         -only-testing:ReaderAppTests/Wave2CoreTextTests
         -only-testing:ReaderAppTests/Wave2ProductJourneyTests/test01ProductImportDetailReadBookmarkAndSave

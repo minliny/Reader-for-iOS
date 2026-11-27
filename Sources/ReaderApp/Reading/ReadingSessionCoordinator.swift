@@ -42,6 +42,7 @@ final class ReadingSessionCoordinator {
     private var bookmarkCommand = false
     private var bookmarkRecovery = false
     private var ready = false
+    private(set) var speechSession: SpeechSessionCoordinator?
 
     private(set) var onlineFailure: (any Error)?
     private(set) var onlineUnavailableChapter: Int64?
@@ -85,7 +86,7 @@ final class ReadingSessionCoordinator {
     func adoptRecoveredOnlineBook(_ entry: BookshelfEntryData) async {
         guard online != nil else { return }
         if BookIdentity(entry) != entity {
-            pageGeneration += 1
+            retirePage()
             entity = BookIdentity(entry)
             book = entry
             catalog = []
@@ -100,7 +101,7 @@ final class ReadingSessionCoordinator {
 
     func reopen(startChapter: Int64? = nil) async {
         guard let entity else { return }
-        pageGeneration += 1
+        retirePage()
         let expected = pageGeneration
         onlineUnavailableChapter = nil
         if chapter == nil { pageState = .loading }
@@ -156,7 +157,7 @@ final class ReadingSessionCoordinator {
         activeCommand = true
         defer { activeCommand = false }
         guard await drain() else { return }
-        pageGeneration += 1
+        retirePage()
         let expected = pageGeneration
         do {
             try await load(index: index, expected: expected, bookmark: bookmark)
@@ -339,7 +340,24 @@ final class ReadingSessionCoordinator {
         }
     }
 
-    func retirePage() { pageGeneration += 1 }
+    func retirePage() {
+        pageGeneration += 1
+        speechSession?.retire()
+    }
+
+    func startSpeech(engine: SpeechSessionCoordinator.Engine, ratePercent: Int64 = 100) async throws {
+        guard let chapter, let entity, chapter.generation == generation, ready,
+              let bodyVersion = chapter.projection.bodyVersion,
+              let processingVersion = chapter.projection.processingVersion else {
+            throw SpeechSessionCoordinator.Failure.anchorUnproven
+        }
+        let coordinator = speechSession ?? SpeechSessionCoordinator(runtime: runtime, media: .shared)
+        speechSession = coordinator
+        try await coordinator.start(chapter: .init(
+            sourceId: entity.sourceId, bookId: entity.bookId, chapterIndex: chapter.index, chapterTitle: chapter.title
+        ), content: chapter.projection.content, bodyVersion: bodyVersion, processingVersion: processingVersion,
+           title: book?.title ?? chapter.title, scalar: position, engine: engine, ratePercent: ratePercent)
+    }
 }
 
 extension ReadingSessionCoordinator {
@@ -523,7 +541,7 @@ extension ReadingSessionCoordinator {
             }
             let progress = try await runtime.request(ReaderM1.readingProgressGet, entity.queryAsProgress).value
             guard generation == expected, position == oldPosition else { return false }
-            pageGeneration += 1
+            retirePage()
             positionRevision = progress.progressRevision
             lastSaved = progress.progress.map { ($0.chapterIndex, Int($0.chapterOffset)) }
             position = anchor
@@ -558,7 +576,7 @@ extension ReadingSessionCoordinator {
             }
             guard generation == expected, (0..<Int64(projection.content.unicodeScalars.count)).contains(requested)
             else { return false }
-            pageGeneration += 1
+            retirePage()
             position = Int(requested)
             ready = false
             chapter = .init(projection: projection, ebook: nil, anchor: position, generation: generation)
@@ -568,7 +586,7 @@ extension ReadingSessionCoordinator {
             if generation == expected {
                 onlineFailure = error
                 if onlineUnavailableChapter != nil {
-                    pageGeneration += 1
+                    retirePage()
                     retainPresentedChapter()
                 }
             }
@@ -626,7 +644,7 @@ extension ReadingSessionCoordinator {
         let revision = try await online.confirmSwitchPosition(original: original, target: staged.2,
                                                               position: staged.4, revision: staged.3)
         if generation == expected {
-            pageGeneration += 1
+            retirePage()
             book = staged.1
             self.entity = BookIdentity(staged.1)
             catalog = staged.0.chapters

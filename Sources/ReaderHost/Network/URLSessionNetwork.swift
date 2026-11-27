@@ -36,7 +36,7 @@ enum URLSessionNetwork {
     }
 
     static func execute(_ request: URLRequest, params: M2HostHttpRequest,
-                        jar: HTTPCookieStorage?) async throws -> Response {
+                        jar: HTTPCookieStorage?, bodyLimit: Int = httpBodyLimit) async throws -> Response {
         let timeout = request.timeoutInterval
         let attempts = min(8, max(1, params.retry?.maxAttempts ?? 1))
         let start = ContinuousClock.now
@@ -48,7 +48,7 @@ enum URLSessionNetwork {
             }
             do {
                 let result = try await read(request, timeout: remaining, jar: jar, followRedirects: params.followRedirects ?? true,
-                                            maxRedirects: params.maxRedirects ?? 10)
+                                            maxRedirects: params.maxRedirects ?? 10, bodyLimit: bodyLimit)
                 if attempt == attempts || !NetworkHostFailure.status(result.response.statusCode).retryable {
                     return result
                 }
@@ -63,9 +63,9 @@ enum URLSessionNetwork {
     }
 
     private static func read(_ request: URLRequest, timeout: TimeInterval, jar: HTTPCookieStorage?,
-                             followRedirects: Bool, maxRedirects: Int64) async throws -> Response {
+                             followRedirects: Bool, maxRedirects: Int64, bodyLimit: Int) async throws -> Response {
         let policy = HostRedirectPolicy(follow: followRedirects, max: maxRedirects)
-        let collector = HostResponseCollector(limit: httpBodyLimit, redirects: policy)
+        let collector = HostResponseCollector(limit: bodyLimit, redirects: policy)
         let transport = session(timeout: timeout, jar: jar, delegate: collector)
         defer { transport.invalidateAndCancel() }
         let (data, response) = try await collector.read(request, session: transport)

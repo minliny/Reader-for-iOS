@@ -5,13 +5,15 @@ import WebKit
 @MainActor
 public final class NetworkAndWebHost: CoreHost {
     private let system = SystemSurfaceHost()
-    private let cookies: SourceCookieStore
+    let cookies: SourceCookieStore
+    public let mangaTransfers: MangaTransferStore
     private let mediaDirectory: URL
     private var logins: [String: SourceLoginSession] = [:]
     private var loginGenerations: [String: UUID] = [:]
 
     public nonisolated let capabilities: [ReaderHostCapability] = [
         .hostSmokeEcho, .timeNow, .httpExecute, .cookieGet, .cookieSet, .webviewEvaluateJavaScript, .mediaDownload,
+        .mangaResourceTransfer,
     ]
     public nonisolated let protocolExtensions = ["http.execute.timeoutMs.v1"]
 
@@ -21,6 +23,7 @@ public final class NetworkAndWebHost: CoreHost {
         }
         cookies = SourceCookieStore(directory: directory.appendingPathComponent("cookies", isDirectory: true))
         mediaDirectory = directory.appendingPathComponent("media", isDirectory: true)
+        mangaTransfers = MangaTransferStore(directory: directory.appendingPathComponent("manga", isDirectory: true))
     }
 
     public func execute(_ request: ReaderHostRequestEvent) async -> CoreHostReply {

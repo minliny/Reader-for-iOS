@@ -61,8 +61,13 @@ final class Wave2GoldenTests: XCTestCase {
             XCTAssertEqual(group.count, 18)
             XCTAssertTrue(group.allSatisfy { manifest.scenes[$0].pins == nil })
         } else {
-            let pinnedURL = try XCTUnwrap(source.url(forResource: "pins", withExtension: "json"))
-            let pins = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: pinnedURL))
+            // These images were captured on the audited M2 render inputs.
+            // Keep their provenance immutable while newer clients rerun the pixels.
+            let pins = [
+                "core": "4a840493d0a39f8771adb631c3dce490a365d915",
+                "ui": "4b096fe058731afe791747007f428182784d1592",
+                "harmony": "0f3b468dcf95c3869b7f28f47cf5019a7c26b8ef",
+            ]
             XCTAssertEqual(Set(group.map { manifest.scenes[$0].id }), M2GoldenScenes.ids)
             XCTAssertTrue(group.allSatisfy { manifest.scenes[$0].pins == pins })
         }
