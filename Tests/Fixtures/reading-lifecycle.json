@@ -1,0 +1,14 @@
+{
+  "localSourceId": "local",
+  "otherSourceId": "fixture-second-source",
+  "otherChapterIndex": 3,
+  "otherScalar": 19,
+  "hostSupported": "time.now",
+  "hostOmitted": "cookie.get",
+  "unavailableDiagnostic": "CAPABILITY_UNAVAILABLE",
+  "stalePositionReason": "POSITION_CONTEXT_STALE",
+  "staleProgressReason": "READING_PROGRESS_CHANGED",
+  "imageScalarWidth": 1,
+  "epubXhtmlEntry": "OPS/ch1.xhtml",
+  "epubImageEntry": "OPS/images/pic.png"
+}

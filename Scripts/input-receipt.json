@@ -1,0 +1,79 @@
+{
+  "pins": {
+    "core": "fa536a10c31ab5a35df2e2c1c1fbf70ebf3e1be9",
+    "ui": "1e652fcc5653a8b6f2b04560784cbee9fcfaf01c",
+    "harmony": "4acfefc1a71f62572f653cc9a5e79162a2d347f9"
+  },
+  "harmonyPairedCore": "f9c06b68166fe71970b6b458d14fcddf0ca588cd",
+  "harmonyDependencySHA256": "9ed0ba36d22e3cbfa3971a0b85ea7bc8d7500f13899dcc84c10634372a1489bd",
+  "uiManifestSHA256": "db5eaef68a49e7215b471d8b396b04f3e9f81e31ad1eb07931f4f5a378d28702",
+  "authoritySHA256": {
+    "protocol/reader-command.schema.json": "ee756bfe7985af16beb3712fd9449ce5a690374285ec300b853a1a7c4d5177bb",
+    "protocol/reader-event.schema.json": "42a2f08a71f67f30e55bda18ca129651e02ed841769255c284822f5ad08ea56b",
+    "protocol/reader-runtime-config.schema.json": "7f80c3a548f71ab2b5d4415af83579f03c725cb0bec0fc72a1e7dc6e91368afa",
+    "include/reader_core.h": "39bccdedd75e5a81c66053e93f79c23e486e91ef126cc2cb83bea5146d614c99",
+    "theme/registry.json": "17339c9c8d876989575894e4a1f3c5a6b229cf72748d6398963c681820bda1df",
+    "theme/design-metrics.json": "625cd2861d568f1f8ebd63c1a58a46cf677d43dbfd8cbcf4b6d71ef33d1502ae",
+    "theme/icon-registry.json": "074f22c1db2ccbf48826723625e4dd1ffb3ac59fa9fd34bef46ed7b573ce80b7",
+    "theme/icons/reader_control_header_chevron.svg": "176f7ea3416d297cf7437ff30b40877e7dc54aeb0fe492153930cb29e2aa1caa",
+    "theme/icons/settings_gen_navigation.svg": "ef696bb6844746dd733207c0e436be713ad1eda666681a137dc141ede0440f5d",
+    "scripts/generate-m1-ui.mjs": "f8f632d733eb6d840db0825e6b77f56e124e14f69a19997f71fda9ca6014287b",
+    "scripts/generate-theme-tokens.mjs": "d1d45e180ea1392d9e2b9420d81abe5711ed91f69e8a8e79fbd81ec183a01ed5",
+    "reader_ebook_runtime/fixtures/generate-m1-window.py": "dad21aeb7fab6e4c83caaecbb3513a696084646319710b978a16fbe4eb631d78",
+    "crates/reader-storage/tests/fixtures/library47-schema.sql": "c7b3bca4ecbe4ef44ab653b0620f45152022ee61fec4a7a758c2bc46e848c097"
+  },
+  "files": {
+    "Resources/reader_ebook_runtime/reader-ebook-dom.js": {
+      "source": "reader_ebook_runtime/reader-ebook-dom.js",
+      "sha256": "013f16e5f39bda18d3aa3175bd1c16442a6130a7f80107db1211061744927f66"
+    },
+    "Resources/reader_ebook_runtime/reader-ebook-runtime.js": {
+      "source": "reader_ebook_runtime/reader-ebook-runtime.js",
+      "sha256": "c3df68596aad8872a2a6525e5c33748e77e42d0c4d5c1aa0bb7edb1551cbfc4b"
+    },
+    "Resources/reader_ebook_runtime/shell.html": {
+      "source": "reader_ebook_runtime/shell.html",
+      "sha256": "e687a3c70480d8e2685c4625ad73d376dc9a3a9eed55d1aec8231eff22f64b14"
+    },
+    "Sources/ReaderCoreBridge/Generated/ReaderProtocolModels.swift": {
+      "source": "bindings/ios/Sources/ReaderCoreClient/Generated/ReaderProtocolModels.swift",
+      "sha256": "7af6860b74e9963fe38d7cf2c8f22678f43f27243e0f903dee9d9e8afa5e8ab7"
+    },
+    "Sources/ReaderDesign/Generated/ReaderDesignMetrics.swift": {
+      "source": "theme/generated/ios/ReaderDesignMetrics.swift",
+      "sha256": "61ec5348d21fef2c9cc0f1b54a5a93ec754c8033dcd4c9cc701a4a426fab0e3f"
+    },
+    "Sources/ReaderDesign/Generated/ReaderIconRegistry.swift": {
+      "source": "theme/generated/ios/ReaderIconRegistry.swift",
+      "sha256": "550a32adba298eece788818a9c052c6b502940630a827d1926365ac3575da850"
+    },
+    "Sources/ReaderDesign/Generated/ReaderThemeTokens.swift": {
+      "source": "theme/generated/ios/ReaderThemeTokens.swift",
+      "sha256": "af1ccbef824a3c422aad07e160b91bcbdb3c577aa1f1680a316ec000c537e75b"
+    },
+    "Tests/Fixtures/library47-schema-1.sqlpart": {
+      "source": "crates/reader-storage/tests/fixtures/library47-schema.sql",
+      "sha256": "23a090ab980065d8dd0337010b8d6030a181f4b135b0cb86e7bf2be3645a9eff"
+    },
+    "Tests/Fixtures/library47-schema-2.sqlpart": {
+      "source": "crates/reader-storage/tests/fixtures/library47-schema.sql",
+      "sha256": "6f726a759cdc459af0f27efc2f9bfdc419667f12e60d9286570a3f8da4be818e"
+    },
+    "Tests/Fixtures/local-reading.txt": {
+      "source": "protocol/fixtures/m1/local-reading.txt",
+      "sha256": "e8909dde7e25a2c81b51629284a21ab82651e97c9c9f3416bc068fd9b347b63e"
+    },
+    "Tests/Fixtures/m1-window.epub": {
+      "source": "reader_ebook_runtime/fixtures/m1-window.epub",
+      "sha256": "35efc3246026578c8f56ea227964bb05a5d7cd8d49ee0f7794221f9ab3a4481e"
+    },
+    "Tests/Fixtures/reading-lifecycle.json": {
+      "source": "protocol/fixtures/m1/reading-lifecycle.json",
+      "sha256": "985924832803518b5162d27e90e0d063d54bd4e33e6d44d28d64d97484b26499"
+    },
+    "Tests/Fixtures/scalar-selection.json": {
+      "source": "protocol/fixtures/m1/scalar-selection.json",
+      "sha256": "614414f2370795e98fc63df8e0a463f1ff8c9f4be733fde565bac573b3daa579"
+    }
+  }
+}

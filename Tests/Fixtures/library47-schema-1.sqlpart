@@ -1,0 +1,600 @@
+-- Schema-only library47 fixture; no copied user rows or original intent.
+CREATE TABLE book_groups (
+    group_id         INTEGER PRIMARY KEY,
+    group_name       TEXT NOT NULL DEFAULT '',
+    cover            TEXT,
+    sort_order       INTEGER NOT NULL DEFAULT 0,
+    enable_refresh   INTEGER NOT NULL DEFAULT 1,
+    show             INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE book_highlights (
+    time                INTEGER PRIMARY KEY,
+    book_url            TEXT NOT NULL DEFAULT '',
+    chapter_url         TEXT NOT NULL DEFAULT '',
+    book_name           TEXT NOT NULL DEFAULT '',
+    book_author         TEXT NOT NULL DEFAULT '',
+    chapter_index       INTEGER NOT NULL DEFAULT 0,
+    chapter_pos         INTEGER NOT NULL DEFAULT 0,
+    chapter_pos_end     INTEGER NOT NULL DEFAULT 0,
+    layout_title_length INTEGER NOT NULL DEFAULT -1,
+    chapter_name        TEXT NOT NULL DEFAULT '',
+    book_text           TEXT NOT NULL DEFAULT '',
+    style               TEXT NOT NULL DEFAULT '',
+    note                TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE bookmarks (
+    time           INTEGER PRIMARY KEY,
+    book_name      TEXT NOT NULL DEFAULT '',
+    book_author    TEXT NOT NULL DEFAULT '',
+    chapter_index  INTEGER NOT NULL DEFAULT 0,
+    chapter_pos    INTEGER NOT NULL DEFAULT 0,
+    chapter_name   TEXT NOT NULL DEFAULT '',
+    book_text      TEXT NOT NULL DEFAULT '',
+    content        TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE books (
+    book_id   TEXT PRIMARY KEY,
+    book_json TEXT NOT NULL
+);
+CREATE TABLE bookshelf (
+    source_id     TEXT NOT NULL,
+    book_id       TEXT NOT NULL,
+    title         TEXT NOT NULL DEFAULT '',
+    author        TEXT NOT NULL DEFAULT '',
+    cover_url     TEXT,
+    intro         TEXT,
+    kind          TEXT,
+    last_chapter  TEXT,
+    added_at      INTEGER NOT NULL,
+    last_read_at  INTEGER,
+    "group"       TEXT,
+    sort_index    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (source_id, book_id)
+);
+CREATE TABLE cache (
+    key     TEXT PRIMARY KEY,
+    payload TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE chapter_cache (
+    source_id      TEXT NOT NULL,
+    book_id        TEXT NOT NULL,
+    chapter_index  INTEGER NOT NULL,
+    title          TEXT NOT NULL DEFAULT '',
+    url            TEXT NOT NULL DEFAULT '',
+    content        TEXT NOT NULL DEFAULT '',
+    cached_at      INTEGER NOT NULL,
+    revision       TEXT, content_format_version INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (source_id, book_id, chapter_index)
+);
+CREATE TABLE chapter_cache_metrics (
+ source_id TEXT NOT NULL, book_id TEXT NOT NULL, chapter_index INTEGER NOT NULL,
+ content_bytes INTEGER NOT NULL CHECK(content_bytes>=0), cached_at INTEGER NOT NULL,
+ PRIMARY KEY(source_id,book_id,chapter_index)
+) WITHOUT ROWID;
+CREATE TABLE chapter_cache_totals (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+ entry_count INTEGER NOT NULL CHECK(entry_count>=0),
+ content_bytes INTEGER NOT NULL CHECK(content_bytes>=0)
+);
+CREATE TABLE chapter_download_queue (
+    source_id      TEXT NOT NULL,
+    book_id        TEXT NOT NULL,
+    chapter_index  INTEGER NOT NULL,
+    title          TEXT NOT NULL DEFAULT '',
+    url            TEXT NOT NULL DEFAULT '',
+    priority       INTEGER NOT NULL DEFAULT 0,
+    status         TEXT NOT NULL,
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    attempts       INTEGER NOT NULL DEFAULT 0,
+    max_attempts   INTEGER NOT NULL,
+    last_error     TEXT,
+    PRIMARY KEY (source_id, book_id, chapter_index)
+);
+CREATE TABLE chinese_conversion_config (
+    config_id INTEGER PRIMARY KEY,
+    mode      TEXT NOT NULL DEFAULT 'none'
+);
+CREATE TABLE content_edits (
+    edit_id         INTEGER PRIMARY KEY,
+    source_id       TEXT NOT NULL,
+    book_id         TEXT NOT NULL,
+    chapter_index   INTEGER NOT NULL,
+    edited_content  TEXT NOT NULL DEFAULT '',
+    edited_at       INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (source_id, book_id, chapter_index)
+);
+CREATE TABLE content_search_generations (
+ source_id TEXT NOT NULL, book_id TEXT NOT NULL, generation INTEGER NOT NULL,
+ PRIMARY KEY(source_id,book_id)
+) WITHOUT ROWID;
+CREATE TABLE dict_rules (
+    name         TEXT PRIMARY KEY,
+    url_rule     TEXT NOT NULL DEFAULT '',
+    show_rule    TEXT NOT NULL DEFAULT '',
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    sort_number  INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE highlight_rules (
+    id                  INTEGER PRIMARY KEY,
+    uuid                TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    name                TEXT NOT NULL DEFAULT '',
+    pattern             TEXT NOT NULL DEFAULT '',
+    is_regex            INTEGER NOT NULL DEFAULT 0,
+    scope               TEXT,
+    is_enabled          INTEGER NOT NULL DEFAULT 1,
+    style               TEXT NOT NULL DEFAULT '',
+    sort_order          INTEGER NOT NULL DEFAULT -2147483648,
+    timeout_millisecond INTEGER NOT NULL DEFAULT 3000,
+    apply_to_title      INTEGER NOT NULL DEFAULT 0,
+    apply_to_body       INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE http_tts (
+    id                INTEGER PRIMARY KEY,
+    name              TEXT NOT NULL DEFAULT '',
+    url               TEXT NOT NULL DEFAULT '',
+    content_type      TEXT,
+    concurrent_rate   TEXT,
+    login_url         TEXT,
+    login_ui          TEXT,
+    header            TEXT,
+    js_lib            TEXT,
+    enabled_cookie_jar INTEGER NOT NULL DEFAULT 0,
+    login_check_js    TEXT,
+    last_update_time  INTEGER NOT NULL DEFAULT 0
+, reader_profile TEXT);
+CREATE TABLE library_book_identities(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
+CREATE TABLE library_chapter_bindings(id TEXT PRIMARY KEY,binding_id TEXT NOT NULL,chapter_key TEXT NOT NULL,active INTEGER NOT NULL,payload TEXT NOT NULL);
+CREATE TABLE library_identity_authority(id INTEGER PRIMARY KEY CHECK(id=1),restore_nonce TEXT NOT NULL,legacy_host_fingerprint TEXT,legacy_host_imported_library TEXT);
+CREATE TABLE library_identity_journals(journal_id TEXT PRIMARY KEY,payload TEXT NOT NULL);
+CREATE TABLE library_identity_meta(id INTEGER PRIMARY KEY CHECK(id=1),library_id TEXT NOT NULL);
+CREATE TABLE library_local_alias_bindings(binding_id TEXT PRIMARY KEY,source_id TEXT NOT NULL,book_id TEXT NOT NULL,library_book_id TEXT NOT NULL,active INTEGER NOT NULL,payload TEXT NOT NULL);
+CREATE TABLE library_metadata_restore_receipts (
+ operation_id TEXT PRIMARY KEY, package_sha256 TEXT NOT NULL,
+ scope TEXT NOT NULL CHECK(scope='coreLibraryMetadata'), scope_version INTEGER NOT NULL CHECK(scope_version=1),
+ origin_library TEXT, receiver_library TEXT NOT NULL, committed_nonce TEXT NOT NULL,
+ committed_at INTEGER NOT NULL, summary TEXT NOT NULL
+);
+CREATE TABLE "library_resource_adoptions" (
+operation_id TEXT NOT NULL REFERENCES library_metadata_restore_receipts(operation_id),
+kind TEXT NOT NULL CHECK(kind IN ('chapterBody','toc','localNavigation','mangaRequestSet','mangaMaterializedSet','bookCover','localOriginal')),
+source_id TEXT NOT NULL,book_id TEXT NOT NULL,item TEXT NOT NULL,library_id TEXT NOT NULL,restore_nonce TEXT NOT NULL,
+binding_id TEXT,library_book_id TEXT,alias_payload TEXT,owned INTEGER NOT NULL CHECK(owned IN (0,1)),
+chapter_key TEXT,chapter_payload TEXT,resource_basis TEXT NOT NULL,
+PRIMARY KEY(kind,source_id,book_id,item)) WITHOUT ROWID;
+CREATE TABLE library_resource_restore_fence (
+ id INTEGER PRIMARY KEY CHECK(id=1),
+ operation_id TEXT NOT NULL REFERENCES library_metadata_restore_receipts(operation_id)
+);
+CREATE TABLE library_sync_clock(id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL CHECK(epoch>=0));
+CREATE TABLE library_sync_log_receipts(operation_id TEXT NOT NULL, publish_sha256 TEXT NOT NULL, channel_id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(operation_id,publish_sha256));
+CREATE TABLE library_sync_marks(mark_id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('bookmark','highlight')), local_time INTEGER NOT NULL, original_time INTEGER NOT NULL, owner_key TEXT, deleted INTEGER NOT NULL CHECK(deleted IN (0,1)));
+CREATE TABLE library_sync_state(id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL CHECK(epoch>=0), mark_tracking_suspended INTEGER NOT NULL DEFAULT 0, payload TEXT NOT NULL);
+CREATE TABLE manga_admissions(source_id TEXT NOT NULL,book_id TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(source_id,book_id));
+CREATE TABLE manga_cache_access(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,last_read_at INTEGER NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id,version));
+CREATE TABLE manga_clear_revision(singleton INTEGER PRIMARY KEY CHECK(singleton=1),value INTEGER NOT NULL);
+CREATE TABLE manga_download_claims(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,claimed_at INTEGER NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id,version));
+CREATE TABLE manga_evicted_versions(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,token TEXT UNIQUE,payload TEXT,PRIMARY KEY(source_id,book_id,chapter_id,version));
+CREATE TABLE manga_heads (source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id));
+CREATE TABLE manga_legacy_protection(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id,version));
+CREATE TABLE manga_manifest_meta(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL,page_count INTEGER NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id,version));
+CREATE TABLE manga_manifests (source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id,version));
+CREATE TABLE manga_materialization_leases(token TEXT PRIMARY KEY,payload TEXT NOT NULL);
+CREATE TABLE manga_offline_receipts(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id,version));
+CREATE TABLE manga_page_index(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,ordinal INTEGER NOT NULL,payload TEXT NOT NULL,request TEXT,PRIMARY KEY(source_id,book_id,chapter_id,version,ordinal));
+CREATE TABLE manga_progress (source_id TEXT NOT NULL,book_id TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(source_id,book_id));
+CREATE TABLE manga_retention(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,version TEXT NOT NULL,retained_at INTEGER NOT NULL,PRIMARY KEY(source_id,book_id,chapter_id));
+CREATE TABLE manga_runtime_epoch(singleton INTEGER PRIMARY KEY CHECK(singleton=1), value INTEGER NOT NULL);
+CREATE TABLE manga_session_protection(source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_id TEXT NOT NULL,session_epoch INTEGER NOT NULL, runtime_epoch INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(source_id,book_id,chapter_id));
+CREATE TABLE manga_session_runtime(singleton INTEGER PRIMARY KEY CHECK(singleton=1),value INTEGER NOT NULL, process_identity INTEGER NOT NULL DEFAULT 0, require_release_token INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE read_records (
+    device_id   TEXT NOT NULL DEFAULT '',
+    book_name   TEXT NOT NULL,
+    read_time   INTEGER NOT NULL DEFAULT 0,
+    last_read   INTEGER NOT NULL DEFAULT 0, author TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (device_id, book_name)
+);
+CREATE TABLE reader_catalog_index_meta (
+ toc_key TEXT PRIMARY KEY, revision TEXT NOT NULL, chapter_count INTEGER NOT NULL, readable_count INTEGER NOT NULL
+);
+CREATE TABLE reader_catalog_index_rows (
+ toc_key TEXT NOT NULL REFERENCES reader_catalog_index_meta(toc_key) ON DELETE CASCADE,
+ position INTEGER NOT NULL, chapter_index INTEGER NOT NULL, title TEXT NOT NULL,
+ url TEXT NOT NULL, variables_json TEXT NOT NULL, readable_position INTEGER, level INTEGER,
+ PRIMARY KEY(toc_key, position), UNIQUE(toc_key, chapter_index)
+);
+CREATE TABLE reader_document_clock (id INTEGER PRIMARY KEY CHECK(id=1), generation INTEGER NOT NULL);
+CREATE TABLE reader_document_parts (
+ source_id TEXT NOT NULL,book_id TEXT NOT NULL,chapter_index INTEGER NOT NULL,
+ start_scalar INTEGER NOT NULL,end_scalar INTEGER NOT NULL,original_block INTEGER NOT NULL,block_json TEXT NOT NULL,
+ PRIMARY KEY(source_id,book_id,chapter_index,start_scalar),
+ FOREIGN KEY(source_id,book_id,chapter_index) REFERENCES reader_documents(source_id,book_id,chapter_index) ON DELETE CASCADE
+) WITHOUT ROWID;
+CREATE TABLE reader_document_totals (id INTEGER PRIMARY KEY CHECK(id=1), bytes INTEGER NOT NULL CHECK(bytes>=0));
+CREATE TABLE reader_documents (
+ source_id TEXT NOT NULL, book_id TEXT NOT NULL, chapter_index INTEGER NOT NULL,
+ processor_version INTEGER NOT NULL, document_json TEXT NOT NULL, scalar_count INTEGER NOT NULL,
+ PRIMARY KEY(source_id,book_id,chapter_index)
+);
+CREATE TABLE reader_shelf_projection_clock (
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), epoch TEXT NOT NULL, revision INTEGER NOT NULL);
+CREATE TABLE reading_progress (
+    source_id          TEXT NOT NULL,
+    book_id            TEXT NOT NULL,
+    chapter_index      INTEGER NOT NULL DEFAULT 0,
+    chapter_offset     INTEGER NOT NULL DEFAULT 0,
+    chapter_progress   REAL NOT NULL DEFAULT 0.0,
+    updated_at         INTEGER NOT NULL,
+    device_id          TEXT, location_revision TEXT,
+    PRIMARY KEY (source_id, book_id)
+);
+CREATE TABLE reading_progress_history (
+    source_id          TEXT NOT NULL,
+    book_id            TEXT NOT NULL,
+    seq                INTEGER NOT NULL,
+    chapter_index      INTEGER NOT NULL DEFAULT 0,
+    chapter_offset     INTEGER NOT NULL DEFAULT 0,
+    chapter_progress   REAL NOT NULL DEFAULT 0.0,
+    updated_at         INTEGER NOT NULL,
+    device_id          TEXT, location_revision TEXT,
+    PRIMARY KEY (source_id, book_id, seq)
+);
+CREATE TABLE replace_rule_generations (
+    rule_id     INTEGER PRIMARY KEY,
+    generation INTEGER NOT NULL
+);
+CREATE TABLE replace_rule_undo_journal (
+    transaction_id   TEXT PRIMARY KEY,
+    schema_version   INTEGER NOT NULL,
+    revision         TEXT NOT NULL,
+    operation        TEXT NOT NULL,
+    rule_id          INTEGER NOT NULL,
+    issued_at        INTEGER NOT NULL,
+    expires_at       INTEGER NOT NULL,
+    before_json      TEXT,
+    after_json       TEXT,
+    after_generation INTEGER NOT NULL,
+    consumed_at      INTEGER
+);
+CREATE TABLE replace_rules (
+    id                  INTEGER PRIMARY KEY,
+    name                TEXT NOT NULL DEFAULT '',
+    "group"             TEXT,
+    pattern             TEXT NOT NULL DEFAULT '',
+    replacement         TEXT NOT NULL DEFAULT '',
+    scope               TEXT,
+    scope_title         INTEGER NOT NULL DEFAULT 0,
+    scope_content       INTEGER NOT NULL DEFAULT 1,
+    exclude_scope       TEXT,
+    is_enabled          INTEGER NOT NULL DEFAULT 1,
+    is_regex            INTEGER NOT NULL DEFAULT 1,
+    timeout_millisecond INTEGER NOT NULL DEFAULT 3000,
+    sort_order          INTEGER NOT NULL DEFAULT 0
+, scope_source INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE restored_local_position_archives (
+        archive_id TEXT PRIMARY KEY NOT NULL, book_id TEXT NOT NULL, payload TEXT NOT NULL
+    );
+CREATE TABLE restored_local_position_confirmations (
+      book_id TEXT PRIMARY KEY NOT NULL, operation_id TEXT NOT NULL, restore_nonce TEXT NOT NULL,
+      row_fingerprint TEXT NOT NULL, chapter_index INTEGER NOT NULL, chapter_rowid INTEGER NOT NULL,
+      processing_generation INTEGER NOT NULL, body_version TEXT NOT NULL, processing_version TEXT NOT NULL
+    );
+CREATE TABLE restored_local_position_facts (
+      archive_id TEXT NOT NULL REFERENCES restored_local_position_archives(archive_id) ON DELETE CASCADE,
+      book_id TEXT NOT NULL, kind TEXT NOT NULL, fact_key TEXT NOT NULL,
+      row_fingerprint TEXT NOT NULL, display_payload TEXT NOT NULL,
+      PRIMARY KEY(archive_id,kind,fact_key)
+    ) WITHOUT ROWID;
+CREATE TABLE rss_favorites (
+    subscription_id    TEXT NOT NULL,
+    entry_guid         TEXT NOT NULL,
+    feed_url           TEXT NOT NULL,
+    subscription_title TEXT NOT NULL,
+    site_url           TEXT,
+    title              TEXT NOT NULL,
+    link               TEXT,
+    summary            TEXT,
+    published_at       TEXT,
+    first_seen_at      INTEGER NOT NULL,
+    added_at           INTEGER NOT NULL,
+    PRIMARY KEY (subscription_id, entry_guid)
+);
+CREATE TABLE rss_read_records (
+    record_id       INTEGER PRIMARY KEY,
+    rss_source_id   TEXT NOT NULL DEFAULT '',
+    entry_guid      TEXT NOT NULL DEFAULT '',
+    read_at         INTEGER NOT NULL DEFAULT 0,
+    read_progress   INTEGER
+);
+CREATE TABLE rss_subscriptions (
+    subscription_id  TEXT PRIMARY KEY,
+    feed_url         TEXT NOT NULL,
+    title            TEXT NOT NULL DEFAULT '',
+    site_url         TEXT,
+    enabled          INTEGER NOT NULL DEFAULT 1,
+    last_fetch_at    INTEGER,
+    last_entry_id    TEXT,
+    unread_count     INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE rule_subs (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL DEFAULT '',
+    url           TEXT NOT NULL DEFAULT '',
+    type          INTEGER NOT NULL DEFAULT 0,
+    custom_order  INTEGER NOT NULL DEFAULT 0,
+    auto_update   INTEGER NOT NULL DEFAULT 0,
+    "update"      INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE runtime_fetch_clock (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), value INTEGER NOT NULL);
+CREATE TABLE search_book_aliases (
+ origin TEXT NOT NULL, book_url TEXT NOT NULL, alias TEXT NOT NULL,
+ PRIMARY KEY(origin,book_url,alias)
+) WITHOUT ROWID;
+CREATE TABLE search_books (
+    book_url                TEXT NOT NULL,
+    origin                  TEXT NOT NULL DEFAULT '',
+    origin_name             TEXT NOT NULL DEFAULT '',
+    type                    INTEGER NOT NULL DEFAULT 0,
+    name                    TEXT NOT NULL DEFAULT '',
+    author                  TEXT NOT NULL DEFAULT '',
+    kind                    TEXT,
+    cover_url               TEXT,
+    intro                   TEXT,
+    word_count              TEXT,
+    latest_chapter_title    TEXT,
+    toc_url                 TEXT NOT NULL DEFAULT '',
+    time                    INTEGER NOT NULL DEFAULT 0,
+    variable                TEXT,
+    origin_order            INTEGER NOT NULL DEFAULT 0,
+    chapter_word_count_text TEXT,
+    chapter_word_count      INTEGER NOT NULL DEFAULT -1,
+    respond_time            INTEGER NOT NULL DEFAULT -1,
+    acquisition_json        TEXT,
+    PRIMARY KEY (origin, book_url)
+);
+CREATE TABLE search_keywords (
+    word           TEXT PRIMARY KEY,
+    usage          INTEGER NOT NULL DEFAULT 1,
+    last_use_time  INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE search_relation_state (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL,
+ epoch TEXT NOT NULL, normalization_version TEXT NOT NULL
+);
+CREATE TABLE search_source_author_policy (
+ origin TEXT PRIMARY KEY NOT NULL, policy_json TEXT
+) WITHOUT ROWID;
+CREATE TABLE source_books (
+    source_id  TEXT NOT NULL,
+    book_id    TEXT NOT NULL,
+    book_json  TEXT NOT NULL,
+    PRIMARY KEY (source_id, book_id)
+);
+CREATE TABLE source_supply_bundles (
+ bundle_id TEXT PRIMARY KEY, digest TEXT NOT NULL, complete INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE source_supply_deletions (source_id TEXT PRIMARY KEY);
+CREATE TABLE source_supply_items (
+ bundle_id TEXT NOT NULL, source_id TEXT NOT NULL, item_digest TEXT NOT NULL,
+ builtin_id TEXT NOT NULL, dirty INTEGER NOT NULL DEFAULT 0,
+ suppressed INTEGER NOT NULL DEFAULT 0, managed INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(bundle_id,source_id)
+);
+CREATE TABLE source_switch_transactions (
+    transaction_id TEXT PRIMARY KEY,
+    phase          TEXT NOT NULL,
+    created_at     INTEGER NOT NULL,
+    completed_at   INTEGER,
+    journal_json   TEXT NOT NULL
+);
+CREATE TABLE sources (
+    source_id    TEXT PRIMARY KEY,
+    source_json  TEXT NOT NULL
+);
+CREATE TABLE tts_config (
+    config_id    INTEGER PRIMARY KEY,
+    engine       TEXT,
+    rate         INTEGER NOT NULL DEFAULT 5,
+    pitch        INTEGER NOT NULL DEFAULT 0,
+    follow_sys   INTEGER NOT NULL DEFAULT 0
+, rate_percent INTEGER);
+CREATE TABLE txt_toc_rules (
+    id             INTEGER PRIMARY KEY,
+    name           TEXT NOT NULL DEFAULT '',
+    rule           TEXT NOT NULL DEFAULT '',
+    example        TEXT,
+    serial_number  INTEGER NOT NULL DEFAULT -1,
+    enable         INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX idx_book_groups_order ON book_groups(sort_order, group_id);
+CREATE INDEX idx_book_highlights_book_url
+    ON book_highlights(book_url);
+CREATE INDEX idx_bookmarks_book ON bookmarks(book_name, book_author);
+CREATE INDEX idx_bookmarks_chapter ON bookmarks(book_name,book_author,chapter_index);
+CREATE INDEX idx_books_position_owner ON books(json_extract(book_json,'$.title'),coalesce(json_extract(book_json,'$.author'),''),book_id);
+CREATE INDEX idx_bookshelf_group ON bookshelf("group");
+CREATE INDEX idx_bookshelf_position_book ON bookshelf(book_id,source_id);
+CREATE INDEX idx_bookshelf_position_owner ON bookshelf(title,author,book_id,source_id);
+CREATE INDEX idx_bookshelf_sort ON bookshelf(sort_index, added_at);
+CREATE INDEX idx_cache_position_bookmark_scope ON cache(
+ json_extract(payload,'$.scope.sourceId'),json_extract(payload,'$.scope.bookId')
+) WHERE key LIKE 'reader-position-mark-v1:bookmark:%' AND json_valid(payload);
+CREATE INDEX idx_chapter_cache_book ON chapter_cache(source_id, book_id);
+CREATE INDEX idx_chapter_metrics_age ON chapter_cache_metrics(cached_at,source_id,book_id,chapter_index);
+CREATE INDEX idx_content_edits_book ON content_edits(source_id, book_id);
+CREATE INDEX idx_content_search_book ON content_search_generations(book_id,source_id);
+CREATE INDEX idx_content_search_chapter_book ON chapter_cache(book_id,source_id,chapter_index);
+CREATE INDEX idx_download_claim ON chapter_download_queue(status, priority, updated_at, created_at);
+CREATE INDEX idx_highlight_rules_order
+    ON highlight_rules(sort_order, id);
+CREATE UNIQUE INDEX idx_highlight_rules_uuid
+    ON highlight_rules(uuid COLLATE NOCASE);
+CREATE INDEX idx_highlights_chapter ON book_highlights(book_url,chapter_index);
+CREATE INDEX idx_position_mark_owner ON cache(json_extract(payload,'$.scope.sourceId'),json_extract(payload,'$.scope.bookId')) WHERE key LIKE 'reader-position-mark-v1:%' AND json_valid(payload);
+CREATE INDEX idx_progress_history_book ON reading_progress_history(source_id, book_id, seq);
+CREATE INDEX idx_progress_history_chapter ON reading_progress_history(source_id,book_id,chapter_index);
+CREATE INDEX idx_reading_progress_source ON reading_progress(source_id, updated_at);
+CREATE INDEX idx_replace_rule_undo_rule
+    ON replace_rule_undo_journal(rule_id, consumed_at);
+CREATE INDEX idx_replace_rules_id ON replace_rules(id);
+CREATE INDEX idx_rss_favorites_added_at
+    ON rss_favorites(added_at DESC, subscription_id, entry_guid);
+CREATE INDEX idx_rss_read_records_source ON rss_read_records(rss_source_id);
+CREATE INDEX idx_rss_subscriptions_title ON rss_subscriptions(title);
+CREATE INDEX idx_search_book_alias ON search_book_aliases(alias,origin,book_url);
+CREATE INDEX idx_search_books_origin ON search_books(origin);
+CREATE INDEX idx_source_books_position_book ON source_books(book_id,source_id);
+CREATE INDEX idx_source_books_position_owner ON source_books(json_extract(book_json,'$.title'),coalesce(json_extract(book_json,'$.author'),''),book_id,source_id);
+CREATE INDEX idx_source_switch_phase
+    ON source_switch_transactions(phase, created_at, transaction_id);
+CREATE INDEX library_adoptions_binding ON library_resource_adoptions(binding_id,chapter_key);
+CREATE UNIQUE INDEX library_alias_current ON library_local_alias_bindings(source_id,book_id) WHERE active=1;
+CREATE INDEX library_alias_history ON library_local_alias_bindings(source_id,book_id);
+CREATE UNIQUE INDEX library_chapter_current ON library_chapter_bindings(binding_id,chapter_key) WHERE active=1;
+CREATE INDEX library_sync_log_receipt_channel ON library_sync_log_receipts(channel_id);
+CREATE UNIQUE INDEX library_sync_mark_current ON library_sync_marks(kind,local_time) WHERE deleted=0;
+CREATE INDEX manga_live_lease_version ON manga_materialization_leases(json_extract(payload,'$.lease.chapter.sourceId'),json_extract(payload,'$.lease.chapter.bookId'),json_extract(payload,'$.lease.chapter.chapterId'),json_extract(payload,'$.lease.manifestVersion')) WHERE json_extract(payload,'$.completed')=0;
+CREATE INDEX manga_page_resource_ref ON manga_page_index(source_id,book_id,chapter_id,version,json_extract(payload,'$.resourceRef'));
+CREATE INDEX reader_catalog_url ON reader_catalog_index_rows(toc_key,url);
+CREATE INDEX restored_local_position_archives_book ON restored_local_position_archives(book_id,archive_id);
+CREATE INDEX restored_local_position_facts_exact ON restored_local_position_facts(book_id,kind,fact_key,row_fingerprint,archive_id);
+CREATE INDEX restored_local_position_facts_page ON restored_local_position_facts(book_id,archive_id,kind,fact_key);
+CREATE INDEX restored_local_position_marks_exact ON restored_local_position_facts(kind,fact_key,row_fingerprint,archive_id);
+CREATE INDEX source_supply_by_source ON source_supply_items(source_id);
+CREATE TRIGGER chapter_account_delete AFTER DELETE ON chapter_cache BEGIN
+ DELETE FROM chapter_cache_metrics WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND chapter_index=OLD.chapter_index;
+END;
+CREATE TRIGGER chapter_account_insert AFTER INSERT ON chapter_cache BEGIN
+ INSERT INTO chapter_cache_metrics VALUES(NEW.source_id,NEW.book_id,NEW.chapter_index,length(CAST(NEW.content AS BLOB)),NEW.cached_at)
+ ON CONFLICT(source_id,book_id,chapter_index) DO UPDATE SET content_bytes=excluded.content_bytes,cached_at=excluded.cached_at;
+END;
+CREATE TRIGGER chapter_account_update AFTER UPDATE OF source_id,book_id,chapter_index,content,cached_at ON chapter_cache BEGIN
+ DELETE FROM chapter_cache_metrics WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND chapter_index=OLD.chapter_index
+ AND (OLD.source_id<>NEW.source_id OR OLD.book_id<>NEW.book_id OR OLD.chapter_index<>NEW.chapter_index);
+ INSERT INTO chapter_cache_metrics VALUES(NEW.source_id,NEW.book_id,NEW.chapter_index,length(CAST(NEW.content AS BLOB)),NEW.cached_at)
+ ON CONFLICT(source_id,book_id,chapter_index) DO UPDATE SET content_bytes=excluded.content_bytes,cached_at=excluded.cached_at;
+END;
+CREATE TRIGGER chapter_metrics_delete AFTER DELETE ON chapter_cache_metrics BEGIN
+ UPDATE chapter_cache_totals SET entry_count=entry_count-1,content_bytes=content_bytes-OLD.content_bytes WHERE singleton=1;
+END;
+CREATE TRIGGER chapter_metrics_insert AFTER INSERT ON chapter_cache_metrics BEGIN
+ UPDATE chapter_cache_totals SET entry_count=entry_count+1,content_bytes=content_bytes+NEW.content_bytes WHERE singleton=1;
+END;
+CREATE TRIGGER chapter_metrics_update AFTER UPDATE ON chapter_cache_metrics BEGIN
+ UPDATE chapter_cache_totals SET content_bytes=content_bytes-OLD.content_bytes+NEW.content_bytes WHERE singleton=1;
+END;
+CREATE TRIGGER content_search_delete AFTER DELETE ON chapter_cache BEGIN
+ INSERT INTO content_search_generations VALUES(OLD.source_id,OLD.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+END;
+CREATE TRIGGER content_search_insert AFTER INSERT ON chapter_cache BEGIN
+ INSERT INTO content_search_generations VALUES(NEW.source_id,NEW.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+END;
+CREATE TRIGGER content_search_update AFTER UPDATE ON chapter_cache BEGIN
+ INSERT INTO content_search_generations VALUES(OLD.source_id,OLD.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+ INSERT INTO content_search_generations VALUES(NEW.source_id,NEW.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+END;
+CREATE TRIGGER directory_guard_chapter_cache_delete AFTER DELETE ON chapter_cache BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.guard.v2:'||CASE WHEN OLD.source_id='local' THEN 'local_book.v1.toc:'||OLD.book_id ELSE 'remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'||OLD.book_id END; END;
+CREATE TRIGGER directory_guard_chapter_cache_insert AFTER INSERT ON chapter_cache BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.guard.v2:'||CASE WHEN NEW.source_id='local' THEN 'local_book.v1.toc:'||NEW.book_id ELSE 'remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'||NEW.book_id END; END;
+CREATE TRIGGER directory_guard_chapter_cache_update AFTER UPDATE ON chapter_cache WHEN NEW.source_id IS NOT OLD.source_id OR NEW.book_id IS NOT OLD.book_id OR NEW.chapter_index IS NOT OLD.chapter_index OR NEW.title IS NOT OLD.title OR NEW.url IS NOT OLD.url OR NEW.content IS NOT OLD.content OR NEW.content_format_version IS NOT OLD.content_format_version BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.guard.v2:'||CASE WHEN NEW.source_id='local' THEN 'local_book.v1.toc:'||NEW.book_id ELSE 'remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'||NEW.book_id END; END;
+CREATE TRIGGER directory_guard_chapter_cache_update_old AFTER UPDATE ON chapter_cache WHEN NEW.source_id IS NOT OLD.source_id OR NEW.book_id IS NOT OLD.book_id OR NEW.chapter_index IS NOT OLD.chapter_index OR NEW.title IS NOT OLD.title OR NEW.url IS NOT OLD.url OR NEW.content IS NOT OLD.content OR NEW.content_format_version IS NOT OLD.content_format_version BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.guard.v2:'||CASE WHEN OLD.source_id='local' THEN 'local_book.v1.toc:'||OLD.book_id ELSE 'remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'||OLD.book_id END; END;
+CREATE TRIGGER directory_guard_chinese_conversion_config_delete AFTER DELETE ON chinese_conversion_config BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_chinese_conversion_config_insert AFTER INSERT ON chinese_conversion_config BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_chinese_conversion_config_update AFTER UPDATE ON chinese_conversion_config BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_chinese_conversion_config_update_old AFTER UPDATE ON chinese_conversion_config BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_content_edits_delete AFTER DELETE ON content_edits BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key IN (SELECT 'reading.directory.guard.v2:'||toc_key FROM reader_catalog_index_meta WHERE toc_key='local_book.v1.toc:'||OLD.book_id OR substr(toc_key,-length(OLD.book_id)-1)=':'||OLD.book_id); END;
+CREATE TRIGGER directory_guard_content_edits_insert AFTER INSERT ON content_edits BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key IN (SELECT 'reading.directory.guard.v2:'||toc_key FROM reader_catalog_index_meta WHERE toc_key='local_book.v1.toc:'||NEW.book_id OR substr(toc_key,-length(NEW.book_id)-1)=':'||NEW.book_id); END;
+CREATE TRIGGER directory_guard_content_edits_update AFTER UPDATE ON content_edits BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key IN (SELECT 'reading.directory.guard.v2:'||toc_key FROM reader_catalog_index_meta WHERE toc_key='local_book.v1.toc:'||NEW.book_id OR substr(toc_key,-length(NEW.book_id)-1)=':'||NEW.book_id); END;
+CREATE TRIGGER directory_guard_content_edits_update_old AFTER UPDATE ON content_edits BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key IN (SELECT 'reading.directory.guard.v2:'||toc_key FROM reader_catalog_index_meta WHERE toc_key='local_book.v1.toc:'||OLD.book_id OR substr(toc_key,-length(OLD.book_id)-1)=':'||OLD.book_id); END;
+CREATE TRIGGER directory_guard_replace_rules_delete AFTER DELETE ON replace_rules BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_replace_rules_insert AFTER INSERT ON replace_rules BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_replace_rules_update AFTER UPDATE ON replace_rules BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_replace_rules_update_old AFTER UPDATE ON replace_rules BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,27)='reading.directory.guard.v2:'; END;
+CREATE TRIGGER directory_guard_sources_delete AFTER DELETE ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,length('reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'; END;
+CREATE TRIGGER directory_guard_sources_insert AFTER INSERT ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,length('reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'; END;
+CREATE TRIGGER directory_guard_sources_update AFTER UPDATE ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,length('reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'; END;
+CREATE TRIGGER directory_guard_sources_update_old AFTER UPDATE ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE substr(key,1,length('reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='reading.directory.guard.v2:remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'; END;
+CREATE TRIGGER directory_local_readability_guard AFTER UPDATE OF payload ON cache
+        WHEN substr(NEW.key,1,45)='reading.directory.guard.v2:local_book.v1.toc:' AND NEW.payload IS NOT OLD.payload
+        BEGIN DELETE FROM cache WHERE key='reading.directory.facts.v2:5:local:'||substr(NEW.key,46)
+            AND CASE WHEN json_valid(payload) THEN json_extract(payload,'$.adapterVersion') END='local-txt-readable-v1'; END;
+CREATE TRIGGER directory_local_readability_rules_insert AFTER INSERT ON cache
+            WHEN substr(NEW.key,1,27)='reading.directory.rules.v2:'
+            BEGIN DELETE FROM cache WHERE key='reading.directory.facts.v2:5:local:'||substr(NEW.key,27+instr(substr(NEW.key,28),':')+1)
+                AND CASE WHEN json_valid(payload) THEN json_extract(payload,'$.adapterVersion') END='local-txt-readable-v1'; END;
+CREATE TRIGGER directory_local_readability_rules_update AFTER UPDATE OF payload ON cache
+            WHEN substr(NEW.key,1,27)='reading.directory.rules.v2:'
+            BEGIN DELETE FROM cache WHERE key='reading.directory.facts.v2:5:local:'||substr(NEW.key,27+instr(substr(NEW.key,28),':')+1)
+                AND CASE WHEN json_valid(payload) THEN json_extract(payload,'$.adapterVersion') END='local-txt-readable-v1'; END;
+CREATE TRIGGER directory_source_catalog_delete AFTER DELETE ON sources BEGIN
+                UPDATE reader_catalog_index_rows SET readable_position=NULL WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                UPDATE reader_catalog_index_meta SET readable_count=0,
+                    revision='dir2-stale-source:'||substr(revision,instr(revision,':')+1)
+                    WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                INSERT OR IGNORE INTO reader_catalog_index_meta(toc_key,revision,chapter_count,readable_count)
+                    SELECT key,'dir2-stale-source:'||lower(hex(randomblob(32))),0,0 FROM cache AS toc
+                    WHERE substr(key,1,length('remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'
+                    AND EXISTS(SELECT 1 FROM cache AS facts WHERE facts.key='reading.directory.facts.v2:'||substr(toc.key,20))
+                    AND NOT EXISTS(SELECT 1 FROM reader_catalog_index_meta AS meta WHERE meta.toc_key=toc.key);
+            END;
+CREATE TRIGGER directory_source_catalog_insert AFTER INSERT ON sources BEGIN
+                UPDATE reader_catalog_index_rows SET readable_position=NULL WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                UPDATE reader_catalog_index_meta SET readable_count=0,
+                    revision='dir2-stale-source:'||substr(revision,instr(revision,':')+1)
+                    WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                INSERT OR IGNORE INTO reader_catalog_index_meta(toc_key,revision,chapter_count,readable_count)
+                    SELECT key,'dir2-stale-source:'||lower(hex(randomblob(32))),0,0 FROM cache AS toc
+                    WHERE substr(key,1,length('remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'
+                    AND EXISTS(SELECT 1 FROM cache AS facts WHERE facts.key='reading.directory.facts.v2:'||substr(toc.key,20))
+                    AND NOT EXISTS(SELECT 1 FROM reader_catalog_index_meta AS meta WHERE meta.toc_key=toc.key);
+            END;
+CREATE TRIGGER directory_source_catalog_update AFTER UPDATE ON sources BEGIN
+                UPDATE reader_catalog_index_rows SET readable_position=NULL WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                UPDATE reader_catalog_index_meta SET readable_count=0,
+                    revision='dir2-stale-source:'||substr(revision,instr(revision,':')+1)
+                    WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                INSERT OR IGNORE INTO reader_catalog_index_meta(toc_key,revision,chapter_count,readable_count)
+                    SELECT key,'dir2-stale-source:'||lower(hex(randomblob(32))),0,0 FROM cache AS toc
+                    WHERE substr(key,1,length('remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'))='remote_book.v1.toc:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id||':'
+                    AND EXISTS(SELECT 1 FROM cache AS facts WHERE facts.key='reading.directory.facts.v2:'||substr(toc.key,20))
+                    AND NOT EXISTS(SELECT 1 FROM reader_catalog_index_meta AS meta WHERE meta.toc_key=toc.key);
+            END;
+CREATE TRIGGER directory_source_catalog_update_new AFTER UPDATE ON sources BEGIN
+                UPDATE reader_catalog_index_rows SET readable_position=NULL WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                UPDATE reader_catalog_index_meta SET readable_count=0,
+                    revision='dir2-stale-source:'||substr(revision,instr(revision,':')+1)
+                    WHERE substr(toc_key,1,length('remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':' AND EXISTS(SELECT 1 FROM cache WHERE key='reading.directory.facts.v2:'||substr(toc_key,20));
+                INSERT OR IGNORE INTO reader_catalog_index_meta(toc_key,revision,chapter_count,readable_count)
+                    SELECT key,'dir2-stale-source:'||lower(hex(randomblob(32))),0,0 FROM cache AS toc
+                    WHERE substr(key,1,length('remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'))='remote_book.v1.toc:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id||':'
+                    AND EXISTS(SELECT 1 FROM cache AS facts WHERE facts.key='reading.directory.facts.v2:'||substr(toc.key,20))
+                    AND NOT EXISTS(SELECT 1 FROM reader_catalog_index_meta AS meta WHERE meta.toc_key=toc.key);
+            END;
+CREATE TRIGGER directory_source_epoch_delete AFTER DELETE ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.source-guard.v2:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id; END;
+CREATE TRIGGER directory_source_epoch_insert AFTER INSERT ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.source-guard.v2:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id; END;
+CREATE TRIGGER directory_source_epoch_update AFTER UPDATE ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.source-guard.v2:'||length(CAST(NEW.source_id AS BLOB))||':'||NEW.source_id; END;
+CREATE TRIGGER directory_source_epoch_update_old AFTER UPDATE ON sources BEGIN UPDATE cache SET payload=lower(hex(randomblob(16))) WHERE key='reading.directory.source-guard.v2:'||length(CAST(OLD.source_id AS BLOB))||':'||OLD.source_id; END;
+CREATE TRIGGER library_adoption_delete AFTER DELETE ON library_resource_adoptions BEGIN
+ INSERT INTO content_search_generations VALUES(OLD.source_id,OLD.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+END;
+CREATE TRIGGER library_adoption_insert AFTER INSERT ON library_resource_adoptions BEGIN
+ INSERT INTO content_search_generations VALUES(NEW.source_id,NEW.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+END;
+CREATE TRIGGER library_adoption_update AFTER UPDATE ON library_resource_adoptions BEGIN
+ INSERT INTO content_search_generations VALUES(OLD.source_id,OLD.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+ INSERT INTO content_search_generations VALUES(NEW.source_id,NEW.book_id,1)
+ ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;
+END;
+CREATE TRIGGER library_restore_book_resources_books_DELETE AFTER DELETE ON books BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id='local' AND book_id=OLD.book_id; END;
+CREATE TRIGGER library_restore_book_resources_books_INSERT AFTER INSERT ON books BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id='local' AND book_id=NEW.book_id; END;
+CREATE TRIGGER library_restore_book_resources_books_UPDATE AFTER UPDATE ON books BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id='local' AND book_id=OLD.book_id;DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id='local' AND book_id=NEW.book_id; END;
+CREATE TRIGGER library_restore_book_resources_source_books_DELETE AFTER DELETE ON source_books BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id=OLD.source_id AND book_id=OLD.book_id; END;
+CREATE TRIGGER library_restore_book_resources_source_books_INSERT AFTER INSERT ON source_books BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id=NEW.source_id AND book_id=NEW.book_id; END;
+CREATE TRIGGER library_restore_book_resources_source_books_UPDATE AFTER UPDATE ON source_books BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id=OLD.source_id AND book_id=OLD.book_id;DELETE FROM library_resource_adoptions WHERE kind IN ('bookCover','localOriginal') AND source_id=NEW.source_id AND book_id=NEW.book_id; END;
+CREATE TRIGGER library_restore_cache_DELETE AFTER DELETE ON cache BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('toc','localNavigation') AND item=OLD.key; END;

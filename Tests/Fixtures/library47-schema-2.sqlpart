@@ -1,0 +1,441 @@
+CREATE TRIGGER library_restore_cache_INSERT AFTER INSERT ON cache BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('toc','localNavigation') AND item=NEW.key; END;
+CREATE TRIGGER library_restore_cache_UPDATE AFTER UPDATE ON cache BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('toc','localNavigation') AND item=OLD.key;DELETE FROM library_resource_adoptions WHERE kind IN ('toc','localNavigation') AND item=NEW.key; END;
+CREATE TRIGGER library_restore_chapter_cache_DELETE AFTER DELETE ON chapter_cache BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND ((kind='chapterBody' AND item=CAST(OLD.chapter_index AS TEXT)) OR kind='localNavigation'); END;
+CREATE TRIGGER library_restore_chapter_cache_INSERT AFTER INSERT ON chapter_cache BEGIN DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND ((kind='chapterBody' AND item=CAST(NEW.chapter_index AS TEXT)) OR kind='localNavigation'); END;
+CREATE TRIGGER library_restore_chapter_cache_UPDATE AFTER UPDATE OF source_id,book_id,chapter_index,title,url,content,cached_at,content_format_version ON chapter_cache BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND ((kind='chapterBody' AND item=CAST(OLD.chapter_index AS TEXT)) OR kind='localNavigation');DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND ((kind='chapterBody' AND item=CAST(NEW.chapter_index AS TEXT)) OR kind='localNavigation'); END;
+CREATE TRIGGER library_restore_library_book_identities_DELETE AFTER DELETE ON library_book_identities BEGIN DELETE FROM library_resource_adoptions WHERE library_book_id=OLD.id;INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE library_book_id=OLD.id GROUP BY source_id,book_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_book_identities_INSERT AFTER INSERT ON library_book_identities BEGIN DELETE FROM library_resource_adoptions WHERE library_book_id=NEW.id;INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE library_book_id=NEW.id GROUP BY source_id,book_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_book_identities_UPDATE AFTER UPDATE ON library_book_identities BEGIN DELETE FROM library_resource_adoptions WHERE library_book_id=OLD.id;INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE library_book_id=OLD.id GROUP BY source_id,book_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;DELETE FROM library_resource_adoptions WHERE library_book_id=NEW.id;INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE library_book_id=NEW.id GROUP BY source_id,book_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_chapter_bindings_DELETE AFTER DELETE ON library_chapter_bindings BEGIN DELETE FROM library_resource_adoptions WHERE binding_id=OLD.binding_id AND (kind='localNavigation' OR (kind IN ('chapterBody','mangaRequestSet','mangaMaterializedSet') AND chapter_key=OLD.chapter_key));INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE binding_id=OLD.binding_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_chapter_bindings_INSERT AFTER INSERT ON library_chapter_bindings BEGIN DELETE FROM library_resource_adoptions WHERE binding_id=NEW.binding_id AND (kind='localNavigation' OR (kind IN ('chapterBody','mangaRequestSet','mangaMaterializedSet') AND chapter_key=NEW.chapter_key));INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE binding_id=NEW.binding_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_chapter_bindings_UPDATE AFTER UPDATE ON library_chapter_bindings BEGIN DELETE FROM library_resource_adoptions WHERE binding_id=OLD.binding_id AND (kind='localNavigation' OR (kind IN ('chapterBody','mangaRequestSet','mangaMaterializedSet') AND chapter_key=OLD.chapter_key));INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE binding_id=OLD.binding_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;DELETE FROM library_resource_adoptions WHERE binding_id=NEW.binding_id AND (kind='localNavigation' OR (kind IN ('chapterBody','mangaRequestSet','mangaMaterializedSet') AND chapter_key=NEW.chapter_key));INSERT INTO content_search_generations SELECT source_id,book_id,1 FROM library_local_alias_bindings WHERE binding_id=NEW.binding_id ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_local_alias_bindings_DELETE AFTER DELETE ON library_local_alias_bindings BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id;INSERT INTO content_search_generations VALUES(OLD.source_id,OLD.book_id,1) ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_local_alias_bindings_INSERT AFTER INSERT ON library_local_alias_bindings BEGIN DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id;INSERT INTO content_search_generations VALUES(NEW.source_id,NEW.book_id,1) ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_local_alias_bindings_UPDATE AFTER UPDATE ON library_local_alias_bindings BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id;INSERT INTO content_search_generations VALUES(OLD.source_id,OLD.book_id,1) ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1;DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id;INSERT INTO content_search_generations VALUES(NEW.source_id,NEW.book_id,1) ON CONFLICT(source_id,book_id) DO UPDATE SET generation=generation+1; END;
+CREATE TRIGGER library_restore_library_update AFTER UPDATE ON library_identity_meta BEGIN
+ DELETE FROM library_resource_adoptions;
+ UPDATE content_search_generations SET generation=generation+1;
+END;
+CREATE TRIGGER library_restore_local_input_DELETE AFTER DELETE ON books BEGIN
+ DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id=OLD.book_id;
+END;
+CREATE TRIGGER library_restore_local_input_INSERT BEFORE INSERT ON books
+ WHEN EXISTS(SELECT 1 FROM books b WHERE b.book_id=NEW.book_id AND (json_extract(b.book_json,'$.variables.localBookOriginal') IS NOT json_extract(NEW.book_json,'$.variables.localBookOriginal') OR json_extract(b.book_json,'$.variables.localBookSourceSha256') IS NOT json_extract(NEW.book_json,'$.variables.localBookSourceSha256') OR json_extract(b.book_json,'$.variables.localBookRulesSha256') IS NOT json_extract(NEW.book_json,'$.variables.localBookRulesSha256'))) BEGIN
+ DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id=NEW.book_id;
+END;
+CREATE TRIGGER library_restore_local_input_UPDATE AFTER UPDATE ON books
+ WHEN OLD.book_id IS NOT NEW.book_id OR (json_extract(OLD.book_json,'$.variables.localBookOriginal') IS NOT json_extract(NEW.book_json,'$.variables.localBookOriginal') OR json_extract(OLD.book_json,'$.variables.localBookSourceSha256') IS NOT json_extract(NEW.book_json,'$.variables.localBookSourceSha256') OR json_extract(OLD.book_json,'$.variables.localBookRulesSha256') IS NOT json_extract(NEW.book_json,'$.variables.localBookRulesSha256')) BEGIN
+ DELETE FROM library_resource_adoptions WHERE source_id='local' AND (book_id=OLD.book_id OR book_id=NEW.book_id);
+END;
+CREATE TRIGGER library_restore_manga_manifest_meta_DELETE AFTER DELETE ON manga_manifest_meta BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version); END;
+CREATE TRIGGER library_restore_manga_manifest_meta_INSERT AFTER INSERT ON manga_manifest_meta BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_manga_manifest_meta_UPDATE AFTER UPDATE ON manga_manifest_meta BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version);DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_manga_manifests_DELETE AFTER DELETE ON manga_manifests BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version); END;
+CREATE TRIGGER library_restore_manga_manifests_INSERT AFTER INSERT ON manga_manifests BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_manga_manifests_UPDATE AFTER UPDATE ON manga_manifests BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version);DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_manga_offline_receipts_DELETE AFTER DELETE ON manga_offline_receipts BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version); END;
+CREATE TRIGGER library_restore_manga_offline_receipts_INSERT AFTER INSERT ON manga_offline_receipts BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_manga_offline_receipts_UPDATE AFTER UPDATE ON manga_offline_receipts BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version);DELETE FROM library_resource_adoptions WHERE kind IN ('mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_manga_page_index_DELETE AFTER DELETE ON manga_page_index BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version); END;
+CREATE TRIGGER library_restore_manga_page_index_INSERT AFTER INSERT ON manga_page_index BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_manga_page_index_UPDATE AFTER UPDATE ON manga_page_index BEGIN DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=OLD.source_id AND book_id=OLD.book_id AND item=json_array(OLD.chapter_id,OLD.version);DELETE FROM library_resource_adoptions WHERE kind IN ('mangaRequestSet','mangaMaterializedSet') AND source_id=NEW.source_id AND book_id=NEW.book_id AND item=json_array(NEW.chapter_id,NEW.version); END;
+CREATE TRIGGER library_restore_nonce_update AFTER UPDATE ON library_identity_authority BEGIN
+ DELETE FROM library_resource_adoptions;
+ UPDATE content_search_generations SET generation=generation+1;
+END;
+CREATE TRIGGER library_restore_ownership_books_DELETE AFTER DELETE ON books BEGIN DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id='local' AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id='local' AND book_id=OLD.book_id) OR ('local'='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id='local' AND book_id=OLD.book_id)); END;
+CREATE TRIGGER library_restore_ownership_books_INSERT AFTER INSERT ON books BEGIN DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id='local' AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id='local' AND book_id=NEW.book_id) OR ('local'='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id='local' AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_ownership_books_UPDATE AFTER UPDATE ON books BEGIN DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id='local' AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id='local' AND book_id=OLD.book_id) OR ('local'='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id='local' AND book_id=OLD.book_id));DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id='local' AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id='local' AND book_id=NEW.book_id) OR ('local'='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id='local' AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_ownership_bookshelf_DELETE AFTER DELETE ON bookshelf BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR (OLD.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id)); END;
+CREATE TRIGGER library_restore_ownership_bookshelf_INSERT AFTER INSERT ON bookshelf BEGIN DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR (NEW.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_ownership_bookshelf_UPDATE AFTER UPDATE ON bookshelf BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR (OLD.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id));DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR (NEW.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_ownership_manga_progress_DELETE AFTER DELETE ON manga_progress BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR (OLD.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id)); END;
+CREATE TRIGGER library_restore_ownership_manga_progress_INSERT AFTER INSERT ON manga_progress BEGIN DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR (NEW.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_ownership_manga_progress_UPDATE AFTER UPDATE ON manga_progress BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR (OLD.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id));DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR (NEW.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_ownership_reading_progress_DELETE AFTER DELETE ON reading_progress BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR (OLD.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id)); END;
+CREATE TRIGGER library_restore_ownership_reading_progress_INSERT AFTER INSERT ON reading_progress BEGIN DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR (NEW.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_ownership_reading_progress_UPDATE AFTER UPDATE ON reading_progress BEGIN DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id) OR (OLD.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=OLD.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=OLD.source_id AND book_id=OLD.book_id));DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND owned<>(EXISTS(SELECT 1 FROM bookshelf WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR EXISTS(SELECT 1 FROM reading_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id) OR (NEW.source_id='local' AND EXISTS(SELECT 1 FROM books WHERE book_id=NEW.book_id)) OR EXISTS(SELECT 1 FROM manga_progress WHERE source_id=NEW.source_id AND book_id=NEW.book_id)); END;
+CREATE TRIGGER library_restore_sources_DELETE AFTER DELETE ON sources BEGIN
+ DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id;
+END;
+CREATE TRIGGER library_restore_sources_INSERT AFTER INSERT ON sources BEGIN
+ DELETE FROM library_resource_adoptions WHERE source_id=NEW.source_id;
+END;
+CREATE TRIGGER library_restore_sources_UPDATE AFTER UPDATE ON sources
+ WHEN OLD.source_id IS NOT NEW.source_id OR OLD.source_json IS NOT NEW.source_json BEGIN
+ DELETE FROM library_resource_adoptions WHERE source_id=OLD.source_id OR source_id=NEW.source_id;
+END;
+CREATE TRIGGER library_restore_txt_toc_rules_DELETE AFTER DELETE ON txt_toc_rules
+ WHEN OLD.enable=1 BEGIN DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id IN (SELECT b.book_id FROM books b WHERE COALESCE(CASE WHEN json_valid(json_extract(b.book_json,'$.variables.localBookOriginal')) THEN CASE WHEN json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.schemaVersion')=1 AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.provenance')='rawBytes' AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.bookId')=b.book_id AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.sha256')=json_extract(b.book_json,'$.variables.localBookSourceSha256') THEN json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.sourceFormat') END END,'unknown') NOT IN ('epub','pdf','mobi','azw','umd')); END;
+CREATE TRIGGER library_restore_txt_toc_rules_INSERT BEFORE INSERT ON txt_toc_rules
+ WHEN (NEW.enable=1 OR EXISTS(SELECT 1 FROM txt_toc_rules r WHERE r.id=NEW.id AND r.enable=1))
+ AND NOT EXISTS(SELECT 1 FROM txt_toc_rules r WHERE r.id=NEW.id AND r.name IS NEW.name AND r.rule IS NEW.rule AND r.example IS NEW.example AND r.serial_number IS NEW.serial_number AND r.enable IS NEW.enable)
+ BEGIN DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id IN (SELECT b.book_id FROM books b WHERE COALESCE(CASE WHEN json_valid(json_extract(b.book_json,'$.variables.localBookOriginal')) THEN CASE WHEN json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.schemaVersion')=1 AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.provenance')='rawBytes' AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.bookId')=b.book_id AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.sha256')=json_extract(b.book_json,'$.variables.localBookSourceSha256') THEN json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.sourceFormat') END END,'unknown') NOT IN ('epub','pdf','mobi','azw','umd')); END;
+CREATE TRIGGER library_restore_txt_toc_rules_UPDATE AFTER UPDATE ON txt_toc_rules
+ WHEN (OLD.enable=1 OR NEW.enable=1) AND (OLD.id IS NOT NEW.id OR OLD.name IS NOT NEW.name OR OLD.rule IS NOT NEW.rule OR OLD.example IS NOT NEW.example OR OLD.serial_number IS NOT NEW.serial_number OR OLD.enable IS NOT NEW.enable)
+ BEGIN DELETE FROM library_resource_adoptions WHERE source_id='local' AND book_id IN (SELECT b.book_id FROM books b WHERE COALESCE(CASE WHEN json_valid(json_extract(b.book_json,'$.variables.localBookOriginal')) THEN CASE WHEN json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.schemaVersion')=1 AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.provenance')='rawBytes' AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.bookId')=b.book_id AND json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.sha256')=json_extract(b.book_json,'$.variables.localBookSourceSha256') THEN json_extract(json_extract(b.book_json,'$.variables.localBookOriginal'),'$.sourceFormat') END END,'unknown') NOT IN ('epub','pdf','mobi','azw','umd')); END;
+CREATE TRIGGER library_sync_epoch_book_groups_delete AFTER DELETE ON book_groups BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_book_groups_insert AFTER INSERT ON book_groups BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_book_groups_update AFTER UPDATE ON book_groups BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_book_highlights_delete AFTER DELETE ON book_highlights BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_book_highlights_insert AFTER INSERT ON book_highlights BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_book_highlights_update AFTER UPDATE ON book_highlights BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_bookmarks_delete AFTER DELETE ON bookmarks BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_bookmarks_insert AFTER INSERT ON bookmarks BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_bookmarks_update AFTER UPDATE ON bookmarks BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_books_delete AFTER DELETE ON books BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_books_insert AFTER INSERT ON books BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_books_update AFTER UPDATE ON books BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_bookshelf_delete AFTER DELETE ON bookshelf BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_bookshelf_insert AFTER INSERT ON bookshelf BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_bookshelf_update AFTER UPDATE ON bookshelf BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_chinese_conversion_config_delete AFTER DELETE ON chinese_conversion_config BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_chinese_conversion_config_insert AFTER INSERT ON chinese_conversion_config BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_chinese_conversion_config_update AFTER UPDATE ON chinese_conversion_config BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_content_edits_delete AFTER DELETE ON content_edits BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_content_edits_insert AFTER INSERT ON content_edits BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_content_edits_update AFTER UPDATE ON content_edits BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_dict_rules_delete AFTER DELETE ON dict_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_dict_rules_insert AFTER INSERT ON dict_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_dict_rules_update AFTER UPDATE ON dict_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_highlight_rules_delete AFTER DELETE ON highlight_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_highlight_rules_insert AFTER INSERT ON highlight_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_highlight_rules_update AFTER UPDATE ON highlight_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_http_tts_delete AFTER DELETE ON http_tts BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_http_tts_insert AFTER INSERT ON http_tts BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_http_tts_update AFTER UPDATE ON http_tts BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_book_identities_delete AFTER DELETE ON library_book_identities BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_book_identities_insert AFTER INSERT ON library_book_identities BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_book_identities_update AFTER UPDATE ON library_book_identities BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_chapter_bindings_delete AFTER DELETE ON library_chapter_bindings BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_chapter_bindings_insert AFTER INSERT ON library_chapter_bindings BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_chapter_bindings_update AFTER UPDATE ON library_chapter_bindings BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_identity_meta_delete AFTER DELETE ON library_identity_meta BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_identity_meta_insert AFTER INSERT ON library_identity_meta BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_identity_meta_update AFTER UPDATE ON library_identity_meta BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_local_alias_bindings_delete AFTER DELETE ON library_local_alias_bindings BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_local_alias_bindings_insert AFTER INSERT ON library_local_alias_bindings BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_library_local_alias_bindings_update AFTER UPDATE ON library_local_alias_bindings BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_heads_delete AFTER DELETE ON manga_heads BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_heads_insert AFTER INSERT ON manga_heads BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_heads_update AFTER UPDATE ON manga_heads BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_manifests_delete AFTER DELETE ON manga_manifests BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_manifests_insert AFTER INSERT ON manga_manifests BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_manifests_update AFTER UPDATE ON manga_manifests BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_progress_delete AFTER DELETE ON manga_progress BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_progress_insert AFTER INSERT ON manga_progress BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_manga_progress_update AFTER UPDATE ON manga_progress BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_read_records_delete AFTER DELETE ON read_records BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_read_records_insert AFTER INSERT ON read_records BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_read_records_update AFTER UPDATE ON read_records BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_reading_progress_delete AFTER DELETE ON reading_progress BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_reading_progress_history_delete AFTER DELETE ON reading_progress_history BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_reading_progress_history_insert AFTER INSERT ON reading_progress_history BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_reading_progress_history_update AFTER UPDATE ON reading_progress_history BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_reading_progress_insert AFTER INSERT ON reading_progress BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_reading_progress_update AFTER UPDATE ON reading_progress BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_replace_rules_delete AFTER DELETE ON replace_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_replace_rules_insert AFTER INSERT ON replace_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_replace_rules_update AFTER UPDATE ON replace_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_restored_local_position_archives_delete AFTER DELETE ON restored_local_position_archives BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_restored_local_position_archives_insert AFTER INSERT ON restored_local_position_archives BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_restored_local_position_archives_update AFTER UPDATE ON restored_local_position_archives BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_rss_subscriptions_delete AFTER DELETE ON rss_subscriptions BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_rss_subscriptions_insert AFTER INSERT ON rss_subscriptions BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_rss_subscriptions_update AFTER UPDATE ON rss_subscriptions BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_rule_subs_delete AFTER DELETE ON rule_subs BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_rule_subs_insert AFTER INSERT ON rule_subs BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_rule_subs_update AFTER UPDATE ON rule_subs BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_books_delete AFTER DELETE ON source_books BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_books_insert AFTER INSERT ON source_books BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_books_update AFTER UPDATE ON source_books BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_bundles_delete AFTER DELETE ON source_supply_bundles BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_bundles_insert AFTER INSERT ON source_supply_bundles BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_bundles_update AFTER UPDATE ON source_supply_bundles BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_deletions_delete AFTER DELETE ON source_supply_deletions BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_deletions_insert AFTER INSERT ON source_supply_deletions BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_deletions_update AFTER UPDATE ON source_supply_deletions BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_items_delete AFTER DELETE ON source_supply_items BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_items_insert AFTER INSERT ON source_supply_items BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_source_supply_items_update AFTER UPDATE ON source_supply_items BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_sources_delete AFTER DELETE ON sources BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_sources_insert AFTER INSERT ON sources BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_sources_update AFTER UPDATE ON sources BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_tts_config_delete AFTER DELETE ON tts_config BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_tts_config_insert AFTER INSERT ON tts_config BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_tts_config_update AFTER UPDATE ON tts_config BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_txt_toc_rules_delete AFTER DELETE ON txt_toc_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_txt_toc_rules_insert AFTER INSERT ON txt_toc_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_epoch_txt_toc_rules_update AFTER UPDATE ON txt_toc_rules BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_identity_bookmark_delete AFTER DELETE ON bookmarks WHEN (SELECT mark_tracking_suspended FROM library_sync_state WHERE id=1)=0 BEGIN UPDATE library_sync_marks SET deleted=1 WHERE kind='bookmark' AND local_time=OLD.time AND deleted=0; END;
+CREATE TRIGGER library_sync_identity_bookmark_insert AFTER INSERT ON bookmarks WHEN (SELECT mark_tracking_suspended FROM library_sync_state WHERE id=1)=0 BEGIN INSERT INTO library_sync_marks(mark_id,kind,local_time,original_time,deleted) SELECT lower(hex(randomblob(16))),'bookmark',NEW.time,NEW.time,0 WHERE NOT EXISTS(SELECT 1 FROM library_sync_marks WHERE kind='bookmark' AND local_time=NEW.time AND deleted=0); END;
+CREATE TRIGGER library_sync_identity_bookmark_update AFTER UPDATE ON bookmarks WHEN (SELECT mark_tracking_suspended FROM library_sync_state WHERE id=1)=0 BEGIN INSERT INTO library_sync_marks(mark_id,kind,local_time,original_time,deleted) SELECT lower(hex(randomblob(16))),'bookmark',NEW.time,NEW.time,0 WHERE NOT EXISTS(SELECT 1 FROM library_sync_marks WHERE kind='bookmark' AND local_time=NEW.time AND deleted=0); END;
+CREATE TRIGGER library_sync_identity_highlight_delete AFTER DELETE ON book_highlights WHEN (SELECT mark_tracking_suspended FROM library_sync_state WHERE id=1)=0 BEGIN UPDATE library_sync_marks SET deleted=1 WHERE kind='highlight' AND local_time=OLD.time AND deleted=0; END;
+CREATE TRIGGER library_sync_identity_highlight_insert AFTER INSERT ON book_highlights WHEN (SELECT mark_tracking_suspended FROM library_sync_state WHERE id=1)=0 BEGIN INSERT INTO library_sync_marks(mark_id,kind,local_time,original_time,deleted) SELECT lower(hex(randomblob(16))),'highlight',NEW.time,NEW.time,0 WHERE NOT EXISTS(SELECT 1 FROM library_sync_marks WHERE kind='highlight' AND local_time=NEW.time AND deleted=0); END;
+CREATE TRIGGER library_sync_identity_highlight_update AFTER UPDATE ON book_highlights WHEN (SELECT mark_tracking_suspended FROM library_sync_state WHERE id=1)=0 BEGIN INSERT INTO library_sync_marks(mark_id,kind,local_time,original_time,deleted) SELECT lower(hex(randomblob(16))),'highlight',NEW.time,NEW.time,0 WHERE NOT EXISTS(SELECT 1 FROM library_sync_marks WHERE kind='highlight' AND local_time=NEW.time AND deleted=0); END;
+CREATE TRIGGER library_sync_mark_proof_delete AFTER DELETE ON cache WHEN OLD.key LIKE 'reader-position-mark-v1:%' BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_mark_proof_insert AFTER INSERT ON cache WHEN NEW.key LIKE 'reader-position-mark-v1:%' BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER library_sync_mark_proof_update AFTER UPDATE ON cache WHEN NEW.key LIKE 'reader-position-mark-v1:%' BEGIN UPDATE library_sync_clock SET epoch=epoch+1 WHERE id=1; END;
+CREATE TRIGGER reader_catalog_index_delete AFTER DELETE ON cache BEGIN
+ DELETE FROM reader_catalog_index_meta WHERE toc_key=OLD.key;
+END;
+CREATE TRIGGER reader_catalog_index_insert AFTER INSERT ON cache BEGIN
+ DELETE FROM reader_catalog_index_meta WHERE toc_key=NEW.key;
+END;
+CREATE TRIGGER reader_catalog_index_update AFTER UPDATE ON cache BEGIN
+ DELETE FROM reader_catalog_index_meta WHERE toc_key=OLD.key OR toc_key=NEW.key;
+END;
+CREATE TRIGGER reader_directory_facts_delete AFTER DELETE ON cache WHEN substr(OLD.key,1,27)='reading.directory.facts.v2:' BEGIN DELETE FROM reader_catalog_index_meta WHERE toc_key=CASE WHEN substr(substr(OLD.key,28),1,8)='5:local:' THEN 'local_book.v1.toc:'||substr(substr(OLD.key,28),9) ELSE 'remote_book.v1.toc:'||substr(OLD.key,28) END; END;
+CREATE TRIGGER reader_directory_facts_insert AFTER INSERT ON cache WHEN substr(NEW.key,1,27)='reading.directory.facts.v2:' BEGIN DELETE FROM reader_catalog_index_meta WHERE toc_key=CASE WHEN substr(substr(NEW.key,28),1,8)='5:local:' THEN 'local_book.v1.toc:'||substr(substr(NEW.key,28),9) ELSE 'remote_book.v1.toc:'||substr(NEW.key,28) END; END;
+CREATE TRIGGER reader_directory_facts_update AFTER UPDATE ON cache WHEN substr(NEW.key,1,27)='reading.directory.facts.v2:' BEGIN DELETE FROM reader_catalog_index_meta WHERE toc_key=CASE WHEN substr(substr(NEW.key,28),1,8)='5:local:' THEN 'local_book.v1.toc:'||substr(substr(NEW.key,28),9) ELSE 'remote_book.v1.toc:'||substr(NEW.key,28) END; END;
+CREATE TRIGGER reader_directory_facts_update_old AFTER UPDATE ON cache WHEN substr(OLD.key,1,27)='reading.directory.facts.v2:' BEGIN DELETE FROM reader_catalog_index_meta WHERE toc_key=CASE WHEN substr(substr(OLD.key,28),1,8)='5:local:' THEN 'local_book.v1.toc:'||substr(substr(OLD.key,28),9) ELSE 'remote_book.v1.toc:'||substr(OLD.key,28) END; END;
+CREATE TRIGGER reader_directory_toc_delete AFTER DELETE ON cache WHEN substr(OLD.key,1,18)='local_book.v1.toc:' OR substr(OLD.key,1,19)='remote_book.v1.toc:' BEGIN DELETE FROM cache WHERE key=CASE WHEN substr(OLD.key,1,18)='local_book.v1.toc:' THEN 'reading.directory.facts.v2:5:local:'||substr(OLD.key,19) ELSE 'reading.directory.facts.v2:'||substr(OLD.key,20) END; END;
+CREATE TRIGGER reader_document_bytes_delete AFTER DELETE ON reader_documents BEGIN
+ UPDATE reader_document_totals SET bytes=bytes-length(CAST(OLD.document_json AS BLOB)) WHERE id=1; END;
+CREATE TRIGGER reader_document_bytes_insert AFTER INSERT ON reader_documents BEGIN
+ UPDATE reader_document_totals SET bytes=bytes+length(CAST(NEW.document_json AS BLOB)) WHERE id=1; END;
+CREATE TRIGGER reader_document_bytes_update AFTER UPDATE ON reader_documents BEGIN
+ UPDATE reader_document_totals SET bytes=bytes-length(CAST(OLD.document_json AS BLOB))+length(CAST(NEW.document_json AS BLOB)) WHERE id=1; END;
+CREATE TRIGGER reader_document_part_delete AFTER DELETE ON reader_document_parts BEGIN
+ UPDATE reader_document_totals SET bytes=bytes-length(CAST(OLD.block_json AS BLOB)) WHERE id=1; END;
+CREATE TRIGGER reader_document_part_insert AFTER INSERT ON reader_document_parts BEGIN
+ UPDATE reader_document_totals SET bytes=bytes+length(CAST(NEW.block_json AS BLOB)) WHERE id=1; END;
+CREATE TRIGGER reader_documents_books_delete AFTER DELETE ON books BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id='local' AND book_id=OLD.book_id; END;
+CREATE TRIGGER reader_documents_books_insert AFTER INSERT ON books BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id='local' AND book_id=NEW.book_id; END;
+CREATE TRIGGER reader_documents_books_update AFTER UPDATE ON books BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE (source_id='local' AND book_id=NEW.book_id) OR (source_id='local' AND book_id=OLD.book_id); END;
+CREATE TRIGGER reader_documents_bookshelf_delete AFTER DELETE ON bookshelf BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id=OLD.source_id AND book_id=OLD.book_id; END;
+CREATE TRIGGER reader_documents_bookshelf_insert BEFORE INSERT ON bookshelf BEGIN
+ UPDATE reader_document_clock SET generation=generation+1 WHERE id=1;
+ DELETE FROM reader_documents WHERE source_id=NEW.source_id AND book_id=NEW.book_id
+ AND NEW.title IS NOT coalesce(
+   (SELECT title FROM bookshelf WHERE source_id=NEW.source_id AND book_id=NEW.book_id),
+   CASE WHEN NEW.source_id='local'
+   THEN (SELECT json_extract(book_json,'$.title') FROM books WHERE book_id=NEW.book_id)
+   ELSE (SELECT json_extract(book_json,'$.title') FROM source_books WHERE source_id=NEW.source_id AND book_id=NEW.book_id)
+ END,'');
+END;
+CREATE TRIGGER reader_documents_bookshelf_update AFTER UPDATE ON bookshelf WHEN OLD.title IS NOT NEW.title BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE (source_id=NEW.source_id AND book_id=NEW.book_id) OR (source_id=OLD.source_id AND book_id=OLD.book_id); END;
+CREATE TRIGGER reader_documents_chapter_cache_delete AFTER DELETE ON chapter_cache BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id=OLD.source_id AND book_id=OLD.book_id AND chapter_index=OLD.chapter_index; END;
+CREATE TRIGGER reader_documents_chapter_cache_insert AFTER INSERT ON chapter_cache BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id=NEW.source_id AND book_id=NEW.book_id AND chapter_index=NEW.chapter_index; END;
+CREATE TRIGGER reader_documents_chapter_cache_update AFTER UPDATE ON chapter_cache
+WHEN CASE
+ WHEN OLD.source_id IS NOT NEW.source_id OR OLD.book_id IS NOT NEW.book_id
+   OR OLD.chapter_index IS NOT NEW.chapter_index OR OLD.content IS NOT NEW.content
+   OR OLD.content_format_version IS NOT NEW.content_format_version
+   OR OLD.title IS NOT NEW.title OR OLD.url IS NOT NEW.url THEN 1
+ WHEN OLD.revision IS NEW.revision THEN 0
+ WHEN OLD.revision IS NOT NULL OR NEW.source_id IS NOT 'local' THEN 1
+ ELSE CASE WHEN EXISTS (
+   SELECT 1 FROM reader_documents
+   WHERE source_id=NEW.source_id AND book_id=NEW.book_id
+     AND chapter_index=NEW.chapter_index AND processor_version=1
+     AND CASE WHEN json_valid(document_json) THEN
+       CASE WHEN json_type(document_json,'$.positionScope')='object'
+         AND (SELECT count(*) FROM json_each(document_json) WHERE key='positionScope')=1 THEN
+         CASE WHEN json_type(document_json,'$.positionScope.sourceId')='text'
+           AND json_type(document_json,'$.positionScope.bookId')='text'
+           AND json_type(document_json,'$.positionScope.chapterIndex')='integer'
+           AND json_type(document_json,'$.positionScope.bodyVersion')='text'
+           AND json_type(document_json,'$.positionScope.processingVersion')='text'
+           AND (SELECT count(*) FROM json_each(document_json,'$.positionScope'))=5
+           AND json_extract(document_json,'$.positionScope.sourceId')=NEW.source_id
+           AND json_extract(document_json,'$.positionScope.bookId')=NEW.book_id
+           AND json_extract(document_json,'$.positionScope.chapterIndex')=NEW.chapter_index
+           AND json_extract(document_json,'$.positionScope.chapterIndex') BETWEEN 0 AND 4294967295
+           AND length(json_extract(document_json,'$.positionScope.bodyVersion'))>0
+           AND length(json_extract(document_json,'$.positionScope.processingVersion'))>0
+           AND NEW.revision='reader-position-body-v1:'
+             ||json_extract(document_json,'$.positionScope.bodyVersion')||':'
+             ||json_extract(document_json,'$.positionScope.processingVersion')
+         THEN 1 ELSE 0 END
+       ELSE 0 END
+     ELSE 0 END
+ ) THEN 0 ELSE 1 END
+END
+BEGIN
+ UPDATE reader_document_clock SET generation=generation+1 WHERE id=1;
+ DELETE FROM reader_documents
+ WHERE (source_id=NEW.source_id AND book_id=NEW.book_id AND chapter_index=NEW.chapter_index)
+    OR (source_id=OLD.source_id AND book_id=OLD.book_id AND chapter_index=OLD.chapter_index);
+END;
+CREATE TRIGGER reader_documents_chinese_conversion_config_delete AFTER DELETE ON chinese_conversion_config BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE 1; END;
+CREATE TRIGGER reader_documents_chinese_conversion_config_insert AFTER INSERT ON chinese_conversion_config BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE 1; END;
+CREATE TRIGGER reader_documents_chinese_conversion_config_update AFTER UPDATE ON chinese_conversion_config BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE (1) OR (1); END;
+CREATE TRIGGER reader_documents_replace_rules_delete AFTER DELETE ON replace_rules BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE 1; END;
+CREATE TRIGGER reader_documents_replace_rules_insert AFTER INSERT ON replace_rules BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE 1; END;
+CREATE TRIGGER reader_documents_replace_rules_update AFTER UPDATE ON replace_rules BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE (1) OR (1); END;
+CREATE TRIGGER reader_documents_source_books_delete AFTER DELETE ON source_books BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id=OLD.source_id AND book_id=OLD.book_id; END;
+CREATE TRIGGER reader_documents_source_books_insert AFTER INSERT ON source_books BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id=NEW.source_id AND book_id=NEW.book_id; END;
+CREATE TRIGGER reader_documents_source_books_update AFTER UPDATE ON source_books WHEN json_extract(OLD.book_json,'$.title') IS NOT json_extract(NEW.book_json,'$.title') BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE (source_id=NEW.source_id AND book_id=NEW.book_id) OR (source_id=OLD.source_id AND book_id=OLD.book_id); END;
+CREATE TRIGGER reader_documents_source_switch_transactions_delete AFTER DELETE ON source_switch_transactions BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE 1; END;
+CREATE TRIGGER reader_documents_source_switch_transactions_insert AFTER INSERT ON source_switch_transactions BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE 1; END;
+CREATE TRIGGER reader_documents_source_switch_transactions_update AFTER UPDATE ON source_switch_transactions BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE (1) OR (1); END;
+CREATE TRIGGER reader_documents_sources_delete AFTER DELETE ON sources BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id=OLD.source_id; END;
+CREATE TRIGGER reader_documents_sources_insert AFTER INSERT ON sources BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE source_id=NEW.source_id; END;
+CREATE TRIGGER reader_documents_sources_update AFTER UPDATE ON sources BEGIN UPDATE reader_document_clock SET generation=generation+1 WHERE id=1; DELETE FROM reader_documents WHERE (source_id=NEW.source_id) OR (source_id=OLD.source_id); END;
+CREATE TRIGGER reader_documents_url_delete AFTER DELETE ON cache WHEN OLD.key LIKE 'reader-position-url-v1:%' BEGIN
+ UPDATE reader_document_clock SET generation=generation+1 WHERE id=1;
+ DELETE FROM reader_documents WHERE CASE WHEN json_valid(OLD.payload) THEN
+ source_id=json_extract(OLD.payload,'$.sourceId') AND book_id=json_extract(OLD.payload,'$.bookId') AND chapter_index=json_extract(OLD.payload,'$.chapterIndex') ELSE 1 END; END;
+CREATE TRIGGER reader_documents_url_insert AFTER INSERT ON cache WHEN NEW.key LIKE 'reader-position-url-v1:%' AND json_valid(NEW.payload) BEGIN
+ UPDATE reader_document_clock SET generation=generation+1 WHERE id=1;
+ DELETE FROM reader_documents WHERE source_id=json_extract(NEW.payload,'$.sourceId') AND book_id=json_extract(NEW.payload,'$.bookId') AND chapter_index=json_extract(NEW.payload,'$.chapterIndex'); END;
+CREATE TRIGGER reader_documents_url_update AFTER UPDATE ON cache WHEN (OLD.key IS NOT NEW.key OR OLD.payload IS NOT NEW.payload) AND (OLD.key LIKE 'reader-position-url-v1:%' OR NEW.key LIKE 'reader-position-url-v1:%') BEGIN
+ UPDATE reader_document_clock SET generation=generation+1 WHERE id=1;
+ DELETE FROM reader_documents WHERE
+ (OLD.key LIKE 'reader-position-url-v1:%' AND CASE WHEN json_valid(OLD.payload) THEN
+ source_id=json_extract(OLD.payload,'$.sourceId') AND book_id=json_extract(OLD.payload,'$.bookId') AND chapter_index=json_extract(OLD.payload,'$.chapterIndex') ELSE 1 END)
+ OR (NEW.key LIKE 'reader-position-url-v1:%' AND CASE WHEN json_valid(NEW.payload) THEN
+ source_id=json_extract(NEW.payload,'$.sourceId') AND book_id=json_extract(NEW.payload,'$.bookId') AND chapter_index=json_extract(NEW.payload,'$.chapterIndex') ELSE 1 END); END;
+CREATE TRIGGER reader_local_scalar_catalog_DELETE AFTER DELETE ON reader_catalog_index_meta BEGIN DELETE FROM cache WHERE substr(OLD.toc_key,1,18)='local_book.v1.toc:' AND key='local_book.scalar-facts.v1:'||substr(OLD.toc_key,19); END;
+CREATE TRIGGER reader_local_scalar_catalog_INSERT AFTER INSERT ON reader_catalog_index_meta BEGIN DELETE FROM cache WHERE substr(NEW.toc_key,1,18)='local_book.v1.toc:' AND key='local_book.scalar-facts.v1:'||substr(NEW.toc_key,19); END;
+CREATE TRIGGER reader_local_scalar_catalog_UPDATE AFTER UPDATE ON reader_catalog_index_meta BEGIN DELETE FROM cache WHERE substr(OLD.toc_key,1,18)='local_book.v1.toc:' AND key='local_book.scalar-facts.v1:'||substr(OLD.toc_key,19);DELETE FROM cache WHERE substr(NEW.toc_key,1,18)='local_book.v1.toc:' AND key='local_book.scalar-facts.v1:'||substr(NEW.toc_key,19); END;
+CREATE TRIGGER reader_local_scalar_generation AFTER UPDATE OF generation ON reader_document_clock
+        WHEN OLD.generation IS NOT NEW.generation BEGIN DELETE FROM cache WHERE key>='local_book.scalar-facts.v1:' AND key<'local_book.scalar-facts.v1;'; END;
+CREATE TRIGGER reader_local_scalar_shelf_DELETE AFTER DELETE ON cache WHEN OLD.key>='local_book.scalar-facts.v1:' AND OLD.key<'local_book.scalar-facts.v1;'
+            BEGIN UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1; END;
+CREATE TRIGGER reader_local_scalar_shelf_INSERT AFTER INSERT ON cache WHEN NEW.key>='local_book.scalar-facts.v1:' AND NEW.key<'local_book.scalar-facts.v1;'
+            BEGIN UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1; END;
+CREATE TRIGGER reader_local_scalar_shelf_UPDATE AFTER UPDATE ON cache WHEN (OLD.key>='local_book.scalar-facts.v1:' AND OLD.key<'local_book.scalar-facts.v1;') OR (NEW.key>='local_book.scalar-facts.v1:' AND NEW.key<'local_book.scalar-facts.v1;')
+            BEGIN UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1; END;
+CREATE TRIGGER reader_shelf_clock_bookshelf_DELETE
+                AFTER DELETE ON bookshelf BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_bookshelf_INSERT
+                AFTER INSERT ON bookshelf BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_bookshelf_UPDATE
+                AFTER UPDATE ON bookshelf BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_cache_DELETE
+            AFTER DELETE ON cache WHEN OLD.key LIKE 'bookshelf.catalog.v1:%' BEGIN
+            UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+            END;
+CREATE TRIGGER reader_shelf_clock_cache_INSERT
+            AFTER INSERT ON cache WHEN NEW.key LIKE 'bookshelf.catalog.v1:%' BEGIN
+            UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+            END;
+CREATE TRIGGER reader_shelf_clock_cache_UPDATE
+            AFTER UPDATE ON cache WHEN OLD.key LIKE 'bookshelf.catalog.v1:%' OR NEW.key LIKE 'bookshelf.catalog.v1:%' BEGIN
+            UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+            END;
+CREATE TRIGGER reader_shelf_clock_manga_admissions_DELETE
+AFTER DELETE ON manga_admissions BEGIN
+UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER reader_shelf_clock_manga_admissions_INSERT
+AFTER INSERT ON manga_admissions BEGIN
+UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER reader_shelf_clock_manga_admissions_UPDATE
+AFTER UPDATE ON manga_admissions BEGIN
+UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER reader_shelf_clock_reader_catalog_index_meta_DELETE
+                AFTER DELETE ON reader_catalog_index_meta BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_reader_catalog_index_meta_INSERT
+                AFTER INSERT ON reader_catalog_index_meta BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_reader_catalog_index_meta_UPDATE
+                AFTER UPDATE ON reader_catalog_index_meta BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_reading_progress_DELETE
+                AFTER DELETE ON reading_progress BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_reading_progress_INSERT
+                AFTER INSERT ON reading_progress BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_reading_progress_UPDATE
+                AFTER UPDATE ON reading_progress BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_sources_DELETE
+                AFTER DELETE ON sources BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_sources_INSERT
+                AFTER INSERT ON sources BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER reader_shelf_clock_sources_UPDATE
+                AFTER UPDATE ON sources BEGIN
+                UPDATE reader_shelf_projection_clock SET revision=revision+1 WHERE singleton=1;
+                END;
+CREATE TRIGGER search_alias_delete AFTER DELETE ON search_books BEGIN
+ DELETE FROM search_book_aliases WHERE origin=OLD.origin AND book_url=OLD.book_url;
+ UPDATE search_relation_state SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER search_alias_insert AFTER INSERT ON search_books BEGIN
+ DELETE FROM search_book_aliases WHERE origin=NEW.origin AND book_url=NEW.book_url;
+ INSERT INTO search_book_aliases SELECT NEW.origin,NEW.book_url,value FROM
+ json_each(reader_search_aliases_v2(NEW.name,NEW.author,NEW.acquisition_json,
+ (SELECT policy_json FROM search_source_author_policy WHERE origin=NEW.origin)));
+ UPDATE search_relation_state SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER search_alias_update AFTER UPDATE ON search_books BEGIN
+ DELETE FROM search_book_aliases WHERE origin=OLD.origin AND book_url=OLD.book_url;
+ DELETE FROM search_book_aliases WHERE origin=NEW.origin AND book_url=NEW.book_url;
+ INSERT INTO search_book_aliases SELECT NEW.origin,NEW.book_url,value FROM
+ json_each(reader_search_aliases_v2(NEW.name,NEW.author,NEW.acquisition_json,
+ (SELECT policy_json FROM search_source_author_policy WHERE origin=NEW.origin)));
+ UPDATE search_relation_state SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER search_source_delete AFTER DELETE ON sources BEGIN
+ DELETE FROM search_source_author_policy WHERE origin=OLD.source_id;
+ DELETE FROM search_book_aliases WHERE origin=OLD.source_id;
+ INSERT INTO search_book_aliases SELECT b.origin,b.book_url,j.value FROM search_books b,
+ json_each(reader_search_aliases_v2(b.name,b.author,b.acquisition_json,NULL)) j
+ WHERE b.origin=OLD.source_id;
+ UPDATE search_relation_state SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER search_source_insert AFTER INSERT ON sources BEGIN
+ INSERT OR REPLACE INTO search_source_author_policy VALUES(NEW.source_id,reader_search_source_policy_v1(NEW.source_json));
+ DELETE FROM search_book_aliases WHERE origin=NEW.source_id;
+ INSERT INTO search_book_aliases SELECT b.origin,b.book_url,j.value FROM search_books b
+ JOIN search_source_author_policy p ON p.origin=b.origin,
+ json_each(reader_search_aliases_v2(b.name,b.author,b.acquisition_json,p.policy_json)) j
+ WHERE b.origin=NEW.source_id;
+ UPDATE search_relation_state SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER search_source_update AFTER UPDATE ON sources BEGIN
+ DELETE FROM search_source_author_policy WHERE origin=OLD.source_id;
+ INSERT OR REPLACE INTO search_source_author_policy VALUES(NEW.source_id,reader_search_source_policy_v1(NEW.source_json));
+ DELETE FROM search_book_aliases WHERE origin IN (OLD.source_id,NEW.source_id);
+ INSERT INTO search_book_aliases SELECT b.origin,b.book_url,j.value FROM search_books b
+ LEFT JOIN search_source_author_policy p ON p.origin=b.origin,
+ json_each(reader_search_aliases_v2(b.name,b.author,b.acquisition_json,p.policy_json)) j
+ WHERE b.origin IN (OLD.source_id,NEW.source_id);
+ UPDATE search_relation_state SET revision=revision+1 WHERE singleton=1;
+END;
+CREATE TRIGGER source_supply_delete AFTER DELETE ON sources BEGIN
+ INSERT OR IGNORE INTO source_supply_deletions(source_id) VALUES(OLD.source_id);
+ UPDATE source_supply_bundles SET complete=0 WHERE bundle_id IN (SELECT bundle_id FROM source_supply_items WHERE source_id=OLD.source_id);
+ UPDATE source_supply_items SET dirty=1,suppressed=1 WHERE source_id=OLD.source_id;
+END;
+CREATE TRIGGER source_supply_insert AFTER INSERT ON sources BEGIN
+ DELETE FROM source_supply_deletions WHERE source_id=NEW.source_id;
+ UPDATE source_supply_bundles SET complete=0 WHERE bundle_id IN (SELECT bundle_id FROM source_supply_items WHERE source_id=NEW.source_id);
+ UPDATE source_supply_items SET dirty=1,suppressed=0 WHERE source_id=NEW.source_id;
+END;
+CREATE TRIGGER source_supply_update AFTER UPDATE ON sources BEGIN
+ UPDATE source_supply_bundles SET complete=0 WHERE bundle_id IN (SELECT bundle_id FROM source_supply_items WHERE source_id=NEW.source_id);
+ UPDATE source_supply_items SET dirty=1,suppressed=0 WHERE source_id=NEW.source_id;
+END;
+INSERT INTO library_identity_journals(journal_id,payload)
+ VALUES('synthetic-preserve-journal','{"unmodeled":true,"proof":"fixture"}');
+INSERT INTO reader_shelf_projection_clock(singleton,epoch,revision)
+ VALUES(1,lower(hex(randomblob(16))),0);
+INSERT INTO manga_runtime_epoch(singleton,value) VALUES(1,0);
+INSERT INTO manga_session_runtime(singleton,value,process_identity,require_release_token) VALUES(1,0,0,0);
+INSERT INTO search_relation_state(singleton,revision,epoch,normalization_version)
+ VALUES(1,1,'00000000000000000000000000000000','synthetic-stale-normalization');
+PRAGMA user_version=47;
