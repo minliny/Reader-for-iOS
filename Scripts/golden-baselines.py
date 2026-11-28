@@ -22,6 +22,8 @@ def require(value, message):
 
 def verify_png(directory, scene):
     path = directory / (scene["id"] + ".png")
+    if scene.get("verification", "").startswith("NOT_RUN"):
+        return b""
     data = path.read_bytes()
     require(len(data) >= 24 and data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR",
             f"Invalid PNG: {path}")
@@ -87,13 +89,16 @@ def contact_sheet(output):
         x = pad + index % columns * width
         y = heading + index // columns * height
         path = baselines / (scene["id"] + ".png")
-        verify_png(baselines, scene)
-        with Image.open(path) as image:
-            size = ImageOps.contain(image.convert("RGB"), (width - pad, height - 52),
-                                    Image.Resampling.LANCZOS)
         draw.rounded_rectangle((x, y, x + width - 8, y + height - 9),
                                radius=8, fill="#ffffff", outline="#d1d9d1")
-        sheet.paste(size, (x + (width - 8 - size.width) // 2, y + 5))
+        if scene.get("verification", "").startswith("NOT_RUN"):
+            draw.multiline_text((x + 22, y + 165), "NOT RUN\nCoreSimulatorService\nunavailable", font=detail, fill="#8a6250", spacing=5)
+        else:
+            verify_png(baselines, scene)
+            with Image.open(path) as image:
+                size = ImageOps.contain(image.convert("RGB"), (width - pad, height - 52),
+                                        Image.Resampling.LANCZOS)
+            sheet.paste(size, (x + (width - 8 - size.width) // 2, y + 5))
         label_y = y + height - 43
         draw.text((x + 10, label_y), scene["id"], font=label, fill="#202f28")
         mode = scene.get("milestone", "M1")

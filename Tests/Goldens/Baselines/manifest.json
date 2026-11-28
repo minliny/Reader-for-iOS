@@ -511,6 +511,30 @@
       "textSize" : "large",
       "theme" : "day",
       "width" : 402
+    },
+    {
+      "height" : 700,
+      "id" : "shelf-cover-grid",
+      "platformDifference" : "采用 iOS 系统导航、安全区和 SF Symbols。网格列数随宽度变化。",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / shelf cover grid",
+      "sample" : "GoldenScenes.swift#shelf-cover-grid",
+      "state" : "书架封面网格，日间",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402,
+      "verification" : "NOT_RUN: CoreSimulatorService unavailable"
+    },
+    {
+      "height" : 700,
+      "id" : "shelf-more-sheet",
+      "platformDifference" : "采用 iOS 系统底部 Sheet 与系统安全区。",
+      "reference" : "HarmonyOS pinned / CROSS_PLATFORM_CLIENT_ARCHITECTURE §6.3 / shelf more action sheet",
+      "sample" : "GoldenScenes.swift#shelf-more-sheet",
+      "state" : "书架操作底部 Sheet",
+      "textSize" : "large",
+      "theme" : "day",
+      "width" : 402,
+      "verification" : "NOT_RUN: CoreSimulatorService unavailable"
     }
   ],
   "schemaVersion" : 1
