@@ -148,7 +148,7 @@ final class M3ProductUITests: XCTestCase {
         enter(origin + route + "/import", in: "source.import.url")
         tap("source.import.preview")
         tap("source.import.confirm")
-        tap("source.import.apply", within: app.alerts.firstMatch)
+        tapAlertButton("确认导入")
         wait("source.import.result", timeout: 25)
         tap("source.import.done")
         back()
@@ -227,6 +227,12 @@ final class M3ProductUITests: XCTestCase {
     private func tapLabel(_ label: String) {
         let button = app.buttons[label].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 15), "Missing \(label)")
+        button.tap()
+    }
+
+    private func tapAlertButton(_ label: String) {
+        let button = app.alerts.firstMatch.buttons[label]
+        XCTAssertTrue(button.waitForExistence(timeout: 15), "Missing alert button \(label)")
         button.tap()
     }
 
