@@ -31,7 +31,7 @@ struct BookDetailScreen: View {
                     removalGeneration += 1
                     confirmation = ReaderConfirmation(title: "移出书架？", message: "《\(book.title)》将从书架移除。",
                                                       confirmTitle: "移除", generation: removalGeneration)
-                })
+                }, onSelectChapter: { index in route = .init(chapter: index) })
                 .navigationDestination(item: $route) { route in
                     ReadingScreen(book: book, chapters: model.chapters, original: model.original,
                                   runtime: runtime, files: files, startChapter: route.chapter) {

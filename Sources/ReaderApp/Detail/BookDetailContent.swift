@@ -9,6 +9,7 @@ struct BookDetailContent: View {
     let onDirectory: () -> Void
     let onRemove: () -> Void
     var onShelfAction: () -> Void = {}
+    var onSelectChapter: ((Int64) -> Void)? = nil
 
     @Environment(\.readerTheme) private var theme
     @State private var introExpanded = false
@@ -148,7 +149,7 @@ struct BookDetailContent: View {
     }
 
     private func onReadChapter(_ chapter: BookTocEntryData) {
-        onRead()
+        if let onSelectChapter { onSelectChapter(chapter.index) } else { onRead() }
     }
 
     private var detailFooter: some View {
