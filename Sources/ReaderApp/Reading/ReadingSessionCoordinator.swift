@@ -47,6 +47,11 @@ final class ReadingSessionCoordinator {
     private(set) var onlineFailure: (any Error)?
     private(set) var onlineUnavailableChapter: Int64?
     var onlineBook: OnlineBookReference? { online == nil ? nil : book.map(OnlineBookReference.init(shelfBook:)) }
+    var currentChapterPosition: (number: Int, count: Int)? {
+        guard let chapter, !catalog.isEmpty,
+              let offset = catalog.firstIndex(where: { $0.index == chapter.index }) else { return nil }
+        return (offset + 1, catalog.count)
+    }
     func onlineChapterTitle(_ index: Int64) -> String { catalog.first { $0.index == index }?.title ?? "在线章节" }
     private(set) var chapter: ReadingChapter?
     private(set) var position: Int = 0

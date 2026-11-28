@@ -52,6 +52,9 @@ struct ReaderReadingTopBar: View {
 struct ReaderReadingControlIsland: View {
     let state: ReadingControls
     let title: String
+    var chapterTitle: String? = nil
+    var chapterNumber: Int? = nil
+    var chapterCount: Int? = nil
     let preferences: ReadingPreferences
     let onAction: (ReadingControlAction) -> Void
     let speechAvailable: Bool
@@ -74,7 +77,13 @@ struct ReaderReadingControlIsland: View {
             }
             if state == .full { ReaderAppearanceSummary(preferences: preferences, onAction: onAction) }
             ReaderReadingQuickGrid(onAction: onAction, speechAvailable: speechAvailable)
-            ReaderReadingProgressCard(preferences: preferences, onAction: onAction)
+            ReaderReadingProgressCard(
+                chapterTitle: chapterTitle,
+                chapterNumber: chapterNumber,
+                chapterCount: chapterCount,
+                preferences: preferences,
+                onAction: onAction
+            )
             ReaderReadingModuleNavigation(selected: state == .full ? "界面" : "翻页", onAction: onAction)
         }
         .foregroundStyle(preferences.paper.foreground)
@@ -109,13 +118,28 @@ private struct ReaderReadingQuickGrid: View {
 }
 
 private struct ReaderReadingProgressCard: View {
+    var chapterTitle: String? = nil
+    var chapterNumber: Int? = nil
+    var chapterCount: Int? = nil
     let preferences: ReadingPreferences
     let onAction: (ReadingControlAction) -> Void
+
+    private var progressValue: Double {
+        guard let chapterNumber, let chapterCount, chapterNumber > 0, chapterCount > 0 else { return 0 }
+        return min(1, max(0, Double(chapterNumber) / Double(chapterCount)))
+    }
+
     var body: some View {
         VStack(spacing: 7) {
-            HStack { Button("‹") { onAction(.previous) }; Spacer(); Text("当前章节").lineLimit(1); Spacer(); Button("›") { onAction(.next) } }
-            HStack { Text("第 1 / 共 1 章").readerTypography(ReaderDesignMetrics.rowDetail); Spacer(); Button("加书签") { onAction(.addBookmark) }.buttonStyle(.bordered) }
-            ProgressView(value: 0.0).tint(preferences.paper.foreground)
+            HStack { Button("‹") { onAction(.previous) }; Spacer(); Text(chapterTitle ?? "当前章节").lineLimit(1); Spacer(); Button("›") { onAction(.next) } }
+            HStack {
+                if let chapterNumber, let chapterCount, chapterNumber > 0, chapterCount > 0 {
+                    Text("第 \(chapterNumber) / 共 \(chapterCount) 章").readerTypography(ReaderDesignMetrics.rowDetail)
+                }
+                Spacer()
+                Button("加书签") { onAction(.addBookmark) }.buttonStyle(.bordered)
+            }
+            ProgressView(value: progressValue).tint(preferences.paper.foreground)
         }
         .padding(10).background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }

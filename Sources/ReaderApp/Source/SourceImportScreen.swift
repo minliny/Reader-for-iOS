@@ -142,9 +142,6 @@ struct SourceImportScreen: View {
 
             switch mode {
             case .text:
-                Text("在下方粘贴书源 JSON。")
-                    .readerTypography(ReaderDesignMetrics.rowDetail)
-                    .foregroundStyle(theme.secondaryText)
                 TextEditor(text: $document)
                     .readerTypography(ReaderDesignMetrics.sourceFilterFieldText)
                     .scrollContentBackground(.hidden)
@@ -228,7 +225,7 @@ struct SourceImportScreen: View {
                                completed: batch.completed, failed: batch.failed, total: batch.total - (batch.unresolved ? 1 : 0))
                 .accessibilityIdentifier("source.import.result")
             if batch.unresolved {
-                Text("1 项等待原操作回执。可返回书源列表核对。")
+                Text("1 项等待确认，可返回书源列表查看。")
                     .readerTypography(ReaderDesignMetrics.rowDetail)
                     .foregroundStyle(theme.secondaryText)
             }

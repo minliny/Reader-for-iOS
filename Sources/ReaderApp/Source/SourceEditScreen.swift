@@ -87,10 +87,10 @@ struct SourceEditScreen: View {
                 case .rejected(let result) where result.data.error.details?.reason == "sourceVersionConflict":
                     issue = "书源已被其他操作更新。当前草稿仍在这里，可核对并复制后重新读取书源。"
                 default:
-                    issue = "Core 未应用此次修改，已保留草稿。"
+                    issue = "未能保存此次修改，已保留草稿。"
                 }
             } catch SourceManagementCoordinator.Failure.conditionalEditUnavailable {
-                issue = "当前 Core 无法按原版本保存编辑，已保留草稿。"
+                issue = "当前版本无法保存此修改，已保留草稿。"
             } catch {
                 issue = "无法核对此次保存结果，已保留草稿。"
             }

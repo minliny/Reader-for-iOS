@@ -70,7 +70,7 @@ struct SourceSubscriptionsScreen: View {
         .task { await reload() }
         .modifier(SourceSubscriptionNotices(feedback: feedback, coordinator: coordinator, frontmost: frontmost) { receipt in
             await reload()
-            if case .rejected = receipt { notify("Core 未应用上一次订阅操作。", key: "verify.rejected") }
+            if case .rejected = receipt { notify("上一次订阅操作未生效。", key: "verify.rejected") }
         })
         .sheet(item: $active, onDismiss: { Task { await reload() } }) { value in
             NavigationStack {

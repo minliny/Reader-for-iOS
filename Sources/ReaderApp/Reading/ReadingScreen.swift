@@ -55,8 +55,12 @@ struct ReadingScreen: View {
 
     var body: some View {
         let appearance = preferences
+        let progress = model.currentChapterPosition
         ReadingPresentation(title: model.chapter?.title ?? book.title,
                             subtitle: "\(model.chapter?.title ?? "当前章节") · \(book.sourceId == "local" ? "本地书籍" : (book.sourceName ?? "在线书源"))",
+                            chapterTitle: model.chapter?.title,
+                            chapterNumber: progress?.number,
+                            chapterCount: progress?.count,
                             preferences: appearance, controls: controls, onAction: act,
                             speechAvailable: model.canStartSpeech,
                             onBack: { Task { await onExit() } },

@@ -11,6 +11,9 @@ struct ReaderNativeView: UIViewRepresentable {
 struct ReadingPresentation<Content: View>: View {
     let title: String
     var subtitle: String = "本地书籍"
+    var chapterTitle: String? = nil
+    var chapterNumber: Int? = nil
+    var chapterCount: Int? = nil
     let preferences: ReadingPreferences
     let controls: ReadingControls
     let onAction: (ReadingControlAction) -> Void
@@ -34,8 +37,10 @@ struct ReadingPresentation<Content: View>: View {
         }
         .overlay(alignment: .bottom) {
             if controls != .hidden {
-                ReaderReadingControlIsland(state: controls, title: title, preferences: preferences,
-                                            onAction: onAction, speechAvailable: speechAvailable)
+                ReaderReadingControlIsland(state: controls, title: title, chapterTitle: chapterTitle,
+                                            chapterNumber: chapterNumber, chapterCount: chapterCount,
+                                            preferences: preferences, onAction: onAction,
+                                            speechAvailable: speechAvailable)
             }
         }
         .toolbar(.hidden, for: .navigationBar)

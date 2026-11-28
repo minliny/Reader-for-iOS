@@ -261,7 +261,7 @@ struct SourceManagementScreen: View {
     private func verify() {
         execute(key: "source-recovery") {
             guard let result = try await coordinator.verifyPending() else { return "原操作暂未返回可核对回执" }
-            if case .rejected = result { return "Core 已确认该变更未应用" }
+            if case .rejected = result { return "该变更未生效" }
             return "已核对原操作"
         }
     }

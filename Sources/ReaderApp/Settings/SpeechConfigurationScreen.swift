@@ -126,12 +126,7 @@ struct SpeechEngineCatalogView: View {
     private var systemSection: some View {
         section("系统音色", icon: ReaderIconRegistry.ttsSystemEngine) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(systemVoiceName).readerTypography(ReaderDesignMetrics.ttsConfigVoiceSelectedLabel)
-                    Text("使用设备上已安装的系统语音")
-                        .readerTypography(ReaderDesignMetrics.ttsConfigVoiceMetadata, relativeTo: .caption)
-                        .foregroundStyle(theme.secondaryText)
-                }
+                Text(systemVoiceName).readerTypography(ReaderDesignMetrics.ttsConfigVoiceSelectedLabel)
                 Spacer()
                 Menu {
                     Button("系统默认") { onAction(.choose(.system(voiceID: nil))) }
@@ -163,7 +158,7 @@ struct SpeechEngineCatalogView: View {
     }
 
     private var httpSection: some View {
-        section("HttpTTS", icon: ReaderIconRegistry.ttsOnlineEngine) {
+        section("在线朗读", icon: ReaderIconRegistry.ttsOnlineEngine) {
             if engines.isEmpty {
                 Text("还没有在线朗读引擎")
                     .readerTypography(ReaderDesignMetrics.ttsConfigVoiceMetadata, relativeTo: .caption)
