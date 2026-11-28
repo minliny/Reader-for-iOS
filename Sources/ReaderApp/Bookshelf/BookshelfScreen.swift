@@ -30,7 +30,13 @@ struct BookshelfScreen: View {
                 onRetryGeneration: { generation in Task { await model.retry(root: root, expected: generation) } },
                 onRecovery: { generation, action in
                     Task { await model.recover(expected: generation, action: action) }
-                }, recoveryAvailable: !picker && confirmation == nil && path.isEmpty && phase == .active
+                }, recoveryAvailable: !picker && confirmation == nil && path.isEmpty && phase == .active,
+                onSearch: { path.append(.search) },
+                onMore: {},
+                onImport: { picker = true },
+                onSettings: { path.append(.settings) },
+                onDownloads: { path.append(.downloads) },
+                onSources: { path.append(.sources) }
             )
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let task = model.task {
@@ -53,62 +59,33 @@ struct BookshelfScreen: View {
                 }
             }
             .background(theme.background)
-            .navigationTitle("书架")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("设置", systemImage: "gearshape") { path.append(.settings) }
-                        .accessibilityIdentifier("reader-settings")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { path.append(.search) } label: { ReaderIcon(ReaderIconRegistry.search) }
-                        .accessibilityLabel("全局搜索")
-                        .accessibilityIdentifier("reader-online-search")
-                        .disabled(model.online == nil)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { picker = true } label: { ReaderIcon(ReaderIconRegistry.add) }
-                        .accessibilityLabel("导入本地书")
-                        .accessibilityIdentifier("import-local-book")
-                        .disabled(model.library == nil)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("书源管理") { path.append(.sources) }
-                            .accessibilityIdentifier("reader-open-sources")
-                        Button { path.append(.downloads) } label: {
-                            Label { Text("下载管理") } icon: { ReaderIcon(ReaderIconRegistry.download) }
-                        }
-                        .accessibilityIdentifier("reader-open-downloads")
-                    } label: {
-                        ReaderIcon(ReaderIconRegistry.more)
-                    }
-                    .accessibilityLabel("书架更多功能")
-                    .accessibilityIdentifier("reader-online-menu")
-                    .disabled(model.online == nil)
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .settings: SettingsScreen(runtime: model.library?.runtime)
+                    .toolbar(.visible, for: .navigationBar)
                 case .search:
                     if let session = model.online, let files = model.files {
                         GlobalSearchScreen(session: session, files: files) { await model.reload() }
+                            .toolbar(.visible, for: .navigationBar)
                     }
                 case .sources:
-                    if let session = model.online { SourceManagementScreen(coordinator: session.sources) }
+                    if let session = model.online { SourceManagementScreen(coordinator: session.sources).toolbar(.visible, for: .navigationBar) }
                 case .downloads:
-                    if let session = model.online { DownloadManagementScreen(session: session) }
+                    if let session = model.online { DownloadManagementScreen(session: session).toolbar(.visible, for: .navigationBar) }
                 case .onlineDetail(let reference):
                     if let session = model.online, let files = model.files {
                         OnlineBookDetailScreen(reference: reference, session: session, files: files,
                                                refreshShelf: { await model.reload() },
                                                remove: { await model.remove($0) })
+                            .toolbar(.visible, for: .navigationBar)
                     }
                 case .detail(let identity):
                     if let runtime = model.library?.runtime, let files = model.files {
                         BookDetailScreen(identity: identity, runtime: runtime, files: files) {
                             await model.remove(identity)
                         } refreshShelf: { await model.reload() }
+                        .toolbar(.visible, for: .navigationBar)
                     }
                 }
             }

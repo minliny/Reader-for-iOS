@@ -22,11 +22,16 @@ struct BookDetailScreen: View {
         Group {
             if let book = model.book {
                 BookDetailContent(book: book, chapters: model.chapters,
-                                  onRead: { route = .init(chapter: nil) }, onDirectory: { directory = true }) {
+                                  onRead: { route = .init(chapter: nil) }, onDirectory: { directory = true },
+                                  onRemove: {
                     removalGeneration += 1
                     confirmation = ReaderConfirmation(title: "移出书架？", message: "《\(book.title)》将从书架移除。",
                                                       confirmTitle: "移除", generation: removalGeneration)
-                }
+                }, onShelfAction: {
+                    removalGeneration += 1
+                    confirmation = ReaderConfirmation(title: "移出书架？", message: "《\(book.title)》将从书架移除。",
+                                                      confirmTitle: "移除", generation: removalGeneration)
+                })
                 .navigationDestination(item: $route) { route in
                     ReadingScreen(book: book, chapters: model.chapters, original: model.original,
                                   runtime: runtime, files: files, startChapter: route.chapter) {
@@ -49,6 +54,21 @@ struct BookDetailScreen: View {
         }
         .navigationTitle("书籍详情")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("刷新") { Task { await load(); await refreshShelf() } }
+                    Button("移出书架", role: .destructive) {
+                        removalGeneration += 1
+                        confirmation = ReaderConfirmation(title: "移出书架？", message: "《\(model.book?.title ?? "此书")》将从书架移除。",
+                                                          confirmTitle: "移除", generation: removalGeneration)
+                    }
+                } label: {
+                    ReaderIcon(ReaderIconRegistry.more, squareSize: 20)
+                }
+                .accessibilityLabel("书籍更多操作")
+            }
+        }
         .task { await load() }
         .readerConfirmation($confirmation) { generation in
             guard generation == removalGeneration else { return }

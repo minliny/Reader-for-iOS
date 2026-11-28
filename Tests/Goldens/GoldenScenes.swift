@@ -40,6 +40,10 @@ enum GoldenScenes {
         switch scene.id {
         case "shelf-day", "shelf-night", "shelf-narrow-large", "shelf-wide":
             shelf(books)
+        case "shelf-cover-grid":
+            shelf(books, presentation: .cover)
+        case "shelf-more-sheet":
+            shelf(books, initiallyShowingMore: true)
         case "shelf-empty":
             shelf([], state: .empty("书架空空，添加一本本地书开始阅读"))
         case "shelf-recovery":
@@ -76,11 +80,14 @@ enum GoldenScenes {
     }
 
     private static func shelf(_ books: [BookshelfEntryData]?, state: ReaderPageState? = nil,
-                              recovery: ShelfRecovery? = nil) -> some View {
+                              recovery: ShelfRecovery? = nil,
+                              presentation: ShelfPresentationMode = .list,
+                              initiallyShowingMore: Bool = false) -> some View {
         NavigationStack {
             BookshelfContent(books: books, state: state, recovery: recovery,
-                             onOpen: { _ in }, onRemove: { _ in }, onRetry: {})
-                .navigationTitle("书架")
+                             onOpen: { _ in }, onRemove: { _ in }, onRetry: {},
+                             initialPresentation: presentation,
+                             initiallyShowingMore: initiallyShowingMore)
         }
     }
 }

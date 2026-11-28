@@ -7,15 +7,24 @@ struct DirectorySheet: View {
     let selected: Int64?
     let onSelect: (Int64) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+    @State private var ascending = true
 
     var body: some View {
         NavigationStack {
-            DirectoryContent(chapters: chapters, selected: selected, onSelect: onSelect)
-                .navigationTitle("目录")
+            DirectoryContent(chapters: chapters.filter { search.isEmpty || ($0.displayTitle ?? $0.title).localizedCaseInsensitiveContains(search) }, selected: selected, onSelect: onSelect)
+                .navigationTitle("目录 · \(chapters.count)")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { ascending.toggle() } label: {
+                            Image(systemName: ascending ? "arrow.down" : "arrow.up")
+                        }
+                        .accessibilityLabel(ascending ? "正序" : "倒序")
+                    }
                 }
+                .searchable(text: $search, prompt: "搜索章节")
         }
     }
 }

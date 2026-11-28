@@ -129,6 +129,19 @@ struct ShelfBookRow: View {
                     .lineLimit(1)
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
+            if entry.sourceId == "local" {
+                Text("本地书籍")
+                    .readerTypography(ReaderDesignMetrics.shelfChapter, relativeTo: .caption)
+                    .foregroundStyle(theme.secondaryText)
+                    .lineLimit(1)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            } else if let latest = entry.lastChapter, !latest.isEmpty {
+                Text("最新：\(latest)")
+                    .readerTypography(ReaderDesignMetrics.shelfChapter, relativeTo: .caption)
+                    .foregroundStyle(theme.secondaryText)
+                    .lineLimit(1)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            }
             if showProgress {
                 HStack(spacing: 5) {
                     ProgressView(value: progress).tint(theme.accent)
@@ -140,5 +153,43 @@ struct ShelfBookRow: View {
             }
         }
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The cover presentation is intentionally a separate view so the list and
+/// grid keep the same cover decoding and placeholder treatment.
+struct ShelfBookGridCard: View {
+    let entry: BookshelfEntryData
+    let onOpen: () -> Void
+    @Environment(\.readerTheme) private var theme
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 6) {
+                BookCover(entry: entry)
+                    .aspectRatio(3.0 / 4.1, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                Text(entry.title)
+                    .readerTypography(ReaderDesignMetrics.shelfTitle, relativeTo: .body)
+                    .foregroundStyle(theme.primaryText)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !entry.author.isEmpty {
+                    Text(entry.author)
+                        .readerTypography(ReaderDesignMetrics.shelfAuthor, relativeTo: .caption)
+                        .foregroundStyle(theme.secondaryText)
+                        .lineLimit(1)
+                }
+                Text(entry.readProgress.map { "\($0)%" } ?? "未读")
+                    .readerTypography(ReaderDesignMetrics.shelfProgress, relativeTo: .caption2)
+                    .foregroundStyle(theme.mutedText)
+                    .monospacedDigit()
+            }
+            .padding(CGFloat(ReaderDesignMetrics.spaceExtraSmall))
+            .background(theme.surface, in: .rect(cornerRadius: CGFloat(ReaderDesignMetrics.cardRadius)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("shelf-grid-book-\(entry.bookId)")
     }
 }
