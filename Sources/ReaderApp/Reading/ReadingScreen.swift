@@ -55,8 +55,13 @@ struct ReadingScreen: View {
 
     var body: some View {
         let appearance = preferences
-        ReadingPresentation(title: model.chapter?.title ?? book.title, preferences: appearance,
-                            controls: controls, onAction: act, speechAvailable: model.canStartSpeech) {
+        ReadingPresentation(title: model.chapter?.title ?? book.title,
+                            subtitle: "\(model.chapter?.title ?? "当前章节") · \(book.sourceId == "local" ? "本地书籍" : (book.sourceName ?? "在线书源"))",
+                            preferences: appearance, controls: controls, onAction: act,
+                            speechAvailable: model.canStartSpeech,
+                            onBack: { Task { await onExit() } },
+                            onSource: { if onlineContext != nil { sheet = .sourceSwitch } },
+                            onMore: { sheet = .directory }) {
             if let failure = failedChapter {
                 unavailableChapterPage(failure)
             } else if let chapter = model.chapter {

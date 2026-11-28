@@ -10,27 +10,21 @@ struct ReaderNativeView: UIViewRepresentable {
 
 struct ReadingPresentation<Content: View>: View {
     let title: String
+    var subtitle: String = "本地书籍"
     let preferences: ReadingPreferences
     let controls: ReadingControls
     let onAction: (ReadingControlAction) -> Void
     var speechAvailable = false
+    var onBack: () -> Void = {}
+    var onSource: () -> Void = {}
+    var onMore: () -> Void = {}
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         let paper = preferences.paper
         VStack(spacing: 0) {
-            HStack {
-                Text(title)
-                    .readerTypography(ReaderDesignMetrics.readerControlChapterTitle, relativeTo: .caption)
-                    .lineLimit(1)
-                Spacer()
-            }
-            .foregroundStyle(paper.statusForeground)
-            .padding(.horizontal, CGFloat(ReaderDesignMetrics.screenInset))
-            .padding(.vertical, 6)
-            .background(paper.statusBackground.ignoresSafeArea(edges: .top))
-            .accessibilityIdentifier("reader-status-paper")
-
+            ReaderReadingTopBar(title: title, subtitle: subtitle, paper: paper,
+                                sourceEnabled: true, onBack: onBack, onSource: onSource, onMore: onMore)
             content()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -39,9 +33,12 @@ struct ReadingPresentation<Content: View>: View {
                 .ignoresSafeArea()
         }
         .overlay(alignment: .bottom) {
-            ControlPanel(state: controls, title: title, preferences: preferences, onAction: onAction,
-                         speechAvailable: speechAvailable)
+            if controls != .hidden {
+                ReaderReadingControlIsland(state: controls, title: title, preferences: preferences,
+                                            onAction: onAction, speechAvailable: speechAvailable)
+            }
         }
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 

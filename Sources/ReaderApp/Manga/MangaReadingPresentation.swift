@@ -30,7 +30,13 @@ struct MangaReadingToolbar: View {
                 .accessibilityIdentifier("m3-manga-controls")
         }
         .frame(minHeight: CGFloat(ReaderDesignMetrics.mangaToolbarMinHeight))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+        .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
         .padding(.horizontal, CGFloat(ReaderDesignMetrics.screenInset))
+        .padding(.top, 6)
     }
 
     private func action(_ label: String, _ icon: ReaderIconMapping, _ run: @escaping () -> Void) -> some View {

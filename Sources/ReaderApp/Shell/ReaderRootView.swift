@@ -44,6 +44,7 @@ struct ReaderRootView: View {
             BookshelfScreen(model: model, root: root)
         case .settings:
             NavigationStack { SettingsScreen(runtime: model.library?.runtime) }
+                .navigationBarBackButtonHidden(true)
         }
     }
 }
@@ -69,6 +70,7 @@ private struct ReaderBottomTabBar: View {
                     .foregroundStyle(selection == tab ? theme.onAccent : theme.secondaryText)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
                     .background(selection == tab ? theme.accentFill : .clear, in: Capsule())
                 }
                 .buttonStyle(.plain)

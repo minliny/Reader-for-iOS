@@ -82,8 +82,8 @@ struct BookDetailContent: View {
                 .foregroundStyle(theme.secondaryText)
                 .lineLimit(introExpanded ? nil : 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if let intro = book.intro, intro.count > 120 {
-                Button(introExpanded ? "收起" : "展开全部") { introExpanded.toggle() }
+            if let intro = book.intro, !intro.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, intro.count > 120 {
+                Button(introExpanded ? "收起" : "展开") { introExpanded.toggle() }
                     .readerTypography(ReaderDesignMetrics.rowDetail)
                     .foregroundStyle(theme.accent)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -170,7 +170,8 @@ struct BookDetailContent: View {
                     Text("已在书架")
                         .readerTypography(ReaderDesignMetrics.rowDetail)
                         .foregroundStyle(theme.accent)
-                        .frame(width: 94, minHeight: 44)
+                        .frame(minWidth: 116, minHeight: 44)
+                        .padding(.horizontal, 12)
                         .background(theme.surface, in: Capsule())
                         .overlay(Capsule().stroke(theme.outline, lineWidth: 1))
                 }
