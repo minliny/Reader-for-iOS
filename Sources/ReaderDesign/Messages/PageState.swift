@@ -21,25 +21,34 @@ public struct PageState: View {
             switch state {
             case .loading:
                 ProgressView("正在载入")
+                    .foregroundStyle(theme.secondaryText)
             case .empty(let text):
                 ReaderIcon(ReaderIconRegistry.shelf)
                     .font(.title2)
                     .foregroundStyle(theme.accent)
                 Text(text)
+                    .foregroundStyle(theme.secondaryText)
             case .failed(let text, let actionGeneration):
                 Image(systemName: "exclamationmark.circle")
                     .font(.title2)
                     .foregroundStyle(theme.danger)
                     .accessibilityHidden(true)
                 Text(text)
+                    .foregroundStyle(theme.secondaryText)
                 if let actionGeneration {
                     Button("重试") { onRetry(actionGeneration) }
-                        .buttonStyle(.bordered)
+                        .readerTypography(ReaderDesignMetrics.rowLabel)
+                        .foregroundStyle(theme.messageSoftText)
+                        .padding(.horizontal, 16)
+                        .frame(minWidth: CGFloat(ReaderDesignMetrics.minimumActionTarget),
+                               minHeight: CGFloat(ReaderDesignMetrics.minimumActionTarget))
+                        .background(theme.messageSoftSurface,
+                                    in: RoundedRectangle(cornerRadius: CGFloat(ReaderDesignMetrics.segmentedTrackRadius)))
+                        .buttonStyle(.plain)
                 }
             }
         }
         .readerTypography(ReaderDesignMetrics.rowLabel)
-        .foregroundStyle(theme.secondaryText)
         .multilineTextAlignment(.center)
         .padding(CGFloat(ReaderDesignMetrics.screenInset))
         .frame(maxWidth: .infinity, maxHeight: .infinity)

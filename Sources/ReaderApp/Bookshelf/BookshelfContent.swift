@@ -101,7 +101,7 @@ struct BookshelfContent: View {
                         ShelfContinueCard(entry: current, onOpen: { onOpen(current) })
                     }
                     ShelfSectionHeader(bookCount: books.count, presentation: $presentation,
-                                       enabled: true, onFilter: {})
+                                       enabled: true, narrow: width < CGFloat(ReaderDesignMetrics.narrowBreakpoint), onFilter: {})
                     if presentation == .list {
                         shelfList(books, narrow: width < CGFloat(ReaderDesignMetrics.narrowBreakpoint), wide: wide)
                     } else {
@@ -111,7 +111,7 @@ struct BookshelfContent: View {
                     switch state {
                     case .empty:
                         ShelfSectionHeader(bookCount: 0, presentation: $presentation,
-                                           enabled: false, onFilter: {})
+                                           enabled: false, narrow: width < CGFloat(ReaderDesignMetrics.narrowBreakpoint), onFilter: {})
                         ShelfEmptyCard(onImport: onImport, onSearch: onSearch)
                     case .loading, .failed:
                         PageState(state: state) { generation in
@@ -121,7 +121,7 @@ struct BookshelfContent: View {
                     }
                 } else if let books, books.isEmpty {
                     ShelfSectionHeader(bookCount: 0, presentation: $presentation,
-                                       enabled: false, onFilter: {})
+                                       enabled: false, narrow: width < CGFloat(ReaderDesignMetrics.narrowBreakpoint), onFilter: {})
                     ShelfEmptyCard(onImport: onImport, onSearch: onSearch)
                 }
                 Color.clear.frame(height: 92)
@@ -171,51 +171,96 @@ private struct ShelfSectionHeader: View {
     let bookCount: Int
     @Binding var presentation: ShelfPresentationMode
     let enabled: Bool
+    let narrow: Bool
     let onFilter: () -> Void
     @Environment(\.readerTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var viewModeRail
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text("我的书架")
-                .readerTypography(ReaderDesignMetrics.pageTitle, relativeTo: .headline)
-                .foregroundStyle(theme.primaryText)
-            Text("\(bookCount) 本")
-                .readerTypography(ReaderDesignMetrics.rowDetail, relativeTo: .caption)
-                .foregroundStyle(theme.secondaryText)
-                .monospacedDigit()
-            Spacer(minLength: 4)
-            HStack(spacing: 2) {
-                segment("list", icon: ReaderIconRegistry.directory, selected: presentation == .list) { presentation = .list }
-                segment("cover", icon: ReaderIconRegistry.shelf, selected: presentation == .cover) { presentation = .cover }
-            }
-            .padding(3)
-            .frame(height: 34)
-            .background(theme.field, in: Capsule())
-            .overlay(Capsule().stroke(theme.outline, lineWidth: 1))
-            Button(action: onFilter) {
-                ZStack(alignment: .topTrailing) {
-                    ReaderIcon(ReaderIconRegistry.filter, squareSize: 20)
-                        .frame(width: 34, height: 34)
-                    if enabled && bookCount > 0 {
-                        Circle().fill(theme.accentFill).frame(width: 6, height: 6)
-                    }
+        Group {
+            if narrow && typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) { titleCount; Spacer(minLength: 4) }
+                    HStack(spacing: 8) { Spacer(minLength: 0); modeCapsule; filterButton }
                 }
+            } else {
+                HStack(spacing: 8) { titleCount; Spacer(minLength: 4); modeCapsule; filterButton }
             }
-            .buttonStyle(.plain)
-            .opacity(enabled ? 1 : 0.42)
-            .disabled(!enabled)
-            .accessibilityLabel("筛选书架")
         }
         .frame(minHeight: 40)
     }
 
+    @ViewBuilder
+    private var titleCount: some View {
+        Text("我的书架")
+            .readerTypography(ReaderDesignMetrics.pageTitle, relativeTo: .headline)
+            .foregroundStyle(theme.primaryText)
+            .lineLimit(1)
+        Text("\(bookCount) 本")
+            .readerTypography(ReaderDesignMetrics.rowDetail, relativeTo: .caption)
+            .foregroundStyle(theme.secondaryText)
+            .monospacedDigit()
+            .lineLimit(1)
+    }
+
+    private var modeCapsule: some View {
+        HStack(spacing: 0) {
+            segment("list", icon: ReaderIconRegistry.directory, selected: presentation == .list) { presentation = .list }
+            segment("cover", icon: ReaderIconRegistry.shelf, selected: presentation == .cover) { presentation = .cover }
+        }
+        .padding(3)
+        .frame(height: 34)
+        .background {
+            ZStack {
+                Capsule()
+                    .fill(theme.segmentTrackBevel)
+                    .offset(y: 0.75)
+                Capsule()
+                    .fill(theme.segmentTrack.shadow(.inner(color: theme.segmentTrackTopShadow, radius: 2.2, x: 0, y: 1.5)))
+                Capsule()
+                    .strokeBorder(theme.segmentTrackBorder, lineWidth: 0.75)
+            }
+        }
+        .opacity(enabled ? 1 : 0.42)
+    }
+
+    private var filterButton: some View {
+        Button(action: onFilter) {
+            ZStack(alignment: .topTrailing) {
+                ReaderIcon(ReaderIconRegistry.filter, squareSize: 20)
+                    .frame(width: 34, height: 34)
+                if enabled && bookCount > 0 {
+                    Circle().fill(theme.accentFill).frame(width: 6, height: 6)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .opacity(enabled ? 1 : 0.42)
+        .disabled(!enabled)
+        .accessibilityLabel("筛选书架")
+    }
+
     private func segment(_ id: String, icon: ReaderIconMapping, selected: Bool,
                          action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            withAnimation(reduceMotion ? .easeInOut(duration: 0.12) : .spring(response: 0.26, dampingFraction: 0.82)) {
+                action()
+            }
+        } label: {
             ReaderIcon(icon, squareSize: 18)
                 .frame(width: 30, height: 28)
                 .foregroundStyle(selected ? theme.accent : theme.secondaryText)
-                .background(selected ? theme.surface : .clear, in: Capsule())
+                .background {
+                    if selected {
+                        Capsule()
+                            .fill(theme.segmentThumb)
+                            .overlay(Capsule().strokeBorder(theme.segmentThumbHighlight, lineWidth: 0.5))
+                            .shadow(color: theme.segmentThumbShadow, radius: 2.5, x: 0, y: 1.5)
+                            .matchedGeometryEffect(id: "shelf-view-thumb", in: viewModeRail)
+                    }
+                }
         }
         .buttonStyle(.plain)
         .disabled(!enabled)

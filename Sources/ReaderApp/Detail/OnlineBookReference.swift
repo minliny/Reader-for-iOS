@@ -25,8 +25,42 @@ struct OnlineBookReference: Hashable, Identifiable, Sendable {
     var id: Identity { .init(sourceId: sourceId, bookId: bookId) }
 
     var displaySource: String {
-        if let sourceName, !sourceName.isEmpty { return sourceName }
+        if let sourceName, !sourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return Self.cleanDisplaySourceName(sourceName)
+        }
         return URL(string: sourceId)?.host ?? sourceId
+    }
+
+    private static func cleanDisplaySourceName(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        var index = trimmed.unicodeScalars.startIndex
+        var strippedDecorative = false
+        while index < trimmed.unicodeScalars.endIndex {
+            let scalar = trimmed.unicodeScalars[index].value
+            let decorative = (0x1F000...0x1FAFF).contains(scalar) ||
+                (0x2600...0x27BF).contains(scalar) ||
+                (0x2300...0x23FF).contains(scalar) ||
+                (0x25A0...0x25FF).contains(scalar) ||
+                (0x2B00...0x2BFF).contains(scalar) ||
+                (0xFE00...0xFE0F).contains(scalar) ||
+                scalar == 0x200D ||
+                scalar == 0x20E3 ||
+                (0xE0020...0xE007F).contains(scalar)
+            if decorative {
+                strippedDecorative = true
+                index = trimmed.unicodeScalars.index(after: index)
+                continue
+            }
+            let separator = scalar <= 0x20 || scalar == 0x3000 || scalar == 0x00B7 || scalar == 0x2022 || scalar == 0x007C
+            if strippedDecorative && separator {
+                index = trimmed.unicodeScalars.index(after: index)
+                continue
+            }
+            break
+        }
+        let cleaned = String(trimmed.unicodeScalars[index...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? trimmed : cleaned
     }
 
     var detailParams: M2BookDetailParams {
@@ -81,6 +115,10 @@ struct OnlineBookCover: View {
         }
         .frame(width: width, height: height)
         .clipShape(.rect(cornerRadius: radius))
+        .overlay {
+            RoundedRectangle(cornerRadius: radius)
+                .strokeBorder(theme.outline, lineWidth: 1)
+        }
         .accessibilityHidden(true)
         .task(id: book.coverURL) {
             image = nil

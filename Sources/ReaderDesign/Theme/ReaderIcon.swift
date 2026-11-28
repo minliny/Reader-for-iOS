@@ -13,12 +13,21 @@ public struct ReaderIcon: View {
     @ViewBuilder
     public var body: some View {
         if let systemName = mapping.systemName {
-            Image(systemName: systemName)
+            systemSymbol(systemName)
                 .accessibilityHidden(true)
         } else if let assetName = mapping.assetName,
                   let image = UIImage(named: (assetName as NSString).deletingPathExtension,
                                       in: ReaderDesignResources.bundle, compatibleWith: nil) {
             asset(image).foregroundStyle(tint).accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private func systemSymbol(_ name: String) -> some View {
+        if let squareSize {
+            Image(systemName: name).resizable().scaledToFit().frame(width: squareSize, height: squareSize)
+        } else {
+            Image(systemName: name)
         }
     }
 

@@ -39,6 +39,7 @@ struct BookCover: View {
             }
             .padding(.horizontal, 8).padding(.vertical, 8)
         }
+        .dynamicTypeSize(.large)
         .clipped()
         .accessibilityHidden(true)
     }
