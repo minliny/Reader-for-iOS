@@ -230,31 +230,46 @@ private struct ShelfContinueCard: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        HStack(spacing: 12) {
-            BookCover(entry: entry).frame(width: 56, height: 78)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("继续阅读").readerTypography(ReaderDesignMetrics.sectionHeading, relativeTo: .caption)
-                    .foregroundStyle(theme.accent)
-                Text(entry.title).readerTypography(ReaderDesignMetrics.shelfTitle, relativeTo: .body)
-                    .foregroundStyle(theme.primaryText).lineLimit(2)
-                Text(entry.author.isEmpty ? "本地书籍" : entry.author)
-                    .readerTypography(ReaderDesignMetrics.shelfAuthor, relativeTo: .caption)
-                    .foregroundStyle(theme.secondaryText).lineLimit(1)
-                Text(entry.currentChapterTitle ?? "已保存阅读位置")
-                    .readerTypography(ReaderDesignMetrics.shelfChapter, relativeTo: .caption)
-                    .foregroundStyle(theme.secondaryText).lineLimit(1)
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) { cover; metadata }
+                    continueButton.frame(maxWidth: .infinity)
+                }
+            } else {
+                HStack(spacing: 12) { cover; metadata; continueButton }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Button("继续", action: onOpen)
-                .readerTypography(ReaderDesignMetrics.mainTabLabel, relativeTo: .caption)
-                .foregroundStyle(theme.onAccent)
-                .frame(minWidth: typeSize.isAccessibilitySize ? 80 : 60, minHeight: 36)
-                .background(theme.accentFill, in: Capsule())
-                .buttonStyle(.plain)
         }
         .padding(CGFloat(ReaderDesignMetrics.cardPadding))
         .background(theme.surface, in: .rect(cornerRadius: CGFloat(ReaderDesignMetrics.cardRadius)))
         .accessibilityIdentifier("shelf-continue-card")
+    }
+
+    private var cover: some View { BookCover(entry: entry).frame(width: 56, height: 78) }
+
+    private var metadata: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("继续阅读").readerTypography(ReaderDesignMetrics.sectionHeading, relativeTo: .caption)
+                .foregroundStyle(theme.accent)
+            Text(entry.title).readerTypography(ReaderDesignMetrics.shelfTitle, relativeTo: .body)
+                .foregroundStyle(theme.primaryText).lineLimit(2)
+            Text(entry.author.isEmpty ? "本地书籍" : entry.author)
+                .readerTypography(ReaderDesignMetrics.shelfAuthor, relativeTo: .caption)
+                .foregroundStyle(theme.secondaryText).lineLimit(1)
+            Text(entry.currentChapterTitle ?? "已保存阅读位置")
+                .readerTypography(ReaderDesignMetrics.shelfChapter, relativeTo: .caption)
+                .foregroundStyle(theme.secondaryText).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var continueButton: some View {
+        Button("继续", action: onOpen)
+            .readerTypography(ReaderDesignMetrics.mainTabLabel, relativeTo: .caption)
+            .foregroundStyle(theme.onAccent)
+            .frame(minWidth: typeSize.isAccessibilitySize ? 80 : 60, minHeight: 36)
+            .background(theme.accentFill, in: Capsule())
+            .buttonStyle(.plain)
     }
 }
 
