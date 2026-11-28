@@ -57,7 +57,7 @@ struct SpeechHTTPEngineEditor: View {
             } header: {
                 Text("本机密钥")
             } footer: {
-                Text("密钥存于此设备的钥匙串。HTTPS 模板可用 {{text}}、{{rate}}、{{voice}} 和 {{apiKey}}。")
+                Text("密钥仅保存在本机钥匙串。模板支持 {{text}}、{{rate}}、{{voice}}、{{apiKey}}。")
             }
             if let error { Text(error).foregroundStyle(theme.danger).accessibilityIdentifier("reader-tts-engine-error") }
         }

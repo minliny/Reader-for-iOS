@@ -107,7 +107,7 @@ struct SourceImportScreen: View {
             Button("确认导入") { submit() }
                 .accessibilityIdentifier("source.import.apply")
         } message: {
-            Text("将导入 \(selected.count) 条书源，并保留书源文档中原有的分组。")
+            Text("将导入 \(selected.count) 条书源，并保留原有分组。")
         }
         .onChange(of: coordinator.importBatch.running) { _, running in
             if submitted && !running { onCommitted() }
@@ -278,7 +278,7 @@ struct SourceImportScreen: View {
     private func submit() {
         guard let items, !coordinator.importBatch.running else { return }
         guard coordinator.pendingMutation == nil else {
-            error = "已有书源操作等待原回执，请返回书源列表核对。"
+            error = "尚有未完成的书源操作，请返回书源列表核对。"
             return
         }
         let chosen = items.filter { selected.contains($0.id) && !$0.exists }

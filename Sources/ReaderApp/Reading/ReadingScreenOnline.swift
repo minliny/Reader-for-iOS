@@ -97,7 +97,7 @@ extension ReadingScreen {
     }
 
     func onlineRecoveryNotice(_ operation: OnlineReaderRecovery.Operation, available: Bool) -> some View {
-        RecoveryNotice(title: "换源待核对", message: "请核对原换源记录。仍未完成的事务将恢复原书源和位置。",
+        RecoveryNotice(title: "换源待核对", message: "请核对上次换源记录，未完成时将恢复原书源和位置。",
             generation: operation.generation,
             action: onlineRecovery.verifying ? nil : ReaderRecoveryAction(title: "核对并恢复", generation: operation.generation),
             availability: available) { expected, action in

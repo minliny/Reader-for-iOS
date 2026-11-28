@@ -110,7 +110,7 @@ struct SourceManagementScreen: View {
     private var recoveryNotice: some View {
         if recovering {
             let generation = recoveryGeneration
-            RecoveryNotice(title: "需要核对书源操作", message: "上一次变更尚无可核对回执，核对之前会保留已有书源。",
+            RecoveryNotice(title: "需要核对书源操作", message: "上一次变更尚未确认，核对前会保留已有书源。",
                            generation: generation, action: .init(title: "核对原操作", generation: generation),
                            availability: pendingPage == nil && confirmation == nil) { expected, action in
                 guard expected == recoveryGeneration, action == expected else { return }
@@ -260,7 +260,7 @@ struct SourceManagementScreen: View {
 
     private func verify() {
         execute(key: "source-recovery") {
-            guard let result = try await coordinator.verifyPending() else { return "原操作暂未返回可核对回执" }
+            guard let result = try await coordinator.verifyPending() else { return "暂未收到可核对的结果" }
             if case .rejected = result { return "该变更未生效" }
             return "已核对原操作"
         }

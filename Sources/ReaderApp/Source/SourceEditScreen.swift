@@ -85,7 +85,7 @@ struct SourceEditScreen: View {
                 switch receipt {
                 case .sourceImport: dismiss()
                 case .rejected(let result) where result.data.error.details?.reason == "sourceVersionConflict":
-                    issue = "书源已被其他操作更新。当前草稿仍在这里，可核对并复制后重新读取书源。"
+                    issue = "书源已被其他操作更新，当前草稿已保留，可复制后重新读取。"
                 default:
                     issue = "未能保存此次修改，已保留草稿。"
                 }

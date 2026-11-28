@@ -421,7 +421,7 @@ private struct SourceSubscriptionNotices: ViewModifier {
         content
             .overlay(alignment: .top) {
                 if let recovery = feedback.recovery {
-                    RecoveryNotice(title: "需要核对订阅操作", message: "上一次变更尚无可核对回执。可核对原操作的结果。",
+                    RecoveryNotice(title: "需要核对订阅操作", message: "上一次变更尚未确认，可重新核对结果。",
                                    generation: recovery.generation,
                                    action: feedback.verifying ? nil : .init(title: "核对原操作", generation: recovery.generation),
                                    availability: frontmost) { generation, actionGeneration in
@@ -465,7 +465,7 @@ private struct SourceSubscriptionNotices: ViewModifier {
     }
 
     private func notifyUnresolved() {
-        feedback.toast.show(message: "原操作尚无可核对回执。", key: "verify.pending",
+        feedback.toast.show(message: "暂未收到可核对的结果。", key: "verify.pending",
                             feedbackEnabled: frontmost, sceneActive: phase == .active)
     }
 }
